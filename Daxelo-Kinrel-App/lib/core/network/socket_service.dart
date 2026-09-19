@@ -233,8 +233,19 @@ class SocketService {
     _socket?.dispose();
     _socket = null;
     _joinedFamilyRooms.clear();
-    _ref.read(socketStatusProvider.notifier).state =
-        SocketStatus.disconnected;
+    // QA fix 2026-09-19: when the ProviderContainer tears down (widget tree
+    // unmount → socketServiceProvider onDispose → dispose() → disconnect()),
+    // the container is already disposed and ref.read throws
+    // "Tried to read a provider from a ProviderContainer that was already
+    // disposed" — which crashed every widget test whose tree transitively
+    // created this provider (e.g. the temporary-lobby layout tests). There
+    // is nothing to notify at teardown, so swallow the StateError.
+    try {
+      _ref.read(socketStatusProvider.notifier).state =
+          SocketStatus.disconnected;
+    } on StateError {
+      // Container already disposed — nothing to update.
+    }
     debugPrint('[SocketService] Disconnected');
   }
 

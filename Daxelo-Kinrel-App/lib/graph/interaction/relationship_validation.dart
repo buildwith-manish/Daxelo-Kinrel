@@ -271,19 +271,36 @@ RelationshipValidationResult validateRelationship({
         }
       }
       // Case (b): existing inverse child-edge where A is the child.
-      // The inverse edge has from=A, to=B, labelAtoB='child'/'son'/
-      // 'daughter' (the inverse label describing B's role relative
-      // to A). Check labelBtoA for the parent label — but since
-      // the inverse edge's labelBtoA is the forward label (e.g.
-      // 'father'), we check labelBtoA.
+      // The inverse edge has from=X, to=A (=child), labelAtoB='son'/
+      // 'daughter'/'child' — canonically "A is X's child" → X is A's
+      // PARENT. Prefer labelBtoA (the stored parent label); when it is
+      // empty, derive 'parent' from the child-key.
+      //
+      // QA fix 2026-09-19 (TEST 7b): the previous code fell back to ''
+      // when labelBtoA was empty, so a bare inverse child-edge
+      // (from: A, to: B, key: 'son') was NEVER recognized as "B already
+      // has a parent" — adding a father/mother for B was incorrectly
+      // allowed. Derived 'parent' means the gender is unknown, so ANY
+      // new father/mother/parent is treated as a duplicate (the
+      // opposite-gender allowance of TEST 7c only applies when the
+      // existing parent's gender is known).
       if (e.toId == childId) {
-        final inverseLabel = (e.labelBtoA.isNotEmpty
-            ? e.labelBtoA
-            : '').toLowerCase();
-        if (inverseLabel == 'father' || inverseLabel == 'mother' || inverseLabel == 'parent') {
+        final storedInverse = e.labelBtoA.toLowerCase();
+        final bareChildKey = e.relationshipKey.toLowerCase();
+        final isChildKey = bareChildKey == 'son' ||
+            bareChildKey == 'daughter' ||
+            bareChildKey == 'child';
+        final inverseLabel = storedInverse.isNotEmpty
+            ? storedInverse
+            : (isChildKey ? 'parent' : '');
+        if (inverseLabel == 'father' ||
+            inverseLabel == 'mother' ||
+            inverseLabel == 'parent') {
           final sameGender = inverseLabel == key;
           final bothNeutral = key == 'parent' && inverseLabel == 'parent';
-          if (sameGender || bothNeutral) {
+          final unknownGenderParent =
+              inverseLabel == 'parent' && storedInverse.isEmpty;
+          if (sameGender || bothNeutral || unknownGenderParent) {
             return RelationshipValidationResult(
               severity: ValidationSeverity.error,
               message: 'This person already has a $key. Remove the existing '

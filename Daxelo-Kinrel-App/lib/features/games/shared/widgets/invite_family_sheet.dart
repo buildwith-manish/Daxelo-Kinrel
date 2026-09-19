@@ -943,13 +943,19 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                 size: 14,
                 color: selected ? KinrelColors.textWhite : KinrelColors.textDim),
             const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: selected ? KinrelColors.textWhite : KinrelColors.textDim,
+            // QA fix 2026-09-19: the label overflowed by ~30px on narrow
+            // viewports (30-slot lobby test viewport) because the Row's
+            // children were all fixed-size. Ellipsize gracefully instead.
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? KinrelColors.textWhite : KinrelColors.textDim,
+                ),
               ),
             ),
           ],

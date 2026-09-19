@@ -603,10 +603,24 @@ jobs:
           ╚══════════════════════════════════════════════════════════════════╝
           EOF
 
-          # Fail the job if any required job failed
-          if [ "$ANALYZE_RESULT" != "success" ] || [ "$BUILD_RESULT" != "success" ] || \
-             [ "$DEPLOY_RESULT" != "success" ] || [ "$VERIFY_RESULT" != "success" ]; then
+          # Fail the job if any required job failed.
+          # QA fix 2026-09-19: deploy-vercel is intentionally disabled
+          # (if: false — production deploys run via the dedicated "Deploy Web
+          # to Vercel" workflow), so verify-live-url (which needs the deploy
+          # output URL) is skipped by dependency. When BOTH are consistently
+          # skipped, the core criteria (analyze + build + 5-region visual
+          # matrix) still constitute a pass — the old gate required
+          # DEPLOY_RESULT=success, which was structurally impossible.
+          if [ "$ANALYZE_RESULT" != "success" ] || [ "$BUILD_RESULT" != "success" ] || [ "$VISUAL_RESULT" != "success" ]; then
             echo "::error::One or more required jobs failed — see checklist above"
+            exit 1
+          fi
+          if [ "$DEPLOY_RESULT" = "skipped" ] && [ "$VERIFY_RESULT" = "skipped" ]; then
+            echo "ℹ️ deploy-vercel intentionally disabled (if: false) — production deploys"
+            echo "   run via the dedicated 'Deploy Web to Vercel' workflow; live-URL"
+            echo "   verification skipped by design."
+          elif [ "$DEPLOY_RESULT" != "success" ] || [ "$VERIFY_RESULT" != "success" ]; then
+            echo "::error::Deploy / live-URL verification did not pass — see checklist above"
             exit 1
           fi
           echo "✅ All required v6.0 acceptance criteria PASSED"

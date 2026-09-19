@@ -38,11 +38,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install native build toolchain
+        # Required by thermion_dart's native-assets build hook (same setup as
+        # the CI workflow's Flutter Test job — without libc++-19-dev the
+        # hook's -stdlib=libc++ compile fails on 'cstdint' etc.)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build \
+            libc++-19-dev libc++1-19 libc++abi-19-dev libc++abi1-19 libunwind-19
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.44.2'
           cache: true
+
+      - name: Enable Flutter native assets
+        run: flutter config --enable-native-assets
 
       - name: Pub get
         run: flutter pub get

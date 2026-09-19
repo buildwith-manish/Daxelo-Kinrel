@@ -21,13 +21,19 @@ class ChitmatchPlayer {
     List<String>? hand,
     this.selectedChitIndex,
     this.hasWon = false,
-  });
+  }) : hand = hand ?? [];
 
   final String userId;
   final String userName;
   final int turnOrder;
   final String? submittedWord;
-  List<String> hand = []; // exactly 3 chit values (words)
+  // QA fix 2026-09-19: the constructor accepted a `hand` parameter but never
+  // assigned it to the field — every constructed player silently got an
+  // EMPTY hand, so resolveRound crashed with RangeError on `hand[0]` and
+  // the provider's DB-loaded hands (chitmatch_provider.dart:277/386) were
+  // dropped. The field initializer is moved into the constructor
+  // initializer list so the parameter actually lands.
+  List<String> hand; // exactly 3 chit values (words)
   int? selectedChitIndex; // 0/1/2, null = not yet selected
   bool hasWon;
 

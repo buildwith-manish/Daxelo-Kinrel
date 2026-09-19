@@ -64,7 +64,16 @@ class PlayWithSuggestion {
   final DateTime? lastPlayedTogetherAt;
 
   /// True when this is a brand-new pairing (no shared history).
-  bool get isNew => sharedGamesCount == 0 || lastSharedGameId == null;
+  ///
+  /// QA fix 2026-09-19: was `sharedGamesCount == 0 || lastSharedGameId == null`,
+  /// which wrongly classified a pairing with shared games as NEW whenever the
+  /// last-shared game couldn't be derived (e.g. a game table missing from the
+  /// catalog mapping in fromJson). That contradicted this doc ("no shared
+  /// history") and produced "New — say hi with Tic-Tac-Toe" + a NEW badge for
+  /// members the user had already played many games with. A pairing is new
+  /// only when the shared-games count itself is zero; the no-last-game case
+  /// falls through to the "Played N games together" subtext.
+  bool get isNew => sharedGamesCount == 0;
 
   factory PlayWithSuggestion.fromJson(Map<String, dynamic> json) {
     final rawGameTable = json['last_shared_game_id'] as String?;
