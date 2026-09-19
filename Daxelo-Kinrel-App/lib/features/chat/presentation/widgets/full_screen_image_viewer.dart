@@ -19,8 +19,6 @@
 
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/brand_colors.dart';
-import '../../../../core/constants/brand_typography.dart';
 
 class FullScreenImageViewer extends StatefulWidget {
   const FullScreenImageViewer({

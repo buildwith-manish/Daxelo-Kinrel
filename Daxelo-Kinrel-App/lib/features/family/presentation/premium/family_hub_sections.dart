@@ -33,10 +33,9 @@ import '../../../../core/family/family_provider.dart';
 import '../../../shared_list/presentation/shared_list_screen.dart';
 import '../../../games/shared/widgets/active_games_list.dart';
 import '../../../games/shared/widgets/family_leaderboard_widget.dart';
-import '../../../notifications/providers/notifications_provider.dart';
 import '../../../occasions/providers/occasion_reminders_provider.dart';
 import '../../../prediction_battle/prediction_card.dart';
-import '../family_detail_screen.dart' show FamilyDetail, premiumGamesRowBridge, AddPersonSheetBridge;
+import '../family_detail_screen.dart' show premiumGamesRowBridge, AddPersonSheetBridge;
 import 'design_system.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -702,15 +701,17 @@ class _QuickJumpChip extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    this.badgeCount = 0,
-    this.isAccent = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final int badgeCount;
-  final bool isAccent;
+
+  // QA lint fix 2026-09-19: badgeCount / isAccent were optional constructor
+  // parameters that no call site ever passed — converted to defaulted fields
+  // (same effective values: 0 / false).
+  final int badgeCount = 0;
+  final bool isAccent = false;
 
   @override
   Widget build(BuildContext context) {

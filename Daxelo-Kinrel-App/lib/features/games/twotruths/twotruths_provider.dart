@@ -35,7 +35,7 @@ class TtNotifier extends StateNotifier<TtState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final resp = await client.from('twotruths_games').insert({'familyId': familyId, 'hostUserId': myId, 'hostUserName': _myName, 'status': 'waiting', 'mode': mode.name, 'totalRounds': totalRounds, 'roundTimerSeconds': roundTimerSeconds, 'currentRound': 0, 'allGuessesSubmitted': false, 'roundResolved': false}).select().single();
-      final game = TtGame.fromJson(resp as Map<String, dynamic>); _gameId = game.id;
+      final game = TtGame.fromJson(resp); _gameId = game.id;
       await client.from('twotruths_players').insert({'gameId': game.id, 'userId': myId, 'userName': _myName, 'turnOrder': 0, 'totalScore': 0, 'hasGuessed': false});
       state = state.copyWith(game: game, isLoading: false); _subscribeToRealtime(game.id); await _refreshPlayers(game.id);
       return game.id;
@@ -52,7 +52,7 @@ class TtNotifier extends StateNotifier<TtState> {
       if (isRoomRowClosed(gameResp)) { state = state.copyWith(isLoading: false, error: kRoomClosedMessage); return false; }
       final game = TtGame.fromJson(gameResp as Map<String, dynamic>); _gameId = gameId;
       final playersResp = await client.from('twotruths_players').select().eq('gameId', gameId).order('turnOrder', ascending: true);
-      final existing = playersResp.map((p) => TtPlayer.fromJson(p as Map<String, dynamic>)).toList();
+      final existing = playersResp.map((p) => TtPlayer.fromJson(p)).toList();
       if (existing.length >= 12) { state = state.copyWith(isLoading: false, error: 'Game is full'); return false; }
       if (!existing.any((p) => p.userId == myId)) await client.from('twotruths_players').upsert({'gameId': gameId, 'userId': myId, 'userName': _myName, 'turnOrder': existing.length, 'totalScore': 0, 'hasGuessed': false}, onConflict: 'gameId,userId');
       state = state.copyWith(game: game, isLoading: false); _subscribeToRealtime(gameId); await _refreshPlayers(gameId); await _refreshRounds(gameId); _maybeStartHostRoundTimer();
@@ -137,7 +137,7 @@ class TtNotifier extends StateNotifier<TtState> {
       // Fetch all guesses
       final guessesResp = await client.from('twotruths_guesses').select().eq('roundId', round.id);
       final guesses = <String, int>{}; // guesserId → guessedLieIndex
-      for (final g in guessesResp) { final guess = TtGuess.fromJson(g as Map<String, dynamic>); guesses[guess.guesserId] = guess.guessedLieIndex; }
+      for (final g in guessesResp) { final guess = TtGuess.fromJson(g); guesses[guess.guesserId] = guess.guessedLieIndex; }
       // Score
       final guesserIds = state.players.where((p) => p.userId != round.submitterId).map((p) => p.userId).toList();
       final result = scoreRound(guesses: guesses, actualLieIndex: round.lieIndex, guesserIds: guesserIds, submitterId: round.submitterId);
@@ -166,7 +166,7 @@ class TtNotifier extends StateNotifier<TtState> {
     if (game.currentRound >= game.totalRounds) {
       // Game over
       final updatedPlayers = await client.from('twotruths_players').select().eq('gameId', gameId).order('turnOrder', ascending: true);
-      final players = updatedPlayers.map((p) => TtPlayer.fromJson(p as Map<String, dynamic>)).toList();
+      final players = updatedPlayers.map((p) => TtPlayer.fromJson(p)).toList();
       final scores = {for (final p in players) p.userId: p.totalScore};
       final finalResult = computeFinalScores(scores);
       final winnerNames = players.where((p) => finalResult.winnerIds.contains(p.userId)).map((p) => p.userName).toList();
@@ -304,12 +304,12 @@ class TtNotifier extends StateNotifier<TtState> {
 
   Future<void> _refreshPlayers(String gameId) async {
     final client = _client; if (client == null) return;
-    try { final resp = await client.from('twotruths_players').select().eq('gameId', gameId).order('turnOrder', ascending: true); state = state.copyWith(players: resp.map((p) => TtPlayer.fromJson(p as Map<String, dynamic>)).toList()); } catch (e) { debugPrint('[TT] refreshPlayers error: $e'); }
+    try { final resp = await client.from('twotruths_players').select().eq('gameId', gameId).order('turnOrder', ascending: true); state = state.copyWith(players: resp.map((p) => TtPlayer.fromJson(p)).toList()); } catch (e) { debugPrint('[TT] refreshPlayers error: $e'); }
   }
 
   Future<void> _refreshRounds(String gameId) async {
     final client = _client; if (client == null) return;
-    try { final resp = await client.from('twotruths_rounds').select().eq('gameId', gameId).order('roundNumber', ascending: true); state = state.copyWith(rounds: resp.map((r) => TtRound.fromJson(r as Map<String, dynamic>)).toList()); _maybeStartHostRoundTimer(); } catch (e) { debugPrint('[TT] refreshRounds error: $e'); }
+    try { final resp = await client.from('twotruths_rounds').select().eq('gameId', gameId).order('roundNumber', ascending: true); state = state.copyWith(rounds: resp.map((r) => TtRound.fromJson(r)).toList()); _maybeStartHostRoundTimer(); } catch (e) { debugPrint('[TT] refreshRounds error: $e'); }
   }
 
   Future<void> _refreshGuesses(String gameId) async {
@@ -317,7 +317,7 @@ class TtNotifier extends StateNotifier<TtState> {
     try {
       final round = state.currentRound; if (round == null) return;
       final resp = await client.from('twotruths_guesses').select().eq('roundId', round.id);
-      state = state.copyWith(guesses: resp.map((g) => TtGuess.fromJson(g as Map<String, dynamic>)).toList());
+      state = state.copyWith(guesses: resp.map((g) => TtGuess.fromJson(g)).toList());
     } catch (e) { debugPrint('[TT] refreshGuesses error: $e'); }
   }
 

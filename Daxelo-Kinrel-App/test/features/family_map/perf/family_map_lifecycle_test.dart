@@ -326,11 +326,8 @@ void main() {
       // 2. onStyleLoaded fires (or watchdog forces it) → preparingLayers
       c.transition(FamilyMapLifecycle.preparingLayers, attempt: attempt);
       // 3. _advanceToReadyOrEmpty sees 0 pins → empty
-      final hasLocatedMembers = false; // 0 members
-      final nextState = hasLocatedMembers
-          ? FamilyMapLifecycle.ready
-          : FamilyMapLifecycle.empty;
-      c.transition(nextState, attempt: attempt);
+      //    (hasLocatedMembers == false → the screen picks `empty`)
+      c.transition(FamilyMapLifecycle.empty, attempt: attempt);
 
       // INVARIANT: loader is hidden, lifecycle is terminal.
       expect(c.state, FamilyMapLifecycle.empty);
@@ -358,11 +355,8 @@ void main() {
 
       c.transition(FamilyMapLifecycle.loadingStyle, attempt: attempt);
       c.transition(FamilyMapLifecycle.preparingLayers, attempt: attempt);
-      final hasLocatedMembers = true; // 1+ members
-      final nextState = hasLocatedMembers
-          ? FamilyMapLifecycle.ready
-          : FamilyMapLifecycle.empty;
-      c.transition(nextState, attempt: attempt);
+      // hasLocatedMembers == true (1+ members) → the screen picks `ready`
+      c.transition(FamilyMapLifecycle.ready, attempt: attempt);
 
       expect(c.state, FamilyMapLifecycle.ready);
       expect(c.state.isTerminal, isTrue);

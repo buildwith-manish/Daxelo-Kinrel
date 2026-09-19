@@ -10,7 +10,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
-import 'coin_models.dart';
 import 'retention_providers.dart';
 
 class CoinBalanceChip extends ConsumerWidget {

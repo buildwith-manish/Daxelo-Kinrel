@@ -630,7 +630,6 @@ class ChatMessage {
       case MessageType.location:
         return 'location';
       case MessageType.text:
-      default:
         return 'text';
     }
   }
@@ -1957,7 +1956,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
         // The RPC generated its own ID. Replace the optimistic message
         // with one carrying the real ID so realtime de-dup works.
         _pendingOptimisticIds.remove(optimisticId);
-        final withRealId = optimistic.copyWith();
         // copyWith doesn't have an `id` param; just rebuild.
         final replaced = ChatMessage(
           id: realId,

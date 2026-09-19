@@ -1115,7 +1115,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
             .eq('username', updateData['username'])
             .neq('id', userId)
             .limit(1);
-        if (existing != null && existing.isNotEmpty) {
+        if (existing.isNotEmpty) {
           throw Exception('Username "${updateData['username']}" is already taken');
         }
       }

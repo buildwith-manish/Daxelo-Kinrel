@@ -262,8 +262,7 @@ class LiveLocationNotifier extends StateNotifier<LiveLocationState> {
                     .from('MemberLocation')
                     .select('isSharing')
                     .eq('userId', userId)
-                    .maybeSingle()
-                as Map<String, dynamic>?;
+                    .maybeSingle();
         final mySharing = myRow?['isSharing'] as bool? ?? false;
         state = LiveLocationState(
           locations: locations,

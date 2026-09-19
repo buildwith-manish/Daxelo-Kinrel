@@ -7,7 +7,6 @@
 //
 // Run:  flutter test test/graph/perf/filtered_graph_test.dart
 
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/graph/rendering/filtered_graph.dart';
 

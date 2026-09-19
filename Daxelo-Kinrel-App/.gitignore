@@ -71,4 +71,14 @@ download/
 # Kinrel Cameo assets are copied from /kinrel-cameo/ at repo root into
 # assets/kinrel-cameo/ by scripts/setup_cameo_assets.sh and by CI.
 # The canonical source is /kinrel-cameo/ — never edit the copy directly.
-assets/kinrel-cameo/
+#
+# QA fix 2026-09-19: the canonical pack was removed from the repo (ded07f89),
+# so the pubspec-declared directories could never exist in a fresh clone —
+# flutter analyze flagged 16 asset_directory_does_not_exist warnings (fatal
+# under the v5.183 warnings-fatal policy). Keep the directory placeholders
+# (.gitkeep) versioned so the analyzer is satisfied; everything else under
+# assets/kinrel-cameo/ stays ignored and is still populated by the setup
+# script when the canonical pack returns.
+assets/kinrel-cameo/**
+!assets/kinrel-cameo/**/
+!assets/kinrel-cameo/**/*.gitkeep

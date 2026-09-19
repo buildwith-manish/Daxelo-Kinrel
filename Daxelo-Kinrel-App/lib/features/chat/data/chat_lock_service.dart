@@ -22,9 +22,6 @@ import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ChatLockService {
-  ChatLockService(this._ref);
-  final Ref _ref;
-
   static const _prefix = 'chat_lock_';
 
   final LocalAuthentication _auth = LocalAuthentication();
@@ -85,5 +82,5 @@ class ChatLockService {
 }
 
 final chatLockServiceProvider = Provider<ChatLockService>((ref) {
-  return ChatLockService(ref);
+  return ChatLockService();
 });

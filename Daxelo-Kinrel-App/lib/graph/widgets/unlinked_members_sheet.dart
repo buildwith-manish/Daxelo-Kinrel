@@ -160,7 +160,6 @@ class _UnlinkedMembersSheet extends ConsumerWidget {
                   final id = p['id']?.toString() ?? '';
                   final name = p['name']?.toString() ?? 'Unknown';
                   final photoUrl = p['photoUrl']?.toString();
-                  final gender = p['gender']?.toString();
 
                   return ListTile(
                     leading: PersonAvatar(

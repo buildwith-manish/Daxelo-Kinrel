@@ -26,7 +26,6 @@
 // query in 20260817000000_graph_layout_state_edge_waypoints.sql
 // (the migration comment references this test).
 
-import 'package:flutter/material.dart' show Offset;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/graph/rearrange/layout_overrides_service.dart';
 

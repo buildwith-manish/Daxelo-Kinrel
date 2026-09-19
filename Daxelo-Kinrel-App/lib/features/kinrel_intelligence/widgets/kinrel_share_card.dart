@@ -14,7 +14,6 @@
 //   - The capture is exposed via a GlobalKey passed in by the parent
 //     so the parent owns the share-sheet invocation.
 
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';

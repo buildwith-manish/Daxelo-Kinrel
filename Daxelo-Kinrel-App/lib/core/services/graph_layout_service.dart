@@ -19,7 +19,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 
-import '../../graph/interaction/couple_union_model.dart' show CoupleUnion, deriveCoupleUnions;
+import '../../graph/interaction/couple_union_model.dart' show deriveCoupleUnions;
 
 // ═══════════════════════════════════════════════════════════════════════
 // DATA MODELS

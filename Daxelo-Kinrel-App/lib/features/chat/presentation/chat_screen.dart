@@ -25,9 +25,7 @@ import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cross_file/cross_file.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
@@ -44,9 +42,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
-import '../../../core/kinship/kinship_edge_style.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../family/data/relationship_label_provider.dart';
 import '../../../core/utils/web_keyboard_height.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
@@ -56,15 +52,12 @@ import '../providers/chat_provider.dart';
 import '../providers/chat_onboarding_provider.dart';
 import '../providers/chat_socket_engagement_provider.dart';
 import 'chat_onboarding_coach_marks.dart';
-import 'voice_message_player.dart';
 import 'sticker_panel.dart';
 // Phase 22 / Task 3 — @mention picker overlay + highlight renderer.
 import 'widgets/mention_picker.dart';
 // Phase 22 / Task 5 — poll card bubble (reuses the gameInvite card pattern).
-import 'widgets/poll_card.dart';
 // Phase 22 / Task 5 — poll composer bottom sheet.
 import 'widgets/poll_composer_sheet.dart';
-import 'widgets/link_preview_card.dart';
 import 'widgets/forward_picker_sheet.dart';
 import 'widgets/disappearing_messages_sheet.dart';
 import 'widgets/message_info_sheet.dart';
@@ -75,15 +68,10 @@ import 'widgets/empty_chat_state.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/pinned_messages_bar.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
-import '../../profile/presentation/member_profile_sheet.dart';
-import '../../games/shared/icons/game_icons.dart';
-import '../../games/shared/models/game_invite.dart';
 import '../data/chat_wallpaper_provider.dart';
 import '../data/wallpaper_picker.dart';
 import 'widgets/chat_background.dart';
-import 'widgets/chat_background_theme.dart';
 import 'widgets/chat_theme_picker_sheet.dart';
-import 'widgets/full_screen_image_viewer.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Chat Screen
@@ -151,7 +139,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   late final MentionTracker _mentionTracker;
   final LayerLink _inputLayerLink = LayerLink();
   OverlayEntry? _mentionOverlay;
-  String _mentionQuery = '';
   String? _currentUserIdCache;
 
   // Typing indicator animation
@@ -163,7 +150,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   bool _isRecording = false;
   bool _isSendingVoice = false;
   Duration _recordingDuration = Duration.zero;
-  String? _recordingPath;
   Timer? _recordingTimer;
 
   // Phase 14: Sticker panel toggle
@@ -376,7 +362,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       Overlay.of(context).insert(_mentionOverlay!);
     } else {
       // Update the query + members in the existing overlay.
-      _mentionQuery = query;
       _mentionOverlay!.markNeedsBuild();
     }
   }
@@ -384,7 +369,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   void _hideMentionPicker() {
     _mentionOverlay?.remove();
     _mentionOverlay = null;
-    _mentionQuery = '';
   }
 
   void _onMentionSelected(MentionableMember m) {
@@ -1630,7 +1614,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           contentLabel = '[Location shared]';
           break;
         case MessageType.text:
-        default:
           contentLabel = msg.content;
       }
       lines.add('[$timeStr] ${msg.senderName}: $contentLabel');
@@ -1675,7 +1658,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// options (15min / 1h / 8h). Sends an initial location message,
   /// then updates it periodically until the duration expires.
   Timer? _liveLocationTimer;
-  String? _liveLocationMessageId;
 
   Future<void> _shareLiveLocation() async {
     // Show a bottom sheet with duration options
@@ -1870,102 +1852,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         );
       }
     }
-  }
-
-  void _showMembersList() {
-    final chatState = ref.read(chatProvider(widget.familyId));
-    final members = chatState.members;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: KinrelColors.darkCard,
-      isScrollControlled: true,
-      useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.bottomSheet),
-        ),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Family Members',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-              ),
-            ),
-            if (members.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'No members online',
-                  style: TextStyle(color: KinrelColors.textDim),
-                ),
-              )
-            else
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.5,
-                ),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: members.length,
-                  itemBuilder: (ctx, index) {
-                    final m = members[index];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor:
-                            KinrelColors.orange.withValues(alpha: 0.15),
-                        child: Text(
-                          m.initials,
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.displayFont,
-                            fontWeight: FontWeight.w700,
-                            color: KinrelColors.orange,
-                          ),
-                        ),
-                      ),
-                      title: Text(
-                        m.name,
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          color: KinrelColors.textWhite,
-                        ),
-                      ),
-                      trailing: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: m.isOnline
-                              ? KinrelColors.success
-                              : KinrelColors.textDim,
-                        ),
-                      ),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        MemberProfileSheet.show(context, m.id);
-                      },
-                    );
-                  },
-                ),
-              ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
   }
 
   // v132: Opens the curated theme picker sheet. Each theme is a
@@ -3127,7 +3013,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (!mounted) return;
       setState(() {
         _isRecording = true;
-        _recordingPath = path;
         _recordingDuration = Duration.zero;
       });
 
@@ -3169,7 +3054,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       setState(() {
         _isRecording = false;
         _recordingDuration = Duration.zero;
-        _recordingPath = null;
       });
     } catch (e) {
       debugPrint('⚠️ _cancelRecording failed: $e');
@@ -3177,7 +3061,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         setState(() {
           _isRecording = false;
           _recordingDuration = Duration.zero;
-          _recordingPath = null;
         });
       }
     }
@@ -3198,7 +3081,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             _isRecording = false;
             _isSendingVoice = false;
             _recordingDuration = Duration.zero;
-            _recordingPath = null;
           });
         }
         return;
@@ -3231,7 +3113,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         setState(() {
           _isSendingVoice = false;
           _recordingDuration = Duration.zero;
-          _recordingPath = null;
         });
       }
     } catch (e) {
@@ -3241,7 +3122,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           _isRecording = false;
           _isSendingVoice = false;
           _recordingDuration = Duration.zero;
-          _recordingPath = null;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

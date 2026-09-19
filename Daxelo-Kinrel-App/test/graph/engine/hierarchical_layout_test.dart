@@ -11,7 +11,6 @@
 //   - Ancestors are placed above their descendants
 //   - Canvas dimensions are positive for any non-empty input
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/services/graph_layout_service.dart';
 import 'package:kinrel/graph/engine/hierarchical_layout.dart';

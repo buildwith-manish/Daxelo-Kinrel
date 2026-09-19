@@ -93,7 +93,7 @@ class _HomeMarkerOverlayState extends State<HomeMarkerOverlay>
     try {
       final g = Geographic(lon: widget.home.lng, lat: widget.home.lat);
       final screen = controller.toScreenLocation(g);
-      if (screen != null && _position != screen) {
+      if (_position != screen) {
         if (mounted) setState(() => _position = screen);
       }
     } catch (_) {

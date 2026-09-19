@@ -79,16 +79,6 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen>
     }
   }
 
-  /// 1I: Pronounce a kinship term using flutter_tts.
-  Future<void> _speak(String text) async {
-    if (!kEnableAudioPronunciation || _tts == null) return;
-    try {
-      await _tts!.speak(text);
-    } catch (_) {
-      // Never crash on TTS failure
-    }
-  }
-
   @override
   void dispose() {
     _tts?.stop();

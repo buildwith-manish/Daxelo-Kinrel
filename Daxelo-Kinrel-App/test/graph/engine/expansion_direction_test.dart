@@ -5,7 +5,6 @@
 // Verifies that branch expansion always places descendants BELOW their
 // parent — never above, never scattered to unrelated regions.
 
-import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/services/graph_layout_service.dart';
 import 'package:kinrel/graph/engine/radial_layout.dart';

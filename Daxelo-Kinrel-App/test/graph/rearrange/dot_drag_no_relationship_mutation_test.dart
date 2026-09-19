@@ -31,7 +31,6 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kinrel/graph/rearrange/layout_overrides_service.dart';
 
 void main() {
   group('Dot-drag never mutates Relationship rows (TEST 6)', () {
@@ -148,10 +147,4 @@ void main() {
           reason: 'LayoutOverridesService must not INSERT into Relationship');
     });
   });
-
-  // Suppress the unused-warning for LayoutOverridesService import.
-  // It's referenced by name in the audit checks above (compile-time
-  // guarantee that the import resolves).
-  // ignore: unused_element
-  final _serviceType = LayoutOverridesService;
 }

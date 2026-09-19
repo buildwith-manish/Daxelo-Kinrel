@@ -29,7 +29,6 @@ import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/kinship/kinship_edge_style.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
-import 'graph_node.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // EMPTY STATE WIDGET

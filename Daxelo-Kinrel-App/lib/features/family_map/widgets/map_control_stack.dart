@@ -28,7 +28,6 @@
 // Rule 14 — every visual value is sourced from MapVisualConstants.
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:geolocator/geolocator.dart';
@@ -50,8 +49,7 @@ class _ControlButton extends StatefulWidget {
     required this.onPressed,
     this.toggled = false,
     this.toggledColor,
-    this.disabled = false,
-  });
+  }) : disabled = false;
 
   final IconData icon;
   final String label;

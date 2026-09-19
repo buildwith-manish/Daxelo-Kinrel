@@ -101,7 +101,7 @@ class FamilyInviteRepository {
   /// message. The RPC raises P0001 exceptions with human-readable
   /// messages like "You are not a member of this family".
   String _friendlyRpcError(PostgrestException e) {
-    final msg = e.message ?? '';
+    final msg = e.message;
     // P0001 = RAISE EXCEPTION in plpgsql — these are intentional,
     // human-readable validation errors from the function.
     if (e.code == 'P0001' && msg.isNotEmpty) {

@@ -50,19 +50,6 @@ class KinshipService {
   List<String> get supportedLanguages => _data?.supportedLanguages ?? [];
   List<String> get categories => _byCategory.keys.toList()..sort();
 
-  /// Reset the service so it can be reloaded with different data
-  void _reset() {
-    _data = null;
-    _isLoaded = false;
-    _byKey.clear();
-    _byCategory.clear();
-    _byLineage.clear();
-    _byGender.clear();
-    _byGeneration.clear();
-    _searchIndex.clear();
-    _chainMap.clear();
-  }
-
   /// Load kinship data from the bundled kinship_core.json.
   ///
   /// v74: The full 5,363-entry kinship dataset is no longer downloaded

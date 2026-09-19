@@ -16,7 +16,6 @@
 // This replaces the "loading spinner on cold start" problem with instant
 // cache-first rendering, achieving <100ms perceived launch time.
 
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';

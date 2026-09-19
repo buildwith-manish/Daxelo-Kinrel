@@ -842,10 +842,7 @@ Future<void> deletePersonOptimistic({
   if (isDbReady) {
     final db = ref.read(isarProvider);
 
-    // 1a. Snapshot current Drift row for rollback
-    final snapshot = await _snapshotPerson(db, personId);
-
-    // 1b. Immediately delete from local Drift cache
+    // Immediately delete from local Drift cache
     try {
       await db.deletePerson(personId);
     } catch (e) {

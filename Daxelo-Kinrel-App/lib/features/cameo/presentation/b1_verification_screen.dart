@@ -11,7 +11,6 @@
 // NEVER shows raw stack traces, raw exceptions, or debug output to the user.
 // All errors are caught and presented as friendly messages.
 
-import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;

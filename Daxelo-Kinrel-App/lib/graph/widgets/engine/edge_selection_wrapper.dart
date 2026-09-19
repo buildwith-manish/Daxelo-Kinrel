@@ -20,8 +20,6 @@ import 'engine_edge_painter.dart' show EngineEdgePainter;
 import '../../interaction/graph_path_trace_controller.dart' show GraphPathTraceController;
 import '../../rendering/graph_lighting.dart' show GraphLighting;
 import '../../interaction/graph_kinship_path_focus.dart' show graphPathFocusProvider;
-import '../../../core/constants/brand_colors.dart' show KinrelColors;
-import '../../data/graph_data_models.dart' show GraphEdgeData;
 
 class EdgeSelectionWrapper extends ConsumerStatefulWidget {
   const EdgeSelectionWrapper({

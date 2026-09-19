@@ -221,7 +221,7 @@ class SosNotifier extends StateNotifier<SosState> {
           .insert(body)
           .select()
           .single();
-      final game = SosGame.fromJson(resp as Map<String, dynamic>);
+      final game = SosGame.fromJson(resp);
       _gameId = game.id;
 
       // Insert host as first player
@@ -314,7 +314,7 @@ class SosNotifier extends StateNotifier<SosState> {
           .eq('gameId', gameId)
           .order('turnOrder', ascending: true);
       final existingPlayers = playersResp
-          .map((p) => SosPlayer.fromJson(p as Map<String, dynamic>))
+          .map((p) => SosPlayer.fromJson(p))
           .toList();
 
       // Max-players cap — SosMode.maxPlayers limits the roster (host
@@ -499,7 +499,7 @@ class SosNotifier extends StateNotifier<SosState> {
         'sequenced': scored,
         'sequenceCount': sequenceCount,
       }).select().single();
-      final move = SosMove.fromJson(moveResp as Map<String, dynamic>);
+      final move = SosMove.fromJson(moveResp);
 
       // Update player score if scored
       if (scored) {
@@ -598,7 +598,7 @@ class SosNotifier extends StateNotifier<SosState> {
           .eq('gameId', gameId)
           .order('turnOrder', ascending: true);
       final fetched = playersResp
-          .map((p) => SosPlayer.fromJson(p as Map<String, dynamic>))
+          .map((p) => SosPlayer.fromJson(p))
           .toList();
       if (fetched.isNotEmpty) finalPlayers = fetched;
     } catch (e) {
@@ -928,7 +928,7 @@ class SosNotifier extends StateNotifier<SosState> {
         );
         return;
       }
-      final updated = SosGame.fromJson(resp as Map<String, dynamic>);
+      final updated = SosGame.fromJson(resp);
       // Only update if status changed — avoids spurious rebuilds.
       if (updated.status != state.game?.status) {
         state = state.copyWith(game: updated);
@@ -976,7 +976,7 @@ class SosNotifier extends StateNotifier<SosState> {
           .eq('gameId', gameId)
           .order('turnOrder', ascending: true);
       final players = resp
-          .map((p) => SosPlayer.fromJson(p as Map<String, dynamic>))
+          .map((p) => SosPlayer.fromJson(p))
           .toList();
       // Update my team if I'm in the player list
       final myId = _myId;
@@ -1001,7 +1001,7 @@ class SosNotifier extends StateNotifier<SosState> {
           .eq('gameId', gameId)
           .order('playedAt', ascending: true);
       final moves = resp
-          .map((m) => SosMove.fromJson(m as Map<String, dynamic>))
+          .map((m) => SosMove.fromJson(m))
           .toList();
       state = state.copyWith(moves: moves);
       _recomputeSequences();

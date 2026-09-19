@@ -31,21 +31,15 @@ void main() {
       const flickerValue = -1.0;
       final bool reduced = flickerValue < 0;
       expect(reduced, isTrue);
-      const bool recentlyDeceased = false;
-      final alpha = reduced
-          ? (recentlyDeceased ? 0.85 : 0.75)
-          : 0.6 + 0.3 * flickerValue;
+      final alpha = reduced ? 0.75 : 0.6 + 0.3 * flickerValue;
       expect(alpha, equals(0.75));
     });
 
     test('reduced-motion sentinel for recently deceased produces 0.85 alpha',
         () {
       const flickerValue = -1.0;
-      const bool recentlyDeceased = true;
       final bool reduced = flickerValue < 0;
-      final alpha = reduced
-          ? (recentlyDeceased ? 0.85 : 0.75)
-          : 0.6 + 0.3 * flickerValue;
+      final alpha = reduced ? 0.85 : 0.6 + 0.3 * flickerValue;
       expect(alpha, equals(0.85));
     });
 
@@ -132,16 +126,14 @@ void main() {
     test('deceased opacity is 0.6 (not 0.4 as before P3.4)', () {
       // Per spec P3.4 step 3: "Render at 0.6 opacity (instead of 0.4 —
       // slightly more visible to acknowledge the candle)."
-      const bool isDeceased = true;
       const double baseOpacity = 1.0;
-      final effective = isDeceased ? 0.6 * baseOpacity : baseOpacity;
+      final effective = 0.6 * baseOpacity;
       expect(effective, equals(0.6));
     });
 
     test('non-deceased opacity is 1.0', () {
-      const bool isDeceased = false;
       const double baseOpacity = 1.0;
-      final effective = isDeceased ? 0.6 * baseOpacity : baseOpacity;
+      final effective = baseOpacity;
       expect(effective, equals(1.0));
     });
   });
@@ -172,7 +164,7 @@ void main() {
 
       const bool notDeceased = false;
       final showLightACandle2 = notDeceased;
-      final showViewMemorial2 = notDeceased && familyIdNotNull;
+      final showViewMemorial2 = notDeceased;
       expect(showLightACandle2, isFalse);
       expect(showViewMemorial2, isFalse);
     });

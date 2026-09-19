@@ -17,7 +17,7 @@
 // so we can assert "labels were drawn" without parsing the actual
 // text glyphs.
 
-import 'dart:ui' show Canvas, Offset, Paint, Path, Paragraph, Rect, RRect, Size;
+import 'dart:ui' show Canvas, Offset, Paint, Path, Paragraph, RRect, Size;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/kinship/kinship_edge_style.dart';

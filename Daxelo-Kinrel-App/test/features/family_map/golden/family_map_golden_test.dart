@@ -19,9 +19,7 @@ import 'package:kinrel/features/family_map/widgets/avatar_marker_overlay.dart';
 import 'package:kinrel/features/family_map/widgets/household_cluster_marker.dart';
 import 'package:kinrel/features/family_map/widgets/map_polish_overlay.dart';
 import 'package:kinrel/features/family_map/widgets/map_skeleton.dart';
-import 'package:kinrel/features/family_map/widgets/map_timeline_scrubber.dart';
 import 'package:kinrel/features/family_map/providers/family_map_provider.dart';
-import 'package:kinrel/features/family_map/providers/live_location_provider.dart';
 
 void main() {
   group('P11.8 — Family Map Golden Tests', () {

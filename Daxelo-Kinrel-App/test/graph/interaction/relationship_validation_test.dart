@@ -36,16 +36,6 @@ void main() {
 
     test('TEST 3: parent cycle rejected (ERROR)', () {
       // A is ancestor of B. Adding B as A's father would create a cycle.
-      final ancestorMap = <String, Set<String>>{
-        'B': {'A'}, // B's ancestor is A
-      };
-      final result = validateRelationship(
-        fromPersonId: 'B',
-        toPersonId: 'A',
-        relationshipKey: 'father', // B IS father OF A → B is parent of A
-        existingEdges: const [],
-        ancestorMap: ancestorMap,
-      );
       // B→A father means B is A's parent. But A is B's ancestor.
       // So A would be a descendant of B AND B is A's parent → cycle.
       // Wait — the validation checks: is fromPersonId (B) a descendant
@@ -374,13 +364,14 @@ void main() {
       //   ...
       //   on RelationshipValidationException catch (_) { rethrow; }
       // This type check ALWAYS works regardless of the message wording.
-      const exc = RelationshipValidationException(
+      const Object exc = RelationshipValidationException(
         'A person cannot have a relationship with themselves.',
         'self_relationship',
       );
 
-      // Simulate the catch block's type check.
-      bool wouldRethrow = exc is RelationshipValidationException;
+      // Simulate the catch block's type check (catch sees the exception
+      // as Object, exactly like a real `on ... catch` clause would).
+      final bool wouldRethrow = exc is RelationshipValidationException;
       expect(wouldRethrow, isTrue,
           reason: 'THE BUG-3 TEST: a typed catch MUST catch the exception. '
               'Before the fix, the string-match catch could never fire '
@@ -418,12 +409,13 @@ void main() {
         );
         expect(result.isError, isTrue, reason: 'Code $expectedCode should be an error');
 
-        // Simulate the throw + typed catch.
+        // Simulate the throw + typed catch (catch sees Object).
         final exc = RelationshipValidationException(
           result.message,
           result.code ?? 'unknown',
         );
-        expect(exc is RelationshipValidationException, isTrue);
+        final Object excAsObject = exc;
+        expect(excAsObject is RelationshipValidationException, isTrue);
         expect(exc.code, expectedCode);
       }
     });

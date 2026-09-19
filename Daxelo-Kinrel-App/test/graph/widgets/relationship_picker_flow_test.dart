@@ -8,7 +8,6 @@
 // 2. Two unlinked people can be linked directly to each other.
 // 3. The picker offers ALL other persons (including other unlinked ones).
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/graph/widgets/graph_relationship_labels.dart';
 import 'package:kinrel/graph/widgets/relationship_picker_flow.dart';

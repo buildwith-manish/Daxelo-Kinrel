@@ -9,7 +9,6 @@ class ChatSyncEngine extends AbstractSyncEngine {
   @override
   String get engineName => 'chat';
 
-  @override
   String get displayName => 'Chat';
 
   bool _isSyncing = false;

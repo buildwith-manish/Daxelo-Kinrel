@@ -258,7 +258,7 @@ class ChatEnhancementService {
           .eq('familyId', familyId)
           .maybeSingle();
 
-      return response as Map<String, dynamic>?;
+      return response;
     } catch (e) {
       return null;
     }

@@ -329,7 +329,6 @@ class EdgeRouter {
 
     // Track child count per parent for horizontal offset
     final parentChildCount = <String, int>{};
-    final parentChildIndex = <String, int>{};
 
     // Pre-compute child offsets for parent→child edges
     for (final r in relationships) {
@@ -890,7 +889,6 @@ class EdgeRouter {
     final end = Offset(posB.dx, posB.dy + halfNode * 0.5);
 
     // Route below the nodes
-    final midX = (start.dx + end.dx) / 2;
     final belowY = max(start.dy, end.dy) + 60.0;
 
     final path = Path();

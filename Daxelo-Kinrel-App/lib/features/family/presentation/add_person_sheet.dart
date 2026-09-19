@@ -18,7 +18,6 @@ import '../../../core/widgets/person_avatar.dart'; // v5.15
 import '../../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider; // v5.13
 // v5.41: Graph pending invitations provider (for fromGraph routing).
 import 'providers/graph_pending_invitations_provider.dart';
-import 'dart:typed_data';
 
 import 'package:image_picker/image_picker.dart' show XFile;
 
@@ -141,10 +140,6 @@ class AddPersonSheet extends ConsumerStatefulWidget {
 
 class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     with TickerProviderStateMixin {
-  // ── Step tracking ──────────────────────────────────────────────
-  int _currentStep = 0;
-  static const int _kStepCount = 4; // 0-3
-
   // ── Controllers ────────────────────────────────────────────────
   final _nameController = TextEditingController();
   final _nicknameController = TextEditingController();
@@ -220,10 +215,6 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   final _editFormKey = GlobalKey<FormState>();
   DateTime? _selectedDob;
   DateTime? _selectedAnniversary;
-  DateTime? _selectedDeathDate;
-  bool _locationExpanded = false;
-  bool _contactExpanded = false;
-  bool _personalExpanded = false;
   bool _showSuccess = false;
   // v5.41: Custom success message for the graph-invitation flow
   // (overrides the default "Welcome to the family!" message).
@@ -258,15 +249,6 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     return anchor;
   }
 
-  /// Whether the family members provider is still loading.
-  /// Used to prevent the user from skipping Step 1 while we
-  /// don't yet know if there are existing members.
-  bool get _isFamilyMembersLoading {
-    if (_isEditMode) return false;
-    final membersAsync = ref.read(familyMembersProvider(widget.familyId));
-    return membersAsync.isLoading;
-  }
-
   /// Whether the family has existing members (definitively).
   /// Returns false only when we are certain there are no members.
   /// Returns true if members exist OR if we're still loading OR if the
@@ -288,51 +270,6 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     if (membersAsync.isLoading) return true;
     final existingMembers = membersAsync.valueOrNull;
     return existingMembers != null && existingMembers.isNotEmpty;
-  }
-
-  /// v5.197 (ROLE-GATE): Returns true if the current user is the
-  /// family CREATOR (Family.createdBy == currentUserId) OR holds an
-  /// admin/owner role on the family's FamilyMember row. This gates
-  /// the editable "Related to" anchor picker — regular members never
-  /// see it (their additions are always anchored to themselves).
-  ///
-  /// Conservative while loading: returns false during the brief
-  /// loading window before memberships/family data arrives. This
-  /// means a regular member may see the picker NOT render for one
-  /// frame before the data resolves — but they will NEVER see the
-  /// picker render then disappear (which would be the flashing bug
-  /// the loading-state fix in v5.197 is designed to prevent). Admins/
-  /// creators, on the other hand, will see the picker appear after
-  /// the data loads, which is the expected behavior.
-  ///
-  /// Pattern follows the canonical admin/creator check from
-  /// family_detail_screen.dart (lines 411-422):
-  ///   - isCreator = family.createdBy != null && family.createdBy == currentUserId
-  ///   - isAdmin = currentUserMembership?.isAdmin == true (role == 'admin' || 'owner')
-  ///   - return isCreator || isAdmin
-  bool get _isCurrentUserAdminOrCreator {
-    final currentUserId =
-        ref.read(supabaseProvider)?.auth.currentUser?.id;
-    if (currentUserId == null) return false;
-
-    // Check 1: Family.createdBy == currentUserId (creator).
-    final familyAsync = ref.read(familyDetailProvider(widget.familyId));
-    final family = familyAsync.valueOrNull?.family;
-    if (family != null &&
-        family.createdBy != null &&
-        family.createdBy == currentUserId) {
-      return true;
-    }
-
-    // Check 2: FamilyMember role is 'admin' or 'owner'.
-    final membershipsAsync =
-        ref.read(familyMembershipsProvider(widget.familyId));
-    final memberships = membershipsAsync.valueOrNull;
-    if (memberships == null) return false; // Still loading or error.
-    final currentUserMembership = memberships
-        .where((m) => m.userId == currentUserId)
-        .firstOrNull;
-    return currentUserMembership?.isAdmin ?? false;
   }
 
   @override
@@ -391,10 +328,6 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         if (user.gender != null && user.gender!.isNotEmpty) {
           _selectedGender = user.gender!;
         }
-        // Skip Step 0 (Basic Info) — jump directly to Step 1 (Relationship)
-        // because the person already exists on Kinrel.
-        _currentStep = 1;
-
         // v5.42: Duplicate-member guard. Schedule a post-frame check
         // to see if this Kinrel user is already a member of this family.
         // If so, show an error dialog and pop the sheet — the user
@@ -560,56 +493,6 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     super.dispose();
   }
 
-  // ── Navigation ─────────────────────────────────────────────────
-
-  bool _canProceed() {
-    switch (_currentStep) {
-      case 0:
-        return nameValidator(_nameController.text) == null;
-      case 1:
-        // v5.42: The relationship requirement depends on the origin:
-        //
-        //   • Graph origin (fromGraph == true): A relationship IS
-        //     required — the new member must be connected to the graph
-        //     immediately (linked node). The user cannot proceed to
-        //     Step 2 without selecting a relationship type.
-        //
-        //   • Family Space origin (fromGraph == false): A relationship
-        //     is NOT required. The user can skip Step 1's relationship
-        //     picker entirely and the Person will be created as an
-        //     UNLINKED node. They can assign a relationship later via
-        //     the unlinked-members sheet.
-        //
-        // This matches the new spec:
-        //   "Member Added From Family Graph + kinship selected → linked node"
-        //   "Member Added From Family Space → unlinked member"
-        if (_familyHasExistingMembers && widget.fromGraph) {
-          return _effectiveRelationshipKey != null;
-        }
-        // Family Space origin OR family has no existing members:
-        // relationship is optional, user can always proceed.
-        return true;
-      case 2:
-        return true; // Additional details are optional
-      case 3:
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  void _nextStep() {
-    if (_currentStep < _kStepCount - 1 && _canProceed()) {
-      setState(() => _currentStep++);
-    }
-  }
-
-  void _prevStep() {
-    if (_currentStep > 0) {
-      setState(() => _currentStep--);
-    }
-  }
-
   // ── Date picking ───────────────────────────────────────────────
 
   Future<void> _pickDate() async {
@@ -666,31 +549,6 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         _anniversaryController.text =
             picked.toIso8601String().split('T').first;
       });
-    }
-  }
-
-  Future<void> _pickDeathDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDeathDate ?? now,
-      firstDate: DateTime(1900),
-      lastDate: now,
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(
-              primary: KinrelColors.orange,
-              surface: KinrelColors.darkElevated,
-              onSurface: KinrelColors.textWhite,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null) {
-      setState(() => _selectedDeathDate = picked);
     }
   }
 
@@ -1180,7 +1038,6 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     if (shouldInvite == true && mounted) {
       // Get the inviter's name + family name for the personalized message
       final client = ref.read(supabaseProvider);
-      final myId = client?.auth.currentUser?.id ?? '';
       final myName = (client?.auth.currentUser?.userMetadata?['name'] as String?) ??
           client?.auth.currentUser?.email ??
           'A family member';
@@ -1706,7 +1563,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         // table) because the duplicate is defined by the COMBINATION of
         // person name + relationship label, not just the name alone.
         if (willCreateRelationship && !isFirstMember) {
-          final dupCheck = await _checkDuplicateMember(preComputedRelKey!);
+          final dupCheck = await _checkDuplicateMember(preComputedRelKey);
           if (dupCheck != null) {
             // Duplicate found — abort the submit entirely.
             // No Person row, no Relationship row, no graph update.
@@ -1763,8 +1620,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         // lets the linked user log in and see this family from their
         // own perspective (viewer-perspective graph).
         if (widget.source == AddMemberSource.findOnKinrel &&
-            widget.preselectedKinrelUser != null &&
-            result != null) {
+            widget.preselectedKinrelUser != null) {
           try {
             final client = ref.read(supabaseProvider);
             if (client != null) {
@@ -1798,7 +1654,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         // New approach: query the anchor person DIRECTLY from Supabase.
         // This is 100% reliable — no provider timing issues.
         // ═══════════════════════════════════════════════════════════════
-        if (kEnablePhotoPicker && _pickedPhoto != null && result != null) {
+        if (kEnablePhotoPicker && _pickedPhoto != null) {
           await _uploadPickedPhoto(result.id);
         }
 
@@ -1816,7 +1672,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         // was created successfully, ALWAYS create the relationship edge.
         // The `fromGraph` flag only controls the invitation routing
         // (Find on Kinrel / From Contacts) above — not this block.
-        if (relKey != null && !_isEditMode && result != null) {
+        if (relKey != null && !_isEditMode) {
           // v94: Capture the non-null result in a local variable so
           // dart2js doesn't lose null-promotion across the await
           // boundaries below. Without this, `result.id` triggers
@@ -1943,7 +1799,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 final edgeInput = buildCanonicalRelationshipEdge(
                   referencePersonId: linkToPersonId,
                   describedPersonId: resultId,
-                  pickedRelationshipKey: relKey!,
+                  pickedRelationshipKey: relKey,
                   referencePersonGender: widget.anchorPerson?.gender ?? _selectedTargetPerson?.gender,
                   describedPersonGender: _selectedGender,
                 );
@@ -2270,7 +2126,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       if (undoState.canUndo && !_isEditMode && result != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Welcome to the family, ${result!.name}!'),
+            content: Text('Welcome to the family, ${result.name}!'),
             duration: const Duration(seconds: 5),
             action: SnackBarAction(
               label: 'UNDO',
@@ -3191,49 +3047,6 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     );
   }
 
-  String get _stepTitle {
-    switch (_currentStep) {
-      case 0:
-        return 'Add Family Member';
-      case 1:
-        return 'Relationship';
-      case 2:
-        return 'More Details';
-      case 3:
-        return 'Confirm';
-      default:
-        return 'Add Family Member';
-    }
-  }
-
-  // ── Step indicators ────────────────────────────────────────────
-
-  Widget _buildStepIndicators() {
-    return Row(
-      children: List.generate(_kStepCount, (i) {
-        final isActive = i == _currentStep;
-        final isCompleted = i < _currentStep;
-        return Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(right: i < _kStepCount - 1 ? 6 : 0),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              height: 3,
-              decoration: BoxDecoration(
-                color: isCompleted
-                    ? KinrelColors.orange
-                    : isActive
-                    ? KinrelColors.orange.withValues(alpha: 0.6)
-                    : KinrelColors.textDim.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-        );
-      }),
-    );
-  }
-
   // ── Edit mode content ──────────────────────────────────────────
 
   Widget _buildEditModeContent() {
@@ -3315,156 +3128,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     );
   }
 
-  // ── Step content ───────────────────────────────────────────────
-
-  Widget _buildStepContent() {
-    if (_showSuccess) return _buildSuccessView();
-
-    switch (_currentStep) {
-      case 0:
-        return _buildStep0BasicInfo();
-      case 1:
-        return _buildStep1Relationship();
-      case 2:
-        return _buildStep2AdditionalDetails();
-      case 3:
-        return _buildStep3Confirmation();
-      default:
-        return const SizedBox.shrink();
-    }
-  }
-
-  // ── STEP 0: Basic Info ─────────────────────────────────────────
-
-  Widget _buildStep0BasicInfo() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Photo picker (gated by kEnablePhotoPicker)
-          if (kEnablePhotoPicker) ...[
-            Center(child: _buildPhotoPicker()),
-            SizedBox(height: 24),
-          ],
-
-          // Full name (large, prominent)
-          _SectionLabel('Full Name *'),
-          SizedBox(height: 6),
-          _buildTextField(
-            controller: _nameController,
-            hint: 'Enter full name',
-            isLarge: true,
-            keyboardType: TextInputType.name,
-            textInputAction: TextInputAction.next,
-            textCapitalization: TextCapitalization.words,
-            validator: (v) => nameValidator(v),
-          ),
-          SizedBox(height: 16),
-
-          // Nickname
-          _SectionLabel('Nickname'),
-          SizedBox(height: 6),
-          _buildTextField(
-            controller: _nicknameController,
-            hint: 'Optional nickname',
-          ),
-          SizedBox(height: 20),
-
-          // Gender
-          _SectionLabel('Gender'),
-          SizedBox(height: 8),
-          _buildGenderCards(),
-          SizedBox(height: 20),
-
-          // Date of Birth
-          _SectionLabel('Date of Birth'),
-          SizedBox(height: 6),
-          _buildDateField(),
-        ],
-      ),
-    );
-  }
-
   /// Locally-picked avatar; uploaded on submit when kEnablePhotoPicker is on.
   XFile? _pickedPhoto;
-
-  Widget _buildPhotoPicker() {
-    return GestureDetector(
-      onTap: () async {
-        HapticFeedback.lightImpact();
-        if (!kEnablePhotoPicker) {
-          context.showSnackBar('Photo picker coming soon');
-          return;
-        }
-        final picked = await PhotoPickerService.pickWithSheet(context);
-        if (picked != null && mounted) {
-          setState(() => _pickedPhoto = picked);
-        }
-      },
-      child: Container(
-        width: 96,
-        height: 96,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: KinrelGradients.igniteGradient,
-        ),
-        child: Container(
-          margin: EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: KinrelColors.darkElevated,
-          ),
-          child: ClipOval(child: _buildPhotoPickerInner()),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPhotoPickerInner() {
-    if (kEnablePhotoPicker && _pickedPhoto != null) {
-      return FutureBuilder<Uint8List>(
-        future: _pickedPhoto!.readAsBytes(),
-        builder: (context, snap) {
-          if (snap.hasData) {
-            return Image.memory(
-              snap.data!,
-              width: 96,
-              height: 96,
-              fit: BoxFit.cover,
-            );
-          }
-          return const Center(
-            child: SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          );
-        },
-      );
-    }
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.camera_alt_outlined,
-            color: KinrelColors.textSilver,
-            size: 24,
-          ),
-          SizedBox(height: 2),
-          Text(
-            'Add Photo',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 10,
-              color: KinrelColors.textDim,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   /// Uploads the locally-picked avatar (if any) and writes its URL onto the
   /// Person row. Uses a direct Supabase update — same pattern as relationship
@@ -3614,7 +3279,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    hasSelection ? target!.name : 'Select a family member…',
+                    hasSelection ? target.name : 'Select a family member…',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
@@ -3624,7 +3289,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                           : KinrelColors.textDim,
                     ),
                   ),
-                  if (hasSelection && target!.isAnchor)
+                  if (hasSelection && target.isAnchor)
                     Text(
                       'Family anchor',
                       style: TextStyle(
@@ -3897,818 +3562,6 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     }
   }
 
-  Widget _buildStep1Relationship() {
-    final anchor = _effectiveAnchorPerson;
-    final newName = _nameController.text.trim().isNotEmpty
-        ? _nameController.text.trim()
-        : 'New Member';
-
-    // v5.13: Determine if the "Related to" picker should be shown.
-    // Show it when NO anchorPerson was explicitly passed (generic Add flow).
-    // When anchorPerson IS passed (node context menu), show a read-only label.
-    //
-    // v5.197 (ROLE-GATE): The editable "Related to *" picker is now
-    // restricted to family ADMINS and CREATORS only. Regular members
-    // never see the picker — their additions are always anchored to
-    // their own account ("Me"), which is auto-selected via the
-    // _autoSelectViewerAsTarget() initState hook. This prevents a
-    // regular member from creating relationships between two OTHER
-    // accounts (which they would not have permission to do anyway
-    // per the relationship_permissions.dart check, but the previous
-    // flow showed the picker first and then failed at commit time —
-    // a confusing UX). Admins/creators see the full picker and can
-    // anchor a relationship between any two existing accounts. When
-    // an admin uses this to add/link a relationship where the target
-    // is a real registered Kinrel account, the existing pending-
-    // invite flow still applies (per the v5.194 invite logic).
-    final bool isAdminOrCreator = _isCurrentUserAdminOrCreator;
-    final bool showTargetPicker =
-        widget.anchorPerson == null && !_isEditMode && isAdminOrCreator;
-    final bool familyHasMembers = _familyHasExistingMembers;
-
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // v5.13: "Related to" person picker — lets the user choose WHICH
-          // existing member the new person relates to.
-          if (familyHasMembers && showTargetPicker) ...[
-            _SectionLabel('Related to *'),
-            SizedBox(height: 8),
-            _buildTargetPersonPicker(),
-            SizedBox(height: 20),
-          ] else if (widget.anchorPerson != null) ...[
-            // Non-editable confirmation label when target was passed from context
-            _SectionLabel('Related to'),
-            SizedBox(height: 8),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: KinrelColors.darkCard,
-                borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-                border: Border.all(
-                  color: KinrelColors.orange.withValues(alpha: 0.2),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.person, color: KinrelColors.orange, size: 20),
-                  SizedBox(width: 10),
-                  Text(
-                    widget.anchorPerson!.name,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: KinrelColors.textWhite,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 20),
-          ],
-
-          // Question
-          if (anchor != null) ...[
-            Text(
-              'How is $newName related to ${anchor.name}?',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 16,
-                color: KinrelColors.textSilver,
-                height: 1.5,
-              ),
-            ),
-            SizedBox(height: 20),
-
-            // Two portrait cards
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _PortraitCard(
-                  name: anchor.name,
-                  gender: anchor.gender,
-                  label: 'Existing',
-                ),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.swap_horiz,
-                        color: KinrelColors.orange,
-                        size: 28,
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        _selectedRelType?.toUpperCase() ?? '?',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.monoFont,
-                          fontSize: 9,
-                          color: KinrelColors.orange,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _PortraitCard(
-                  name: newName,
-                  gender: _selectedGender,
-                  label: 'New',
-                  isNew: true,
-                ),
-              ],
-            ),
-            SizedBox(height: 28),
-          ] else if (!familyHasMembers) ...[
-            Text(
-              'This is the first member of the family. No relationship needed yet.',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 16,
-                color: KinrelColors.textSilver,
-              ),
-            ),
-            SizedBox(height: 20),
-          ] else ...[
-            // v5.40: familyHasMembers == true && anchor == null.
-            // The user opened Add Member from a generic entry point
-            // (no anchorPerson passed) and hasn't yet picked a target
-            // from the "Related to" picker above. Show a placeholder
-            // question + hint so they understand the relationship
-            // cards below will relate the new person to whoever they
-            // pick as the target (or to the family anchor if they
-            // skip the picker).
-            Text(
-              'How is $newName related to a family member?',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 16,
-                color: KinrelColors.textSilver,
-                height: 1.5,
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Tip: pick "Related to" above to choose a specific person, '
-              'or skip to use the family anchor.',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 12,
-                color: KinrelColors.textDim,
-                height: 1.4,
-              ),
-            ),
-            SizedBox(height: 20),
-          ],
-
-          // Relationship type cards
-          _SectionLabel('Relationship Type'),
-          SizedBox(height: 10),
-          _buildRelationshipTypeCards(),
-          SizedBox(height: 16),
-
-          // Sub-type for siblings
-          if (_selectedRelType == 'sibling') ...[
-            SizedBox(height: 8),
-            _SectionLabel('Elder or Younger?'),
-            SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: _SelectableCard(
-                    label: 'Elder',
-                    subtitle: 'Older sibling',
-                    icon: Icons.arrow_upward,
-                    selected: _selectedSubType == 'elder',
-                    onTap: () => setState(() => _selectedSubType = 'elder'),
-                  ),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: _SelectableCard(
-                    label: 'Younger',
-                    subtitle: 'Younger sibling',
-                    icon: Icons.arrow_downward,
-                    selected: _selectedSubType == 'younger',
-                    onTap: () => setState(() => _selectedSubType = 'younger'),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-          ],
-
-          // Detailed relationship picker
-          SizedBox(height: 8),
-          _SectionLabel('Or pick a specific kinship term'),
-          SizedBox(height: 8),
-          GestureDetector(
-            onTap: _pickDetailedRelationship,
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              decoration: BoxDecoration(
-                color: KinrelColors.darkCard,
-                borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-                border: Border.all(
-                  color: KinrelColors.textDim.withValues(alpha: 0.15),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.search, color: KinrelColors.orange, size: 20),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _selectedRelationshipLabel ?? 'Search all kinship terms…',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 14,
-                        color: _selectedRelationshipLabel != null
-                            ? KinrelColors.textWhite
-                            : KinrelColors.textDim,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    Icons.chevron_right,
-                    color: KinrelColors.textDim,
-                    size: 18,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // v80: Add Your Own Kinship
-          SizedBox(height: 8),
-          _SectionLabel('Or create your own'),
-          SizedBox(height: 8),
-          GestureDetector(
-            onTap: _showCustomKinshipDialog,
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              decoration: BoxDecoration(
-                color: KinrelColors.darkCard,
-                borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-                border: Border.all(
-                  color: _customKinshipName != null
-                      ? KinrelColors.orange.withValues(alpha: 0.4)
-                      : KinrelColors.textDim.withValues(alpha: 0.15),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.palette_outlined, color: KinrelColors.purple, size: 20),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _customKinshipName ?? 'Add Your Own Kinship',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 14,
-                        color: _customKinshipName != null
-                            ? KinrelColors.textWhite
-                            : KinrelColors.textDim,
-                      ),
-                    ),
-                  ),
-                  if (_customKinshipName != null) ...[
-                    Container(
-                      width: 16, height: 16,
-                      decoration: BoxDecoration(
-                        color: Color(_customNodeColorValue),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                      ),
-                    ),
-                    SizedBox(width: 4),
-                    Container(
-                      width: 16, height: 16,
-                      decoration: BoxDecoration(
-                        color: Color(_customLineColorValue),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                  ],
-                  Icon(Icons.chevron_right, color: KinrelColors.textDim, size: 18),
-                ],
-              ),
-            ),
-          ),
-
-          // Visual preview
-          if (_relationshipPreview.isNotEmpty) ...[
-            SizedBox(height: 24),
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: KinrelColors.orange.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-                border: Border.all(
-                  color: KinrelColors.orange.withValues(alpha: 0.2),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.visibility_outlined,
-                    color: KinrelColors.orange,
-                    size: 18,
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _relationshipPreview,
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 14,
-                        color: KinrelColors.textWhite,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          // Mandatory hint when no relationship selected but family has existing members
-          // v5.42: Only show the "required" hint for graph origin. For Family Space
-          // origin, show a softer "optional" hint instead.
-          if (_familyHasExistingMembers && _effectiveRelationshipKey == null) ...[
-            SizedBox(height: 16),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: (widget.fromGraph ? KinrelColors.orange : KinrelColors.tealAccent)
-                    .withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
-                border: Border.all(
-                  color: (widget.fromGraph ? KinrelColors.orange : KinrelColors.tealAccent)
-                      .withValues(alpha: 0.15),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    widget.fromGraph ? Icons.info_outline : Icons.link_off,
-                    size: 16,
-                    color: widget.fromGraph
-                        ? KinrelColors.orange
-                        : KinrelColors.tealAccent,
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      widget.fromGraph
-                          ? 'Please select how they are related to proceed'
-                          : 'Optional: pick a relationship now, or skip and '
-                            'link them later from the graph\'s "Link" button.',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 13,
-                        color: widget.fromGraph
-                            ? KinrelColors.orange
-                            : KinrelColors.tealAccent,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRelationshipTypeCards() {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _SelectableCard(
-                label: 'Parent',
-                subtitle: 'Father / Mother',
-                icon: Icons.family_restroom,
-                selected: _selectedRelType == 'parent',
-                onTap: () => setState(() {
-                  _selectedRelType = 'parent';
-                  _selectedSubType = null;
-                  _selectedRelationshipKey = null;
-                  _selectedRelationshipLabel = null;
-                }),
-              ),
-            ),
-            SizedBox(width: 10),
-            Expanded(
-              child: _SelectableCard(
-                label: 'Child',
-                subtitle: 'Son / Daughter',
-                icon: Icons.child_care,
-                selected: _selectedRelType == 'child',
-                onTap: () => setState(() {
-                  _selectedRelType = 'child';
-                  _selectedSubType = null;
-                  _selectedRelationshipKey = null;
-                  _selectedRelationshipLabel = null;
-                }),
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _SelectableCard(
-                label: 'Spouse',
-                subtitle: 'Husband / Wife',
-                icon: Icons.favorite,
-                selected: _selectedRelType == 'spouse',
-                onTap: () => setState(() {
-                  _selectedRelType = 'spouse';
-                  _selectedSubType = null;
-                  _selectedRelationshipKey = null;
-                  _selectedRelationshipLabel = null;
-                }),
-              ),
-            ),
-            SizedBox(width: 10),
-            Expanded(
-              child: _SelectableCard(
-                label: 'Sibling',
-                subtitle: 'Brother / Sister',
-                icon: Icons.people,
-                selected: _selectedRelType == 'sibling',
-                onTap: () => setState(() {
-                  _selectedRelType = 'sibling';
-                  _selectedSubType = null;
-                  _selectedRelationshipKey = null;
-                  _selectedRelationshipLabel = null;
-                }),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  // ── STEP 2: Additional Details ─────────────────────────────────
-
-  Widget _buildStep2AdditionalDetails() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Collapsible sections
-          _buildCollapsibleSection(
-            title: 'Location Details',
-            icon: Icons.location_on_outlined,
-            isExpanded: _locationExpanded,
-            onExpansionChanged: (v) => setState(() => _locationExpanded = v),
-            children: [
-              _SectionLabel('Birth Place'),
-              SizedBox(height: 6),
-              _buildTextField(
-                controller: _birthPlaceController,
-                hint: 'Birth place',
-              ),
-              SizedBox(height: 14),
-              _SectionLabel('Current City'),
-              SizedBox(height: 6),
-              _buildTextField(
-                controller: _cityController,
-                hint: 'Current city',
-              ),
-            ],
-          ),
-
-          SizedBox(height: 12),
-
-          _buildCollapsibleSection(
-            title: 'Contact Information',
-            icon: Icons.phone_outlined,
-            isExpanded: _contactExpanded,
-            onExpansionChanged: (v) => setState(() => _contactExpanded = v),
-            children: [
-              _SectionLabel('Phone'),
-              SizedBox(height: 6),
-              _buildTextField(
-                controller: _phoneController,
-                hint: 'Phone number',
-                keyboardType: TextInputType.phone,
-                textInputAction: TextInputAction.next,
-                textCapitalization: TextCapitalization.none,
-              ),
-              SizedBox(height: 14),
-              _SectionLabel('Email'),
-              SizedBox(height: 6),
-              _buildTextField(
-                controller: _emailController,
-                hint: 'Email address',
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.done,
-                textCapitalization: TextCapitalization.none,
-              ),
-            ],
-          ),
-
-          SizedBox(height: 12),
-
-          _buildCollapsibleSection(
-            title: 'Professional & Personal',
-            icon: Icons.work_outline,
-            isExpanded: _personalExpanded,
-            onExpansionChanged: (v) => setState(() => _personalExpanded = v),
-            children: [
-              _SectionLabel('Occupation'),
-              SizedBox(height: 6),
-              _buildTextField(
-                controller: _occupationController,
-                hint: 'Occupation',
-              ),
-              SizedBox(height: 14),
-              _SectionLabel('Gotra'),
-              SizedBox(height: 6),
-              _buildTextField(controller: _gotraController, hint: 'Gotra'),
-              SizedBox(height: 14),
-              _SectionLabel('Bio / Notes'),
-              SizedBox(height: 6),
-              _buildTextField(
-                controller: _bioController,
-                hint: 'Short bio or notes',
-                maxLines: 3,
-              ),
-            ],
-          ),
-
-          SizedBox(height: 12),
-
-          // Deceased section (always visible)
-          _buildDeceasedSection(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCollapsibleSection({
-    required String title,
-    required IconData icon,
-    required bool isExpanded,
-    required ValueChanged<bool> onExpansionChanged,
-    required List<Widget> children,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-        border: Border.all(color: KinrelColors.textDim.withValues(alpha: 0.08)),
-      ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          childrenPadding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-          initiallyExpanded: isExpanded,
-          onExpansionChanged: onExpansionChanged,
-          leading: Icon(icon, color: KinrelColors.orange, size: 20),
-          title: Text(
-            title,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: KinrelColors.textWhite,
-            ),
-          ),
-          trailing: Icon(
-            isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-            color: KinrelColors.textDim,
-          ),
-          children: children,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDeceasedSection() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-        border: Border.all(
-          color: _isDeceased
-              ? KinrelColors.error.withValues(alpha: 0.3)
-              : KinrelColors.textDim.withValues(alpha: 0.08),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                _isDeceased ? Icons.cloud : Icons.cloud_outlined,
-                color: _isDeceased ? KinrelColors.error : KinrelColors.textDim,
-                size: 20,
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Mark as Deceased',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: _isDeceased
-                        ? KinrelColors.error
-                        : KinrelColors.textWhite,
-                  ),
-                ),
-              ),
-              Switch.adaptive(
-                value: _isDeceased,
-                onChanged: (v) => setState(() => _isDeceased = v),
-                activeThumbColor: KinrelColors.error,
-                activeTrackColor: KinrelColors.error.withValues(alpha: 0.4),
-              ),
-            ],
-          ),
-          if (_isDeceased) ...[
-            SizedBox(height: 12),
-            GestureDetector(
-              onTap: _pickDeathDate,
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: KinrelColors.darkElevated,
-                  borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.calendar_today_outlined,
-                      color: KinrelColors.textDim,
-                      size: 16,
-                    ),
-                    SizedBox(width: 10),
-                    Text(
-                      _selectedDeathDate != null
-                          ? 'Date of death: ${_selectedDeathDate!.toIso8601String().split('T').first}'
-                          : 'Select date of death',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 13,
-                        color: _selectedDeathDate != null
-                            ? KinrelColors.textWhite
-                            : KinrelColors.textDim,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // ── STEP 3: Confirmation ───────────────────────────────────────
-
-  Widget _buildStep3Confirmation() {
-    final newName = _nameController.text.trim().isNotEmpty
-        ? _nameController.text.trim()
-        : 'New Member';
-    final anchor = widget.anchorPerson;
-    final relLabel = _effectiveRelationshipKey?.snakeToTitle ?? 'Not specified';
-
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Summary card
-          Container(
-            padding: EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: KinrelColors.darkCard,
-              borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
-              border: Border.all(
-                color: KinrelColors.textDim.withValues(alpha: 0.1),
-              ),
-            ),
-            child: Column(
-              children: [
-                // Avatar
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: _isDeceased
-                        ? LinearGradient(
-                            colors: [
-                              KinrelColors.textDim,
-                              KinrelColors.darkSurface,
-                            ],
-                          )
-                        : KinrelGradients.igniteGradient,
-                  ),
-                  child: Center(
-                    child: Text(
-                      PersonAvatar.initialsFor(newName),
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.displayFont,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(height: 16),
-
-                // Name
-                Text(
-                  newName,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: KinrelColors.textWhite,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                // Relationship
-                if (anchor != null && _effectiveRelationshipKey != null) ...[
-                  SizedBox(height: 8),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: KinrelColors.orange.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: KinrelColors.orange.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Text(
-                      '${anchor.name}\'s $relLabel',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: KinrelColors.orange,
-                      ),
-                    ),
-                  ),
-                ],
-
-                SizedBox(height: 16),
-
-                // Detail rows
-                _ConfirmationRow(
-                  icon: Icons.wc,
-                  label: 'Gender',
-                  value: _selectedGender.capitalized,
-                ),
-                if (_selectedDob != null)
-                  _ConfirmationRow(
-                    icon: Icons.calendar_today_outlined,
-                    label: 'Date of Birth',
-                    value: _dobController.text,
-                  ),
-                if (_cityController.text.trim().isNotEmpty)
-                  _ConfirmationRow(
-                    icon: Icons.location_on_outlined,
-                    label: 'City',
-                    value: _cityController.text.trim(),
-                  ),
-                if (_isDeceased)
-                  _ConfirmationRow(
-                    icon: Icons.cloud,
-                    label: 'Status',
-                    value: 'Deceased',
-                    valueColor: KinrelColors.error,
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ── Success view ───────────────────────────────────────────────
 
   Widget _buildSuccessView() {
@@ -4780,67 +3633,6 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             onChanged: (v) => setState(() => _isDeceased = v),
             activeThumbColor: KinrelColors.orange,
             activeTrackColor: KinrelColors.orange.withValues(alpha: 0.4),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Bottom actions ─────────────────────────────────────────────
-
-  Widget _buildBottomActions() {
-    if (_isEditMode) return const SizedBox.shrink();
-
-    return Padding(
-      padding: EdgeInsets.only(top: 12),
-      child: Row(
-        children: [
-          // Skip / Back
-          if (_currentStep > 0)
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _prevStep,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: KinrelColors.textSilver,
-                  side: BorderSide(
-                    color: KinrelColors.textDim.withValues(alpha: 0.3),
-                  ),
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-                  ),
-                ),
-                child: Text(
-                  'Back',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          if (_currentStep > 0) SizedBox(width: 12),
-
-          // Next / Submit
-          Expanded(
-            flex: _currentStep > 0 ? 2 : 1,
-            child: _currentStep == _kStepCount - 1
-                ? _buildIgniteButton(
-                    label: 'Add to Family',
-                    onPressed: _isSubmitting || !_canProceed() ? null : _submit,
-                    isLoading: _isSubmitting,
-                  )
-                : _buildIgniteButton(
-                    label: _currentStep == 1 && !_canProceed()
-                        // v5.40: Simpler hint — only the relationship is
-                        // required to proceed; the target is optional.
-                        ? 'Next (select relationship)'
-                        : _currentStep == 0 && !_canProceed()
-                            ? 'Next (name required)'
-                            : 'Next',
-                    onPressed: _canProceed() ? _nextStep : null,
-                  ),
           ),
         ],
       ),
@@ -5254,117 +4046,6 @@ class _RelChip extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Portrait card showing a person in the relationship step.
-class _PortraitCard extends StatelessWidget {
-  const _PortraitCard({
-    required this.name,
-    this.gender,
-    required this.label,
-    this.isNew = false,
-  });
-
-  final String name;
-  final String? gender;
-  final String label;
-  final bool isNew;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: isNew
-                ? KinrelGradients.igniteGradient
-                : LinearGradient(
-                    colors: [KinrelColors.darkElevated, KinrelColors.darkCard],
-                  ),
-          ),
-          child: Center(
-            child: Text(
-              PersonAvatar.initialsFor(name),
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ),
-        SizedBox(height: 8),
-        Text(
-          name.length > 10 ? '${name.substring(0, 9)}…' : name,
-          style: TextStyle(
-            fontFamily: KinrelTypography.bodyFont,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: KinrelColors.textWhite,
-          ),
-        ),
-        SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            fontFamily: KinrelTypography.bodyFont,
-            fontSize: 11,
-            color: KinrelColors.textDim,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Confirmation detail row.
-class _ConfirmationRow extends StatelessWidget {
-  const _ConfirmationRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.valueColor,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color? valueColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: KinrelColors.textDim),
-          SizedBox(width: 10),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 12,
-              color: KinrelColors.textDim,
-            ),
-          ),
-          Spacer(),
-          Text(
-            value,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: valueColor ?? KinrelColors.textWhite,
-            ),
-          ),
-        ],
       ),
     );
   }

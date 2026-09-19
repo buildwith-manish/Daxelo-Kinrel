@@ -327,7 +327,6 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
     final titleController = TextEditingController();
     final descController = TextEditingController();
     DateTime? selectedDate = DateTime.now();
-    String selectedType = 'milestone';
 
     showModalBottomSheet(
       context: context,

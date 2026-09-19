@@ -16,7 +16,6 @@ class ColorTrapState {
   bool get isWaiting => game?.isWaiting ?? false; bool get isInProgress => game?.isInProgress ?? false;
   bool get isCompleted => game?.isCompleted ?? false; bool get hasGame => game != null;
   ColorTrapPlayerWire? playerFor(String? userId) { if (userId == null) return null; for (final p in players) { if (p.userId == userId) return p; } return null; }
-  static String? _currentUserId;
   ColorTrapState copyWith({ColorTrapGame? game, List<ColorTrapPlayerWire>? players, bool? isLoading, bool? isStarting, bool? isLeaving, bool clearError = false, String? error, bool? amSpectator}) => ColorTrapState(
     game: game ?? this.game, players: players ?? this.players, isLoading: isLoading ?? this.isLoading,
     isStarting: isStarting ?? this.isStarting, isLeaving: isLeaving ?? this.isLeaving,
@@ -140,7 +139,7 @@ class ColorTrapNotifier extends StateNotifier<ColorTrapState> {
   Future<void> _loadGame(String gameId) async { final client = _client; if (client == null) return; try { final resp = await client.from('color_trap_games').select().eq('id', gameId).maybeSingle(); if (resp == null) return; _gameId = gameId; _applyGameRow(ColorTrapGame.fromJson(resp)); } catch (e) { debugPrint('[ColorTrap] loadGame error: $e'); } }
 
   void _applyGameRow(ColorTrapGame game) {
-    final previous = state.game; ColorTrapState._currentUserId = _myId;
+    final previous = state.game;
     state = state.copyWith(game: game);
     if (game.isInProgress && _watchdogTimer == null) { _watchdogTimer = Timer.periodic(const Duration(seconds: 2), (_) { _tryRpc('fn_colortrap_tick', {'p_game_id': game.id}); }); }
     else if (!game.isInProgress && _watchdogTimer != null) { _watchdogTimer?.cancel(); _watchdogTimer = null; }

@@ -13,7 +13,6 @@
 // kinship types (e.g. paternal_grandfather, fathers_elder_brother) were
 // missing/invisible/disconnected in the graph.
 
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/constants/brand_colors.dart';
@@ -50,36 +49,6 @@ GraphRelationship _r(
       toPersonId: toId,
       relationshipKey: key,
     );
-
-/// Expected section color for each KinshipEdgeCategory, per the V2.1
-/// legend spec. Used to verify the resolver returns the spec-correct
-/// color for every kinship type.
-Color _expectedSectionColor(KinshipEdgeCategory cat) {
-  switch (cat) {
-    case KinshipEdgeCategory.self:
-      return KinrelColors.nodeSelf; // Gold #FFC94A (v5.100)
-    case KinshipEdgeCategory.parent:
-      return KinrelColors.nodeParent; // #3B82F6
-    case KinshipEdgeCategory.child:
-      return KinrelColors.nodeChild; // #EC4899
-    case KinshipEdgeCategory.sibling:
-      return KinrelColors.nodeSibling; // #8B5CF6 (purple)
-    case KinshipEdgeCategory.spouse:
-      return KinrelColors.nodeSpouse; // #F97316
-    case KinshipEdgeCategory.grandparent:
-      return KinrelColors.nodeGrandparent; // #6366F1
-    case KinshipEdgeCategory.auntUncle:
-      return KinrelColors.nodeInLaw; // aunt/uncle uses cyan in edge spec
-    case KinshipEdgeCategory.cousin:
-      return KinrelColors.nodeCousin; // #10B981
-    case KinshipEdgeCategory.inLaw:
-      return KinrelColors.nodeInLaw; // #F59E0B
-    case KinshipEdgeCategory.extended:
-      return KinrelColors.nodeExtended; // #64748B
-    case KinshipEdgeCategory.indirect:
-      return KinrelColors.textDim; // gray
-  }
-}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

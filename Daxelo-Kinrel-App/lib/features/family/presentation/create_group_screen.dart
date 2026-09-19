@@ -467,7 +467,6 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               // avatarUrl directly (no nested .user object).
               final name = m.displayName;
               final initials = m.initials;
-              final avatarUrl = m.avatarUrl;
 
               return GestureDetector(
                 onTap: () {

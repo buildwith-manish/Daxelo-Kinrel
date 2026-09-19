@@ -34,7 +34,6 @@
 //     ticking even when the app was backgrounded. autoDispose +
 //     gesture pausing removes that class of leak entirely.
 
-import 'package:flutter/animation.dart';
 import 'package:flutter/scheduler.dart' show Ticker, TickerCallback, TickerProvider;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

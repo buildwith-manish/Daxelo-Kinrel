@@ -24,33 +24,33 @@
   },
   "sprite": "https://tiles.openfreemap.org/sprites/ofm_f384/ofm",
   "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+  "sky": {
+    "sky-color": "#0B0F17",
+    "horizon-color": "#2A2030",
+    "fog-color": "#0B0F17",
+    "sky-horizon-blend": 0.5,
+    "horizon-fog-blend": 0.5,
+    "fog-ground-blend": 0.5,
+    "atmosphere-blend": [
+      "interpolate",
+      [
+        "linear"
+      ],
+      [
+        "zoom"
+      ],
+      0,
+      0,
+      5,
+      1
+    ]
+  },
   "layers": [
     {
       "id": "background",
       "type": "background",
       "paint": {
         "background-color": "#131416"
-      },
-      "layout": {}
-    },
-    {
-      "id": "sky",
-      "type": "sky",
-      "paint": {
-        "sky-type": "atmosphere",
-        "sky-color": "#0B0F17",
-        "sky-horizon-blend": 0.5,
-        "horizon-color": "#2A2030",
-        "horizon-fog-blend": 0.5,
-        "fog-color": "#0B0F17",
-        "fog-ground-blend": 0.5,
-        "atmosphere-blend": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          0, 0,
-          5, 1
-        ]
       },
       "layout": {}
     },
@@ -7136,14 +7136,61 @@
     "_kinrel_theme_token_mapping": {
       "_doc": "Map style → Kinrel app theme token mapping. Every paint color in this style is sourced from KinrelColors in lib/core/constants/brand_colors.dart (re-exported via lib/core/theme/app_theme.dart). When the app's theme tokens change, update the corresponding hex values here and in MapVisualConstants (lib/features/family_map/config/map_visual_constants.dart) so the map and app UI stay in sync. The two-palette building system (indigo-violet base + warm amber accent) is preserved — see _kinrel_building_palette below for that subsystem.",
       "tokens": {
-        "KinrelColors.darkBackground": {"hex": "#131416", "used_by": ["background.background-color (canvas)"]},
-        "KinrelColors.darkSurface":    {"hex": "#13141E", "used_by": ["building.fill-color (2D flat fill — buildings sit at the app's surface depth)"]},
-        "KinrelColors.darkElevated":   {"hex": "#202338", "used_by": ["kinrel-buildings-outline.line-color (edges read as elevated layer, matching Material elevation semantics)"]},
-        "KinrelColors.darkCard":       {"hex": "#191B2C", "used_by": ["Flutter UI chrome overlay surfaces in MapControlStack / MapLegendWidget / MapSearchBar / MapTimelineScrubber (NOT used directly in this style JSON — chrome colors live in the Flutter widgets)"]},
-        "KinrelColors.orange":         {"hex": "#E8612A", "used_by": ["family-buildings-glow circle-color (current_home/wedding/important_place)", "family-buildings-fallback circle-color", "kinrel-3d-buildings-family-proximity-glow fill-extrusion-color", "warm-accent ramp mid-tone", "app UI active-state highlights (CTAs, switches, toggled buttons)"]},
-        "KinrelColors.amber":         {"hex": "#F59240", "used_by": ["family-buildings-glow (childhood_home/memorial)", "warm-accent ramp tertiary-tone"]},
-        "KinrelColors.deepPurple":     {"hex": "#C44A18", "used_by": ["family-buildings-glow (family_business)", "warm-accent ramp deep-tone"]},
-        "KinrelColors.brightGold":     {"hex": "#F5B841", "used_by": ["family-buildings-glow (birthplace)", "warm-accent ramp light-tone"]}
+        "KinrelColors.darkBackground": {
+          "hex": "#131416",
+          "used_by": [
+            "background.background-color (canvas)"
+          ]
+        },
+        "KinrelColors.darkSurface": {
+          "hex": "#13141E",
+          "used_by": [
+            "building.fill-color (2D flat fill — buildings sit at the app's surface depth)"
+          ]
+        },
+        "KinrelColors.darkElevated": {
+          "hex": "#202338",
+          "used_by": [
+            "kinrel-buildings-outline.line-color (edges read as elevated layer, matching Material elevation semantics)"
+          ]
+        },
+        "KinrelColors.darkCard": {
+          "hex": "#191B2C",
+          "used_by": [
+            "Flutter UI chrome overlay surfaces in MapControlStack / MapLegendWidget / MapSearchBar / MapTimelineScrubber (NOT used directly in this style JSON — chrome colors live in the Flutter widgets)"
+          ]
+        },
+        "KinrelColors.orange": {
+          "hex": "#E8612A",
+          "used_by": [
+            "family-buildings-glow circle-color (current_home/wedding/important_place)",
+            "family-buildings-fallback circle-color",
+            "kinrel-3d-buildings-family-proximity-glow fill-extrusion-color",
+            "warm-accent ramp mid-tone",
+            "app UI active-state highlights (CTAs, switches, toggled buttons)"
+          ]
+        },
+        "KinrelColors.amber": {
+          "hex": "#F59240",
+          "used_by": [
+            "family-buildings-glow (childhood_home/memorial)",
+            "warm-accent ramp tertiary-tone"
+          ]
+        },
+        "KinrelColors.deepPurple": {
+          "hex": "#C44A18",
+          "used_by": [
+            "family-buildings-glow (family_business)",
+            "warm-accent ramp deep-tone"
+          ]
+        },
+        "KinrelColors.brightGold": {
+          "hex": "#F5B841",
+          "used_by": [
+            "family-buildings-glow (birthplace)",
+            "warm-accent ramp light-tone"
+          ]
+        }
       },
       "notes": [
         "Map background (#131416) intentionally matches KinrelColors.darkBackground so the map canvas and the app's Scaffold background are the SAME color — the map reads as a native part of the app, not a separately-styled component.",
@@ -7157,14 +7204,35 @@
     "_kinrel_building_palette": {
       "_doc": "Kinrel Building Style — canonical two-palette system (HEIGHT-driven, not app-theme-driven). Every building layer's paint colors MUST come from one of these two ramps. Stray colors (e.g. leftover OpenFreeMap defaults) should be flagged and migrated. This is a pure color-consistency contract; it does NOT govern opacity curves, zoom thresholds, or which buildings render.",
       "base_fill_ground_level": "#13141E",
-      "extrusion_height_gradient_short_to_tall": ["#1E1D2A", "#2A2638", "#3A3450", "#4A4060"],
+      "extrusion_height_gradient_short_to_tall": [
+        "#1E1D2A",
+        "#2A2638",
+        "#3A3450",
+        "#4A4060"
+      ],
       "building_outline_edge": {
         "color": "#202338",
         "opacity": "low (matches KinrelColors.darkElevated so building edges read as an elevated layer in the app's Material elevation system)"
       },
-      "warm_accent_height_and_proximity_glow": ["#A04515", "#E8612A", "#F59240", "#F5B841", "#FFD66B"],
-      "layers_governed": ["building", "kinrel-buildings-outline", "kinrel-3d-buildings", "kinrel-3d-buildings-warm-glow", "kinrel-3d-buildings-family-proximity-glow"],
-      "layers_NOT_governed": ["family-buildings", "family-buildings-glow", "family-buildings-fallback (placeType-based accent logic, but accent tones should stay harmonious with warm_accent ramp above)"],
+      "warm_accent_height_and_proximity_glow": [
+        "#A04515",
+        "#E8612A",
+        "#F59240",
+        "#F5B841",
+        "#FFD66B"
+      ],
+      "layers_governed": [
+        "building",
+        "kinrel-buildings-outline",
+        "kinrel-3d-buildings",
+        "kinrel-3d-buildings-warm-glow",
+        "kinrel-3d-buildings-family-proximity-glow"
+      ],
+      "layers_NOT_governed": [
+        "family-buildings",
+        "family-buildings-glow",
+        "family-buildings-fallback (placeType-based accent logic, but accent tones should stay harmonious with warm_accent ramp above)"
+      ],
       "sources_governed": "all OSM building sources (current OpenFreeMap vector tiles, future PMTiles) — fix is at layer-paint level so it auto-applies to any source"
     }
   },
@@ -7175,6 +7243,9 @@
     "horizon-blend": 0.5,
     "space-color": "#0B0F17",
     "star-intensity": 0.0,
-    "range": [0, 10]
+    "range": [
+      0,
+      10
+    ]
   }
 }

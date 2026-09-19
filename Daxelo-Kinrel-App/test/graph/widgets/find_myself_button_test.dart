@@ -34,7 +34,7 @@ void main() {
       const String? viewerPersonId = "p1"; // ignore: unnecessary_null_comparison
       final positions = <String, Offset>{'p1': Offset.zero};
       final shouldShow =
-          viewerPersonId != null && positions.containsKey(viewerPersonId);
+          positions.containsKey(viewerPersonId);
       expect(shouldShow, isTrue);
     });
 
@@ -50,7 +50,7 @@ void main() {
       const String? viewerPersonId = "p2"; // ignore: unnecessary_null_comparison
       final positions = <String, Offset>{'p1': Offset.zero};
       final shouldShow =
-          viewerPersonId != null && positions.containsKey(viewerPersonId);
+          positions.containsKey(viewerPersonId);
       expect(shouldShow, isFalse);
     });
   });

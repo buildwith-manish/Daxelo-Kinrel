@@ -39,7 +39,6 @@
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:go_router/go_router.dart';
@@ -242,12 +241,9 @@ import '../../features/kinship/presentation/global_kinship_screen.dart';
 import '../../features/kinship/presentation/cross_cultural_comparison_screen.dart';
 import '../../features/kinship/presentation/country_kinship_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
-import '../../features/notifications/providers/notifications_provider.dart';
 import '../../features/memories/presentation/memories_screen.dart';
 import '../../features/family_map/presentation/family_map_screen.dart';
 import '../../features/memory_vault/presentation/memory_vault_screen.dart';
-import '../../features/memory_vault/presentation/memory_detail_screen.dart';
-import '../../features/memory_vault/data/memory_model.dart';
 import '../../features/chat/presentation/chat_screen.dart';
 import '../../features/chat/presentation/chat_search_screen.dart';
 import '../../features/chat/presentation/group_info_screen.dart';
@@ -279,7 +275,6 @@ import '../services/supabase_service.dart';
 import '../services/crashlytics_service.dart';
 import '../services/deep_link_service.dart';
 import '../services/analytics_service.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../shared/widgets/dk_components.dart';
 import '../../core/family/family_provider.dart';
 import '../../features/profile/data/profile_provider.dart';

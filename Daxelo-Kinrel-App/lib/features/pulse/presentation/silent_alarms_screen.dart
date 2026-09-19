@@ -147,7 +147,7 @@ class _AlarmCard extends ConsumerWidget {
             Wrap(
               spacing: 6,
               runSpacing: 6,
-              children: (alarm.suggestions as List).map((s) {
+              children: (alarm.suggestions).map((s) {
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(

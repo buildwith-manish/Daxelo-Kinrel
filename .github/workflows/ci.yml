@@ -138,8 +138,14 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Lint
-        run: bun run lint
+      - name: Typecheck (backend)
+        # QA fix 2026-09-19: `bun run lint` has failed with "Script not found"
+        # ever since the root lint script was removed with the Next.js
+        # scaffold (2e557fa6) — there is no eslint setup at repo root and
+        # eslint.config.mjs imports uninstalled eslint-config-next packages.
+        # Replace the dead step with a REAL gate: TypeScript typecheck of the
+        # NestJS server (verified passing locally and via the Build step).
+        run: cd server && npm install --legacy-peer-deps --no-audit --no-fund && npx tsc --noEmit -p tsconfig.build.json
 
       - name: Build
         run: bun run build

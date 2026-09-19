@@ -28,10 +28,9 @@
 // and confirm the fixed node's position is byte-for-byte unchanged
 // while a free node at the same starting point has moved.
 
-import 'package:flutter/material.dart' show Offset;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/services/graph_layout_service.dart'
-    show GraphPerson, GraphRelationship;
+    show GraphPerson;
 import 'package:kinrel/graph/engine/force_simulator.dart';
 
 void main() {

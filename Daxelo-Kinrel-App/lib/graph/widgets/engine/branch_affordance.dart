@@ -23,6 +23,13 @@ part of '../family_graph_engine_view.dart';
 
 /// Mixin containing collapsed-branch affordance logic for
 /// _FamilyGraphEngineViewState.
+///
+/// NOTE: This is a `part`-file EXTENSION that splits the State class's
+/// methods out of family_graph_engine_view.dart. The `setState` calls
+/// below run against a live `_FamilyGraphEngineViewState` instance, so
+/// the protected-member contract is satisfied at runtime — the analyzer
+/// just cannot verify that through an extension, hence the per-line
+/// ignores.
 extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
   /// v102 (BUG-2 FIX) + v5.123 (Step 3) + v5.x (chip-placement fix):
   /// Builds positioned chips for each collapsed branch.
@@ -343,6 +350,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     // user gets sub-100ms feedback. The chip shows a different icon
     // while the RPC is in flight.
     _optimisticLoadingChipRootId = branch.rootPersonId;
+    // ignore: invalid_use_of_protected_member
     setState(() {});
 
     // v5.158 (ZONE BUBBLES): ALWAYS fetch with the 'generic' branch type.
@@ -732,6 +740,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
       // newly-revealed nodes.
       ref.invalidate(graphLayoutProvider(widget.familyId));
       // Trigger a canvas rebuild to pick up the new layout.
+      // ignore: invalid_use_of_protected_member
       setState(() {});
     }
   }
@@ -1071,206 +1080,6 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                 // expand via the button above.
                 onPressed: () =>
                     _showFullNamesList(sheetContext, branch, names),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(sheetContext).pop(),
-              child: const Text(
-                'Close',
-                style:
-                    TextStyle(color: KinrelColors.textSecondaryDark),
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// v5.138: Action sheet for an EXPANDED branch root node.
-  ///
-  /// When a node that is the root of a currently-expanded branch is
-  /// long-pressed, this sheet opens with a "Collapse this branch" option
-  /// instead of "Expand this branch". The sheet reuses the same layout
-  /// as [_showBranchActionSheet] but with:
-  ///   - Header: "{rootPersonName}'s branch"
-  ///   - Metadata: "{count} members shown · {depth} generation(s) deep"
-  ///   - Primary button: "Collapse this branch" → calls collapseBranch()
-  ///   - Secondary button: "Preview full names list" → same as collapsed sheet
-  ///   - Close button
-  void _showExpandedBranchActionSheet(
-    BuildContext context,
-    String rootPersonId,
-    String rootPersonName,
-  ) {
-    // Resolve the currently-visible members of this branch from the
-    // provider state. After expansion, these members are in flat.persons.
-    final flat = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
-    final List<String> visibleMemberNames = [];
-    int memberCount = 0;
-    if (flat != null) {
-      // v5.146: Use the shared buildChildrenOf which handles BOTH
-      // parent-type and child-type relationship directions.
-      final childrenOfSet = BranchCollapseNotifier.buildChildrenOf(flat.relationships);
-      final childrenMap = <String, List<String>>{
-        for (final entry in childrenOfSet.entries)
-          entry.key: entry.value.toList(),
-      };
-      // BFS from rootPersonId to find all descendants
-      final visited = <String>{rootPersonId};
-      final queue = [rootPersonId];
-      while (queue.isNotEmpty) {
-        final current = queue.removeAt(0);
-        for (final child in childrenMap[current] ?? <String>[]) {
-          if (visited.add(child)) {
-            queue.add(child);
-            // Find the person's name from the flat graph data.
-            String? name;
-            for (final p in flat.persons) {
-              if ((p['id'] ?? '').toString() == child) {
-                name = (p['name'] ?? '').toString();
-                break;
-              }
-            }
-            if (name != null && name.isNotEmpty) visibleMemberNames.add(name);
-          }
-        }
-      }
-      memberCount = visibleMemberNames.length;
-    }
-
-    final rootName = rootPersonName.trim().isNotEmpty
-        ? rootPersonName.trim()
-        : 'Branch';
-    final preview = visibleMemberNames.take(4).toList(growable: false);
-    final remaining = visibleMemberNames.length - preview.length;
-
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: KinrelColors.darkCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ── Header ───────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
-              child: Row(
-                children: [
-                  const Icon(Icons.account_tree_rounded,
-                      color: KinrelColors.orange, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      "$rootName's branch",
-                      style: const TextStyle(
-                        color: KinrelColors.textWhite,
-                        fontFamily: 'DMSans',
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close,
-                        color: KinrelColors.textSecondaryDark),
-                    onPressed: () => Navigator.of(sheetContext).pop(),
-                  ),
-                ],
-              ),
-            ),
-            // ── Summary: visible count ────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-              child: Text(
-                '$memberCount members shown',
-                style: const TextStyle(
-                  color: KinrelColors.textSecondaryDark,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-            // ── 4-name preview ────────────────────────────────────────
-            if (preview.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-                child: Text(
-                  remaining > 0
-                      ? 'Including ${preview.join(", ")} (+$remaining more)'
-                      : 'Including ${preview.join(", ")}',
-                  style: const TextStyle(
-                    color: KinrelColors.textWhite,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            const SizedBox(height: 12),
-            // ── Primary action: Collapse this branch ──────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: KinrelColors.orange,
-                  foregroundColor: Colors.white,
-                ),
-                icon: const Icon(Icons.unfold_less_rounded, size: 18),
-                label: const Text('Collapse this branch'),
-                onPressed: () {
-                  Navigator.of(sheetContext).pop();
-                  // Fire the SAME haptic as expanding (symmetric feel).
-                  GraphHaptics.branchExpand(sheetContext);
-                  // v5.159 (RE-COLLAPSE): collapseBranch returns the set
-                  // of person IDs the expansion revealed (this root's
-                  // level + any nested expansions inside it). Conceal
-                  // them from the proximity set — they lose their
-                  // positions, and the next density pass re-zones them
-                  // under the root, RESTORING the "+N" bubble with the
-                  // full hidden count.
-                  final concealSet = ref
-                      .read(branchCollapseProvider.notifier)
-                      .collapseBranch(rootPersonId);
-                  if (concealSet.isNotEmpty) {
-                    ref
-                        .read(proximityGraphProvider.notifier)
-                        .concealPersons(personIds: concealSet);
-                  }
-                  // v5.159: stop any in-flight entrance fly-out for the
-                  // members being concealed.
-                  _cancelEntranceAnimation();
-                  // v5.151+ (RACE FIX — same as the collapse dialog):
-                  // DO NOT invalidate familyGraphProvider here. The
-                  // collapse state + proximity conceal are PRESENTATION
-                  // changes; canvas_mixin watches both providers and
-                  // rebuilds synchronously. Invalidation caused an async
-                  // refetch that raced the state update and wiped the
-                  // re-collapse with stale data.
-                },
-              ),
-            ),
-            // ── Secondary action: Preview full names list ─────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: KinrelColors.textWhite,
-                  side: BorderSide(
-                    color: KinrelColors.textSecondaryDark.withValues(
-                        alpha: 0.5),
-                  ),
-                ),
-                icon: const Icon(Icons.list_alt_rounded, size: 18),
-                label: const Text('Preview full names list'),
-                onPressed: () {
-                  // Build a temporary CollapsedBranch-like object for
-                  // the names list sheet (it only needs names + rootName).
-                  _showExpandedBranchNamesList(
-                      sheetContext, rootName, visibleMemberNames);
-                },
               ),
             ),
             TextButton(

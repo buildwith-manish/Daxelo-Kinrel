@@ -113,22 +113,18 @@ class NodeRenderCoordinator extends ChangeNotifier {
   ///
   /// [persons] is the full set of person nodes in the graph.
   /// [policy] controls boundary granularity (default: per-node).
-  /// [bufferPixels] is the viewport buffer used for visibility checks.
   NodeRenderCoordinator({
     required ViewportCuller viewportCuller,
     required List<GraphPerson> persons,
     RepaintBoundaryPolicy policy = RepaintBoundaryPolicy.perNode,
-    double bufferPixels = 200.0,
   })  : _viewportCuller = viewportCuller,
         _persons = persons,
-        _policy = policy,
-        _bufferPixels = bufferPixels {
+        _policy = policy {
     _viewportCuller.addListener(_onViewportChanged);
   }
 
   final ViewportCuller _viewportCuller;
   final List<GraphPerson> _persons;
-  final double _bufferPixels;
 
   RepaintBoundaryPolicy _policy;
 

@@ -29,7 +29,6 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/utils/device_tier.dart';
@@ -37,7 +36,6 @@ import '../../../core/widgets/cached_avatar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../config/map_visual_constants.dart';
 import '../providers/family_map_provider.dart';
-import 'avatar_marker_generator.dart';
 
 /// Generates a household cluster marker image as PNG bytes (SymbolLayer path).
 class HouseholdClusterMarkerGenerator {

@@ -19,7 +19,6 @@
 
 import 'dart:io';
 
-import 'package:flutter/material.dart' show Offset;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/graph/rearrange/layout_overrides_service.dart';
 
@@ -185,7 +184,6 @@ void main() {
 
     test('reset is idempotent — calling it again on an already-empty '
         'row is a no-op (both maps still empty)', () {
-      const after1 = PersonalLayoutOverrides.empty;
       // Reset again — should still be empty.
       const after2 = PersonalLayoutOverrides.empty;
       expect(after2.nodePositions.length, 0);

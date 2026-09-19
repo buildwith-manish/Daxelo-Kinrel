@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:io';
 import 'package:dio/dio.dart' as dio;
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/networking/dio_client.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../models/sparq_model.dart';
@@ -193,7 +192,7 @@ class SparqRepository {
           .select()
           .single();
 
-      return SparqReply.fromJson(response as Map<String, dynamic>);
+      return SparqReply.fromJson(response);
     } catch (e) {
       return null;
     }

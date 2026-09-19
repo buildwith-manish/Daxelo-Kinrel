@@ -17,7 +17,6 @@
 //   client-side (resolveViewerTier returns 'connected' max for minors
 //   when the viewer is in the same family, 'denied' otherwise).
 
-import 'family_provider.dart' show Person;
 
 /// The three visibility tiers for profile viewing.
 enum ProfileViewerTier {

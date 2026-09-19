@@ -11,7 +11,6 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../services/game_asset_manager.dart';
-import 'redlight_provider.dart';
 
 class RedlightCard extends ConsumerStatefulWidget {
   const RedlightCard({super.key, required this.familyId});

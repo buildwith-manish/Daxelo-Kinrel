@@ -148,11 +148,6 @@ class _StickerCatalog {
   static const List<String> tabIcons = [
     '😀', '❤️', '👍', '🐶', '🍔', '⚽', '🚗', '💡',
   ];
-
-  static const List<String> tabLabels = [
-    'Smileys', 'Hearts', 'Hands', 'Animals',
-    'Food', 'Activities', 'Travel', 'Objects',
-  ];
 }
 
 /// A slide-up panel that lets the user pick an emoji sticker to send.

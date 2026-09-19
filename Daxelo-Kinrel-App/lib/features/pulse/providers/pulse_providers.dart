@@ -26,9 +26,7 @@ final todayBriefProvider = FutureProvider<DailyBrief?>((ref) async {
       brief = await client.generateTodayBrief();
     }
     // Mark as viewed
-    if (brief != null) {
-      await client.markBriefViewed(brief.id);
-    }
+    await client.markBriefViewed(brief.id);
     return brief;
   } catch (e) {
     return null;

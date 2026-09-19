@@ -13,7 +13,6 @@
 //      (reduced-motion behaviour)
 //   7. reset() returns to idle
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/graph/interaction/graph_path_trace_controller.dart';

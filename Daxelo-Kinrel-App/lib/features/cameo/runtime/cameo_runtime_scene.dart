@@ -25,8 +25,6 @@ import 'dart:typed_data';
 import '../data/cameo_definition.dart';
 import '../rendering/cameo_renderer.dart';
 import '../style/cameo_animation_curves.dart';
-import '../style/cameo_camera_rules.dart';
-import '../style/cameo_lighting_presets.dart';
 import '../style/cameo_expression_catalog.dart';
 import '../style/cameo_style_system.dart';
 import 'cameo_animation_controller.dart';
@@ -57,7 +55,6 @@ class CameoRuntimeScene {
   CameoSceneState _state = CameoSceneState.uninitialized;
   CameoRendererCapabilities? _capabilities;
   CameoDefinition? _definition;
-  ResolvedCameoStyle? _style;
 
   /// Current scene state.
   CameoSceneState get state => _state;
@@ -107,7 +104,6 @@ class CameoRuntimeScene {
     }
 
     _definition = definition;
-    _style = style;
 
     try {
       await _renderer.loadCharacter(

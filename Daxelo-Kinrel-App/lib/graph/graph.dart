@@ -39,7 +39,7 @@ export 'interaction/camera_controller.dart';
 export 'interaction/expand_collapse.dart';
 
 // ── Security Layer ────────────────────────────────────────────────────────────
-export 'security/permission_validator.dart' hide GraphNodeData, GraphEdgeData, GraphRealtimeEvent;
+export 'security/permission_validator.dart';
 
 // ── Analytics Layer ───────────────────────────────────────────────────────────
 export 'analytics/analytics_tracker.dart';

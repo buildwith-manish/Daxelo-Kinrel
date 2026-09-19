@@ -24,7 +24,6 @@ import '../../core/constants/brand_typography.dart';
 import '../../core/kinship/kinship_edge_style.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../analytics/analytics_tracker.dart';
-import 'graph_node.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // ONBOARDING PERSISTENCE (SharedPreferences-backed)
@@ -152,7 +151,6 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   late final AnimationController _glowController;
   late final AnimationController _celebrationController;
 
-  late final Animation<Offset> _slideAnimation;
   late final Animation<double> _glowAnimation;
   late final Animation<double> _celebrationScaleAnimation;
 
@@ -169,10 +167,6 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
-    _slideAnimation =
-        Tween<Offset>(begin: Offset.zero, end: const Offset(1.5, 0.0)).animate(
-          CurvedAnimation(parent: _slideController, curve: Curves.easeInOut),
-        );
 
     // Glow pulse animation for new nodes
     _glowController = AnimationController(

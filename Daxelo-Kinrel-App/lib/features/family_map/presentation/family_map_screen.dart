@@ -215,11 +215,6 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     for (final l in MapControlLayer.values) l: true,
   };
 
-  /// P13 — The family's current home place (placeType == currentHome).
-  /// Identified from the result.places list on each data refresh.
-  /// Null when the family has no current_home place.
-  FamilyPlace? _homePlace;
-
   /// P13 — Currently selected place ID (drives callout highlight).
   /// Distinct from [_selectedPinId] which tracks the selected person.
   String? _selectedPlaceId;
@@ -243,41 +238,6 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// past zoom 14.
   static const _kStyleAssetPath = 'assets/map_styles/kinrel_dark_style.json';
   String? _loadedStyleJson;
-
-  /// WEB-SPECIFIC STYLE PATH.
-  ///
-  /// §8 — WEB STYLE CONSISTENCY: web and native now share the SAME
-  /// bundled Kinrel dark style (`assets/map_styles/kinrel_dark_style.json`)
-  /// so the map looks identical on every platform.
-  ///
-  /// On Flutter Web, the maplibre 0.3.5 web plugin's
-  /// `_prepareStyleString` checks the style string prefix:
-  ///   • starts with '{' → inline JSON (parsed + jsified — slow for 6k-line styles)
-  ///   • starts with '/' → file path
-  ///   • starts with 'http' → URL (passed through as-is)
-  ///   • everything else → Flutter asset (resolved via `AssetManager`)
-  ///
-  /// Passing the relative asset path (`assets/map_styles/...`, no
-  /// leading slash) makes the plugin fall into the "Flutter asset"
-  /// branch, which calls `AssetManager().getAssetUrl()` to resolve it
-  /// to a proper URL — typically `assets/assets/map_styles/...` (the
-  /// double `assets` is intentional: the first is the web asset root,
-  /// the second is the pubspec asset prefix). MapLibre GL JS then
-  /// fetches the JSON natively, avoiding the dart→JS interop cost of
-  /// inline JSON.
-  ///
-  /// POI FILTERING CAVEAT: the asset path bypasses the runtime
-  /// `applyPoiFilters` patching that native uses (we can't easily
-  /// rewrite a URL-served style). The bundled `kinrel_dark_style.json`
-  /// already has the POI layers curated, so the visual difference is
-  /// minimal — but if POI filtering tuning changes in
-  /// `poi_filter.dart`, the bundled JSON should be regenerated to
-  /// match. See `data/poi_filter.dart` for the filter rules.
-  ///
-  /// The family-places source + family-buildings layers are still
-  /// added programmatically in [_onStyleLoaded] via
-  /// [_ensureFamilyPlacesLayers] — they're not in the source style.
-  static const _kWebStylePath = 'assets/map_styles/kinrel_dark_style.json';
 
   /// Light "Snapchat-style" map style URL — OpenFreeMap liberty is a
   /// clean, light, social-friendly style that matches the Snapchat map
@@ -2246,8 +2206,6 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         break;
       }
     }
-    // Stash on the instance so other handlers can read it.
-    _homePlace = homePlace;
 
     // P10.6 — Reduced-motion flag from MediaQuery (matches the graph pattern).
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
@@ -2516,7 +2474,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 (_layerState[MapControlLayer.homes] ?? true))
               HomeMarkerOverlay(
                 mapController: _mapController,
-                home: homePlace!,
+                home: homePlace,
                 reducedMotion: reducedMotion,
                 onTap: () => _flyToPlace(homePlace!),
               ),

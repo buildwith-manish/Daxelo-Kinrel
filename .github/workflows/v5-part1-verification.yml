@@ -339,7 +339,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: deploy-vercel
-    if: ${{ github.event.inputs.skip_screenshots != 'true' }}
+    # QA fix 2026-09-19: deploy-vercel is hard-disabled (if: false) — deploys
+    # now run via the dedicated "Deploy Web to Vercel" workflow. Skip the
+    # live-URL screenshots when the deploy job did not run, instead of
+    # leaving them in a skipped-by-dependency state that fails the final
+    # acceptance-checklist artifact download.
+    if: ${{ github.event.inputs.skip_screenshots != 'true' && needs.deploy-vercel.result == 'success' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -449,7 +454,9 @@ jobs:
           echo "     commit: ${{ github.sha }}"
           echo ""
           echo "── Step 3c: Family markers decoupled from basemap ─────────────"
-          if [ -f screenshots/04-staging-markers-decoupled.png ]; then
+          if [ "$SCREENSHOTS_PASSED" = "skipped" ]; then
+            echo "  ⏭️  SKIPPED (deploy-vercel disabled — live-URL screenshots off)"
+          elif [ -f screenshots/04-staging-markers-decoupled.png ]; then
             echo "  ✅ Screenshot captured: screenshots/04-staging-markers-decoupled.png"
             echo "     (download from workflow artifacts)"
           else
@@ -457,7 +464,9 @@ jobs:
           fi
           echo ""
           echo "── Step 4: Production screenshot showing working map ──────────"
-          if [ -f screenshots/01-production-happy-path.png ]; then
+          if [ "$SCREENSHOTS_PASSED" = "skipped" ]; then
+            echo "  ⏭️  SKIPPED (deploy-vercel disabled — live-URL screenshots off)"
+          elif [ -f screenshots/01-production-happy-path.png ]; then
             echo "  ✅ Screenshot captured: screenshots/01-production-happy-path.png"
             echo "     Production URL: $PRODUCTION_URL"
           else
@@ -465,15 +474,19 @@ jobs:
           fi
           echo ""
           echo "── Step 5: Staging screenshots showing fallback chain ─────────"
-          if [ -f screenshots/02-staging-pmtiles-probe-fallback.png ]; then
-            echo "  ✅ Stage 1 (PMTiles probe fallback): screenshots/02-staging-pmtiles-probe-fallback.png"
+          if [ "$SCREENSHOTS_PASSED" = "skipped" ]; then
+            echo "  ⏭️  SKIPPED (deploy-vercel disabled — live-URL screenshots off)"
           else
-            echo "  ❌ Stage 1 screenshot NOT captured"
-          fi
-          if [ -f screenshots/03-staging-offline-floor.png ]; then
-            echo "  ✅ Stage 2 (offline floor): screenshots/03-staging-offline-floor.png"
-          else
-            echo "  ❌ Stage 2 screenshot NOT captured"
+            if [ -f screenshots/02-staging-pmtiles-probe-fallback.png ]; then
+              echo "  ✅ Stage 1 (PMTiles probe fallback): screenshots/02-staging-pmtiles-probe-fallback.png"
+            else
+              echo "  ❌ Stage 1 screenshot NOT captured"
+            fi
+            if [ -f screenshots/03-staging-offline-floor.png ]; then
+              echo "  ✅ Stage 2 (offline floor): screenshots/03-staging-offline-floor.png"
+            else
+              echo "  ❌ Stage 2 screenshot NOT captured"
+            fi
           fi
           echo ""
           echo "── Verification Result JSON ────────────────────────────────────"
@@ -496,9 +509,26 @@ jobs:
           echo "════════════════════════════════════════════════════════════════"
           echo ""
           # Determine overall pass/fail
-          if [ "$ANALYZE_PASSED" = "success" ] && [ "$BUILD_PROD_PASSED" = "success" ] && [ "$BUILD_STAGING_PASSED" = "success" ] && [ "$DEPLOY_PASSED" = "success" ] && [ "$SCREENSHOTS_PASSED" = "success" ]; then
-            echo "🎉 ALL v5.0 Part 1 acceptance criteria MET — Part 2 can begin"
-            exit 0
+          # QA fix 2026-09-19: deploy-vercel is intentionally disabled (if: false)
+          # — deployment now happens via the dedicated "Deploy Web to Vercel"
+          # workflow, and screenshots depend on the deploy outputs. When BOTH
+          # are consistently skipped, the core criteria (analyze + builds)
+          # still constitute a pass. The old gate required DEPLOY_PASSED=
+          # success, which was structurally impossible → workflow could
+          # never go green.
+          if [ "$ANALYZE_PASSED" = "success" ] && [ "$BUILD_PROD_PASSED" = "success" ] && [ "$BUILD_STAGING_PASSED" = "success" ]; then
+            if [ "$DEPLOY_PASSED" = "success" ] && [ "$SCREENSHOTS_PASSED" = "success" ]; then
+              echo "🎉 ALL v5.0 Part 1 acceptance criteria MET — Part 2 can begin"
+              exit 0
+            elif [ "$DEPLOY_PASSED" = "skipped" ] && [ "$SCREENSHOTS_PASSED" = "skipped" ]; then
+              echo "✅ Core acceptance criteria MET (analyze + production build + staging build)."
+              echo "   deploy-vercel is intentionally disabled (deploys run via the"
+              echo "   'Deploy Web to Vercel' workflow); live-URL screenshots skipped by design."
+              exit 0
+            else
+              echo "⚠️  Some jobs did not pass — see logs above"
+              exit 1
+            fi
           else
             echo "⚠️  Some jobs did not pass — see logs above"
             exit 1

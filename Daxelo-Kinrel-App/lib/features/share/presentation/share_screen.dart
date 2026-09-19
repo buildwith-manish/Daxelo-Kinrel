@@ -25,8 +25,6 @@
 //   QR Code:     #F59240 (amber)
 //   Copy:        #F5F0EE (white)
 
-import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,7 +40,6 @@ import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/utils/share_helper.dart';
-import '../../family/presentation/services/graph_export_service.dart';
 import '../providers/share_provider.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────────

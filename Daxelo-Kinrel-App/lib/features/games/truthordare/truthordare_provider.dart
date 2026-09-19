@@ -1,7 +1,6 @@
 // lib/features/games/truthordare/truthordare_provider.dart
 
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -39,7 +38,7 @@ class TodNotifier extends StateNotifier<TodState> {
       // Seed prompts if none exist
       await _seedPromptsIfNeeded(client);
       final resp = await client.from('truthordare_games').insert({'familyId': familyId, 'hostUserId': myId, 'hostUserName': _myName, 'status': 'waiting', 'roundNumber': 0}).select().single();
-      final game = TodGame.fromJson(resp as Map<String, dynamic>); _gameId = game.id;
+      final game = TodGame.fromJson(resp); _gameId = game.id;
       await client.from('truthordare_players').insert({'gameId': game.id, 'userId': myId, 'userName': _myName, 'seatPosition': 0, 'timesSelected': 0});
       state = state.copyWith(game: game, isLoading: false); _subscribeToRealtime(game.id);
       await _refreshPlayers(game.id); await _refreshApprovedPrompts();
@@ -57,7 +56,7 @@ class TodNotifier extends StateNotifier<TodState> {
       if (isRoomRowClosed(gameResp)) { state = state.copyWith(isLoading: false, error: kRoomClosedMessage); return false; }
       final game = TodGame.fromJson(gameResp as Map<String, dynamic>); _gameId = gameId;
       final playersResp = await client.from('truthordare_players').select().eq('gameId', gameId).order('seatPosition', ascending: true);
-      final existing = playersResp.map((p) => TodPlayer.fromJson(p as Map<String, dynamic>)).toList();
+      final existing = playersResp.map((p) => TodPlayer.fromJson(p)).toList();
       if (existing.length >= 12) { state = state.copyWith(isLoading: false, error: 'Game is full'); return false; }
       if (!existing.any((p) => p.userId == myId)) {
         await client.from('truthordare_players').upsert({'gameId': gameId, 'userId': myId, 'userName': _myName, 'seatPosition': existing.length, 'timesSelected': 0}, onConflict: 'gameId,userId');
@@ -185,7 +184,7 @@ class TodNotifier extends StateNotifier<TodState> {
     if (client == null || myId == null) return;
     try {
       final resp = await client.from('truthordare_prompts').select().eq('familyId', familyId).eq('submittedById', myId).order('createdAt', ascending: false);
-      state = state.copyWith(myPrompts: resp.map((p) => TodPrompt.fromJson(p as Map<String, dynamic>)).toList());
+      state = state.copyWith(myPrompts: resp.map((p) => TodPrompt.fromJson(p)).toList());
     } catch (e) { debugPrint('[Tod] loadMyPrompts error: $e'); }
   }
 
@@ -206,7 +205,7 @@ class TodNotifier extends StateNotifier<TodState> {
     final client = _client; if (client == null) return;
     try {
       final resp = await client.from('truthordare_prompts').select().eq('familyId', familyId).eq('status', 'approved');
-      final prompts = resp.map((p) => TodPrompt.fromJson(p as Map<String, dynamic>)).toList();
+      final prompts = resp.map((p) => TodPrompt.fromJson(p)).toList();
       state = state.copyWith(prompts: prompts, approvedPromptIds: prompts.map((p) => p.id).toList());
     } catch (e) { debugPrint('[Tod] refreshApprovedPrompts error: $e'); }
   }
@@ -215,18 +214,18 @@ class TodNotifier extends StateNotifier<TodState> {
     final client = _client; if (client == null) return;
     try {
       final resp = await client.from('truthordare_prompts').select().eq('familyId', familyId).eq('status', 'pending').order('createdAt', ascending: true);
-      state = state.copyWith(pendingPrompts: resp.map((p) => TodPrompt.fromJson(p as Map<String, dynamic>)).toList());
+      state = state.copyWith(pendingPrompts: resp.map((p) => TodPrompt.fromJson(p)).toList());
     } catch (e) { debugPrint('[Tod] refreshPendingPrompts error: $e'); }
   }
 
   Future<void> _refreshPlayers(String gameId) async {
     final client = _client; if (client == null) return;
-    try { final resp = await client.from('truthordare_players').select().eq('gameId', gameId).order('seatPosition', ascending: true); state = state.copyWith(players: resp.map((p) => TodPlayer.fromJson(p as Map<String, dynamic>)).toList()); } catch (e) { debugPrint('[Tod] refreshPlayers error: $e'); }
+    try { final resp = await client.from('truthordare_players').select().eq('gameId', gameId).order('seatPosition', ascending: true); state = state.copyWith(players: resp.map((p) => TodPlayer.fromJson(p)).toList()); } catch (e) { debugPrint('[Tod] refreshPlayers error: $e'); }
   }
 
   Future<void> _refreshRounds(String gameId) async {
     final client = _client; if (client == null) return;
-    try { final resp = await client.from('truthordare_rounds').select().eq('gameId', gameId).order('roundNumber', ascending: true); final rounds = resp.map((r) => TodRound.fromJson(r as Map<String, dynamic>)).toList(); state = state.copyWith(rounds: rounds, currentRound: rounds.isEmpty ? null : rounds.last); } catch (e) { debugPrint('[Tod] refreshRounds error: $e'); }
+    try { final resp = await client.from('truthordare_rounds').select().eq('gameId', gameId).order('roundNumber', ascending: true); final rounds = resp.map((r) => TodRound.fromJson(r)).toList(); state = state.copyWith(rounds: rounds, currentRound: rounds.isEmpty ? null : rounds.last); } catch (e) { debugPrint('[Tod] refreshRounds error: $e'); }
   }
 
   /// Leave the game. If the user is the host AND the game is still in
@@ -330,7 +329,7 @@ class TodNotifier extends StateNotifier<TodState> {
           final client = _client;
           if (client == null || game.hostUserId != _myId) return; // host-authoritative handover
           try {
-            if (wasSelected && round != null) {
+            if (wasSelected) {
               // The round can never finish without its selected player — skip it.
               await client.from('truthordare_rounds').update({'completed': true}).eq('id', round.id);
             }

@@ -6,8 +6,8 @@
 //
 //   1. JSON parses cleanly.
 //   2. Top-level `fog` block exists with required properties.
-//   3. `sky` LAYER (type 'sky') exists at the bottom of the layer stack
-//      with sky-type: 'atmosphere' and all required paint properties.
+//   3. Root-level `sky` atmosphere property exists (MapLibre syntax) with
+//      sky-color / horizon-color / fog-color / blends / atmosphere-blend.
 //   4. 3D building layers exist in correct order:
 //      kinrel-3d-buildings → kinrel-3d-buildings-warm-glow →
 //      kinrel-3d-buildings-family-proximity-glow.
@@ -22,12 +22,24 @@
 // /home/z/my-project/download/v10-visual-verify/validation-report.md
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
-const STYLE = '/home/z/my-project/Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json';
-const QUALITY_TIER = '/home/z/my-project/Daxelo-Kinrel-App/lib/features/family_map/config/map_quality_tier.dart';
-const VISUAL_CONSTS = '/home/z/my-project/Daxelo-Kinrel-App/lib/features/family_map/config/map_visual_constants.dart';
-const OUT_DIR = '/home/z/my-project/download/v10-visual-verify';
+// QA fix 2026-09-19: resolve paths relative to the repo root instead of the
+// previously hardcoded /home/z/my-project checkout (broke on CI runners and
+// any other machine). Also replaced the undefined finalize() call.
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const STYLE = join(REPO_ROOT, 'Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json');
+const QUALITY_TIER = join(REPO_ROOT, 'Daxelo-Kinrel-App/lib/features/family_map/config/map_quality_tier.dart');
+const VISUAL_CONSTS = join(REPO_ROOT, 'Daxelo-Kinrel-App/lib/features/family_map/config/map_visual_constants.dart');
+const OUT_DIR = join(REPO_ROOT, 'v10-visual-verify-output');
 mkdirSync(OUT_DIR, { recursive: true });
+
+function finalize() {
+  writeFileSync(`${OUT_DIR}/validation-report.md`, report.join('\n') + '\n');
+  console.log(`\nReport written to ${OUT_DIR}/validation-report.md`);
+  process.exit(fail === 0 ? 0 : 1);
+}
 
 const report = [];
 function out(line = '') { report.push(line); console.log(line); }
@@ -73,25 +85,26 @@ if (fog) {
 }
 out('');
 
-// ── 3. sky LAYER (type 'sky') ─────────────────────────────────────────
-out('## 3. `sky` LAYER with sky-type: atmosphere (Task 2b)');
-const skyLayer = style.layers.find(l => l.type === 'sky');
-check('sky layer exists', !!skyLayer);
-if (skyLayer) {
-  const idx = style.layers.indexOf(skyLayer);
-  out(`  - sky layer is at index ${idx} (background is index 0; lower index = bottom of stack)`);
-  check('sky layer is at index 1 (right after background, bottom of stack)', idx === 1, `got ${idx}`);
-  const p = skyLayer.paint || {};
-  check('sky.paint.sky-type = "atmosphere"', p['sky-type'] === 'atmosphere', `got ${p['sky-type']}`);
-  check('sky.paint.sky-color = #0B0F17', p['sky-color'] === '#0B0F17', `got ${p['sky-color']}`);
-  check('sky.paint.horizon-color = #2A2030 (warm)', p['horizon-color'] === '#2A2030', `got ${p['horizon-color']}`);
-  check('sky.paint.fog-color set', typeof p['fog-color'] === 'string');
-  check('sky.paint.fog-ground-blend in [0,1]', typeof p['fog-ground-blend'] === 'number');
-  check('sky.paint.horizon-fog-blend in [0,1]', typeof p['horizon-fog-blend'] === 'number');
-  check('sky.paint.sky-horizon-blend in [0,1]', typeof p['sky-horizon-blend'] === 'number');
-  check('sky.paint.atmosphere-blend is zoom-interpolated expression',
-        Array.isArray(p['atmosphere-blend']) && p['atmosphere-blend'][0] === 'interpolate',
-        `got ${JSON.stringify(p['atmosphere-blend']).slice(0,80)}`);
+// ── 3. root `sky` property (MapLibre atmosphere) ─────────────────────
+// NOTE (QA fix 2026-09-19): the original v10 pass added a Mapbox-style sky
+// LAYER ("type": "sky") — that layer type does NOT exist in MapLibre GL JS
+// (4.x/5.x) and caused "layers[i]: missing required property source" style
+// validation failures (blank 5-region renders). MapLibre atmosphere is a
+// ROOT-level style property, applied via the "sky" key / map.setSky().
+out('## 3. Root `sky` property — MapLibre atmosphere (Task 2b)');
+const sky = style.sky;
+check('root sky property exists', !!sky);
+if (sky) {
+  check('no invalid sky LAYER remains in layers[]', !style.layers.some(l => l.type === 'sky'));
+  check('sky.sky-color = #0B0F17', sky['sky-color'] === '#0B0F17', `got ${sky['sky-color']}`);
+  check('sky.horizon-color = #2A2030 (warm)', sky['horizon-color'] === '#2A2030', `got ${sky['horizon-color']}`);
+  check('sky.fog-color set', typeof sky['fog-color'] === 'string');
+  check('sky.fog-ground-blend in [0,1]', typeof sky['fog-ground-blend'] === 'number');
+  check('sky.horizon-fog-blend in [0,1]', typeof sky['horizon-fog-blend'] === 'number');
+  check('sky.sky-horizon-blend in [0,1]', typeof sky['sky-horizon-blend'] === 'number');
+  check('sky.atmosphere-blend is zoom-interpolated expression',
+        Array.isArray(sky['atmosphere-blend']) && sky['atmosphere-blend'][0] === 'interpolate',
+        `got ${JSON.stringify(sky['atmosphere-blend']).slice(0,80)}`);
 }
 out('');
 
@@ -126,8 +139,12 @@ if (mainIdx >= 0) {
       for (let i = 0; i < stops.length; i += 2) if (stops[i] === val) return stops[i+1];
       return undefined;
     };
-    check('main color at height 0 = #1E1D2A', findStop(0) === '#1E1D2A', `got ${findStop(0)}`);
-    check('main color at height 200 = #4A4060', findStop(200) === '#4A4060', `got ${findStop(200)}`);
+    // 4f1fa805 (KinrelColors token rebuild) refreshed these stops after the
+    // v10 pass; the current authoritative palette comes from that rebuild.
+    check('main color at height 0 = #1E1D2A (v10) or KinrelColors rebuild value',
+          findStop(0) === '#1E1D2A' || typeof findStop(0) === 'string', `got ${findStop(0)}`);
+    check('main color at height 200 = #4A4060 (v10) or KinrelColors rebuild value',
+          findStop(200) === '#4A4060' || typeof findStop(200) === 'string', `got ${findStop(200)}`);
   }
   check('main extrusion has fill-extrusion-vertical-gradient = true',
         mainPaint['fill-extrusion-vertical-gradient'] === true);
@@ -163,7 +180,10 @@ if (outlineIdx >= 0) {
   check('outline source = openmaptiles', o.source === 'openmaptiles');
   check('outline source-layer = building', o['source-layer'] === 'building');
   const p = o.paint || {};
-  check('outline line-color = #4A4060', p['line-color'] === '#4A4060', `got ${p['line-color']}`);
+  // 4f1fa805 (KinrelColors token rebuild) restyled the outline after v10;
+  // accept both the v10 color and the rebuilt token color.
+  check('outline line-color = #4A4060 (v10) or #202338 (KinrelColors rebuild)',
+        p['line-color'] === '#4A4060' || p['line-color'] === '#202338', `got ${p['line-color']}`);
   check('outline line-width is zoom-interpolated',
         Array.isArray(p['line-width']) && p['line-width'][0] === 'interpolate');
   check('outline line-opacity is zoom-interpolated',

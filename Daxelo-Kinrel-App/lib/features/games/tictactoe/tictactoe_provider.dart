@@ -77,7 +77,7 @@ class TttNotifier extends StateNotifier<TttState> {
         'spectatorsEnabled': spectatorsEnabled, 'hostReady': true,
         'autoCloseDeadline': deadline.toIso8601String(),
       }).select().single();
-      final game = TttGame.fromJson(resp as Map<String, dynamic>);
+      final game = TttGame.fromJson(resp);
       _gameId = game.id;
       // Create round 1 (kept empty while the room waits for a joiner).
       await client.from('tictactoe_rounds').insert({'gameId': game.id, 'roundNumber': 1, 'boardState': createEmptyBoard()});
@@ -238,9 +238,9 @@ class TttNotifier extends StateNotifier<TttState> {
       final game = TttGame.fromJson(gameResp as Map<String, dynamic>);
       _gameId = gameId;
       final roundsResp = await client.from('tictactoe_rounds').select().eq('gameId', gameId).order('roundNumber', ascending: true);
-      final rounds = roundsResp.map((r) => TttRound.fromJson(r as Map<String, dynamic>)).toList();
+      final rounds = roundsResp.map((r) => TttRound.fromJson(r)).toList();
       final movesResp = await client.from('tictactoe_moves').select().eq('roundId', rounds.last.id).order('moveNumber', ascending: true);
-      final moves = movesResp.map((m) => TttMoveRecord.fromJson(m as Map<String, dynamic>)).toList();
+      final moves = movesResp.map((m) => TttMoveRecord.fromJson(m)).toList();
       // Check for winning line
       List<int>? winLine;
       if (rounds.last.result != null && rounds.last.result != RoundResult.draw && rounds.last.result != RoundResult.ongoing) {
@@ -456,7 +456,7 @@ class TttNotifier extends StateNotifier<TttState> {
     final client = _client; if (client == null) return;
     try {
       final resp = await client.from('tictactoe_rounds').select().eq('gameId', gameId).order('roundNumber', ascending: true);
-      state = state.copyWith(rounds: resp.map((r) => TttRound.fromJson(r as Map<String, dynamic>)).toList());
+      state = state.copyWith(rounds: resp.map((r) => TttRound.fromJson(r)).toList());
       // ── QA fix 2026-09-21: arm the moves channel for the CURRENT round
       // after the rounds land (the subscribe-then-refresh order used to
       // bind the filter to an empty round id).

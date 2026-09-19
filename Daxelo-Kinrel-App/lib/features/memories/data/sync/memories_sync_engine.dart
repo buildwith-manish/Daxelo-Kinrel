@@ -8,7 +8,6 @@ class MemoriesSyncEngine extends AbstractSyncEngine {
   @override
   String get engineName => 'memories';
 
-  @override
   String get displayName => 'Memories';
 
   bool _isSyncing = false;

@@ -1,7 +1,6 @@
 // lib/features/games/freeze_auction/freeze_auction_game_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';

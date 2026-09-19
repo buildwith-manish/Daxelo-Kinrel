@@ -44,9 +44,7 @@ import '../../../../graph/interaction/proximity_graph_state.dart'
     show
         proximityGraphProvider,
         ProximityGraphNotifier,
-        ProximityGraphState,
-        buildAdjacency,
-        kProximityNodeBudget;
+        buildAdjacency;
 // v5.161: branch-collapse state — read by graphLayoutProvider to know
 // which branch roots the user has expanded (passed to RadialLayout so
 // each branch gets its own angular sector).
@@ -439,48 +437,6 @@ final kinshipGenerationMapProvider = Provider<Map<String, int>>((ref) {
 });
 
 // ═══════════════════════════════════════════════════════════════════════
-// ISOLATE LAYOUT PARAMS (for compute())
-// ═══════════════════════════════════════════════════════════════════════
-
-/// Parameter bundle passed to the isolate for layout computation.
-class _LayoutComputeParams {
-  final List<GraphPerson> persons;
-  final List<GraphRelationship> relationships;
-  final String? anchorPersonId;
-  final bool compactMode;
-  final Map<String, int>? kinshipGenerationMap;
-
-  /// v5.123 (Step 1): EXPLICIT opt-in for GraphLayoutService's force-
-  /// relaxation pass. Only the "Show All Branches" / Level 4 path
-  /// (expandCollapseProvider disclosure level == DisclosureLevel.full)
-  /// passes true — the default ego-centric view must keep nodes
-  /// exactly on their rings.
-  final bool allowForceRelaxation;
-
-  const _LayoutComputeParams({
-    required this.persons,
-    required this.relationships,
-    this.anchorPersonId,
-    this.compactMode = false,
-    this.kinshipGenerationMap,
-    this.allowForceRelaxation = false,
-  });
-}
-
-/// Top-level function executed inside the isolate via [compute].
-GraphLayoutResult _runLayoutInIsolate(_LayoutComputeParams params) {
-  final service = GraphLayoutService();
-  return service.computeLayout(
-    persons: params.persons,
-    relationships: params.relationships,
-    anchorPersonId: params.anchorPersonId,
-    compactMode: params.compactMode,
-    kinshipGenerationMap: params.kinshipGenerationMap,
-    allowForceRelaxation: params.allowForceRelaxation,
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════
 // HELPER: resolve viewer member ID for a family (v2.2)
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -508,45 +464,6 @@ Future<String?> _resolveViewerMemberId(
     return viewerAsync;
   } catch (e) {
     debugPrint('[_resolveViewerMemberId] viewer lookup failed: $e');
-    return null;
-  }
-}
-
-/// Looks up the anchor person ID for [familyId] from the Person table.
-/// Falls back to the first person in the family if no anchor is set.
-///
-/// LEGACY: This is only used as a fallback for unclaimed profiles per
-/// architecture §3 invariant 7. Runtime relationship resolution must
-/// go through `viewerPersonIdProvider`, not this helper.
-Future<String?> _resolveAnchorMemberId(
-  SupabaseClient client,
-  String familyId,
-) async {
-  try {
-    // Try anchor person first (non-deleted)
-    final anchor = await client
-        .from('Person')
-        .select('id')
-        .eq('familyId', familyId)
-        .eq('isAnchor', true)
-        .isFilter('deletedAt', null)
-        .maybeSingle();
-
-    if (anchor != null) return anchor['id'] as String?;
-
-    // Fallback: first non-deleted person in family
-    final first = await client
-        .from('Person')
-        .select('id')
-        .eq('familyId', familyId)
-        .isFilter('deletedAt', null)
-        .order('createdAt')
-        .limit(1)
-        .maybeSingle();
-
-    return first?['id'] as String?;
-  } catch (e) {
-    debugPrint('[_resolveAnchorMemberId] Error: $e');
     return null;
   }
 }
@@ -1582,75 +1499,6 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     );
   }
 
-  /// v94 (EDGE BUG FIX): Union-merge RPC and direct-query graph results
-  /// by ID / canonical edge pair — NOT by relationship count.
-  ///
-  /// The previous count-based merge could silently drop the new edge if
-  /// RPC and direct had equal relationship counts but different edge
-  /// sets (e.g. RPC missing the new edge but having a phantom/duplicate
-  /// elsewhere). This method takes the UNION of:
-  ///   • persons — by Person ID (RPC wins ties for label richness)
-  ///   • relationships — by canonical pair key (direct wins when RPC's
-  ///     relationshipKey is null/unknown)
-  /// so no edge is ever silently dropped.
-  FlatGraphResult _mergeGraphResults({
-    required FlatGraphResult rpcResult,
-    required FlatGraphResult directResult,
-  }) {
-    // ── Merge persons by ID (union) ──
-    final personsById = <String, Map<String, dynamic>>{};
-    // Direct first (source of truth for existence), then RPC overrides
-    // for label richness (RPC carries viewer-perspective labels).
-    for (final p in directResult.persons) {
-      final id = p['id']?.toString();
-      if (id != null && id.isNotEmpty) personsById[id] = p;
-    }
-    for (final p in rpcResult.persons) {
-      final id = p['id']?.toString();
-      if (id != null && id.isNotEmpty) {
-        // RPC may carry richer viewer-perspective fields — prefer it
-        // for label fields, but keep direct's existence authority.
-        personsById[id] = {...personsById[id] ?? {}, ...p};
-      }
-    }
-
-    // ── Merge relationships by canonical pair (union) ──
-    final relsByPair = <String, Map<String, dynamic>>{};
-    for (final edge in rpcResult.relationships) {
-      final key = _canonicalEdgeKey(edge);
-      if (key.isNotEmpty) relsByPair[key] = edge;
-    }
-    for (final edge in directResult.relationships) {
-      final key = _canonicalEdgeKey(edge);
-      if (key.isEmpty) continue;
-      final existing = relsByPair[key];
-      if (existing == null ||
-          existing['relationshipKey'] == null ||
-          existing['relationshipKey'] == 'unknown') {
-        // Direct wins when RPC's edge is missing/stale/unknown.
-        relsByPair[key] = edge;
-      }
-    }
-
-    return FlatGraphResult(
-      persons: personsById.values.toList(),
-      relationships: relsByPair.values.toList(),
-      isTruncated: rpcResult.isTruncated || directResult.isTruncated,
-      totalCount: personsById.length,
-    );
-  }
-
-  /// v94: Canonical edge pair key — sorted (from, to) joined by '|'.
-  /// Used for union-merging RPC + direct relationship sets so no edge
-  /// is silently dropped due to count-based selection.
-  static String _canonicalEdgeKey(Map<String, dynamic> edge) {
-    final from = edge['fromPersonId']?.toString() ?? '';
-    final to = edge['toPersonId']?.toString() ?? '';
-    if (from.isEmpty || to.isEmpty) return '';
-    final ids = [from, to]..sort();
-    return '${ids[0]}|${ids[1]}';
-  }
-
   /// Fetches graph data by directly querying Person and Relationship tables.
   /// Used as a fallback when the `get_family_graph` RPC fails or returns
   /// incomplete results.
@@ -1779,7 +1627,7 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       // ── EDGE DEBUG: Log raw Supabase relationship data ──
       debugPrint('[EDGE-DEBUG] Raw relationships from Supabase: ${rawRelationships.length}');
       if (rawRelationships.isNotEmpty) {
-        final rawFirst = rawRelationships.first as Map<String, dynamic>;
+        final rawFirst = rawRelationships.first;
         debugPrint('[EDGE-DEBUG] Raw first relationship keys: ${rawFirst.keys.toList()}');
         debugPrint('[EDGE-DEBUG] Raw first relationship values: $rawFirst');
       } else {

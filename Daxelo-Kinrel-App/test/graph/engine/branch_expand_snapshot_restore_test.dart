@@ -27,9 +27,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kinrel/features/family/presentation/providers/family_graph_provider.dart';
-import 'package:kinrel/graph/interaction/branch_collapse_state.dart';
-import 'package:kinrel/graph/interaction/proximity_graph_state.dart';
-import 'package:kinrel/core/services/graph_layout_service.dart';
 
 const _familyId = 'test-family-branch-expand';
 
@@ -246,7 +243,7 @@ void main() {
           debugPrint(
               '[BUG-TRACE] EXPAND-PRESERVE-CACHE: restoredFromSnapshot=false '
               'but lastLayoutPositionsProvider cache already has positions for '
-              '${revealedIds.where(existingCache!.containsKey).length} of '
+              '${revealedIds.where(existingCache.containsKey).length} of '
               '${revealedIds.length} revealed descendants — PRESERVING cache.');
         } else {
           // v5.207: Clear cached positions.

@@ -24,12 +24,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/family/family_provider.dart';
-import '../../core/services/supabase_service.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../interaction/graph_focus_state.dart';
 // v5.22: Personal layout overrides (for the per-node "Reset to auto layout" action).
@@ -259,8 +257,8 @@ class GraphQuickActions {
                   // (extracted from _showPersonListAndAutoCreate).
                   showRelationshipPickerFlow(
                     context: context,
-                    ref: ref!,
-                    familyId: familyId!,
+                    ref: ref,
+                    familyId: familyId,
                     sourcePerson: person,
                   );
                 },
@@ -304,7 +302,7 @@ class GraphQuickActions {
             // same node.
             if (familyId != null && ref != null)
               FutureBuilder<PersonalLayoutOverrides>(
-                future: ref!.read(personalLayoutOverridesProvider(familyId!).future),
+                future: ref.read(personalLayoutOverridesProvider(familyId).future),
                 builder: (context, snapshot) {
                   final hasOverride = snapshot.data?.nodePositions
                           .containsKey(person.id) ??
@@ -323,7 +321,7 @@ class GraphQuickActions {
                     onTap: () async {
                       Navigator.pop(sheetContext);
                       await LayoutOverridesService.removeNodeOverride(
-                          ref!, familyId!, person.id);
+                          ref, familyId, person.id);
                       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
                         const SnackBar(
                           content: Text('Reset to auto-layout'),

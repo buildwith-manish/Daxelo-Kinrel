@@ -22,7 +22,6 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/graph/interaction/branch_collapse_state.dart';
-import 'package:kinrel/graph/interaction/proximity_graph_state.dart';
 
 typedef _E = ({String fromId, String toId, String edgeId, String relationshipKey});
 

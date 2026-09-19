@@ -19,7 +19,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/brand_colors.dart';
-import '../data/graph_data_models.dart' show GraphEdgeData;
 
 /// A screen-reader-accessible outline/list view of the graph.
 ///

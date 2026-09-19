@@ -166,7 +166,7 @@ class MentionPickerOverlay extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.name, required this.initials, this.avatarUrl});
+  const _Avatar({required this.name, required this.initials}) : avatarUrl = null;
   final String name;
   final String initials;
   final String? avatarUrl;

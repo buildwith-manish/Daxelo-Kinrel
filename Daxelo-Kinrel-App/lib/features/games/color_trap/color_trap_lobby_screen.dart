@@ -13,7 +13,6 @@ import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/lobby_join_handler.dart';
 import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
-import '../shared/services/temporary_room_service.dart' show kRoomClosedMessage;
 import '../shared/widgets/temporary_lobby_view.dart';
 import 'color_trap_engine.dart';
 import 'color_trap_provider.dart';

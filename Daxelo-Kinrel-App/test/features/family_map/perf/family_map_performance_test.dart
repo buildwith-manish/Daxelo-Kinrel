@@ -20,14 +20,6 @@ import 'package:kinrel/features/family_map/data/map_location_source.dart';
 import 'package:kinrel/features/family_map/data/map_data_validator.dart';
 import 'package:kinrel/features/family_map/data/deterministic_spread.dart';
 
-/// Type alias for the relationship-edge record used by the validator.
-typedef _Edge = ({
-  String fromId,
-  String toId,
-  String edgeId,
-  String relationshipKey,
-});
-
 /// Builds a list of [n] MapPins with `exactPlace` location source.
 ///
 /// Coordinates are spread on a 100×10 grid around (12.0, 77.0) so that
@@ -135,7 +127,7 @@ void main() {
     test('1000 members with exactPlace: completes in < 100ms', () {
       final pins = _buildExactPins(1000);
       final sw = Stopwatch()..start();
-      final households = computeHouseholds(pins);
+      computeHouseholds(pins);
       sw.stop();
       expect(
         sw.elapsedMilliseconds,
@@ -213,8 +205,7 @@ void main() {
               toId: 'p${(i + 1) % 1000}',
               edgeId: 'e$i',
               relationshipKey: 'father',
-            )
-            as _Edge;
+            );
       });
       final sw = Stopwatch()..start();
       final deduped = removeDuplicateEdges(edges);
@@ -232,8 +223,7 @@ void main() {
 
     test('1000 duplicate edges: dedupe collapses to 1 in < 50ms', () {
       final baseEdge =
-          (fromId: 'p0', toId: 'p1', edgeId: 'e0', relationshipKey: 'father')
-              as _Edge;
+          (fromId: 'p0', toId: 'p1', edgeId: 'e0', relationshipKey: 'father');
       final edges = List.filled(1000, baseEdge);
       final sw = Stopwatch()..start();
       final deduped = removeDuplicateEdges(edges);
@@ -249,8 +239,7 @@ void main() {
               toId: 'p$i', // self-edge
               edgeId: 'e$i',
               relationshipKey: 'self',
-            )
-            as _Edge;
+            );
       });
       final sw = Stopwatch()..start();
       final noSelf = removeSelfEdges(edges);

@@ -38,7 +38,7 @@ class RedlightResultsScreen extends ConsumerWidget {
           .eq('roundId', roundId)
           .order('placement', ascending: true);
       return resp
-          .map((r) => RedlightResult.fromJson(r as Map<String, dynamic>))
+          .map((r) => RedlightResult.fromJson(r))
           .toList();
     } catch (_) {
       return [];

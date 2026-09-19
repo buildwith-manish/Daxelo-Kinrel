@@ -86,7 +86,7 @@ class ChatBackground extends ConsumerWidget {
         // theme layers below still render correctly.
         if (hasImage)
           Positioned.fill(
-            child: _BlurredWallpaperImage(imagePath: stored!),
+            child: _BlurredWallpaperImage(imagePath: stored),
           ),
 
         // ── Layer 1: base ambient gradient ─────────────────────────

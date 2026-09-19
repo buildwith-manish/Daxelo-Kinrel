@@ -20,7 +20,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/brand_colors.dart';
 import '../../../../../core/constants/brand_spacing.dart';
 import '../../../../../core/constants/brand_typography.dart';
-import '../../../../../core/family/family_provider.dart';
 import '../../../../../core/kinship/kinship_edge_style.dart';
 import '../../../family/data/relationship_label_provider.dart';
 import '../../../games/shared/icons/game_icons.dart';
@@ -1619,59 +1618,6 @@ class MessageBubble extends ConsumerWidget {
             letterSpacing: 0.3,
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildReactions(String? currentUserId) {
-    final grouped = message.groupedReactions;
-    return Padding(
-      padding: const EdgeInsets.only(top: 3),
-      child: Wrap(
-        spacing: 4,
-        runSpacing: 2,
-        children: grouped.entries.map((entry) {
-          final hasMyReaction = message.reactions.any(
-            (r) => r.emoji == entry.key && r.userId == currentUserId,
-          );
-          return GestureDetector(
-            onTap: onReact,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: hasMyReaction
-                    ? KinrelColors.orange.withValues(alpha: 0.12)
-                    : const Color(0xFF202338),
-                borderRadius: BorderRadius.circular(KinrelRadius.xl),
-                border: Border.all(
-                  color: hasMyReaction
-                      ? KinrelColors.orange.withValues(alpha: 0.3)
-                      : const Color(0xFF3A3A4A),
-                  width: 0.5,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(entry.key, style: TextStyle(fontSize: 13)),
-                  if (entry.value > 1) ...[
-                    const SizedBox(width: 2),
-                    Text(
-                      '${entry.value}',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.monoFont,
-                        fontSize: 10,
-                        color: hasMyReaction
-                            ? KinrelColors.orange
-                            : KinrelColors.textDim,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          );
-        }).toList(),
       ),
     );
   }

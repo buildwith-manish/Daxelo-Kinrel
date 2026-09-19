@@ -5,6 +5,13 @@
 part of '../family_graph_engine_view.dart';
 
 /// Mixin containing interaction handlers for _FamilyGraphEngineViewState.
+///
+/// NOTE: This is a `part`-file EXTENSION that splits the State class's
+/// methods out of family_graph_engine_view.dart. Every `setState` call
+/// below runs against a live `_FamilyGraphEngineViewState` instance, so
+/// the protected-member contract is satisfied at runtime — the analyzer
+/// just cannot verify that through an extension, hence the per-line
+/// ignores.
 extension _InteractionMethods on _FamilyGraphEngineViewState {
   // ── Pan tuning constants ─────────────────────────────────────────────
   //
@@ -93,6 +100,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       // deferring to a microtask-style guard. The simplest correct
       // approach is to just call setState here — Flutter batches
       // multiple setStates in the same frame into a single rebuild.
+      // ignore: invalid_use_of_protected_member
       setState(() {});
     }
 
@@ -118,8 +126,8 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       _rearrangeDragKind = null;
       _rearrangeDragId = null;
       _rearrangePreDragPosition = null;
-      _rearrangePreDragEdgeDelta = Offset.zero;
       _rearrangeDragRevision++;
+      // ignore: invalid_use_of_protected_member
       setState(() {});
       _isPinching = false;
       return;
@@ -172,6 +180,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       if (newMap.length == 1) {
         debugPrint('[v5.35 Drag] first move — node ${_rearrangeDragId} → $graphPos, liveMap size=${newMap.length}');
       }
+      // ignore: invalid_use_of_protected_member
       setState(() {});
       return;
     }
@@ -245,6 +254,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
         // safe to call here because it just schedules a build; if
         // multiple pinch frames arrive in the same 16ms window,
         // Flutter coalesces them into a single rebuild.
+        // ignore: invalid_use_of_protected_member
         setState(() {});
       }
     }
@@ -313,6 +323,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
         newLiveEdge.remove(edgeId);
         _rearrangeLiveEdgeWaypoints = newLiveEdge;
         _rearrangeDragRevision++;
+        // ignore: invalid_use_of_protected_member
         setState(() {});
 
         // Fire-and-forget the persist — the local state already
@@ -1311,7 +1322,6 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       // existing `hasVisibleDescendants()` method from
       // branch_collapse_state.dart, which checks against the set of
       // currently-rendered node IDs (layout.positions.keys).
-      final collapseState = ref.read(branchCollapseProvider);
       BranchCollapseInfo? branchInfo;
 
       // v5.146: Use the shared buildChildrenOf which handles BOTH
@@ -1404,6 +1414,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     }
     if (_compareDragFromId == null) return;
     _compareDragPosition = details.localPosition;
+    // ignore: invalid_use_of_protected_member
     setState(() {});
   }
 
@@ -1445,6 +1456,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
 
     final dragFromId = fromId;
     _compareDragFromId = null;
+    // ignore: invalid_use_of_protected_member
     setState(() {});
 
     final toId = _hitTestNode(details.localPosition, layout);
@@ -1558,14 +1570,6 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     if (edgeId != null) {
       _rearrangeDragKind = 'edge';
       _rearrangeDragId = edgeId;
-      // Snapshot the pre-drag RELATIVE midpoint delta (could be zero
-      // when no saved override existed — Cancel restores zero, which
-      // restores the true bezier t=0.5 midpoint).
-      final saved = ref
-          .read(personalLayoutOverridesProvider(widget.familyId))
-          .valueOrNull;
-      _rearrangePreDragEdgeDelta =
-          saved?.edgeWaypoints[edgeId] ?? Offset.zero;
       GraphHaptics.longPress(context);
       return;
     }
@@ -1642,6 +1646,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // API surface is exercised in its own unit test
     // (test/graph/engine/force_simulator_fix_node_test.dart).
     GraphHaptics.longPress(context);
+    // ignore: invalid_use_of_protected_member
     setState(() {});
   }
 
@@ -1679,6 +1684,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       if (!ref.read(hasUnsavedChangesProvider)) {
         ref.read(hasUnsavedChangesProvider.notifier).state = true;
       }
+      // ignore: invalid_use_of_protected_member
       setState(() {});
     } else if (_rearrangeDragKind == 'edge') {
       // PART 2: live-update the edge's RELATIVE midpoint delta.
@@ -1741,6 +1747,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       if (!ref.read(hasUnsavedChangesProvider)) {
         ref.read(hasUnsavedChangesProvider.notifier).state = true;
       }
+      // ignore: invalid_use_of_protected_member
       setState(() {});
     }
   }
@@ -1760,129 +1767,8 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     _rearrangeDragKind = null;
     _rearrangeDragId = null;
     _rearrangePreDragPosition = null;
-    _rearrangePreDragEdgeDelta = Offset.zero;
     _rearrangeDragRevision++;
-    setState(() {});
-  }
-
-  /// Save handler invoked by the SaveLockPill's Save button.
-  /// Persists the live override for the active element to
-  /// GraphLayoutState via LayoutOverridesService (RLS-gated), then
-  /// clears the live override map (the saved overrides now reflect it)
-  /// and hides the pill.
-  Future<void> _handleRearrangeSave() async {
-    final kind = _rearrangePillKind;
-    final id = _rearrangePillId;
-    if (kind == null || id == null) {
-      _resetRearrangePill();
-      return;
-    }
-    // v5.29 Fix 1: Hide the pill IMMEDIATELY before any async work so
-    // the user gets instant feedback and a mid-save rebuild can't
-    // re-show it. Also clear _rearrangePillKind + _rearrangePillId so
-    // a rebuild during the await doesn't see a stale pill kind/id
-    // and re-render the pill (which would let the user tap Save again).
-    _rearrangePillVisible = false;
-    _rearrangePillKind = null;
-    _rearrangePillId = null;
-    setState(() {});
-
-    if (kind == 'node') {
-      final pos = _rearrangeLiveNodeOverrides[id];
-      if (pos != null) {
-        await LayoutOverridesService.saveNodeOverride(
-            ref, widget.familyId, id, pos);
-        // v5.30 Issue 1: Wait for the provider to re-fetch and emit
-        // the new persisted value (which includes this node's saved
-        // override) BEFORE removing the live override entry. This
-        // prevents the one-frame gap where neither the saved override
-        // nor the live override is present, which would cause the node
-        // to visually snap back to its auto-layout position.
-        //
-        // Without this await: saveNodeOverride calls
-        // ref.invalidate(personalLayoutOverridesProvider) which starts
-        // an async re-fetch. The await for saveNodeOverride returns
-        // after the DB upsert + invalidate call (NOT after the re-fetch
-        // completes). Then we immediately remove the live override —
-        // but the provider's re-fetch may not have resolved yet, so
-        // the canvas reads PersonalLayoutOverrides.empty for one frame
-        // (or longer), and the node snaps back. The user sees this as
-        // a "cancel," taps Save again, and this time the provider has
-        // resolved so it holds.
-        await ref.read(
-            personalLayoutOverridesProvider(widget.familyId).future);
-      }
-      final newMap = Map<String, Offset>.from(_rearrangeLiveNodeOverrides);
-      newMap.remove(id);
-      _rearrangeLiveNodeOverrides = newMap;
-    } else if (kind == 'edge') {
-      final delta = _rearrangeLiveEdgeWaypoints[id];
-      if (delta != null) {
-        await LayoutOverridesService.saveEdgeWaypoint(
-            ref, widget.familyId, id, delta);
-        // v5.30 Issue 1: Same fix as for nodes above — wait for the
-        // provider to resolve with the new persisted edge waypoint
-        // BEFORE removing the live override entry. Prevents the curve
-        // from visually snapping back to the default midpoint during
-        // the async gap between invalidate and re-fetch completion.
-        await ref.read(
-            personalLayoutOverridesProvider(widget.familyId).future);
-      }
-      final newMap = Map<String, Offset>.from(_rearrangeLiveEdgeWaypoints);
-      newMap.remove(id);
-      _rearrangeLiveEdgeWaypoints = newMap;
-    }
-    // Clear drag state after DB write completes.
-    _rearrangeDragKind = null;
-    _rearrangeDragId = null;
-    _rearrangePreDragPosition = null;
-    _rearrangePreDragEdgeDelta = Offset.zero;
-    _rearrangeDragRevision++;
-    if (mounted) setState(() {});
-  }
-
-  /// Cancel handler invoked by the SaveLockPill's Cancel button
-  /// (or by the pill's 6-second auto-dismiss). Reverts the live
-  /// override for the active element to the pre-drag snapshot:
-  ///   • Node: remove the live override entry (auto-layout/saved
-  ///     override is restored — pre-drag state).
-  ///   • Edge: restore the live override to the pre-drag delta (which
-  ///     is Offset.zero when no saved override existed, i.e. the curve
-  ///     snaps back to the true computed midpoint).
-  void _handleRearrangeCancel() {
-    final kind = _rearrangePillKind;
-    final id = _rearrangePillId;
-    if (kind == null || id == null) {
-      _resetRearrangePill();
-      return;
-    }
-    if (kind == 'node') {
-      final newMap = Map<String, Offset>.from(_rearrangeLiveNodeOverrides);
-      newMap.remove(id);
-      _rearrangeLiveNodeOverrides = newMap;
-    } else if (kind == 'edge') {
-      final newMap = Map<String, Offset>.from(_rearrangeLiveEdgeWaypoints);
-      // Restore to pre-drag delta. If pre-drag was Offset.zero, remove
-      // the entry (no override = true computed midpoint).
-      if (_rearrangePreDragEdgeDelta == Offset.zero) {
-        newMap.remove(id);
-      } else {
-        newMap[id] = _rearrangePreDragEdgeDelta;
-      }
-      _rearrangeLiveEdgeWaypoints = newMap;
-    }
-    _resetRearrangePill();
-  }
-
-  void _resetRearrangePill() {
-    _rearrangePillVisible = false;
-    _rearrangePillKind = null;
-    _rearrangePillId = null;
-    _rearrangeDragKind = null;
-    _rearrangeDragId = null;
-    _rearrangePreDragPosition = null;
-    _rearrangePreDragEdgeDelta = Offset.zero;
-    _rearrangeDragRevision++;
+    // ignore: invalid_use_of_protected_member
     setState(() {});
   }
 
@@ -2064,13 +1950,13 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
                         style: TextStyle(
                             color: Colors.white.withOpacity(0.8),
                             fontSize: 14)),
-                    if (step.relationshipType != null) ...[
-                      const Spacer(),
-                      Text(step.relationshipType!,
-                          style: TextStyle(
-                              color: Colors.white.withOpacity(0.4),
-                              fontSize: 12)),
-                    ],
+                    ...[
+                    const Spacer(),
+                    Text(step.relationshipType,
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.4),
+                            fontSize: 12)),
+                  ],
                   ],
                 ),
               );

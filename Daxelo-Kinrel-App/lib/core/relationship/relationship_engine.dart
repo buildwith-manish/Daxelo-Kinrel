@@ -18,7 +18,6 @@
 import 'package:flutter/foundation.dart';
 
 import '../graph/graph_service.dart';
-import '../kinship/kinship_edge_style.dart';
 import '../kinship/kinship_service.dart';
 import '../kinship/structural_kinship_classifier.dart';
 import '../services/graph_layout_service.dart' show GraphPerson;
@@ -354,16 +353,6 @@ class RelationshipEngine {
         // Return the type as-is — may be a compound key already in KinshipService
         return type;
     }
-  }
-
-  /// Pluralizes a kinship term for compound keys.
-  /// "father" → "fathers", "mother" → "mothers", "brother" → "brothers"
-  String _pluralize(String term) {
-    if (term.endsWith('s')) return term;
-    if (term.endsWith('y') && !term.endsWith('ay')) {
-      return '${term.substring(0, term.length - 1)}ies';
-    }
-    return '${term}s';
   }
 
   /// Returns the stored relationshipKey for a target person (legacy fallback).

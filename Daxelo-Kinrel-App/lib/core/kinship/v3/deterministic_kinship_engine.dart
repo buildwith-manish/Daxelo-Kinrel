@@ -239,7 +239,6 @@ class DeterministicKinshipEngine {
     // Calculate generation delta
     int upCount = 0;
     int downCount = 0;
-    int spouseCount = 0;
 
     for (final p in path) {
       switch (p) {
@@ -252,7 +251,6 @@ class DeterministicKinshipEngine {
           downCount++;
           break;
         case TraversePrimitive.spouse:
-          spouseCount++;
           break;
       }
     }

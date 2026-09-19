@@ -6,7 +6,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/services/temporary_room_service.dart';
-import 'impostor_engine.dart';
 import 'impostor_models.dart';
 
 class ImpostorState {
@@ -23,7 +22,6 @@ class ImpostorState {
     for (final p in players) { if (p.userId == userId) return p; }
     return null;
   }
-  static String? _currentUserId;
   ImpostorState copyWith({ImpostorGame? game, List<ImpostorPlayer>? players, bool? isLoading, bool? isStarting, bool? isLeaving, bool clearError = false, String? error, bool? amSpectator}) => ImpostorState(
     game: game ?? this.game, players: players ?? this.players,
     isLoading: isLoading ?? this.isLoading, isStarting: isStarting ?? this.isStarting,
@@ -209,7 +207,6 @@ class ImpostorNotifier extends StateNotifier<ImpostorState> {
 
   void _applyGameRow(ImpostorGame game) {
     final previous = state.game;
-    ImpostorState._currentUserId = _myId;
     state = state.copyWith(game: game);
     if (game.isInProgress && _watchdogTimer == null) {
       _watchdogTimer = Timer.periodic(const Duration(seconds: 2), (_) { _tryRpc('fn_impostor_tick', {'p_game_id': game.id}); });

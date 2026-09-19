@@ -8,7 +8,6 @@
 // Uses the standard PYMK pattern: find persons NOT directly connected
 // to the viewer who share ≥2 common neighbors, ranked by count.
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// A suggested connection.
 class SuggestedConnection {

@@ -37,9 +37,8 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         final sizeChanged = _viewportSize.width != newWidth ||
             _viewportSize.height != newHeight;
         _viewportSize = constraints.biggest;
-        // v4.4: Push viewport size + safe area to the camera so it can
-        // clamp panning and keep nodes fully visible.
-        _camera.setViewportSize(_viewportSize);
+        // v4.4: Push safe area to the camera so fitToView centers content
+        // in the usable area.
         _camera.setSafeAreaInsets(MediaQuery.of(context).padding);
         // v4.8: Pass the app's own bottom UI chrome height (stats panel +
         // toolbar + FAB area) so fitToView centers content above the overlay.
@@ -81,11 +80,9 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // case — most viewers never customize their graph layout),
         // this reduces to `autoLayout` unchanged — no regression.
         //
-        // Declared HERE at the top of the builder (not later) so the
-        // camera content-bounds computation below can use it to
-        // include any repositioned nodes in its bounding box —
-        // otherwise panning would feel wrong if a node was dragged
-        // outside the original auto-layout bounds.
+        // Declared HERE at the top of the builder (not later) so every
+        // consumer below (load-animation lerp, node/edge rendering)
+        // shares one effective position set.
         final Map<String, Offset> effectivePositions =
             savedOverrides.applyTo(layout.positions);
         // Layer the live drag deltas on top (only non-empty while a
@@ -293,31 +290,6 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           }
         }
 
-        // v4.5: Push content bounds to the camera (bounding box of all
-        // node positions + expanded node size including visual effects).
-        // Uses 220×256 (base 140×176 + glow/shadow/badges/indicators)
-        // so pan clamping accounts for ALL visual elements, not just the
-        // node circle. This ensures nodes are never partially clipped.
-        if (effectivePositions.isNotEmpty) {
-          const nodeWidth = 220.0;   // 140 base + 40 glow/shadow + 40 indicators
-          const nodeHeight = 256.0;  // 176 base + 40 glow/shadow + 40 badges
-          double minX = double.infinity;
-          double minY = double.infinity;
-          double maxX = double.negativeInfinity;
-          double maxY = double.negativeInfinity;
-          for (final pos in effectivePositions.values) {
-            if (pos.dx < minX) minX = pos.dx;
-            if (pos.dy < minY) minY = pos.dy;
-            if (pos.dx + nodeWidth > maxX) maxX = pos.dx + nodeWidth;
-            if (pos.dy + nodeHeight > maxY) maxY = pos.dy + nodeHeight;
-          }
-          if (minX != double.infinity) {
-            _camera.setContentBounds(Rect.fromLTRB(minX, minY, maxX, maxY));
-          }
-        } else {
-          _camera.setContentBounds(null);
-        }
-
         // One-time framing AFTER the first frame — never during build, which
         // avoids the historical setState-during-build crash.
         // v5.75: Pass flat + viewerPersonId so _maybeFrame can center on the
@@ -392,7 +364,9 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           // set is recomputed immediately (not waiting for a pan).
           _culler.invalidate();
           _cachedRelationLabels = _relationLabels(flat, viewerPersonId);
-          _cachedRelationKeys = _relationKeys(flat, viewerPersonId);
+          // QA lint fix 2026-09-19: _cachedRelationKeys was write-only — the
+          // computed map was never consumed (v69 replaced key-based color
+          // resolution with _cachedRelationCategories). Call removed.
           // v69: Compute authoritative categories — this is the SINGLE
           // source of truth for node/edge colors. No lossy string
           // round-trip through KinshipEdgeClassifier.classify().
@@ -403,7 +377,6 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           _lastViewerId = viewerPersonId;
         }
         final relationLabelById = _cachedRelationLabels!;
-        final relationKeyById = _cachedRelationKeys!;
         final relationCategoryById = _cachedRelationCategories!;
         final customColorsByPersonId = _cachedCustomColors!;
 
@@ -610,8 +583,11 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             id: metrics.cullSize,
         };
         final Rect vp = _graphSpaceViewport();
-        final Set<String> culled =
-            _culler.cull(effectivePositions, nodeSizes, vp);
+        // v97: Prime the culler's visible-set cache (used by the edge
+        // segment-testing below). The node visible set itself is
+        // computed from effectivePositions further down — see the
+        // v5.121 note below.
+        _culler.cull(effectivePositions, nodeSizes, vp);
         // v5.121: Render ALL nodes that have positions, not just those
         // within the viewport culler's bounds. The proximity filter
         // already limits to ~50 nodes, so the viewport culler is no
@@ -804,7 +780,6 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           _filteredGraphFlat = flat;
           _filteredGraphPositions = effectivePositions;
           _filteredGraphHiddenIds = densityHiddenIds;
-          _filteredGraphVersion++;
         }
         _perfLogger.end('filter');
         _perfLogger.count('nodes', visible.length);
@@ -1297,7 +1272,6 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // Y offset so midpoint hit-testing matches the rendered edge
         // geometry exactly.
         _currentEdges = edges;
-        _currentEdgeCategories = edgeCategories;
         _currentEdgeCustomColors = edgeCustomColors;
         _currentCoupleUnions = coupleUnions;
         // v5.125 (Step 6): cache the anchor geometry so the canvas
@@ -2055,33 +2029,4 @@ class _CompareDragLinePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _CompareDragLinePainter old) =>
       fromPosition != old.fromPosition || toPosition != old.toPosition;
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// v4.7: Overscan Clipper — expands the clip rect beyond the viewport
-// ═══════════════════════════════════════════════════════════════════════
-// A raw ClipRect clips to its own render box size (exactly the viewport).
-// Padding inside a ClipRect only shifts content inward — it does NOT
-// enlarge the clip region. This CustomClipper actually expands the clip
-// rect by [overscan] pixels on each side, so nodes near the edge render
-// fully (circle + glow + shadow + badges + labels) without being clipped.
-//
-// This matches what camera_controller.dart's _edgeMargin (48px) assumes:
-// the camera lets you pan a node into a 48px "buffer zone" at the edge,
-// and this clipper ensures that zone is actually visible (not clipped).
-class _OverscanClipper extends CustomClipper<Rect> {
-  const _OverscanClipper({required this.overscan});
-  final double overscan;
-
-  @override
-  Rect getClip(Size size) => Rect.fromLTRB(
-        -overscan,
-        -overscan,
-        size.width + overscan,
-        size.height + overscan,
-      );
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Rect> oldClipper) =>
-      oldClipper is! _OverscanClipper || oldClipper.overscan != overscan;
 }

@@ -1,6 +1,5 @@
 // lib/features/games/nameplace/nameplace_models.dart
 
-import 'nameplace_game_logic.dart';
 
 export 'nameplace_game_logic.dart' show NameplaceAnswer, RoundScoreResult, FinalResult;
 

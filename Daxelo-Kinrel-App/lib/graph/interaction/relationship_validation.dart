@@ -13,7 +13,6 @@
 // relationship. Each undo command contains enough canonical
 // information to perform the inverse operation.
 
-import 'dart:ui' show Offset;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

@@ -24,7 +24,6 @@ import 'dart:ui' as ui show Picture, PictureRecorder;
 
 import 'package:flutter/material.dart';
 
-import '../data/graph_data_models.dart' show GraphEdgeData;
 import '../interaction/camera_controller.dart' show CameraController;
 
 /// Renders a mini-map of the entire graph in a small box, with a
@@ -262,7 +261,6 @@ class _MiniMapPainter extends CustomPainter {
       // 0.6 → 0.7 alpha) so individual members read more clearly in dense
       // regions. Anchor dot is enlarged (1.8 → 2.4) for stronger orientation
       // cue — the anchor is the "You are here" of the graph.
-      final dotPaint = Paint()..color = Colors.white.withValues(alpha: 0.7);
       final anchorPaint = Paint()..color = const Color(0xFFE8612A);
       for (final entry in positions.entries) {
         final pos = toMini(entry.value);

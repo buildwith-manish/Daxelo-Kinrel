@@ -293,7 +293,6 @@ class GraphExportService {
         return true;
 
       case GraphExportFormat.png:
-      default:
         final bytes = await capturePngBytes(boundaryKey, pixelRatio: pixelRatio);
         if (bytes == null) return false;
         final xfile = share_plus.XFile.fromData(

@@ -18,7 +18,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/services/temporary_room_service.dart';
-import 'secret_heist_engine.dart';
 import 'secret_heist_models.dart';
 
 class SecretHeistState_ {

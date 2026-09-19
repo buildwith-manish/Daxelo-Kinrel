@@ -267,7 +267,7 @@ Future<List<FamilyPlace>> _fetchFamilyPlaces(
     if (rows.isEmpty) return const [];
     return rows
         .map<FamilyPlace>(
-          (row) => FamilyPlace.fromJson(row as Map<String, dynamic>),
+          (row) => FamilyPlace.fromJson(row),
         )
         .toList(growable: false);
   } catch (e) {

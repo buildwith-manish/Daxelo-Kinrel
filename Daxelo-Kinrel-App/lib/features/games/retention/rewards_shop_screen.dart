@@ -9,7 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
-import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../gaming_ecosystem/presentation/widgets/gaming_kit.dart';
@@ -27,7 +26,6 @@ class RewardsShopScreen extends ConsumerStatefulWidget {
 
 class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
   String? _redeemingId;
-  String? _error;
 
   @override
   Widget build(BuildContext context) {
@@ -238,7 +236,6 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
     if (reward.isUnlocked) return;
     setState(() {
       _redeemingId = reward.id;
-      _error = null;
     });
     final success = await redeemReward(
       ref: ref,

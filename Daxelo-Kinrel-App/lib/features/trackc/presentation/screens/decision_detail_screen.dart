@@ -71,7 +71,6 @@ class _TrackcDecisionDetailScreenState extends ConsumerState<TrackcDecisionDetai
             tallies[opt] = (tallies[opt] ?? 0) + 1;
           }
 
-          final user = <dynamic, dynamic>{}; // would be Supabase.instance.client.auth.currentUser
           // Check if user already voted
           // (skipping for brevity — the API would return the user's vote)
 
@@ -121,7 +120,6 @@ class _TrackcDecisionDetailScreenState extends ConsumerState<TrackcDecisionDetai
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       children: options.map((opt) {
-                        final selected = _selectedOption == opt;
                         return RadioListTile<String>(
                           value: opt,
                           groupValue: _selectedOption,

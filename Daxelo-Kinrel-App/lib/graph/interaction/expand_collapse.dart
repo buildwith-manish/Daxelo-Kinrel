@@ -22,10 +22,9 @@
 //     additional nodes per branch
 //   - Collapsed branch positions cached for re-expansion
 
-import 'dart:ui' show Offset;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/physics.dart' show SpringDescription, SpringSimulation, Tolerance;
+import 'package:flutter/physics.dart' show SpringDescription, SpringSimulation;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/analytics_service.dart';
@@ -485,7 +484,6 @@ class ExpandCollapseController extends StateNotifier<ExpandCollapseState> {
     // Fetch branch data if a fetch callback is registered.
     if (onFetchBranch != null) {
       try {
-        final config = getConfigForBranch(branchType);
         final branchData = await onFetchBranch!(
           nodeId,
           branchType,

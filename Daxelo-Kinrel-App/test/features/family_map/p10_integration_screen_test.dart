@@ -36,7 +36,6 @@ import 'package:kinrel/features/family_map/data/poi_filter.dart';
 import 'package:kinrel/features/family_map/data/map_state_persistence.dart';
 import 'package:kinrel/features/family_map/data/progressive_loading.dart';
 import 'package:kinrel/features/family_map/widgets/family_building_layer.dart';
-import 'package:kinrel/features/family_map/widgets/avatar_marker_generator.dart';
 import 'package:kinrel/features/family_map/widgets/avatar_marker_overlay.dart';
 import 'package:kinrel/features/family_map/widgets/household_cluster_marker.dart';
 import 'package:kinrel/features/family_map/widgets/animated_relationship_path.dart';

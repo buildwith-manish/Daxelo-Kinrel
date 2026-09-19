@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
-import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,7 +16,7 @@ import '../widgets/person_avatar.dart';
 import '../viewer/viewer_provider.dart' show viewerPersonIdProvider, invalidateViewerCache; // v5.10
 import '../kinship/automatic_kinship_inference.dart'
     show inferKinshipEdges, filterExistingEdges; // v5.11
-import '../../graph/interaction/relationship_validation.dart' show validateRelationship, RelationshipValidationException, GraphEditCommand, GraphEditType, graphUndoProvider, buildAncestorMap, auditFamilyRelationshipConflicts, RelationshipConflict;
+import '../../graph/interaction/relationship_validation.dart' show validateRelationship, RelationshipValidationException, GraphEditCommand, GraphEditType, graphUndoProvider, buildAncestorMap;
 import '../database/isar_database.dart';
 import '../database/app_database.dart';
 import '../database/repositories/offline_family_repository.dart';
@@ -44,28 +43,6 @@ String _generateId() {
     (_) => random.nextInt(36),
   ).map((v) => v.toRadixString(36)).join();
   return 'c$timestamp$rand'.substring(0, 25);
-}
-
-/// Extract a human-readable error message from a DioException.
-String _extractDioErrorMessage(DioException e) {
-  final data = e.response?.data;
-  if (data is Map<String, dynamic>) {
-    // NestJS often returns { message: "..." } or { error: "..." }
-    final msg = data['message'];
-    if (msg is String) return msg;
-    if (msg is List && msg.isNotEmpty) return msg.first.toString();
-    final err = data['error'];
-    if (err is String) return err;
-  }
-  if (data is String && data.isNotEmpty) return data;
-  // Fall back to DioException type-based messages
-  return switch (e.type) {
-    DioExceptionType.connectionTimeout => 'Connection timed out. Please try again.',
-    DioExceptionType.sendTimeout => 'Request timed out. Please try again.',
-    DioExceptionType.receiveTimeout => 'Server took too long to respond. Please try again.',
-    DioExceptionType.connectionError => 'No internet connection. Please try again.',
-    _ => 'Something went wrong. Please try again.',
-  };
 }
 
 // ── Data Models ────────────────────────────────────────────────
@@ -1877,7 +1854,7 @@ Future<Person> createPerson({
   //   - Can be used for viewer-perspective kinship calculations
   // We only set this when the caller passes linkedUserId explicitly
   // (the create family flow does this for the creator's own Person).
-  if (linkedUserId != null && linkedUserId!.isNotEmpty) {
+  if (linkedUserId != null && linkedUserId.isNotEmpty) {
     insertData['linkedUserId'] = linkedUserId;
   }
 
@@ -1992,7 +1969,7 @@ Future<Person> createPerson({
             .order('createdAt', ascending: true)
             .limit(1)
             .timeout(const Duration(seconds: 5));
-        if (existing is List && existing.isNotEmpty) {
+        if (existing.isNotEmpty) {
           newAnchorId = existing.first['id'] as String;
           // Also mark them as isAnchor=true so Person and Family stay consistent.
           await client
@@ -2230,7 +2207,6 @@ Future<void> restoreFamily({
   required String familyId,
 }) async {
   // Supabase-first: Restore directly (bypasses NestJS which rejects Supabase JWTs)
-  bool restored = false;
   final client = container.read(supabaseProvider);
   if (client == null) {
     throw Exception('Database is not connected. Please restart the app and try again.');
@@ -2265,7 +2241,6 @@ Future<void> restoreFamily({
             .eq('id', familyId),
         operationName: 'Restore family (fallback)',
       );
-      restored = true;
     }
 
   // Invalidate providers to refresh UI
@@ -2692,7 +2667,7 @@ Future<FamilyRelationship> createRelationship({
   debugPrint('[CREATE-REL] fromPersonId: $fromPersonId');
   debugPrint('[CREATE-REL] toPersonId: $toPersonId');
   debugPrint('[CREATE-REL] relationshipKey: $relationshipKey');
-  debugPrint('[CREATE-REL] inverseKey: ${inverseKey ?? "UNKNOWN (skipping inverse)"}');
+  debugPrint('[CREATE-REL] inverseKey: $inverseKey');
   debugPrint('[CREATE-REL] forwardRelId: $forwardRelId');
   debugPrint('[CREATE-REL] inverseRelId: $inverseRelId');
   debugPrint('[CREATE-REL] auth.currentSession: ${client.auth.currentSession != null ? "present" : "NULL"}');
@@ -3494,7 +3469,7 @@ class FamilyAvatarNotifier extends StateNotifier<String?> {
     }
 
     // Listen for FUTURE changes to the detail provider.
-    _detailSub = _ref.listen(
+    _ref.listen(
       familyDetailProvider(_familyId),
       (_, detailAsync) {
         // Only update from the server if we don't have an optimistic
@@ -3513,7 +3488,6 @@ class FamilyAvatarNotifier extends StateNotifier<String?> {
 
   final Ref _ref;
   final String _familyId;
-  ProviderSubscription<AsyncValue<FamilyDetail?>>? _detailSub;
   bool _hasOptimistic = false;
 
   /// Shows the new avatar URL instantly (before upload completes).
@@ -3814,7 +3788,7 @@ Future<RelationshipUpdateResult> updateRelationship({
       operationName: 'Fetch all edges for update validation',
     );
     // Exclude the edge being updated + its inverse (if any).
-    final excludeIds = {relationshipId, if (inverseRelationshipId != null) inverseRelationshipId!};
+    final excludeIds = {relationshipId, if (inverseRelationshipId != null) inverseRelationshipId};
     final existingEdgesForValidation = <({String fromId, String toId, String edgeId, String relationshipKey, String labelAtoB, String labelBtoA, String direction})>[
       for (final r in allRels)
         if (!excludeIds.contains(r['id']))
@@ -3906,7 +3880,7 @@ Future<RelationshipUpdateResult> updateRelationship({
   String newInverseId;
   if (inverseRelationshipId != null) {
     // Inverse row exists — UPDATE it in-place.
-    newInverseId = inverseRelationshipId!;
+    newInverseId = inverseRelationshipId;
     await withRetry(
       () => client.from(_kRelationshipTable).update({
         'relationshipKey': inverseFundamentalKey,

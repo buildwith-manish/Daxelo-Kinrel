@@ -203,16 +203,6 @@ List<InferredEdge> inferKinshipEdges({
     return siblings;
   }
 
-  /// Returns the parent-type label for a person of the given gender.
-  /// Canonical: this label means "toPerson is fromPerson's <label>".
-  /// So if the PARENT has gender 'female', the label is 'mother'
-  /// (toPerson is fromPerson's mother).
-  String parentLabel(String? parentGender) {
-    if (parentGender == 'female') return 'mother';
-    if (parentGender == 'male') return 'father';
-    return 'parent';
-  }
-
   /// Returns the grandchild-type label for a person of the given gender.
   /// Canonical: "toPerson is fromPerson's <label>".
   /// So if the GRANDCHILD has gender 'female', the label is 'granddaughter'.

@@ -102,10 +102,6 @@ class GuestAccessNotifier extends StateNotifier<GuestAccessState> {
   /// Begins a guest session. Scopes are taken AS-GIVEN from the invite
   /// — this provider never widens them.
   void startSession(GuestSession session) {
-    if (!session.permittedScopes.every((s) => s is GuestScope)) {
-      state = state.copyWith(error: 'Invalid guest scope set.');
-      return;
-    }
     state = state.copyWith(session: session, clearError: true);
   }
 

@@ -89,7 +89,7 @@ class _DisappearingMessagesSheetState
       return;
     }
     try {
-      final response = await client!.rpc(
+      final response = await client.rpc(
         'fn_get_disappearing_messages',
         params: {'p_family_id': widget.familyId},
       ).timeout(const Duration(seconds: 8));

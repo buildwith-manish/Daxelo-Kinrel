@@ -43,7 +43,6 @@
 // Stages that didn't run are omitted. Stages under threshold are
 // included in the summary only if the total exceeded the frame budget.
 
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kReleaseMode, debugPrint;
 

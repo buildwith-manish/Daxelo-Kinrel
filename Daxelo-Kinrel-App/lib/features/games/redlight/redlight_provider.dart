@@ -445,7 +445,7 @@ class RedlightNotifier extends StateNotifier<RedlightState> {
           .eq('roundId', roundId)
           .order('joinedAt', ascending: true);
       final players = resp
-          .map((p) => RedlightPlayer.fromJson(p as Map<String, dynamic>))
+          .map((p) => RedlightPlayer.fromJson(p))
           .toList();
       state = state.copyWith(players: players);
     } catch (e) {
@@ -489,7 +489,7 @@ class RedlightNotifier extends StateNotifier<RedlightState> {
           .insert(body)
           .select()
           .single();
-      final round = RedlightRound.fromJson(resp as Map<String, dynamic>);
+      final round = RedlightRound.fromJson(resp);
       _roundId = round.id;
 
       // Insert self into redlight_players
@@ -597,7 +597,6 @@ class RedlightNotifier extends StateNotifier<RedlightState> {
   /// The server re-validates and applies weather modifiers.
   void _startLocalProgressTimer() {
     _localProgressTimer?.cancel();
-    const tickMs = 50; // 20fps
     const baseDelta = 0.8; // per tick
     _localProgressTimer = Timer.periodic(
       const Duration(milliseconds: 50),

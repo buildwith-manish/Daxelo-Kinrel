@@ -21,8 +21,7 @@ import 'package:kinrel/features/trackc/presentation/screens/decision_detail_scre
 class _FakeApi extends TrackcApiClient {
   _FakeApi({
     required this.decisionResp,
-    this.insightsResp,
-  }) : super(Dio());
+  }) : insightsResp = null, super(Dio());
 
   final Future<Map<String, dynamic>?> Function(String decisionId) decisionResp;
   final Future<List<Map<String, dynamic>>> Function(String decisionId)? insightsResp;

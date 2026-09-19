@@ -6,7 +6,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../presence_provider.dart';
-import '../../../core/constants/brand_colors.dart';
 
 class PresenceRow extends ConsumerWidget {
   const PresenceRow({super.key, required this.familyId});

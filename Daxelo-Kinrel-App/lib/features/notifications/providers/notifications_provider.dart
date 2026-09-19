@@ -12,9 +12,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:dio/dio.dart';
 
-import '../../../core/networking/dio_client.dart';
 import '../../../core/services/supabase_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -362,9 +360,6 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
   final Ref _ref;
   Timer? _pollTimer;
 
-  // ── Helper: get the configured Dio client ──────────────────────
-  Dio get _dio => _ref.read(dioProvider);
-
   /// Start polling for new notifications every 30 seconds
   void _startPolling() {
     _pollTimer?.cancel();
@@ -398,7 +393,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
           .timeout(const Duration(seconds: 10));
 
       final notifications = response
-          .map((e) => _mapNotification(e as Map<String, dynamic>))
+          .map((e) => _mapNotification(e))
           .toList();
 
       state = state.copyWith(notifications: notifications);
@@ -426,7 +421,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
               .timeout(const Duration(seconds: 10));
 
           final retryNotifications = retryResponse
-              .map((e) => _mapNotification(e as Map<String, dynamic>))
+              .map((e) => _mapNotification(e))
               .toList();
 
           state = state.copyWith(notifications: retryNotifications);
@@ -506,10 +501,6 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
       // actionUrl is 'dm:<senderId>' so tapping it opens the DM.
       case 'thinking_of_you':
         return NotificationType.thinkingOfYou;
-      // Phase 21: invitation_accepted is the notification sent to the
-      // INVITER when their invite is accepted.
-      case 'invitation_accepted':
-        return NotificationType.invitationAccepted;
       case 'invitation_rejected':
         return NotificationType.rejectedInvite;
       // Phase 22 / Task 3 — chat_mention is fired by

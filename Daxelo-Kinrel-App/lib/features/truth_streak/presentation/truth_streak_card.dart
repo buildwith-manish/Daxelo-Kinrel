@@ -7,7 +7,6 @@
 // Features an animated pulsing flame icon, large display-weight question
 // text, and a prominent streak counter.
 
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

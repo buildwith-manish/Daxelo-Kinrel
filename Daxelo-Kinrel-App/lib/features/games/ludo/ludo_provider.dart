@@ -155,7 +155,7 @@ class LudoNotifier extends StateNotifier<LudoState> {
           .insert(body)
           .select()
           .single();
-      final game = LudoGame.fromJson(resp as Map<String, dynamic>);
+      final game = LudoGame.fromJson(resp);
       _gameId = game.id;
 
       // Insert host as first player (Red)
@@ -223,7 +223,7 @@ class LudoNotifier extends StateNotifier<LudoState> {
           .eq('gameId', gameId)
           .order('turnOrder', ascending: true);
       final existingPlayers = playersResp
-          .map((p) => LudoPlayer.fromJson(p as Map<String, dynamic>))
+          .map((p) => LudoPlayer.fromJson(p))
           .toList();
 
       if (existingPlayers.length >= game.playerCount) {
@@ -376,7 +376,7 @@ class LudoNotifier extends StateNotifier<LudoState> {
                 .maybeSingle();
             final freshGame = freshResp == null
                 ? null
-                : LudoGame.fromJson(freshResp as Map<String, dynamic>);
+                : LudoGame.fromJson(freshResp);
             if (freshGame != null &&
                 freshGame.isInProgress &&
                 freshGame.currentTurnPlayerId == myId &&
@@ -523,7 +523,6 @@ class LudoNotifier extends StateNotifier<LudoState> {
       // Determine next turn
       final extraTurn = getsExtraTurn(diceValue: diceValue, moveResult: result);
       String nextTurnPlayerId;
-      int newConsecutiveSixes = game.consecutiveSixes;
 
       if (won) {
         // Game over — this player wins
@@ -794,7 +793,7 @@ class LudoNotifier extends StateNotifier<LudoState> {
           .eq('gameId', gameId)
           .order('turnOrder', ascending: true);
       final players = resp
-          .map((p) => LudoPlayer.fromJson(p as Map<String, dynamic>))
+          .map((p) => LudoPlayer.fromJson(p))
           .toList();
       state = state.copyWith(players: players);
     } catch (e) {
@@ -842,7 +841,7 @@ class LudoNotifier extends StateNotifier<LudoState> {
           .eq('gameId', gameId)
           .order('moveNumber', ascending: true);
       final moves = resp
-          .map((m) => LudoMoveRecord.fromJson(m as Map<String, dynamic>))
+          .map((m) => LudoMoveRecord.fromJson(m))
           .toList();
       state = state.copyWith(moves: moves);
     } catch (e) {

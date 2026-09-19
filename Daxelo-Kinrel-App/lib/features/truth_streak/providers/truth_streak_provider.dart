@@ -138,7 +138,7 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
 
       Map<String, dynamic>? assignmentRow;
       if (assignmentResponse.isNotEmpty) {
-        assignmentRow = assignmentResponse.first as Map<String, dynamic>;
+        assignmentRow = assignmentResponse.first;
       } else {
         // Create today's assignment — pick a random active question
         final questionsResponse = await client
@@ -156,8 +156,7 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
 
         final random = DateTime.now().millisecondsSinceEpoch;
         final questionRow =
-            questionsResponse[random % questionsResponse.length]
-                as Map<String, dynamic>;
+            questionsResponse[random % questionsResponse.length];
         final questionId = questionRow['id'] as String;
 
         final newAssignment = await client
@@ -169,7 +168,7 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
             })
             .select()
             .single();
-        assignmentRow = newAssignment as Map<String, dynamic>;
+        assignmentRow = newAssignment;
       }
 
       final assignment = TruthStreakAssignment.fromJson(assignmentRow);
@@ -181,7 +180,7 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
           .eq('id', assignment.questionId)
           .single();
       final question =
-          TruthStreakQuestion.fromJson(questionResponse as Map<String, dynamic>);
+          TruthStreakQuestion.fromJson(questionResponse);
 
       final fullAssignment = TruthStreakAssignment(
         id: assignment.id,
@@ -199,7 +198,7 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
           .order('createdAt', ascending: true);
 
       final allAnswers = answersResponse
-          .map((e) => TruthStreakAnswer.fromJson(e as Map<String, dynamic>))
+          .map((e) => TruthStreakAnswer.fromJson(e))
           .toList();
       final myAnswer = allAnswers
           .where((a) => a.userId == myId)
@@ -213,7 +212,7 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
           .eq('familyId', familyId)
           .maybeSingle();
       final stats = statsResponse != null
-          ? TruthStreakStats.fromJson(statsResponse as Map<String, dynamic>)
+          ? TruthStreakStats.fromJson(statsResponse)
           : null;
 
       state = TruthStreakState(
@@ -253,7 +252,7 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
           .select()
           .single();
       final newAnswer =
-          TruthStreakAnswer.fromJson(answerRow as Map<String, dynamic>);
+          TruthStreakAnswer.fromJson(answerRow);
 
       // 2. Update streak stats
       final today = DateTime.now();
@@ -315,7 +314,7 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
           .eq('assignmentId', assignment.id)
           .order('createdAt', ascending: true);
       final allAnswers = answersResponse
-          .map((e) => TruthStreakAnswer.fromJson(e as Map<String, dynamic>))
+          .map((e) => TruthStreakAnswer.fromJson(e))
           .toList();
 
       state = state.copyWith(

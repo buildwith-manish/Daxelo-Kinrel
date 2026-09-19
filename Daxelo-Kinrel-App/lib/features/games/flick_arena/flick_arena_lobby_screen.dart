@@ -27,7 +27,6 @@ import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
 import '../shared/services/temporary_room_service.dart'
     show kRoomClosedMessage;
-import 'flick_arena_constants.dart';
 import 'flick_arena_models.dart';
 import 'flick_arena_provider.dart';
 

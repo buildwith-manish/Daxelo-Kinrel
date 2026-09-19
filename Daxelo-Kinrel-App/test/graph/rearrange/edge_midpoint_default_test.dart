@@ -18,9 +18,9 @@
 import 'package:flutter/material.dart' show Offset, Path;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/services/graph_layout_service.dart'
-    show GraphPerson, GraphRelationship;
+    show GraphRelationship;
 import 'package:kinrel/graph/engine/edge_router.dart'
-    show EdgeRouter, MidpointType;
+    show EdgeRouter;
 
 void main() {
   group('EdgeRouter.computeMidpoint — default t=0.5 regression guard '
@@ -118,10 +118,6 @@ void main() {
       // rendered curve. If this contract regresses, the override delta
       // math breaks invisibly.
 
-      final persons = [
-        GraphPerson(id: 'p1', name: 'Parent', generationIndex: 0),
-        GraphPerson(id: 'p2', name: 'Child', generationIndex: 1),
-      ];
       final relationships = [
         GraphRelationship(
             id: 'r1',
@@ -161,10 +157,6 @@ void main() {
       // verifies the EdgeRouter's computeMidpoint honours that
       // contract when the edgeId is in controlPoints.
 
-      final persons = [
-        GraphPerson(id: 'p1', name: 'A', generationIndex: 0),
-        GraphPerson(id: 'p2', name: 'B', generationIndex: 0),
-      ];
       final relationships = [
         GraphRelationship(
             id: 'r-spouse',
@@ -202,9 +194,4 @@ void main() {
       expect(mid.dy.abs(), lessThan(50.0));
     });
   });
-
-  // Suppress the unused-warning for the enum constant. MidpointType.dot
-  // is referenced as documentation of the spec contract.
-  // ignore: unused_element
-  final _dotTypeSanity = MidpointType.dot;
 }

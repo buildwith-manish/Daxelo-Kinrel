@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:ui' show ImageFilter;
 // lib/graph/widgets/family_graph_engine_view.dart
 //
 // DAXELO KINREL — Family Graph (V2.1 Engine view)
@@ -36,10 +35,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show SemanticsService;
-import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/database/sync/connectivity_service.dart' show isOnlineProvider;
 import '../../core/family/family_provider.dart' show currentUserFamilyRoleProvider;
@@ -48,7 +46,6 @@ import '../../core/services/graph_layout_service.dart' show GraphLayoutResult, G
 import '../../features/family/presentation/providers/family_graph_provider.dart'
     show
         FlatGraphResult,
-        FamilyGraphNotifier, // v5.115: for fetchBranchAndMerge
         familyGraphProvider,
         graphLayoutProvider,
         graphRealtimeProvider,
@@ -96,13 +93,9 @@ import '../rendering/ambient_particle_controller.dart'
 import '../interaction/graph_focus_state.dart'
     show
         GraphFocusNotifier,
-        GraphFocusState,
         FocusViewportSnapshot,
-        FocusHistoryEntry,
         PathSelectPhase,
         graphFocusProvider;
-import '../interaction/couple_union_model.dart'
-    show CoupleUnion, unionMidpoint;
 import '../interaction/branch_collapse_state.dart'
     show
         BranchCollapseNotifier,
@@ -110,75 +103,50 @@ import '../interaction/branch_collapse_state.dart'
         CollapsedBranch,
         branchCollapseProvider,
         kMaxNodesPerExpansion;
-import '../interaction/graph_search_state.dart'
-    show
-        GraphSearchNotifier,
-        GraphSearchState,
-        graphSearchProvider;
+import '../interaction/graph_search_state.dart' show graphSearchProvider;
 import '../interaction/relationship_validation.dart'
-    show GraphUndoNotifier, graphUndoProvider;
+    show graphUndoProvider;
 import '../interaction/graph_kinship_path_focus.dart'
     show
         GraphKinshipPathFocus,
-        GraphPathFocusNotifier,
-        GraphPathFocusState,
         graphPathFocusProvider;
 import '../interaction/graph_path_trace_controller.dart'
-    show GraphPathTraceController, GraphPathTraceState, GraphPathTracePhase;
+    show GraphPathTraceController;
 import '../interaction/couple_union_model.dart'
     show
         CoupleUnion,
         deriveCoupleUnions,
-        resolveEffectiveEdgeEndpoints,
-        unionMidpoint;
+        resolveEffectiveEdgeEndpoints;
 import '../../core/constants/feature_flags.dart' show kEnableGraphShareExport, kShowViewerDebugBanner;
 import '../../core/constants/brand_colors.dart' show KinrelColors;
 import '../../core/constants/brand_typography.dart' show KinrelTypography;
 import '../../core/kinship/kinship_edge_style.dart';
 import '../../core/kinship/kinship_category_map.dart';
 import '../../core/kinship/structural_kinship_classifier.dart';
-import '../../core/kinship/heart_shape.dart' show HeartShape;
-import '../../core/kinship/kinship_service.dart' show KinshipService;
 import '../../core/relationship/relationship_engine.dart' show RelationshipEngine;
-import '../../core/services/graph_layout_service.dart' show GraphPerson;
 import '../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider;
 import '../interaction/indirect_relation_provider.dart'
-    show indirectRelationIdsProvider, hasSeenIndirectBadgeProvider;
+    show indirectRelationIdsProvider;
 // v5.114: Ego-centric proximity graph state.
 import '../interaction/proximity_graph_state.dart'
     show proximityGraphProvider, ProximityGraphNotifier, buildAdjacency;
 import '../../core/services/supabase_service.dart' show supabaseProvider, currentUserProvider;
-import '../../core/viewer/viewer_api_client.dart'
-    show viewerApiClientProvider;
 import '../../features/family/presentation/services/graph_export_service.dart'
     show GraphExportService;
 import '../rendering/edge_path_cache.dart' show EdgePathCache;
-import '../rendering/edge_quality.dart' show EdgeQuality, EdgeQualityX;
-import '../rendering/graph_lighting.dart' show GraphLighting;
+import '../rendering/edge_quality.dart' show EdgeQuality;
 import '../rendering/lod_render_metrics.dart'
     show
         LodRenderMetrics,
-        computeLodMetrics,
-        overviewGraphRadius,
-        overviewGraphRingStroke,
-        miniGraphRadius,
-        microGraphRadius;
+        computeLodMetrics;
 import '../rendering/emphasis_priority.dart'
     show EmphasisLevel, computeEmphasisLevel;
 import '../rendering/semantic_zoom.dart'
     show
         SemanticTier,
-        SemanticZoomThresholds,
-        defaultThresholds,
         thresholdsForMemberCount,
         computeSemanticTier,
-        semanticTierToLodName,
-        shouldOverrideFarTier,
-        farTierDotRadius,
-        farTierExcludesPremiumEffects,
-        shouldRenderText,
-        miniTierRadius,
-        microTierRadius;
+        shouldOverrideFarTier;
 import '../rendering/viewport_culler.dart' show ViewportCuller;
 // v5.140 (PERF): RelationLabelOpacityScope hoists label-opacity
 // computation out of per-node AnimatedBuilders into a single
@@ -200,7 +168,6 @@ import '../rendering/graph_performance_profile.dart'
 import '../rendering/filtered_graph.dart'
     show
         FilteredGraph,
-        FilteredRelationship,
         buildFilteredGraph,
         setsEqualString;
 // v5.143 (HIDDEN-NODE AUDIT): Lightweight timing logger for the
@@ -208,7 +175,7 @@ import '../rendering/filtered_graph.dart'
 // exceed thresholds or the total exceeds the 16.67ms frame budget.
 import '../rendering/graph_perf_logger.dart' show GraphPerfLogger;
 import 'graph_node.dart' show GraphNode, NodeState;
-import 'on_this_day_badge.dart' show OnThisDayBadge, OnThisDayEvent, OnThisDayEventType, showOnThisDayEventSheet;
+import 'on_this_day_badge.dart' show OnThisDayEvent, OnThisDayEventType;
 import 'graph_minimap.dart' show GraphMiniMap;
 import 'graph_outline_view.dart' show GraphOutlineView;
 // v5.x (legend wiring fix): the GraphLegend import was unused — the
@@ -218,11 +185,7 @@ import 'graph_outline_view.dart' show GraphOutlineView;
 import 'graph_quick_actions.dart' show GraphQuickActions, BranchCollapseInfo;
 import 'graph_relationship_labels.dart' show GraphPersonData;
 import '../interaction/relationship_linking_state.dart'
-    show
-        RelationshipCreationState,
-        RelationshipCreationNotifier,
-        relationshipCreationProvider,
-        CreationPhase;
+    show relationshipCreationProvider;
 import 'relationship_info_sheet.dart' show RelationshipInfoSheet;
 
 // ── P0.4: Extracted helpers (imports MUST come before part directives) ──
@@ -261,7 +224,6 @@ import '../rearrange/layout_overrides_service.dart'
         resetUnsavedOverridesTriggerProvider,
         hasUnsavedChangesProvider,
         saveCompletedTriggerProvider;
-import '../rearrange/save_lock_pill.dart' show SaveLockPill;
 
 // ── P0.4: Extracted parts (MUST come after all imports) ────────────────
 part 'engine/canvas_mixin.dart';
@@ -361,8 +323,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // CHIP and DOT are reachable via normal pinch-zoom.
   // _kLabelHideZoom controls when the secondary relationship label
   // (e.g. "Husband", "You") is hidden to reduce clutter at lower zoom.
-  static const double _kChipZoom = 0.72;
-  static const double _kDotZoom = 0.34;
   static const double _kLabelHideZoom = 1.0;
 
   late final PositionMemory _positionMemory;
@@ -383,7 +343,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// v62: Periodic telemetry timer — logs edge cache hit rate + cull
   /// stats every 30 seconds while the graph is mounted.
   Timer? _telemetryTimer;
-  int _lastCullVisibleCount = 0;
 
   /// v5.72 (ZOOM LOOP FIX): Auto-timeout timer for the Isolate Connections
   /// feature. When the user isolates a person's connections, the focus
@@ -452,7 +411,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   FlatGraphResult? _lastFlat;
   String? _lastViewerId;
   Map<String, String>? _cachedRelationLabels;
-  Map<String, String>? _cachedRelationKeys;
   // v69: Cache the authoritative KinshipEdgeCategory per person —
   // eliminates the lossy string round-trip that caused grey nodes.
   Map<String, KinshipEdgeCategory>? _cachedRelationCategories;
@@ -475,7 +433,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   FlatGraphResult? _filteredGraphFlat;
   Map<String, Offset>? _filteredGraphPositions;
   Set<String>? _filteredGraphHiddenIds;
-  int _filteredGraphVersion = 0;
 
   // v5.143 (HIDDEN-NODE AUDIT): Cache the FULL adjacency map (all
   // edges, not just visible) for consumers that run BEFORE density
@@ -546,7 +503,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // Updated once per build in the build method.
   List<DedupedEdge> _currentEdges = const [];
   Map<String, Offset> _currentPositionsWithOffset = const {};
-  Map<String, KinshipEdgeCategory> _currentEdgeCategories = const {};
   Map<String, Map<String, dynamic>> _currentEdgeCustomColors = const {};
 
   // v5.137: Cache the current collapsed branches so the canvas tap
@@ -696,10 +652,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// the new zoom baseline (and update _lastCommittedZoom).
   static const double _kZoomCommitThreshold = 0.15;
 
-  /// v2.2: Whether the graph legend panel is visible.
-  /// Toggled by the "?" button in the bottom-left corner.
-  bool _showLegend = false;
-
   /// P4.5: Whether the screen-reader outline view is showing.
   bool _showOutlineView = false;
 
@@ -739,11 +691,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// position (Cancel restores auto-layout).
   Offset? _rearrangePreDragPosition;
 
-  /// Snapshot of the edge's RELATIVE midpoint delta BEFORE the drag
-  /// started (could be Offset.zero when no override existed — Cancel
-  /// restores zero = true computed midpoint).
-  Offset _rearrangePreDragEdgeDelta = Offset.zero;
-
   /// LIVE per-node position overrides (graph space). Applied on top of
   /// the saved overrides on top of auto-layout while dragging. Cleared
   /// on Save (persisted into the saved overrides) or Cancel (reverted).
@@ -753,24 +700,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// the true bezier t=0.5 midpoint). Applied on top of saved edge
   /// waypoints. Cleared on Save / Cancel.
   Map<String, Offset> _rearrangeLiveEdgeWaypoints = const {};
-
-  /// Whether the SaveLockPill is currently visible. When true, the
-  /// canvas renders a floating pill near the dragged element with
-  /// Save/Cancel buttons. Auto-dismisses after 6s (defaulting to
-  /// Cancel/revert) so unconfirmed changes never silently persist.
-  bool _rearrangePillVisible = false;
-
-  /// Screen-space position where the SaveLockPill should appear
-  /// (near the dragged element). Updated on drag end.
-  Offset _rearrangePillScreenPosition = Offset.zero;
-
-  /// Which kind the pill is confirming — drives the pill's label
-  /// ("Save this position?" for nodes, "Save this curve?" for edges)
-  /// and which callback runs on Save vs Cancel.
-  String? _rearrangePillKind;
-
-  /// The element ID the pill is confirming (personId or relationshipId).
-  String? _rearrangePillId;
 
   /// v5.22: Per-drag-update revision counter. Bumped on every
   /// onLongPressMoveUpdate during a Rearrange drag and on Save/Cancel.
@@ -844,10 +773,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // subsequent rebuilds/pan/zoom.
   GraphPathTraceController? _connectOnOpenController;
   bool _hasPlayedConnectOnOpen = false;
-  // The ordered edge IDs (BFS from viewer anchor) we last kicked off
-  // a connect-on-open trace for. Used to detect when flat.relationships
-  // has been populated enough to start the trace.
-  List<String> _connectOnOpenOrderedEdgeIds = const [];
 
   // ── v5.30 Issue 2 — Load animation for saved node overrides ──────
   //
@@ -992,21 +917,21 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.listenManual(resetAnimationTriggerProvider, (previous, next) {
-        if (next != null && next > _lastResetTriggerValue) {
+        if (next > _lastResetTriggerValue) {
           _lastResetTriggerValue = next;
           _onResetTrigger();
         }
       });
       // v5.34: Listen for the Save-All trigger (persistent Save button).
       ref.listenManual(saveAllOverridesTriggerProvider, (previous, next) {
-        if (next != null && next > _lastSaveAllTriggerValue) {
+        if (next > _lastSaveAllTriggerValue) {
           _lastSaveAllTriggerValue = next;
           _onSaveAllTrigger();
         }
       });
       // v5.34: Listen for the Reset-Unsaved trigger (Reset button).
       ref.listenManual(resetUnsavedOverridesTriggerProvider, (previous, next) {
-        if (next != null && next > _lastResetUnsavedTriggerValue) {
+        if (next > _lastResetUnsavedTriggerValue) {
           _lastResetUnsavedTriggerValue = next;
           _onResetUnsavedTrigger();
         }
@@ -1040,7 +965,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         _rearrangeDragKind = null;
         _rearrangeDragId = null;
         _rearrangePreDragPosition = null;
-        _rearrangePreDragEdgeDelta = Offset.zero;
         // Discard live overrides on BOTH transitions:
         //   - On turn-OFF: discard unsaved changes (the user exited).
         //   - On turn-ON: clear any stale state from a prior session
@@ -1151,7 +1075,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       // from scratch. Also stop any in-flight trace from the previous
       // family.
       _hasPlayedConnectOnOpen = false;
-      _connectOnOpenOrderedEdgeIds = const [];
       _connectOnOpenController?.reset();
     }
     // v62/v107: Re-center when recenterKey changes (Center on Root /
@@ -1458,7 +1381,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _rearrangeDragKind = null;
     _rearrangeDragId = null;
     _rearrangePreDragPosition = null;
-    _rearrangePreDragEdgeDelta = Offset.zero;
     _rearrangeDragRevision++;
     // v5.38: Clear the unsaved-changes flag so the Save button disables.
     ref.read(hasUnsavedChangesProvider.notifier).state = false;
@@ -1567,7 +1489,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _hasPlayedConnectOnOpen = true;
     final result =
         _orderedEdgesForConnectOnOpen(flat, viewerPersonId);
-    _connectOnOpenOrderedEdgeIds = result.ordered;
     if (result.ordered.isEmpty) return;
     final reduced = MediaQuery.disableAnimationsOf(context);
     final skipAnimation = reduced || !_perfProfile.allowConnectOnOpenAnimation;
@@ -1643,35 +1564,12 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     setState(() {});
   }
 
-  /// v5.143: Starts the branch expand animation.
-  /// [origin] is the chip's graph-space position (where the chip was).
-  /// [revealedNodeIds] are the IDs of the newly-revealed nodes that
-  /// should animate from [origin] to their computed final positions.
-  void _startBranchExpandAnimation(
-    Offset origin,
-    Set<String> revealedNodeIds,
-  ) {
-    if (!mounted || revealedNodeIds.isEmpty) return;
-    final reduced = MediaQuery.disableAnimationsOf(context);
-    if (reduced) {
-      // Skip animation — nodes appear at final positions immediately.
-      _branchAnimationProgress = 1.0;
-      _animatingBranchExpand = false;
-      _branchAnimatingNodeIds = {};
-      return;
-    }
-    _branchAnimationOrigin = origin;
-    _branchAnimatingNodeIds = revealedNodeIds;
-    _animatingBranchExpand = true;
-    _branchAnimationProgress = 0.0;
-    _branchExpandController!.forward(from: 0.0);
-  }
-
   /// v5.159 (ENTRANCE ANIMATION): records the members a branch-bubble
   /// tap just revealed, plus the bubble's position (the branch root's
   /// position at tap time) to fly them out from.
   ///
-  /// Unlike [_startBranchExpandAnimation] (v5.143, never called), this
+  /// Unlike the removed `_startBranchExpandAnimation` (v5.143, never
+  /// called), this
   /// does NOT start the controller immediately — the revealed members
   /// have no positions yet (the layout provider recomputes
   /// asynchronously after the proximity reveal). The ids sit in
@@ -1913,10 +1811,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     }
     return _perfProfile.lodForZoom(zoom);
   }
-
-  /// v96 (Phase 3): Returns the current semantic tier (with hysteresis).
-  /// Computed as a side effect of [_lodFor] — call _lodFor first.
-  SemanticTier get _currentTier => _currentSemanticTier ?? SemanticTier.near;
 
   /// Maps the current LOD to the edge-layer visual quality tier (PART 10).
   /// Computed ONCE per build and passed to `EngineEdgePainter` — the
@@ -2619,13 +2513,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _lastFramedAnchorPos = currentAnchorPos;
   }
 
-  /// v4.16: _onLayoutChanged is now a NO-OP.
-  /// Previously this called recenterIfNeeded() which forced the camera back
-  /// after panning. With free panning enabled, no forced recentering.
-  void _onLayoutChanged(GraphLayoutResult layout) {
-    // No-op — free panning, no forced recentering
-  }
-
   /// v107: Executes a pending Reset View request using the current
   /// layout positions. Centers the primary focus node (selected →
   /// anchor → viewer → first node) at the EXACT viewport center with
@@ -2674,7 +2561,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         focusId = layout.positions.keys.first;
       }
     }
-    if (focusId == null) return;
 
     final focusPosition = layout.positions[focusId];
     if (focusPosition == null) return;
@@ -2737,35 +2623,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _lastFramedAnchorPos = focusPosition;
     _userHasInteractedWithCamera = false;
     _culler.invalidate();
-  }
-
-  String _localizeKinshipKey(String key) {
-    try {
-      final kinship = KinshipService.instance;
-      if (kinship.isLoaded) {
-        // English is always available; the app's localization layer can
-        // re-translate this key per the user's preferred language later.
-        final rel = kinship.getRelationship(key);
-        final term = rel?.englishTerm;
-        if (term != null && term.isNotEmpty) {
-          return term;
-        }
-      }
-    } catch (_) {
-      // Fall through to the pretty-printed key.
-    }
-    return _prettyPrintKey(key);
-  }
-
-  /// v67: Pretty-prints a kinship key as a human-readable label.
-  /// "father" → "Father", "father_in_law" → "Father In Law",
-  /// "mothers_brother" → "Mothers Brother".
-  String _prettyPrintKey(String key) {
-    return key
-        .split('_')
-        .where((s) => s.isNotEmpty)
-        .map((s) => '${s[0].toUpperCase()}${s.substring(1)}')
-        .join(' ');
   }
 
   /// v2.2: Returns the node dot color based on the kinship category

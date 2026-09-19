@@ -52,12 +52,6 @@ void main() {
         expect(semantics, findsWidgets);
 
         // Verify the semantic label contains name and relation
-        final semanticsFinder = find.ancestor(
-          of: find.text('Rajesh Kumar'),
-          matching: find.byType(Semantics),
-        );
-
-        // Get all semantics labels in the tree
         final label = _getSemanticsLabel(tester, find.byType(GraphNode));
         expect(label, isNotNull);
         expect(label, contains('Rajesh Kumar'));

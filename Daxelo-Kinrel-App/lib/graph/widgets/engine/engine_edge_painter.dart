@@ -15,7 +15,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../../core/kinship/kinship_edge_style.dart';
-import '../../../core/kinship/kinship_category_map.dart';
 import '../../../core/kinship/heart_shape.dart' show HeartShape;
 import '../../engine/edge_dedup.dart' show DedupedEdge;
 import '../../interaction/couple_union_model.dart'
@@ -23,17 +22,8 @@ import '../../interaction/couple_union_model.dart'
 import '../../rendering/edge_path_cache.dart' show EdgePathCache;
 import '../../rendering/edge_quality.dart' show EdgeQuality, EdgeQualityX;
 import '../../rendering/graph_lighting.dart' show GraphLighting;
-import '../../rendering/lod_render_metrics.dart'
-    show LodRenderMetrics;
-import '../../rendering/emphasis_priority.dart'
-    show EmphasisLevel, computeEmphasisLevel;
 import '../../../core/constants/brand_colors.dart' show KinrelColors;
 import '../../data/graph_data_models.dart' show GraphEdgeData;
-import '../../rendering/semantic_zoom.dart'
-    show
-        SemanticTier,
-        shouldRenderText,
-        farTierExcludesPremiumEffects;
 
 class EngineEdgePainter extends CustomPainter {
   /// v5.98: Static cache of pre-rendered midpoint bead images.
@@ -1205,7 +1195,7 @@ class EngineEdgePainter extends CustomPainter {
       final KinshipMidpointSymbol midpointSymbol;
 
       if (customColors != null) {
-        edgeColor = Color(customColors['lineColor'] as int? ?? style.color?.value ?? 0xFF888888);
+        edgeColor = Color(customColors['lineColor'] as int? ?? style.color.value);
         edgeAlpha = 1.0;
         dashPattern = customColors['lineType'] == 'dashed' ? [6.0, 4.0] : [];
         final dotType = customColors['dotType'] as String? ?? 'dot';
@@ -1215,7 +1205,7 @@ class EngineEdgePainter extends CustomPainter {
                 ? KinshipMidpointSymbol.none
                 : KinshipMidpointSymbol.dot;
       } else {
-        edgeColor = style.color ?? const Color(0xFF888888);
+        edgeColor = style.color;
         edgeAlpha = style.defaultAlpha.clamp(0.3, 1.0);
         dashPattern = style.dashPattern;
         midpointSymbol = style.midpointSymbol;
@@ -1249,7 +1239,7 @@ class EngineEdgePainter extends CustomPainter {
         bodyWidth *= 0.6; // thinner stroke
         crossBranchAlphaScale = 0.65; // lower opacity
         // Force dashed if not already.
-        if (dashPattern == null || dashPattern!.isEmpty) {
+        if (dashPattern.isEmpty) {
           dashPattern = [4.0, 3.0];
         }
       }
@@ -2248,127 +2238,6 @@ class EngineEdgePainter extends CustomPainter {
         }
       }
     }
-  }
-
-  // ── v5.x (Feature 3): labels on demand ───────────────────────────────
-
-  /// Renders a small relationship-type label near the midpoint of a
-  /// path-focused edge. Called ONLY when [pathFocusActive] is true
-  /// AND the edge is in [pathFocusedEdgeIds] AND the edge quality
-  /// tier allows text (full or chip).
-  ///
-  /// The label is rendered as a small dark rounded rect with white
-  /// text, positioned slightly above the edge's midpoint (offset by
-  /// the perpendicular direction so it doesn't overlap the dot/heart
-  /// marker). The label uses the edge's category color as a thin
-  /// accent border so the user can visually associate the label with
-  /// the edge color.
-  ///
-  /// Performance: TextPainter is created once per call and disposed
-  /// immediately. The label is short (typically 1–3 words), so the
-  /// layout cost is negligible. The label is NOT cached — the caller
-  /// is expected to pass a stable label string per edge ID, so the
-  /// painter doesn't need to worry about label invalidation.
-  void _paintPathFocusLabel({
-    required Canvas canvas,
-    required Offset s,
-    required Offset t,
-    required String label,
-    required Color edgeColor,
-    required double lateralOffset,
-    required Offset waypointDelta,
-    required String edgeId,
-  }) {
-    // Compute the visual midpoint — the SAME position the dot/heart
-    // marker is rendered at. The label is offset perpendicular from
-    // this point so it doesn't overlap the marker.
-    final Offset midPoint = computeVisualMidpoint(
-      s, t,
-      lateralOffset: lateralOffset,
-      waypointDelta: waypointDelta,
-      anchorCenter: anchorCenter,
-      edgeId: edgeId,
-    );
-
-    // Compute the perpendicular direction to the connecting line.
-    // The label is offset along this direction so it sits ABOVE the
-    // curve (away from the dot marker which sits ON the curve).
-    final double angle = (t - s).direction;
-    final double perpAngle = angle - math.pi / 2; // above the line
-    final Offset perp = Offset(math.cos(perpAngle), math.sin(perpAngle));
-
-    // Layout the label text. Use a small font (11px) so the label
-    // is readable but unobtrusive. The label is centered on the
-    // midpoint + perpendicular offset.
-    final tp = TextPainter(
-      text: TextSpan(
-        text: label,
-        style: const TextStyle(
-          color: Color(0xFFFFFFFF),
-          fontSize: 11.0,
-          fontWeight: FontWeight.w500,
-          letterSpacing: 0.1,
-          height: 1.1,
-        ),
-      ),
-      textDirection: ui.TextDirection.ltr,
-      textAlign: TextAlign.center,
-      maxLines: 1,
-      ellipsis: '…',
-    )..layout();
-
-    // Offset the label from the midpoint. Use a fixed offset of 14px
-    // (perpendicular to the edge) so the label sits above the curve.
-    // The offset is in graph space — the parent camera transform
-    // scales it to screen space.
-    const double labelOffset = 14.0;
-    final Offset labelCenter = midPoint + perp * labelOffset;
-
-    // Compute the label rect (centered on labelCenter).
-    final Rect labelRect = Rect.fromCenter(
-      center: labelCenter,
-      width: tp.width + 12.0, // 6px padding on each side
-      height: tp.height + 6.0, // 3px padding top/bottom
-    );
-
-    // Draw the dark background rounded rect with a subtle category
-    // color border. The background alpha is 0.92 (matching the +N
-    // branch chip's background alpha) so the label is readable
-    // against any underlying edge color.
-    final bgPaint = Paint()
-      ..color = const Color(0xFF1A1F2B).withValues(alpha: 0.92)
-      ..style = PaintingStyle.fill;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        labelRect,
-        const Radius.circular(8.0),
-      ),
-      bgPaint,
-    );
-
-    // Draw the category-colored border (1px, 0.6 alpha — matches the
-    // +N branch chip styling).
-    final borderPaint = Paint()
-      ..color = edgeColor.withValues(alpha: 0.6)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        labelRect,
-        const Radius.circular(8.0),
-      ),
-      borderPaint,
-    );
-
-    // Draw the text centered in the rect.
-    tp.paint(
-      canvas,
-      Offset(
-        labelRect.left + (labelRect.width - tp.width) / 2,
-        labelRect.top + (labelRect.height - tp.height) / 2,
-      ),
-    );
-    tp.dispose();
   }
 
   // v5.62 (BUG 1 FIX): _paintUnionJunctions has been REMOVED.

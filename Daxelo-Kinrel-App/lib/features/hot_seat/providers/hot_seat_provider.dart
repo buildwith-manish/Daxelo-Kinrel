@@ -58,15 +58,15 @@ class HotSeatNotifier extends StateNotifier<HotSeatState> {
       var dailyResp = await client.from('hot_seat_daily').select().eq('familyId', familyId).eq('assignedDate', todayStr).limit(1);
       Map<String, dynamic>? dailyRow;
       if (dailyResp.isNotEmpty) {
-        dailyRow = dailyResp.first as Map<String, dynamic>;
+        dailyRow = dailyResp.first;
       } else {
         // Pick a random family member for the hot seat
         final membersResp = await client.from('Person').select('id, name').eq('familyId', familyId).isFilter('deletedAt', null);
         if (membersResp.isEmpty) { state = state.copyWith(isLoading: false); return; }
         final random = DateTime.now().millisecondsSinceEpoch;
-        final chosen = membersResp[random % membersResp.length] as Map<String, dynamic>;
+        final chosen = membersResp[random % membersResp.length];
         final newDaily = await client.from('hot_seat_daily').insert({'familyId': familyId, 'userId': chosen['id'], 'userName': chosen['name'], 'assignedDate': todayStr}).select().single();
-        dailyRow = newDaily as Map<String, dynamic>;
+        dailyRow = newDaily;
       }
 
       final dailyId = dailyRow['id'] as String;
@@ -78,7 +78,7 @@ class HotSeatNotifier extends StateNotifier<HotSeatState> {
       final questionsResp = await client.from('hot_seat_questions').select().eq('assignmentId', dailyId).order('"createdAt"', ascending: true);
       final questions = <HotSeatQuestion>[];
       for (final q in questionsResp) {
-        final qMap = q as Map<String, dynamic>;
+        final qMap = q;
         String? answer;
         try {
           final ansResp = await client.from('hot_seat_answers').select('answer').eq('questionId', qMap['id']).maybeSingle();

@@ -32,7 +32,6 @@ class _SharedListScreenState extends ConsumerState<SharedListScreen> {
   @override
   Widget build(BuildContext context) {
     final listsAsync = ref.watch(sharedListsProvider(widget.familyId));
-    final theme = Theme.of(context);
     final notifier = SharedListNotifier(ref);
 
     return Scaffold(
@@ -158,7 +157,6 @@ class _ListCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final itemsAsync = ref.watch(sharedListItemsProvider(list.id));
-    final theme = Theme.of(context);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),

@@ -174,18 +174,6 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
   String? get _currentUserId =>
       ref.read(supabaseProvider)?.auth.currentUser?.id;
 
-  String? get _currentUserName {
-    final user = ref.read(supabaseProvider)?.auth.currentUser;
-    if (user == null) return 'You';
-    final meta = user.userMetadata;
-    final name = meta?['name'] as String? ??
-        meta?['full_name'] as String? ??
-        meta?['displayName'] as String?;
-    if (name != null && name.trim().isNotEmpty) return name.trim();
-    if (user.email != null) return user.email!.split('@').first;
-    return 'You';
-  }
-
   SupabaseClient? get _client => ref.read(supabaseProvider);
 
   Future<void> _init() async {

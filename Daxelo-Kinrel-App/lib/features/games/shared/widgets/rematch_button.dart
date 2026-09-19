@@ -27,7 +27,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
-import '../../../../core/network/socket_service.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../models/game_invite.dart';
 

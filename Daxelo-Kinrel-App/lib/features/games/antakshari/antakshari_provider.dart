@@ -173,7 +173,7 @@ class AntakshariNotifier extends StateNotifier<AntakshariState> {
           .insert(body)
           .select()
           .single();
-      final game = AntakshariGame.fromJson(resp as Map<String, dynamic>);
+      final game = AntakshariGame.fromJson(resp);
       _gameId = game.id;
 
       // Insert host as first player
@@ -231,7 +231,7 @@ class AntakshariNotifier extends StateNotifier<AntakshariState> {
           .eq('gameId', gameId)
           .order('turnOrder', ascending: true);
       final existingPlayers = playersResp
-          .map((p) => AntakshariPlayer.fromJson(p as Map<String, dynamic>))
+          .map((p) => AntakshariPlayer.fromJson(p))
           .toList();
       if (existingPlayers.length >= game.maxPlayers) {
         state = state.copyWith(
@@ -694,11 +694,6 @@ class AntakshariNotifier extends StateNotifier<AntakshariState> {
       nextPlayer = sortedActive.first;
     }
 
-    if (nextPlayer == null) {
-      await _finishGame([], []);
-      return;
-    }
-
     // Check win conditions
     if (active.length == 1 && game.gameMode == AntakshariGameMode.standard) {
       // Last player standing wins
@@ -906,7 +901,7 @@ class AntakshariNotifier extends StateNotifier<AntakshariState> {
           .eq('gameId', gameId)
           .order('turnOrder', ascending: true);
       final players = resp
-          .map((p) => AntakshariPlayer.fromJson(p as Map<String, dynamic>))
+          .map((p) => AntakshariPlayer.fromJson(p))
           .toList();
       state = state.copyWith(players: players);
     } catch (e) {
@@ -924,7 +919,7 @@ class AntakshariNotifier extends StateNotifier<AntakshariState> {
           .eq('gameId', gameId)
           .order('turnNumber', ascending: true);
       final turns = turnsResp
-          .map((t) => AntakshariTurn.fromJson(t as Map<String, dynamic>))
+          .map((t) => AntakshariTurn.fromJson(t))
           .toList();
       state = state.copyWith(turns: turns);
 
@@ -938,7 +933,7 @@ class AntakshariNotifier extends StateNotifier<AntakshariState> {
             .order('createdAt', ascending: true);
         final challenges = challengesResp
             .map((c) =>
-                AntakshariChallenge.fromJson(c as Map<String, dynamic>))
+                AntakshariChallenge.fromJson(c))
             .toList();
         state = state.copyWith(challenges: challenges);
       }

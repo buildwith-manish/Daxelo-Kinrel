@@ -36,7 +36,7 @@ class DbNotifier extends StateNotifier<DbState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final resp = await client.from('dotsboxes_games').insert({'familyId': familyId, 'hostUserId': myId, 'hostUserName': _myName, 'status': 'waiting', 'gridSize': gridSize, 'bonusTurn': false}).select().single();
-      final game = DbGame.fromJson(resp as Map<String, dynamic>); _gameId = game.id;
+      final game = DbGame.fromJson(resp); _gameId = game.id;
       await client.from('dotsboxes_players').insert({'gameId': game.id, 'userId': myId, 'userName': _myName, 'turnOrder': 0, 'playerColor': 0, 'boxesCaptured': 0});
       // Pre-create all boxes
       final boxRows = <Map<String, dynamic>>[];
@@ -57,7 +57,7 @@ class DbNotifier extends StateNotifier<DbState> {
       if (isRoomRowClosed(gameResp)) { state = state.copyWith(isLoading: false, error: kRoomClosedMessage); return false; }
       final game = DbGame.fromJson(gameResp as Map<String, dynamic>); _gameId = gameId;
       final playersResp = await client.from('dotsboxes_players').select().eq('gameId', gameId).order('turnOrder', ascending: true);
-      final existing = playersResp.map((p) => DbPlayer.fromJson(p as Map<String, dynamic>)).toList();
+      final existing = playersResp.map((p) => DbPlayer.fromJson(p)).toList();
       if (existing.length >= 4) { state = state.copyWith(isLoading: false, error: 'Game is full'); return false; }
       if (!existing.any((p) => p.userId == myId)) await client.from('dotsboxes_players').upsert({'gameId': gameId, 'userId': myId, 'userName': _myName, 'turnOrder': existing.length, 'playerColor': existing.length, 'boxesCaptured': 0}, onConflict: 'gameId,userId');
       state = state.copyWith(game: game, isLoading: false); _subscribeToRealtime(gameId); await _refreshPlayers(gameId); await _refreshLines(gameId); await _refreshBoxes(gameId);
@@ -127,7 +127,7 @@ class DbNotifier extends StateNotifier<DbState> {
       if (isOver) {
         // Fetch updated scores and determine winners
         final updatedPlayers = await client.from('dotsboxes_players').select().eq('gameId', gameId).order('turnOrder', ascending: true);
-        final players = updatedPlayers.map((p) => DbPlayer.fromJson(p as Map<String, dynamic>)).toList();
+        final players = updatedPlayers.map((p) => DbPlayer.fromJson(p)).toList();
         final scores = players.map((p) => p.boxesCaptured).toList();
         final winnerIndices = getWinners(scores);
         final winnerIds = winnerIndices.map((i) => players[i].userId).toList();
@@ -246,17 +246,17 @@ class DbNotifier extends StateNotifier<DbState> {
 
   Future<void> _refreshPlayers(String gameId) async {
     final client = _client; if (client == null) return;
-    try { final resp = await client.from('dotsboxes_players').select().eq('gameId', gameId).order('turnOrder', ascending: true); state = state.copyWith(players: resp.map((p) => DbPlayer.fromJson(p as Map<String, dynamic>)).toList()); } catch (e) { debugPrint('[DB] refreshPlayers error: $e'); }
+    try { final resp = await client.from('dotsboxes_players').select().eq('gameId', gameId).order('turnOrder', ascending: true); state = state.copyWith(players: resp.map((p) => DbPlayer.fromJson(p)).toList()); } catch (e) { debugPrint('[DB] refreshPlayers error: $e'); }
   }
 
   Future<void> _refreshLines(String gameId) async {
     final client = _client; if (client == null) return;
-    try { final resp = await client.from('dotsboxes_lines').select().eq('gameId', gameId); state = state.copyWith(lines: resp.map((l) => DbLineRecord.fromJson(l as Map<String, dynamic>)).toList()); } catch (e) { debugPrint('[DB] refreshLines error: $e'); }
+    try { final resp = await client.from('dotsboxes_lines').select().eq('gameId', gameId); state = state.copyWith(lines: resp.map((l) => DbLineRecord.fromJson(l)).toList()); } catch (e) { debugPrint('[DB] refreshLines error: $e'); }
   }
 
   Future<void> _refreshBoxes(String gameId) async {
     final client = _client; if (client == null) return;
-    try { final resp = await client.from('dotsboxes_boxes').select().eq('gameId', gameId); state = state.copyWith(boxes: resp.map((b) => DbBoxRecord.fromJson(b as Map<String, dynamic>)).toList()); } catch (e) { debugPrint('[DB] refreshBoxes error: $e'); }
+    try { final resp = await client.from('dotsboxes_boxes').select().eq('gameId', gameId); state = state.copyWith(boxes: resp.map((b) => DbBoxRecord.fromJson(b)).toList()); } catch (e) { debugPrint('[DB] refreshBoxes error: $e'); }
   }
 
   @override

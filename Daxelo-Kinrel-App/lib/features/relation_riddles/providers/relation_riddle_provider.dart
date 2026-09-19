@@ -48,15 +48,15 @@ class RelationRiddleNotifier extends StateNotifier<RelationRiddleState> {
       var riddleResp = await client.from('relation_riddle_daily').select().eq('familyId', familyId).eq('assignedDate', todayStr).limit(1);
       Map<String, dynamic>? riddleRow;
       if (riddleResp.isNotEmpty) {
-        riddleRow = riddleResp.first as Map<String, dynamic>;
+        riddleRow = riddleResp.first;
       } else {
         // Need at least 2 members to create a riddle
         final membersResp = await client.from('Person').select('id, name').eq('familyId', familyId).isFilter('deletedAt', null);
         if (membersResp.length < 2) { state = state.copyWith(isLoading: false); return; }
 
         final random = DateTime.now().millisecondsSinceEpoch;
-        final personA = membersResp[random % membersResp.length] as Map<String, dynamic>;
-        final personB = membersResp[(random + 1) % membersResp.length] as Map<String, dynamic>;
+        final personA = membersResp[random % membersResp.length];
+        final personB = membersResp[(random + 1) % membersResp.length];
         final correctAnswer = 'Related (see graph for path)';
 
         // Generate plausible wrong answers
@@ -68,7 +68,7 @@ class RelationRiddleNotifier extends StateNotifier<RelationRiddleState> {
           'correctAnswer': correctAnswer, 'option1': shuffled[0], 'option2': shuffled[1], 'option3': shuffled[2],
           'assignedDate': todayStr,
         }).select().single();
-        riddleRow = newRiddle as Map<String, dynamic>;
+        riddleRow = newRiddle;
       }
 
       final riddleId = riddleRow['id'] as String;

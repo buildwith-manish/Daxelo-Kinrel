@@ -8,7 +8,7 @@ class FeedSyncEngine extends AbstractSyncEngine {
   @override
   String get engineName => 'feed';
 
-  @override
+  // NOTE: no @override — AbstractSyncEngine does not declare displayName.
   String get displayName => 'Family Feed';
 
   bool _isSyncing = false;

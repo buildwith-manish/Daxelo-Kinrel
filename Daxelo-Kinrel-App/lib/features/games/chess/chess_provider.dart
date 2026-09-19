@@ -154,7 +154,7 @@ class ChessNotifier extends StateNotifier<ChessState> {
         'hostReady': true,
         'autoCloseDeadline': deadline.toIso8601String(),
       }).select().single();
-      final game = ChessGame.fromJson(resp as Map<String, dynamic>);
+      final game = ChessGame.fromJson(resp);
       _gameId = game.id;
       _logic = chess.Chess.fromFEN(game.boardState);
 
@@ -415,7 +415,7 @@ class ChessNotifier extends StateNotifier<ChessState> {
           .eq('gameId', gameId)
           .order('moveNumber', ascending: true);
       final moves = movesResp
-          .map((m) => ChessMoveRecord.fromJson(m as Map<String, dynamic>))
+          .map((m) => ChessMoveRecord.fromJson(m))
           .toList();
 
       state = state.copyWith(

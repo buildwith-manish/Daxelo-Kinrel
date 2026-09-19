@@ -301,7 +301,7 @@ class _TimelineTile extends ConsumerWidget {
                           ),
                         ],
                       ),
-                      if (description != null && description!.isNotEmpty) ...[
+                      if (description != null && description.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         Text(description, style: TextStyle(fontSize: 13, color: Colors.grey[700])),
                       ],
@@ -437,7 +437,7 @@ class TrackcTimelineEventDetailScreen extends ConsumerWidget {
                       const SizedBox(height: 12),
                       Text(title,
                           style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-                      if (description != null && description!.isNotEmpty) ...[
+                      if (description != null && description.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         Text(description, style: theme.textTheme.bodyMedium),
                       ],

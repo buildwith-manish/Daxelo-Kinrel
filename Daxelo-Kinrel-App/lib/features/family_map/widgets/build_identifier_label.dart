@@ -24,7 +24,6 @@
 // participate in focus/layer state — it's a passive read-only chip.
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 
 /// Reads build-time --dart-define values.
 ///

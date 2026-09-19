@@ -23,7 +23,6 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_provider.dart';
-import '../../../core/graph/graph_service.dart';
 import '../../../core/graph/graph_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/services/supabase_service.dart';
@@ -152,13 +151,6 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
           }
 
           final family = detail.family;
-          final isCreator = family.createdBy != null &&
-              family.createdBy == currentUserId;
-          final currentUserMembership = memberships
-              .where((m) => m.userId == currentUserId)
-              .firstOrNull;
-          final isAdmin = isCreator ||
-              (currentUserMembership?.isAdmin ?? false);
 
           // v5.204: Show ALL members (both Linked and Manual).
           // Previously filtered with `p.isLinkedToKinrelUser` which

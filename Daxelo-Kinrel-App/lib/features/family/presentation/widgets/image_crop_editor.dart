@@ -21,7 +21,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import '../../../../core/constants/brand_colors.dart';
-import '../../../../core/constants/brand_typography.dart';
 
 class ImageCropEditor extends StatefulWidget {
   const ImageCropEditor({

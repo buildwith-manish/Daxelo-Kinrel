@@ -55,7 +55,6 @@ class CarromCoin {
 /// Queen at center, inner ring of 6, outer ring of 12, alternating colors.
 List<CarromCoin> createInitialBoard() {
   final coins = <CarromCoin>[];
-  const r = CarromBoard.halfSize;
   final center = math.Point<double>(0, 0);
 
   // Queen at center
@@ -160,7 +159,6 @@ TurnResult evaluateTurn({
 
   final pottedTypes = pottedThisTurn.map((i) => coinsAfter[i].type).toList();
   final pottedOwnColor = pottedTypes.where((t) => t == playerColor).length;
-  final pottedOpponentColor = pottedTypes.where((t) => t == opponentColor).length;
   final pottedQueen = pottedTypes.contains(CarromCoinType.queen);
 
   // ── Foul detection ──────────────────────────────────────────────
@@ -276,9 +274,6 @@ TurnResult evaluateTurn({
   }
 
   // ── Win detection ───────────────────────────────────────────────
-  final newPlayerOneScore = playerOneScore + playerOneDelta;
-  final newPlayerTwoScore = playerTwoScore + playerTwoDelta;
-
   bool gameOver = false;
   String? winnerId;
 

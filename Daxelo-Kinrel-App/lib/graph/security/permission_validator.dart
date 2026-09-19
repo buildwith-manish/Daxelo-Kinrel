@@ -112,11 +112,6 @@ class PermissionValidator {
   /// Active Supabase Realtime subscription, if any.
   RealtimeChannel? _realtimeChannel;
 
-  // ── Cache TTL ──────────────────────────────────────────────────────
-
-  /// Cache time-to-live in minutes.
-  static const int _cacheTtlMinutes = 30;
-
   // ── Permission Checks ──────────────────────────────────────────────
 
   /// Whether [viewerId] can view [targetId]'s profile.

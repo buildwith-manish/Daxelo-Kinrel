@@ -171,7 +171,7 @@ class _PlaceCalloutOverlayState extends State<PlaceCalloutOverlay> {
       try {
         final g = Geographic(lon: place.lng, lat: place.lat);
         final screen = controller.toScreenLocation(g);
-        if (screen != null && _positions[place.id] != screen) {
+        if (_positions[place.id] != screen) {
           _positions[place.id] = screen;
           changed = true;
         }

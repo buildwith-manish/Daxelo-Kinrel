@@ -24,13 +24,9 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
   bool _isRecording = false;
   String _timeCapsuleDuration = '1 Day';
   bool _showSuccess = false;
-  bool _showError = false;
   bool _isSubmitting = false;
 
   // ── Premium Dark Design Tokens ──────────────────────────────────────
-
-  // Canvas background tones (dark-dominant)
-  static const _canvasBase = Color(0xFF0A0A0A);
 
   // Tonal swatches for text mode — 6 soft circular options, 28dp each
   static const _bgColors = [
@@ -89,8 +85,6 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
     ),
   ];
 
-  static const _timeCapsuleOptions = ['1 Day', '1 Week', '1 Month', '1 Year'];
-
   // Content type mode labels — camera-app style
   static const _modeLabels = ['Image', 'Video', 'Text', 'Voice', 'Mood'];
 
@@ -141,14 +135,6 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
         _mediaFile = File(video.path);
         _duration = 60;
       });
-    }
-  }
-
-  Future<void> _pickCamera() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.camera);
-    if (image != null) {
-      setState(() => _mediaFile = File(image.path));
     }
   }
 

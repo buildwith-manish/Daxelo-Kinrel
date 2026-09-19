@@ -141,7 +141,6 @@ class SpringCurve extends Curve {
   })  : _spring = spring,
         _from = from,
         _to = to,
-        _velocity = velocity,
         _settleSeconds =
             settleSeconds ?? SpringPalette.approximateSettleSeconds(spring) {
     _simulation = SpringSimulation(spring, from, to, velocity)
@@ -151,7 +150,6 @@ class SpringCurve extends Curve {
   final SpringDescription _spring;
   final double _from;
   final double _to;
-  final double _velocity;
   final double _settleSeconds;
   late final SpringSimulation _simulation;
 

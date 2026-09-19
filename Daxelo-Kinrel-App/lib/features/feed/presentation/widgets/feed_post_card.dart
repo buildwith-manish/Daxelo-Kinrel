@@ -17,7 +17,6 @@ import '../../providers/feed_provider.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────
 const _cOrange = KinrelColors.orange;
-const _cBg = KinrelColors.darkBackground;
 const _cCard = KinrelColors.darkCard;
 const _cElevated = KinrelColors.darkElevated;
 const _cTextPrimary = KinrelColors.textWhite;

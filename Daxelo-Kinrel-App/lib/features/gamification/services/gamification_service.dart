@@ -5,7 +5,6 @@
 // Calls the NestJS gamification backend endpoints.
 // Uses the shared dioProvider for authenticated HTTP requests.
 
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/networking/dio_client.dart';
 

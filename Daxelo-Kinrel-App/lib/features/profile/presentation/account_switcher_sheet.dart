@@ -17,7 +17,7 @@
 // emits [ACCOUNT] debug logs at each step of the multi-account flow.
 // See _addAccount() and _switchAccount() below.
 
-import 'package:flutter/foundation.dart'; // for debugPrint — [ACCOUNT] logs
+// for debugPrint — [ACCOUNT] logs
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';

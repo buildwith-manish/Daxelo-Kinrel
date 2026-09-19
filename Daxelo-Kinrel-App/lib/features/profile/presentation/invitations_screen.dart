@@ -6,7 +6,7 @@
 // Received invites can be accepted or declined. Sent invites
 // show their status (pending/accepted/expired).
 
-import 'package:flutter/foundation.dart'; // for debugPrint — [v5.192] logs
+// for debugPrint — [v5.192] logs
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';

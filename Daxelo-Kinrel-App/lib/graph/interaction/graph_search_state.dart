@@ -21,7 +21,6 @@
 // This is LOCAL graph interaction state. It does NOT modify
 // relationship data, node positions, or canonical topology.
 
-import 'dart:ui' show Offset;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

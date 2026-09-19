@@ -24,7 +24,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart' show Offset;
 import 'package:flutter_riverpod/flutter_riverpod.dart' show
     FutureProvider,
-    FutureProviderFamily,
     StateProvider,
     WidgetRef;
 
@@ -105,12 +104,12 @@ final personalLayoutOverridesProvider =
         .eq('userId', auth.id)
         .limit(1);
 
-    final rowsList = rows is List ? rows : const [];
+    final rowsList = rows;
     if (rowsList.isEmpty) {
       return PersonalLayoutOverrides.empty;
     }
 
-    final row = rowsList.first as Map<String, dynamic>;
+    final row = rowsList.first;
     return PersonalLayoutOverrides(
       nodePositions: _parseNodePositions(row['nodePositions']),
       edgeWaypoints: _parseEdgeWaypoints(row['edgeWaypoints']),
@@ -151,12 +150,12 @@ final branchExpansionStateProvider =
         .eq('userId', auth.id)
         .limit(1);
 
-    final rowsList = rows is List ? rows : const [];
+    final rowsList = rows;
     if (rowsList.isEmpty) {
       return const <String, bool>{};
     }
 
-    final row = rowsList.first as Map<String, dynamic>;
+    final row = rowsList.first;
     return _parseExpandedBranches(row['expandedBranches']);
   } catch (e) {
     // Fail soft — the default density-collapse rule applies.

@@ -702,7 +702,6 @@ void main() {
     test('unrelated branches keep their chips when one branch expands', () {
       // Two independent hidden clusters behind two visible roots.
       final persons = <String>{'a', 'b'};
-      final visible = <String>{'a', 'b'};
       final childrenOf = <String, Set<String>>{};
       final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[];
       for (var i = 0; i < 5; i++) {

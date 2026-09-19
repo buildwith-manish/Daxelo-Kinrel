@@ -109,7 +109,6 @@ LodRenderMetrics computeLodMetrics({
       //   border stroke: 1.5px screen-space
       //   hit radius: 22px screen-space (generous tap target)
       const screenNormalR = 11.0;
-      const screenEmphasisR = 15.0;
       const screenStrokeMin = 1.5;
       const screenHitRadius = 22.0;
       final graphNormalR = screenNormalR / safeZoom;
@@ -136,7 +135,6 @@ LodRenderMetrics computeLodMetrics({
       //   ring stroke: 1.5px screen-space
       //   hit radius: 18px screen-space
       const screenNormalR = 8.0;
-      const screenEmphasisR = 11.0;
       const screenStrokeMin = 1.5;
       const screenHitRadius = 18.0;
       final graphNormalR = screenNormalR / safeZoom;
@@ -184,11 +182,9 @@ LodRenderMetrics computeLodMetrics({
       //   edge stroke: 1.5px screen-space minimum
       //   hit radius: 24px screen-space minimum (was 22px)
       const screenNormalR = 14.0;
-      const screenEmphasisR = 20.0;
       const screenStrokeMin = 1.5;
       const screenHitRadius = 24.0;
       final graphNormalR = screenNormalR / safeZoom;
-      final graphEmphasisR = screenEmphasisR / safeZoom;
       final graphStroke = screenStrokeMin / safeZoom;
       final graphHit = screenHitRadius / safeZoom;
       final cullD = 28.0 / safeZoom;

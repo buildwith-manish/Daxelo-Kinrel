@@ -12,7 +12,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/services/temporary_room_service.dart';
-import 'connect4_engine.dart';
 import 'connect4_models.dart';
 
 class Connect4State {

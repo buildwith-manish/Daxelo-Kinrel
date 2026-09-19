@@ -32,8 +32,6 @@
 //   • No lip-sync without audio.
 //   • No procedural fidgeting.
 
-import 'package:flutter/animation.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 /// Deterministic animation tuning for a Cameo surface.

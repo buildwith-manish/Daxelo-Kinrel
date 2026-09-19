@@ -102,21 +102,21 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
         _subscribeToRoundWatch();
         return;
       }
-      final round = GhostPainterRound.fromJson(roundResp.first as Map<String, dynamic>);
+      final round = GhostPainterRound.fromJson(roundResp.first);
       // Fetch strokes
       final strokesResp = await client
           .from('ghost_painter_strokes')
           .select()
           .eq('roundId', round.id)
           .order('sequenceOrder', ascending: true);
-      final strokes = strokesResp.map((s) => GhostPainterStroke.fromJson(s as Map<String, dynamic>)).toList();
+      final strokes = strokesResp.map((s) => GhostPainterStroke.fromJson(s)).toList();
       // Fetch guesses
       final guessesResp = await client
           .from('ghost_painter_guesses')
           .select()
           .eq('roundId', round.id)
           .order('guessedAt', ascending: true);
-      final guesses = guessesResp.map((g) => GhostPainterGuess.fromJson(g as Map<String, dynamic>)).toList();
+      final guesses = guessesResp.map((g) => GhostPainterGuess.fromJson(g)).toList();
       final myId = _myId;
       // Latest guess (guesses are ordered by guessedAt ascending) — the
       // guess screen keeps the input visible until the latest guess is
@@ -213,7 +213,7 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
         'status': 'drawing',
         'endsAt': endsAt.toIso8601String(),
       }).select().single();
-      final round = GhostPainterRound.fromJson(resp as Map<String, dynamic>);
+      final round = GhostPainterRound.fromJson(resp);
       state = GhostPainterState(activeRound: round, isLoading: false);
       _subscribeToRealtime(round.id);
       return true;
@@ -274,7 +274,7 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
         'guessText': text,
         'isCorrect': isCorrect,
       }).select().single();
-      final guess = GhostPainterGuess.fromJson(resp as Map<String, dynamic>);
+      final guess = GhostPainterGuess.fromJson(resp);
       state = state.copyWith(myGuess: guess, isSubmitting: false);
       if (isCorrect) {
         // Complete the round

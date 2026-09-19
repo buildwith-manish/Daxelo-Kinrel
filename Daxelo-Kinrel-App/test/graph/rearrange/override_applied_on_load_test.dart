@@ -14,7 +14,6 @@
 // where ⊕ means "saved overrides replace auto-layout for matching
 // personIds". Other persons keep auto-layout.
 
-import 'package:flutter/material.dart' show Offset;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/graph/rearrange/layout_overrides_service.dart';
 

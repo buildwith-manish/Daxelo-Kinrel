@@ -95,11 +95,6 @@ class KinshipInferenceEngine {
         (r.relationshipKey == 'spouse' ||
             r.relationshipKey == 'husband' ||
             r.relationshipKey == 'wife'));
-    final aHasSibling = existingRelationships.any((r) =>
-        r.fromPersonId == personA.id &&
-        (r.relationshipKey == 'brother' ||
-            r.relationshipKey == 'sister' ||
-            r.relationshipKey == 'sibling'));
 
     // ── RULE 1: Age-based parent/child inference ──
     // If B is 15+ years older than A → likely B is A's parent

@@ -232,7 +232,6 @@ void main() {
         'Self-relationship',
         'self_relationship',
       );
-      expect(exc is RelationshipValidationException, isTrue);
       expect(exc.code, 'self_relationship');
     });
 

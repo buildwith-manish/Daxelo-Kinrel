@@ -73,20 +73,14 @@ import '../../../core/kinship/kinship_edge_style.dart'
 import '../../../graph/graph.dart';
 import '../../../graph/interaction/graph_focus_state.dart'
     show graphFocusProvider, PathSelectPhase;
-import '../../../graph/interaction/expand_collapse.dart'
-    show expandCollapseProvider;
-import '../../../graph/widgets/family_graph_engine_view.dart';
 // v5.125 (Family Space §5): deep-link query param (?tab=...) was
 // previously used to land on the Tree view. The Tree tab was removed
 // in v5.163 — the param is now accepted but ignored (kept for
 // backward-compat with any existing bookmarks/links that pass it).
 import '../../../graph/widgets/graph_tutorial_overlay.dart';
-import '../../../graph/widgets/search_bar.dart';
 import '../../../graph/widgets/unlinked_members_sheet.dart'; // v5.9
 import '../../../graph/widgets/relationship_picker_flow.dart'; // v5.10
 import '../../../graph/widgets/graph_relationship_labels.dart' show GraphPersonData; // v5.10
-// v5.41: Pending Invitations sheet (graph-originated invites).
-import '../../../graph/widgets/pending_invitations_sheet.dart';
 import '../../../graph/interaction/indirect_relation_provider.dart'
     show indirectRelationIdsProvider, hasSeenIndirectBadgeProvider;
 // v5.125 (Family Space §5): Graph ↔ Tree tab bar.
@@ -97,9 +91,6 @@ import '../../family/presentation/providers/graph_pending_invitations_provider.d
 // v5.38: also imports hasUnsavedChangesProvider + saveCompletedTriggerProvider.
 import '../../../graph/rearrange/layout_overrides_service.dart'
     show
-        LayoutOverridesService,
-        PersonalLayoutOverrides,
-        personalLayoutOverridesProvider,
         rearrangeModeProvider,
         saveAllOverridesTriggerProvider,
         resetUnsavedOverridesTriggerProvider,
@@ -124,8 +115,6 @@ import '../../../core/services/graph_layout_service.dart'
     show GraphPerson;
 import '../../../graph/interaction/proximity_graph_state.dart'
     show proximityGraphProvider;
-import '../../../graph/interaction/branch_collapse_state.dart'
-    show branchCollapseProvider;
 import '../../../graph/interaction/graph_search_state.dart'
     show graphSearchProvider;
 // v5.x (legend wiring fix): GraphLegend is now actually rendered by
@@ -193,9 +182,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
   /// External TransformationController to drive FamilyGraphWidget zoom/pan.
   final TransformationController _graphTransformController =
       TransformationController();
-
-  /// Currently hovered relationship key for legend filtering.
-  String? _hoveredRelationshipKey;
 
   /// Whether the relationship legend is visible.
   bool _showLegend = false;
@@ -297,7 +283,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
       });
       // v5.38: Listen for save completion to show the success snackbar.
       ref.listenManual(saveCompletedTriggerProvider, (previous, next) {
-        if (next != null && next > (previous ?? 0)) {
+        if (next > (previous ?? 0)) {
           ScaffoldMessenger.maybeOf(context)?.showSnackBar(
             const SnackBar(
               content: Text('Layout saved successfully'),
@@ -359,7 +345,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
   void _centerOnRootUser() {
     setState(() {
       _recenterKey++;
-      _hoveredRelationshipKey = null;
     });
   }
 
@@ -1067,87 +1052,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
   }
 
   // ── Data State ────────────────────────────────────────────────────
-
-  /// v5.99: Computes generation set from the flat graph using BFS with
-  /// labelAtoB (specific labels) — matches the layout engine's generation
-  /// assignment. Returns a Set<int> of distinct generation values.
-  Set<int> _computeGenerationsFromGraph(
-      FlatGraphResult graph, List<PersonData> persons) {
-    if (persons.isEmpty) return {0};
-
-    // Find anchor (or first person) as BFS start
-    final anchor = persons.firstWhere(
-      (p) => p.isAnchor,
-      orElse: () => persons.first,
-    );
-
-    // Build adjacency using labelAtoB (specific label)
-    final parentKeys = {'father', 'mother', 'parent', 'stepfather', 'stepmother'};
-    final childKeys = {'son', 'daughter', 'child', 'stepson', 'stepdaughter'};
-    final grandparentKeys = {
-      'grandfather', 'grandmother', 'grandparent',
-      'paternal_grandfather', 'paternal_grandmother',
-      'maternal_grandfather', 'maternal_grandmother',
-    };
-    final grandchildKeys = {'grandson', 'granddaughter', 'grandchild'};
-
-    final adjacency = <String, List<(String, int)>>{};
-    for (final p in persons) {
-      adjacency[p.id] = [];
-    }
-
-    for (final r in graph.relationships) {
-      final fromId = r['fromPersonId'] as String?;
-      final toId = r['toPersonId'] as String?;
-      if (fromId == null || toId == null) continue;
-      if (!adjacency.containsKey(fromId) || !adjacency.containsKey(toId)) {
-        continue;
-      }
-
-      // Use labelAtoB (specific label) for generation lookup
-      final key = (r['labelAtoB'] as String?) ??
-          (r['relationshipKey'] as String?) ?? '';
-
-      int offset;
-      if (grandparentKeys.contains(key)) {
-        offset = -2;
-      } else if (parentKeys.contains(key)) {
-        offset = -1;
-      } else if (grandchildKeys.contains(key)) {
-        offset = 2;
-      } else if (childKeys.contains(key)) {
-        offset = 1;
-      } else {
-        offset = 0; // spouse, sibling, cousin, in-law, etc.
-      }
-
-      adjacency[fromId]!.add((toId, offset));
-      adjacency[toId]!.add((fromId, -offset));
-    }
-
-    // BFS from anchor
-    final generations = <int>{};
-    final visited = <String>{};
-    final queue = <(String, int)>[(anchor.id, 0)];
-    visited.add(anchor.id);
-    generations.add(0);
-
-    while (queue.isNotEmpty) {
-      final (currentId, currentGen) = queue.removeAt(0);
-      final neighbors = adjacency[currentId] ?? <(String, int)>[];
-      for (final entry in neighbors) {
-        final neighborId = entry.$1;
-        final offset = entry.$2;
-        if (visited.contains(neighborId)) continue;
-        visited.add(neighborId);
-        final neighborGen = currentGen + offset;
-        generations.add(neighborGen);
-        queue.add((neighborId, neighborGen));
-      }
-    }
-
-    return generations;
-  }
 
   Widget _buildDataState(FlatGraphResult graph) {
     final persons = graph.toPersonDataList();
@@ -2147,7 +2051,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${inv.specificLabelAtoB ?? inv.relationshipKey} • ${inv.status}',
+                  '${inv.specificLabelAtoB} • ${inv.status}',
                   style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
                 ),
                 // v5.96: Show relative time ("Sent 5 minutes ago")
@@ -2216,186 +2120,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
         }).toList(),
       );
     });
-  }
-
-  // v5.9: Unlinked Members button — shows count badge, opens bottom sheet.
-  Widget _buildUnlinkedMembersButton() {
-    final unlinkedIds = ref.watch(unlinkedPersonIdsProvider(widget.familyId));
-    final count = unlinkedIds.length;
-
-    return Semantics(
-      label: '$count members need linking. Tap to see the list.',
-      button: true,
-      child: GestureDetector(
-        onTap: () {
-          showUnlinkedMembersSheet(
-            context,
-            ref,
-            widget.familyId,
-            onPersonSelected: (personId, personName) {
-              // v5.10: Open the shared relationship picker flow directly
-              // (instead of the old focus+snackbar dead-end). The user
-              // picks ANY other person to connect this unlinked member to.
-              showRelationshipPickerFlow(
-                context: context,
-                ref: ref,
-                familyId: widget.familyId,
-                sourcePerson: GraphPersonData(
-                  id: personId,
-                  name: personName,
-                ),
-                onComplete: (created) {
-                  if (created) {
-                    // Relationship was created — unlinkedPersonIdsProvider
-                    // will reactively update (it watches familyGraphProvider
-                    // which is invalidated by createRelationship).
-                    // If there are still unlinked members, the user can
-                    // tap the button again to see the updated list.
-                  }
-                },
-              );
-            },
-          );
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: KinrelColors.darkCard,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: KinrelColors.amber.withValues(alpha: 0.4),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.link_off,
-                size: 16,
-                color: KinrelColors.amber,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Link',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: KinrelColors.amber,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '$count',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.monoFont,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: KinrelColors.darkCard,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // v5.41: Pending Invitations button — shows count badge, opens bottom sheet
-  // that lists graph-originated invitations (people invited from the graph
-  // who haven't accepted yet). The graph itself does NOT show these as
-  // nodes — only confirmed members appear in the graph.
-  Widget _buildPendingInvitationsButton() {
-    final count = ref.watch(pendingGraphInvitationCountProvider(widget.familyId));
-
-    return Semantics(
-      label: '$count pending invitations. Tap to see the list.',
-      button: true,
-      child: GestureDetector(
-        onTap: () {
-          showPendingInvitationsSheet(
-            context,
-            ref,
-            widget.familyId,
-            onInvitationCancelled: () {
-              // The provider auto-refreshes via realtime, but we
-              // invalidate to force an immediate refresh.
-              ref.invalidate(graphPendingInvitationsProvider(widget.familyId));
-            },
-          );
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: KinrelColors.darkCard,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: KinrelColors.tealAccent.withValues(alpha: 0.4),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.mail_outline,
-                size: 16,
-                color: KinrelColors.tealAccent,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Invites',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: KinrelColors.tealAccent,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '$count',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.monoFont,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: KinrelColors.darkCard,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   // ── Empty state ──────────────────────────────────────────────────────

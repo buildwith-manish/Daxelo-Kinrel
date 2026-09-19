@@ -106,7 +106,7 @@ class NameplaceNotifier extends StateNotifier<NameplaceState> {
         'allAnswersSubmitted': false,
         'roundScoringDone': false,
       }).select().single();
-      final game = NameplaceGame.fromJson(resp as Map<String, dynamic>);
+      final game = NameplaceGame.fromJson(resp);
       _gameId = game.id;
       await client.from('nameplace_players').insert({
         'gameId': game.id, 'userId': myId, 'userName': _myName, 'turnOrder': 0, 'totalScore': 0, 'hasSubmitted': false,
@@ -134,7 +134,7 @@ class NameplaceNotifier extends StateNotifier<NameplaceState> {
       final game = NameplaceGame.fromJson(gameResp as Map<String, dynamic>);
       _gameId = gameId;
       final playersResp = await client.from('nameplace_players').select().eq('gameId', gameId).order('turnOrder', ascending: true);
-      final existing = playersResp.map((p) => NameplacePlayer.fromJson(p as Map<String, dynamic>)).toList();
+      final existing = playersResp.map((p) => NameplacePlayer.fromJson(p)).toList();
       if (existing.length >= 20) { state = state.copyWith(isLoading: false, error: 'Game is full'); return false; }
       if (!existing.any((p) => p.userId == myId)) {
         await client.from('nameplace_players').upsert({
@@ -186,7 +186,6 @@ class NameplaceNotifier extends StateNotifier<NameplaceState> {
     final sortedPlayers = List<NameplacePlayer>.from(state.players)..sort((a, b) => a.turnOrder.compareTo(b.turnOrder));
     final playerIds = sortedPlayers.map((p) => p.userId).toList();
     final chooserId = nextLetterChooserId(playerIdsInOrder: playerIds, roundNumber: roundNumber);
-    final chooser = sortedPlayers.firstWhere((p) => p.userId == chooserId);
 
     await client.from('nameplace_games').update({
       'status': 'in_progress',
@@ -343,7 +342,7 @@ class NameplaceNotifier extends StateNotifier<NameplaceState> {
       final roundId = roundResp['id'] as String;
 
       final answersResp = await client.from('nameplace_answers').select().eq('roundId', roundId);
-      final answers = answersResp.map((a) => NameplaceAnswerModel.fromJson(a as Map<String, dynamic>)).toList();
+      final answers = answersResp.map((a) => NameplaceAnswerModel.fromJson(a)).toList();
 
       // Convert to logic-layer answers
       final logicAnswers = answers.map((a) => NameplaceAnswer(
@@ -398,7 +397,7 @@ class NameplaceNotifier extends StateNotifier<NameplaceState> {
     if (game.currentRound >= game.totalRounds) {
       // Game over — compute winners
       final updatedPlayers = await client.from('nameplace_players').select().eq('gameId', gameId).order('turnOrder', ascending: true);
-      final players = updatedPlayers.map((p) => NameplacePlayer.fromJson(p as Map<String, dynamic>)).toList();
+      final players = updatedPlayers.map((p) => NameplacePlayer.fromJson(p)).toList();
       final scores = {for (final p in players) p.userId: p.totalScore};
       final finalResult = computeFinalScores(playerTotalScores: scores);
 
@@ -594,7 +593,7 @@ class NameplaceNotifier extends StateNotifier<NameplaceState> {
     if (client == null) return;
     try {
       final resp = await client.from('nameplace_players').select().eq('gameId', gameId).order('turnOrder', ascending: true);
-      state = state.copyWith(players: resp.map((p) => NameplacePlayer.fromJson(p as Map<String, dynamic>)).toList());
+      state = state.copyWith(players: resp.map((p) => NameplacePlayer.fromJson(p)).toList());
     } catch (e) { debugPrint('[Nameplace] refreshPlayers error: $e'); }
   }
 
@@ -603,7 +602,7 @@ class NameplaceNotifier extends StateNotifier<NameplaceState> {
     if (client == null) return;
     try {
       final resp = await client.from('nameplace_rounds').select().eq('gameId', gameId).order('roundNumber', ascending: true);
-      state = state.copyWith(rounds: resp.map((r) => NameplaceRound.fromJson(r as Map<String, dynamic>)).toList());
+      state = state.copyWith(rounds: resp.map((r) => NameplaceRound.fromJson(r)).toList());
     } catch (e) { debugPrint('[Nameplace] refreshRounds error: $e'); }
   }
 
@@ -612,7 +611,7 @@ class NameplaceNotifier extends StateNotifier<NameplaceState> {
     if (client == null) return;
     try {
       final resp = await client.from('nameplace_answers').select().eq('gameId', gameId).order('category', ascending: true);
-      state = state.copyWith(answers: resp.map((a) => NameplaceAnswerModel.fromJson(a as Map<String, dynamic>)).toList());
+      state = state.copyWith(answers: resp.map((a) => NameplaceAnswerModel.fromJson(a)).toList());
     } catch (e) { debugPrint('[Nameplace] refreshAnswers error: $e'); }
   }
 

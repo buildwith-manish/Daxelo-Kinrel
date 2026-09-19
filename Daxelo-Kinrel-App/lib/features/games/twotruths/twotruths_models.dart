@@ -1,5 +1,4 @@
 // lib/features/games/twotruths/twotruths_models.dart
-import 'twotruths_game_logic.dart';
 
 export 'twotruths_game_logic.dart' show RoundScoreResult, FinalResult;
 

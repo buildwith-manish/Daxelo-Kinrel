@@ -47,11 +47,7 @@ import '../../core/relationship/relationship_engine.dart'
 import '../../core/graph/graph_service.dart' show PathStep;
 import '../../core/kinship/structural_kinship_classifier.dart'
     show StructuralClassification, StructuralKinshipClassifier;
-import '../data/graph_data_models.dart' show GraphEdgeData;
-import '../engine/edge_dedup.dart' show DedupedEdge, EdgeDeduplicator;
-import '../../features/family/presentation/providers/family_graph_provider.dart'
-    show familyGraphProvider;
-import '../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider;
+import '../engine/edge_dedup.dart' show DedupedEdge;
 import '../../core/services/graph_layout_service.dart' show GraphPerson;
 import '../../core/kinship/kinship_edge_style.dart' show KinshipEdgeCategory;
 

@@ -75,7 +75,7 @@ final sharedListsProvider =
           .select()
           .eq('familyId', familyId)
           .order('createdAt', ascending: false);
-      return result.map((e) => SharedList.fromMap(e as Map<String, dynamic>)).toList();
+      return result.map((e) => SharedList.fromMap(e)).toList();
     } catch (_) {
       return [];
     }
@@ -94,7 +94,7 @@ final sharedListItemsProvider =
           .select()
           .eq('listId', listId)
           .order('createdAt', ascending: true);
-      return result.map((e) => SharedListItem.fromMap(e as Map<String, dynamic>)).toList();
+      return result.map((e) => SharedListItem.fromMap(e)).toList();
     } catch (_) {
       return [];
     }

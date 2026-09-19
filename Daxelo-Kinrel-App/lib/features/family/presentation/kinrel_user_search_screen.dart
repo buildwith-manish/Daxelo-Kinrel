@@ -321,11 +321,6 @@ class _KinrelUserCard extends StatelessWidget {
     //   isPendingInvite → amber tint, amber border
     //   available → normal
     final bool isDisabled = isAlreadyAdded || isPendingInvite;
-    final Color? badgeColor = isAlreadyAdded
-        ? KinrelColors.textDim
-        : isPendingInvite
-            ? KinrelColors.amber
-            : null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),

@@ -1244,7 +1244,6 @@ class _PathFocusSection extends StatelessWidget {
   final int? stepCount;
   final VoidCallback? onFocusPath;
 
-  static const Color _bg = _RelationshipInfoContent._bg;
   static const Color _card = _RelationshipInfoContent._card;
   static const Color _orange = _RelationshipInfoContent._orange;
   static const Color _textWhite = _RelationshipInfoContent._textWhite;

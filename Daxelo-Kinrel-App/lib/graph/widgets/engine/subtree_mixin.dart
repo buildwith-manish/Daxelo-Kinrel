@@ -130,177 +130,7 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
   ///
   /// Used to pass `relationshipKey` to [GraphNode] so node borders,
   /// tints, and dots use the correct 8-color scheme.
-  Map<String, String> _relationKeys(
-    FlatGraphResult flat,
-    String? viewerPersonId,
-  ) {
-    final keys = <String, String>{};
 
-    // v63: Build the GraphPerson + GraphRelationship shapes ONCE for both
-    // code paths. Previously this was only built inside the viewer != null
-    // branch, so the no-viewer path couldn't use the RelationshipEngine
-    // for multi-hop BFS resolution. Now both paths share the same data
-    // shapes and the engine is used whenever an anchor (or viewer) can be
-    // identified.
-    final graphPersons = <GraphPerson>[
-      for (final Map<String, dynamic> p in flat.persons)
-        if (p['id'] != null)
-          GraphPerson(
-            id: p['id'] as String,
-            name: (p['name'] as String?) ?? '',
-            gender: p['gender'] as String?,
-            generationIndex: (p['generationIndex'] as num?)?.toInt() ?? 0,
-            isAnchor: (p['isAnchor'] as bool?) ?? false,
-            photoUrl: p['photoUrl'] as String?,
-            isDeceased: (p['isDeceased'] as bool?) ?? false,
-          ),
-    ];
-    final graphRels = <({String fromId, String toId, String type})>[
-      for (final Map<String, dynamic> r in flat.relationships)
-        if (r['fromPersonId'] != null &&
-            r['toPersonId'] != null &&
-            r['relationshipKey'] != null)
-          (
-            fromId: r['fromPersonId'] as String,
-            toId: r['toPersonId'] as String,
-            type: (r['labelAtoB'] as String?) ??
-                r['relationshipKey'] as String,
-          ),
-    ];
-
-    // v5.7: Pick the BFS source — viewer ONLY. No anchor fallback.
-    // If no viewer is resolved, return empty keys (no perspective).
-    String? bfsSource = viewerPersonId;
-
-    if (bfsSource == null || graphPersons.isEmpty) {
-      // No source — fall back to direct-edge assignment so connected
-      // nodes still get a color (better than nothing).
-      for (final Map<String, dynamic> r in flat.relationships) {
-        final from = r['fromPersonId'] as String?;
-        final to = r['toPersonId'] as String?;
-        final key = r['relationshipKey'] as String?;
-        if (key == null) continue;
-        if (to != null && !keys.containsKey(to)) {
-          keys[to] = key;
-        }
-        if (from != null && !keys.containsKey(from)) {
-          final inverseKey = _inverseRelationshipKey(key);
-          if (inverseKey != null) {
-            keys[from] = inverseKey;
-          }
-        }
-      }
-      return keys;
-    }
-
-    // v63: Use RelationshipEngine for BFS resolution from the chosen
-    // source. This handles multi-hop relatives (e.g. paternal_grandfather
-    // via father → grandfather) which the direct-edge lookup missed,
-    // causing them to fall through to the 'extended' slate gray fallback.
-    //
-    // v65 GUARD: If bfsSource is not in graphPersons (e.g. the viewer's
-    // Person was deleted or is from a different family), the BFS will
-    // silently fail for ALL targets, leaving every non-self node grey.
-    // Fall back to the anchor in that case.
-    final effectiveSource = graphPersons.any((p) => p.id == bfsSource)
-        ? bfsSource
-        : (graphPersons.any((p) => p.isAnchor)
-            ? graphPersons.firstWhere((p) => p.isAnchor).id
-            : (graphPersons.isNotEmpty ? graphPersons.first.id : null));
-
-    if (effectiveSource != null) {
-      final engine = RelationshipEngine.instance;
-      for (final GraphPerson p in graphPersons) {
-        if (p.id == effectiveSource) continue;
-        // v66: Use resolveClassification — returns the category-correct
-        // key even when chain rules fail. This ensures EVERY reachable
-        // node gets a color, not just the 2-3 that match the 26-key
-        // kinship dataset.
-        final classification = engine.resolveClassification(
-          viewerPersonId: effectiveSource,
-          targetPersonId: p.id,
-          persons: graphPersons,
-          relationships: graphRels,
-        );
-        if (classification != null && classification.key.isNotEmpty) {
-          keys[p.id] = classification.key;
-        }
-      }
-    }
-
-    // v65 (BUGFIX): Backfill for any person the engine couldn't resolve.
-    //
-    // CRITICAL DIRECTIONALITY FIX: The stored relationship
-    //   from: Rajesh, to: anchor, key: 'father'
-    // means "Rajesh IS the father OF the anchor". From the ANCHOR's
-    // perspective, Rajesh IS 'father' — the stored key already IS the
-    // anchor's perspective on Rajesh. The previous code was assigning
-    // the INVERSE ('child') to Rajesh, which is the relationship from
-    // RAJESH's perspective, not the anchor's. This caused every node
-    // to get the wrong color (e.g. a father node colored pink/child
-    // instead of blue/parent).
-    //
-    // The correct logic:
-    //   - Edge points TO anchor (to == source): the stored key IS the
-    //     source's perspective on `from`. Assign key DIRECTLY to `from`.
-    //   - Edge points FROM anchor (from == source): the stored key IS
-    //     the source's perspective on `to`. Assign key DIRECTLY to `to`.
-    //   - Edge doesn't involve anchor: assign key to `to` and inverse
-    //     to `from` (legacy behavior for non-anchor-centric edges).
-    final sourceId = effectiveSource;
-    for (final Map<String, dynamic> r in flat.relationships) {
-      final from = r['fromPersonId'] as String?;
-      final to = r['toPersonId'] as String?;
-      final key = r['relationshipKey'] as String?;
-      if (key == null || key.isEmpty) continue;
-      if (sourceId == null) continue;
-
-      // Case 1: Edge points TO the anchor.
-      // Stored key = anchor's perspective on `from` person.
-      if (to == sourceId && from != null && !keys.containsKey(from)) {
-        keys[from] = key;
-        continue;
-      }
-
-      // Case 2: Edge points FROM the anchor.
-      // v76 FIX: The stored key describes the anchor's relationship TO
-      // `to`, NOT the anchor's perspective ON `to`.
-      // Example: from: anchor, to: newPerson, key: 'son'
-      // → "anchor IS son OF newPerson"
-      // → anchor's perspective on newPerson = INVERSE of 'son' = 'parent'
-      // Previously this used the raw key 'son', giving the wrong label.
-      if (from == sourceId && to != null && !keys.containsKey(to)) {
-        final inverseKey = _inverseRelationshipKey(key) ?? key;
-        keys[to] = inverseKey;
-        continue;
-      }
-
-      // Case 3: Edge doesn't involve the anchor (e.g. between two
-      // non-anchor nodes).
-      //
-      // v67 (BUG-18 FIX): Previously this assigned keys to BOTH
-      // endpoints from the same edge — but the key only describes one
-      // person's relationship to the other, not the anchor's
-      // perspective on either. This produced wrong colors for non-
-      // anchor-connected nodes.
-      //
-      // The fix: SKIP non-anchor edges entirely. The BFS above should
-      // have already resolved keys for any node reachable from the
-      // anchor. If a node is NOT reachable (disconnected subgraph),
-      // it's better to leave it with no key (GraphNode falls back to
-      // 'extended' grey) than to assign a wrong key from an arbitrary
-      // edge. The grey fallback is the spec-correct behavior for
-      // genuinely unclassifiable nodes.
-      //
-      // Exception: if the edge is a spouse edge between two non-anchor
-      // nodes and ONE of them already has a BFS-resolved key, we can
-      // infer the other is the spouse. But this is rare and the BFS
-      // usually handles it. Skip for safety.
-      break;
-    }
-
-    return keys;
-  }
 
   /// v69: Computes the AUTHORITATIVE [KinshipEdgeCategory] for every
   /// person in the graph from the viewer/anchor's perspective.
@@ -523,9 +353,7 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
         }
       }
 
-      if (category != null) {
-        categories[p.id] = category;
-      }
+      categories[p.id] = category;
     }
 
     return categories;
@@ -648,35 +476,7 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
     return null;
   }
 
-  /// Returns the inverse relationship key for common kinship terms.
-  /// Used by [_relationKeys] when no viewer is available to assign
-  /// colors to BOTH endpoints of an edge.
-  static String? _inverseRelationshipKey(String key) {
-    const inverseMap = <String, String>{
-      'father': 'child',
-      'mother': 'child',
-      'parent': 'child',
-      'child': 'parent',
-      'son': 'parent',
-      'daughter': 'parent',
-      'brother': 'sibling',
-      'sister': 'sibling',
-      'sibling': 'sibling',
-      'husband': 'wife',
-      'wife': 'husband',
-      'spouse': 'spouse',
-      'grandfather': 'grandchild',
-      'grandmother': 'grandchild',
-      'grandson': 'grandparent',
-      'granddaughter': 'grandparent',
-      'uncle': 'nephew',
-      'aunt': 'niece',
-      'nephew': 'uncle',
-      'niece': 'aunt',
-      'cousin': 'cousin',
-    };
-    return inverseMap[key];
-  }
+
 
   /// Resolves a kinship key (e.g. "father", "mothers_brother") to a
   /// human-readable display name using [KinshipService]. Returns the

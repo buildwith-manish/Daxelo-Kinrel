@@ -404,7 +404,6 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
       final row = rows.first;
       final inviteCode = row['invitation_code'] as String? ?? '';
       final actualFamilyName = row['family_name'] as String? ?? familyName;
-      final actualPersonName = row['person_name'] as String? ?? personName;
 
       if (inviteCode.isEmpty) {
         state = state.copyWith(

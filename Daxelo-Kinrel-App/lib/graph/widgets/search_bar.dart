@@ -38,7 +38,6 @@ import '../analytics/analytics_tracker.dart';
 import '../interaction/graph_search_state.dart' show graphSearchProvider;
 // v5.175: fuzzy/phonetic search for Indian names.
 import '../interaction/fuzzy_search.dart' show fuzzyMatch;
-import 'graph_node.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // SEARCH RESULT MODEL
@@ -211,10 +210,6 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
 
   /// Search stopwatch for timing.
   final Stopwatch _searchStopwatch = Stopwatch();
-
-  // ── Keyboard Shortcut ──────────────────────────────────────────────
-
-  late final KeyboardListener _keyboardListener;
 
   @override
   void initState() {

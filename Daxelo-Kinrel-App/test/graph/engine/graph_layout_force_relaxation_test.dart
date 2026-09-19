@@ -19,7 +19,6 @@
 //   3. The parameter is accepted and produces finite positions for
 //      small graphs too (no-op path).
 
-import 'package:flutter/material.dart' show Offset;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/services/graph_layout_service.dart';
 

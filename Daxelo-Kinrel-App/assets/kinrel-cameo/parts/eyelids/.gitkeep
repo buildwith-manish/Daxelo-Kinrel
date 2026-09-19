@@ -1,0 +1,2 @@
+# Placeholder so the declared asset directory exists in fresh clones.
+# scripts/setup_cameo_assets.sh overwrites this dir with the real pack.

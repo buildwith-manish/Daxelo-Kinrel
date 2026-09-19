@@ -10,7 +10,6 @@
 //   - The edge painter uses category colors (not gray) for edges
 //   - The node dot color uses kinship category colors
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/kinship/kinship_edge_style.dart';
 import 'package:kinrel/core/kinship/kinship_service.dart';

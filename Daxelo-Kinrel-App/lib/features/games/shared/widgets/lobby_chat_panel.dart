@@ -87,10 +87,6 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
   /// Toggled by tapping the header.
   bool _collapsed = false;
 
-  /// True if we've successfully joined the chat room (waits for socket
-  /// to connect if needed).
-  bool _joined = false;
-
   /// Connection status — reflected in the header.
   bool _socketConnected = false;
 
@@ -182,7 +178,6 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
             gameTable: widget.gameTable,
             gameId: widget.gameId,
           );
-      setState(() => _joined = true);
     });
   }
 
@@ -269,8 +264,6 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
     final trimmed = content.trim();
     if (trimmed.isEmpty) return;
     final socket = ref.read(socketServiceProvider);
-    final myId =
-        ref.read(supabaseProvider)?.auth.currentUser?.id ?? '';
     final myName =
         (ref.read(supabaseProvider)?.auth.currentUser?.userMetadata?['name']
                 as String?) ??

@@ -284,14 +284,6 @@ class _BoardView extends ConsumerWidget {
         .map((p) => p.userName)
         .firstWhere((_) => true, orElse: () => 'Player');
 
-    final myPlayerIndex = state.players
-        .toList()
-        .asMap()
-        .entries
-        .where((e) => e.value.userId == myId)
-        .map((e) => e.key)
-        .firstWhere((_) => true, orElse: () => -1);
-
     return Column(
       children: [
         _TurnBanner(

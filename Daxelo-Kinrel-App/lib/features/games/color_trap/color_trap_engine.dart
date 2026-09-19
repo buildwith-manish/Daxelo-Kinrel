@@ -185,15 +185,6 @@ extension ColorTrapPhaseX on ColorTrapPhase {
       orElse: () => ColorTrapPhase.arenaShown,
     );
   }
-  static ColorTrapPhase _fromStringLegacy(String? s) {
-    switch (s) {
-      case 'colorAnnounced': return ColorTrapPhase.colorAnnounced;
-      case 'countdown': return ColorTrapPhase.countdown;
-      case 'elimination': return ColorTrapPhase.elimination;
-      case 'roundEnd': return ColorTrapPhase.roundEnd;
-      default: return ColorTrapPhase.arenaShown;
-    }
-  }
 }
 
 class ColorTrapRound {

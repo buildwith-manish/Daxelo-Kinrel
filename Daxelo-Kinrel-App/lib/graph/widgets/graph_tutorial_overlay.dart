@@ -40,7 +40,6 @@ class GraphTutorialOverlay extends StatefulWidget {
 class _GraphTutorialOverlayState extends State<GraphTutorialOverlay> {
   static const _prefKey = 'graph_tutorial_shown';
   bool _visible = false;
-  bool _loaded = false;
 
   @override
   void initState() {
@@ -54,14 +53,10 @@ class _GraphTutorialOverlayState extends State<GraphTutorialOverlay> {
       if (mounted && !shown) {
         setState(() {
           _visible = true;
-          _loaded = true;
         });
-      } else {
-        if (mounted) _loaded = true;
       }
     } catch (_) {
       // If storage fails, don't show the tutorial.
-      if (mounted) _loaded = true;
     }
   }
 

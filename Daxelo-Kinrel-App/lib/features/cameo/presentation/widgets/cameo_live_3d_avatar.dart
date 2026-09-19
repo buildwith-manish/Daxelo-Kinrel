@@ -247,21 +247,19 @@ class _CameoLive3DAvatarState extends State<CameoLive3DAvatar>
       // ── Log discovered morph target names + animation clip names ──
       // This is required by the pipeline validation directive so the
       // engineer can see what the placeholder GLB actually exposes.
-      if (renderer is ThermionCameoRenderer) {
-        final thermionRenderer = renderer as ThermionCameoRenderer;
-        // ignore: avoid_print
-        print('━━━ CameoLive3DAvatar: GLB loaded ━━━');
-        // ignore: avoid_print
-        print('  asset: ${widget.glbAssetPath}');
-        // ignore: avoid_print
-        print('  morph targets: ${thermionRenderer.discoveredMorphTargetNames}');
-        // ignore: avoid_print
-        print('  animation clips: ${thermionRenderer.discoveredAnimationNames}');
-        // ignore: avoid_print
-        print('  renderer: ${thermionRenderer.engineName}');
-        // ignore: avoid_print
-        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      }
+      final thermionRenderer = renderer;
+      // ignore: avoid_print
+      print('━━━ CameoLive3DAvatar: GLB loaded ━━━');
+      // ignore: avoid_print
+      print('  asset: ${widget.glbAssetPath}');
+      // ignore: avoid_print
+      print('  morph targets: ${thermionRenderer.discoveredMorphTargetNames}');
+      // ignore: avoid_print
+      print('  animation clips: ${thermionRenderer.discoveredAnimationNames}');
+      // ignore: avoid_print
+      print('  renderer: ${thermionRenderer.engineName}');
+      // ignore: avoid_print
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       if (_disposed) {
         await scene.dispose();

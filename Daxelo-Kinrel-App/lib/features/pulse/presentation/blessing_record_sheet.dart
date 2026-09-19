@@ -23,7 +23,6 @@ import 'package:record/record.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/services/supabase_service.dart';
-import '../data/pulse_api_client.dart';
 import '../providers/pulse_providers.dart';
 import 'package:go_router/go_router.dart';
 
@@ -32,7 +31,6 @@ enum _RecordState {
   idle,
   recording,
   stopped,
-  previewing,
   uploading,
   scheduled,
   error,
@@ -121,25 +119,6 @@ class _BlessingRecordSheetState extends ConsumerState<BlessingRecordSheet> {
       setState(() {
         _state = _RecordState.error;
         _errorMessage = 'Recording could not be saved.';
-      });
-    }
-  }
-
-  Future<void> _previewRecording() async {
-    if (_recordingPath == null) return;
-    try {
-      setState(() => _state = _RecordState.previewing);
-      await _previewPlayer.setFilePath(_recordingPath!);
-      _previewPlayer.playerStateStream.listen((state) {
-        if (state.processingState == ProcessingState.completed && mounted) {
-          setState(() => _state = _RecordState.stopped);
-        }
-      });
-      await _previewPlayer.play();
-    } catch (e) {
-      setState(() {
-        _state = _RecordState.error;
-        _errorMessage = 'Could not play the preview.';
       });
     }
   }

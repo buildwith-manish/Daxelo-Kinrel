@@ -21,7 +21,6 @@ import '../game_motion_tokens.dart';
 import '../shared/data/game_invite_chat_sync.dart';
 import '../shared/services/room_presence_heartbeat.dart';
 import '../shared/services/temporary_room_service.dart';
-import 'carrom_constants.dart';
 import 'carrom_game_logic.dart';
 import 'carrom_models.dart';
 import 'carrom_physics.dart';
@@ -164,7 +163,7 @@ class CarromNotifier extends StateNotifier<CarromState> {
         'hostReady': true,
         'autoCloseDeadline': deadline.toIso8601String(),
       }).select().single();
-      final game = CarromGame.fromJson(resp as Map<String, dynamic>);
+      final game = CarromGame.fromJson(resp);
       _gameId = game.id;
 
       // Register the host in the shared room bookkeeping (roster +
@@ -396,7 +395,7 @@ class CarromNotifier extends StateNotifier<CarromState> {
           .eq('gameId', gameId)
           .order('turnNumber', ascending: true);
       final turns = turnsResp
-          .map((t) => CarromTurnRecord.fromJson(t as Map<String, dynamic>))
+          .map((t) => CarromTurnRecord.fromJson(t))
           .toList();
 
       state = state.copyWith(game: game, turns: turns, isLoading: false);

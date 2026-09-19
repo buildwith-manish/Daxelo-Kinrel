@@ -22,7 +22,6 @@
 // verifies the resolution succeeded and catches edge cases the
 // de-overlap missed.
 
-import 'dart:math';
 import 'package:flutter/material.dart' show Offset;
 import 'package:flutter/foundation.dart' show debugPrint;
 

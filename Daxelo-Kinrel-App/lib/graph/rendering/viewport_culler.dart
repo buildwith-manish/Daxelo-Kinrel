@@ -12,7 +12,6 @@
 // recalculation during smooth animations.
 
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 // ═══════════════════════════════════════════════════════════════════════

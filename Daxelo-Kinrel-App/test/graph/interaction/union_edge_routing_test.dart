@@ -37,7 +37,6 @@
 // drift (e.g. by inlining a second copy of the redirect logic in
 // either call site) will be caught by tests 5 and 6.
 
-import 'dart:ui' show Offset;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/graph/interaction/couple_union_model.dart';

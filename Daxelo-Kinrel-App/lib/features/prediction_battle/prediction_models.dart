@@ -1,5 +1,4 @@
 // lib/features/prediction_battle/prediction_models.dart
-import 'dart:math';
 
 enum PredictionType { closest, outcome }
 enum PredictionStatus { open, locked, pending, resolved, archived }

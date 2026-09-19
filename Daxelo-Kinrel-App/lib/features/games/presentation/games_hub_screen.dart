@@ -37,7 +37,6 @@ import '../../gaming_ecosystem/data/gaming_models.dart';
 import '../../gaming_ecosystem/data/gaming_providers.dart';
 import '../../gaming_ecosystem/presentation/widgets/gaming_kit.dart';
 import '../shared/icons/kinrel_icons.dart';
-import '../shared/widgets/family_presence_strip.dart';
 import '../retention/coin_balance_chip.dart';
 import '../retention/live_presence_strip.dart';
 import 'widgets/family_streak_hero_card.dart';

@@ -21,7 +21,6 @@
 
 import 'package:flutter/material.dart';
 
-import 'cameo_color_palette.dart';
 
 /// Deterministic shape-language rules for every Kinrel Cameo.
 @immutable

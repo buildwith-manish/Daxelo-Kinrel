@@ -1,27 +1,31 @@
 // test/graph/widgets/relationship_directionality_test.dart
 //
-// v65 CRITICAL FIX: Regression test for the swapped-branch directionality
-// bug in GraphRelationshipLabels.getRelationshipKey() and
-// GraphRelationshipLabels.getRelationLabel().
+// Directionality tests for GraphRelationshipLabels.
 //
-// BUG:
-//   The stored relationship `from: Rajesh, to: anchor, key: 'father'`
-//   means "Rajesh IS the father OF the anchor". From the anchor's
-//   perspective, Rajesh IS 'father' — the stored key already IS the
-//   anchor's perspective. But the code was returning the INVERSE
-//   ('son') because the two if-branches were swapped.
+// QA fix 2026-09-19: rewritten for the CANONICAL v5.19/v5.193 edge
+// convention. The previous version encoded the INVERTED reading
+// (v65-era) and started failing when getRelationshipKey /
+// getRelationLabel were corrected in v5.193 (BUG #4 FIX) to match the
+// database. See lib/graph/widgets/graph_relationship_labels.dart for
+// the authoritative convention documentation.
 //
-//   This caused EVERY non-self node to render with the wrong color:
-//   fathers were pink (child), children were blue (parent), etc.
+// CANONICAL CONVENTION (matches relationship_edge_builder.dart and the
+// SQL database):
 //
-// FIX:
-//   - Edge points TO anchor (`to == anchor`): return stored key DIRECTLY
-//   - Edge points FROM anchor (`from == anchor`): return INVERSE key
+//   from: A, to: B, key: 'X'  →  "B is A's X"
 //
-// This test verifies the fix works for BOTH edge directions and for
-// ALL common relationship types, with ANY family structure.
+//   Example: from=Alice, to=Bob, key='father' → "Bob is Alice's father".
+//   When a user adds their father, the edge is stored
+//   from=user(anchor), to=father, key='father'.
+//
+// Therefore, from the ANCHOR's perspective:
+//   - Edge FROM anchor (from=anchor, to=person, key='X'):
+//     "person is anchor's X" → getRelationshipKey returns 'X' directly.
+//   - Edge TO anchor (from=person, to=anchor, key='Y'):
+//     "anchor is person's Y" → person is anchor's inverse('Y').
 
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:kinrel/core/kinship/kinship_edge_style.dart';
 import 'package:kinrel/graph/data/graph_data_models.dart';
 import 'package:kinrel/graph/widgets/graph_relationship_labels.dart';
@@ -35,9 +39,7 @@ GraphPersonData _person(String id, {bool isAnchor = false, String? gender}) =>
       isAnchor: isAnchor,
     );
 
-/// Helper: build a GraphEdgeData.
-GraphEdgeData _edge(String from, String to, String key) =>
-    GraphEdgeData(
+GraphEdgeData _edge(String from, String to, String key) => GraphEdgeData(
       id: '${from}_$to',
       sourceId: from,
       targetId: to,
@@ -45,101 +47,142 @@ GraphEdgeData _edge(String from, String to, String key) =>
     );
 
 void main() {
-  group('GraphRelationshipLabels.getRelationshipKey — directionality (v65 FIX)', () {
+  group('GraphRelationshipLabels.getRelationshipKey — canonical directionality (v5.193)', () {
     // ───────────────────────────────────────────────────────────────
     // The anchor is always 'anchor'. The person under test is 'rel'.
-    // We test BOTH edge directions for each relationship type:
-    //   Direction A: from: rel, to: anchor, key: 'X' (rel IS the X of anchor)
-    //   Direction B: from: anchor, to: rel, key: 'Y' (anchor IS the Y of rel)
+    // Both edge directions are tested for each relationship type:
     //
-    // For Direction A, the anchor's perspective on 'rel' = 'X' (stored key).
-    // For Direction B, the anchor's perspective on 'rel' = inverse('Y').
+    //   FORWARD: from: anchor, to: rel, key: 'X'
+    //            ("rel is anchor's X") → expect 'X'.
+    //
+    //   INVERSE: from: rel, to: anchor, key: 'Y'
+    //            ("anchor is rel's Y") → expect inverse('Y').
     // ───────────────────────────────────────────────────────────────
 
     final testCases = <_DirectionalityCase>[
-      // Parent relationships
+      // ── FORWARD: edge FROM the anchor (key = rel's role) ─────────
       _DirectionalityCase(
-        name: 'father (edge TO anchor)',
-        edge: _edge('rel', 'anchor', 'father'),
+        name: 'father (edge FROM anchor: rel is anchor\'s father)',
+        edge: _edge('anchor', 'rel', 'father'),
         expectedKey: 'father',
         expectedCategory: KinshipEdgeCategory.parent,
       ),
       _DirectionalityCase(
-        name: 'mother (edge TO anchor)',
-        edge: _edge('rel', 'anchor', 'mother'),
+        name: 'mother (edge FROM anchor: rel is anchor\'s mother)',
+        edge: _edge('anchor', 'rel', 'mother'),
         expectedKey: 'mother',
         expectedCategory: KinshipEdgeCategory.parent,
       ),
       _DirectionalityCase(
-        name: 'son (edge FROM anchor)',
+        name: 'son (edge FROM anchor: rel is anchor\'s son)',
         edge: _edge('anchor', 'rel', 'son'),
-        expectedKey: 'father', // inverse of 'son'
-        expectedCategory: KinshipEdgeCategory.parent,
+        expectedKey: 'son',
+        expectedCategory: KinshipEdgeCategory.child,
       ),
       _DirectionalityCase(
-        name: 'daughter (edge FROM anchor)',
+        name: 'daughter (edge FROM anchor: rel is anchor\'s daughter)',
         edge: _edge('anchor', 'rel', 'daughter'),
-        expectedKey: 'mother', // inverse of 'daughter'
-        expectedCategory: KinshipEdgeCategory.parent,
+        expectedKey: 'daughter',
+        expectedCategory: KinshipEdgeCategory.child,
+      ),
+      _DirectionalityCase(
+        name: 'brother (edge FROM anchor: rel is anchor\'s brother)',
+        edge: _edge('anchor', 'rel', 'brother'),
+        expectedKey: 'brother',
+        expectedCategory: KinshipEdgeCategory.sibling,
+      ),
+      _DirectionalityCase(
+        name: 'sister (edge FROM anchor: rel is anchor\'s sister)',
+        edge: _edge('anchor', 'rel', 'sister'),
+        expectedKey: 'sister',
+        expectedCategory: KinshipEdgeCategory.sibling,
+      ),
+      _DirectionalityCase(
+        name: 'husband (edge FROM anchor: rel is anchor\'s husband)',
+        edge: _edge('anchor', 'rel', 'husband'),
+        expectedKey: 'husband',
+        expectedCategory: KinshipEdgeCategory.spouse,
+      ),
+      _DirectionalityCase(
+        name: 'wife (edge FROM anchor: rel is anchor\'s wife)',
+        edge: _edge('anchor', 'rel', 'wife'),
+        expectedKey: 'wife',
+        expectedCategory: KinshipEdgeCategory.spouse,
+      ),
+      _DirectionalityCase(
+        name: 'grandfather (edge FROM anchor: rel is anchor\'s grandfather)',
+        edge: _edge('anchor', 'rel', 'grandfather'),
+        expectedKey: 'grandfather',
+        expectedCategory: KinshipEdgeCategory.grandparent,
+      ),
+      _DirectionalityCase(
+        name: 'uncle (edge FROM anchor: rel is anchor\'s uncle)',
+        edge: _edge('anchor', 'rel', 'uncle'),
+        expectedKey: 'uncle',
+        expectedCategory: KinshipEdgeCategory.auntUncle,
+      ),
+      _DirectionalityCase(
+        name: 'cousin (edge FROM anchor: rel is anchor\'s cousin)',
+        edge: _edge('anchor', 'rel', 'cousin'),
+        expectedKey: 'cousin',
+        expectedCategory: KinshipEdgeCategory.cousin,
+      ),
+      _DirectionalityCase(
+        name: 'father_in_law (edge FROM anchor: rel is anchor\'s father-in-law)',
+        edge: _edge('anchor', 'rel', 'father_in_law'),
+        expectedKey: 'father_in_law',
+        expectedCategory: KinshipEdgeCategory.inLaw,
       ),
 
-      // Sibling relationships
+      // ── INVERSE: edge TO the anchor (key = anchor's role relative
+      //    to rel) → the resolver must invert to the anchor's
+      //    perspective on rel. ─────────────────────────────────────
       _DirectionalityCase(
-        name: 'brother (edge TO anchor)',
+        name: 'son (edge TO anchor: anchor is rel\'s son → rel is the father)',
+        edge: _edge('rel', 'anchor', 'son'),
+        expectedKey: 'father',
+        expectedCategory: KinshipEdgeCategory.parent,
+      ),
+      _DirectionalityCase(
+        name: 'daughter (edge TO anchor: anchor is rel\'s daughter → rel is the mother)',
+        edge: _edge('rel', 'anchor', 'daughter'),
+        expectedKey: 'mother',
+        expectedCategory: KinshipEdgeCategory.parent,
+      ),
+      _DirectionalityCase(
+        name: 'brother (edge TO anchor: symmetric key stays sibling)',
         edge: _edge('rel', 'anchor', 'brother'),
         expectedKey: 'brother',
         expectedCategory: KinshipEdgeCategory.sibling,
       ),
       _DirectionalityCase(
-        name: 'sister (edge TO anchor)',
-        edge: _edge('rel', 'anchor', 'sister'),
-        expectedKey: 'sister',
-        expectedCategory: KinshipEdgeCategory.sibling,
-      ),
-
-      // Spouse relationships
-      _DirectionalityCase(
-        name: 'husband (edge TO anchor)',
+        name: 'husband (edge TO anchor: anchor is rel\'s husband → rel is the wife)',
         edge: _edge('rel', 'anchor', 'husband'),
+        expectedKey: 'wife',
+        expectedCategory: KinshipEdgeCategory.spouse,
+      ),
+      _DirectionalityCase(
+        name: 'wife (edge TO anchor: anchor is rel\'s wife → rel is the husband)',
+        edge: _edge('rel', 'anchor', 'wife'),
         expectedKey: 'husband',
         expectedCategory: KinshipEdgeCategory.spouse,
       ),
       _DirectionalityCase(
-        name: 'wife (edge TO anchor)',
-        edge: _edge('rel', 'anchor', 'wife'),
-        expectedKey: 'wife',
-        expectedCategory: KinshipEdgeCategory.spouse,
-      ),
-
-      // Grandparent
-      _DirectionalityCase(
-        name: 'grandfather (edge TO anchor)',
+        name: 'grandfather (edge TO anchor: anchor is rel\'s grandfather → rel is the grandson)',
         edge: _edge('rel', 'anchor', 'grandfather'),
-        expectedKey: 'grandfather',
+        expectedKey: 'grandson',
         expectedCategory: KinshipEdgeCategory.grandparent,
       ),
-
-      // Aunt/Uncle
       _DirectionalityCase(
-        name: 'uncle (edge TO anchor)',
+        name: 'uncle (edge TO anchor: anchor is rel\'s uncle → rel is the nephew)',
         edge: _edge('rel', 'anchor', 'uncle'),
-        expectedKey: 'uncle',
+        expectedKey: 'nephew',
         expectedCategory: KinshipEdgeCategory.auntUncle,
       ),
-
-      // Cousin (symmetric)
       _DirectionalityCase(
-        name: 'cousin (edge TO anchor)',
-        edge: _edge('rel', 'anchor', 'cousin'),
-        expectedKey: 'cousin',
-        expectedCategory: KinshipEdgeCategory.cousin,
-      ),
-
-      // In-law
-      _DirectionalityCase(
-        name: 'father_in_law (edge TO anchor)',
+        name: 'father_in_law (edge TO anchor: anchor is rel\'s father-in-law → rel is the son-in-law)',
         edge: _edge('rel', 'anchor', 'father_in_law'),
-        expectedKey: 'father_in_law',
+        expectedKey: 'son_in_law',
         expectedCategory: KinshipEdgeCategory.inLaw,
       ),
     ];
@@ -192,13 +235,14 @@ void main() {
     });
   });
 
-  group('GraphRelationshipLabels.getRelationLabel — directionality (v65 FIX)', () {
-    test('father edge TO anchor → label "Father" (not "Son")', () {
+  group('GraphRelationshipLabels.getRelationLabel — canonical directionality (v5.193)', () {
+    test('father edge FROM anchor → label "Father"', () {
       final personMap = <String, GraphPersonData>{
         'anchor': _person('anchor', isAnchor: true),
         'dad': _person('dad', gender: 'male'),
       };
-      final edges = [_edge('dad', 'anchor', 'father')];
+      // Canonical: "dad is anchor's father"
+      final edges = [_edge('anchor', 'dad', 'father')];
       final label = GraphRelationshipLabels.getRelationLabel(
         personMap['dad']!,
         personMap,
@@ -208,13 +252,13 @@ void main() {
           reason: 'Edge "dad IS father OF anchor" → label must be "Father"');
     });
 
-    test('son edge FROM anchor → label "Father" (inverse)', () {
+    test('son edge TO anchor → label "Father" (inverse)', () {
       final personMap = <String, GraphPersonData>{
         'anchor': _person('anchor', isAnchor: true),
         'dad': _person('dad', gender: 'male'),
       };
-      // anchor IS the son OF dad → dad is anchor's father
-      final edges = [_edge('anchor', 'dad', 'son')];
+      // Canonical: "anchor is dad's son" → dad is anchor's father
+      final edges = [_edge('dad', 'anchor', 'son')];
       final label = GraphRelationshipLabels.getRelationLabel(
         personMap['dad']!,
         personMap,
@@ -224,12 +268,13 @@ void main() {
           reason: 'Edge "anchor IS son OF dad" → dad\'s label must be "Father"');
     });
 
-    test('brother edge TO anchor → label "Brother"', () {
+    test('brother edge FROM anchor → label "Brother"', () {
       final personMap = <String, GraphPersonData>{
         'anchor': _person('anchor', isAnchor: true),
         'bro': _person('bro', gender: 'male'),
       };
-      final edges = [_edge('bro', 'anchor', 'brother')];
+      // Canonical: "bro is anchor's brother"
+      final edges = [_edge('anchor', 'bro', 'brother')];
       final label = GraphRelationshipLabels.getRelationLabel(
         personMap['bro']!,
         personMap,
@@ -238,12 +283,28 @@ void main() {
       expect(label, equals('Brother'));
     });
 
-    test('wife edge TO anchor → label "Wife"', () {
+    test('wife edge FROM anchor → label "Wife"', () {
       final personMap = <String, GraphPersonData>{
         'anchor': _person('anchor', isAnchor: true),
         'spouse': _person('spouse', gender: 'female'),
       };
-      final edges = [_edge('spouse', 'anchor', 'wife')];
+      // Canonical: "spouse is anchor's wife"
+      final edges = [_edge('anchor', 'spouse', 'wife')];
+      final label = GraphRelationshipLabels.getRelationLabel(
+        personMap['spouse']!,
+        personMap,
+        edges,
+      );
+      expect(label, equals('Wife'));
+    });
+
+    test('husband edge TO anchor → label "Wife" (inverse)', () {
+      final personMap = <String, GraphPersonData>{
+        'anchor': _person('anchor', isAnchor: true),
+        'spouse': _person('spouse', gender: 'female'),
+      };
+      // Canonical: "anchor is spouse's husband" → spouse is anchor's wife
+      final edges = [_edge('spouse', 'anchor', 'husband')];
       final label = GraphRelationshipLabels.getRelationLabel(
         personMap['spouse']!,
         personMap,
@@ -253,7 +314,7 @@ void main() {
     });
   });
 
-  group('Generic multi-family color resolution (v65)', () {
+  group('Generic multi-family color resolution (canonical v5.193)', () {
     // Verify that the color resolution works for DIFFERENT family
     // structures — not just one specific family. This is the key
     // requirement: the fix must be 100% data-driven, not hardcoded
@@ -266,10 +327,12 @@ void main() {
         'mom': _person('mom', gender: 'female'),
         'bro': _person('bro', gender: 'male'),
       };
+      // Canonical: "dad is a's father", "mom is a's mother",
+      // "bro is a's brother"
       final edges = [
-        _edge('dad', 'a', 'father'),
-        _edge('mom', 'a', 'mother'),
-        _edge('bro', 'a', 'brother'),
+        _edge('a', 'dad', 'father'),
+        _edge('a', 'mom', 'mother'),
+        _edge('a', 'bro', 'brother'),
       ];
 
       final dadKey = GraphRelationshipLabels.getRelationshipKey('dad', personMap, edges);
@@ -294,10 +357,11 @@ void main() {
         'son': _person('son', gender: 'male'),
         'dau': _person('dau', gender: 'female'),
       };
+      // Canonical: "wife is b's wife", "son is b's son", "dau is b's daughter"
       final edges = [
-        _edge('wife', 'b', 'wife'),
-        _edge('son', 'b', 'son'),
-        _edge('dau', 'b', 'daughter'),
+        _edge('b', 'wife', 'wife'),
+        _edge('b', 'son', 'son'),
+        _edge('b', 'dau', 'daughter'),
       ];
 
       final wifeKey = GraphRelationshipLabels.getRelationshipKey('wife', personMap, edges);
@@ -320,16 +384,18 @@ void main() {
         'c': _person('c', isAnchor: true),
         'dad': _person('dad', gender: 'male'),
       };
-      // Both directions: dad→c 'father' AND c→dad 'son'
+      // Canonical pair: "c is dad's son" (inverse-stored) AND
+      // "dad is c's father" (forward-stored) — both describe the same
+      // real-world relationship from opposite ends.
       final edges = [
-        _edge('dad', 'c', 'father'),
-        _edge('c', 'dad', 'son'),
+        _edge('dad', 'c', 'son'),
+        _edge('c', 'dad', 'father'),
       ];
 
       final key = GraphRelationshipLabels.getRelationshipKey('dad', personMap, edges);
       expect(key, isNotNull);
       // The FIRST matching edge wins. 'dad→c' has targetId == anchor.id,
-      // so it matches the "edge TO anchor" branch → returns 'father' directly.
+      // so it matches the "edge TO anchor" branch → inverse('son') = 'father'.
       expect(key, equals('father'));
       expect(KinshipEdgeClassifier.classify(key!), equals(KinshipEdgeCategory.parent));
     });
@@ -339,7 +405,8 @@ void main() {
         'd': _person('d', isAnchor: true),
         'gpa': _person('gpa', gender: 'male'),
       };
-      final edges = [_edge('gpa', 'd', 'grandfather')];
+      // Canonical: "gpa is d's grandfather"
+      final edges = [_edge('d', 'gpa', 'grandfather')];
 
       final key = GraphRelationshipLabels.getRelationshipKey('gpa', personMap, edges);
       expect(key, equals('grandfather'));
@@ -351,7 +418,8 @@ void main() {
         'e': _person('e', isAnchor: true),
         'unc': _person('unc', gender: 'male'),
       };
-      final edges = [_edge('unc', 'e', 'uncle')];
+      // Canonical: "unc is e's uncle"
+      final edges = [_edge('e', 'unc', 'uncle')];
 
       final key = GraphRelationshipLabels.getRelationshipKey('unc', personMap, edges);
       expect(key, equals('uncle'));
@@ -363,7 +431,8 @@ void main() {
         'f': _person('f', isAnchor: true),
         'fil': _person('fil', gender: 'male'),
       };
-      final edges = [_edge('fil', 'f', 'father_in_law')];
+      // Canonical: "fil is f's father-in-law"
+      final edges = [_edge('f', 'fil', 'father_in_law')];
 
       final key = GraphRelationshipLabels.getRelationshipKey('fil', personMap, edges);
       expect(key, equals('father_in_law'));

@@ -25,12 +25,9 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/animation.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/physics.dart';
 
-import '../../core/constants/brand_colors.dart';
 import '../../core/services/analytics_service.dart';
 import '../data/position_memory.dart';
 import 'spring_palette.dart';
@@ -66,22 +63,17 @@ class CameraController extends ChangeNotifier {
   /// graphs and zoom in for detail. Node readability at low zoom is
   /// handled by the semantic LOD system (FULL/CHIP/OVERVIEW tiers),
   /// NOT by clamping the camera.
-  /// [momentumDecayDuration] controls how long momentum lasts after a
-  /// pan gesture ends (default: 300 ms).
   CameraController({
     PositionMemory? positionMemory,
     double minZoom = 0.2,
     double maxZoom = 5.0,
-    Duration momentumDecayDuration = const Duration(milliseconds: 300),
   })  : _positionMemory = positionMemory,
         _minZoom = minZoom,
-        _maxZoom = maxZoom,
-        _momentumDecayDuration = momentumDecayDuration;
+        _maxZoom = maxZoom;
 
   final PositionMemory? _positionMemory;
   final double _minZoom;
   final double _maxZoom;
-  final Duration _momentumDecayDuration;
 
   // ── Camera State ─────────────────────────────────────────────────
 
@@ -96,15 +88,8 @@ class CameraController extends ChangeNotifier {
   /// closures self-terminate when they see a stale generation.
   int _animationGeneration = 0;
 
-  /// Velocity for momentum decay after pan gestures.
-  double _velocityX = 0.0;
-  double _velocityY = 0.0;
-
   /// Active animation controller (if any).
   AnimationController? _animationController;
-  Animation<double>? _panXAnimation;
-  Animation<double>? _panYAnimation;
-  Animation<double>? _zoomAnimation;
 
   /// Debounce timer for position persistence.
   Timer? _saveDebounceTimer;
@@ -136,19 +121,10 @@ class CameraController extends ChangeNotifier {
   /// Current family ID for position persistence.
   String? _currentFamilyId;
 
-  // ── v4.4: Viewport Bounds (prevent nodes from being clipped) ──────
-  /// Content bounds in graph-space coordinates (the bounding box of all
-  /// visible nodes + labels + glow effects). When set, pan is clamped so
-  /// the camera can never move the content completely off-screen.
-  Rect? _contentBounds;
-
-  /// Viewport size (screen-space) — needed to compute pan limits.
-  /// Updated by the view on every LayoutBuilder rebuild.
-  Size _viewportSize = Size.zero;
-
+  // ── v4.4: Viewport Insets (used by fitToView centering) ─────────
   /// Safe-area padding around the viewport (navbar, bottom controls, FAB).
-  /// The camera keeps content within these insets so nodes are never
-  /// hidden behind UI elements.
+  /// Used by fitToView so content is centered in the usable area, away
+  /// from UI elements.
   EdgeInsets _safeAreaInsets = EdgeInsets.zero;
 
   /// v4.8: Height of the app's own bottom UI chrome (stats panel + bottom
@@ -166,17 +142,6 @@ class CameraController extends ChangeNotifier {
 
   /// v4.8: Height of the app's top UI chrome (AppBar) that overlays the canvas.
   double _appTopChromeHeight = 0.0;
-
-  /// Margin (in screen-space pixels) kept between content and viewport edge.
-  /// v4.5: Increased from 24 to 48 to account for visual effects that extend
-  /// beyond the node bounding box: glow (+24px), drop shadow (+12px),
-  /// relationship badges (+12px below), connection indicators (+16px sides).
-  static const double _edgeMargin = 100.0; // v4.6: was 48, increased for large nodes + glow
-
-  /// v4.5: Overscan margin (graph-space) added to content bounds so the
-  /// camera allows panning slightly beyond the outermost nodes. This gives
-  /// users room to see edge nodes' visual effects without them being clipped.
-  static const double _overscanMargin = 200.0; // v4.6: was 80, increased to 200 per UX recommendation
 
   // ── Public Getters ───────────────────────────────────────────────
 
@@ -201,26 +166,7 @@ class CameraController extends ChangeNotifier {
   /// Maximum zoom level.
   double get maxZoom => _maxZoom;
 
-  // ── v4.4: Content Bounds API ─────────────────────────────────────
-
-  /// Sets the content bounds (graph-space bounding box of all visible
-  /// nodes). The camera uses this to clamp panning so nodes can never
-  /// be moved completely off-screen.
-  ///
-  /// Call this whenever the graph layout changes (family switch, add/
-  /// remove person, expand/collapse subtree).
-  void setContentBounds(Rect? bounds) {
-    _contentBounds = bounds;
-    // If the current pan is now out of bounds (e.g. after a layout
-    // shrink), gently re-clamp it.
-    _clampPan();
-  }
-
-  /// Sets the current viewport size (screen-space dimensions).
-  /// Call from LayoutBuilder on every rebuild.
-  void setViewportSize(Size size) {
-    _viewportSize = size;
-  }
+  // ── v4.4: Viewport Insets API ─────────────────────────────────────
 
   /// Sets the safe-area insets (navbar height, bottom bar, FAB, notches).
   /// The camera keeps content within these insets.
@@ -240,67 +186,6 @@ class CameraController extends ChangeNotifier {
   /// v4.8: Sets the app's top UI chrome height (AppBar).
   void setAppTopChromeHeight(double height) {
     _appTopChromeHeight = height;
-  }
-
-  /// Computes the allowed pan range so that content stays visible.
-  /// Returns null if bounds or viewport are not yet set (no clamping).
-  ({double minX, double maxX, double minY, double maxY})? _computePanLimits() {
-    if (_contentBounds == null) return null;
-    if (_viewportSize.width <= 0 || _viewportSize.height <= 0) return null;
-
-    // v4.14: Use ACTUAL content bounds (without overscan expansion) for
-    // the clamp calculation. The previous code expanded bounds by _overscanMargin
-    // (200px), which caused the clamp to allow the node to go 200px into the
-    // stats panel area. Now the clamp keeps the actual node bounding box within
-    // the effective viewport — the node circle can never go behind the stats panel.
-    final cb = _contentBounds!;
-    final zoom = _zoomLevel;
-
-    // v4.11: Effective viewport must account for BOTH OS safe areas AND
-    // app UI chrome (stats panel, toolbar, AppBar). Previously, only
-    // _safeAreaInsets was subtracted — the app chrome was ignored here
-    // but WAS used in fitToView centering. This mismatch caused _clampPan()
-    // to immediately re-clamp the pan back to the raw viewport center after
-    // fitToView had set it to the effective (chrome-adjusted) center.
-    final effectiveWidth = _viewportSize.width
-        - _safeAreaInsets.left - _safeAreaInsets.right
-        - _edgeMargin * 2;
-    final effectiveHeight = _viewportSize.height
-        - _safeAreaInsets.top - _safeAreaInsets.bottom
-        - _appTopChromeHeight - _appBottomChromeHeight
-        - _edgeMargin * 2;
-
-    // Content size in screen-space.
-    final contentWidth = cb.width * zoom;
-    final contentHeight = cb.height * zoom;
-
-    // Content center in screen-space (relative to content top-left).
-    final contentCenterX = cb.left * zoom;
-    final contentCenterY = cb.top * zoom;
-
-    // v4.11: Viewport center must use the SAME effective center as fitToView.
-    // This includes _appTopChromeHeight and _appBottomChromeHeight so the
-    // pan clamp and the centering logic agree on where "center" is.
-    final viewCenterX = _safeAreaInsets.left + _edgeMargin + effectiveWidth / 2;
-    final viewCenterY = _safeAreaInsets.top + _appTopChromeHeight + _edgeMargin + effectiveHeight / 2;
-
-    if (contentWidth <= effectiveWidth) {
-      // Content is smaller than viewport — center it, allow small drift.
-      final minX = viewCenterX - contentCenterX - contentWidth / 2;
-      final maxX = viewCenterX - contentCenterX + contentWidth / 2;
-      // For Y
-      final minY = viewCenterY - contentCenterY - contentHeight / 2;
-      final maxY = viewCenterY - contentCenterY + contentHeight / 2;
-      return (minX: minX, maxX: maxX, minY: minY, maxY: maxY);
-    } else {
-      // Content is larger than viewport — allow panning but keep edges
-      // within the margin.
-      final minX = viewCenterX - contentCenterX - contentWidth / 2 + effectiveWidth / 2;
-      final maxX = viewCenterX - contentCenterX + contentWidth / 2 - effectiveWidth / 2;
-      final minY = viewCenterY - contentCenterY - contentHeight / 2 + effectiveHeight / 2;
-      final maxY = viewCenterY - contentCenterY + contentHeight / 2 - effectiveHeight / 2;
-      return (minX: minX, maxX: maxX, minY: minY, maxY: maxY);
-    }
   }
 
   /// v4.15: Pan clamping has been REMOVED entirely.
@@ -413,9 +298,6 @@ class CameraController extends ChangeNotifier {
     // factor in _startMomentumDecay (0.15s), a max-velocity flick
     // travels only 270px — less than one screen width on most phones.
     const maxVelocity = 1800.0; // px/sec — clamp hard flicks
-    // Save the clamped velocities BEFORE _startMomentumDecay, which
-    // calls _cancelAnimation() (which resets _velocityX/_velocityY to
-    // zero as part of invalidating in-flight animations).
     final clampedX = velocityX.clamp(-maxVelocity, maxVelocity);
     final clampedY = velocityY.clamp(-maxVelocity, maxVelocity);
     _startMomentumDecay(clampedX, clampedY);
@@ -909,8 +791,6 @@ class CameraController extends ChangeNotifier {
     _panY = 0.0;
     _zoomLevel = 1.0;
     _focusedNodeId = null;
-    _velocityX = 0.0;
-    _velocityY = 0.0;
     _scheduleSave();
     notifyListeners();
   }
@@ -1178,8 +1058,6 @@ class CameraController extends ChangeNotifier {
         _panY = targetPanY;
         _clampPan(); // v4.4: final clamp
         _isAnimating = false;
-        _velocityX = 0.0;
-        _velocityY = 0.0;
         _scheduleSave();
         notifyListeners();
       }
@@ -1191,8 +1069,6 @@ class CameraController extends ChangeNotifier {
   /// Cancels any active animation and invalidates in-flight tick() closures.
   void _cancelAnimation() {
     _isAnimating = false;
-    _velocityX = 0.0;
-    _velocityY = 0.0;
     _animationGeneration++; // invalidates any in-flight tick() closures
   }
 
@@ -1215,7 +1091,7 @@ class CameraController extends ChangeNotifier {
 
     _saveDebounceTimer?.cancel();
     _saveDebounceTimer = Timer(const Duration(milliseconds: 500), () {
-      _positionMemory!.savePosition(
+      _positionMemory.savePosition(
         _currentFamilyId!,
         panX: _panX,
         panY: _panY,

@@ -22,7 +22,6 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../game_motion_tokens.dart';
 import '../shared/icons/kinrel_icons.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/game_confetti.dart';
@@ -80,11 +79,6 @@ class _AntakshariGameScreenState
     _tickTimer?.cancel();
     _letterController.dispose();
     super.dispose();
-  }
-
-  void _pulseLetter() {
-    _pulseController.forward(from: 0);
-    GameMotionTokens.success();
   }
 
   @override

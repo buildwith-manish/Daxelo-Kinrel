@@ -4,7 +4,6 @@
 // Host is authoritative for round resolution.
 
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -97,7 +96,6 @@ class ChitmatchNotifier extends StateNotifier<ChitmatchState> {
 
   RealtimeChannel? _channel;
   Timer? _roundTimer;
-  Timer? _hostResolveTimer;
   String? _gameId;
 
   // ── Public API ───────────────────────────────────────────────────
@@ -122,7 +120,7 @@ class ChitmatchNotifier extends StateNotifier<ChitmatchState> {
         'setupPhase': 'joining',
         'allPassesCollected': false,
       }).select().single();
-      final game = ChitmatchGame.fromJson(resp as Map<String, dynamic>);
+      final game = ChitmatchGame.fromJson(resp);
       _gameId = game.id;
 
       // Insert host as first player
@@ -161,7 +159,7 @@ class ChitmatchNotifier extends StateNotifier<ChitmatchState> {
       final game = ChitmatchGame.fromJson(gameResp as Map<String, dynamic>);
 
       final playersResp = await client.from('chitmatch_players').select().eq('gameId', gameId).order('turnOrder', ascending: true);
-      final existingPlayers = playersResp.map((p) => ChitmatchPlayerModel.fromJson(p as Map<String, dynamic>)).toList();
+      final existingPlayers = playersResp.map((p) => ChitmatchPlayerModel.fromJson(p)).toList();
 
       final alreadyJoined = existingPlayers.any((p) => p.userId == myId);
       // Mid-game joins are rejected: a NEW player row inserted after the
@@ -670,7 +668,7 @@ class ChitmatchNotifier extends StateNotifier<ChitmatchState> {
     if (client == null) return;
     try {
       final resp = await client.from('chitmatch_players').select().eq('gameId', gameId).order('turnOrder', ascending: true);
-      final players = resp.map((p) => ChitmatchPlayerModel.fromJson(p as Map<String, dynamic>)).toList();
+      final players = resp.map((p) => ChitmatchPlayerModel.fromJson(p)).toList();
       state = state.copyWith(players: players);
       await _refreshMyHand(gameId);
     } catch (e) {

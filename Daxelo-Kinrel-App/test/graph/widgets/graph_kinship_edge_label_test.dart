@@ -19,7 +19,6 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kinrel/core/kinship/kinship_service.dart';
-import 'package:kinrel/core/kinship/kinship_models.dart';
 import '../../helpers/native_plugin_mocks.dart';
 
 void main() {
@@ -38,7 +37,6 @@ void main() {
       final file = File('assets/data/kinship_core.json');
       final jsonStr = await file.readAsString();
       final jsonData = jsonDecode(jsonStr) as Map<String, dynamic>;
-      final data = KinshipData.fromJson(jsonData);
 
       // Manually set the internal state via reflection-like approach:
       // Since KinshipService.load() uses rootBundle which isn't available

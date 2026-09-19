@@ -6,7 +6,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/services/temporary_room_service.dart';
-import 'freeze_auction_engine.dart';
 import 'freeze_auction_models.dart';
 
 class FreezeAuctionState_ {
@@ -16,7 +15,6 @@ class FreezeAuctionState_ {
   bool get isWaiting => game?.isWaiting ?? false; bool get isInProgress => game?.isInProgress ?? false;
   bool get isCompleted => game?.isCompleted ?? false; bool get hasGame => game != null;
   FreezeAuctionPlayerWire? playerFor(String? userId) { if (userId == null) return null; for (final p in players) { if (p.userId == userId) return p; } return null; }
-  static String? _currentUserId;
   FreezeAuctionState_ copyWith({FreezeAuctionGame? game, List<FreezeAuctionPlayerWire>? players, bool? isLoading, bool? isStarting, bool? isLeaving, bool clearError = false, String? error, bool? amSpectator}) => FreezeAuctionState_(
     game: game ?? this.game, players: players ?? this.players, isLoading: isLoading ?? this.isLoading,
     isStarting: isStarting ?? this.isStarting, isLeaving: isLeaving ?? this.isLeaving,
@@ -143,7 +141,7 @@ class FreezeAuctionNotifier extends StateNotifier<FreezeAuctionState_> {
   Future<void> _loadGame(String gameId) async { final client = _client; if (client == null) return; try { final resp = await client.from('freeze_auction_games').select().eq('id', gameId).maybeSingle(); if (resp == null) return; _gameId = gameId; _applyGameRow(FreezeAuctionGame.fromJson(resp)); } catch (e) { debugPrint('[FreezeAuction] loadGame error: $e'); } }
 
   void _applyGameRow(FreezeAuctionGame game) {
-    final previous = state.game; FreezeAuctionState_._currentUserId = _myId;
+    final previous = state.game;
     state = state.copyWith(game: game);
     if (game.isInProgress && _watchdogTimer == null) { _watchdogTimer = Timer.periodic(const Duration(seconds: 2), (_) { _tryRpc('fn_freezeauction_tick', {'p_game_id': game.id}); }); }
     else if (!game.isInProgress && _watchdogTimer != null) { _watchdogTimer?.cancel(); _watchdogTimer = null; }

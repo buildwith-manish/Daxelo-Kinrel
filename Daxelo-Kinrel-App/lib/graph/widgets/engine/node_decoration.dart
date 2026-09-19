@@ -146,8 +146,6 @@ class Pseudo3DNodeParams {
   /// solid, signaling "needs linking."
   final bool isUnlinked;
 
-  double get _scale => diameter / 72.0;
-
   /// Extrusion depth: 7-9% of diameter, clamped.
   double get extrusionDepth => (diameter * 0.08).clamp(4.0, 9.0);
 
@@ -164,7 +162,6 @@ class Pseudo3DNodeParams {
 
   /// Shadow offset: down-right, scaled.
   Offset get shadowOffset {
-    final s = _scale;
     final depth = extrusionDepth;
     if (isAnchor) return Offset(depth * 0.4, depth * 0.9);
     if (generationIndex < 0) return Offset(depth * 0.3, depth * 0.4);

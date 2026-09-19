@@ -38,7 +38,6 @@
 // recurses into the branch's own children. Works at any scale (10 to
 // 100,000+ members) with one unified rule.
 
-import 'dart:ui' show Offset;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

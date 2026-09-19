@@ -14,7 +14,6 @@
 //   - computeMidpoint falls back to the linear midpoint when no control
 //     points are supplied
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/services/graph_layout_service.dart';
 import 'package:kinrel/graph/engine/edge_router.dart';

@@ -97,6 +97,7 @@ void main() {
       const flickerValue = -1.0;
       const bool reduced = true;
       expect(reduced, isTrue);
+      // ignore: dead_code
       final alpha = reduced ? 0.75 : 0.6 + 0.3 * flickerValue;
       expect(alpha, equals(0.75));
     });

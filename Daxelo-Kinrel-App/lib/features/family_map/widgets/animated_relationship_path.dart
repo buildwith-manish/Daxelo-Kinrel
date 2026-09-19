@@ -36,12 +36,9 @@
 // The line-gradient is rendered locally — works offline.
 
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre/maplibre.dart';
 
 import '../../../core/constants/brand_colors.dart';

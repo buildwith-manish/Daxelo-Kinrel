@@ -263,7 +263,6 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
       // We need to load members for each family. Since familyListProvider
       // only returns Family (no members), we'll query the FamilyMember
       // table directly to get all members across all families.
-      final client = Supabase.instance.client;
       final familyIds = families.map((f) => f.id).toList();
       if (familyIds.isEmpty) {
         if (mounted) {
@@ -522,7 +521,7 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
           .limit(1);
 
       if (response.isNotEmpty) {
-        final row = response.first as Map<String, dynamic>;
+        final row = response.first;
         if (mounted) {
           setState(() {
             _lastMessage = ChatMessage.fromJson(row);

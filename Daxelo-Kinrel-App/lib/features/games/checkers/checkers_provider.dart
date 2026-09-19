@@ -149,7 +149,7 @@ class CheckersNotifier extends StateNotifier<CheckersState> {
         'hostReady': true,
         'autoCloseDeadline': deadline.toIso8601String(),
       }).select().single();
-      final game = CheckersGame.fromJson(resp as Map<String, dynamic>);
+      final game = CheckersGame.fromJson(resp);
       _gameId = game.id;
 
       // Register the host in the shared room bookkeeping (roster +
@@ -379,7 +379,7 @@ class CheckersNotifier extends StateNotifier<CheckersState> {
           .eq('gameId', gameId)
           .order('moveNumber', ascending: true);
       final moves = movesResp
-          .map((m) => CheckersMoveRecord.fromJson(m as Map<String, dynamic>))
+          .map((m) => CheckersMoveRecord.fromJson(m))
           .toList();
 
       state = state.copyWith(game: game, moves: moves, isLoading: false);

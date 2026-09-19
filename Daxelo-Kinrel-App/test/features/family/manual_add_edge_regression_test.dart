@@ -193,13 +193,6 @@ void main() {
     });
 
     test('injects into cache when cache exists', () {
-      // Pre-populate the cache with an initial graph.
-      final initial = FlatGraphResult(
-        persons: [
-          {'id': 'person-anchor', 'name': 'Anchor', 'gender': 'male'},
-        ],
-        relationships: [],
-      );
       // We can't call _addToCache directly (private), but injectOptimisticEdge
       // on a null cache is a no-op. To test the happy path we'd need a
       // ProviderContainer. This is covered by the integration test below.
