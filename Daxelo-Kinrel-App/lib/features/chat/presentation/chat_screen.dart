@@ -1078,6 +1078,59 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                 ),
                               ),
                             ),
+                            // ── Feature 3: Chat streak flame badge ─────
+                            // Shows a flame icon + current streak count
+                            // when streak >= 2 (1-day streaks aren't worth
+                            // showing — every chat has at least 1).
+                            // Sourced from the Socket.IO engagement
+                            // provider, which is updated instantly on
+                            // chat:streakUpdated events.
+                            Builder(builder: (context) {
+                              final streak = ref
+                                  .watch(chatEngagementProvider(widget.familyId))
+                                  .streak;
+                              if (streak < 2) return const SizedBox.shrink();
+                              return Padding(
+                                padding: const EdgeInsets.only(left: 6),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 7, vertical: 2.5),
+                                  decoration: BoxDecoration(
+                                    color: KinrelColors.orange
+                                        .withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(100),
+                                    border: Border.all(
+                                      color: KinrelColors.orange
+                                          .withValues(alpha: 0.35),
+                                      width: 0.6,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '🔥',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          height: 1.0,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        '$streak',
+                                        style: TextStyle(
+                                          fontFamily: KinrelTypography.bodyFont,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                          color: KinrelColors.orange,
+                                          letterSpacing: 0.3,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }),
                             // ── Presence indicator ────────────────────
                             // v134: Refined status — small glowing dot
                             // (with subtle ambient glow, not flat) +

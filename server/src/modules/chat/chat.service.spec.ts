@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ChatService } from './chat.service';
+import { StreakService } from './streak.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
@@ -36,11 +37,17 @@ describe('ChatService', () => {
     chatReaction: { create: jest.fn(), deleteMany: jest.fn(), findMany: jest.fn() },
   };
 
+  const mockStreakService = {
+    recordMessage: jest.fn(),
+    getStreak: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ChatService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: StreakService, useValue: mockStreakService },
       ],
     }).compile();
     service = module.get<ChatService>(ChatService);

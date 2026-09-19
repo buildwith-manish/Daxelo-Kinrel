@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
+import { StreakService } from './streak.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 
 @Module({
@@ -9,7 +10,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
   // dependency clear and lets this module be tested in isolation.
   imports: [PrismaModule],
   controllers: [ChatController],
-  providers: [ChatService, ChatGateway],
-  exports: [ChatService],
+  providers: [ChatService, ChatGateway, StreakService],
+  exports: [ChatService, StreakService],
 })
 export class ChatModule {}

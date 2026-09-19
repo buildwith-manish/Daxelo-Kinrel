@@ -133,9 +133,39 @@ export class ChatGateway {
         senderInitials: data.senderInitials,
       });
 
+      // Feature 3: record the streak event AFTER the message is persisted.
+      // This increments the chat's consecutive-day streak (or resets to 1
+      // if the last message was > 24h ago). Broadcast the new streak to
+      // the family room so all clients can update their flame badge.
+      let streak: {
+        chatId: string;
+        currentStreak: number;
+        longestStreak: number;
+        lastMessageAt: Date;
+        streakJustIncreased: boolean;
+        streakReset: boolean;
+      } | null = null;
+      try {
+        streak = await this.chatService.recordStreak(familyId);
+        if (streak && (streak.streakJustIncreased || streak.streakReset)) {
+          this.server.to(`chat:family:${familyId}`).emit('chat:streakUpdated', {
+            chatId: streak.chatId,
+            currentStreak: streak.currentStreak,
+            longestStreak: streak.longestStreak,
+            lastMessageAt: streak.lastMessageAt,
+            streakJustIncreased: streak.streakJustIncreased,
+            streakReset: streak.streakReset,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } catch (streakErr: any) {
+        // Streak failure must NOT fail the message send. Log + continue.
+        this.logger.warn(`Streak record failed for ${familyId}: ${streakErr?.message}`);
+      }
+
       // Ack to sender with the persisted message (so the client can update
       // its optimistic ID -> real ID mapping).
-      client.emit('chat:messageSent', { message });
+      client.emit('chat:messageSent', { message, streak });
 
       // Broadcast to everyone else in the family chat room.
       const roomName = `chat:family:${familyId}`;

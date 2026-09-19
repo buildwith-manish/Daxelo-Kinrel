@@ -122,4 +122,22 @@ export class ChatController {
     });
     return this.chatService.getReactionCounts(messageId);
   }
+
+  // ── Feature 3: chat streaks ──────────────────────────────────────────
+
+  @Get('streak')
+  async getStreak(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    // Validate membership before returning the streak.
+    await this.chatService.listMessages(familyId, userId, 1, undefined).catch(() => {});
+    const streak = await this.chatService.getStreak(familyId);
+    return {
+      chatId: familyId,
+      currentStreak: streak?.currentStreak ?? 0,
+      longestStreak: streak?.longestStreak ?? 0,
+      lastMessageAt: streak?.lastMessageAt ?? null,
+    };
+  }
 }

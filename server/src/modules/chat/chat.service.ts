@@ -5,6 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { StreakService } from './streak.service';
 import { AddReactionDto, RemoveReactionDto } from './dto/chat.dto';
 
 /**
@@ -22,7 +23,10 @@ import { AddReactionDto, RemoveReactionDto } from './dto/chat.dto';
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly streakService: StreakService,
+  ) {}
 
   /** Throws ForbiddenException if the user is not a member of the family. */
   private async assertMember(familyId: string, userId: string) {
@@ -156,6 +160,20 @@ export class ChatService {
       },
       include: { reactions: true },
     });
+  }
+
+  /**
+   * Record a streak event for the chat (call AFTER sendMessage succeeds).
+   * Wraps StreakService.recordMessage so callers don't need to inject
+   * StreakService directly. Returns the updated streak payload.
+   */
+  async recordStreak(familyId: string) {
+    return this.streakService.recordMessage(familyId);
+  }
+
+  /** Get the current streak for a chat (no mutation). */
+  async getStreak(familyId: string) {
+    return this.streakService.getStreak(familyId);
   }
 
   /**
