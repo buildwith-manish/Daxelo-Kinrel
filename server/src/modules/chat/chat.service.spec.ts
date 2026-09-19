@@ -781,4 +781,49 @@ describe('ChatService', () => {
       expect(args.take).toBe(10);
     });
   });
+
+  // ── Feature 4: Idempotency ─────────────────────────────────────────────
+
+  describe('sendMessage — idempotency', () => {
+    it('returns the existing message when clientMessageId matches (retry after reconnect)', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', name: 'Manish' });
+      // Simulate the message already existing (from a previous attempt)
+      const existing = { id: 'cm_idempotent_1', content: 'hello', reactions: [] };
+      mockPrisma.chatMessage.findUnique.mockResolvedValue(existing);
+
+      const result = await service.sendMessage('fam-1', 'user-1', 'hello', {
+        clientMessageId: 'cm_idempotent_1',
+      });
+
+      expect(result).toBe(existing); // returned the existing message
+      // Should NOT have called create (dedup)
+      expect(mockPrisma.chatMessage.create).not.toHaveBeenCalled();
+    });
+
+    it('creates a new message when clientMessageId is not provided', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', name: 'Manish' });
+      mockPrisma.chatMessage.findUnique.mockResolvedValue(null); // no existing
+      mockPrisma.chatMessage.create.mockResolvedValue({ id: 'cm_new', reactions: [] });
+
+      await service.sendMessage('fam-1', 'user-1', 'hello');
+
+      expect(mockPrisma.chatMessage.create).toHaveBeenCalled();
+    });
+
+    it('uses the clientMessageId as the message ID when provided', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', name: 'Manish' });
+      mockPrisma.chatMessage.findUnique.mockResolvedValue(null);
+      mockPrisma.chatMessage.create.mockResolvedValue({ id: 'cm_idempotent_2', reactions: [] });
+
+      await service.sendMessage('fam-1', 'user-1', 'hello', {
+        clientMessageId: 'cm_idempotent_2',
+      });
+
+      const createArgs = mockPrisma.chatMessage.create.mock.calls[0][0];
+      expect(createArgs.data.id).toBe('cm_idempotent_2');
+    });
+  });
 });

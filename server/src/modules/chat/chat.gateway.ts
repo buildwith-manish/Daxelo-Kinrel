@@ -131,6 +131,11 @@ export class ChatGateway {
         replyToId: data.replyToId,
         senderPersonId: data.senderPersonId,
         senderInitials: data.senderInitials,
+        // Feature 4: pass the client's tempId as the idempotency key
+        // so retries after reconnect don't create duplicates. If the
+        // client sends the same tempId twice, the server returns the
+        // existing message.
+        clientMessageId: data.tempId,
       });
 
       // Feature 3: record the streak event AFTER the message is persisted.
@@ -231,6 +236,8 @@ export class ChatGateway {
           replyToId: data.replyToId,
           senderPersonId: data.senderPersonId,
           senderInitials: data.senderInitials,
+          // Feature 4: idempotency key for retries after reconnect
+          clientMessageId: data.tempId,
         },
       );
 

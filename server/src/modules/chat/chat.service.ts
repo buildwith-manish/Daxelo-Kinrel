@@ -112,6 +112,12 @@ export class ChatService {
       senderInitials?: string;
       mediaUrl?: string;
       mediaType?: string;
+      /// Feature 4: client-generated idempotency key. If provided AND a
+      /// message with this ID already exists, the server returns the
+      /// existing message instead of creating a duplicate. This makes
+      /// retries after reconnect safe (the client sends the same ID
+      /// twice; the server deduplicates).
+      clientMessageId?: string;
     } = {},
   ) {
     await this.assertMember(familyId, userId);
@@ -138,7 +144,27 @@ export class ChatService {
     // Generate a stable ID. The existing Supabase `fn_chatmessage_gen_id`
     // RPC uses a pattern like `cm_<timestamp>_<random>`; we replicate it
     // here so IDs are unique across both NestJS and Supabase-RPC writes.
-    const id = `cm_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    //
+    // Feature 4: if the client provides a clientMessageId (idempotency
+    // key), use it as the message ID. This makes retries safe — if the
+    // client sends the same clientMessageId twice (e.g. after reconnect),
+    // the second insert fails with P2002 + we return the existing message.
+    const id = opts.clientMessageId ?? `cm_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+    // Feature 4: idempotency check — if a message with this ID already
+    // exists (retry after reconnect), return it instead of creating a
+    // duplicate. This is the server-side dedup that makes the offline
+    // sync queue safe to replay.
+    const existing = await this.prisma.chatMessage.findUnique({
+      where: { id },
+      include: { reactions: true },
+    });
+    if (existing) {
+      this.logger.debug(
+        `Idempotent retry: returning existing message ${id} (duplicate send suppressed)`,
+      );
+      return existing;
+    }
 
     const message = await this.prisma.chatMessage.create({
       data: {
@@ -226,6 +252,7 @@ export class ChatService {
       replyToId?: string;
       senderPersonId?: string;
       senderInitials?: string;
+      clientMessageId?: string;
     } = {},
   ) {
     // 1. Persist the message (reuse sendMessage)
