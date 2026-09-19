@@ -681,4 +681,104 @@ describe('ChatService', () => {
       expect(result).toEqual([]); // filtered out
     });
   });
+
+  // ── Feature 3: Message pinning ─────────────────────────────────────────
+
+  describe('pinMessage', () => {
+    it('sets isPinned=true + pinnedBy + pinnedAt', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatMessage.findUnique.mockResolvedValue({
+        familyId: 'fam-1',
+        senderId: 'user-1',
+        isDeletedForEveryone: false,
+      });
+      mockPrisma.chatMessage.update.mockResolvedValue({});
+
+      const result = await service.pinMessage('fam-1', 'user-2', 'msg-1');
+
+      expect(result.isPinned).toBe(true);
+      expect(result.pinnedBy).toBe('user-2');
+      expect(result.pinnedAt).toBeInstanceOf(Date);
+      const args = mockPrisma.chatMessage.update.mock.calls[0][0];
+      expect(args.where.id).toBe('msg-1');
+      expect(args.data.isPinned).toBe(true);
+      expect(args.data.pinnedBy).toBe('user-2');
+    });
+
+    it('throws NotFoundException when message does not exist', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatMessage.findUnique.mockResolvedValue(null);
+      await expect(
+        service.pinMessage('fam-1', 'user-2', 'missing'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('throws NotFoundException when message is deleted', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatMessage.findUnique.mockResolvedValue({
+        familyId: 'fam-1',
+        senderId: 'user-1',
+        isDeletedForEveryone: true,
+      });
+      await expect(
+        service.pinMessage('fam-1', 'user-2', 'msg-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('throws ForbiddenException when message belongs to a different family', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatMessage.findUnique.mockResolvedValue({
+        familyId: 'different-fam',
+        senderId: 'user-1',
+        isDeletedForEveryone: false,
+      });
+      await expect(
+        service.pinMessage('fam-1', 'user-2', 'msg-1'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  describe('unpinMessage', () => {
+    it('clears isPinned + pinnedBy + pinnedAt', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatMessage.findUnique.mockResolvedValue({ familyId: 'fam-1' });
+      mockPrisma.chatMessage.update.mockResolvedValue({});
+
+      const result = await service.unpinMessage('fam-1', 'user-2', 'msg-1');
+
+      expect(result.isPinned).toBe(false);
+      const args = mockPrisma.chatMessage.update.mock.calls[0][0];
+      expect(args.data.isPinned).toBe(false);
+      expect(args.data.pinnedBy).toBeNull();
+      expect(args.data.pinnedAt).toBeNull();
+    });
+  });
+
+  describe('getPinnedMessages', () => {
+    it('returns pinned messages newest-pinned first, max 10', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      const pinned = [
+        {
+          id: 'msg-2',
+          content: 'second pinned',
+          senderId: 'user-1',
+          senderName: 'Manish',
+          messageType: 'text',
+          pinnedBy: 'user-2',
+          pinnedAt: new Date('2026-09-19'),
+          createdAt: new Date('2026-09-18'),
+        },
+      ];
+      mockPrisma.chatMessage.findMany.mockResolvedValue(pinned);
+
+      const result = await service.getPinnedMessages('fam-1', 'user-1');
+
+      expect(result).toEqual(pinned);
+      const args = mockPrisma.chatMessage.findMany.mock.calls[0][0];
+      expect(args.where.isPinned).toBe(true);
+      expect(args.where.isDeletedForEveryone).toBe(false);
+      expect(args.orderBy).toEqual({ pinnedAt: 'desc' });
+      expect(args.take).toBe(10);
+    });
+  });
 });

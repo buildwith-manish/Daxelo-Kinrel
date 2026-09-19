@@ -481,6 +481,72 @@ export class ChatGateway {
     }
   }
 
+  // ── Feature 3: Message pinning ────────────────────────────────────────
+  //
+  // Pin/unpin a message via Socket.IO. After persisting, broadcasts
+  // 'chat:messagePinned' / 'chat:messageUnpinned' to the family room
+  // so all clients update their pinned bar in real time.
+
+  @SubscribeMessage('chat:pinMessage')
+  async handlePinMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { familyId: string; messageId: string },
+  ) {
+    const userId = (client as any).userId as string | undefined;
+    if (!userId) {
+      client.emit('error', { message: 'Not authenticated', event: 'chat:pinMessage' });
+      return;
+    }
+    try {
+      const result = await this.chatService.pinMessage(
+        data.familyId,
+        userId,
+        data.messageId,
+      );
+      this.server.to(`chat:family:${data.familyId}`).emit('chat:messagePinned', {
+        ...result,
+        familyId: data.familyId,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      this.logger.error(`chat:pinMessage failed: ${err?.message}`, err?.stack);
+      client.emit('error', {
+        message: err?.message ?? 'Failed to pin message',
+        event: 'chat:pinMessage',
+      });
+    }
+  }
+
+  @SubscribeMessage('chat:unpinMessage')
+  async handleUnpinMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { familyId: string; messageId: string },
+  ) {
+    const userId = (client as any).userId as string | undefined;
+    if (!userId) {
+      client.emit('error', { message: 'Not authenticated', event: 'chat:unpinMessage' });
+      return;
+    }
+    try {
+      const result = await this.chatService.unpinMessage(
+        data.familyId,
+        userId,
+        data.messageId,
+      );
+      this.server.to(`chat:family:${data.familyId}`).emit('chat:messageUnpinned', {
+        ...result,
+        familyId: data.familyId,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      this.logger.error(`chat:unpinMessage failed: ${err?.message}`, err?.stack);
+      client.emit('error', {
+        message: err?.message ?? 'Failed to unpin message',
+        event: 'chat:unpinMessage',
+      });
+    }
+  }
+
   // ── Reactions ──────────────────────────────────────────────────────────
   //
   // Reaction events are implemented in Feature 2 but declared here so the

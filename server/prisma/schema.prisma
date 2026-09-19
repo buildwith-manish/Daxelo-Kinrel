@@ -3858,6 +3858,12 @@ model ChatMessage {
   isDeletedForEveryone Boolean   @default(false)
   isStarred            Boolean   @default(false)
   isPinned             Boolean   @default(false)
+  // ── Feature 3: Message pinning ────────────────────────────────────
+  /// userId who pinned this message (null when unpinned). Set together
+  /// with isPinned=true so the pinned bar can show "Pinned by Manish".
+  pinnedBy             String?
+  /// Timestamp when the message was pinned (null when unpinned).
+  pinnedAt             DateTime?
   messageStatus        String    @default("sent") // sent | delivered | read
   deletedForMe         Json      @default("[]")
   mentions             Json      @default("[]")

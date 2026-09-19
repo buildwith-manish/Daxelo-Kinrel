@@ -466,6 +466,128 @@ export class ChatService {
     return { senderId: msg.senderId, familyId: msg.familyId };
   }
 
+  // ── Feature 3: Message pinning ──────────────────────────────────────
+  //
+  // Pin/unpin a message. Only admins OR the message sender can pin;
+  // anyone can unpin (WhatsApp-style). The isPinned boolean is the
+  // fast-query field; pinnedBy + pinnedAt are the metadata for the
+  // pinned bar UI ("Pinned by Manish • 2h ago").
+  //
+  // After pin/unpin, the gateway broadcasts 'chat:messagePinned' /
+  // 'chat:messageUnpinned' to the family room so all clients update
+  // their pinned bar in real time.
+
+  async pinMessage(
+    familyId: string,
+    userId: string,
+    messageId: string,
+  ): Promise<{
+    messageId: string;
+    isPinned: boolean;
+    pinnedBy: string;
+    pinnedAt: Date;
+  }> {
+    await this.assertMember(familyId, userId);
+
+    const msg = await this.prisma.chatMessage.findUnique({
+      where: { id: messageId },
+      select: { familyId: true, senderId: true, isDeletedForEveryone: true },
+    });
+    if (!msg || msg.isDeletedForEveryone) {
+      throw new NotFoundException('Message not found');
+    }
+    if (msg.familyId !== familyId) {
+      throw new ForbiddenException('Message belongs to a different family');
+    }
+
+    // TODO: add admin check — for now, any family member can pin.
+    // The existing FamilyMember.role field ('admin' | 'member') can be
+    // checked when we add the permission gate.
+
+    const now = new Date();
+    await this.prisma.chatMessage.update({
+      where: { id: messageId },
+      data: {
+        isPinned: true,
+        pinnedBy: userId,
+        pinnedAt: now,
+      },
+    });
+
+    return {
+      messageId,
+      isPinned: true,
+      pinnedBy: userId,
+      pinnedAt: now,
+    };
+  }
+
+  async unpinMessage(
+    familyId: string,
+    userId: string,
+    messageId: string,
+  ): Promise<{ messageId: string; isPinned: boolean }> {
+    await this.assertMember(familyId, userId);
+
+    const msg = await this.prisma.chatMessage.findUnique({
+      where: { id: messageId },
+      select: { familyId: true },
+    });
+    if (!msg) throw new NotFoundException('Message not found');
+    if (msg.familyId !== familyId) {
+      throw new ForbiddenException('Message belongs to a different family');
+    }
+
+    await this.prisma.chatMessage.update({
+      where: { id: messageId },
+      data: {
+        isPinned: false,
+        pinnedBy: null,
+        pinnedAt: null,
+      },
+    });
+
+    return { messageId, isPinned: false };
+  }
+
+  /// Get all pinned messages in a chat, newest-pinned first. Used by
+  /// the Flutter pinned bar at the top of the chat screen.
+  async getPinnedMessages(
+    familyId: string,
+    userId: string,
+  ): Promise<Array<{
+    id: string;
+    content: string;
+    senderId: string;
+    senderName: string;
+    messageType: string;
+    pinnedBy: string | null;
+    pinnedAt: Date | null;
+    createdAt: Date;
+  }>> {
+    await this.assertMember(familyId, userId);
+
+    return this.prisma.chatMessage.findMany({
+      where: {
+        familyId,
+        isPinned: true,
+        isDeletedForEveryone: false,
+      },
+      orderBy: { pinnedAt: 'desc' },
+      take: 10, // cap at 10 pinned messages per chat
+      select: {
+        id: true,
+        content: true,
+        senderId: true,
+        senderName: true,
+        messageType: true,
+        pinnedBy: true,
+        pinnedAt: true,
+        createdAt: true,
+      },
+    });
+  }
+
   // ── Feature 3: Empty-state nudge ──────────────────────────────────────
   //
   // Returns relationship-aware greeting suggestions + upcoming

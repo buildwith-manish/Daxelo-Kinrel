@@ -71,6 +71,7 @@ import 'widgets/sticker_pack_sheet.dart';
 import 'widgets/chat_meta.dart';
 import 'widgets/empty_chat_state.dart';
 import 'widgets/message_bubble.dart';
+import 'widgets/pinned_messages_bar.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
 import '../../games/shared/icons/game_icons.dart';
@@ -632,19 +633,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         },
       );
     } else {
-      bodyContent = Stack(
+      bodyContent = Column(
         children: [
-          _buildMessagesList(messages, chatState),
-          // Scroll-to-bottom FAB
-          if (_showScrollFab) _buildScrollFab(),
-          // Inline error banner (non-blocking) if a send failed
-          if (chatState.error != null && messages.isNotEmpty)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: _buildInlineErrorBanner(chatState.error!),
+          // Feature 3: Pinned messages bar (shown above the message list).
+          // Hidden when there are no pinned messages. Tapping scrolls to
+          // the pinned message; long-press unpins (with confirmation).
+          PinnedMessagesBar(
+            familyId: widget.familyId,
+            onMessageTap: (messageId) => _scrollToMessage(messageId),
+            onUnpin: (messageId) {
+              ref.read(socketServiceProvider).emitUnpinMessage(
+                familyId: widget.familyId,
+                messageId: messageId,
+              );
+            },
+          ),
+          Expanded(
+            child: Stack(
+              children: [
+                _buildMessagesList(messages, chatState),
+                // Scroll-to-bottom FAB
+                if (_showScrollFab) _buildScrollFab(),
+                // Inline error banner (non-blocking) if a send failed
+                if (chatState.error != null && messages.isNotEmpty)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: _buildInlineErrorBanner(chatState.error!),
+                  ),
+              ],
             ),
+          ),
         ],
       );
     }

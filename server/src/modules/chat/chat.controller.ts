@@ -265,6 +265,46 @@ export class ChatController {
     );
   }
 
+  // ── Feature 3: Message pinning ──────────────────────────────────────
+
+  /**
+   * POST /families/:familyId/chat/messages/:messageId/pin
+   * Pin a message. Sets isPinned=true + pinnedBy + pinnedAt.
+   */
+  @Post('messages/:messageId/pin')
+  async pinMessage(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+    @Param('messageId') messageId: string,
+  ) {
+    return this.chatService.pinMessage(familyId, userId, messageId);
+  }
+
+  /**
+   * DELETE /families/:familyId/chat/messages/:messageId/pin
+   * Unpin a message. Clears isPinned + pinnedBy + pinnedAt.
+   */
+  @Delete('messages/:messageId/pin')
+  async unpinMessage(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+    @Param('messageId') messageId: string,
+  ) {
+    return this.chatService.unpinMessage(familyId, userId, messageId);
+  }
+
+  /**
+   * GET /families/:familyId/chat/pinned
+   * Returns all pinned messages in this chat (newest-pinned first, max 10).
+   */
+  @Get('pinned')
+  async getPinnedMessages(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.chatService.getPinnedMessages(familyId, userId);
+  }
+
   // ── Feature 4: Media upload (images, voice notes, videos) ──────────
   //
   // Multipart form-data POST. The client uploads the file bytes + the

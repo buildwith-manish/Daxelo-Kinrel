@@ -666,6 +666,30 @@ class SocketService {
       }
     });
 
+    // Feature 3: message pinned/unpinned — broadcast to the family room
+    // so all clients update their pinned bar in real time.
+    socket.on('chat:messagePinned', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatPinnedCallbacks) {
+          cb({...json, 'isPinned': true});
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:messagePinned error: $e');
+      }
+    });
+
+    socket.on('chat:messageUnpinned', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatPinnedCallbacks) {
+          cb({...json, 'isPinned': false});
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:messageUnpinned error: $e');
+      }
+    });
+
     socket.on('chat:streakUpdated', (data) {
       try {
         final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
@@ -708,6 +732,7 @@ class SocketService {
   final Set<void Function(Map<String, dynamic>)> _chatReadReceiptCallbacks = {};
   final Set<void Function(Map<String, dynamic>)> _chatReactionCallbacks = {};
   final Set<void Function(Map<String, dynamic>)> _chatMentionCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatPinnedCallbacks = {};
   final Set<void Function(Map<String, dynamic>)> _chatStreakCallbacks = {};
   final Set<void Function(Map<String, dynamic>)> _presenceCallbacks = {};
 
@@ -823,6 +848,31 @@ class SocketService {
   VoidCallback onChatStreak(void Function(Map<String, dynamic>) cb) {
     _chatStreakCallbacks.add(cb);
     return () => _chatStreakCallbacks.remove(cb);
+  }
+
+  /// Feature 3: subscribe to message pin/unpin events.
+  /// Payload: { messageId, familyId, isPinned, pinnedBy?, pinnedAt?,
+  ///            timestamp }
+  /// Fires when any participant pins or unpins a message in the family
+  /// chat room. Use to update the pinned bar at the top of the chat screen.
+  VoidCallback onChatMessagePinned(void Function(Map<String, dynamic>) cb) {
+    _chatPinnedCallbacks.add(cb);
+    return () => _chatPinnedCallbacks.remove(cb);
+  }
+
+  /// Feature 3: pin a message via Socket.IO. The server broadcasts
+  /// 'chat:messagePinned' to the family room after persisting.
+  void emitPinMessage({required String familyId, required String messageId}) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:pinMessage', {'familyId': familyId, 'messageId': messageId});
+  }
+
+  /// Feature 3: unpin a message via Socket.IO.
+  void emitUnpinMessage({required String familyId, required String messageId}) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:unpinMessage', {'familyId': familyId, 'messageId': messageId});
   }
 
   /// Subscribe to presence (online/offline) updates for any user.
