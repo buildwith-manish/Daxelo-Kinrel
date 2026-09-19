@@ -111,9 +111,15 @@ describe('TimelineService — visibility matrix', () => {
       userId: 'u_member',
     });
 
-    // The query should have kind: { in: [] } (filtered out)
+    // Non-admin explicitly requesting a kind outside the summary whitelist:
+    // the whitelist filter empties `kinds` to [], and the service must KEEP
+    // the (empty) kind constraint — returning NO events, not all of them.
+    // QA fix 2026-09-19: timeline.service.ts:111 previously guarded with
+    // `kinds.length > 0`, which DROPPED the constraint entirely (whitelist
+    // bypass — the exact thing the code comment promises to prevent,
+    // introduced with the visibility gating in commit 5752e117). Service
+    // fixed to `...(kinds ? ... : {})`; original assertion restored.
     const findManyCall = prisma.kinrelTimelineEvent.findMany.mock.calls[0][0];
-    // kinds array was filtered to empty since decision_voted is not in summary
     expect(findManyCall.where.kind?.in).toEqual([]);
   });
 

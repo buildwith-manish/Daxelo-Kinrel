@@ -39,6 +39,7 @@ describe('DecisionsService', () => {
   let prisma: any;
   let emitter: any;
   let membership: any;
+  let visibility: any;
   let constitutionService: any;
   let service: DecisionsService;
 
@@ -66,6 +67,26 @@ describe('DecisionsService', () => {
       getElderUserIds: jest.fn().mockResolvedValue([]),
       getActiveMemberUserIds: jest.fn().mockResolvedValue(['u1', 'u2', 'u3']),
     };
+    // VisibilityService mock — mirrors the real injectable
+    // (common/visibility.service.ts). DecisionsService calls requireCanAct()
+    // before create/vote/patch/resolve/cancel/transitionLifecycle/memory/impact
+    // mutations (constructor injects it as the 4th argument).
+    const memberCtx = {
+      id: 'm_1',
+      familyId: 'fam_1',
+      userId: 'u_admin',
+      role: 'member',
+      dateOfBirth: null,
+      isMinor: false,
+      canAct: true,
+      isAdmin: false,
+    };
+    visibility = {
+      requireMember: jest.fn().mockResolvedValue(memberCtx),
+      requireMemberWithAge: jest.fn().mockResolvedValue(memberCtx),
+      requireCanAct: jest.fn().mockResolvedValue(memberCtx),
+      requireAdminDataAccess: jest.fn().mockResolvedValue({ ...memberCtx, role: 'admin', isAdmin: true }),
+    };
     constitutionService = {
       commitAmendment: jest.fn().mockResolvedValue({ id: 'v_new' }),
       discardDraft: jest.fn().mockResolvedValue(undefined),
@@ -75,6 +96,7 @@ describe('DecisionsService', () => {
       prisma as any,
       emitter as any,
       membership as any,
+      visibility as any,
       constitutionService as any,
     );
   });

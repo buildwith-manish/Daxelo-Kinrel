@@ -151,7 +151,16 @@ jobs:
         run: bun run build
 
       - name: Test
-        run: bun test
+        # QA fix 2026-09-19: was `bun test` — bun's built-in runner, which
+        # IGNORES jest.config.js (no moduleNameMapper → the @prisma/client
+        # mock never loads → real PrismaClient + env-dependent failures).
+        # This step had NEVER executed before (the dead lint step above
+        # always failed first), so the mismatch went unnoticed. The project's
+        # test runner is jest (package.json "test": "jest" + jest.config.js);
+        # node_modules is already npm-installed by the typecheck step above.
+        # --forceExit: NestJS services keep background timers alive after the
+        # run (open handles), which would hang the job until timeout.
+        run: npx jest --ci --forceExit
 
   # ═══════════════════════════════════════════════════════════════
   # Job 4: Android APK Build

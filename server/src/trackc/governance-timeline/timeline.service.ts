@@ -108,7 +108,7 @@ export class TimelineService {
     const items = await this.prisma.kinrelTimelineEvent.findMany({
       where: {
         familyId,
-        ...(kinds && kinds.length > 0 ? { kind: { in: kinds } } : {}),
+        ...(kinds ? { kind: { in: kinds } } : {}),
         ...(opts.cursor ? { occurredAt: { lt: new Date(opts.cursor) } } : {}),
       },
       orderBy: { occurredAt: 'desc' },

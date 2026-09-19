@@ -33,6 +33,30 @@ const mockPrismaService = {
   person: {
     findMany: jest.fn(),
     deleteMany: jest.fn(),
+    // v4.2 (2026-08-15) auto-create creator Person flow (families.service.ts:112-181):
+    // after the $transaction, the service checks for an existing anchor person,
+    // resolves the creator's User record, creates an anchor Person and updates
+    // the Family. Defaults below let that path run cleanly.
+    findFirst: jest.fn().mockResolvedValue(null),
+    create: jest.fn().mockResolvedValue({
+      id: 'person-creator',
+      familyId: 'family-1',
+      name: 'Creator User',
+      isAnchor: true,
+      linkedUserId: 'user-123',
+      privacyLevel: 'family',
+      generationIndex: 0,
+      gender: 'male',
+    }),
+  },
+  user: {
+    // Creator name/username/email/gender lookup for the anchor person
+    findUnique: jest.fn().mockResolvedValue({
+      name: 'Creator User',
+      username: 'creator',
+      email: 'creator@example.com',
+      gender: 'male',
+    }),
   },
   relationship: {
     deleteMany: jest.fn(),
@@ -118,6 +142,12 @@ describe('FamiliesService', () => {
 
     it('should create a family and auto-generate KIN ID', async () => {
       mockFamilyIdService.generateFamilyId.mockResolvedValue(kinFamilyId);
+      const familyMemberUpsert = jest.fn().mockResolvedValue({
+        id: 'member-1',
+        familyId: 'family-1',
+        userId,
+        role: 'owner',
+      });
       mockPrismaService.$transaction.mockImplementation(async (cb) => {
         // Simulate the transaction callback
         const tx = {
@@ -125,12 +155,10 @@ describe('FamiliesService', () => {
             create: jest.fn().mockResolvedValue(createdFamily),
           },
           familyMember: {
-            create: jest.fn().mockResolvedValue({
-              id: 'member-1',
-              familyId: 'family-1',
-              userId,
-              role: 'admin',
-            }),
+            // families.service.ts:82-90 enrolls the creator via upsert with a
+            // no-op update (defends against the trg_enroll_family_creator
+            // trigger that auto-inserts a role='owner' row).
+            upsert: familyMemberUpsert,
           },
         };
         return cb(tx);
@@ -144,6 +172,12 @@ describe('FamiliesService', () => {
       expect(mockFamilyIdService.generateFamilyId).toHaveBeenCalled();
       expect(result.kinFamilyId).toBe(kinFamilyId);
       expect(result.name).toBe('Sharma Family');
+      // Creator enrollment is trigger-safe and assigns the 'owner' role
+      expect(familyMemberUpsert).toHaveBeenCalledWith({
+        where: { familyId_userId: { familyId: 'family-1', userId } },
+        create: { familyId: 'family-1', userId, role: 'owner' },
+        update: {},
+      });
     });
 
     it('should throw BadRequestException if name is empty', async () => {
@@ -169,7 +203,7 @@ describe('FamiliesService', () => {
             }),
           },
           familyMember: {
-            create: jest.fn().mockResolvedValue({ id: 'member-1' }),
+            upsert: jest.fn().mockResolvedValue({ id: 'member-1' }),
           },
         };
         return cb(tx);
@@ -192,7 +226,7 @@ describe('FamiliesService', () => {
             }),
           },
           familyMember: {
-            create: jest.fn().mockResolvedValue({ id: 'member-1' }),
+            upsert: jest.fn().mockResolvedValue({ id: 'member-1' }),
           },
         };
         return cb(tx);

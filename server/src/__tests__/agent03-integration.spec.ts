@@ -51,7 +51,20 @@ const makeModelMockWithDeleteMany = () => ({
 const createMockPrisma = () => ({
   user: makeModelMock(),
   family: makeModelMock(),
-  familyMember: makeModelMock(),
+  familyMember: {
+    ...makeModelMock(),
+    // TimelineService.assertMember (timeline.service.ts:63-69) gates
+    // getTimeline/toggleReaction behind a familyMember.findUnique lookup on
+    // the compound key {familyId_userId}. Default to a member row so the
+    // membership-gated timeline calls in these tests succeed; per-test
+    // role checks (deletePost/deleteComment) use findFirst, not findUnique.
+    findUnique: jest.fn().mockResolvedValue({
+      id: 'fm-1',
+      familyId: 'fam-1',
+      userId: 'user-1',
+      role: 'member',
+    }),
+  },
   familyPost: makeModelMock(),
   follow: makeModelMock(),
   sparq: makeModelMockWithDeleteMany(),
@@ -362,7 +375,7 @@ describe('Agent-3 Integration: Timeline Reactions & Comments E2E', () => {
         reactions: reactionsWithEmoji,
       });
 
-      const reactionResult = await ctx.timelineService.toggleReaction('post-1', otherUserId, '❤️');
+      const reactionResult = await ctx.timelineService.toggleReaction(familyId, 'post-1', otherUserId, '❤️');
 
       expect(reactionResult.emojis['❤️']).toBe(1);
       expect(reactionResult.userReactions[otherUserId]).toContain('❤️');
@@ -385,7 +398,7 @@ describe('Agent-3 Integration: Timeline Reactions & Comments E2E', () => {
         reactions: reactionsWithEmoji,
       });
 
-      const removeResult = await ctx.timelineService.toggleReaction('post-1', otherUserId, '❤️');
+      const removeResult = await ctx.timelineService.toggleReaction(familyId, 'post-1', otherUserId, '❤️');
 
       expect(removeResult.emojis['❤️']).toBeUndefined();
       expect(removeResult.userReactions[otherUserId]).toBeUndefined();
@@ -1498,7 +1511,7 @@ describe('Agent-3 Integration: Timeline Reactions Multi-User', () => {
       });
       ctx.prisma.familyPost.update.mockResolvedValue({ id: 'post-1' });
 
-      const result = await ctx.timelineService.toggleReaction('post-1', 'user-2', '👍');
+      const result = await ctx.timelineService.toggleReaction('fam-1', 'post-1', 'user-2', '👍');
 
       expect(result.emojis['❤️']).toBe(1);
       expect(result.emojis['👍']).toBe(1);
@@ -1522,7 +1535,7 @@ describe('Agent-3 Integration: Timeline Reactions Multi-User', () => {
       });
       ctx.prisma.familyPost.update.mockResolvedValue({ id: 'post-1' });
 
-      const result = await ctx.timelineService.toggleReaction('post-1', 'user-1', '🎉');
+      const result = await ctx.timelineService.toggleReaction('fam-1', 'post-1', 'user-1', '🎉');
 
       expect(result.emojis['❤️']).toBe(1);
       expect(result.emojis['🎉']).toBe(1);
@@ -1548,7 +1561,7 @@ describe('Agent-3 Integration: Timeline Reactions Multi-User', () => {
       });
       ctx.prisma.familyPost.update.mockResolvedValue({ id: 'post-1' });
 
-      const result = await ctx.timelineService.toggleReaction('post-1', 'user-1', '❤️');
+      const result = await ctx.timelineService.toggleReaction('fam-1', 'post-1', 'user-1', '❤️');
 
       expect(result.emojis['❤️']).toBeUndefined();
       expect(result.userReactions['user-1']).toBeUndefined();
@@ -1714,7 +1727,7 @@ describe('Agent-3 Integration: Timeline Reactions JSON Parsing', () => {
       });
       ctx.prisma.familyPost.update.mockResolvedValue({ id: 'post-1' });
 
-      const result = await ctx.timelineService.toggleReaction('post-1', 'user-1', '❤️');
+      const result = await ctx.timelineService.toggleReaction('fam-1', 'post-1', 'user-1', '❤️');
 
       expect(result.emojis['❤️']).toBe(1);
     });
@@ -1728,7 +1741,7 @@ describe('Agent-3 Integration: Timeline Reactions JSON Parsing', () => {
       });
       ctx.prisma.familyPost.update.mockResolvedValue({ id: 'post-1' });
 
-      const result = await ctx.timelineService.toggleReaction('post-1', 'user-1', '🎉');
+      const result = await ctx.timelineService.toggleReaction('fam-1', 'post-1', 'user-1', '🎉');
 
       expect(result.emojis['🎉']).toBe(1);
     });
@@ -1742,7 +1755,7 @@ describe('Agent-3 Integration: Timeline Reactions JSON Parsing', () => {
       });
       ctx.prisma.familyPost.update.mockResolvedValue({ id: 'post-1' });
 
-      const result = await ctx.timelineService.toggleReaction('post-1', 'user-1', '👍');
+      const result = await ctx.timelineService.toggleReaction('fam-1', 'post-1', 'user-1', '👍');
 
       expect(result.emojis['👍']).toBe(1);
     });
@@ -1903,7 +1916,7 @@ describe('Agent-3 Integration: Timeline Reactions Object Shape', () => {
     });
     ctx.prisma.familyPost.update.mockResolvedValue({ id: 'post-1' });
 
-    const result = await ctx.timelineService.toggleReaction('post-1', 'user-1', '❤️');
+    const result = await ctx.timelineService.toggleReaction('fam-1', 'post-1', 'user-1', '❤️');
 
     expect(result).toHaveProperty('emojis');
     expect(result).toHaveProperty('userReactions');

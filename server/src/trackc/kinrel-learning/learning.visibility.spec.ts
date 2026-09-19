@@ -67,7 +67,13 @@ describe('LearningService — visibility matrix', () => {
         usingDefaults: false,
         preferredReminderLeadHours: { decision: 24, meeting: 48, event: 72 },
         reminderActionRate: { '6h': 0.3, '12h': 0.5, '24h': 0.8 },
-        preferredWeekdayDistribution: { mon: 0.1, tue: 0.1, wed: 0.1, thu: 0.1, fri: 0.1, sat: 0.25, sun: 0.25 },
+        // Weekend (sat+sun = 0.55) must be STRICTLY higher than weekday
+        // (mon..fri = 0.45): learning.service.ts uses `weekend > weekday`
+        // (strict comparison) to pick the "weekends" wording, so an exact
+        // 0.5/0.5 tie (the original fixture) yields "weekdays". Fixture
+        // fixed to satisfy this test's stated precondition ("weekend
+        // distribution is higher").
+        preferredWeekdayDistribution: { mon: 0.09, tue: 0.09, wed: 0.09, thu: 0.09, fri: 0.09, sat: 0.3, sun: 0.25 },
         preferredTimeOfDayBuckets: { morning: 0.2, afternoon: 0.2, evening: 0.5, night: 0.1 },
         elderAutoIncludeThreshold: 0.6,
         insightAcceptRateByKind: { summary: 0.7, pros_cons: 0.5 },

@@ -17,6 +17,7 @@ describe('LearningService', () => {
   let prisma: any;
   let emitter: any;
   let membership: any;
+  let visibility: any;
   let signalIngestor: any;
   let profileBuilder: any;
   let inference: any;
@@ -43,6 +44,27 @@ describe('LearningService', () => {
       getElderUserIds: jest.fn().mockResolvedValue([]),
       getActiveMemberUserIds: jest.fn().mockResolvedValue(['u1', 'u2']),
     };
+    // VisibilityService mock — mirrors the real injectable
+    // (common/visibility.service.ts). LearningService's constructor takes
+    // (prisma, emitter, membership, VISIBILITY, signalIngestor,
+    // profileBuilder, inference); getProfile() gates on
+    // requireAdminDataAccess (admin-only raw profile).
+    const memberCtx = {
+      id: 'm_1',
+      familyId: 'fam_1',
+      userId: 'u_1',
+      role: 'member',
+      dateOfBirth: null,
+      isMinor: false,
+      canAct: true,
+      isAdmin: false,
+    };
+    visibility = {
+      requireMember: jest.fn().mockResolvedValue(memberCtx),
+      requireMemberWithAge: jest.fn().mockResolvedValue(memberCtx),
+      requireCanAct: jest.fn().mockResolvedValue(memberCtx),
+      requireAdminDataAccess: jest.fn().mockResolvedValue({ ...memberCtx, role: 'admin', isAdmin: true }),
+    };
     signalIngestor = {
       ingest: jest.fn().mockResolvedValue('sig_1'),
     };
@@ -61,6 +83,7 @@ describe('LearningService', () => {
       prisma as any,
       emitter as any,
       membership as any,
+      visibility as any,
       signalIngestor as any,
       profileBuilder as any,
       inference as any,
@@ -144,7 +167,11 @@ describe('LearningService', () => {
     });
 
     it('rejects non-members', async () => {
-      membership.requireMember.mockRejectedValueOnce(
+      // getProfile() is gated by VisibilityService.requireAdminDataAccess
+      // (learning.service.ts:45), which internally resolves membership via
+      // requireMemberWithAge → requireMember — a non-member surfaces as a
+      // NotFoundException from that chain. Mock the gate directly.
+      visibility.requireAdminDataAccess.mockRejectedValueOnce(
         new NotFoundException('Family not found'),
       );
 
@@ -272,6 +299,13 @@ describe('LearningService with real SignalIngestor', () => {
       getElderUserIds: jest.fn().mockResolvedValue([]),
       getActiveMemberUserIds: jest.fn().mockResolvedValue(['u_1']),
     };
+    // VisibilityService mock (4th constructor arg — see first describe).
+    const visibility: any = {
+      requireMember: jest.fn().mockResolvedValue({ id: 'm_1' }),
+      requireMemberWithAge: jest.fn().mockResolvedValue({ id: 'm_1', isMinor: false, isAdmin: false, canAct: true }),
+      requireCanAct: jest.fn().mockResolvedValue({ id: 'm_1', isMinor: false, isAdmin: false, canAct: true }),
+      requireAdminDataAccess: jest.fn().mockResolvedValue({ id: 'm_1', isMinor: false, isAdmin: true, canAct: true }),
+    };
     const realIngestor = new SignalIngestor(prisma as any);
     const realInference = new LearningInference(prisma as any);
     const profileBuilder: any = { recompute: jest.fn().mockResolvedValue(1) };
@@ -280,6 +314,7 @@ describe('LearningService with real SignalIngestor', () => {
       prisma as any,
       emitter,
       membership,
+      visibility,
       realIngestor,
       profileBuilder,
       realInference,

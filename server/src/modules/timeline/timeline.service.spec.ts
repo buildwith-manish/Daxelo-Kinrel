@@ -24,6 +24,10 @@ describe('TimelineService', () => {
     familyMember: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
+      // TimelineService.assertMember (timeline.service.ts:63-69) looks up
+      // memberships via familyMember.findUnique on the compound key
+      // {familyId_userId}; the local mock lacked it entirely.
+      findUnique: jest.fn(),
     },
     follow: {
       findMany: jest.fn(),
@@ -46,6 +50,15 @@ describe('TimelineService', () => {
     prisma = module.get<PrismaService>(PrismaService);
 
     jest.clearAllMocks();
+
+    // Default: the acting user is a member of 'fam-1' so assertMember
+    // (timeline.service.ts:63-69) passes for membership-gated reads/writes.
+    mockPrisma.familyMember.findUnique.mockResolvedValue({
+      id: 'fm-1',
+      familyId: 'fam-1',
+      userId: 'user-1',
+      role: 'member',
+    });
   });
 
   it('should be defined', () => {
@@ -69,7 +82,7 @@ describe('TimelineService', () => {
 
       mockPrisma.familyPost.findMany.mockResolvedValue(posts);
 
-      const result = await service.getTimeline('fam-1', 20);
+      const result = await service.getTimeline('fam-1', 'user-1', 20);
 
       expect(result.data).toHaveLength(20);
       expect(result.nextCursor).toBe('post-19');
@@ -80,6 +93,10 @@ describe('TimelineService', () => {
           skip: 0,
         }),
       );
+      // Membership is enforced via the compound key lookup (assertMember).
+      expect(mockPrisma.familyMember.findUnique).toHaveBeenCalledWith({
+        where: { familyId_userId: { familyId: 'fam-1', userId: 'user-1' } },
+      });
     });
 
     it('should return null nextCursor when no more pages', async () => {
@@ -97,7 +114,7 @@ describe('TimelineService', () => {
 
       mockPrisma.familyPost.findMany.mockResolvedValue(posts);
 
-      const result = await service.getTimeline('fam-1', 20);
+      const result = await service.getTimeline('fam-1', 'user-1', 20);
 
       expect(result.data).toHaveLength(5);
       expect(result.nextCursor).toBeNull();
@@ -118,7 +135,7 @@ describe('TimelineService', () => {
 
       mockPrisma.familyPost.findMany.mockResolvedValue(posts);
 
-      await service.getTimeline('fam-1', 20, 'cursor-123');
+      await service.getTimeline('fam-1', 'user-1', 20, 'cursor-123');
 
       expect(mockPrisma.familyPost.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -275,7 +292,7 @@ describe('TimelineService', () => {
       });
       mockPrisma.familyPost.update.mockResolvedValue({});
 
-      const result = await service.toggleReaction(postId, userId, emoji);
+      const result = await service.toggleReaction('fam-1', postId, userId, emoji);
 
       expect(result.emojis[emoji]).toBe(1);
       expect(result.userReactions[userId]).toContain(emoji);
@@ -306,7 +323,7 @@ describe('TimelineService', () => {
       });
       mockPrisma.familyPost.update.mockResolvedValue({});
 
-      const result = await service.toggleReaction(postId, userId, emoji);
+      const result = await service.toggleReaction('fam-1', postId, userId, emoji);
 
       expect(result.emojis[emoji]).toBeUndefined();
       expect(result.userReactions[userId]).toBeUndefined();
@@ -332,7 +349,7 @@ describe('TimelineService', () => {
       });
       mockPrisma.familyPost.update.mockResolvedValue({});
 
-      const result = await service.toggleReaction(postId, userId, clapEmoji);
+      const result = await service.toggleReaction('fam-1', postId, userId, clapEmoji);
 
       expect(result.emojis[clapEmoji]).toBe(1);
       expect(result.emojis[emoji]).toBe(2);
@@ -343,7 +360,7 @@ describe('TimelineService', () => {
     it('should throw NotFoundException if post does not exist', async () => {
       mockPrisma.familyPost.findUnique.mockResolvedValue(null);
 
-      await expect(service.toggleReaction(postId, userId, emoji)).rejects.toThrow(
+      await expect(service.toggleReaction('fam-1', postId, userId, emoji)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -357,7 +374,7 @@ describe('TimelineService', () => {
       });
       mockPrisma.familyPost.update.mockResolvedValue({});
 
-      const result = await service.toggleReaction(postId, userId, emoji);
+      const result = await service.toggleReaction('fam-1', postId, userId, emoji);
 
       expect(result.emojis[emoji]).toBe(1);
       expect(result.userReactions[userId]).toContain(emoji);
@@ -372,7 +389,7 @@ describe('TimelineService', () => {
       });
       mockPrisma.familyPost.update.mockResolvedValue({});
 
-      const result = await service.toggleReaction(postId, userId, emoji);
+      const result = await service.toggleReaction('fam-1', postId, userId, emoji);
 
       expect(result.emojis[emoji]).toBe(1);
       expect(result.userReactions[userId]).toContain(emoji);

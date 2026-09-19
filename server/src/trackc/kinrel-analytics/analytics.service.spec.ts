@@ -14,6 +14,7 @@ import { Granularity } from './analytics.snapshot-worker';
 describe('AnalyticsService', () => {
   let prisma: any;
   let membership: any;
+  let visibility: any;
   let worker: any;
   let service: AnalyticsService;
 
@@ -35,6 +36,28 @@ describe('AnalyticsService', () => {
       requireAdmin: jest.fn().mockResolvedValue({ id: 'm_1', role: 'admin' }),
     };
 
+    // VisibilityService mock — mirrors the real injectable
+    // (common/visibility.service.ts). AnalyticsService's constructor takes
+    // (prisma, membership, VISIBILITY, worker); listSnapshots()/getSummary()
+    // gate on requireMemberWithAge and strip per-name metric fields for
+    // minors based on the returned ctx.isMinor flag.
+    const memberCtx = {
+      id: 'm_1',
+      familyId: 'fam_1',
+      userId: 'u_1',
+      role: 'member',
+      dateOfBirth: null,
+      isMinor: false,
+      canAct: true,
+      isAdmin: false,
+    };
+    visibility = {
+      requireMember: jest.fn().mockResolvedValue(memberCtx),
+      requireMemberWithAge: jest.fn().mockResolvedValue(memberCtx),
+      requireCanAct: jest.fn().mockResolvedValue(memberCtx),
+      requireAdminDataAccess: jest.fn().mockResolvedValue({ ...memberCtx, role: 'admin', isAdmin: true }),
+    };
+
     worker = {
       snapshot: jest.fn().mockResolvedValue({
         id: 'snap_fresh',
@@ -47,6 +70,7 @@ describe('AnalyticsService', () => {
     service = new AnalyticsService(
       prisma as any,
       membership as any,
+      visibility as any,
       worker as any,
     );
   });
@@ -153,7 +177,11 @@ describe('AnalyticsService', () => {
     });
 
     it('rejects non-members', async () => {
-      membership.requireMember.mockRejectedValueOnce(new Error('not a member'));
+      // getSummary() is gated by VisibilityService.requireMemberWithAge
+      // (analytics.service.ts:72), which internally resolves membership via
+      // requireMember — a non-member surfaces as an error from that chain.
+      // Mock the gate directly.
+      visibility.requireMemberWithAge.mockRejectedValueOnce(new Error('not a member'));
       await expect(service.getSummary('fam_1', 'outsider')).rejects.toThrow('not a member');
     });
   });

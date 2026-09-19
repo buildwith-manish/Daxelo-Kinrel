@@ -19,6 +19,7 @@ describe('ConstitutionService', () => {
   let prisma: any;
   let emitter: any;
   let membership: any;
+  let visibility: any;
   let service: ConstitutionService;
 
   beforeEach(() => {
@@ -44,11 +45,32 @@ describe('ConstitutionService', () => {
       getElderUserIds: jest.fn().mockResolvedValue([]),
       getActiveMemberUserIds: jest.fn().mockResolvedValue(['u1', 'u2', 'u3']),
     };
+    // VisibilityService mock — mirrors the real injectable
+    // (common/visibility.service.ts). ConstitutionService calls
+    // requireCanAct() in saveDraft/publish/openAmendment (constructor
+    // injects it as the 4th argument).
+    const actorCtx = {
+      id: 'm_1',
+      familyId: 'fam_1',
+      userId: 'u_admin',
+      role: 'member',
+      dateOfBirth: null,
+      isMinor: false,
+      canAct: true,
+      isAdmin: false,
+    };
+    visibility = {
+      requireMember: jest.fn().mockResolvedValue(actorCtx),
+      requireMemberWithAge: jest.fn().mockResolvedValue(actorCtx),
+      requireCanAct: jest.fn().mockResolvedValue(actorCtx),
+      requireAdminDataAccess: jest.fn().mockResolvedValue({ ...actorCtx, role: 'admin', isAdmin: true }),
+    };
 
     service = new ConstitutionService(
       prisma as any,
       emitter as any,
       membership as any,
+      visibility as any,
     );
   });
 

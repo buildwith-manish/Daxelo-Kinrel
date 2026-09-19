@@ -713,8 +713,7 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
           .select()
           .eq('gameId', gameId);
       for (final row in resp) {
-        final input =
-            StickmanHeistInputWire.fromJson(row as Map<String, dynamic>);
+        final input = StickmanHeistInputWire.fromJson(row);
         _latestInputs[input.userId] = input;
       }
     } catch (e) {
@@ -852,8 +851,7 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
           .eq('gameId', gameId)
           .order('joinedAt', ascending: true);
       return resp
-          .map((p) => StickmanHeistPlayerWire.fromJson(
-              p as Map<String, dynamic>))
+          .map((p) => StickmanHeistPlayerWire.fromJson(p))
           .toList();
     } catch (_) {
       return const [];

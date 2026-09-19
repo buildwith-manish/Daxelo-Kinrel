@@ -812,20 +812,38 @@ export class GraphEngineService {
     if (path.length < 2) return path;
 
     // Remove backtracking: UP_PARENT + DOWN_CHILD cancels, etc.
+    // QA fix 2026-09-19: a pair cancels ONLY when it returns to the SAME
+    // node (a true backtrack — e.g. up to a parent, then back down to the
+    // same child). Cancelling on the primitive pair alone was wrong: going
+    // UP to a parent and DOWN to that parent's OTHER child is a SIBLING
+    // step (uncle/cousin/nephew/niece likewise), not a backtrack — the old
+    // code collapsed every collateral-kin path into a shorter, wrong
+    // relation (uncle → "Father", cousin → null, sibling → self...). Both
+    // path sources feeding this (findShortestPathSimple BFS and
+    // enumerateAllShortestPaths) produce simple paths that never revisit a
+    // node, so a genuine backtrack cannot occur there; the identity check
+    // keeps this correct if a future caller ever passes a non-simple path.
     const result: TraversePrimitive[] = [];
-    for (const prim of path) {
-      if (result.length > 0) {
-        const prev = result[result.length - 1];
-        if (
-          (prev === 'UP_PARENT' && prim === 'DOWN_CHILD') ||
+    const nodeBefore: string[] = []; // nodeBefore[k] = node result[k] starts from
+    for (let i = 0; i < path.length; i++) {
+      const prim = path[i];
+      const prev = result[result.length - 1];
+      if (
+        prev !== undefined &&
+        nodeBefore.length > 0 &&
+        visitedNodes[i + 1] === nodeBefore[nodeBefore.length - 1] &&
+        ((prev === 'UP_PARENT' && prim === 'DOWN_CHILD') ||
           (prev === 'DOWN_CHILD' && prim === 'UP_PARENT') ||
-          (prev === 'SPOUSE' && prim === 'SPOUSE')
-        ) {
-          result.pop();
-          continue;
-        }
+          (prev === 'SPOUSE' && prim === 'SPOUSE'))
+      ) {
+        // Genuine backtrack: pop the pair's first leg; the rebuilt path's
+        // current node is visitedNodes[i + 1] (== nodeBefore top after pop).
+        result.pop();
+        nodeBefore.pop();
+        continue;
       }
       result.push(prim);
+      nodeBefore.push(visitedNodes[i]);
     }
 
     return result;
@@ -1178,8 +1196,27 @@ export class GraphEngineService {
       return isFemale ? 'Sister-in-Law' : 'Brother-in-Law';
     }
 
-    if (pathPattern === 'SPOUSE_DOWN_CHILD' && generationDelta === 1) {
+    // Child's spouse (in-laws, descending)
+    // QA fix 2026-09-19: the path to a son's/daughter's spouse is
+    // DOWN_CHILD then SPOUSE (down to the child, across to the spouse) —
+    // the pre-existing SPOUSE_DOWN_CHILD entry below had the legs swapped
+    // and could never match a child-in-law path.
+    if (pathPattern === 'DOWN_CHILD_SPOUSE' && generationDelta === 1) {
       return isFemale ? 'Daughter-in-Law' : 'Son-in-Law';
+    }
+
+    // Sibling's spouse (in-laws)
+    // QA fix 2026-09-19: UP to shared parent, down to the sibling, across
+    // to their spouse.
+    if (pathPattern === 'UP_PARENT_DOWN_CHILD_SPOUSE' && generationDelta === 0) {
+      return isFemale ? 'Sister-in-Law' : 'Brother-in-Law';
+    }
+
+    // Spouse's child (stepchild when no direct parent edge exists — the
+    // direct DOWN_CHILD blood patterns above win the shortest path when
+    // the child is also the querent's own)
+    if (pathPattern === 'SPOUSE_DOWN_CHILD' && generationDelta === 1) {
+      return isFemale ? 'Step Daughter' : 'Step Son';
     }
 
     // Spouse

@@ -21,6 +21,7 @@ describe('SecretaryService', () => {
   let prisma: any;
   let emitter: any;
   let membership: any;
+  let visibility: any;
   let redaction: RedactionService;
   let actionItemsKind: ActionItemsKind;
   let llm: jest.Mocked<LLMProvider>;
@@ -42,6 +43,28 @@ describe('SecretaryService', () => {
     membership = {
       requireMember: jest.fn().mockResolvedValue({ id: 'm_1' }),
       requireAdmin: jest.fn().mockResolvedValue({ id: 'm_1', role: 'admin' }),
+    };
+    // VisibilityService mock — mirrors the real injectable
+    // (common/visibility.service.ts). SecretaryService's constructor takes
+    // (prisma, emitter, membership, VISIBILITY, redaction, actionItemsKind,
+    // llm): create() gates on requireCanAct (non-viewer, non-minor) and
+    // list()/getOne()/editDraft() gate on requireMemberWithAge (admins see
+    // everything; non-admins are filtered by participants/visibility).
+    const actorCtx = {
+      id: 'm_1',
+      familyId: 'fam_1',
+      userId: 'u_1',
+      role: 'member',
+      dateOfBirth: null,
+      isMinor: false,
+      canAct: true,
+      isAdmin: false,
+    };
+    visibility = {
+      requireMember: jest.fn().mockResolvedValue(actorCtx),
+      requireMemberWithAge: jest.fn().mockResolvedValue(actorCtx),
+      requireCanAct: jest.fn().mockResolvedValue(actorCtx),
+      requireAdminDataAccess: jest.fn().mockResolvedValue({ ...actorCtx, role: 'admin', isAdmin: true }),
     };
     redaction = new RedactionService();
     actionItemsKind = new ActionItemsKind(redaction);
@@ -73,6 +96,7 @@ describe('SecretaryService', () => {
       prisma as any,
       emitter as any,
       membership as any,
+      visibility as any,
       redaction,
       actionItemsKind,
       llm as any,
@@ -245,7 +269,12 @@ describe('SecretaryService', () => {
       const oldest = { id: 'a3', title: 'Oldest', heldAt: new Date('2026-06-29') };
       prisma.meetingArtifact.findMany.mockResolvedValueOnce([newest, middle, oldest]);
 
-      const result = await service.list('fam_1');
+      // list() signature is now (familyId, userId, opts) — the visibility
+      // matrix added the userId param (admins see all; non-admins are
+      // filtered by canViewArtifact). Default mock ctx is a non-admin
+      // member; these artifacts are published 'family' (no status/
+      // visibility fields → visible to everyone), so all three pass.
+      const result = await service.list('fam_1', 'u_1');
 
       expect(result).toEqual([newest, middle, oldest]);
       // Verify the query uses heldAt DESC ordering
@@ -259,7 +288,8 @@ describe('SecretaryService', () => {
 
     it('filters by status when provided', async () => {
       prisma.meetingArtifact.findMany.mockResolvedValueOnce([]);
-      await service.list('fam_1', { status: 'published' });
+      // New signature: (familyId, userId, opts)
+      await service.list('fam_1', 'u_1', { status: 'published' });
       expect(prisma.meetingArtifact.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { familyId: 'fam_1', status: 'published' },
@@ -269,7 +299,8 @@ describe('SecretaryService', () => {
 
     it('caps the limit at 100 (server-side maximum)', async () => {
       prisma.meetingArtifact.findMany.mockResolvedValueOnce([]);
-      await service.list('fam_1', { limit: 99999 });
+      // New signature: (familyId, userId, opts)
+      await service.list('fam_1', 'u_1', { limit: 99999 });
       expect(prisma.meetingArtifact.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ take: 100 }),
       );
@@ -277,7 +308,8 @@ describe('SecretaryService', () => {
 
     it('defaults to a limit of 50 when none is provided', async () => {
       prisma.meetingArtifact.findMany.mockResolvedValueOnce([]);
-      await service.list('fam_1');
+      // New signature: (familyId, userId, opts)
+      await service.list('fam_1', 'u_1');
       expect(prisma.meetingArtifact.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ take: 50 }),
       );
