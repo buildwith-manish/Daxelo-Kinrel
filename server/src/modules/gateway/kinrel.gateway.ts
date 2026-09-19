@@ -10,6 +10,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PresenceService } from './presence.service';
 
 interface AuthPayload {
   sub: string;
@@ -39,7 +40,10 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly presenceService: PresenceService,
+  ) {}
 
   private connectedUsers = new Map<string, string>();
   private graphDebounceTimers = new Map<string, NodeJS.Timeout>();
@@ -113,6 +117,15 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.connectedUsers.set(client.id, userId);
       (client as any).userId = userId;
 
+      // Feature 4: Presence tracking. Mark the user as online + bump
+      // their socket count. The PresenceService handles the DB persist
+      // + 'presenceUpdate' broadcast to every family they're in. Fire
+      // and forget — a slow presence write must not block the socket
+      // handshake. The user is already authenticated at this point.
+      this.presenceService.userConnected(userId).catch((err) => {
+        console.warn(`[WS] Presence tracking failed for ${userId}:`, (err as Error).message);
+      });
+
       console.log(`[WS] Connected: ${client.id} (user: ${userId})`);
     } catch (err) {
       console.warn(`[WS] Connection rejected — error: ${client.id}`, (err as Error).message);
@@ -124,6 +137,12 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const userId = this.connectedUsers.get(client.id);
     if (userId) {
       this.connectedUsers.delete(client.id);
+      // Feature 4: Decrement the user's socket count. If this was their
+      // last socket, the PresenceService marks them offline + broadcasts
+      // 'presenceUpdate' to their families. Fire and forget.
+      this.presenceService.userDisconnected(userId).catch((err) => {
+        console.warn(`[WS] Presence disconnect failed for ${userId}:`, (err as Error).message);
+      });
     }
 
     // Look up all the game rooms this socket had joined, and broadcast

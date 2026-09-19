@@ -1136,37 +1136,92 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             // (with subtle ambient glow, not flat) +
                             // letter-spaced count text. Feels integrated
                             // rather than a generic green dot.
-                            if (chatState.onlineCount > 0) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                width: 5,
-                                height: 5,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: KinrelColors.success,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: KinrelColors.success
-                                          .withValues(alpha: 0.5),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 0),
+                            //
+                            // Feature 4: presence is now driven by the
+                            // Socket.IO engagement provider (instant updates
+                            // via 'presenceUpdate' events) in addition to
+                            // the Supabase-Realtime-based chatState.onlineCount.
+                            // The engagement provider updates within
+                            // milliseconds of a user connecting/disconnecting;
+                            // the Supabase Realtime update arrives 100-500ms
+                            // later. We show "Active now" when 1+ member is
+                            // online (matches WhatsApp/Telegram UX), or fall
+                            // back to "Last seen" via the engagement provider's
+                            // presence map when no one is online.
+                            Builder(builder: (context) {
+                              final eng = ref.watch(
+                                  chatEngagementProvider(widget.familyId));
+                              final onlineCount = eng.presence.values
+                                  .where((p) => p.isOnline)
+                                  .length;
+                              final showOnline = onlineCount > 0 ||
+                                  chatState.onlineCount > 0;
+                              // For the "Last seen X ago" fallback, find the
+                              // most recently seen offline user.
+                              final lastSeenLabel = eng.presence.values
+                                  .where((p) => !p.isOnline && p.lastSeenAt != null)
+                                  .toList()
+                                ..sort((a, b) => b.lastSeenAt!
+                                    .compareTo(a.lastSeenAt!));
+                              if (!showOnline &&
+                                  lastSeenLabel.isNotEmpty &&
+                                  lastSeenLabel.first.lastSeenAt!.year > 1970) {
+                                return Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      lastSeenLabel.first.lastSeenLabel,
+                                      style: TextStyle(
+                                        fontFamily: KinrelTypography.bodyFont,
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w500,
+                                        color: KinrelColors.textSilver
+                                            .withValues(alpha: 0.7),
+                                        letterSpacing: 0.2,
+                                      ),
                                     ),
                                   ],
-                                ),
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                '${chatState.onlineCount} active',
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.bodyFont,
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w500,
-                                  color: KinrelColors.textSilver
-                                      .withValues(alpha: 0.85),
-                                  letterSpacing: 0.2,
-                                ),
-                              ),
-                            ],
+                                );
+                              }
+                              if (!showOnline) return const SizedBox.shrink();
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    width: 5,
+                                    height: 5,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: KinrelColors.success,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: KinrelColors.success
+                                              .withValues(alpha: 0.5),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 0),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    onlineCount == 1 || chatState.onlineCount == 1
+                                        ? 'Active now'
+                                        : '${onlineCount > 0 ? onlineCount : chatState.onlineCount} active',
+                                    style: TextStyle(
+                                      fontFamily: KinrelTypography.bodyFont,
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w500,
+                                      color: KinrelColors.textSilver
+                                          .withValues(alpha: 0.85),
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }),
                           ],
                         ),
                       ],
