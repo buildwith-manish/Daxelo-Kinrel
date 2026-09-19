@@ -212,6 +212,122 @@ export class ChatService {
     return { senderId: msg.senderId, familyId: msg.familyId };
   }
 
+  // ── Feature 3: Empty-state nudge ──────────────────────────────────────
+  //
+  // Returns relationship-aware greeting suggestions + upcoming
+  // birthday/anniversary data for the family chat empty state. The
+  // Flutter empty_chat_state widget uses this to show:
+  //   "Start the conversation in Sharmas 👋"
+  //   + quick-reply chips like "Wish Mama ji happy birthday 🎂 (in 3 days)"
+  //
+  // We return:
+  //   • familyName
+  //   • memberCount
+  //   • upcomingEvents: [{personId, name, eventType, daysUntil, date}]
+  //     (birthday or anniversary within next 30 days)
+  //   • suggestions: string[] (pre-built greeting suggestions the user
+  //     can tap to send instantly)
+
+  async getEmptyStateNudge(familyId: string, userId: string) {
+    await this.assertMember(familyId, userId);
+
+    const family = await this.prisma.family.findUnique({
+      where: { id: familyId },
+      select: { name: true },
+    });
+
+    const members = await this.prisma.familyMember.findMany({
+      where: { familyId },
+      select: {
+        userId: true,
+        user: { select: { id: true, name: true } },
+      },
+    });
+
+    // Find upcoming birthdays in the next 30 days.
+    const persons = await this.prisma.person.findMany({
+      where: {
+        familyId,
+        dateOfBirth: { not: null },
+        isDeceased: false,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        dateOfBirth: true,
+        gender: true,
+      },
+    });
+
+    const now = new Date();
+    const upcomingEvents: Array<{
+      personId: string;
+      name: string;
+      eventType: string;
+      daysUntil: number;
+      date: Date;
+    }> = [];
+
+    for (const p of persons) {
+      if (!p.dateOfBirth) continue;
+      const daysUntil = this._daysUntilNextBirthday(p.dateOfBirth, now);
+      if (daysUntil >= 0 && daysUntil <= 30) {
+        upcomingEvents.push({
+          personId: p.id,
+          name: p.name,
+          eventType: 'birthday',
+          daysUntil,
+          date: p.dateOfBirth,
+        });
+      }
+    }
+    // Sort by soonest first.
+    upcomingEvents.sort((a, b) => a.daysUntil - b.daysUntil);
+
+    // Build quick-reply suggestions based on the events + generic ones.
+    const suggestions: string[] = [];
+    if (upcomingEvents.length > 0) {
+      const next = upcomingEvents[0];
+      if (next.daysUntil === 0) {
+        suggestions.push(`Happy Birthday, ${next.name}! 🎂🎉`);
+      } else if (next.daysUntil <= 7) {
+        suggestions.push(`${next.name}'s birthday is in ${next.daysUntil} day${next.daysUntil !== 1 ? 's' : ''}! 🎂`);
+      } else {
+        suggestions.push(`Wish ${next.name} for their birthday (in ${next.daysUntil} days) 🎂`);
+      }
+    }
+    // Generic greetings
+    suggestions.push('Namaste everyone 🙏');
+    suggestions.push('How is everyone doing?');
+    const famName = family?.name ?? '';
+    if (famName.length > 0) {
+      suggestions.push(`Good morning, ${famName} family! ☀️`);
+    }
+
+    return {
+      familyName: family?.name ?? 'your family',
+      memberCount: members.length,
+      upcomingEvents: upcomingEvents.slice(0, 3), // top 3
+      suggestions: suggestions.slice(0, 4), // top 4
+    };
+  }
+
+  /// Calculate days until the next occurrence of a recurring birthday.
+  /// Compares month + day only (ignores year). Returns 0 if today is
+  /// the birthday, -1 if it already passed this year (will be next year).
+  private _daysUntilNextBirthday(dateOfBirth: Date, now: Date): number {
+    const birthMonth = dateOfBirth.getMonth();
+    const birthDay = dateOfBirth.getDate();
+    const currentYear = now.getFullYear();
+    let nextBirthday = new Date(currentYear, birthMonth, birthDay);
+    if (nextBirthday < new Date(currentYear, now.getMonth(), now.getDate())) {
+      nextBirthday = new Date(currentYear + 1, birthMonth, birthDay);
+    }
+    const diffMs = nextBirthday.getTime() - new Date(currentYear, now.getMonth(), now.getDate()).getTime();
+    return Math.round(diffMs / (1000 * 60 * 60 * 24));
+  }
+
   /**
    * Mark a single message (or all unread messages in the family) as read
    * by `userId`. Updates both the per-row `ChatReadReceipt` table (source

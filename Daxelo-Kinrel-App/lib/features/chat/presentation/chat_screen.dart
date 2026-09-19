@@ -68,6 +68,7 @@ import 'widgets/message_info_sheet.dart';
 import 'widgets/gif_search_sheet.dart';
 import 'widgets/sticker_pack_sheet.dart';
 import 'widgets/chat_meta.dart';
+import 'widgets/empty_chat_state.dart';
 import 'widgets/message_bubble.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
@@ -567,6 +568,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       );
     } else if (chatState.error != null && messages.isEmpty) {
       bodyContent = _buildErrorState(chatState.error!);
+    } else if (messages.isEmpty) {
+      // Feature 3: Empty state with kinship-aware greeting suggestions.
+      // Shown when the chat has zero messages (not loading, no error).
+      // The widget fetches upcoming birthdays + relationship-aware
+      // suggestions from GET /families/:id/chat/nudge.
+      bodyContent = EmptyChatState(
+        familyId: widget.familyId,
+        onSuggestionTap: (suggestion) {
+          // One-tap send: call the chatProvider's sendMessage directly
+          // with the suggestion text. This gives the user a one-tap
+          // "send greeting" flow without typing.
+          ref
+              .read(chatProvider(widget.familyId).notifier)
+              .sendMessage(suggestion, groupId: widget.groupId);
+        },
+      );
     } else {
       bodyContent = Stack(
         children: [

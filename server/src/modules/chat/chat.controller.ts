@@ -140,4 +140,18 @@ export class ChatController {
       lastMessageAt: streak?.lastMessageAt ?? null,
     };
   }
+
+  // ── Feature 3: empty-state nudge ────────────────────────────────────
+  //
+  // Returns relationship-aware greeting suggestions + upcoming
+  // birthday/anniversary data for the chat empty state. Called by the
+  // Flutter empty_chat_state widget when a chat has zero messages.
+
+  @Get('nudge')
+  async getEmptyStateNudge(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.chatService.getEmptyStateNudge(familyId, userId);
+  }
 }

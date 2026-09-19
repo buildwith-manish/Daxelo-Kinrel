@@ -24,8 +24,10 @@ describe('ChatService', () => {
   let service: ChatService;
 
   const mockPrisma = {
-    familyMember: { findUnique: jest.fn() },
+    familyMember: { findUnique: jest.fn(), findMany: jest.fn() },
+    family: { findUnique: jest.fn() },
     user: { findUnique: jest.fn(), findMany: jest.fn() },
+    person: { findMany: jest.fn() },
     chatMessage: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
@@ -335,6 +337,77 @@ describe('ChatService', () => {
       mockPrisma.chatMessage.findUnique.mockResolvedValue(null);
       const result = await service.getMessageSender('msg-missing');
       expect(result).toBeNull();
+    });
+  });
+
+  // ── Feature 3: empty-state nudge ───────────────────────────────────────
+
+  describe('getEmptyStateNudge', () => {
+    it('returns familyName + memberCount + suggestions', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.family.findUnique.mockResolvedValue({ name: 'Sharmas' });
+      mockPrisma.familyMember.findMany.mockResolvedValue([
+        { userId: 'user-1', user: { id: 'user-1', name: 'Manish' } },
+      ]);
+      mockPrisma.person.findMany.mockResolvedValue([]); // no upcoming birthdays
+
+      const result = await service.getEmptyStateNudge('fam-1', 'user-1');
+
+      expect(result.familyName).toBe('Sharmas');
+      expect(result.memberCount).toBe(1);
+      expect(result.upcomingEvents).toEqual([]);
+      // Suggestions should include generic greetings + family-name greeting
+      expect(result.suggestions).toContain('Namaste everyone 🙏');
+      expect(result.suggestions).toContain('How is everyone doing?');
+      expect(result.suggestions.some((s) => s.includes('Sharmas'))).toBe(true);
+    });
+
+    it('includes upcoming birthday suggestion when a birthday is within 30 days', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.family.findUnique.mockResolvedValue({ name: 'Sharmas' });
+      mockPrisma.familyMember.findMany.mockResolvedValue([]);
+      // Birthday in 5 days
+      const fiveDaysFromNow = new Date();
+      fiveDaysFromNow.setDate(fiveDaysFromNow.getDate() + 5);
+      mockPrisma.person.findMany.mockResolvedValue([
+        {
+          id: 'person-1',
+          name: 'Mama ji',
+          dateOfBirth: fiveDaysFromNow,
+          gender: 'male',
+        },
+      ]);
+
+      const result = await service.getEmptyStateNudge('fam-1', 'user-1');
+
+      expect(result.upcomingEvents).toHaveLength(1);
+      expect(result.upcomingEvents[0].name).toBe('Mama ji');
+      expect(result.upcomingEvents[0].eventType).toBe('birthday');
+      expect(result.upcomingEvents[0].daysUntil).toBe(5);
+      // First suggestion should reference the birthday
+      expect(result.suggestions[0]).toContain('Mama ji');
+      expect(result.suggestions[0]).toContain('🎂');
+    });
+
+    it('sorts upcoming events by soonest first', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.family.findUnique.mockResolvedValue({ name: 'Sharmas' });
+      mockPrisma.familyMember.findMany.mockResolvedValue([]);
+      const in3Days = new Date();
+      in3Days.setDate(in3Days.getDate() + 3);
+      const in10Days = new Date();
+      in10Days.setDate(in10Days.getDate() + 10);
+      mockPrisma.person.findMany.mockResolvedValue([
+        { id: 'p1', name: 'Late', dateOfBirth: in10Days, gender: 'female' },
+        { id: 'p2', name: 'Soon', dateOfBirth: in3Days, gender: 'male' },
+      ]);
+
+      const result = await service.getEmptyStateNudge('fam-1', 'user-1');
+
+      expect(result.upcomingEvents[0].name).toBe('Soon');
+      expect(result.upcomingEvents[0].daysUntil).toBe(3);
+      expect(result.upcomingEvents[1].name).toBe('Late');
+      expect(result.upcomingEvents[1].daysUntil).toBe(10);
     });
   });
 });
