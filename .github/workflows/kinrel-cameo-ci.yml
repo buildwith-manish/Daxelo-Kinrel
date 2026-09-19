@@ -15,19 +15,12 @@
 
 name: Kinrel Cameo CI
 
+# QA fix 2026-09-19: the canonical kinrel-cameo asset pack was removed from
+# the repo (ded07f89, 2026-07-22), so every job in this workflow — which
+# validates that pack — can no longer succeed. Push/PR triggers are disabled
+# until the pack returns; run manually via workflow_dispatch when needed.
+# (Cameo CODE is still covered by the main CI workflow's analyze + test jobs.)
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'kinrel-cameo/**'
-      - 'Daxelo-Kinrel-App/lib/features/cameo/**'
-      - '.github/workflows/kinrel-cameo-ci.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'kinrel-cameo/**'
-      - 'Daxelo-Kinrel-App/lib/features/cameo/**'
-      - '.github/workflows/kinrel-cameo-ci.yml'
   workflow_dispatch:
 
 concurrency:
@@ -44,10 +37,6 @@ jobs:
   asset-manifest-validate:
     name: Asset Manifest Validate
     runs-on: ubuntu-latest
-    # QA fix 2026-09-19: the canonical kinrel-cameo asset pack was removed
-    # from the repo (ded07f89, 2026-07-22). Skip pack-dependent validation
-    # when the pack is absent instead of failing — nothing to validate.
-    if: hashFiles('kinrel-cameo/**') != ''
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -69,10 +58,6 @@ jobs:
   asset-bg-consistency:
     name: Asset BG Consistency
     runs-on: ubuntu-latest
-    # QA fix 2026-09-19: the canonical kinrel-cameo asset pack was removed
-    # from the repo (ded07f89, 2026-07-22). Skip pack-dependent validation
-    # when the pack is absent instead of failing — nothing to validate.
-    if: hashFiles('kinrel-cameo/**') != ''
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -99,10 +84,6 @@ jobs:
   dart-asset-registry:
     name: Dart Asset Registry
     runs-on: ubuntu-latest
-    # QA fix 2026-09-19: the canonical kinrel-cameo asset pack was removed
-    # from the repo (ded07f89, 2026-07-22). Skip pack-dependent validation
-    # when the pack is absent instead of failing — nothing to validate.
-    if: hashFiles('kinrel-cameo/**') != ''
     timeout-minutes: 15
     defaults:
       run:
@@ -162,10 +143,6 @@ jobs:
   composite-coherence:
     name: Composite Coherence Test
     runs-on: ubuntu-latest
-    # QA fix 2026-09-19: the canonical kinrel-cameo asset pack was removed
-    # from the repo (ded07f89, 2026-07-22). Skip pack-dependent validation
-    # when the pack is absent instead of failing — nothing to validate.
-    if: hashFiles('kinrel-cameo/**') != ''
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4

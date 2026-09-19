@@ -264,10 +264,24 @@ void main() {
       lessThanOrEqualTo(880),
     );
     // Extras sit between roster and the Family Members section.
+    //
+    // QA fix 2026-09-19: measure the capped DOCK (the SingleChildScrollView
+    // viewport), not the footer Container itself — the footer child keeps
+    // its intrinsic 320px geometry inside the scroll view even though the
+    // dock clips it to the computed cap, so getRect(extras) always ran past
+    // the invite section. The dock rect is the actually-visible box.
     final rosterRect = tester.getRect(find.byType(ListView));
     final inviteRect = tester.getRect(find.byType(FamilyInviteCard));
-    expect(extras.top, greaterThanOrEqualTo(rosterRect.top));
-    expect(extras.bottom, lessThanOrEqualTo(inviteRect.top + 1));
+    final extrasDock = tester.getRect(
+      find
+          .ancestor(
+            of: find.byKey(const Key('game-extras')),
+            matching: find.byType(SingleChildScrollView),
+          )
+          .first,
+    );
+    expect(extrasDock.top, greaterThanOrEqualTo(rosterRect.top));
+    expect(extrasDock.bottom, lessThanOrEqualTo(inviteRect.top + 1));
   });
 
   testWidgets('chat dock is a slim collapsed bar by default and expands '

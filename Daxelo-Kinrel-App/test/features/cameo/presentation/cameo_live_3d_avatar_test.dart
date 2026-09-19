@@ -125,6 +125,13 @@ void main() {
     // These tests require a GPU context (Thermion). In CI/headless
     // environments, ThermionCameoRenderer cannot initialize, so we skip.
     // On-device validation uses the B1 Verification APK workflow.
+    //
+    // QA fix 2026-09-19: all waits in this group use BOUNDED pumps
+    // (tester.pump) instead of pumpAndSettle — the 3D-init retry/animation
+    // loop keeps scheduling frames even on the 2D-fallback path, so
+    // pumpAndSettle can never settle on headless CI and every test in this
+    // group timed out. Bounded pumps advance past the init-retry window;
+    // the assertions (fallback CameoAvatar shown) are unchanged.
     testWidgets(
       'attempts 3D initialization on profile_hero surface',
       (tester) async {
@@ -144,7 +151,7 @@ void main() {
             ),
           );
 
-          await tester.pumpAndSettle(const Duration(seconds: 5));
+          await tester.pump(const Duration(seconds: 5));
 
           // After init fails in headless, should show 2D fallback
           expect(find.byType(CameoAvatar), findsOneWidget);
@@ -166,7 +173,7 @@ void main() {
 
         await tester.pump();
         expect(find.byType(CameoLive3DAvatar), findsOneWidget);
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 300));
         expect(find.byType(CameoAvatar), findsOneWidget);
       },
     );
@@ -188,7 +195,7 @@ void main() {
             ),
           );
 
-          await tester.pumpAndSettle(const Duration(seconds: 5));
+          await tester.pump(const Duration(seconds: 5));
           expect(find.byType(CameoAvatar), findsOneWidget);
           return;
         }
@@ -206,7 +213,7 @@ void main() {
           ),
         );
 
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 300));
         expect(find.byType(CameoAvatar), findsOneWidget);
       },
     );
@@ -229,7 +236,7 @@ void main() {
             ),
           );
 
-          await tester.pumpAndSettle(const Duration(seconds: 5));
+          await tester.pump(const Duration(seconds: 5));
           expect(find.byType(CameoAvatar), findsOneWidget);
           return;
         }
@@ -248,7 +255,7 @@ void main() {
           ),
         );
 
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 300));
         expect(find.byType(CameoAvatar), findsOneWidget);
       },
     );
@@ -269,7 +276,7 @@ void main() {
           ),
         );
 
-        await tester.pumpAndSettle(const Duration(seconds: 5));
+        await tester.pump(const Duration(seconds: 5));
 
         // Must have fallen back to 2D CameoAvatar
         expect(find.byType(CameoAvatar), findsAtLeast(1));
@@ -292,7 +299,7 @@ void main() {
           ),
         );
 
-        await tester.pumpAndSettle(const Duration(seconds: 5));
+        await tester.pump(const Duration(seconds: 5));
 
         // Replace with empty widget to trigger dispose
         await tester.pumpWidget(
@@ -301,7 +308,7 @@ void main() {
           ),
         );
 
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 300));
 
         // Widget should be gone, no exceptions thrown
         expect(find.byType(CameoLive3DAvatar), findsNothing);
@@ -325,7 +332,7 @@ void main() {
             ),
           );
 
-          await tester.pumpAndSettle(const Duration(seconds: 3));
+          await tester.pump(const Duration(seconds: 3));
 
           // Remove widget
           await tester.pumpWidget(
@@ -334,7 +341,7 @@ void main() {
             ),
           );
 
-          await tester.pumpAndSettle();
+          await tester.pump(const Duration(milliseconds: 300));
         }
 
         // If we got here without exceptions, the test passes.
@@ -361,7 +368,7 @@ void main() {
             ),
           );
 
-          await tester.pumpAndSettle();
+          await tester.pump(const Duration(milliseconds: 300));
           expect(find.byType(CameoAvatar), findsOneWidget);
         }
       },
@@ -385,7 +392,7 @@ void main() {
           ),
         );
 
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 300));
 
         // The widget should have a Semantics node
         final semantics = tester.getSemantics(find.byType(CameoAvatar).first);
@@ -412,7 +419,7 @@ void main() {
           ),
         );
 
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 300));
 
         // On map_marker (dense surface), should immediately go to fallback2D
         expect(states, contains(CameoLive3DState.fallback2D));

@@ -477,31 +477,40 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
                 children: [
                   _messages.isEmpty
                       ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const KinrelIcon(KinrelIconData.sparkle,
-                                  size: 22, color: KinrelColors.orange),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Nobody has spoken yet.',
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.bodyFont,
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: KinrelColors.textSilver,
+                          // QA fix 2026-09-19: on tight docks (e.g. the
+                          // 880px lobby viewport) the empty-state Column was
+                          // exactly 1px taller than the Expanded box →
+                          // RenderFlex overflow. scaleDown keeps the design
+                          // pixel-identical whenever it fits and shrinks it
+                          // gracefully when it doesn't.
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const KinrelIcon(KinrelIconData.sparkle,
+                                    size: 22, color: KinrelColors.orange),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Nobody has spoken yet.',
+                                  style: TextStyle(
+                                    fontFamily: KinrelTypography.bodyFont,
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: KinrelColors.textSilver,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Start the family conversation.',
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.bodyFont,
-                                  fontSize: 11,
-                                  color: KinrelColors.textDim,
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Start the family conversation.',
+                                  style: TextStyle(
+                                    fontFamily: KinrelTypography.bodyFont,
+                                    fontSize: 11,
+                                    color: KinrelColors.textDim,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         )
                       : ListView.builder(
