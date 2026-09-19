@@ -198,6 +198,229 @@ export class ChatService {
     return message;
   }
 
+  // ── Feature 2: Group chat @mentions ──────────────────────────────────
+  //
+  // Send a message with @mentions. The [mentions] array contains
+  // {userId, name, start, end} refs pointing at the @Name spans in
+  // [content]. We:
+  //   1. Persist the message (same as sendMessage)
+  //   2. Store the mentions inline on ChatMessage.mentions (JSON) for
+  //      rendering
+  //   3. Insert ChatMention rows (one per mentioned user) for the
+  //      queryable "which messages mention me?" index
+  //   4. Trigger a targeted push notification to each mentioned user
+  //      (handled by the gateway via a 'chat:mentionReceived' event)
+  //
+  // The existing Supabase `fn_add_mentions_to_message` RPC does steps
+  // 2+3 atomically; we call it from here for backward compat with the
+  // Flutter app's existing code path, AND we insert ChatMention rows
+  // directly via Prisma for the NestJS-only path.
+
+  async sendMessageWithMentions(
+    familyId: string,
+    userId: string,
+    content: string,
+    mentions: Array<{ userId: string; name: string; start: number; end: number }>,
+    opts: {
+      messageType?: string;
+      replyToId?: string;
+      senderPersonId?: string;
+      senderInitials?: string;
+    } = {},
+  ) {
+    // 1. Persist the message (reuse sendMessage)
+    const message = await this.sendMessage(familyId, userId, content, opts);
+
+    // 2. Update the inline mentions JSON on the message
+    if (mentions.length > 0) {
+      await this.prisma.chatMessage.update({
+        where: { id: message.id },
+        data: { mentions: mentions as any },
+      });
+      message.mentions = mentions as any;
+
+      // 3. Insert ChatMention rows for the queryable index
+      await this.prisma.chatMention.createMany({
+        data: mentions.map((m) => ({
+          id: `cm_${message.id}_${m.userId}`,
+          messageId: message.id,
+          mentionedUserId: m.userId,
+          mentionedByName: message.senderName,
+        })),
+        skipDuplicates: true,
+      });
+
+      // Feature 1: Analytics — track mention_sent
+      this.analyticsService
+        .track('mention_sent', userId, { messageId: message.id, mentionCount: mentions.length }, familyId)
+        .catch(() => {});
+    }
+
+    return message;
+  }
+
+  /**
+   * Get the read count for a message ("seen by 4/7" in the UI).
+   * Returns { readCount, totalParticipants } — the total is the family
+   * member count (excluding the sender), and readCount is how many of
+   * them have a ChatReadReceipt row for this message.
+   */
+  async getReadCount(
+    familyId: string,
+    userId: string,
+    messageId: string,
+  ): Promise<{ readCount: number; totalParticipants: number }> {
+    await this.assertMember(familyId, userId);
+
+    // Count family members excluding the sender (the sender is never a
+    // "reader" of their own message).
+    const message = await this.prisma.chatMessage.findUnique({
+      where: { id: messageId },
+      select: { senderId: true, familyId: true },
+    });
+    if (!message || message.familyId !== familyId) {
+      throw new NotFoundException('Message not found in this family');
+    }
+
+    const [totalParticipants, readCount] = await Promise.all([
+      this.prisma.familyMember.count({
+        where: {
+          familyId,
+          userId: { not: message.senderId },
+        },
+      }),
+      this.prisma.chatReadReceipt.count({
+        where: {
+          messageId,
+          userId: { not: message.senderId },
+        },
+      }),
+    ]);
+
+    return { readCount, totalParticipants };
+  }
+
+  /**
+   * Get group chat info: participant list (with online status) + chat
+   * metadata. Used by the Flutter group info screen.
+   */
+  async getGroupInfo(familyId: string, userId: string) {
+    await this.assertMember(familyId, userId);
+
+    const [family, members, presence] = await Promise.all([
+      this.prisma.family.findUnique({
+        where: { id: familyId },
+        select: { id: true, name: true, avatarUrl: true, memberCount: true },
+      }),
+      this.prisma.familyMember.findMany({
+        where: { familyId },
+        select: {
+          userId: true,
+          role: true,
+          joinedAt: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              avatarUrl: true,
+            },
+          },
+        },
+        orderBy: { joinedAt: 'asc' },
+      }),
+      this.prisma.memberPresence.findMany({
+        where: { familyId },
+        select: { userId: true, status: true, lastSeenAt: true },
+      }),
+    ]);
+
+    // Merge presence into members for a single response.
+    const presenceMap = new Map(presence.map((p) => [p.userId, p]));
+    const participants = members.map((m) => {
+      const p = presenceMap.get(m.userId);
+      return {
+        userId: m.userId,
+        name: m.user.name ?? m.user.username ?? 'Unknown',
+        username: m.user.username,
+        avatarUrl: m.user.avatarUrl,
+        role: m.role,
+        joinedAt: m.joinedAt,
+        isOnline: p?.status === 'online',
+        lastSeenAt: p?.lastSeenAt ?? null,
+      };
+    });
+
+    return {
+      familyId: family?.id ?? familyId,
+      familyName: family?.name ?? 'Unknown',
+      familyAvatarUrl: family?.avatarUrl ?? null,
+      memberCount: family?.memberCount ?? participants.length,
+      participants,
+    };
+  }
+
+  /**
+   * Get all messages that mention a specific user. Used by the Flutter
+   * "Mentions" filter in the chat search screen.
+   */
+  async getMentionsForUser(
+    familyId: string,
+    requestingUserId: string,
+    mentionedUserId: string,
+    limit: number = 20,
+  ) {
+    await this.assertMember(familyId, requestingUserId);
+
+    const mentions = await this.prisma.chatMention.findMany({
+      where: { mentionedUserId },
+      take: Math.min(limit, 50),
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        messageId: true,
+        mentionedByName: true,
+        createdAt: true,
+      },
+    });
+
+    // Hydrate with message content
+    if (mentions.length === 0) return [];
+    const messageIds = [...new Set(mentions.map((m) => m.messageId))];
+    const messages = await this.prisma.chatMessage.findMany({
+      where: {
+        id: { in: messageIds },
+        familyId, // scope to this family for security
+        isDeletedForEveryone: false,
+      },
+      select: {
+        id: true,
+        content: true,
+        senderId: true,
+        senderName: true,
+        createdAt: true,
+        messageType: true,
+      },
+    });
+    const msgMap = new Map(messages.map((m) => [m.id, m]));
+
+    return mentions
+      .map((m) => {
+        const msg = msgMap.get(m.messageId);
+        if (!msg) return null; // mention points to a deleted/different-family msg
+        return {
+          ...m,
+          message: msg,
+        };
+      })
+      .filter((x) => x !== null);
+  }
+
+  /** Get the current streak for a chat (no mutation). */
+  async getStreak(familyId: string) {
+    return this.streakService.getStreak(familyId);
+  }
+
   /**
    * Record a streak event for the chat (call AFTER sendMessage succeeds).
    * Wraps StreakService.recordMessage so callers don't need to inject
@@ -205,11 +428,6 @@ export class ChatService {
    */
   async recordStreak(familyId: string) {
     return this.streakService.recordMessage(familyId);
-  }
-
-  /** Get the current streak for a chat (no mutation). */
-  async getStreak(familyId: string) {
-    return this.streakService.getStreak(familyId);
   }
 
   // ── Feature 1: Delivery status ────────────────────────────────────────

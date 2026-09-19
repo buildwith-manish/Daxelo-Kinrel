@@ -163,6 +163,87 @@ export class ChatController {
     return this.chatService.getEmptyStateNudge(familyId, userId);
   }
 
+  // ── Feature 2: Group chat endpoints ──────────────────────────────────
+
+  /**
+   * GET /families/:familyId/chat/info
+   * Returns group chat info: participant list (with online status) +
+   * family metadata. Used by the Flutter group info screen.
+   */
+  @Get('info')
+  async getGroupInfo(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.chatService.getGroupInfo(familyId, userId);
+  }
+
+  /**
+   * GET /families/:familyId/chat/messages/:messageId/read-count
+   * Returns { readCount, totalParticipants } for "seen by 4/7" UI.
+   */
+  @Get('messages/:messageId/read-count')
+  async getReadCount(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+    @Param('messageId') messageId: string,
+  ) {
+    return this.chatService.getReadCount(familyId, userId, messageId);
+  }
+
+  /**
+   * GET /families/:familyId/chat/mentions?userId=X
+   * Returns messages that @mention a specific user. Used by the Flutter
+   * "Mentions" filter in the chat search screen.
+   */
+  @Get('mentions')
+  async getMentions(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+    @Query('userId') mentionedUserId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    // If userId not provided, default to the requesting user (their own mentions)
+    return this.chatService.getMentionsForUser(
+      familyId,
+      userId,
+      mentionedUserId || userId,
+      limit ? parseInt(limit, 10) : 20,
+    );
+  }
+
+  /**
+   * POST /families/:familyId/chat/with-mentions
+   * Send a message with @mentions. The body contains the message content
+   * + an array of mention refs.
+   */
+  @Post('with-mentions')
+  async sendMessageWithMentions(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+    @Body() body: {
+      content: string;
+      mentions: Array<{ userId: string; name: string; start: number; end: number }>;
+      messageType?: string;
+      replyToId?: string;
+      senderPersonId?: string;
+      senderInitials?: string;
+    },
+  ) {
+    return this.chatService.sendMessageWithMentions(
+      familyId,
+      userId,
+      body.content,
+      body.mentions || [],
+      {
+        messageType: body.messageType,
+        replyToId: body.replyToId,
+        senderPersonId: body.senderPersonId,
+        senderInitials: body.senderInitials,
+      },
+    );
+  }
+
   // ── Feature 5: Message search ──────────────────────────────────────
   //
   // GET /families/:familyId/chat/search?q=<query>&limit=20

@@ -651,6 +651,21 @@ class SocketService {
       }
     });
 
+    // Feature 2: @mention received — emitted to a specific mentioned user
+    // when someone @mentions them in a message. Drives a distinct push
+    // notification + in-app banner separate from the general message
+    // broadcast.
+    socket.on('chat:mentionReceived', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatMentionCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:mentionReceived error: $e');
+      }
+    });
+
     socket.on('chat:streakUpdated', (data) {
       try {
         final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
@@ -692,6 +707,7 @@ class SocketService {
   final Set<void Function(Map<String, dynamic>)> _chatTypingCallbacks = {};
   final Set<void Function(Map<String, dynamic>)> _chatReadReceiptCallbacks = {};
   final Set<void Function(Map<String, dynamic>)> _chatReactionCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatMentionCallbacks = {};
   final Set<void Function(Map<String, dynamic>)> _chatStreakCallbacks = {};
   final Set<void Function(Map<String, dynamic>)> _presenceCallbacks = {};
 
@@ -761,6 +777,45 @@ class SocketService {
   VoidCallback onChatReaction(void Function(Map<String, dynamic>) cb) {
     _chatReactionCallbacks.add(cb);
     return () => _chatReactionCallbacks.remove(cb);
+  }
+
+  /// Feature 2: subscribe to @mention received events.
+  /// Payload: { messageId, familyId, mentionedUserId, mentionedByName,
+  ///            content, timestamp }
+  /// Fires when another user @mentions this user in a message.
+  VoidCallback onChatMentionReceived(void Function(Map<String, dynamic>) cb) {
+    _chatMentionCallbacks.add(cb);
+    return () => _chatMentionCallbacks.remove(cb);
+  }
+
+  /// Feature 2: send a message with @mentions via Socket.IO.
+  /// [mentions] is an array of {userId, name, start, end} refs pointing
+  /// at the @Name spans in [content]. The server emits a targeted
+  /// 'chat:mentionReceived' event to each mentioned user.
+  void emitChatMessageWithMentions({
+    required String familyId,
+    required String content,
+    required List<Map<String, dynamic>> mentions,
+    String messageType = 'text',
+    String? replyToId,
+    String? senderPersonId,
+    String? senderInitials,
+    String? tempId,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) {
+      throw StateError('Socket not connected');
+    }
+    socket.emit('chat:sendMessageWithMentions', {
+      'familyId': familyId,
+      'content': content,
+      'mentions': mentions,
+      'messageType': messageType,
+      if (replyToId != null) 'replyToId': replyToId,
+      if (senderPersonId != null) 'senderPersonId': senderPersonId,
+      if (senderInitials != null) 'senderInitials': senderInitials,
+      if (tempId != null) 'tempId': tempId,
+    });
   }
 
   /// Subscribe to chat streak updates.

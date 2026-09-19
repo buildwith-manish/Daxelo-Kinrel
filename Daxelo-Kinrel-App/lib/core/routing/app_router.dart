@@ -250,6 +250,7 @@ import '../../features/memory_vault/presentation/memory_detail_screen.dart';
 import '../../features/memory_vault/data/memory_model.dart';
 import '../../features/chat/presentation/chat_screen.dart';
 import '../../features/chat/presentation/chat_search_screen.dart';
+import '../../features/chat/presentation/group_info_screen.dart';
 import '../../features/chat/presentation/direct_chat_screen.dart';
 import '../../features/share/presentation/share_screen.dart';
 import '../../features/oral_history/presentation/oral_history_screen.dart';
@@ -2516,6 +2517,16 @@ final routerProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           child: ChatSearchScreen(
             familyId: state.pathParameters['id'],
+          ),
+        ),
+      ),
+      // Feature 2: Group info screen — participant list with online status.
+      GoRoute(
+        path: '/family/:id/chat/info',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: GroupInfoScreen(
+            familyId: state.pathParameters['id'] ?? '',
           ),
         ),
       ),

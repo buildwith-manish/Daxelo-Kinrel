@@ -194,6 +194,81 @@ export class ChatGateway {
     }
   }
 
+  // ── Feature 2: Send message with @mentions ────────────────────────────
+  //
+  // Same as chat:sendMessage but accepts a mentions array. After
+  // persisting, emits a targeted 'chat:mentionReceived' event to each
+  // mentioned user (via emitToUser) so they get a distinct notification
+  // separate from the general 'chat:messageReceived' broadcast.
+
+  @SubscribeMessage('chat:sendMessageWithMentions')
+  async handleSendMessageWithMentions(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: {
+      familyId: string;
+      content: string;
+      mentions: Array<{ userId: string; name: string; start: number; end: number }>;
+      messageType?: string;
+      replyToId?: string;
+      senderPersonId?: string;
+      senderInitials?: string;
+      tempId?: string;
+    },
+  ) {
+    const userId = (client as any).userId as string | undefined;
+    if (!userId) {
+      client.emit('error', { message: 'Not authenticated', event: 'chat:sendMessageWithMentions' });
+      return;
+    }
+    try {
+      const message = await this.chatService.sendMessageWithMentions(
+        data.familyId,
+        userId,
+        data.content,
+        data.mentions || [],
+        {
+          messageType: data.messageType,
+          replyToId: data.replyToId,
+          senderPersonId: data.senderPersonId,
+          senderInitials: data.senderInitials,
+        },
+      );
+
+      // Ack to sender + broadcast to the family room (same as sendMessage).
+      client.emit('chat:messageSent', { message });
+      this.server.to(`chat:family:${data.familyId}`).emit('chat:messageReceived', { message });
+
+      // Feature 2: emit a targeted 'chat:mentionReceived' event to each
+      // mentioned user. This drives a distinct push notification + an
+      // in-app banner that says "Mama ji mentioned you".
+      for (const mention of data.mentions || []) {
+        if (mention.userId === userId) continue; // don't notify the sender
+        // Use emitToUser via the room — every mentioned user who's in
+        // the family chat room will receive this.
+        this.server.to(`chat:family:${data.familyId}`).emit('chat:mentionReceived', {
+          messageId: message.id,
+          familyId: data.familyId,
+          mentionedUserId: mention.userId,
+          mentionedByName: message.senderName,
+          content: data.content,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Clear typing indicator (same as sendMessage).
+      this.clearTypingTimer(data.familyId, userId);
+      await this.chatService.setTypingStatus(data.familyId, userId, false);
+    } catch (err: any) {
+      this.logger.error(`chat:sendMessageWithMentions failed: ${err?.message}`, err?.stack);
+      client.emit('chat:messageFailed', {
+        familyId: data.familyId,
+        tempId: data.tempId,
+        error: err?.message ?? 'Failed to send message',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
   // ── Feature 1: Delivery confirmation ───────────────────────────────────
   //
   // When a recipient's client receives a message via 'chat:messageReceived',

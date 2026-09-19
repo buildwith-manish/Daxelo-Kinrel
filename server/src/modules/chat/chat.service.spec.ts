@@ -25,7 +25,7 @@ describe('ChatService', () => {
   let service: ChatService;
 
   const mockPrisma = {
-    familyMember: { findUnique: jest.fn(), findMany: jest.fn() },
+    familyMember: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn() },
     family: { findUnique: jest.fn() },
     user: { findUnique: jest.fn(), findMany: jest.fn() },
     person: { findMany: jest.fn() },
@@ -37,9 +37,11 @@ describe('ChatService', () => {
       updateMany: jest.fn(),
       count: jest.fn().mockResolvedValue(0),
     },
-    chatReadReceipt: { createMany: jest.fn() },
+    chatReadReceipt: { createMany: jest.fn(), count: jest.fn() },
     chatTypingStatus: { upsert: jest.fn(), findMany: jest.fn() },
     chatReaction: { create: jest.fn(), deleteMany: jest.fn(), findMany: jest.fn() },
+    chatMention: { createMany: jest.fn(), findMany: jest.fn() },
+    memberPresence: { findMany: jest.fn() },
   };
 
   const mockStreakService = {
@@ -509,6 +511,174 @@ describe('ChatService', () => {
       await expect(
         service.searchMessages('fam-1', 'user-1', 'test'),
       ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  // ── Feature 2: Group chat @mentions ────────────────────────────────────
+
+  describe('sendMessageWithMentions', () => {
+    it('persists the message + stores mentions inline + inserts ChatMention rows', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', name: 'Manish' });
+      const created = { id: 'cm_1', senderName: 'Manish', mentions: [] };
+      mockPrisma.chatMessage.create.mockResolvedValue(created);
+      mockPrisma.chatMessage.update.mockResolvedValue({});
+      mockPrisma.chatMention.createMany.mockResolvedValue({ count: 2 });
+
+      const result = await service.sendMessageWithMentions(
+        'fam-1',
+        'user-1',
+        'hello @Riya @Amit',
+        [
+          { userId: 'user-2', name: 'Riya', start: 6, end: 11 },
+          { userId: 'user-3', name: 'Amit', start: 12, end: 17 },
+        ],
+      );
+
+      expect(result.id).toBe('cm_1');
+      // Inline mentions JSON updated on the message
+      expect(mockPrisma.chatMessage.update).toHaveBeenCalledWith({
+        where: { id: 'cm_1' },
+        data: { mentions: expect.any(Array) },
+      });
+      // ChatMention rows inserted (2 users)
+      expect(mockPrisma.chatMention.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          expect.objectContaining({ messageId: 'cm_1', mentionedUserId: 'user-2' }),
+          expect.objectContaining({ messageId: 'cm_1', mentionedUserId: 'user-3' }),
+        ]),
+        skipDuplicates: true,
+      });
+    });
+
+    it('skips mention persistence when mentions array is empty', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', name: 'Manish' });
+      mockPrisma.chatMessage.create.mockResolvedValue({ id: 'cm_1', senderName: 'Manish' });
+
+      await service.sendMessageWithMentions('fam-1', 'user-1', 'no mentions', []);
+
+      expect(mockPrisma.chatMessage.update).not.toHaveBeenCalled();
+      expect(mockPrisma.chatMention.createMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getReadCount', () => {
+    it('returns readCount + totalParticipants excluding the sender', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatMessage.findUnique.mockResolvedValue({
+        senderId: 'user-1',
+        familyId: 'fam-1',
+      });
+      mockPrisma.familyMember.count.mockResolvedValue(7); // 7 participants excluding sender
+      mockPrisma.chatReadReceipt.count.mockResolvedValue(4); // 4 have read
+
+      const result = await service.getReadCount('fam-1', 'user-1', 'msg-1');
+
+      expect(result).toEqual({ readCount: 4, totalParticipants: 7 });
+    });
+
+    it('throws NotFoundException when message does not exist', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatMessage.findUnique.mockResolvedValue(null);
+      await expect(
+        service.getReadCount('fam-1', 'user-1', 'missing'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('throws NotFoundException when message belongs to a different family', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatMessage.findUnique.mockResolvedValue({
+        senderId: 'user-1',
+        familyId: 'different-fam',
+      });
+      await expect(
+        service.getReadCount('fam-1', 'user-1', 'msg-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('getGroupInfo', () => {
+    it('returns family metadata + participant list with presence', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.family.findUnique.mockResolvedValue({
+        id: 'fam-1',
+        name: 'Sharmas',
+        avatarUrl: null,
+        memberCount: 3,
+      });
+      mockPrisma.familyMember.findMany.mockResolvedValue([
+        {
+          userId: 'user-1',
+          role: 'admin',
+          joinedAt: new Date('2026-01-01'),
+          user: { id: 'user-1', name: 'Manish', username: 'manish08', avatarUrl: null },
+        },
+        {
+          userId: 'user-2',
+          role: 'member',
+          joinedAt: new Date('2026-01-02'),
+          user: { id: 'user-2', name: 'Riya', username: null, avatarUrl: null },
+        },
+      ]);
+      mockPrisma.memberPresence.findMany.mockResolvedValue([
+        { userId: 'user-1', status: 'online', lastSeenAt: new Date() },
+        { userId: 'user-2', status: 'offline', lastSeenAt: new Date('2026-09-18') },
+      ]);
+
+      const result = await service.getGroupInfo('fam-1', 'user-1');
+
+      expect(result.familyName).toBe('Sharmas');
+      expect(result.memberCount).toBe(3);
+      expect(result.participants).toHaveLength(2);
+      expect(result.participants[0].name).toBe('Manish');
+      expect(result.participants[0].isOnline).toBe(true);
+      expect(result.participants[1].name).toBe('Riya');
+      expect(result.participants[1].isOnline).toBe(false);
+    });
+  });
+
+  describe('getMentionsForUser', () => {
+    it('returns hydrated mention rows scoped to the family', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatMention.findMany.mockResolvedValue([
+        { id: 'cm-1', messageId: 'msg-1', mentionedByName: 'Manish', createdAt: new Date() },
+      ]);
+      mockPrisma.chatMessage.findMany.mockResolvedValue([
+        {
+          id: 'msg-1',
+          content: 'hello @Riya',
+          senderId: 'user-1',
+          senderName: 'Manish',
+          createdAt: new Date(),
+          messageType: 'text',
+        },
+      ]);
+
+      const result = await service.getMentionsForUser('fam-1', 'user-1', 'user-2');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].message.content).toBe('hello @Riya');
+      expect(result[0].message.senderName).toBe('Manish');
+    });
+
+    it('returns empty array when no mentions found', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatMention.findMany.mockResolvedValue([]);
+      const result = await service.getMentionsForUser('fam-1', 'user-1', 'user-2');
+      expect(result).toEqual([]);
+    });
+
+    it('excludes mentions pointing to messages in a different family', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatMention.findMany.mockResolvedValue([
+        { id: 'cm-1', messageId: 'msg-1', mentionedByName: 'X', createdAt: new Date() },
+      ]);
+      // The message exists but belongs to a different family (filtered out by the where clause)
+      mockPrisma.chatMessage.findMany.mockResolvedValue([]);
+
+      const result = await service.getMentionsForUser('fam-1', 'user-1', 'user-2');
+      expect(result).toEqual([]); // filtered out
     });
   });
 });

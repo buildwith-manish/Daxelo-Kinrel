@@ -4057,3 +4057,57 @@ model Event {
   @@index([chatId, createdAt])
   @@map("Event")
 }
+
+// ── Feature 2: Group chat @mentions ────────────────────────────────────
+//
+// The ChatMention table already exists in Supabase (created by an earlier
+// SQL migration). It tracks which users were @mentioned in which messages
+// so we can:
+//   1. Send a targeted push notification to mentioned users specifically
+//      (separate from the general "new message" push)
+//   2. Render the @mention highlight in the Flutter message bubble
+//   3. Power a "Mentions" filter in the chat search screen
+//
+// The `ChatMessage.mentions` JSON field stores the inline mention refs
+// (userId, name, start, end offsets) for rendering; this table is the
+// queryable index for "which messages mention me?"
+
+model ChatMention {
+  id               String   @id
+  messageId        String
+  mentionedUserId  String
+  mentionedByName  String
+  createdAt        DateTime @default(now())
+
+  @@index([messageId])
+  @@index([mentionedUserId])
+  @@map("ChatMention")
+}
+
+// ── Feature 6: Per-chat notification preferences ────────────────────────
+//
+// The ChatSettings table already exists in Supabase with isMuted per
+// (userId, familyId). We add a Prisma model so the NestJS ChatPushScheduler
+// can check mute status before sending push notifications.
+//
+// Quiet hours are stored per-user (global, not per-chat) in the existing
+// NotificationPreference table — we reuse that rather than duplicating
+// the fields here.
+
+model ChatSettings {
+  id                     String    @id
+  userId                 String
+  familyId               String
+  wallpaperUrl           String?
+  wallpaperColor         String?
+  isMuted                Boolean   @default(false)
+  isPinned               Boolean   @default(false)
+  isArchived             Boolean   @default(false)
+  disappearingAfterHours Int?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @default(now()) @updatedAt
+
+  @@unique([userId, familyId])
+  @@index([familyId])
+  @@map("ChatSettings")
+}
