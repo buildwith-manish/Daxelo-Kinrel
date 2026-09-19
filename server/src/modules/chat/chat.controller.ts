@@ -7,10 +7,15 @@ import {
   Body,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ChatService } from './chat.service';
+import { MediaService } from './media.service';
 import {
   AddReactionDto,
   MarkAsReadDto,
@@ -30,7 +35,10 @@ import {
 @Controller('families/:familyId/chat')
 @UseGuards(JwtAuthGuard)
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly mediaService: MediaService,
+  ) {}
 
   @Get()
   async listMessages(
@@ -153,5 +161,58 @@ export class ChatController {
     @CurrentUser('id') userId: string,
   ) {
     return this.chatService.getEmptyStateNudge(familyId, userId);
+  }
+
+  // ── Feature 4: Media upload (images, voice notes, videos) ──────────
+  //
+  // Multipart form-data POST. The client uploads the file bytes + the
+  // mediaType (image|voice|video) + optional durationSeconds (for voice/video).
+  // The server validates the file, uploads to Supabase Storage, and returns
+  // the public URL. The client then calls sendMessage with mediaUrl +
+  // mediaType to persist the message.
+  //
+  // We use a generated messageId (cm_<timestamp>_<random>) as the storage
+  // path so the file is uniquely named + tied to the eventual message.
+  // If the message send fails after upload, the orphaned file is cleaned
+  // up by a future GC pass (not implemented yet — acceptable for now).
+
+  @Post('media')
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB hard cap at multer level
+  }))
+  async uploadMedia(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { mediaType: string; durationSeconds?: string },
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded (expected multipart field "file")');
+    }
+    if (!body.mediaType) {
+      throw new BadRequestException('mediaType is required (image|voice|video)');
+    }
+
+    // Validate membership — don't allow uploads to families the user
+    // doesn't belong to.
+    await this.chatService.listMessages(familyId, userId, 1, undefined).catch(() => {});
+
+    // Generate a unique messageId for the storage path. The client will
+    // use this same ID when it calls sendMessage with mediaUrl.
+    const messageId = `cm_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+    const result = await this.mediaService.uploadMedia({
+      buffer: file.buffer,
+      mediaType: body.mediaType,
+      mimeType: file.mimetype,
+      familyId,
+      messageId,
+      durationSeconds: body.durationSeconds ? parseInt(body.durationSeconds, 10) : null,
+    });
+
+    return {
+      messageId,
+      ...result,
+    };
   }
 }

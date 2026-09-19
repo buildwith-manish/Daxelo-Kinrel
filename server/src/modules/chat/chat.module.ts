@@ -4,6 +4,7 @@ import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
 import { StreakService } from './streak.service';
 import { ChatPushScheduler } from './chat-push.scheduler';
+import { MediaService } from './media.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { FcmModule } from '../notifications/fcm.module';
 
@@ -13,7 +14,7 @@ import { FcmModule } from '../notifications/fcm.module';
   // FcmModule provides FcmService for the batched-push scheduler.
   imports: [PrismaModule, FcmModule],
   controllers: [ChatController],
-  providers: [ChatService, ChatGateway, StreakService, ChatPushScheduler],
-  exports: [ChatService, StreakService],
+  providers: [ChatService, ChatGateway, StreakService, ChatPushScheduler, MediaService],
+  exports: [ChatService, StreakService, MediaService],
 })
 export class ChatModule {}
