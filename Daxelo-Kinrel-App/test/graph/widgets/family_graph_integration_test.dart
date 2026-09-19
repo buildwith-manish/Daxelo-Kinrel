@@ -117,7 +117,8 @@ void main() {
       final notifier = BranchCollapseNotifier();
       notifier.computeCollapse(
         allPersons: persons,
-        allEdges: edges,
+        allEdges: [for (final e in edges)
+          (fromId: e.fromId, toId: e.toId, edgeId: e.edgeId, relationshipKey: e.relationshipKey)],
         focusPersonId: 'person-0',
         firstDegreeIds: {'person-1', 'person-2', 'person-3', 'person-4'},
         secondDegreeIds: const {},
@@ -149,7 +150,8 @@ void main() {
       final notifier = BranchCollapseNotifier();
       notifier.computeCollapse(
         allPersons: persons,
-        allEdges: edges,
+        allEdges: [for (final e in edges)
+          (fromId: e.fromId, toId: e.toId, edgeId: e.edgeId, relationshipKey: e.relationshipKey)],
         focusPersonId: 'person-0',
         firstDegreeIds: {'person-1', 'person-2', 'person-3', 'person-4'},
         secondDegreeIds: const {},
@@ -300,7 +302,8 @@ void main() {
       final collapseNotifier = BranchCollapseNotifier();
       collapseNotifier.computeCollapse(
         allPersons: persons,
-        allEdges: edges,
+        allEdges: [for (final e in edges)
+          (fromId: e.fromId, toId: e.toId, edgeId: e.edgeId, relationshipKey: e.relationshipKey)],
         focusPersonId: 'person-0',
         firstDegreeIds: {'person-1', 'person-2', 'person-3', 'person-4'},
         secondDegreeIds: const {},
