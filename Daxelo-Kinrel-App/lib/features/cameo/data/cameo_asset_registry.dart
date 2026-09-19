@@ -271,12 +271,13 @@ class CameoAssetRegistry {
     //              'sikh_turban' | 'hijab_beige' | 'red_bindi' |
     //              'nose_ring' | 'mangalsutra' | ...
     if (accessoryId.startsWith('glasses_')) {
-      // QA fix 2026-09-19: the asset pack filenames keep the FULL id
-      // (round_glasses.png, square_glasses.png, reading_glasses.png — see
-      // the catalog in git history, ded07f89~1:kinrel-cameo/ASSET-CATALOG.md),
-      // matching every other branch below. The previous prefix-strip built
-      // 'glasses/round.png', which 404s at load time.
-      return '$kCameoAssetRoot/accessories/glasses/$accessoryId.png';
+      // QA fix 2026-09-19 (corrected): the pack filenames use the id as a
+      // SUFFIX — 'glasses_round' → round_glasses.png (also square_glasses,
+      // reading_glasses; see the catalog in git history,
+      // ded07f89~1:kinrel-cameo/ASSET-CATALOG.md). The previous prefix-strip
+      // built 'glasses/round.png' which 404s at load time.
+      final style = accessoryId.substring('glasses_'.length);
+      return '$kCameoAssetRoot/accessories/glasses/${style}_glasses.png';
     }
     if (accessoryId == 'jhumka_earrings') {
       return '$kCameoAssetRoot/accessories/earrings/jhumka_earrings.png';

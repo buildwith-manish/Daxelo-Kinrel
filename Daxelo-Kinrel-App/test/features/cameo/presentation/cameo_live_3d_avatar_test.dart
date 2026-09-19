@@ -394,9 +394,18 @@ void main() {
 
         await tester.pump(const Duration(milliseconds: 300));
 
-        // The widget should have a Semantics node
-        final semantics = tester.getSemantics(find.byType(CameoAvatar).first);
-        expect(semantics.label, isNotEmpty);
+        // The widget should expose a non-empty semantic label.
+        // QA fix 2026-09-19: the label Semantics node is a DESCENDANT of
+        // CameoAvatar (it wraps the painted content inside its build), so
+        // getSemantics(find.byType(CameoAvatar)) returned the avatar's own
+        // node — which carries no label ('' → failure). Assert on the label
+        // node itself instead.
+        final handle = tester.ensureSemantics();
+        expect(
+          find.bySemanticsLabel(RegExp(r'Cameo of Aaji')),
+          findsOneWidget,
+        );
+        handle.dispose();
       },
     );
 
