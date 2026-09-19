@@ -23,6 +23,16 @@ void main() {
   // v5.174 fix: include labelAtoB field (matches deriveCoupleUnions signature).
   // Set to null so the function falls back to relationshipKey (test data
   // already encodes the actual relationship label in relationshipKey).
+  //
+  // QA fix 2026-09-19 (Task 6-a): fixtures rewritten for the CANONICAL
+  // edge direction convention (v5.174 couple_union_model.dart commit
+  // 3caf684b; v5.19 relationship_edge_builder.dart):
+  //   from=X, to=Y, key='K' → "Y is X's K"
+  // so a 'father'/'mother' key means the toId is the PARENT. The old
+  // fixtures used the pre-v5.174 inverted reading ('father' → fromId
+  // is the parent), which made deriveCoupleUnions attach NO children
+  // after the v5.174 direction fix. Expectations are UNCHANGED — only
+  // the fixture directions were corrected.
   List<({String fromId, String toId, String edgeId, String relationshipKey, String? labelAtoB})>
       buildEdges(List<List<String>> pairs) {
     return pairs
@@ -59,13 +69,12 @@ void main() {
 
   group('Phase 6 — Two confirmed parents with child', () {
     test('TEST 2: child attached to union when BOTH parents confirmed', () {
-      // A (father) → C (child)
-      // B (mother) → C (child)
-      // A — wife — B (spouse)
+      // A and B are spouses; C is their confirmed child.
+      // Canonical (v5.174): from=X, to=Y, key='K' → "Y is X's K".
       final edges = buildEdges([
-        ['A', 'C', 'e1', 'father'], // A IS father OF C
-        ['B', 'C', 'e2', 'mother'], // B IS mother OF C
-        ['A', 'B', 'e3', 'wife'],   // A — wife — B
+        ['C', 'A', 'e1', 'father'], // canonical: "A is C's father"
+        ['C', 'B', 'e2', 'mother'], // canonical: "B is C's mother"
+        ['A', 'B', 'e3', 'wife'],   // canonical: "B is A's wife"
       ]);
 
       final unions = deriveCoupleUnions(edges);
@@ -79,11 +88,11 @@ void main() {
 
   group('Phase 6 — One known parent', () {
     test('TEST 3: child NOT attached to union when only one parent confirmed', () {
-      // A (father) → C (child)
-      // A — wife — B (spouse)
-      // NO B → C edge (B is NOT confirmed as C's parent)
+      // A is C's only known parent; A — wife — B (spouse).
+      // Canonical: C→A 'father' → "A is C's father".
+      // NO C→B edge (B is NOT confirmed as C's parent)
       final edges = buildEdges([
-        ['A', 'C', 'e1', 'father'],
+        ['C', 'A', 'e1', 'father'], // canonical: "A is C's father"
         ['A', 'B', 'e3', 'wife'],
       ]);
 
@@ -120,17 +129,16 @@ void main() {
     test('TEST 5: half-siblings correctly handled', () {
       // A — wife — B (union 1)
       // A — wife — C (union 2, remarriage)
-      // A (father) → D (child of A+B — both parents)
-      // B (mother) → D
-      // A (father) → E (child of A+C — both parents)
-      // C (mother) → E
+      // D is a child of A+B (both parents confirmed)
+      // E is a child of A+C (both parents confirmed)
+      // Canonical (v5.174): from=X, to=Y, key='K' → "Y is X's K".
       final edges = buildEdges([
         ['A', 'B', 'e1', 'wife'],
         ['A', 'C', 'e2', 'wife'],
-        ['A', 'D', 'e3', 'father'],
-        ['B', 'D', 'e4', 'mother'],
-        ['A', 'E', 'e5', 'father'],
-        ['C', 'E', 'e6', 'mother'],
+        ['D', 'A', 'e3', 'father'], // canonical: "A is D's father"
+        ['D', 'B', 'e4', 'mother'], // canonical: "B is D's mother"
+        ['E', 'A', 'e5', 'father'], // canonical: "A is E's father"
+        ['E', 'C', 'e6', 'mother'], // canonical: "C is E's mother"
       ]);
 
       final unions = deriveCoupleUnions(edges);
@@ -310,10 +318,12 @@ void main() {
     }
 
     test('shared child: both parent→child edges anchor at union midpoint', () {
-      // A (father) → C (child), B (mother) → C (child), A—wife—B (union)
+      // A and B are spouses; C is their confirmed child.
+      // Canonical (v5.174): C→A 'father' ("A is C's father"),
+      // C→B 'mother' ("B is C's mother").
       final edges = buildEdges([
-        ['A', 'C', 'e1', 'father'],
-        ['B', 'C', 'e2', 'mother'],
+        ['C', 'A', 'e1', 'father'], // canonical: "A is C's father"
+        ['C', 'B', 'e2', 'mother'], // canonical: "B is C's mother"
         ['A', 'B', 'e3', 'wife'],
       ]);
       final unions = deriveCoupleUnions(edges);
@@ -354,9 +364,10 @@ void main() {
     });
 
     test('single-parent child (no union): edge anchors at parent position', () {
-      // A (father) → C (child), NO spouse edge → no union.
+      // A is C's father, NO spouse edge → no union.
+      // Canonical: C→A 'father' → "A is C's father".
       final edges = buildEdges([
-        ['A', 'C', 'e1', 'father'],
+        ['C', 'A', 'e1', 'father'], // canonical: "A is C's father"
       ]);
       final unions = deriveCoupleUnions(edges);
       expect(unions, isEmpty);
@@ -379,17 +390,16 @@ void main() {
 
     test('remarriage: each child anchors to the CORRECT union', () {
       // A — wife — B (union 1), A — wife — C (union 2, remarriage)
-      // A (father) → D (child of A+B — both parents confirmed)
-      // B (mother) → D
-      // A (father) → E (child of A+C — both parents confirmed)
-      // C (mother) → E
+      // D is a child of A+B (both parents confirmed)
+      // E is a child of A+C (both parents confirmed)
+      // Canonical (v5.174): from=X, to=Y, key='K' → "Y is X's K".
       final edges = buildEdges([
         ['A', 'B', 'e1', 'wife'],
         ['A', 'C', 'e2', 'wife'],
-        ['A', 'D', 'e3', 'father'],
-        ['B', 'D', 'e4', 'mother'],
-        ['A', 'E', 'e5', 'father'],
-        ['C', 'E', 'e6', 'mother'],
+        ['D', 'A', 'e3', 'father'], // canonical: "A is D's father"
+        ['D', 'B', 'e4', 'mother'], // canonical: "B is D's mother"
+        ['E', 'A', 'e5', 'father'], // canonical: "A is E's father"
+        ['E', 'C', 'e6', 'mother'], // canonical: "C is E's mother"
       ]);
       final unions = deriveCoupleUnions(edges);
       expect(unions.length, 2);
@@ -427,15 +437,17 @@ void main() {
 
     test('half-sibling: shared-parent child does not redirect non-shared child', () {
       // A — wife — B (union)
-      // A (father) → C (shared child of A+B)
-      // B (mother) → C
-      // A (father) → D (child of A only, NOT B's child — half-sibling)
+      // C is the shared child of A+B (both parents confirmed)
+      // D is a child of A only (NOT B's child — half-sibling)
+      // Canonical (v5.174): C→A 'father' ("A is C's father"),
+      // C→B 'mother' ("B is C's mother"), D→A 'father' ("A is D's
+      // father" — D's only known parent).
       final edges = buildEdges([
         ['A', 'B', 'e1', 'wife'],
-        ['A', 'C', 'e2', 'father'],
-        ['B', 'C', 'e3', 'mother'],
-        ['A', 'D', 'e4', 'father'],
-        // NO B→D edge — D is NOT B's child.
+        ['C', 'A', 'e2', 'father'], // canonical: "A is C's father"
+        ['C', 'B', 'e3', 'mother'], // canonical: "B is C's mother"
+        ['D', 'A', 'e4', 'father'], // canonical: "A is D's father"
+        // NO D→B edge — D is NOT B's child.
       ]);
       final unions = deriveCoupleUnions(edges);
       expect(unions.length, 1);
@@ -478,8 +490,8 @@ void main() {
       // This test verifies the edge data is unchanged.
       final edges = buildEdges([
         ['A', 'B', 'e1', 'wife'],
-        ['A', 'C', 'e2', 'father'],
-        ['B', 'C', 'e3', 'mother'],
+        ['C', 'A', 'e2', 'father'], // canonical: "A is C's father"
+        ['C', 'B', 'e3', 'mother'], // canonical: "B is C's mother"
       ]);
       final unions = deriveCoupleUnions(edges);
 

@@ -701,10 +701,17 @@ void main() {
 
     test('unrelated branches keep their chips when one branch expands', () {
       // Two independent hidden clusters behind two visible roots.
+      //
+      // v5.192 (commit d4215378): computeDensityCollapse bypasses graphs
+      // with ≤ kNodeBudget (50) nodes entirely (branches must stay
+      // expanded unless manually collapsed), so the original 12-node
+      // fixture produced NO chips at all. Each cluster is 26 members
+      // (54 total nodes > 50) so the density-collapse path runs while
+      // keeping the two-cluster shape intact.
       final persons = <String>{'a', 'b'};
       final childrenOf = <String, Set<String>>{};
       final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[];
-      for (var i = 0; i < 5; i++) {
+      for (var i = 0; i < 26; i++) {
         final idA = 'a-$i';
         final idB = 'b-$i';
         persons..add(idA)..add(idB);
@@ -714,7 +721,7 @@ void main() {
         edges.add((fromId: idB, toId: 'b', edgeId: 'eb$i', relationshipKey: 'parent'));
       }
       // a's cluster becomes visible (expanded); b's stays hidden.
-      final visibleAfterExpand = <String>{'a', 'a-0', 'a-1', 'a-2', 'a-3', 'a-4', 'b'};
+      final visibleAfterExpand = <String>{'a', ...[for (var i = 0; i < 26; i++) 'a-$i'], 'b'};
 
       notifier.computeDensityCollapse(
         visibleNodeIds: visibleAfterExpand,
@@ -723,13 +730,13 @@ void main() {
         allEdges: edges,
       );
 
-      // b's bubble survives untouched — 5 hidden members.
+      // b's bubble survives untouched — 26 hidden members.
       final bBranch = notifier.state.collapsedBranches
           .where((b) => b.rootPersonId == 'b')
           .firstOrNull;
       expect(bBranch, isNotNull,
           reason: 'Expanding ONE branch must not touch unrelated branches');
-      expect(bBranch!.hiddenCount, 5);
+      expect(bBranch!.hiddenCount, 26);
       // a's members are all visible now → no bubble on a.
       expect(
           notifier.state.collapsedBranches.where((b) => b.rootPersonId == 'a'),

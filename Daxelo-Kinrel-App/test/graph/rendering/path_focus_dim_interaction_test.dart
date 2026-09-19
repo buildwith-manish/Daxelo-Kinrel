@@ -155,38 +155,31 @@ void main() {
       final painter = buildPainter(dimmedEdgeIds: allDimmed);
       painter.paint(canvas, const Size(1000, 1000));
 
-      // Every edge stroke is at dimAlpha (≈0.18) — none bright.
+      // Every edge stroke is at dimAlpha — none bright.
       expect(canvas.pathStrokeAlphas, isNotEmpty,
           reason: 'Painter must have painted edge strokes');
-      // Every stroke alpha is in the dim range (≤ 0.3 = dimmed,
-      // since dimAlpha = 0.18 and edgeAlpha is clamped to ≥ 0.3 for
-      // the parent category, so the dimmed alpha is at most
-      // 0.3 * 0.18 = 0.054... but actually the painter computes
-      // `edgeAlpha.clamp(0.3, 1.0)` BEFORE multiplying by dimAlpha,
-      // so a dimmed parent edge is 1.0 * 0.18 = 0.18. Wait — let me
-      // re-check: style.defaultAlpha for the parent category is
-      // 1.0 (verified in kinship_edge_style.dart). And the painter
-      // clamps to [0.3, 1.0]. Then multiplies by dimAlpha (0.18).
-      // So the actual alpha should be 0.18. The ridge pass uses
-      // a separate alpha (ridgeAlpha from EdgeQuality), which is
-      // what we're seeing at 0.26. So I should look at the MAX
-      // alpha (body pass) not just any stroke.
+      // v5.164 (commit 8f6365b6, "DEFAULT-DIM VISIBILITY"): the
+      // non-focus dim alpha was intentionally raised from 0.40 → 0.55
+      // so default-dim is actually PERCEPTIBLE on a busy canvas (the
+      // user reported the 0.40 dim "read as full brightness"). With
+      // pathFocusActive == false this is the tap-driven default-dim
+      // state, so a dimmed parent-category body stroke is
+      // 0.55 × 0.85 (KinshipEdgeStyle.parent.defaultAlpha) = 0.4675.
+      // A BRIGHT (undimmed) parent body would be 0.85 — so the max
+      // stroke alpha must stay inside the dim band, well below the
+      // bright body alpha and consistent with the intentional 0.55
+      // dim level (ridge 0.26 / shadow 0.26 are below the body pass).
       final maxAlpha = canvas.pathStrokeAlphas.fold<double>(
           0.0, (a, b) => a > b ? a : b);
-      // In the dim state, the body pass alpha is at most 0.18 *
-      // edgeAlpha. With edgeAlpha ≤ 1.0, max body alpha is 0.18.
-      // But ridge/shadow passes have their own alphas. The
-      // strongest stroke in the dim state should still be < 0.4
-      // (body alpha 0.18, ridge alpha ~0.26 from EdgeQuality.full,
-      // but only one of them is the dominant body). We assert
-      // the body alpha (the max) is in the dim range.
-      expect(maxAlpha, lessThan(0.4),
-          reason: 'Default-dim state: every edge stroke must be '
-              'at dimAlpha (≈0.18). The body pass is 0.18, the ridge '
-              'pass may be up to ~0.26 (from EdgeQuality), so the max '
-              'stroke alpha must be < 0.4. Got $maxAlpha. If a bright '
-              'stroke (alpha > 0.5) appears, the dim hierarchy is '
-              'not dimming all edges as expected.');
+      expect(maxAlpha, allOf(greaterThan(0.4), lessThan(0.6)),
+          reason: 'Default-dim state (v5.164: dimAlpha 0.55): every edge '
+              'stroke must sit in the dim band — the body pass is '
+              '0.55 × 0.85 = 0.4675 for the parent category, the ridge/'
+              'shadow passes are 0.26. Got $maxAlpha. If a bright '
+              'stroke (alpha ≈ 0.85+) appears, the dim hierarchy is '
+              'not dimming all edges as expected; if the max drops '
+              'below 0.4, the dim has regressed to the pre-v5.164 '
+              'too-subtle level.');
     });
 
     test(

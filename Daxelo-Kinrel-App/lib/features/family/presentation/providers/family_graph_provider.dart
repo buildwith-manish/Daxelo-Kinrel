@@ -2188,9 +2188,20 @@ final graphLayoutProvider =
   final isBranchExpandFlow =
       ref.read(justRestoredFromSnapshotProvider(familyId));
   if (isBranchExpandFlow) {
-    // Reset immediately — only fire once per restore.
-    ref.read(justRestoredFromSnapshotProvider(familyId).notifier).state =
-        false;
+    // v5.216 (RIVERPOD INIT FIX): reset the one-shot flag via a
+    // MICROTASK, not synchronously. For small graphs (nodeCount ≤ 15)
+    // this provider's entire body runs synchronously during its own
+    // buildState — mutating another provider there throws Riverpod's
+    // "Providers are not allowed to modify other providers during
+    // their initialization" (the same defect class the v5.123 fix
+    // removed for proximityGraphProvider.initialize — see the comment
+    // at the computeDefaultVisibleIds call above). The microtask runs
+    // after buildState completes, so the write is always legal. The
+    // fire-once semantics are preserved: the flag is only read here,
+    // and the next layout pass starts in a later event-loop turn.
+    final flagNotifier = ref.read(
+        justRestoredFromSnapshotProvider(familyId).notifier);
+    scheduleMicrotask(() => flagNotifier.state = false);
   }
 
   if (previousPositions != null && previousPositions.isNotEmpty) {
@@ -2255,9 +2266,13 @@ final graphLayoutProvider =
         // Write the repaired map back to the cache so the NEXT
         // layout pass picks it up too (avoids re-detecting the same
         // overlap on every invalidation).
-        ref
-            .read(lastLayoutPositionsProvider(familyId).notifier)
-            .state = repaired;
+        // v5.216 (RIVERPOD INIT FIX): deferred to a microtask — a
+        // synchronous write here would mutate another provider during
+        // this provider's own initialization (see the note on the
+        // justRestoredFromSnapshotProvider reset above).
+        final cacheNotifier = ref.read(
+            lastLayoutPositionsProvider(familyId).notifier);
+        scheduleMicrotask(() => cacheNotifier.state = repaired);
         previousPositions = repaired;
         if (isBranchExpandFlow) {
           debugPrint(
@@ -2386,9 +2401,30 @@ final graphLayoutProvider =
   // NEXT layout pass can use them as "settled" via preservePositions.
   // We only cache when the layout actually produced positions (not the
   // empty-graph early returns above).
+  //
+  // v5.216 (RIVERPOD INIT FIX): the write is deferred to a microtask.
+  // It used to happen synchronously here, which — for small graphs
+  // (nodeCount ≤ 15, the sync RadialLayout path with no isolate
+  // `await`) — mutated lastLayoutPositionsProvider DURING this
+  // FutureProvider's own initialization. Riverpod forbids that
+  // ("Providers are not allowed to modify other providers during
+  // their initialization") and it crashed
+  // family_graph_screen_fab_test (4-member graph, see commit
+  // 004d371c which introduced the cache in v5.161). This is the same
+  // defect class the v5.123 fix removed in this file for
+  // proximityGraphProvider.initialize. The microtask always runs
+  // after buildState completes, before any later layout pass (which
+  // starts in a subsequent event-loop turn), so the
+  // preserve-positions semantics are unchanged. For large graphs the
+  // isolate `await` above already made this line async — the
+  // microtask only aligns the small-graph path with that behavior.
   if (result.positions.isNotEmpty) {
-    ref.read(lastLayoutPositionsProvider(familyId).notifier).state =
-        result.positions;
+    final cacheNotifier =
+        ref.read(lastLayoutPositionsProvider(familyId).notifier);
+    final positionsToCache = result.positions;
+    scheduleMicrotask(() {
+      cacheNotifier.state = positionsToCache;
+    });
   }
 
   // v5.165 (LAYOUT VALIDATION): run the post-expand validation pass.

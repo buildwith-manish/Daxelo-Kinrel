@@ -36,6 +36,20 @@
 // supporting coverage. A future change that silently reintroduces the
 // drift (e.g. by inlining a second copy of the redirect logic in
 // either call site) will be caught by tests 5 and 6.
+//
+// QA fix 2026-09-19 (Task 6-a): all fixtures were rewritten for the
+// CANONICAL edge direction convention (v5.174,
+// lib/graph/interaction/couple_union_model.dart commit 3caf684b; see
+// also v5.19 relationship_edge_builder.dart):
+//
+//   from=X, to=Y, key='K'  →  "Y is X's K"
+//
+// so a 'father'/'mother' key marks the toId as the PARENT. The old
+// fixtures encoded the pre-v5.174 inverted reading ('father' → fromId
+// is the parent), which made deriveCoupleUnions attach NO children,
+// so every redirect assertion below failed (or, for tests 2a/5, passed
+// vacuously with the redirect inactive). The geometry expectations
+// are UNCHANGED — only the fixture directions were corrected.
 
 
 import 'package:flutter_test/flutter_test.dart';
@@ -46,6 +60,11 @@ import 'package:kinrel/graph/interaction/couple_union_model.dart';
 /// `e.targetId`, and `e.id` from `GraphEdgeData`; we replicate just
 /// those fields. This keeps the test focused on the redirect logic
 /// (the actual subject of the fix) rather than the full edge model.
+///
+/// Production may iterate a parent–child pair in EITHER direction
+/// (EdgeDeduplicator keeps the first-seen / parent-direction row as
+/// primary), and `resolveEffectiveEdgeEndpoints` redirects
+/// symmetrically — TEST 1 and TEST 5 verify both directions.
 class _TestEdge {
   const _TestEdge(this.id, this.sourceId, this.targetId);
   final String id;
@@ -61,6 +80,10 @@ void main() {
   /// Build edge tuples in the format `deriveCoupleUnions` expects.
   /// v5.174 fix: include labelAtoB field. Null falls back to relationshipKey
   /// inside deriveCoupleUnions, so test data is unchanged.
+  ///
+  /// QA fix 2026-09-19 (Task 6-a): fixtures below use the canonical
+  /// direction convention (v5.174): from=X, to=Y, key='K' → "Y is X's
+  /// K" — i.e. for 'father'/'mother' keys the toId is the PARENT.
   List<({String fromId, String toId, String edgeId, String relationshipKey, String? labelAtoB})>
       buildEdges(List<List<String>> pairs) {
     return pairs
@@ -149,14 +172,16 @@ void main() {
   // ─────────────────────────────────────────────────────────────────────
   group('TEST 1 — Redirect-point assertion', () {
     test('parent→child edge redirects source to union midpoint', () {
-      // A — wife — B (spouse)
-      // A (father) → C (child)
-      // B (mother) → C (child)
+      // Family: A and B are spouses; C is their confirmed child.
+      // Canonical convention (v5.174): from=X, to=Y, key='K' → "Y is X's K"
+      //   A→B 'wife'   → "B is A's wife"   (spouse pair)
+      //   C→A 'father' → "A is C's father" (A is C's parent)
+      //   C→B 'mother' → "B is C's mother" (B is C's parent)
       // C is a confirmed child of BOTH A and B → attached to the union.
       final edges = buildEdges([
-        ['A', 'B', 'eAB', 'wife'],
-        ['A', 'C', 'eAC', 'father'],
-        ['B', 'C', 'eBC', 'mother'],
+        ['A', 'B', 'eAB', 'wife'], // canonical: "B is A's wife"
+        ['C', 'A', 'eAC', 'father'], // canonical: "A is C's father"
+        ['C', 'B', 'eBC', 'mother'], // canonical: "B is C's mother"
       ]);
       final unions = deriveCoupleUnions(edges);
       expect(unions.length, 1);
@@ -197,9 +222,9 @@ void main() {
       // Same family structure, but test the REVERSED edge direction:
       // C → A (child→parent). The redirect must apply symmetrically.
       final edges = buildEdges([
-        ['A', 'B', 'eAB', 'wife'],
-        ['A', 'C', 'eAC', 'father'],
-        ['B', 'C', 'eBC', 'mother'],
+        ['A', 'B', 'eAB', 'wife'], // canonical: "B is A's wife"
+        ['C', 'A', 'eAC', 'father'], // canonical: "A is C's father"
+        ['C', 'B', 'eBC', 'mother'], // canonical: "B is C's mother"
       ]);
       final unions = deriveCoupleUnions(edges);
       final positions = <String, Offset>{
@@ -239,13 +264,13 @@ void main() {
   // ─────────────────────────────────────────────────────────────────────
   group('TEST 2 — Non-union child unaffected', () {
     test('child with only one known parent stays anchored to that parent', () {
-      // A (father) → C (child)
-      // A — wife — B (spouse)
-      // NO B → C edge. C is NOT attached to the union (only one parent
+      // A is C's only known parent; A — wife — B (spouse pair).
+      // Canonical: C→A 'father' → "A is C's father".
+      // NO C→B edge. C is NOT attached to the union (only one parent
       // confirmed). C's edge must anchor to A's RAW position, not the
       // union midpoint.
       final edges = buildEdges([
-        ['A', 'C', 'eAC', 'father'],
+        ['C', 'A', 'eAC', 'father'], // canonical: "A is C's father"
         ['A', 'B', 'eAB', 'wife'],
       ]);
       final unions = deriveCoupleUnions(edges);
@@ -282,8 +307,9 @@ void main() {
 
     test('no unions at all → no redirect', () {
       // Pure parent-child edge, no spouse pair. No unions derived.
+      // Canonical: C→A 'father' → "A is C's father".
       final edges = buildEdges([
-        ['A', 'C', 'eAC', 'father'],
+        ['C', 'A', 'eAC', 'father'],
       ]);
       final unions = deriveCoupleUnions(edges);
       expect(unions, isEmpty);
@@ -312,17 +338,20 @@ void main() {
   // ─────────────────────────────────────────────────────────────────────
   group('TEST 3 — Remarriage', () {
     test('each child\'s edge anchors to the correct union midpoint', () {
-      // A — wife — B (union 1, midpoint at (50, 0))
-      // A — wife — C (union 2, midpoint at (150, 0))
-      // A (father) → D, B (mother) → D  → D is child of union 1
-      // A (father) → E, C (mother) → E  → E is child of union 2
+      // Remarriage: A — B (union 1, midpoint at (50, 0)),
+      //             A — C (union 2, midpoint at (150, 0)).
+      // Canonical (v5.174): from=X, to=Y, key='K' → "Y is X's K".
+      //   D→A 'father' : "A is D's father" — D is a child of BOTH
+      //   D→B 'mother' : "B is D's mother" — A and B → union 1.
+      //   E→A 'father' : "A is E's father" — E is a child of BOTH
+      //   E→C 'mother' : "C is E's mother" — A and C → union 2.
       final edges = buildEdges([
         ['A', 'B', 'eAB', 'wife'],
         ['A', 'C', 'eAC2', 'wife'],
-        ['A', 'D', 'eAD', 'father'],
-        ['B', 'D', 'eBD', 'mother'],
-        ['A', 'E', 'eAE', 'father'],
-        ['C', 'E', 'eCE', 'mother'],
+        ['D', 'A', 'eAD', 'father'], // canonical: "A is D's father"
+        ['D', 'B', 'eBD', 'mother'], // canonical: "B is D's mother"
+        ['E', 'A', 'eAE', 'father'], // canonical: "A is E's father"
+        ['E', 'C', 'eCE', 'mother'], // canonical: "C is E's mother"
       ]);
       final unions = deriveCoupleUnions(edges);
       expect(unions.length, 2);
@@ -376,18 +405,19 @@ void main() {
   group('TEST 4 — Half-sibling', () {
     test('shared child\'s sibling (NOT in same union) is NOT redirected', () {
       // A — wife — B (union 1)
-      // A (father) → D, B (mother) → D  → D is child of union 1 (shared)
-      // A (father) → F                            → F has only ONE known
-      //                                            parent (A), so F is
-      //                                            NOT in any union.
+      // D is a child of BOTH A and B → child of union 1 (shared).
+      // F has only ONE known parent (A) → NOT in any union.
       // F is a half-sibling of D (they share parent A only).
+      // Canonical (v5.174): D→A 'father' ("A is D's father"),
+      // D→B 'mother' ("B is D's mother"), F→A 'father' ("A is F's
+      // father" — F's only known parent).
       //
       // The redirect for A→D must NOT bleed into A→F.
       final edges = buildEdges([
         ['A', 'B', 'eAB', 'wife'],
-        ['A', 'D', 'eAD', 'father'],
-        ['B', 'D', 'eBD', 'mother'],
-        ['A', 'F', 'eAF', 'father'], // F has only one known parent (A)
+        ['D', 'A', 'eAD', 'father'], // canonical: "A is D's father"
+        ['D', 'B', 'eBD', 'mother'], // canonical: "B is D's mother"
+        ['F', 'A', 'eAF', 'father'], // F has only one known parent (A)
       ]);
       final unions = deriveCoupleUnions(edges);
       expect(unions.length, 1);
@@ -442,9 +472,9 @@ void main() {
       // A-B union midpoint (not A's raw position), so its midpoint is
       // halfway between the union midpoint and C.
       final edgeTuples = buildEdges([
-        ['A', 'B', 'eAB', 'wife'],
-        ['A', 'C', 'eAC', 'father'],
-        ['B', 'C', 'eBC', 'mother'],
+        ['A', 'B', 'eAB', 'wife'], // canonical: "B is A's wife"
+        ['C', 'A', 'eAC', 'father'], // canonical: "A is C's father"
+        ['C', 'B', 'eBC', 'mother'], // canonical: "B is C's mother"
       ]);
       final unions = deriveCoupleUnions(edgeTuples);
 
@@ -503,9 +533,9 @@ void main() {
     test('parity holds for child→parent direction too', () {
       // Same family, but the edge under test is C→A (reversed direction).
       final edgeTuples = buildEdges([
-        ['A', 'B', 'eAB', 'wife'],
-        ['A', 'C', 'eAC', 'father'],
-        ['B', 'C', 'eBC', 'mother'],
+        ['A', 'B', 'eAB', 'wife'], // canonical: "B is A's wife"
+        ['C', 'A', 'eAC', 'father'], // canonical: "A is C's father"
+        ['C', 'B', 'eBC', 'mother'], // canonical: "B is C's mother"
       ]);
       final unions = deriveCoupleUnions(edgeTuples);
       final positions = <String, Offset>{
@@ -563,9 +593,9 @@ void main() {
       // test will catch it because the OLD and NEW midpoints diverge
       // precisely when the redirect is active.
       final edgeTuples = buildEdges([
-        ['A', 'B', 'eAB', 'wife'],
-        ['A', 'C', 'eAC', 'father'],
-        ['B', 'C', 'eBC', 'mother'],
+        ['A', 'B', 'eAB', 'wife'], // canonical: "B is A's wife"
+        ['C', 'A', 'eAC', 'father'], // canonical: "A is C's father"
+        ['C', 'B', 'eBC', 'mother'], // canonical: "B is C's mother"
       ]);
       final unions = deriveCoupleUnions(edgeTuples);
       final positions = <String, Offset>{
@@ -660,9 +690,9 @@ void main() {
       // proves the two midpoints are genuinely different points and
       // the bug isn't an artifact of the test setup.
       final edgeTuples = buildEdges([
-        ['A', 'B', 'eAB', 'wife'],
-        ['A', 'C', 'eAC', 'father'],
-        ['B', 'C', 'eBC', 'mother'],
+        ['A', 'B', 'eAB', 'wife'], // canonical: "B is A's wife"
+        ['C', 'A', 'eAC', 'father'], // canonical: "A is C's father"
+        ['C', 'B', 'eBC', 'mother'], // canonical: "B is C's mother"
       ]);
       final unions = deriveCoupleUnions(edgeTuples);
       final positions = <String, Offset>{
@@ -741,9 +771,9 @@ void main() {
       // logic (the original sin) will fail here immediately, before
       // tests 5 and 6 even run.
       final edgeTuples = buildEdges([
-        ['A', 'B', 'eAB', 'wife'],
-        ['A', 'C', 'eAC', 'father'],
-        ['B', 'C', 'eBC', 'mother'],
+        ['A', 'B', 'eAB', 'wife'], // canonical: "B is A's wife"
+        ['C', 'A', 'eAC', 'father'], // canonical: "A is C's father"
+        ['C', 'B', 'eBC', 'mother'], // canonical: "B is C's mother"
       ]);
       final unions = deriveCoupleUnions(edgeTuples);
       final positions = <String, Offset>{

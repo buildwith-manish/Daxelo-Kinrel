@@ -20,8 +20,18 @@
 //      user expands deeper into the tree (re-zoned sub-bubbles
 //      reflect THEIR own next-level count, not the parent's).
 //   4. The cap (kMaxNodesPerExpansion = 15) is enforced — a root
-//      with 30 direct hidden children shows "+15" on the chip,
-//      because only 15 will actually be revealed on tap.
+//      with more direct hidden children than the cap (e.g. 55) shows
+//      "+15" on the chip, because only 15 will actually be revealed
+//      on tap.
+//
+// v5.192 NOTE (commit d4215378): `computeDensityCollapse` now has a
+// small-graph bypass — when the FULL adjacency has ≤ kNodeBudget (50)
+// nodes it returns early (only manual branches survive) because
+// "branches must remain expanded unless the user manually collapses
+// them; the node-visibility rule should only apply when the graph
+// exceeds the configured limit (> 50)". Every fixture below therefore
+// exceeds 50 total nodes so the density-collapse path under test
+// actually runs.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/graph/interaction/branch_collapse_state.dart';
@@ -169,10 +179,13 @@ void main() {
         'CRITERION 3: chip count caps at kMaxNodesPerExpansion (15) when '
         'the root has more direct hidden children than the cap',
         () {
-      // Root has 30 direct hidden children. computeNextLevelReveal caps
-      // at 15, so the chip must show "+15", not "+30".
+      // Root has 55 direct hidden children (56 total nodes — above the
+      // v5.192 kNodeBudget bypass, which would otherwise skip the
+      // density collapse entirely on a ≤ 50-node graph).
+      // computeNextLevelReveal caps at 15, so the chip must show "+15",
+      // not "+55".
       final edges = <_E>[];
-      for (var i = 1; i <= 30; i++) {
+      for (var i = 1; i <= 55; i++) {
         edges.add((fromId: 'child$i', toId: 'root', edgeId: 'e$i',
             relationshipKey: 'parent'));
       }
@@ -189,8 +202,8 @@ void main() {
       expect(branch.nextExpansionCount, kMaxNodesPerExpansion,
           reason: 'When direct children > 15, chip caps at 15 — only 15 '
               'will actually appear on tap.');
-      expect(branch.hiddenCount, 30,
-          reason: 'Full count still tracks all 30.');
+      expect(branch.hiddenCount, 55,
+          reason: 'Full count still tracks all 55.');
     });
 
     test(
@@ -235,15 +248,18 @@ void main() {
         'neighbours falls back to count of zone members adjacent to '
         'any visible node, capped at kMaxNodesPerExpansion',
         () {
-      // Topology: visible root R1, hidden H1, hidden H2, hidden H3.
-      // R1 → V2 (visible) → H1 → H2 → H3 (chain).
-      // R1 has no direct hidden neighbours. The zone fallback reveals
-      // H1 (adjacent to visible V2). H2, H3 are deeper.
+      // Topology: visible root R1, visible V2, and a 49-member hidden
+      // chain hanging off V2 (51 total nodes — above the v5.192
+      // kNodeBudget bypass).
+      // R1 → V2 (visible) → H1 → H2 → … → H49 (chain).
+      // R1 has no direct hidden neighbours. V2's chip counts its single
+      // direct hidden neighbour H1; H2..H49 are deeper levels.
       final edges = <_E>[
         (fromId: 'V2', toId: 'R1', edgeId: 'e1', relationshipKey: 'parent'),
         (fromId: 'H1', toId: 'V2', edgeId: 'e2', relationshipKey: 'parent'),
-        (fromId: 'H2', toId: 'H1', edgeId: 'e3', relationshipKey: 'parent'),
-        (fromId: 'H3', toId: 'H2', edgeId: 'e4', relationshipKey: 'parent'),
+        for (var i = 2; i <= 49; i++)
+          (fromId: 'H$i', toId: 'H${i - 1}', edgeId: 'eH$i',
+              relationshipKey: 'parent'),
       ];
       final adjacency = buildAdjacency(edges);
 
@@ -264,31 +280,47 @@ void main() {
       // V2 has 1 direct hidden neighbour (H1) → chip shows +1.
       expect(branch!.nextExpansionCount, 1,
           reason: 'V2 has 1 direct hidden neighbour (H1) → chip +1.');
-      // Full hidden count: H1, H2, H3 = 3.
-      expect(branch.hiddenCount, 3,
-          reason: 'Full hidden count tracks all 3 chain members.');
+      // Full hidden count: H1..H49 = 49.
+      expect(branch.hiddenCount, 49,
+          reason: 'Full hidden count tracks all 49 chain members.');
     });
 
     test('CRITERION 6: a dead-end flat group shows the full count on chip',
         () {
       // Topology: root + 4 direct hidden children, no grandchildren.
       // hiddenCount == nextExpansionCount == 4 (a "dead end" group).
+      //
+      // v5.192 (commit d4215378): computeDensityCollapse bypasses graphs
+      // with ≤ kNodeBudget (50) nodes, so a bare 5-node fixture no longer
+      // produces any branch. A second visible hub with its own hidden
+      // filler chain pushes the graph to 52 nodes (> 50) WITHOUT adding
+      // grandchildren under 'root' — the dead-end shape under test is
+      // preserved.
       final edges = <_E>[
         (fromId: 'c1', toId: 'root', edgeId: 'e1', relationshipKey: 'parent'),
         (fromId: 'c2', toId: 'root', edgeId: 'e2', relationshipKey: 'parent'),
         (fromId: 'c3', toId: 'root', edgeId: 'e3', relationshipKey: 'parent'),
         (fromId: 'c4', toId: 'root', edgeId: 'e4', relationshipKey: 'parent'),
+        // Filler component: hub (visible) → 46-node hidden chain.
+        (fromId: 'f1', toId: 'hub', edgeId: 'ef1', relationshipKey: 'parent'),
+        for (var i = 2; i <= 46; i++)
+          (fromId: 'f$i', toId: 'f${i - 1}', edgeId: 'ef$i',
+              relationshipKey: 'parent'),
       ];
       final adjacency = buildAdjacency(edges);
 
       final notifier = BranchCollapseNotifier();
       notifier.computeDensityCollapse(
-        visibleNodeIds: {'root'},
+        visibleNodeIds: {'root', 'hub'},
         childrenOf: adjacency,
         personNameOf: (id) => 'Person $id',
         allEdges: edges,
       );
-      final branch = notifier.state.collapsedBranches.first;
+      // Two zones: root's dead-end group (4) + hub's filler chain (46).
+      expect(notifier.state.collapsedBranches.length, 2);
+      final branch = notifier.state.collapsedBranches
+          .where((b) => b.rootPersonId == 'root')
+          .first;
       expect(branch.nextExpansionCount, 4);
       expect(branch.hiddenCount, 4);
       expect(branch.hasNestedDescendants, isFalse,

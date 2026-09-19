@@ -321,16 +321,27 @@ void main() {
       final notifier = BranchCollapseNotifier();
       // Visible: root + one child. Hidden: root's 6 grandchildren via
       // 'child' — a zone bubble forms at 'child'.
+      //
+      // v5.192 (commit d4215378): computeDensityCollapse bypasses graphs
+      // with ≤ kNodeBudget (50) nodes (branches stay expanded unless
+      // manually collapsed), so the original 8-node fixture produced no
+      // bubble at all. A second visible hub with its own hidden filler
+      // chain pushes the graph to 55 nodes (> 50) WITHOUT touching the
+      // root/child/grandchild shape under test.
       final childrenOf = <String, Set<String>>{
         'root': {'child'},
         'child': {'g1', 'g2', 'g3', 'g4', 'g5', 'g6'},
+        'hub': {'f1'},
+        for (var i = 1; i < 46; i++) 'f$i': {'f${i + 1}'},
       };
       final edges = <_E>[
         _e('root', 'child', 'son'),
         for (var i = 1; i <= 6; i++) _e('child', 'g$i', 'daughter'),
+        _e('f1', 'hub', 'parent'),
+        for (var i = 2; i <= 46; i++) _e('f$i', 'f${i - 1}', 'parent'),
       ];
       notifier.computeDensityCollapse(
-        visibleNodeIds: {'root', 'child'},
+        visibleNodeIds: {'root', 'child', 'hub'},
         childrenOf: childrenOf,
         personNameOf: (id) => id == 'child'
             ? 'Geeta Iyer'
@@ -339,8 +350,11 @@ void main() {
       );
 
       expect(notifier.state.collapsedBranches, isNotEmpty);
-      final branch = notifier.state.collapsedBranches.first;
-      expect(branch.rootPersonId, 'child');
+      // The bubble under test is the one rooted at 'child' (the filler
+      // chain hangs off 'hub' and forms its own zone).
+      final branch = notifier.state.collapsedBranches
+          .where((b) => b.rootPersonId == 'child')
+          .first;
       // Root name is known → the chip reads "Geeta Iyer +6".
       expect(branch.representativeName, 'Geeta Iyer');
       expect(branch.hiddenCount, 6);

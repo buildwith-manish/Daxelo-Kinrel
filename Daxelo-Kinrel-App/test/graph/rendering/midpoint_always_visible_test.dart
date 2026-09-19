@@ -293,34 +293,17 @@ void main() {
       // are applied identically to the paint loop). Anything else would
       // drift from the rendered curve.
       //
-      // v5.x (BUG-1 fix — edge routing through nodes): the painter now
-      // shortens both endpoints by kEdgeEndpointInset (38px) along the
-      // chord direction so the bezier starts/ends at the node circle
-      // boundary. The test must apply the SAME shortening to the
-      // expected position computation so the midpoint stays in sync.
-      const double kEdgeEndpointInset = 38.0;
+      // v5.173 (commit b0f708ab, "edge endpoints to node center — no
+      // radius/boundary inset"): the painter NO LONGER shortens the
+      // endpoints by kEdgeEndpointInset — the bezier runs center-to-
+      // center and the node layer (drawn on top) hides the center
+      // portion. The expected midpoint must therefore be computed from
+      // the RAW node positions, exactly like the painter does.
       const rawSource = Offset(100, 0);
       const rawTarget = Offset(100, 100);
-      final rawChord = rawTarget - rawSource;
-      final rawChordLen = rawChord.distance;
-      final Offset testSource;
-      final Offset testTarget;
-      if (rawChordLen > 1.0 && rawChordLen > kEdgeEndpointInset * 2) {
-        final dir = rawChord / rawChordLen;
-        testSource = rawSource + dir * kEdgeEndpointInset;
-        testTarget = rawTarget - dir * kEdgeEndpointInset;
-      } else if (rawChordLen > 1.0) {
-        final dir = rawChord / rawChordLen;
-        final halfChord = rawChordLen / 2;
-        testSource = rawSource + dir * halfChord;
-        testTarget = rawTarget - dir * halfChord;
-      } else {
-        testSource = rawSource;
-        testTarget = rawTarget;
-      }
       final expected = EngineEdgePainter.computeVisualMidpoint(
-        testSource,
-        testTarget,
+        rawSource,
+        rawTarget,
         edgeId: 'e2',
       );
       Offset? closest;

@@ -8,12 +8,22 @@
 //     only when status === 'resolved' (prevents bandwagon effect)
 //   - Disabled state after the user has already voted (we approximate this
 //     by checking that the vote button is disabled when status != 'open')
+//
+// VISIBILITY MATRIX (commit 5752e117, "role- and age-based visibility
+// controls"): the voting interface is gated by
+// trackcCapabilitiesProvider(familyId).canAct — only
+// owner/admin/elder/member (non-minor) see the radio tiles + Submit
+// button; viewers/minors get a lock notice instead. The test harness
+// therefore overrides currentUserFamilyRoleProvider so the widget tests
+// run as an adult 'member' (the default) or an explicit role per test.
 // =============================================================================
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kinrel/core/family/family_provider.dart'
+    show currentUserFamilyRoleProvider;
 import 'package:kinrel/features/trackc/data/api/trackc_api_client.dart';
 import 'package:kinrel/features/trackc/presentation/providers/trackc_providers.dart';
 import 'package:kinrel/features/trackc/presentation/screens/decision_detail_screen.dart';
@@ -42,11 +52,21 @@ class _FakeApi extends TrackcApiClient {
   }
 }
 
-Widget _wrap(Widget child, {required _FakeApi api, String familyId = 'fam-1'}) {
+Widget _wrap(
+  Widget child, {
+  required _FakeApi api,
+  String familyId = 'fam-1',
+  String role = 'member',
+}) {
   return ProviderScope(
     overrides: [
       trackcApiClientProvider.overrideWithValue(api),
       selectedFamilyIdProvider.overrideWith((ref) => familyId),
+      // Commit 5752e117: the vote UI is role-gated — without a role the
+      // test env (no Supabase session) resolves
+      // currentUserFamilyRoleProvider to null → TrackcCapabilities.empty
+      // → canAct=false → the radio tiles / Submit button never render.
+      currentUserFamilyRoleProvider(familyId).overrideWithValue(role),
     ],
     child: MaterialApp(home: child),
   );
@@ -320,5 +340,33 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Elder Council'), findsOneWidget);
+  });
+
+  testWidgets(
+      'VISIBILITY MATRIX: hides the voting interface for viewers — '
+      'lock notice instead of radio tiles (commit 5752e117)',
+      (tester) async {
+    final api = _FakeApi(
+      decisionResp: (_) async => _decision(
+        id: 'd-1',
+        type: 'simple_vote',
+        status: 'open',
+        options: ['Yes', 'No'],
+      ),
+    );
+    await tester.pumpWidget(_wrap(
+      const TrackcDecisionDetailScreen(decisionId: 'd-1'),
+      api: api,
+      role: 'viewer',
+    ));
+    await tester.pumpAndSettle();
+
+    // Viewers see the restricted notice, not the vote UI.
+    expect(
+        find.text('Viewers can see this decision but cannot vote.'),
+        findsOneWidget);
+    expect(find.text('Cast your vote'), findsNothing);
+    expect(find.text('Submit Vote'), findsNothing);
+    expect(find.text('Yes'), findsNothing);
   });
 }
