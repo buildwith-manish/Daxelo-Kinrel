@@ -182,10 +182,78 @@ export class ChatGateway {
       });
     } catch (err: any) {
       this.logger.error(`chat:sendMessage failed: ${err?.message}`, err?.stack);
-      client.emit('error', {
-        message: err?.message ?? 'Failed to send message',
-        event: 'chat:sendMessage',
+      // Feature 1: emit a failure event so the sender's client can flip
+      // the message status to 'failed' + show a retry button. The client
+      // matches this to the optimistic message ID it generated locally.
+      client.emit('chat:messageFailed', {
+        familyId,
+        tempId: data.tempId,
+        error: err?.message ?? 'Failed to send message',
+        timestamp: new Date().toISOString(),
       });
+    }
+  }
+
+  // ── Feature 1: Delivery confirmation ───────────────────────────────────
+  //
+  // When a recipient's client receives a message via 'chat:messageReceived',
+  // it emits 'chat:messageDelivered' back to the server with the messageId.
+  // The server then notifies the SENDER that their message was delivered
+  // to that recipient's device (one event per recipient, so the sender can
+  // count distinct deliveries).
+  //
+  // The client also flips the message's messageStatus to 'delivered' in
+  // its local state. When the recipient later opens/reads the message,
+  // 'chat:markAsRead' fires and the sender sees 'read' (the existing flow).
+  //
+  // This is a "fire and forget" — if the sender is offline, the event is
+  // dropped (the sender will reconcile on next connect via the message's
+  // persisted messageStatus, which the read-receipt flow updates).
+
+  @SubscribeMessage('chat:messageDelivered')
+  async handleMessageDelivered(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { messageId: string; familyId: string },
+  ) {
+    const recipientUserId = (client as any).userId as string | undefined;
+    if (!recipientUserId) {
+      client.emit('error', { message: 'Not authenticated', event: 'chat:messageDelivered' });
+      return;
+    }
+    // Persist the delivery status: update messageStatus to 'delivered'
+    // (if it was 'sent'). We do NOT add to readBy — that's the markAsRead
+    // flow. Delivery just means "reached the device", not "user opened it".
+    try {
+      await this.chatService.markDelivered(data.messageId, recipientUserId);
+    } catch (err: any) {
+      this.logger.debug(
+        `markDelivered failed for ${data.messageId} by ${recipientUserId}: ${err?.message}`,
+      );
+    }
+
+    // Notify the sender that their message was delivered to this recipient.
+    // We look up the message to find the senderId, then emit to that user's
+    // sockets. The sender's client uses this to flip the checkmark from
+    // single-tick (sent) to double-tick (delivered).
+    try {
+      const msg = await this.chatService.getMessageSender(data.messageId);
+      if (msg && msg.senderId !== recipientUserId) {
+        // Emit to all of the sender's connected sockets (multi-device).
+        // We iterate the server's connected sockets to find ones owned by
+        // the sender — the KinrelGateway's connectedUsers map is the source
+        // of truth, but we don't have a reference to it here, so we use
+        // the room membership: the sender is in the family chat room.
+        this.server.to(`chat:family:${data.familyId}`).emit('chat:messageDelivered', {
+          messageId: data.messageId,
+          familyId: data.familyId,
+          deliveredToUserId: recipientUserId,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (err: any) {
+      this.logger.debug(
+        `Delivered notification failed for ${data.messageId}: ${err?.message}`,
+      );
     }
   }
 

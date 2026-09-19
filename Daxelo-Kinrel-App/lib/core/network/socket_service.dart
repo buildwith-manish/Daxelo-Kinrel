@@ -567,6 +567,35 @@ class SocketService {
       }
     });
 
+    // Feature 1: delivery confirmation. Server emits this when a
+    // recipient's socket confirms receipt of a message. The sender's
+    // client uses it to flip the checkmark from single-tick (sent) to
+    // double-tick (delivered).
+    socket.on('chat:messageDelivered', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatMessageDeliveredCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:messageDelivered error: $e');
+      }
+    });
+
+    // Feature 1: message send failure. Server emits this when
+    // sendMessage throws (DB error, auth failure, etc.). The client
+    // matches by tempId to flip the optimistic message to 'failed'.
+    socket.on('chat:messageFailed', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatMessageFailedCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:messageFailed error: $e');
+      }
+    });
+
     socket.on('chat:userTyping', (data) {
       try {
         final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
@@ -658,6 +687,8 @@ class SocketService {
 
   final Set<void Function(Map<String, dynamic>)> _chatMessageCallbacks = {};
   final Set<void Function(Map<String, dynamic>)> _chatMessageSentCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatMessageDeliveredCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatMessageFailedCallbacks = {};
   final Set<void Function(Map<String, dynamic>)> _chatTypingCallbacks = {};
   final Set<void Function(Map<String, dynamic>)> _chatReadReceiptCallbacks = {};
   final Set<void Function(Map<String, dynamic>)> _chatReactionCallbacks = {};
@@ -676,6 +707,36 @@ class SocketService {
   VoidCallback onChatMessageSent(void Function(Map<String, dynamic>) cb) {
     _chatMessageSentCallbacks.add(cb);
     return () => _chatMessageSentCallbacks.remove(cb);
+  }
+
+  /// Feature 1: subscribe to delivery confirmations.
+  /// Payload: { messageId, familyId, deliveredToUserId, timestamp }
+  /// Fires when a recipient's socket confirms receipt of your message.
+  /// Use it to flip the checkmark from single-tick (sent) to double-tick (delivered).
+  VoidCallback onChatMessageDelivered(void Function(Map<String, dynamic>) cb) {
+    _chatMessageDeliveredCallbacks.add(cb);
+    return () => _chatMessageDeliveredCallbacks.remove(cb);
+  }
+
+  /// Feature 1: subscribe to send-failure events.
+  /// Payload: { familyId, tempId, error, timestamp }
+  /// Fires when sendMessage throws on the server side. Match by tempId
+  /// to flip the optimistic message to 'failed' + show a retry button.
+  VoidCallback onChatMessageFailed(void Function(Map<String, dynamic>) cb) {
+    _chatMessageFailedCallbacks.add(cb);
+    return () => _chatMessageFailedCallbacks.remove(cb);
+  }
+
+  /// Feature 1: emit a delivery confirmation back to the server when
+  /// this client receives a message via 'chat:messageReceived'. The
+  /// server forwards it to the sender so they see the double-tick.
+  void emitMessageDelivered({required String familyId, required String messageId}) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:messageDelivered', {
+      'familyId': familyId,
+      'messageId': messageId,
+    });
   }
 
   /// Subscribe to typing indicator updates.
@@ -740,6 +801,10 @@ class SocketService {
     String? replyToId,
     String? senderPersonId,
     String? senderInitials,
+    /// Feature 1: client-generated optimistic ID. Echoed back in the
+    /// 'chat:messageFailed' event so the client can match the failure
+    /// to its local optimistic message + flip status to 'failed'.
+    String? tempId,
   }) {
     final socket = _socket;
     if (socket == null || !socket.connected) {
@@ -752,6 +817,7 @@ class SocketService {
       if (replyToId != null) 'replyToId': replyToId,
       if (senderPersonId != null) 'senderPersonId': senderPersonId,
       if (senderInitials != null) 'senderInitials': senderInitials,
+      if (tempId != null) 'tempId': tempId,
     });
   }
 

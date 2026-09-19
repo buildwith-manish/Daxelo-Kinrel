@@ -66,6 +66,7 @@ class ChatEngagementState {
     this.typingUserIds = const {},
     this.typingUserNames = const {},
     this.readMessageIds = const {},
+    this.deliveredMessageIds = const {},
     this.reactionCounts = const {},
     this.streak = 0,
     this.longestStreak = 0,
@@ -80,6 +81,12 @@ class ChatEngagementState {
 
   /// Set of messageIds that have been read by someone (for the double-tick).
   final Set<String> readMessageIds;
+
+  /// Feature 1: Set of messageIds that have been delivered to at least
+  /// one recipient's device (for the double-tick → grey transition).
+  /// A message is "delivered" when a recipient's socket confirms receipt
+  /// via 'chat:messageDelivered'. Cleared when the message is read.
+  final Set<String> deliveredMessageIds;
 
   /// Map of messageId → list of {emoji, count, userIds}.
   final Map<String, List<Map<String, dynamic>>> reactionCounts;
@@ -110,6 +117,7 @@ class ChatEngagementState {
     Set<String>? typingUserIds,
     Map<String, String>? typingUserNames,
     Set<String>? readMessageIds,
+    Set<String>? deliveredMessageIds,
     Map<String, List<Map<String, dynamic>>>? reactionCounts,
     int? streak,
     int? longestStreak,
@@ -119,6 +127,7 @@ class ChatEngagementState {
       typingUserIds: typingUserIds ?? this.typingUserIds,
       typingUserNames: typingUserNames ?? this.typingUserNames,
       readMessageIds: readMessageIds ?? this.readMessageIds,
+      deliveredMessageIds: deliveredMessageIds ?? this.deliveredMessageIds,
       reactionCounts: reactionCounts ?? this.reactionCounts,
       streak: streak ?? this.streak,
       longestStreak: longestStreak ?? this.longestStreak,
@@ -191,7 +200,32 @@ class ChatEngagementNotifier extends StateNotifier<ChatEngagementState> {
         if (messageIds.isEmpty) return;
         final readSet = Set<String>.from(state.readMessageIds)
           ..addAll(messageIds);
-        state = state.copyWith(readMessageIds: readSet);
+        // Once read, remove from the delivered set (read supersedes delivered).
+        final deliveredSet = Set<String>.from(state.deliveredMessageIds)
+          ..removeAll(messageIds);
+        state = state.copyWith(
+          readMessageIds: readSet,
+          deliveredMessageIds: deliveredSet,
+        );
+      }),
+    );
+
+    // Feature 1: delivery confirmation. When a recipient's socket
+    // confirms receipt of a message we sent, add it to the delivered
+    // set so the bubble's checkmark flips from single-tick (sent) to
+    // double-tick-grey (delivered). The chat_provider listens to this
+    // state too and updates the ChatMessage.messageStatus field.
+    _unsubscribers.add(
+      _socket.onChatMessageDelivered((data) {
+        final familyId = data['familyId'] as String?;
+        if (familyId != _familyId) return;
+        final messageId = data['messageId'] as String?;
+        if (messageId == null) return;
+        // Don't add to delivered if already read (read > delivered).
+        if (state.readMessageIds.contains(messageId)) return;
+        final delivered = Set<String>.from(state.deliveredMessageIds)
+          ..add(messageId);
+        state = state.copyWith(deliveredMessageIds: delivered);
       }),
     );
 
@@ -267,6 +301,14 @@ class ChatEngagementNotifier extends StateNotifier<ChatEngagementState> {
   /// Mark a single message as read.
   void markMessageRead(String messageId) {
     _socket.emitMarkAsRead(familyId: _familyId, messageId: messageId);
+  }
+
+  /// Feature 1: send a delivery confirmation back to the server when
+  /// this client receives a message via 'chat:messageReceived'. The
+  /// server forwards it to the sender so they see the double-tick.
+  /// Called by the chat_provider's chat:messageReceived handler.
+  void confirmDelivery(String messageId) {
+    _socket.emitMessageDelivered(familyId: _familyId, messageId: messageId);
   }
 
   /// Add an emoji reaction to a message. Idempotent.

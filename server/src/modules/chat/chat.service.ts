@@ -176,6 +176,42 @@ export class ChatService {
     return this.streakService.getStreak(familyId);
   }
 
+  // ── Feature 1: Delivery status ────────────────────────────────────────
+  //
+  // markDelivered flips messageStatus from 'sent' → 'delivered' when a
+  // recipient's socket confirms receipt. It does NOT add to readBy —
+  // that's the markAsRead flow (delivery = "reached device", read =
+  // "user opened it"). The update is conditional so we don't downgrade
+  // a 'read' status back to 'delivered' if the events arrive out of order.
+
+  async markDelivered(messageId: string, _recipientUserId: string): Promise<void> {
+    // Only update if the current status is 'sent' — never downgrade 'read'.
+    await this.prisma.chatMessage.updateMany({
+      where: {
+        id: messageId,
+        messageStatus: 'sent',
+      },
+      data: {
+        messageStatus: 'delivered',
+        updatedAt: new Date(),
+      },
+    });
+  }
+
+  /// Lookup the senderId + familyId of a message (used by the delivery
+  /// confirmation handler to find the sender's socket). Returns null if
+  /// the message was deleted.
+  async getMessageSender(
+    messageId: string,
+  ): Promise<{ senderId: string; familyId: string } | null> {
+    const msg = await this.prisma.chatMessage.findUnique({
+      where: { id: messageId },
+      select: { senderId: true, familyId: true, isDeletedForEveryone: true },
+    });
+    if (!msg || msg.isDeletedForEveryone) return null;
+    return { senderId: msg.senderId, familyId: msg.familyId };
+  }
+
   /**
    * Mark a single message (or all unread messages in the family) as read
    * by `userId`. Updates both the per-row `ChatReadReceipt` table (source

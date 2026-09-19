@@ -31,6 +31,7 @@ describe('ChatService', () => {
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     chatReadReceipt: { createMany: jest.fn() },
     chatTypingStatus: { upsert: jest.fn(), findMany: jest.fn() },
@@ -288,6 +289,52 @@ describe('ChatService', () => {
       await service.listMessages('fam-1', 'user-1', 1000);
       const args = mockPrisma.chatMessage.findMany.mock.calls[0][0];
       expect(args.take).toBe(200);
+    });
+  });
+
+  // ── Feature 1: delivery status ──────────────────────────────────────────
+
+  describe('markDelivered', () => {
+    it('updates messageStatus from sent to delivered', async () => {
+      mockPrisma.chatMessage.updateMany.mockResolvedValue({ count: 1 });
+      await service.markDelivered('msg-1', 'user-2');
+      const args = mockPrisma.chatMessage.updateMany.mock.calls[0][0];
+      expect(args.where.id).toBe('msg-1');
+      expect(args.where.messageStatus).toBe('sent'); // guard against downgrade
+      expect(args.data.messageStatus).toBe('delivered');
+    });
+
+    it('is idempotent — calling twice does not throw', async () => {
+      mockPrisma.chatMessage.updateMany.mockResolvedValue({ count: 0 }); // already delivered
+      await expect(service.markDelivered('msg-1', 'user-2')).resolves.toBeUndefined();
+    });
+  });
+
+  describe('getMessageSender', () => {
+    it('returns senderId + familyId for an active message', async () => {
+      mockPrisma.chatMessage.findUnique.mockResolvedValue({
+        senderId: 'user-1',
+        familyId: 'fam-1',
+        isDeletedForEveryone: false,
+      });
+      const result = await service.getMessageSender('msg-1');
+      expect(result).toEqual({ senderId: 'user-1', familyId: 'fam-1' });
+    });
+
+    it('returns null for a deleted-for-everyone message', async () => {
+      mockPrisma.chatMessage.findUnique.mockResolvedValue({
+        senderId: 'user-1',
+        familyId: 'fam-1',
+        isDeletedForEveryone: true,
+      });
+      const result = await service.getMessageSender('msg-1');
+      expect(result).toBeNull();
+    });
+
+    it('returns null when the message does not exist', async () => {
+      mockPrisma.chatMessage.findUnique.mockResolvedValue(null);
+      const result = await service.getMessageSender('msg-missing');
+      expect(result).toBeNull();
     });
   });
 });

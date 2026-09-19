@@ -22,6 +22,14 @@ export class SendChatMessageDto {
   @IsString()
   @MaxLength(255)
   senderInitials?: string;
+
+  /// Feature 1: client-generated optimistic ID. The server echoes this
+  /// back in the 'chat:messageFailed' event so the client can match the
+  /// failure to its local optimistic message + flip status to 'failed'.
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  tempId?: string;
 }
 
 export class MarkAsReadDto {
