@@ -172,7 +172,7 @@ BEGIN
   v_board := jsonb_set(v_board, '{clueGiverName}', to_jsonb(v_spymaster."userName"));
   v_board := jsonb_set(v_board, '{phase}', '"guessing"');
   v_board := jsonb_set(v_board, '{guessesLeft}', CASE WHEN p_number = 0 THEN '1' ELSE (p_number + 1)::text END::jsonb);
-  v_board := jsonb_set(v_board, '{log}', (v_board->'log') || jsonb_build_object('type','clue','team',v_team,'clue',btrim(p_clue),'number',p_number,'user',v_spymaster."userName")));
+  v_board := jsonb_set(v_board, '{log}', (v_board->'log') || jsonb_build_object('type','clue','team',v_team,'clue',btrim(p_clue),'number',p_number,'user',v_spymaster."userName"));
   UPDATE "code_clues_games" SET "boardState" = v_board,
     "turnEndsAt" = now() + ((v_board->>'guessSeconds') || ' seconds')::interval,
     "lastActivityAt" = now() WHERE id = p_game_id;
@@ -211,7 +211,7 @@ BEGIN
   v_team2_found := (v_board->>'team2Found')::int;
   v_guesses_left := (v_board->>'guessesLeft')::int;
 
-  v_log := v_board->'log' || jsonb_build_object('type','guess','team',v_team,'wordIndex',p_word_index,'word',v_board->'words'->p_word_index,'assignment',v_assignment,'user',v_player."userName"));
+  v_log := v_board->'log' || jsonb_build_object('type','guess','team',v_team,'wordIndex',p_word_index,'word',v_board->'words'->p_word_index,'assignment',v_assignment,'user',v_player."userName");
   v_board := jsonb_set(v_board, '{log}', v_log);
 
   IF v_assignment = -1 THEN
@@ -290,7 +290,7 @@ BEGIN
   v_board := jsonb_set(v_board, '{clueGiverId}', 'null');
   v_board := jsonb_set(v_board, '{clueGiverName}', 'null');
   v_board := jsonb_set(v_board, '{guessesLeft}', '0');
-  v_board := jsonb_set(v_board, '{log}', (v_board->'log') || jsonb_build_object('type','pass','team',v_team)));
+  v_board := jsonb_set(v_board, '{log}', (v_board->'log') || jsonb_build_object('type','pass','team',v_team));
   UPDATE "code_clues_games" SET "boardState" = v_board,
     "turnEndsAt" = now() + ((v_board->>'clueSeconds') || ' seconds')::interval,
     "currentTurnTeam" = CASE WHEN v_team = 1 THEN 2 ELSE 1 END,
@@ -315,7 +315,7 @@ BEGIN
       v_team := (v_board->>'currentTurnTeam')::int;
       v_board := jsonb_set(v_board, '{phase}', '"clueing"');
       v_board := jsonb_set(v_board, '{currentTurnTeam}', CASE WHEN v_team = 1 THEN '2' ELSE '1' END::jsonb);
-      v_board := jsonb_set(v_board, '{log}', (v_board->'log') || jsonb_build_object('type','timeout','team',v_team,'phase','clueing')));
+      v_board := jsonb_set(v_board, '{log}', (v_board->'log') || jsonb_build_object('type','timeout','team',v_team,'phase','clueing'));
       UPDATE "code_clues_games" SET "boardState" = v_board,
         "turnEndsAt" = now() + ((v_board->>'clueSeconds') || ' seconds')::interval,
         "currentTurnTeam" = CASE WHEN v_team = 1 THEN 2 ELSE 1 END,
@@ -330,7 +330,7 @@ BEGIN
       v_board := jsonb_set(v_board, '{clueGiverId}', 'null');
       v_board := jsonb_set(v_board, '{clueGiverName}', 'null');
       v_board := jsonb_set(v_board, '{guessesLeft}', '0');
-      v_board := jsonb_set(v_board, '{log}', (v_board->'log') || jsonb_build_object('type','timeout','team',v_team,'phase','guessing')));
+      v_board := jsonb_set(v_board, '{log}', (v_board->'log') || jsonb_build_object('type','timeout','team',v_team,'phase','guessing'));
       UPDATE "code_clues_games" SET "boardState" = v_board,
         "turnEndsAt" = now() + ((v_board->>'clueSeconds') || ' seconds')::interval,
         "currentTurnTeam" = CASE WHEN v_team = 1 THEN 2 ELSE 1 END,
