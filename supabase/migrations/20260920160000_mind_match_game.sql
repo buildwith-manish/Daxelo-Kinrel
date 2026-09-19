@@ -987,3 +987,185 @@ INSERT INTO "mind_match_questions" (category, prompt) VALUES
   ('global', 'Name a world beach.'),
   ('global', 'Name a world forest.')
 ON CONFLICT DO NOTHING;
+-- Patch fn_mindmatch_resolve to avoid temp tables (which caused 21000 errors
+-- when called from within fn_mindmatch_submit_answer's transaction context).
+-- Uses a pure-SQL CTE-based approach to group answers.
+
+CREATE OR REPLACE FUNCTION public.fn_mindmatch_resolve(p_game_id text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_game record;
+  v_board jsonb;
+  v_round jsonb;
+  v_rounds jsonb;
+  v_current int;
+  v_player_count int;
+  v_total_rounds int;
+  v_players jsonb;
+  v_answer_seconds int;
+  v_answer_groups jsonb := '[]'::jsonb;
+  v_group_obj jsonb;
+  v_group_size int;
+  v_max_group_size int := 0;
+  v_crowd_favorite text;
+  v_perfect_match boolean := false;
+  v_points_arr jsonb := '[]'::jsonb;
+  v_points int;
+  v_player_idx int;
+  v_player_score int;
+  v_player_streak int;
+  v_player_perfect int;
+  v_matched_this_round boolean;
+  v_i int;
+  v_crowd_bonus boolean;
+  v_perfect_bonus boolean;
+  v_my_group_size int;
+  v_my_crowd_bonus boolean;
+  v_my_perfect_bonus boolean;
+  v_group_idx int;
+BEGIN
+  SELECT * INTO v_game FROM "mind_match_games" WHERE id = p_game_id;
+  IF NOT FOUND OR v_game.status <> 'in_progress' THEN RETURN jsonb_build_object('ok', false, 'reason', 'not_in_progress'); END IF;
+  v_board := v_game."boardState";
+  v_current := (v_board->>'currentRound')::int;
+  v_total_rounds := (v_board->>'totalRounds')::int;
+  v_player_count := (v_board->>'playerCount')::int;
+  v_players := v_board->'players';
+  v_answer_seconds := (v_board->>'answerSeconds')::int;
+
+  -- ── Group answers by normalized form using a CTE ──
+  -- We build the groups as a JSONB array, sorted by size desc, then alpha.
+  WITH grouped AS (
+    SELECT
+      a."normalizedAnswer",
+      min(a."answer") AS display_answer,  -- shortest display form
+      jsonb_agg(a."userId") AS user_ids,
+      jsonb_agg(
+        (SELECT name FROM jsonb_array_elements(v_players) WITH ORDINALITY AS t(p, i)
+         WHERE i - 1 = (SELECT idx - 1 FROM jsonb_array_elements_text(v_game."playerOrder") WITH ORDINALITY AS o(uid, idx) WHERE uid = a."userId"))
+      ) AS user_names,
+      jsonb_agg(
+        (SELECT idx - 1 FROM jsonb_array_elements_text(v_game."playerOrder") WITH ORDINALITY AS o(uid, idx) WHERE uid = a."userId")
+      ) AS player_indices,
+      count(*) AS group_size
+    FROM "mind_match_answers" a
+    WHERE a."gameId" = p_game_id AND a."roundNumber" = v_current
+    GROUP BY a."normalizedAnswer"
+  )
+  SELECT jsonb_agg(
+    jsonb_build_object(
+      'answer', g.display_answer,
+      'normalizedAnswer', g."normalizedAnswer",
+      'userIds', g.user_ids,
+      'userNames', g.user_names,
+      'playerIndices', g.player_indices,
+      'size', g.group_size
+    ) ORDER BY g.group_size DESC, g.display_answer ASC
+  )
+  INTO v_answer_groups
+  FROM grouped g;
+
+  IF v_answer_groups IS NULL THEN
+    v_answer_groups := '[]'::jsonb;
+  END IF;
+
+  -- ── Find max group size ──
+  v_max_group_size := 0;
+  FOR v_i IN 0..jsonb_array_length(v_answer_groups) - 1 LOOP
+    v_group_size := (v_answer_groups->v_i->>'size')::int;
+    IF v_group_size > v_max_group_size THEN
+      v_max_group_size := v_group_size;
+    END IF;
+  END LOOP;
+
+  -- ── Perfect Match: everyone gave the same answer ──
+  v_perfect_match := (v_max_group_size = v_player_count AND v_player_count > 1);
+
+  -- ── Crowd Favorite: the largest group (first one if tie) ──
+  IF v_max_group_size >= 2 THEN
+    v_crowd_favorite := v_answer_groups->0->>'answer';
+  ELSE
+    v_crowd_favorite := null;
+  END IF;
+
+  -- ── Award points ──
+  v_points_arr := '[]'::jsonb;
+  FOR v_i IN 0..v_player_count - 1 LOOP
+    v_matched_this_round := false;
+    v_points := 0;
+    v_crowd_bonus := false;
+    v_perfect_bonus := false;
+    v_my_group_size := 0;
+
+    -- Find the group this player is in
+    FOR v_group_idx IN 0..jsonb_array_length(v_answer_groups) - 1 LOOP
+      v_group_obj := v_answer_groups->v_group_idx;
+      IF (v_group_obj->'playerIndices') ? v_i::text THEN
+        v_my_group_size := (v_group_obj->>'size')::int;
+        v_matched_this_round := v_my_group_size >= 2;
+        IF v_my_group_size >= 2 THEN
+          v_points := v_my_group_size * 5;
+        ELSE
+          v_points := 2;
+        END IF;
+        -- Crowd favorite bonus
+        IF v_crowd_favorite IS NOT NULL AND v_my_group_size = v_max_group_size AND v_max_group_size >= 2 THEN
+          v_points := v_points + 5;
+          v_crowd_bonus := true;
+        END IF;
+        -- Perfect match bonus
+        IF v_perfect_match THEN
+          v_points := v_points + 20;
+          v_perfect_bonus := true;
+        END IF;
+        EXIT;
+      END IF;
+    END LOOP;
+
+    -- Streak bonus
+    v_player_streak := (v_players->v_i->>'streak')::int;
+    IF v_matched_this_round THEN
+      v_player_streak := v_player_streak + 1;
+      IF v_player_streak >= 2 THEN
+        v_points := v_points + (v_player_streak - 1) * 5;
+      END IF;
+    ELSE
+      v_player_streak := 0;
+    END IF;
+
+    -- Update player score
+    v_player_score := (v_players->v_i->>'score')::int + v_points;
+    v_player_perfect := (v_players->v_i->>'perfectMatches')::int + (CASE WHEN v_perfect_bonus THEN 1 ELSE 0 END);
+    v_players := jsonb_set(v_players, ARRAY[v_i::text, 'score'], v_player_score::text::jsonb);
+    v_players := jsonb_set(v_players, ARRAY[v_i::text, 'lastRoundPoints'], v_points::text::jsonb);
+    v_players := jsonb_set(v_players, ARRAY[v_i::text, 'streak'], v_player_streak::text::jsonb);
+    v_players := jsonb_set(v_players, ARRAY[v_i::text, 'perfectMatches'], v_player_perfect::text::jsonb);
+
+    v_points_arr := v_points_arr || jsonb_build_object(
+      'playerIndex', v_i,
+      'points', v_points,
+      'matched', v_matched_this_round,
+      'groupSize', v_my_group_size,
+      'crowdBonus', v_crowd_bonus,
+      'perfectBonus', v_perfect_bonus,
+      'streak', v_player_streak
+    );
+  END LOOP;
+
+  -- ── Update round with resolved state ──
+  v_round := v_board->'rounds'->(v_current - 1);
+  v_round := jsonb_set(v_round, '{phase}', '"revealing"');
+  v_round := jsonb_set(v_round, '{answerGroups}', v_answer_groups);
+  v_round := jsonb_set(v_round, '{crowdFavorite}', to_jsonb(v_crowd_favorite));
+  v_round := jsonb_set(v_round, '{perfectMatch}', to_jsonb(v_perfect_match));
+  v_round := jsonb_set(v_round, '{pointsAwarded}', v_points_arr);
+
+  v_rounds := jsonb_set(v_board->'rounds', ARRAY[(v_current - 1)::text], v_round);
+  v_board := jsonb_set(v_board, '{rounds}', v_rounds);
+  v_board := jsonb_set(v_board, '{players}', v_players);
+
+  UPDATE "mind_match_games" SET "boardState" = v_board, "lastActivityAt" = now() WHERE id = p_game_id;
+  RETURN jsonb_build_object('ok', true);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.fn_mindmatch_resolve(text) TO authenticated;
