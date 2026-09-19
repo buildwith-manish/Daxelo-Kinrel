@@ -16,6 +16,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ChatService } from './chat.service';
 import { MediaService } from './media.service';
+import { ChatAnalyticsService } from '../analytics/chat-analytics.service';
 import {
   AddReactionDto,
   MarkAsReadDto,
@@ -38,6 +39,7 @@ export class ChatController {
   constructor(
     private readonly chatService: ChatService,
     private readonly mediaService: MediaService,
+    private readonly analyticsService: ChatAnalyticsService,
   ) {}
 
   @Get()
@@ -384,5 +386,22 @@ export class ChatController {
       messageId,
       ...result,
     };
+  }
+
+  // ── Feature 7: Chat onboarding ──────────────────────────────────────
+  //
+  // GET /families/:familyId/chat/onboarding-status
+  // Returns { hasSentFirstMessage: boolean } — the Flutter app uses this
+  // to decide whether to show the coach-mark sequence after the user
+  // sends their first message. The check is based on the
+  // first_message_in_chat analytics event (driven by real usage, not a
+  // hardcoded screen count).
+
+  @Get('onboarding-status')
+  async getOnboardingStatus(
+    @CurrentUser('id') userId: string,
+  ) {
+    const hasSentFirstMessage = await this.analyticsService.hasUserSentFirstMessage(userId);
+    return { hasSentFirstMessage };
   }
 }

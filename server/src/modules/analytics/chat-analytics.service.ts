@@ -248,4 +248,24 @@ export class ChatAnalyticsService {
     if (userId) where.userId = userId;
     return this.prisma.event.count({ where });
   }
+
+  /**
+   * Feature 7: Check if a user has sent their first message ever (across
+   * ALL chats). Used by the Flutter onboarding flow to decide whether to
+   * show the coach-mark sequence after the first send.
+   *
+   * Returns true if the user has at least one 'first_message_in_chat'
+   * OR 'message_sent' event (the first_message_in_chat event is the
+   * primary trigger; message_sent is the fallback for users who sent
+   * messages before the analytics feature was added).
+   */
+  async hasUserSentFirstMessage(userId: string): Promise<boolean> {
+    const count = await this.prisma.event.count({
+      where: {
+        eventName: { in: ['first_message_in_chat', 'message_sent'] },
+        userId,
+      },
+    });
+    return count > 0;
+  }
 }

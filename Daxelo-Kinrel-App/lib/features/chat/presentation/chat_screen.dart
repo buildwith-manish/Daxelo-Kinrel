@@ -53,7 +53,9 @@ import '../../../shared/widgets/dk_components.dart';
 import '../data/chat_enhancement_service.dart';
 import '../data/chat_lock_service.dart';
 import '../providers/chat_provider.dart';
+import '../providers/chat_onboarding_provider.dart';
 import '../providers/chat_socket_engagement_provider.dart';
+import 'chat_onboarding_coach_marks.dart';
 import 'voice_message_player.dart';
 import 'sticker_panel.dart';
 // Phase 22 / Task 3 — @mention picker overlay + highlight renderer.
@@ -669,7 +671,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       );
     }
 
-    return DKScaffold(
+    // Feature 7: check if the onboarding coach marks should be shown.
+    // Triggered after the user sends their first message ever (based on
+    // the first_message_in_chat analytics event) AND hasn't seen the
+    // coach marks yet (hasSeenChatOnboarding flag in SharedPreferences).
+    final showOnboarding = ref.watch(shouldShowChatOnboardingProvider(widget.familyId));
+
+    return Stack(
+      children: [
+        DKScaffold(
       // v132: The background is now rendered by ChatBackground (a
       // multi-layer ambient gradient + optional blurred wallpaper).
       // The Scaffold background is a flat dark color that only shows
@@ -731,6 +741,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       SizedBox(height: _webKeyboardHeight),
                   ],
                 ),
+        ),
+        // Feature 7: onboarding coach-mark overlay (shown once after
+        // the user's first message ever).
+        if (showOnboarding)
+          ChatOnboardingCoachMarks(
+            onComplete: () {
+              // Invalidate the onboarding status provider so it refetches
+              // (the hasSeenChatOnboarding flag is now true, so
+              // shouldShowChatOnboardingProvider returns false).
+              ref.invalidate(chatOnboardingStatusProvider(widget.familyId));
+            },
+          ),
+      ],
     );
   }
 

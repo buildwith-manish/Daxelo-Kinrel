@@ -188,4 +188,27 @@ describe('ChatAnalyticsService', () => {
       expect(args.where.userId).toBe('user-1');
     });
   });
+
+  describe('hasUserSentFirstMessage', () => {
+    it('returns true when the user has a first_message_in_chat event', async () => {
+      mockPrisma.event.count.mockResolvedValue(1);
+      const result = await service.hasUserSentFirstMessage('user-1');
+      expect(result).toBe(true);
+      const args = mockPrisma.event.count.mock.calls[0][0];
+      expect(args.where.userId).toBe('user-1');
+      expect(args.where.eventName).toEqual({ in: ['first_message_in_chat', 'message_sent'] });
+    });
+
+    it('returns true when the user has a message_sent event (fallback)', async () => {
+      mockPrisma.event.count.mockResolvedValue(3); // 3 message_sent events
+      const result = await service.hasUserSentFirstMessage('user-1');
+      expect(result).toBe(true);
+    });
+
+    it('returns false when the user has no message events', async () => {
+      mockPrisma.event.count.mockResolvedValue(0);
+      const result = await service.hasUserSentFirstMessage('new-user');
+      expect(result).toBe(false);
+    });
+  });
 });
