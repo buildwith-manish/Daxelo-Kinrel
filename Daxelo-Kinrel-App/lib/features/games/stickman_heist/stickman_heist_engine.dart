@@ -1141,13 +1141,31 @@ class StickmanHeistBoardState {
       players: players,
       status: (json['status'] ?? 'in_progress') as String,
       winnerIdx: (json['winnerIdx'] as num?)?.toInt() ?? -1,
-      matchStartTime:
-          (json['matchStartTime'] as num?)?.toInt() ?? 0,
+      // QA fix 2026-09-19: fn_stickmanheist_start stores matchStartTime
+      // as epoch SECONDS (extract(epoch from now())::bigint), but the
+      // physics step() compares it against epoch MILLISECONDS
+      // (DateTime.now().millisecondsSinceEpoch) — the mismatch made
+      // `elapsed` ~56 years, so matchTimeRemaining hit 0 on the first
+      // tick and EVERY match ended in an instant "Time out — no one
+      // escaped" (verified live E2E twice). Normalize by magnitude so
+      // both sources work: the server's seconds (~1.7e9) and the host
+      // re-broadcast's already-milliseconds value (~1.7e12, e.g. after
+      // a host reconnect re-parses its own boardState).
+      matchStartTime: _epochSecondsOrMillis(
+          (json['matchStartTime'] as num?)?.toInt() ?? 0),
     );
   }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
+
+/// Normalizes an epoch timestamp to MILLISECONDS. The server RPC writes
+/// matchStartTime as epoch seconds (~1.7e9) while the physics engine's
+/// clock is epoch milliseconds (~1.7e12); values already in milliseconds
+/// (a host re-broadcast) pass through unchanged. See the QA fix note at
+/// the fromJson site.
+int _epochSecondsOrMillis(int v) =>
+    v > 0 && v < 1000000000000 ? v * 1000 : v;
 
 /// Distance between two points. Used by the physics engine and the
 /// painter's overlap checks.
