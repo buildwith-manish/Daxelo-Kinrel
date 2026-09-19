@@ -668,7 +668,7 @@ class _KillsChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.target, size: 11, color: Color(0xFFEF4444)),
+          const Icon(Icons.gps_fixed, size: 11, color: Color(0xFFEF4444)),
           const SizedBox(width: 4),
           Text(
             '$kills',
@@ -847,7 +847,9 @@ class _ArenaPainter extends CustomPainter {
       final a = _physicsToLocal(rect, wall.x1, wall.y1);
       final b = _physicsToLocal(rect, wall.x2, wall.y2);
       // Walls are drawn as thin rectangles — give them a small thickness.
-      final perp = Offset(-(b.dy - a.dy), (b.dx - a.dx)).normalize() * 1.2;
+      final perpRaw = Offset(-(b.dy - a.dy), (b.dx - a.dx));
+      final perpLen = perpRaw.distance;
+      final perp = perpLen > 0 ? Offset(perpRaw.dx / perpLen * 1.2, perpRaw.dy / perpLen * 1.2) : Offset.zero;
       final path = Path()
         ..moveTo(a.dx + perp.dx, a.dy + perp.dy)
         ..lineTo(b.dx + perp.dx, b.dy + perp.dy)
@@ -1535,7 +1537,8 @@ class _ShootButtonPainter extends CustomPainter {
 
     // Aim direction indicator (small arrow on the rim)
     if (held && drag.distance > 6) {
-      final dir = drag.normalize() * (radius - 4);
+      final dragLen = drag.distance;
+      final dir = dragLen > 0 ? Offset(drag.dx / dragLen * (radius - 4), drag.dy / dragLen * (radius - 4)) : Offset.zero;
       final tip = center + dir;
       canvas.drawCircle(
           tip, 6, Paint()..color = Colors.white);
