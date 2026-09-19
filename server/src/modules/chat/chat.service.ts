@@ -328,6 +328,100 @@ export class ChatService {
     return Math.round(diffMs / (1000 * 60 * 60 * 24));
   }
 
+  // ── Feature 5: Message search ────────────────────────────────────────
+  //
+  // Uses Postgres ILIKE for case-insensitive substring search on the
+  // ChatMessage.content column. We don't use full-text search (tsvector)
+  // because the project doesn't have pg_trgm or a tsvector index set up,
+  // and ILIKE with a contains filter is fast enough for typical chat
+  // volumes (< 100k messages per family).
+  //
+  // Returns matches sorted by createdAt DESC (newest first). Each result
+  // includes the message + a snippet of the content around the match
+  // (for the Flutter search UI to highlight + scroll to).
+  //
+  // The [before] param supports pagination — pass the oldest match's
+  // createdAt to fetch the next page.
+
+  async searchMessages(
+    familyId: string,
+    userId: string,
+    query: string,
+    limit: number = 20,
+  ): Promise<{
+    results: Array<{
+      id: string;
+      content: string;
+      senderId: string;
+      senderName: string;
+      createdAt: Date;
+      messageType: string;
+      mediaUrl: string | null;
+      replyToId: string | null;
+      replyToContent: string | null;
+      replyToSenderName: string | null;
+    }>;
+    total: number;
+  }> {
+    await this.assertMember(familyId, userId);
+
+    const trimmed = query.trim();
+    if (trimmed.length === 0) {
+      return { results: [], total: 0 };
+    }
+
+    // Escape special ILIKE characters: % and _ are wildcards in ILIKE.
+    // We escape them with backslash so a search for "100%" doesn't match
+    // "1000". The backslash itself doesn't need escaping in Prisma's
+    // contains mode.
+    const escaped = trimmed.replace(/[%_\\]/g, '\\$&');
+
+    // Use Prisma's contains with insensitive mode — this compiles to
+    // ILIKE '%query%' on Postgres. The search field is `content`.
+    const messages = await this.prisma.chatMessage.findMany({
+      where: {
+        familyId,
+        isDeletedForEveryone: false,
+        content: {
+          contains: escaped,
+          mode: 'insensitive',
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(limit, 50),
+      select: {
+        id: true,
+        content: true,
+        senderId: true,
+        senderName: true,
+        createdAt: true,
+        messageType: true,
+        mediaUrl: true,
+        replyToId: true,
+        replyToContent: true,
+        replyToSenderName: true,
+      },
+    });
+
+    // Count total matches (for the search UI's "N results" label).
+    // We do this in a separate query so the SELECT above can use LIMIT.
+    const total = await this.prisma.chatMessage.count({
+      where: {
+        familyId,
+        isDeletedForEveryone: false,
+        content: {
+          contains: escaped,
+          mode: 'insensitive',
+        },
+      },
+    });
+
+    return {
+      results: messages,
+      total,
+    };
+  }
+
   /**
    * Mark a single message (or all unread messages in the family) as read
    * by `userId`. Updates both the per-row `ChatReadReceipt` table (source

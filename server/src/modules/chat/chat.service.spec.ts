@@ -34,6 +34,7 @@ describe('ChatService', () => {
       create: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
+      count: jest.fn(),
     },
     chatReadReceipt: { createMany: jest.fn() },
     chatTypingStatus: { upsert: jest.fn(), findMany: jest.fn() },
@@ -408,6 +409,91 @@ describe('ChatService', () => {
       expect(result.upcomingEvents[0].daysUntil).toBe(3);
       expect(result.upcomingEvents[1].name).toBe('Late');
       expect(result.upcomingEvents[1].daysUntil).toBe(10);
+    });
+  });
+
+  // ── Feature 5: message search ─────────────────────────────────────────
+
+  describe('searchMessages', () => {
+    it('returns empty results for empty query', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      const result = await service.searchMessages('fam-1', 'user-1', '');
+      expect(result.results).toEqual([]);
+      expect(result.total).toBe(0);
+      // Should NOT hit the DB for empty queries.
+      expect(mockPrisma.chatMessage.findMany).not.toHaveBeenCalled();
+    });
+
+    it('returns matches sorted by createdAt desc with total count', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      const matches = [
+        {
+          id: 'msg-2',
+          content: 'hello world',
+          senderId: 'user-1',
+          senderName: 'Manish',
+          createdAt: new Date('2026-06-15'),
+          messageType: 'text',
+          mediaUrl: null,
+          replyToId: null,
+          replyToContent: null,
+          replyToSenderName: null,
+        },
+        {
+          id: 'msg-1',
+          content: 'world peace',
+          senderId: 'user-2',
+          senderName: 'Riya',
+          createdAt: new Date('2026-06-14'),
+          messageType: 'text',
+          mediaUrl: null,
+          replyToId: null,
+          replyToContent: null,
+          replyToSenderName: null,
+        },
+      ];
+      mockPrisma.chatMessage.findMany.mockResolvedValue(matches);
+      mockPrisma.chatMessage.count.mockResolvedValue(5);
+
+      const result = await service.searchMessages('fam-1', 'user-1', 'world');
+
+      expect(result.results).toEqual(matches);
+      expect(result.total).toBe(5);
+      const findArgs = mockPrisma.chatMessage.findMany.mock.calls[0][0];
+      expect(findArgs.where.content.contains).toBe('world');
+      expect(findArgs.where.content.mode).toBe('insensitive');
+      expect(findArgs.where.isDeletedForEveryone).toBe(false);
+      expect(findArgs.orderBy).toEqual({ createdAt: 'desc' });
+    });
+
+    it('escapes ILIKE wildcard characters in the query', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatMessage.findMany.mockResolvedValue([]);
+      mockPrisma.chatMessage.count.mockResolvedValue(0);
+
+      await service.searchMessages('fam-1', 'user-1', '100%');
+
+      const findArgs = mockPrisma.chatMessage.findMany.mock.calls[0][0];
+      // The % should be escaped to \% so ILIKE doesn't treat it as a wildcard.
+      expect(findArgs.where.content.contains).toBe('100\\%');
+    });
+
+    it('caps limit at 50 to prevent abuse', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatMessage.findMany.mockResolvedValue([]);
+      mockPrisma.chatMessage.count.mockResolvedValue(0);
+
+      await service.searchMessages('fam-1', 'user-1', 'test', 1000);
+
+      const findArgs = mockPrisma.chatMessage.findMany.mock.calls[0][0];
+      expect(findArgs.take).toBe(50);
+    });
+
+    it('throws ForbiddenException for non-members', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue(null);
+      await expect(
+        service.searchMessages('fam-1', 'user-1', 'test'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 });

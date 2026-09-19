@@ -163,6 +163,27 @@ export class ChatController {
     return this.chatService.getEmptyStateNudge(familyId, userId);
   }
 
+  // ── Feature 5: Message search ──────────────────────────────────────
+  //
+  // GET /families/:familyId/chat/search?q=<query>&limit=20
+  // Returns matching messages sorted by createdAt DESC (newest first).
+  // Case-insensitive substring search (Postgres ILIKE) on the content field.
+
+  @Get('search')
+  async searchMessages(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+    @Query('q') query: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.chatService.searchMessages(
+      familyId,
+      userId,
+      query ?? '',
+      limit ? parseInt(limit, 10) : 20,
+    );
+  }
+
   // ── Feature 4: Media upload (images, voice notes, videos) ──────────
   //
   // Multipart form-data POST. The client uploads the file bytes + the

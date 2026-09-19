@@ -1251,7 +1251,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // silver) so they never compete with the identity column.
                 // The members button is dropped — redundant with tapping
                 // the avatar/header which navigates to family detail.
-                // Video + voice + more remain, but more compact.
+                // Feature 5: search icon added before video/voice for
+                // discoverability (also accessible via the more menu).
+                HeaderActionButton(
+                  icon: Icons.search,
+                  size: 20,
+                  onPressed: () {
+                    context.push('/family/${widget.familyId}/chat/search');
+                  },
+                ),
                 HeaderActionButton(
                   icon: Icons.videocam_outlined,
                   size: 20,
