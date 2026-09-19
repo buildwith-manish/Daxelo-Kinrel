@@ -26,6 +26,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/network/socket_service.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../l10n/app_localizations.dart';
 
 /// A single user's presence status.
 class UserPresence {
@@ -39,17 +40,33 @@ class UserPresence {
   final bool isOnline;
   final DateTime? lastSeenAt;
 
-  /// Human-readable "last seen" label. Returns "Active now" if online,
-  /// otherwise "Last seen 5m ago" / "Last seen 2h ago" / "Last seen 3d ago".
-  String get lastSeenLabel {
-    if (isOnline) return 'Active now';
-    if (lastSeenAt == null) return 'Offline';
+  /// Human-readable "last seen" label using the APP's current locale.
+  /// Feature 7: localized via the S (AppLocalizations) class. Falls back
+  /// to English if [l10n] is null (e.g. in tests).
+  ///
+  /// Usage in widgets:
+  ///   final l10n = S.of(context);
+  ///   Text(presence.lastSeenLabelLocalized(l10n))
+  String lastSeenLabelLocalized(S? l10n) {
+    if (isOnline) return l10n?.chatActiveNow ?? 'Active now';
+    if (lastSeenAt == null) return l10n?.chatOffline ?? 'Offline';
     final diff = DateTime.now().difference(lastSeenAt!);
-    if (diff.inSeconds < 60) return 'Last seen just now';
-    if (diff.inMinutes < 60) return 'Last seen ${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return 'Last seen ${diff.inHours}h ago';
-    return 'Last seen ${diff.inDays}d ago';
+    if (diff.inSeconds < 60) return l10n?.chatLastSeenJustNow ?? 'Last seen just now';
+    if (diff.inMinutes < 60) {
+      return l10n?.chatLastSeenMinutes(diff.inMinutes) ??
+          'Last seen ${diff.inMinutes}m ago';
+    }
+    if (diff.inHours < 24) {
+      return l10n?.chatLastSeenHours(diff.inHours) ??
+          'Last seen ${diff.inHours}h ago';
+    }
+    return l10n?.chatLastSeenDays(diff.inDays) ??
+        'Last seen ${diff.inDays}d ago';
   }
+
+  /// Legacy English-only label (kept for backward compat with code that
+  /// doesn't have a BuildContext). Prefer [lastSeenLabelLocalized] in widgets.
+  String get lastSeenLabel => lastSeenLabelLocalized(null);
 
   UserPresence copyWith({bool? isOnline, DateTime? lastSeenAt}) {
     return UserPresence(
@@ -105,12 +122,33 @@ class ChatEngagementState {
 
   /// Comma-separated label for the typing indicator, e.g. "Riya, Manish".
   /// Returns empty string if no one is typing.
+  ///
+  /// Feature 7: use [typingLabelLocalized] in widgets to get the
+  /// locale-aware version ("Riya टाइप कर रहे हैं" in Hindi, etc.).
   String get typingLabel {
     final names = typingUserNames.values.take(2).toList();
     if (names.isEmpty) return '';
     if (names.length == 1) return '${names.first} is typing';
     if (names.length == 2) return '${names.first} and ${names.last} are typing';
     return '${names.first} and others are typing';
+  }
+
+  /// Feature 7: locale-aware typing label. Falls back to English if [l10n]
+  /// is null. Usage:
+  ///   final l10n = S.of(context);
+  ///   Text(engagement.typingLabelLocalized(l10n))
+  String typingLabelLocalized(S? l10n) {
+    final names = typingUserNames.values.take(2).toList();
+    if (names.isEmpty) return '';
+    if (names.length == 1) {
+      return l10n?.chatTypingSingle(names.first) ?? '${names.first} is typing';
+    }
+    if (names.length == 2) {
+      return l10n?.chatTypingTwo(names.first, names.last) ??
+          '${names.first} and ${names.last} are typing';
+    }
+    return l10n?.chatTypingMany(names.first) ??
+        '${names.first} and others are typing';
   }
 
   ChatEngagementState copyWith({

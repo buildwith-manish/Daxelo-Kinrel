@@ -45,6 +45,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_edge_style.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../family/data/relationship_label_provider.dart';
 import '../../../core/utils/web_keyboard_height.dart';
 import '../../../core/services/supabase_service.dart';
@@ -420,7 +421,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Message is older than loaded history — scroll up to find it.'),
+            // Feature 7: localized snackbar
+            content: Text(S.of(context)?.chatReplyToOriginalNotFound ??
+                'Message is older than loaded history — scroll up to find it.'),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
@@ -1219,20 +1222,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                   chatState.onlineCount > 0;
                               // For the "Last seen X ago" fallback, find the
                               // most recently seen offline user.
-                              final lastSeenLabel = eng.presence.values
+                              final lastSeenPresence = eng.presence.values
                                   .where((p) => !p.isOnline && p.lastSeenAt != null)
                                   .toList()
                                 ..sort((a, b) => b.lastSeenAt!
                                     .compareTo(a.lastSeenAt!));
+                              // Feature 7: locale-aware presence labels.
+                              final l10n = S.of(context);
                               if (!showOnline &&
-                                  lastSeenLabel.isNotEmpty &&
-                                  lastSeenLabel.first.lastSeenAt!.year > 1970) {
+                                  lastSeenPresence.isNotEmpty &&
+                                  lastSeenPresence.first.lastSeenAt!.year > 1970) {
                                 return Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     const SizedBox(width: 8),
                                     Text(
-                                      lastSeenLabel.first.lastSeenLabel,
+                                      lastSeenPresence.first.lastSeenLabelLocalized(l10n),
                                       style: TextStyle(
                                         fontFamily: KinrelTypography.bodyFont,
                                         fontSize: 10.5,
@@ -1268,9 +1273,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                   ),
                                   const SizedBox(width: 5),
                                   Text(
-                                    onlineCount == 1 || chatState.onlineCount == 1
-                                        ? 'Active now'
-                                        : '${onlineCount > 0 ? onlineCount : chatState.onlineCount} active',
+                                    // Feature 7: localized "Active now" / "N active"
+                                    (onlineCount == 1 || chatState.onlineCount == 1)
+                                        ? (l10n?.chatActiveNow ?? 'Active now')
+                                        : (l10n?.chatNActive(onlineCount > 0 ? onlineCount : chatState.onlineCount) ??
+                                            '${onlineCount > 0 ? onlineCount : chatState.onlineCount} active'),
                                     style: TextStyle(
                                       fontFamily: KinrelTypography.bodyFont,
                                       fontSize: 10.5,
@@ -2561,11 +2568,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // ── Typing Indicator ─────────────────────────────────────────────
 
   Widget _buildTypingIndicator(ChatState chatState, ChatEngagementState engagement) {
+    // Feature 7: use the locale-aware typing label (Hindi/Marathi/Tamil/etc.)
+    // Falls back to English if localization is unavailable.
+    final l10n = S.of(context);
     // Prefer the Socket.IO engagement layer's label (supports multiple typers
     // and is sub-second fresh). Fall back to the Supabase polling result.
     final label = engagement.isSomeoneTyping
-        ? engagement.typingLabel
-        : '${chatState.typingUserName ?? 'Someone'} is typing';
+        ? engagement.typingLabelLocalized(l10n)
+        : (l10n?.chatTypingSingle(chatState.typingUserName ?? 'Someone') ??
+            '${chatState.typingUserName ?? 'Someone'} is typing');
     final firstInitial = engagement.isSomeoneTyping
         ? (engagement.typingUserNames.values.isNotEmpty
             ? engagement.typingUserNames.values.first

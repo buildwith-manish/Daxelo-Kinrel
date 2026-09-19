@@ -23,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/networking/dio_client.dart';
+import '../../../../l10n/app_localizations.dart';
 
 /// Snapshot of the empty-state nudge data fetched from the backend.
 class EmptyStateNudge {
@@ -76,10 +77,21 @@ class UpcomingEvent {
 
   /// Human-readable label for the chip: "Mama ji's birthday in 3 days"
   /// or "Mama ji's birthday is today!" when daysUntil == 0.
-  String get label {
-    if (daysUntil == 0) return "$name's birthday is today! 🎂";
-    if (daysUntil == 1) return "$name's birthday tomorrow 🎂";
-    return "$name's birthday in $daysUntil days 🎂";
+  ///
+  /// Feature 7: use [labelLocalized] in widgets for locale-aware labels.
+  /// This legacy getter returns the English-only version.
+  String get label => labelLocalized(null);
+
+  /// Feature 7: locale-aware label. Falls back to English if [l10n] is null.
+  String labelLocalized(S? l10n) {
+    if (daysUntil == 0) {
+      return l10n?.chatBirthdayToday(name) ?? "$name's birthday is today! 🎂";
+    }
+    if (daysUntil == 1) {
+      return l10n?.chatBirthdayTomorrow(name) ?? "$name's birthday tomorrow 🎂";
+    }
+    return l10n?.chatBirthdayInDays(name, daysUntil) ??
+        "$name's birthday in $daysUntil days 🎂";
   }
 }
 
@@ -141,10 +153,13 @@ class EmptyChatState extends ConsumerWidget {
   Widget _buildContent(BuildContext context, EmptyStateNudge? nudge) {
     final familyName = nudge?.familyName ?? 'your family';
     final memberCount = nudge?.memberCount ?? 0;
+    // Feature 7: use localized suggestions as fallback when the backend
+    // nudge fetch fails or returns no suggestions.
+    final l10n = S.of(context);
     final suggestions = nudge?.suggestions ??
         [
-          'Namaste everyone 🙏',
-          'How is everyone doing?',
+          l10n?.chatSuggestionNamaste ?? 'Namaste everyone 🙏',
+          l10n?.chatSuggestionHowIsEveryone ?? 'How is everyone doing?',
         ];
     final upcomingEvents = nudge?.upcomingEvents ?? <UpcomingEvent>[];
 
@@ -183,7 +198,7 @@ class EmptyChatState extends ConsumerWidget {
 
             // ── Greeting headline ───────────────────────────────────────
             Text(
-              'Start the conversation',
+              l10n?.chatEmptyStateTitle ?? 'Start the conversation',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 20,
@@ -196,9 +211,12 @@ class EmptyChatState extends ConsumerWidget {
             ),
             const SizedBox(height: 6),
             Text(
+              // Feature 7: localized subtitle with family name + member count
               memberCount > 0
-                  ? 'in the $familyName family ($memberCount member${memberCount != 1 ? 's' : ''})'
-                  : 'in the $familyName family',
+                  ? (l10n?.chatEmptyStateSubtitle(familyName, memberCount) ??
+                      'in the $familyName family ($memberCount members)')
+                  : (l10n?.chatEmptyStateSubtitleNoCount(familyName) ??
+                      'in the $familyName family'),
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13.5,
@@ -268,7 +286,8 @@ class _EventChip extends StatelessWidget {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              event.label,
+              // Feature 7: locale-aware event label
+              event.labelLocalized(S.of(context)),
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11.5,

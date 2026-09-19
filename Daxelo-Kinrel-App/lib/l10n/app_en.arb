@@ -681,5 +681,190 @@
   "familyMapLegendTierStale": "Stale",
   "familyMapLegendTierStaleDesc": "< 1 hour ago",
   "familyMapLegendTierCity": "City",
-  "familyMapLegendTierCityDesc": "city centroid"
+  "familyMapLegendTierCityDesc": "city centroid",
+  "chatTypingSingle": "{name} is typing",
+  "@chatTypingSingle": {
+    "description": "Shown when one user is typing in the chat",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "chatTypingTwo": "{name1} and {name2} are typing",
+  "@chatTypingTwo": {
+    "description": "Shown when two users are typing in the chat",
+    "placeholders": {
+      "name1": { "type": "String" },
+      "name2": { "type": "String" }
+    }
+  },
+  "chatTypingMany": "{name} and others are typing",
+  "@chatTypingMany": {
+    "description": "Shown when 3+ users are typing in the chat",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "chatActiveNow": "Active now",
+  "@chatActiveNow": {
+    "description": "Presence label shown when exactly 1 member is online"
+  },
+  "chatNActive": "{count} active",
+  "@chatNActive": {
+    "description": "Presence label shown when 2+ members are online",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "chatLastSeenJustNow": "Last seen just now",
+  "@chatLastSeenJustNow": {
+    "description": "Last seen label for < 1 minute ago"
+  },
+  "chatLastSeenMinutes": "Last seen {count}m ago",
+  "@chatLastSeenMinutes": {
+    "description": "Last seen label for minutes ago",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "chatLastSeenHours": "Last seen {count}h ago",
+  "@chatLastSeenHours": {
+    "description": "Last seen label for hours ago",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "chatLastSeenDays": "Last seen {count}d ago",
+  "@chatLastSeenDays": {
+    "description": "Last seen label for days ago",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "chatOffline": "Offline",
+  "@chatOffline": {
+    "description": "Presence label when user is offline with no last-seen data"
+  },
+  "chatEmptyStateTitle": "Start the conversation",
+  "@chatEmptyStateTitle": {
+    "description": "Headline shown in the empty chat state"
+  },
+  "chatEmptyStateSubtitle": "in the {familyName} family ({count} members)",
+  "@chatEmptyStateSubtitle": {
+    "description": "Subtitle shown in the empty chat state",
+    "placeholders": {
+      "familyName": { "type": "String" },
+      "count": { "type": "int" }
+    }
+  },
+  "chatEmptyStateSubtitleNoCount": "in the {familyName} family",
+  "@chatEmptyStateSubtitleNoCount": {
+    "description": "Subtitle shown in the empty chat state when member count is 0",
+    "placeholders": {
+      "familyName": { "type": "String" }
+    }
+  },
+  "chatSuggestionNamaste": "Namaste everyone 🙏",
+  "@chatSuggestionNamaste": {
+    "description": "Quick-reply suggestion in empty chat state"
+  },
+  "chatSuggestionHowIsEveryone": "How is everyone doing?",
+  "@chatSuggestionHowIsEveryone": {
+    "description": "Quick-reply suggestion in empty chat state"
+  },
+  "chatSuggestionGoodMorning": "Good morning, {familyName} family! ☀️",
+  "@chatSuggestionGoodMorning": {
+    "description": "Quick-reply suggestion in empty chat state",
+    "placeholders": {
+      "familyName": { "type": "String" }
+    }
+  },
+  "chatBirthdayToday": "{name}'s birthday is today! 🎂",
+  "@chatBirthdayToday": {
+    "description": "Upcoming event chip when birthday is today",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "chatBirthdayTomorrow": "{name}'s birthday tomorrow 🎂",
+  "@chatBirthdayTomorrow": {
+    "description": "Upcoming event chip when birthday is tomorrow",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "chatBirthdayInDays": "{name}'s birthday in {count} days 🎂",
+  "@chatBirthdayInDays": {
+    "description": "Upcoming event chip when birthday is in N days",
+    "placeholders": {
+      "name": { "type": "String" },
+      "count": { "type": "int" }
+    }
+  },
+  "chatSearchPlaceholder": "Search messages...",
+  "@chatSearchPlaceholder": {
+    "description": "Placeholder text in the chat search bar"
+  },
+  "chatSearchNoResults": "No messages found",
+  "@chatSearchNoResults": {
+    "description": "Shown when search returns no results"
+  },
+  "chatSearchResultsCount": "{count} results",
+  "@chatSearchResultsCount": {
+    "description": "Shown above search results",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "chatMessageSending": "Sending...",
+  "@chatMessageSending": {
+    "description": "Accessibility label for the sending-status clock icon"
+  },
+  "chatMessageFailed": "Failed to send",
+  "@chatMessageFailed": {
+    "description": "Accessibility label for the failed-status error icon"
+  },
+  "chatMessageFailedRetry": "Tap to retry",
+  "@chatMessageFailedRetry": {
+    "description": "Hint shown next to a failed message"
+  },
+  "chatReplyToOriginalNotFound": "Message is older than loaded history — scroll up to find it.",
+  "@chatReplyToOriginalNotFound": {
+    "description": "Shown when tapping a reply quote whose original isn't in the loaded history"
+  },
+  "chatSystemMessageUserJoined": "{name} joined the room",
+  "@chatSystemMessageUserJoined": {
+    "description": "System chat message when a user joins a game room",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "chatSystemMessageUserLeft": "{name} left the room",
+  "@chatSystemMessageUserLeft": {
+    "description": "System chat message when a user leaves a game room",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "chatSystemMessageUserDisconnected": "{name} disconnected",
+  "@chatSystemMessageUserDisconnected": {
+    "description": "System chat message when a user disconnects",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "chatSystemMessageRoomClosed": "{name} closed the room",
+  "@chatSystemMessageRoomClosed": {
+    "description": "System chat message when host closes the room",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "chatSystemMessageUserReacted": "{name} reacted {emoji}",
+  "@chatSystemMessageUserReacted": {
+    "description": "System chat message when a user reacts",
+    "placeholders": {
+      "name": { "type": "String" },
+      "emoji": { "type": "String" }
+    }
+  }
 }
