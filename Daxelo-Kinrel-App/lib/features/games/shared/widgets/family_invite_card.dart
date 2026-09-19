@@ -102,6 +102,17 @@ GameType? gameTypeForTable(String table) {
       return GameType.nightFalls;
     case 'sketch_telephone_games':
       return GameType.sketchTelephone;
+    // ── QA fix 2026-09-19: the two newest games (Stickman Heist in
+    // a445ed23, Crystal Bridge in b743a8d7) were added to the FORWARD
+    // map (invite_family_sheet.dart gameTableFor) but NOT here — the
+    // per-member one-tap lobby invite silently no-oped for both
+    // (gameTypeForTable returned null before any insert ran, and the
+    // button gave no feedback). Same failure class as the 12 missing
+    // tables fixed earlier above.
+    case 'stickman_heist_games':
+      return GameType.stickmanHeist;
+    case 'crystal_bridge_games':
+      return GameType.crystalBridge;
     default:
       return null;
   }
