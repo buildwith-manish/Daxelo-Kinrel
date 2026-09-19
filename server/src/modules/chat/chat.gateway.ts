@@ -8,6 +8,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { ChatService } from './chat.service';
+import { ChatThrottlerService } from './chat-throttler.service';
 import { AddReactionDto, MarkAsReadDto, SendChatMessageDto, TypingDto } from './dto/chat.dto';
 
 /**
@@ -65,7 +66,10 @@ export class ChatGateway {
   // client crashes or the user walks away mid-sentence.
   private typingTimers = new Map<string, NodeJS.Timeout>(); // key: `${familyId}:${userId}`
 
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly chatThrottler: ChatThrottlerService,
+  ) {}
 
   // ── Room join/leave ────────────────────────────────────────────────────
 
@@ -125,6 +129,25 @@ export class ChatGateway {
       return;
     }
     const familyId = data.familyId;
+
+    // Feature 5: per-user, per-chat rate limit — max 30 messages/min.
+    // If exceeded, emit a 'chat:rateLimitExceeded' event so the Flutter
+    // client can show feedback (not just silently drop the message).
+    const rateLimit = this.chatThrottler.check('message_send', userId, familyId);
+    if (!rateLimit.allowed) {
+      this.logger.warn(
+        `Rate limit exceeded: message_send by ${userId} in ${familyId} (retry in ${rateLimit.retryAfterMs}ms)`,
+      );
+      client.emit('chat:rateLimitExceeded', {
+        action: 'message_send',
+        familyId,
+        retryAfterMs: rateLimit.retryAfterMs,
+        message: 'You\'re sending messages too fast. Please slow down.',
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
     try {
       const message = await this.chatService.sendMessage(familyId, userId, data.content, {
         messageType: data.messageType,
@@ -351,6 +374,15 @@ export class ChatGateway {
       client.emit('error', { message: 'Not authenticated', event: 'chat:typing' });
       return;
     }
+
+    // Feature 5: typing spam rate limit — max 1 emit per 2 seconds (per user,
+    // global across all chats). Silently drop excess events (no error emit —
+    // typing indicators are best-effort + shouldn't generate user-visible noise).
+    const rateLimit = this.chatThrottler.check('typing', userId, data.familyId);
+    if (!rateLimit.allowed) {
+      return; // silent drop — the 3s auto-clear timer handles the rest
+    }
+
     const roomName = `chat:family:${data.familyId}`;
 
     // Persist typing status (for late-joiners / polling clients)
@@ -570,6 +602,23 @@ export class ChatGateway {
       client.emit('error', { message: 'Not authenticated', event: 'chat:addReaction' });
       return;
     }
+
+    // Feature 5: reaction spam rate limit — max 20/min per user per chat.
+    const rateLimit = this.chatThrottler.check('reaction', userId, data.familyId);
+    if (!rateLimit.allowed) {
+      this.logger.warn(
+        `Rate limit exceeded: reaction by ${userId} in ${data.familyId} (retry in ${rateLimit.retryAfterMs}ms)`,
+      );
+      client.emit('chat:rateLimitExceeded', {
+        action: 'reaction',
+        familyId: data.familyId,
+        retryAfterMs: rateLimit.retryAfterMs,
+        message: 'You\'re reacting too fast. Please slow down.',
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
     try {
       const result = await this.chatService.addReaction(data.familyId, userId, {
         messageId: data.messageId,

@@ -690,6 +690,20 @@ class SocketService {
       }
     });
 
+    // Feature 5: rate limit exceeded — emitted when the user hits a chat
+    // rate limit (too many messages, reactions, or typing events). The
+    // Flutter client shows a snackbar with the retryAfterMs hint.
+    socket.on('chat:rateLimitExceeded', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatRateLimitCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:rateLimitExceeded error: $e');
+      }
+    });
+
     socket.on('chat:streakUpdated', (data) {
       try {
         final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
@@ -733,6 +747,7 @@ class SocketService {
   final Set<void Function(Map<String, dynamic>)> _chatReactionCallbacks = {};
   final Set<void Function(Map<String, dynamic>)> _chatMentionCallbacks = {};
   final Set<void Function(Map<String, dynamic>)> _chatPinnedCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatRateLimitCallbacks = {};
   final Set<void Function(Map<String, dynamic>)> _chatStreakCallbacks = {};
   final Set<void Function(Map<String, dynamic>)> _presenceCallbacks = {};
 
@@ -873,6 +888,15 @@ class SocketService {
     final socket = _socket;
     if (socket == null || !socket.connected) return;
     socket.emit('chat:unpinMessage', {'familyId': familyId, 'messageId': messageId});
+  }
+
+  /// Feature 5: subscribe to rate-limit-exceeded events.
+  /// Payload: { action, familyId, retryAfterMs, message, timestamp }
+  /// Fires when the user sends too many messages/reactions/typing events.
+  /// The Flutter client shows a snackbar with the retryAfterMs hint.
+  VoidCallback onChatRateLimitExceeded(void Function(Map<String, dynamic>) cb) {
+    _chatRateLimitCallbacks.add(cb);
+    return () => _chatRateLimitCallbacks.remove(cb);
   }
 
   /// Subscribe to presence (online/offline) updates for any user.

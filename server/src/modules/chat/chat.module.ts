@@ -5,6 +5,7 @@ import { ChatGateway } from './chat.gateway';
 import { StreakService } from './streak.service';
 import { ChatPushScheduler } from './chat-push.scheduler';
 import { MediaService } from './media.service';
+import { ChatThrottlerService } from './chat-throttler.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { FcmModule } from '../notifications/fcm.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
@@ -16,7 +17,7 @@ import { AnalyticsModule } from '../analytics/analytics.module';
   // AnalyticsModule provides ChatAnalyticsService for event tracking.
   imports: [PrismaModule, FcmModule, AnalyticsModule],
   controllers: [ChatController],
-  providers: [ChatService, ChatGateway, StreakService, ChatPushScheduler, MediaService],
-  exports: [ChatService, StreakService, MediaService],
+  providers: [ChatService, ChatGateway, StreakService, ChatPushScheduler, MediaService, ChatThrottlerService],
+  exports: [ChatService, StreakService, MediaService, ChatThrottlerService],
 })
 export class ChatModule {}
