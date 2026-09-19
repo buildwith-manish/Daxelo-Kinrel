@@ -42,6 +42,8 @@ describe('ChatService', () => {
     chatReaction: { create: jest.fn(), deleteMany: jest.fn(), findMany: jest.fn() },
     chatMention: { createMany: jest.fn(), findMany: jest.fn() },
     memberPresence: { findMany: jest.fn() },
+    chatSettings: { upsert: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
+    notificationPreference: { findFirst: jest.fn() },
   };
 
   const mockStreakService = {
@@ -824,6 +826,56 @@ describe('ChatService', () => {
 
       const createArgs = mockPrisma.chatMessage.create.mock.calls[0][0];
       expect(createArgs.data.id).toBe('cm_idempotent_2');
+    });
+  });
+
+  // ── Feature 6: Per-chat notification preferences ────────────────────────
+
+  describe('setChatMuted', () => {
+    it('upserts the ChatSettings row with isMuted=true', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatSettings.upsert.mockResolvedValue({});
+
+      const result = await service.setChatMuted('fam-1', 'user-1', true);
+
+      expect(result.isMuted).toBe(true);
+      const args = mockPrisma.chatSettings.upsert.mock.calls[0][0];
+      expect(args.where.id).toBe('cs_user-1_fam-1');
+      expect(args.create.isMuted).toBe(true);
+      expect(args.update.isMuted).toBe(true);
+    });
+
+    it('unmutes when muted=false', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatSettings.upsert.mockResolvedValue({});
+
+      const result = await service.setChatMuted('fam-1', 'user-1', false);
+
+      expect(result.isMuted).toBe(false);
+    });
+  });
+
+  describe('getChatSettings', () => {
+    it('returns the stored settings when they exist', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatSettings.findUnique.mockResolvedValue({
+        isMuted: true,
+        isPinned: false,
+        isArchived: false,
+      });
+
+      const result = await service.getChatSettings('fam-1', 'user-1');
+
+      expect(result).toEqual({ isMuted: true, isPinned: false, isArchived: false });
+    });
+
+    it('returns defaults (all false) when no settings row exists', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatSettings.findUnique.mockResolvedValue(null);
+
+      const result = await service.getChatSettings('fam-1', 'user-1');
+
+      expect(result).toEqual({ isMuted: false, isPinned: false, isArchived: false });
     });
   });
 });

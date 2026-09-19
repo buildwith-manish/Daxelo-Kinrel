@@ -305,6 +305,34 @@ export class ChatController {
     return this.chatService.getPinnedMessages(familyId, userId);
   }
 
+  // ── Feature 6: Per-chat notification preferences ───────────────────
+
+  /**
+   * GET /families/:familyId/chat/settings
+   * Returns the user's chat settings (mute/pin/archive status).
+   */
+  @Get('settings')
+  async getChatSettings(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.chatService.getChatSettings(familyId, userId);
+  }
+
+  /**
+   * POST /families/:familyId/chat/mute
+   * Mute or unmute the chat. Body: { muted: boolean }.
+   * Muted chats don't receive FCM pushes (in-app notifications still created).
+   */
+  @Post('mute')
+  async setChatMuted(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+    @Body() body: { muted: boolean },
+  ) {
+    return this.chatService.setChatMuted(familyId, userId, body.muted);
+  }
+
   // ── Feature 4: Media upload (images, voice notes, videos) ──────────
   //
   // Multipart form-data POST. The client uploads the file bytes + the

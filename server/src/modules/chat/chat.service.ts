@@ -615,6 +615,55 @@ export class ChatService {
     });
   }
 
+  // ── Feature 6: Per-chat notification preferences ──────────────────────
+  //
+  // Mute/unmute a chat. The ChatPushScheduler checks ChatSettings.isMuted
+  // before sending FCM pushes — muted chats' messages are still persisted
+  // + create in-app Notification rows, but no FCM push is sent.
+
+  async setChatMuted(
+    familyId: string,
+    userId: string,
+    muted: boolean,
+  ): Promise<{ familyId: string; userId: string; isMuted: boolean }> {
+    await this.assertMember(familyId, userId);
+
+    const id = `cs_${userId}_${familyId}`;
+    await this.prisma.chatSettings.upsert({
+      where: { id },
+      create: {
+        id,
+        userId,
+        familyId,
+        isMuted: muted,
+      },
+      update: {
+        isMuted: muted,
+        updatedAt: new Date(),
+      },
+    });
+
+    return { familyId, userId, isMuted: muted };
+  }
+
+  async getChatSettings(
+    familyId: string,
+    userId: string,
+  ): Promise<{ isMuted: boolean; isPinned: boolean; isArchived: boolean }> {
+    await this.assertMember(familyId, userId);
+
+    const settings = await this.prisma.chatSettings.findUnique({
+      where: { id: `cs_${userId}_${familyId}` },
+      select: { isMuted: true, isPinned: true, isArchived: true },
+    });
+
+    return {
+      isMuted: settings?.isMuted ?? false,
+      isPinned: settings?.isPinned ?? false,
+      isArchived: settings?.isArchived ?? false,
+    };
+  }
+
   // ── Feature 3: Empty-state nudge ──────────────────────────────────────
   //
   // Returns relationship-aware greeting suggestions + upcoming
