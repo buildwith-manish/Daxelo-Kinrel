@@ -26,6 +26,7 @@
 //   │  Final standings · survival · stats   │
 
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -911,7 +912,7 @@ class _ShatterCracksPainter extends CustomPainter {
       [Offset(cx, cy), Offset(cx - w * 0.28, cy - h * 0.05)],
     ];
     for (final ray in rays) {
-      canvas.drawPoints(PointMode.polygon, ray, paint);
+      canvas.drawPoints(ui.PointMode.polygon, ray, paint);
     }
 
     // Inner shards (small triangles)
