@@ -32,6 +32,7 @@ enum GameTableKind {
   memoryMatchGames,  // memorymatch_games
   flickArenaGames,   // flick_arena_games
   secretHeistGames,  // secret_heist_games
+  mindMatchGames,    // mind_match_games
 }
 
 extension GameTableKindX on GameTableKind {
@@ -56,6 +57,7 @@ extension GameTableKindX on GameTableKind {
       case GameTableKind.memoryMatchGames:  return 'memorymatch_games';
       case GameTableKind.flickArenaGames:   return 'flick_arena_games';
       case GameTableKind.secretHeistGames:  return 'secret_heist_games';
+      case GameTableKind.mindMatchGames:    return 'mind_match_games';
     }
   }
 
@@ -84,6 +86,7 @@ extension GameTableKindX on GameTableKind {
       case GameTableKind.memoryMatchGames:  return 'memorymatch_players';
       case GameTableKind.flickArenaGames:   return null; // inline player slots
       case GameTableKind.secretHeistGames:  return 'secret_heist_players';
+      case GameTableKind.mindMatchGames:    return 'mind_match_players';
     }
   }
 }
@@ -312,6 +315,16 @@ class RoomConfig {
   static const secretHeist = RoomConfig(
     gameTable: GameTableKind.secretHeistGames,
     minPlayers: 3,
+    maxPlayers: 8,
+    lobbyStatusValue: 'waiting',
+    activeStatusValue: 'in_progress',
+    finishedStatusValue: 'completed',
+    cancelledStatusValue: 'cancelled',
+  );
+
+  static const mindMatch = RoomConfig(
+    gameTable: GameTableKind.mindMatchGames,
+    minPlayers: 2,
     maxPlayers: 8,
     lobbyStatusValue: 'waiting',
     activeStatusValue: 'in_progress',

@@ -346,6 +346,17 @@ const kGameCatalog = <GameCatalogEntry>[
     category: GameCategory.partyNight,
     sortOrder: 110,
   ),
+  GameCatalogEntry(
+    gameId: 'mind-match',
+    name: 'Mind Match',
+    description: 'Think like everyone else — match answers, earn points',
+    gameTable: 'mind_match_games',
+    route: '/family/{familyId}/mind-match/lobby',
+    accent: 0xFFF472B6,
+    playersLabel: '2–8 players',
+    category: GameCategory.partyNight,
+    sortOrder: 120,
+  ),
 ];
 
 /// All catalog entries sorted for hub display (featured first).

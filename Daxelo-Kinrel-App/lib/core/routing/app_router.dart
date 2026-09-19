@@ -125,6 +125,9 @@ import '../../features/games/flick_arena/flick_arena_provider.dart';
 import '../../features/games/secret_heist/secret_heist_lobby_screen.dart';
 import '../../features/games/secret_heist/secret_heist_game_screen.dart';
 import '../../features/games/secret_heist/secret_heist_provider.dart';
+import '../../features/games/mind_match/mind_match_lobby_screen.dart';
+import '../../features/games/mind_match/mind_match_game_screen.dart';
+import '../../features/games/mind_match/mind_match_provider.dart';
 import '../../features/games/redlight/redlight_lobby_screen.dart';
 import '../../features/games/redlight/redlight_game_screen.dart';
 import '../../features/games/redlight/redlight_results_screen.dart';
@@ -947,6 +950,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
     isHost: (s) => s.game?.hostUserId == _myUserId(),
     leave: (fid) => ref.read(secretHeistProvider(fid).notifier).leaveGame(),
+  );
+
+  final mindMatchLobbyExit = guardGameRoomExit(
+    gameTable: 'mind_match_games',
+    readState: (fid) => ref.read(mindMatchProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(mindMatchProvider(fid).notifier).leaveGame(),
   );
 
   final twotruthsLobbyExit = guardGameRoomExit(
@@ -1939,6 +1950,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: SecretHeistGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Mind Match ─────────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/mind-match/lobby',
+        onExit: mindMatchLobbyExit,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: MindMatchLobbyScreen(
+              familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/mind-match/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: MindMatchGameScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),

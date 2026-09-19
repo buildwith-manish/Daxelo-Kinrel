@@ -36,6 +36,7 @@ enum GameType {
   freezeAuction, // Freeze Auction
   flickArena, // Flick Arena
   secretHeist, // Secret Heist
+  mindMatch, // Mind Match
 }
 
 extension GameTypeX on GameType {
@@ -88,6 +89,8 @@ extension GameTypeX on GameType {
         return 'flick-arena';
       case GameType.secretHeist:
         return 'secret-heist';
+      case GameType.mindMatch:
+        return 'mind-match';
     }
   }
 
@@ -140,6 +143,8 @@ extension GameTypeX on GameType {
         return 'Flick Arena';
       case GameType.secretHeist:
         return 'Secret Heist';
+      case GameType.mindMatch:
+        return 'Mind Match';
     }
   }
 
