@@ -19,6 +19,7 @@ class PredictionState {
     this.myStats,
     this.isLoading = false,
     this.error,
+    this.inactiveReason,
   });
   final PredictionRound? activeRound;
   final PredictionQuestion? activeQuestion;
@@ -31,6 +32,12 @@ class PredictionState {
   final PredictionLeaderboardEntry? myStats;
   final bool isLoading;
   final String? error;
+  /// Why there's no active round, when applicable:
+  ///   'before_window'  — current time is before 8:00 AM IST (opens soon)
+  ///   'after_window'   — current time is after 9:30 PM IST (closed for today)
+  ///   'no_questions_available' — question pool exhausted
+  ///   null — either there's an active round, or loading/unknown.
+  final String? inactiveReason;
 
   PredictionState copyWith({
     PredictionRound? activeRound,
@@ -45,6 +52,8 @@ class PredictionState {
     bool? isLoading,
     bool clearError = false,
     String? error,
+    String? inactiveReason,
+    bool clearInactiveReason = false,
   }) => PredictionState(
     activeRound: activeRound ?? this.activeRound,
     activeQuestion: activeQuestion ?? this.activeQuestion,
@@ -57,6 +66,7 @@ class PredictionState {
     myStats: myStats ?? this.myStats,
     isLoading: isLoading ?? this.isLoading,
     error: clearError ? null : (error ?? this.error),
+    inactiveReason: clearInactiveReason ? null : (inactiveReason ?? this.inactiveReason),
   );
 }
 
@@ -86,7 +96,18 @@ class PredictionNotifier extends StateNotifier<PredictionState> {
       final raw = await client.rpc('fn_prediction_get_active', params: {'p_family_id': familyId});
       if (raw is Map) {
         final map = Map<String, dynamic>.from(raw);
-        if (map['ok'] == false) { state = state.copyWith(activeRound: null, activeQuestion: null); return; }
+        if (map['ok'] == false) {
+          // No active round. Capture the reason so the UI can show
+          // "Opens at 8:00 AM" vs "Closed for today" appropriately.
+          final reason = map['reason'] as String?;
+          state = state.copyWith(
+            activeRound: null,
+            activeQuestion: null,
+            inactiveReason: reason,
+            clearInactiveReason: reason == null,
+          );
+          return;
+        }
         final round = PredictionRound.fromJson(Map<String, dynamic>.from(map['round'] as Map));
         final question = PredictionQuestion.fromJson(Map<String, dynamic>.from(map['question'] as Map));
         final participation = (map['participationCount'] as num?)?.toInt() ?? 0;
@@ -103,7 +124,15 @@ class PredictionNotifier extends StateNotifier<PredictionState> {
             myConf = PredictionConfidenceX.fromString(subsResp['confidence'] as String?);
           }
         }
-        state = state.copyWith(activeRound: round, activeQuestion: question, participationCount: participation, hasSubmitted: submitted, myPrediction: myPred, myConfidence: myConf);
+        state = state.copyWith(
+          activeRound: round,
+          activeQuestion: question,
+          participationCount: participation,
+          hasSubmitted: submitted,
+          myPrediction: myPred,
+          myConfidence: myConf,
+          clearInactiveReason: true,
+        );
       }
     } catch (e) { debugPrint('[Prediction] fetchActive error: $e'); }
   }
