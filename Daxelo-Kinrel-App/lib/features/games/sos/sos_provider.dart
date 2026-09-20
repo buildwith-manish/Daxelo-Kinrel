@@ -150,16 +150,6 @@ class SosNotifier extends StateNotifier<SosState> {
   RealtimeChannel? _channel;
   String? _gameId;
 
-  /// Fallback poll timer — fires every 5s while in the lobby, refetching
-  /// the game row directly from `sos_games`. This is a safety net for the
-  /// lobby→active transition: if the realtime channel drops at the exact
-  /// moment the host taps Start, the non-host clients would otherwise miss
-  /// the status change and stay stuck on the lobby screen. The poll catches
-  /// it within 5 seconds and triggers the normal navigation.
-  ///
-  /// Cancelled on `leaveGame` / `dispose` / once the game becomes active.
-  Timer? _lobbyPollTimer;
-
   // ── Error helpers ─────────────────────────────────────────────
 
   /// Set both the raw error (for debugging) and a friendly, user-facing
@@ -901,51 +891,12 @@ class SosNotifier extends StateNotifier<SosState> {
   /// 2-stickman-heist (bundled zero-risk Category B cleanups).
   void _startLobbyPoll(String gameId) {
     // Intentionally a no-op. Realtime listener covers this transition.
-    // `_stopLobbyPoll()` is still safe to call (cancels a null timer).
   }
 
   void _stopLobbyPoll() {
-    _lobbyPollTimer?.cancel();
-    _lobbyPollTimer = null;
-  }
-
-  Future<void> _pollGameState(String gameId) async {
-    final client = _client;
-    if (client == null) return;
-    // Only poll while we're still in the lobby — once active, the realtime
-    // channel is the source of truth and the poll is wasteful.
-    if (!state.isLobby) {
-      _stopLobbyPoll();
-      return;
-    }
-    try {
-      final resp = await client
-          .from('sos_games')
-          .select()
-          .eq('id', gameId)
-          .maybeSingle();
-      if (resp == null) {
-        // Game row vanished — server-side delete or RLS revocation.
-        _stopLobbyPoll();
-        _setError(
-          'Game not found',
-          fallback: 'This game room no longer exists.',
-        );
-        return;
-      }
-      final updated = SosGame.fromJson(resp);
-      // Only update if status changed — avoids spurious rebuilds.
-      if (updated.status != state.game?.status) {
-        state = state.copyWith(game: updated);
-        if (updated.isActive || updated.isFinished) {
-          _stopLobbyPoll();
-        }
-      }
-    } catch (e) {
-      // Best-effort poll — never bubble up. The realtime channel is the
-      // primary source of truth; the poll is just a safety net.
-      debugPrint('[SOS] lobby poll error (non-fatal): $e');
-    }
+    // Intentionally a no-op. Realtime listener covers this transition.
+    // Retained as a no-op so existing call sites (leaveGame, dispose,
+    // realtime callback) still compile without churn.
   }
 
   void _recomputeSequences() {
