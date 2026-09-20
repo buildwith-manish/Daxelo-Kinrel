@@ -43,7 +43,7 @@ import '../../../../core/services/supabase_service.dart';
 import '../../../../shared/widgets/dk_components.dart';
 import '../models/game_invite.dart';
 
-class RematchButton extends ConsumerWidget {
+class RematchButton extends ConsumerStatefulWidget {
   const RematchButton({
     super.key,
     required this.familyId,
@@ -82,17 +82,41 @@ class RematchButton extends ConsumerWidget {
   final VoidCallback? beforeNavigate;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RematchButton> createState() => _RematchButtonState();
+}
+
+/// Optimistic pending state (QA hardening 5c): creating the new room +
+/// writing invites is a multi-write network operation — while it's in
+/// flight the button is a disabled spinner so a double-tap can't create
+/// two divergent rooms (the exact bug class the stickman-heist QA fix
+/// called out).
+class _RematchButtonState extends ConsumerState<RematchButton> {
+  bool _pending = false;
+
+  @override
+  Widget build(BuildContext context) {
     return DKButton(
-      label: label,
+      label: widget.label,
       icon: Icons.refresh,
       variant: DKButtonVariant.gradient,
       fullWidth: true,
-      onPressed: () => _rematch(context, ref),
+      isLoading: _pending,
+      onPressed: _pending ? null : _start,
     );
   }
 
-  Future<void> _rematch(BuildContext context, WidgetRef ref) async {
+  Future<void> _start() async {
+    setState(() => _pending = true);
+    try {
+      await _rematch();
+    } finally {
+      // On success the button has already navigated away (unmounted) —
+      // this only re-enables on failure paths.
+      if (mounted) setState(() => _pending = false);
+    }
+  }
+
+  Future<void> _rematch() async {
     // Capture the router + messenger BEFORE any await — the results view can
     // unmount mid-flight (provider swaps onto the new waiting game, or a
     // wrapping bottom sheet pops), which would otherwise strand the host on
@@ -106,7 +130,7 @@ class RematchButton extends ConsumerWidget {
             'A family member';
 
     // 1. Create the new game row via the game's provider
-    final newGameId = await onCreateNewGame();
+    final newGameId = await widget.onCreateNewGame();
     if (newGameId == null) {
       messenger.showSnackBar(
         const SnackBar(
@@ -120,26 +144,27 @@ class RematchButton extends ConsumerWidget {
     // 2. Insert game_invites for every participant (except the host themselves)
     final roomCode =
         newGameId.replaceAll('-', '').substring(0, 6).toUpperCase();
-    final invites = participantUserIds
+    final invites = widget.participantUserIds
         .where((id) => id.isNotEmpty && id != myId)
         .map((userId) => ({
-              'gameTable': gameTableForType(gameType),
+              'gameTable': gameTableForType(widget.gameType),
               'gameId': newGameId,
-              'gameType': gameType.routeSegment,
-              'familyId': familyId,
+              'gameType': widget.gameType.routeSegment,
+              'familyId': widget.familyId,
               'roomCode': roomCode,
               'invitedUserId': userId,
               'invitedByUserId': myId,
               'invitedByName': myName,
-              'maxPlayers': maxPlayers,
+              'maxPlayers': widget.maxPlayers,
               'currentPlayers': 1,
-              'message': '$myName wants a rematch in ${gameType.displayName}',
+              'message':
+                  '$myName wants a rematch in ${widget.gameType.displayName}',
               'status': 'pending',
-              'sourceGameId': previousGameId,
+              'sourceGameId': widget.previousGameId,
             }))
         .toList();
 
-    if (insertInvites && invites.isNotEmpty && client != null) {
+    if (widget.insertInvites && invites.isNotEmpty && client != null) {
       try {
         await client.from('game_invites').insert(invites);
       } catch (_) {
@@ -148,9 +173,9 @@ class RematchButton extends ConsumerWidget {
     }
 
     // 3. Navigate the host into the new game's lobby
-    beforeNavigate?.call();
+    widget.beforeNavigate?.call();
     router.go(
-      '/family/$familyId/${gameType.routeSegment}/lobby?join=$newGameId',
+      '/family/${widget.familyId}/${widget.gameType.routeSegment}/lobby?join=$newGameId',
     );
   }
 }

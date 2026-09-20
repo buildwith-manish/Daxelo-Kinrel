@@ -1338,23 +1338,55 @@ class _EmptySlotTile extends StatelessWidget {
   }
 }
 
-class _ReadyToggle extends StatelessWidget {
+class _ReadyToggle extends StatefulWidget {
   const _ReadyToggle({required this.isReady, required this.onPressed});
   final bool isReady;
   final Future<void> Function() onPressed;
 
   @override
+  State<_ReadyToggle> createState() => _ReadyToggleState();
+}
+
+/// Optimistic pending state (QA hardening 5c): the toggle writes to the
+/// DB (fn_set_player_ready) — while that's in flight the button is a
+/// disabled spinner so a double-tap can't fire two writes or flip the
+/// local ready state twice.
+class _ReadyToggleState extends State<_ReadyToggle> {
+  bool _pending = false;
+
+  Future<void> _run() async {
+    if (_pending) return;
+    setState(() => _pending = true);
+    try {
+      await widget.onPressed();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Couldn\'t update ready state — try again'),
+            backgroundColor: KinrelColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _pending = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return DKButton(
-      label: isReady ? '✓ I\'m Ready' : 'Tap when you\'re ready',
-      variant: isReady ? DKButtonVariant.primary : DKButtonVariant.secondary,
+      label: widget.isReady ? '✓ I\'m Ready' : 'Tap when you\'re ready',
+      variant:
+          widget.isReady ? DKButtonVariant.primary : DKButtonVariant.secondary,
       fullWidth: true,
-      onPressed: onPressed,
+      isLoading: _pending,
+      onPressed: _pending ? null : _run,
     );
   }
 }
 
-class _StartMatchButton extends StatelessWidget {
+class _StartMatchButton extends StatefulWidget {
   const _StartMatchButton({
     required this.config,
     required this.isHost,
@@ -1366,7 +1398,38 @@ class _StartMatchButton extends StatelessWidget {
   final Future<void> Function() onStartMatch;
 
   @override
+  State<_StartMatchButton> createState() => _StartMatchButtonState();
+}
+
+/// Optimistic pending state (QA hardening 5c): starting flips the room's
+/// status server-side — while that's in flight the button is a disabled
+/// spinner so an impatient double-tap can't double-start the match.
+class _StartMatchButtonState extends State<_StartMatchButton> {
+  bool _starting = false;
+
+  Future<void> _run() async {
+    if (_starting) return;
+    setState(() => _starting = true);
+    try {
+      await widget.onStartMatch();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Couldn\'t start the match — try again'),
+            backgroundColor: KinrelColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _starting = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final config = widget.config;
+    final isHost = widget.isHost;
     final canStart =
         isHost && config.allReady && config.players.length >= 2;
     String label;
@@ -1384,7 +1447,8 @@ class _StartMatchButton extends StatelessWidget {
       label: label,
       variant: DKButtonVariant.gradient,
       fullWidth: true,
-      onPressed: canStart ? onStartMatch : null,
+      isLoading: _starting,
+      onPressed: (canStart && !_starting) ? _run : null,
     );
   }
 }
