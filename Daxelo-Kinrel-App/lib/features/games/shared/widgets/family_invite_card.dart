@@ -113,6 +113,16 @@ GameType? gameTypeForTable(String table) {
       return GameType.stickmanHeist;
     case 'crystal_bridge_games':
       return GameType.crystalBridge;
+    // ── QA fix 2026-09-20: Ghost Painter was the one catalog game with
+    // no GameType member at all, so it could not be wired into any
+    // invite surface (gameTypeForTable returned null before any insert
+    // ran — same silent no-op class as the fixes above). The member,
+    // its routeSegment ('ghost-painter') and this mapping are now all
+    // registered together; the contract test in
+    // test/features/games/game_registration_contract_test.dart guards
+    // against the next game shipping unwired.
+    case 'ghost_painter_rounds':
+      return GameType.ghostPainter;
     default:
       return null;
   }

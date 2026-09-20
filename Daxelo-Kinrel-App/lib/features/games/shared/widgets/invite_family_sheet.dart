@@ -371,7 +371,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
       //    via the AFTER INSERT trigger on the table.
       if (client != null) {
         await client.from('game_invites').insert({
-          'gameTable': _gameTableName(widget.gameType),
+          'gameTable': gameTableForType(widget.gameType),
           'gameId': widget.gameId,
           'gameType': widget.gameType.routeSegment,
           'familyId': widget.familyId,
@@ -494,7 +494,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
         // Insert into game_invites (triggers FCM push via AFTER INSERT trigger)
         if (client != null) {
           await client.from('game_invites').insert({
-            'gameTable': _gameTableName(widget.gameType),
+            'gameTable': gameTableForType(widget.gameType),
             'gameId': widget.gameId,
             'gameType': widget.gameType.routeSegment,
             'familyId': widget.familyId,
@@ -616,7 +616,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
         final client = ref.read(supabaseProvider);
         if (client != null) {
           await client.from('game_invites').insert({
-            'gameTable': _gameTableName(widget.gameType),
+            'gameTable': gameTableForType(widget.gameType),
             'gameId': widget.gameId,
             'gameType': widget.gameType.routeSegment,
             'familyId': widget.familyId,
@@ -1880,42 +1880,6 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
         ),
       ),
     );
-  }
-
-  /// Map a GameType to its Postgres table name for game_invites insertion.
-  String _gameTableName(GameType t) {
-    switch (t) {
-      case GameType.bingo: return 'bingo_games';
-      case GameType.ludo: return 'ludo_games';
-      case GameType.checkers: return 'checkers_games';
-      case GameType.carrom: return 'carrom_games';
-      case GameType.chess: return 'chess_games';
-      case GameType.chitmatch: return 'chitmatch_games';
-      case GameType.nameplace: return 'nameplace_games';
-      case GameType.tictactoe: return 'tictactoe_games';
-      case GameType.truthordare: return 'truthordare_games';
-      case GameType.twotruths: return 'twotruths_games';
-      case GameType.dotsboxes: return 'dotsboxes_games';
-      case GameType.sos: return 'sos_games';
-      case GameType.antakshari: return 'antakshari_games';
-      case GameType.redlight: return 'redlight_rounds';
-      case GameType.tugOfWar: return 'tugofwar_games';
-      case GameType.memoryMatch: return 'memorymatch_games';
-      case GameType.ashtaChamma: return 'ashta_chamma_games';
-      case GameType.connect4: return 'connect4_games';
-      case GameType.impostor: return 'impostor_games';
-      case GameType.colorTrap: return 'color_trap_games';
-      case GameType.freezeAuction: return 'freeze_auction_games';
-      case GameType.flickArena: return 'flick_arena_games';
-      case GameType.secretHeist: return 'secret_heist_games';
-      case GameType.mindMatch: return 'mind_match_games';
-      case GameType.wordForge: return 'word_forge_games';
-      case GameType.codeClues: return 'code_clues_games';
-      case GameType.nightFalls: return 'night_falls_games';
-      case GameType.sketchTelephone: return 'sketch_telephone_games';
-      case GameType.stickmanHeist: return 'stickman_heist_games';
-      case GameType.crystalBridge: return 'crystal_bridge_games';
-    }
   }
 }
 

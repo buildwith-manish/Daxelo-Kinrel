@@ -96,6 +96,7 @@ import '../../features/gaming_ecosystem/presentation/gaming_milestones_screen.da
 import '../../features/gaming_ecosystem/presentation/gaming_season_screen.dart';
 import '../../features/games/ghost_painter/ghost_painter_draw_screen.dart';
 import '../../features/games/ghost_painter/ghost_painter_guess_screen.dart';
+import '../../features/games/ghost_painter/ghost_painter_join_screen.dart';
 import '../../features/games/tugofwar/tugofwar_lobby_screen.dart';
 import '../../features/games/tugofwar/tugofwar_game_screen.dart';
 import '../../features/games/tugofwar/tugofwar_provider.dart';
@@ -1833,6 +1834,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: GhostPainterGuessScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      // QA fix 2026-09-20: the shared invite system sends every accepted
+      // invite to `/family/:id/<segment>/lobby?join=<id>` — Ghost Painter
+      // had no `/lobby` route, so accepted invites and ?join deep links
+      // 404'd. This landing route resolves the joiner's real destination
+      // (draw vs guess) from the live round state.
+      GoRoute(
+        path: '/family/:id/ghost-painter/lobby',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: GhostPainterJoinScreen(familyId: state.pathParameters['id']!),
         ),
       ),
 

@@ -43,6 +43,7 @@ enum GameType {
   sketchTelephone, // Sketch Telephone (Gartic Phone-style drawing chain)
   stickmanHeist, // Stickman Heist (real-time top-down treasure-hunt shooter)
   crystalBridge, // Crystal Bridge (turn-based bridge-crossing survival)
+  ghostPainter, // Ghost Painter (real-time family draw-and-guess)
 }
 
 extension GameTypeX on GameType {
@@ -109,6 +110,8 @@ extension GameTypeX on GameType {
         return 'stickman-heist';
       case GameType.crystalBridge:
         return 'crystal-bridge';
+      case GameType.ghostPainter:
+        return 'ghost-painter';
     }
   }
 
@@ -175,6 +178,8 @@ extension GameTypeX on GameType {
         return 'Stickman Heist';
       case GameType.crystalBridge:
         return 'Crystal Bridge';
+      case GameType.ghostPainter:
+        return 'Ghost Painter';
     }
   }
 
@@ -193,6 +198,56 @@ extension GameTypeX on GameType {
       if (t.displayName.toLowerCase() == name.toLowerCase()) return t;
     }
     return null;
+  }
+}
+
+/// The canonical forward map: [GameType] → Postgres table name, used
+/// wherever a game_invites row is inserted (the invite sheet, the shared
+/// RematchButton, …).
+///
+/// MUST stay in lockstep with the reverse map `gameTypeForTable` in
+/// family_invite_card.dart — the game-registration contract test
+/// (test/features/games/game_registration_contract_test.dart) fails the
+/// build if a GameType is added without its table (or vice versa). This
+/// used to be TWO hand-copied private switches (invite sheet + rematch
+/// button) alongside the reverse map; Ghost Painter shipped unwired
+/// precisely because a copy missed a game.
+String gameTableForType(GameType t) {
+  switch (t) {
+    case GameType.bingo: return 'bingo_games';
+    case GameType.ludo: return 'ludo_games';
+    case GameType.checkers: return 'checkers_games';
+    case GameType.carrom: return 'carrom_games';
+    case GameType.chess: return 'chess_games';
+    case GameType.chitmatch: return 'chitmatch_games';
+    case GameType.nameplace: return 'nameplace_games';
+    case GameType.tictactoe: return 'tictactoe_games';
+    case GameType.truthordare: return 'truthordare_games';
+    case GameType.twotruths: return 'twotruths_games';
+    case GameType.dotsboxes: return 'dotsboxes_games';
+    case GameType.sos: return 'sos_games';
+    case GameType.antakshari: return 'antakshari_games';
+    case GameType.redlight: return 'redlight_rounds';
+    case GameType.tugOfWar: return 'tugofwar_games';
+    case GameType.memoryMatch: return 'memorymatch_games';
+    case GameType.ashtaChamma: return 'ashta_chamma_games';
+    case GameType.connect4: return 'connect4_games';
+    case GameType.impostor: return 'impostor_games';
+    case GameType.colorTrap: return 'color_trap_games';
+    case GameType.freezeAuction: return 'freeze_auction_games';
+    case GameType.flickArena: return 'flick_arena_games';
+    case GameType.secretHeist: return 'secret_heist_games';
+    case GameType.mindMatch: return 'mind_match_games';
+    case GameType.wordForge: return 'word_forge_games';
+    case GameType.codeClues: return 'code_clues_games';
+    case GameType.nightFalls: return 'night_falls_games';
+    case GameType.sketchTelephone: return 'sketch_telephone_games';
+    case GameType.stickmanHeist: return 'stickman_heist_games';
+    case GameType.crystalBridge: return 'crystal_bridge_games';
+    // ── QA fix 2026-09-20: registered together with the GameType.ghostPainter
+    // enum member and the reverse case in gameTypeForTable — the contract
+    // test keeps all three in lockstep.
+    case GameType.ghostPainter: return 'ghost_painter_rounds';
   }
 }
 
