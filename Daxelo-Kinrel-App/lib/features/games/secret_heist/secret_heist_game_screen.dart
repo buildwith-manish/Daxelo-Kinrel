@@ -44,6 +44,8 @@ import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/widgets/reactions_bar.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'secret_heist_models.dart';
 import 'secret_heist_provider.dart';
 
@@ -115,6 +117,7 @@ class _SecretHeistGameScreenState
   Widget build(BuildContext context) {
     final state = ref.watch(secretHeistProvider(widget.familyId));
     final game = state.game;
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
 
     if (state.isLoading && game == null) {
       return DKScaffold(
@@ -207,6 +210,7 @@ class _SecretHeistGameScreenState
               game: game,
               familyId: widget.familyId,
               players: state.players,
+              isHost: game.hostUserId == myId,
               onRematch: () => ref
                   .read(secretHeistProvider(widget.familyId).notifier)
                   .rematch(),
@@ -1275,12 +1279,14 @@ class _ResultsView extends StatelessWidget {
     required this.game,
     required this.familyId,
     required this.players,
+    required this.isHost,
     required this.onRematch,
     required this.onExit,
   });
   final SecretHeistGame game;
   final String familyId;
   final List<SecretHeistPlayerWire> players;
+  final bool isHost;
   final Future<String?> Function() onRematch;
   final VoidCallback onExit;
 
@@ -1416,22 +1422,25 @@ class _ResultsView extends StatelessWidget {
                   onPressed: onExit,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: DKButton(
-                  label: 'Rematch',
-                  variant: DKButtonVariant.primary,
-                  fullWidth: true,
-                  onPressed: () async {
-                    final newId = await onRematch();
-                    if (newId != null && context.mounted) {
-                      context.pushReplacement(
-                        '/family/$familyId/secret-heist/game/$newId',
-                      );
-                    }
-                  },
+              // Host-gated shared rematch — provider rematch() carries the
+              // roster and writes invites itself (insertInvites: false).
+              if (isHost) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: RematchButton(
+                    familyId: familyId,
+                    gameType: GameType.secretHeist,
+                    previousGameId: game.id,
+                    participantUserIds: players
+                        .where((p) => p.isActive)
+                        .map((p) => p.userId)
+                        .toList(),
+                    maxPlayers: game.maxPlayers,
+                    insertInvites: false,
+                    onCreateNewGame: onRematch,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ],

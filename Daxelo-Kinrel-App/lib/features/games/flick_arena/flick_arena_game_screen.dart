@@ -42,6 +42,8 @@ import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/widgets/reactions_bar.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'flick_arena_models.dart';
 import 'flick_arena_provider.dart';
 
@@ -216,6 +218,7 @@ class _FlickArenaGameScreenState extends ConsumerState<FlickArenaGameScreen>
           ? _ResultsView(
               game: game,
               familyId: widget.familyId,
+              isHost: game.hostUserId == myId,
               onRematch: () => ref
                   .read(flickArenaProvider(widget.familyId).notifier)
                   .rematch(),
@@ -1184,11 +1187,13 @@ class _ResultsView extends StatelessWidget {
   const _ResultsView({
     required this.game,
     required this.familyId,
+    required this.isHost,
     required this.onRematch,
     required this.onExit,
   });
   final FlickArenaGame game;
   final String familyId;
+  final bool isHost;
   final Future<String?> Function() onRematch;
   final VoidCallback onExit;
 
@@ -1293,22 +1298,28 @@ class _ResultsView extends StatelessWidget {
                   onPressed: onExit,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: DKButton(
-                  label: 'Rematch',
-                  variant: DKButtonVariant.primary,
-                  fullWidth: true,
-                  onPressed: () async {
-                    final newId = await onRematch();
-                    if (newId != null && context.mounted) {
-                      context.pushReplacement(
-                        '/family/$familyId/flick-arena/game/$newId',
-                      );
-                    }
-                  },
+              // Host-gated shared rematch — provider rematch() restores the
+              // slot players and writes invites itself (insertInvites:
+              // false). Participants come from the game row's four slots.
+              if (isHost) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: RematchButton(
+                    familyId: familyId,
+                    gameType: GameType.flickArena,
+                    previousGameId: game.id,
+                    participantUserIds: [
+                      game.playerOneId,
+                      game.playerTwoId,
+                      game.playerThreeId,
+                      game.playerFourId,
+                    ].where((id) => id.isNotEmpty).toList(),
+                    maxPlayers: game.maxPlayers,
+                    insertInvites: false,
+                    onCreateNewGame: onRematch,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ],

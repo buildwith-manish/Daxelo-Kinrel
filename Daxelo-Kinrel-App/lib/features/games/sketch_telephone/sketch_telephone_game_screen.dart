@@ -33,6 +33,8 @@ import '../../gaming_ecosystem/presentation/widgets/gaming_kit.dart';
 import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/widgets/reactions_bar.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'sketch_telephone_models.dart';
 import 'sketch_telephone_provider.dart';
 
@@ -103,6 +105,7 @@ class _SketchTelephoneGameScreenState
   Widget build(BuildContext context) {
     final state = ref.watch(sketchTelephoneProvider(widget.familyId));
     final game = state.game;
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
 
     if (state.isLoading && game == null) {
       return DKScaffold(
@@ -180,6 +183,7 @@ class _SketchTelephoneGameScreenState
               game: game,
               familyId: widget.familyId,
               state: state,
+              isHost: game.hostUserId == myId,
               onRematch: () => ref
                   .read(sketchTelephoneProvider(widget.familyId).notifier)
                   .rematch(),
@@ -1371,6 +1375,7 @@ class _ResultsView extends StatelessWidget {
     required this.game,
     required this.familyId,
     required this.state,
+    required this.isHost,
     required this.onRematch,
     required this.onExit,
   });
@@ -1378,6 +1383,7 @@ class _ResultsView extends StatelessWidget {
   final SketchTelephoneGame game;
   final String familyId;
   final SketchTelephoneState state;
+  final bool isHost;
   final Future<String?> Function() onRematch;
   final VoidCallback onExit;
 
@@ -1456,22 +1462,25 @@ class _ResultsView extends StatelessWidget {
                     onPressed: onExit,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: DKButton(
-                    label: 'Rematch',
-                    variant: DKButtonVariant.primary,
-                    fullWidth: true,
-                    onPressed: () async {
-                      final newId = await onRematch();
-                      if (newId != null && context.mounted) {
-                        context.pushReplacement(
-                          '/family/$familyId/sketch-telephone/game/$newId',
-                        );
-                      }
-                    },
+                // Host-gated shared rematch — provider rematch() carries the
+                // roster and writes invites itself (insertInvites: false).
+                if (isHost) ...[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: RematchButton(
+                      familyId: familyId,
+                      gameType: GameType.sketchTelephone,
+                      previousGameId: game.id,
+                      participantUserIds: state.players
+                          .where((p) => p.isActive)
+                          .map((p) => p.userId)
+                          .toList(),
+                      maxPlayers: game.maxPlayers,
+                      insertInvites: false,
+                      onCreateNewGame: onRematch,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
             const SizedBox(height: 18),
