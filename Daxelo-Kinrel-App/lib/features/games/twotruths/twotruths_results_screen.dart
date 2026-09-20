@@ -11,7 +11,9 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/game_board_shell.dart';
+import '../shared/models/game_invite.dart';
 import '../shared/widgets/game_confetti.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'twotruths_models.dart';
 import 'twotruths_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
@@ -203,8 +205,26 @@ class _TtResultsScreenState extends ConsumerState<TtResultsScreen> {
           familyId: widget.familyId,
         ),
         const SizedBox(height: KinrelSpacing.xxl),
-        DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,
-          onPressed: () { ref.read(ttProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.pushReplacement('/family/${widget.familyId}/twotruths/lobby'); }),
+        // Host: one-tap rematch — same mode/rounds/timer, invites everyone.
+        if (game.hostUserId == myId)
+          RematchButton(
+            familyId: widget.familyId,
+            gameType: GameType.twotruths,
+            previousGameId: game.id,
+            participantUserIds:
+                state.players.map((p) => p.userId).toList(),
+            maxPlayers: 8,
+            onCreateNewGame: () => ref
+                .read(ttProvider(widget.familyId).notifier)
+                .createGame(
+                  mode: game.mode,
+                  totalRounds: game.totalRounds,
+                  roundTimerSeconds: game.roundTimerSeconds,
+                ),
+          )
+        else
+          DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,
+            onPressed: () { ref.read(ttProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.pushReplacement('/family/${widget.familyId}/twotruths/lobby'); }),
         const SizedBox(height: 8),
         DKButton(label: 'Back to Hub', variant: DKButtonVariant.secondary, fullWidth: true,
           onPressed: () { ref.read(ttProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.go('/games?familyId=${widget.familyId}'); }),

@@ -21,7 +21,9 @@ import '../shared/icons/kinrel_icons.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/game_board_shell.dart';
 import '../shared/widgets/game_confetti.dart';
+import '../shared/models/game_invite.dart';
 import '../shared/widgets/leave_game_dialog.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'chitmatch_models.dart';
 import 'chitmatch_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
@@ -395,8 +397,26 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
         ),
           const SizedBox(height: KinrelSpacing.xl),
         ],
-        DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,
-          onPressed: () { ref.read(chitmatchProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.pushReplacement('/family/${widget.familyId}/chitmatch/lobby'); }),
+        // Host: one-tap rematch — same player count & timer, invites
+        // everyone who played this match.
+        if (game.hostUserId == myId)
+          RematchButton(
+            familyId: widget.familyId,
+            gameType: GameType.chitmatch,
+            previousGameId: game.id,
+            participantUserIds:
+                state.players.map((p) => p.userId).toList(),
+            maxPlayers: game.playerCount,
+            onCreateNewGame: () => ref
+                .read(chitmatchProvider(widget.familyId).notifier)
+                .createGame(
+                  playerCount: game.playerCount,
+                  roundTimerSeconds: game.roundTimerSeconds,
+                ),
+          )
+        else
+          DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,
+            onPressed: () { ref.read(chitmatchProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.pushReplacement('/family/${widget.familyId}/chitmatch/lobby'); }),
         const SizedBox(height: KinrelSpacing.sm),
         DKButton(label: 'Back to Hub', variant: DKButtonVariant.secondary, fullWidth: true,
           onPressed: () { ref.read(chitmatchProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.go('/games?familyId=${widget.familyId}'); }),

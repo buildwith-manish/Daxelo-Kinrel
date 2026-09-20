@@ -14,7 +14,9 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../shared/icons/kinrel_icons.dart';
+import '../shared/models/game_invite.dart';
 import '../shared/widgets/game_confetti.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'redlight_models.dart';
 import 'redlight_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
@@ -49,6 +51,9 @@ class RedlightResultsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(redlightProvider(familyId));
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+    // Captured once so the rematch closure can't be raced by a provider
+    // reset between build and button tap.
+    final round = state.round;
 
     // Use socket-pushed placements if available; otherwise fetch from DB.
     final liveResults = state.results;
@@ -157,24 +162,51 @@ class RedlightResultsScreen extends ConsumerWidget {
                       familyId: familyId,
                     ),
                     const SizedBox(height: KinrelSpacing.xxl),
-                    DKButton(
-                      label: 'Play Again',
-                      variant: DKButtonVariant.gradient,
-                      fullWidth: true,
-                      icon: Icons.refresh_rounded,
-                      onPressed: () {
-                        // Re-create a round with the same settings — return to lobby.
-                        ref
-                            .read(redlightProvider(familyId).notifier)
-                            .leaveRound();
-                        if (context.mounted) {
-                          context.pushReplacement(
-                            '/family/$familyId/freeze-dash/lobby',
-                          );
-                        }
-                      },
-                    ),
-                    const SizedBox(height: KinrelSpacing.sm),
+        // Host: one-tap rematch — same caller/map/modifiers, invites
+        // everyone who finished this round. Cold deep-links (round row not
+        // in provider state) fall back to the lobby path.
+        if (round != null && round.hostUserId == myId) ...[
+          RematchButton(
+            familyId: familyId,
+            gameType: GameType.redlight,
+            previousGameId: roundId,
+            participantUserIds: entries
+                .map((e) => e.userId)
+                .where((id) => id.isNotEmpty)
+                .toSet()
+                .toList(),
+            maxPlayers: 8,
+            onCreateNewGame: () => ref
+                .read(redlightProvider(familyId).notifier)
+                .createRound(
+                  callerCharacter: round.callerCharacter,
+                  mapTheme: round.mapTheme,
+                  weatherModifier: round.weatherModifier,
+                  teamMode: round.teamMode,
+                  eliminationMode: round.eliminationMode,
+                ),
+          ),
+          const SizedBox(height: KinrelSpacing.sm),
+        ] else ...[
+          DKButton(
+            label: 'Play Again',
+            variant: DKButtonVariant.gradient,
+            fullWidth: true,
+            icon: Icons.refresh_rounded,
+            onPressed: () {
+              // Re-create a round with the same settings — return to lobby.
+              ref
+                  .read(redlightProvider(familyId).notifier)
+                  .leaveRound();
+              if (context.mounted) {
+                context.pushReplacement(
+                  '/family/$familyId/freeze-dash/lobby',
+                );
+              }
+            },
+          ),
+          const SizedBox(height: KinrelSpacing.sm),
+        ],
                     DKButton(
                       label: 'Back to Hub',
                       variant: DKButtonVariant.secondary,

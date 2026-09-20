@@ -53,6 +53,8 @@ class RematchButton extends ConsumerWidget {
     this.hostUserId,
     this.maxPlayers = 2,
     this.insertInvites = true,
+    this.label = 'Rematch',
+    this.beforeNavigate,
   });
 
   final String familyId;
@@ -70,10 +72,18 @@ class RematchButton extends ConsumerWidget {
   /// rematch() already inserts invites (and pre-fills the roster) pass false.
   final bool insertInvites;
 
+  /// Button label — 'Rematch' everywhere except round-based games where the
+  /// action really starts a new round (e.g. Ghost Painter's 'Next Round').
+  final String label;
+
+  /// Runs after the new game exists but before navigation — e.g. closing a
+  /// wrapping modal bottom sheet (Truth or Dare's Family Moments sheet).
+  final VoidCallback? beforeNavigate;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DKButton(
-      label: 'Rematch',
+      label: label,
       icon: Icons.refresh,
       variant: DKButtonVariant.gradient,
       fullWidth: true,
@@ -82,6 +92,12 @@ class RematchButton extends ConsumerWidget {
   }
 
   Future<void> _rematch(BuildContext context, WidgetRef ref) async {
+    // Capture the router + messenger BEFORE any await — the results view can
+    // unmount mid-flight (provider swaps onto the new waiting game, or a
+    // wrapping bottom sheet pops), which would otherwise strand the host on
+    // a dead screen after the room was already created.
+    final router = GoRouter.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     final client = ref.read(supabaseProvider);
     final myId = client?.auth.currentUser?.id ?? '';
     final myName =
@@ -91,14 +107,12 @@ class RematchButton extends ConsumerWidget {
     // 1. Create the new game row via the game's provider
     final newGameId = await onCreateNewGame();
     if (newGameId == null) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Couldn\'t start rematch — try again'),
-            backgroundColor: KinrelColors.error,
-          ),
-        );
-      }
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Couldn\'t start rematch — try again'),
+          backgroundColor: KinrelColors.error,
+        ),
+      );
       return;
     }
 
@@ -133,8 +147,8 @@ class RematchButton extends ConsumerWidget {
     }
 
     // 3. Navigate the host into the new game's lobby
-    if (!context.mounted) return;
-    GoRouter.of(context).go(
+    beforeNavigate?.call();
+    router.go(
       '/family/$familyId/${gameType.routeSegment}/lobby?join=$newGameId',
     );
   }

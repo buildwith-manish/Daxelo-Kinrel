@@ -18,7 +18,9 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 import '../game_motion_tokens.dart';
+import '../shared/models/game_invite.dart';
 import '../shared/widgets/game_confetti.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'ghost_painter_canvas.dart';
 import 'ghost_painter_models.dart';
 import 'ghost_painter_provider.dart';
@@ -635,6 +637,26 @@ class _GhostPainterDrawScreenState
               padding: const EdgeInsets.only(top: 24),
             ),
             const SizedBox(height: 24),
+            // Drawer: one-tap next round — same studio, fresh prompt.
+            // Guessers watch the family's live round channel, so no invites.
+            if (round.drawerPersonId == _myId)
+              RematchButton(
+                familyId: widget.familyId,
+                gameType: GameType.ghostPainter,
+                previousGameId: round.id,
+                participantUserIds: const [],
+                label: 'Start Next Round',
+                insertInvites: false,
+                onCreateNewGame: () async {
+                  await _startRound();
+                  final newRound = ref
+                      .read(ghostPainterProvider(widget.familyId))
+                      .activeRound;
+                  return (newRound != null && newRound.id != round.id)
+                      ? newRound.id
+                      : null;
+                },
+              ),
           ],
         ),
         if (correctGuessers.isNotEmpty)

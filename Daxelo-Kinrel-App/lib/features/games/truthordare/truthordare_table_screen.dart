@@ -12,8 +12,10 @@ import '../../../shared/widgets/dk_components.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 import '../shared/icons/kinrel_icons.dart';
 import '../shared/services/temporary_room_service.dart';
+import '../shared/models/game_invite.dart';
 import '../shared/widgets/game_board_shell.dart';
 import '../shared/widgets/leave_game_dialog.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'truthordare_models.dart';
 import 'truthordare_provider.dart';
 
@@ -121,6 +123,24 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
                   padding: const EdgeInsets.only(top: 16),
                 ),
                 const SizedBox(height: 20),
+                // Host-only sheet: one-tap rematch recreates the room and
+                // invites everyone who played — the roster comes from the
+                // `state` snapshot captured BEFORE leaveGame() cleared the
+                // provider (the same capture-before-create rule as every
+                // other game's RematchButton).
+                RematchButton(
+                  familyId: widget.familyId,
+                  gameType: GameType.truthordare,
+                  previousGameId: gameId,
+                  participantUserIds:
+                      state.players.map((p) => p.userId).toList(),
+                  maxPlayers: 8,
+                  beforeNavigate: () => Navigator.of(sheetContext).pop(),
+                  onCreateNewGame: () => ref
+                      .read(todProvider(widget.familyId).notifier)
+                      .createGame(),
+                ),
+                const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
                   child: DKButton(
