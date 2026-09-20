@@ -59,6 +59,8 @@ import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/widgets/reactions_bar.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'word_forge_models.dart';
 import 'word_forge_provider.dart';
 
@@ -172,6 +174,7 @@ class _WordForgeGameScreenState
   Widget build(BuildContext context) {
     final state = ref.watch(wordForgeProvider(widget.familyId));
     final game = state.game;
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
 
     if (state.isLoading && game == null) {
       return DKScaffold(
@@ -262,6 +265,7 @@ class _WordForgeGameScreenState
               game: game,
               familyId: widget.familyId,
               players: state.players,
+              isHost: game.hostUserId == myId,
               onRematch: () => ref
                   .read(wordForgeProvider(widget.familyId).notifier)
                   .rematch(),
@@ -1531,12 +1535,14 @@ class _FinalResultsView extends StatelessWidget {
     required this.game,
     required this.familyId,
     required this.players,
+    required this.isHost,
     required this.onRematch,
     required this.onExit,
   });
   final WordForgeGame game;
   final String familyId;
   final List<WordForgePlayerWire> players;
+  final bool isHost;
   final Future<String?> Function() onRematch;
   final VoidCallback onExit;
 
@@ -1681,22 +1687,25 @@ class _FinalResultsView extends StatelessWidget {
                   onPressed: onExit,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: DKButton(
-                  label: 'Rematch',
-                  variant: DKButtonVariant.primary,
-                  fullWidth: true,
-                  onPressed: () async {
-                    final newId = await onRematch();
-                    if (newId != null && context.mounted) {
-                      context.pushReplacement(
-                        '/family/$familyId/word-forge/game/$newId',
-                      );
-                    }
-                  },
+              // Host-gated shared rematch — provider rematch() carries the
+              // roster and writes invites itself (insertInvites: false).
+              if (isHost) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: RematchButton(
+                    familyId: familyId,
+                    gameType: GameType.wordForge,
+                    previousGameId: game.id,
+                    participantUserIds: players
+                        .where((p) => p.isActive)
+                        .map((p) => p.userId)
+                        .toList(),
+                    maxPlayers: game.maxPlayers,
+                    insertInvites: false,
+                    onCreateNewGame: onRematch,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ],

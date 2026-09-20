@@ -34,6 +34,8 @@ import '../../gaming_ecosystem/presentation/widgets/gaming_kit.dart';
 import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/widgets/reactions_bar.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'night_falls_models.dart';
 import 'night_falls_provider.dart';
 
@@ -103,6 +105,7 @@ class _NightFallsGameScreenState extends ConsumerState<NightFallsGameScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(nightFallsProvider(widget.familyId));
     final game = state.game;
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     if (state.isLoading && game == null) {
       return DKScaffold(
         backgroundColor: KinrelColors.darkSurface,
@@ -176,6 +179,7 @@ class _NightFallsGameScreenState extends ConsumerState<NightFallsGameScreen> {
               game: game,
               familyId: widget.familyId,
               state: state,
+              isHost: game.hostUserId == myId,
               onRematch: () => ref
                   .read(nightFallsProvider(widget.familyId).notifier)
                   .rematch(),
@@ -1125,12 +1129,14 @@ class _FinishedView extends StatelessWidget {
     required this.game,
     required this.familyId,
     required this.state,
+    required this.isHost,
     required this.onRematch,
     required this.onExit,
   });
   final NightFallsGame game;
   final String familyId;
   final NightFallsState state;
+  final bool isHost;
   final Future<String?> Function() onRematch;
   final VoidCallback onExit;
 
@@ -1255,21 +1261,25 @@ class _FinishedView extends StatelessWidget {
                   onPressed: onExit,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: DKButton(
-                  label: 'Rematch',
-                  variant: DKButtonVariant.primary,
-                  fullWidth: true,
-                  onPressed: () async {
-                    final newId = await onRematch();
-                    if (newId != null && context.mounted) {
-                      context.pushReplacement(
-                          '/family/$familyId/night-falls/game/$newId');
-                    }
-                  },
+              // Host-gated shared rematch — provider rematch() carries the
+              // roster and writes invites itself (insertInvites: false).
+              if (isHost) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: RematchButton(
+                    familyId: familyId,
+                    gameType: GameType.nightFalls,
+                    previousGameId: game.id,
+                    participantUserIds: state.players
+                        .where((p) => p.isActive)
+                        .map((p) => p.userId)
+                        .toList(),
+                    maxPlayers: game.maxPlayers,
+                    insertInvites: false,
+                    onCreateNewGame: onRematch,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ],

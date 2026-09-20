@@ -37,6 +37,8 @@ import '../../gaming_ecosystem/presentation/widgets/gaming_kit.dart';
 import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/widgets/reactions_bar.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'code_clues_models.dart';
 import 'code_clues_provider.dart';
 
@@ -143,6 +145,7 @@ class _CodeCluesGameScreenState extends ConsumerState<CodeCluesGameScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(codeCluesProvider(widget.familyId));
     final game = state.game;
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
 
     if (state.isLoading && game == null) {
       return DKScaffold(
@@ -218,6 +221,7 @@ class _CodeCluesGameScreenState extends ConsumerState<CodeCluesGameScreen> {
               game: game,
               familyId: widget.familyId,
               players: state.players,
+              isHost: game.hostUserId == myId,
               onRematch: () => ref
                   .read(codeCluesProvider(widget.familyId).notifier)
                   .rematch(),
@@ -1174,6 +1178,7 @@ class _ResultsView extends StatelessWidget {
     required this.game,
     required this.familyId,
     required this.players,
+    required this.isHost,
     required this.onRematch,
     required this.onExit,
   });
@@ -1181,6 +1186,7 @@ class _ResultsView extends StatelessWidget {
   final CodeCluesGame game;
   final String familyId;
   final List<CodeCluesPlayerWire> players;
+  final bool isHost;
   final Future<String?> Function() onRematch;
   final VoidCallback onExit;
 
@@ -1350,22 +1356,25 @@ class _ResultsView extends StatelessWidget {
                   onPressed: onExit,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: DKButton(
-                  label: 'Rematch',
-                  variant: DKButtonVariant.primary,
-                  fullWidth: true,
-                  onPressed: () async {
-                    final newId = await onRematch();
-                    if (newId != null && context.mounted) {
-                      context.pushReplacement(
-                        '/family/$familyId/code-clues/game/$newId',
-                      );
-                    }
-                  },
+              // Host-gated shared rematch — provider rematch() carries the
+              // roster (teams included) and writes invites itself.
+              if (isHost) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: RematchButton(
+                    familyId: familyId,
+                    gameType: GameType.codeClues,
+                    previousGameId: game.id,
+                    participantUserIds: players
+                        .where((p) => p.isActive)
+                        .map((p) => p.userId)
+                        .toList(),
+                    maxPlayers: game.maxPlayers,
+                    insertInvites: false,
+                    onCreateNewGame: onRematch,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ],
