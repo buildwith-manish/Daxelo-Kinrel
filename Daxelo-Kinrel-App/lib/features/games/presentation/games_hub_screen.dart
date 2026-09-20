@@ -97,21 +97,52 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
     }
   }
 
+  /// Navigate back to Family Space (the parent). Family Arena is a
+  /// child of Family Space, so back must NEVER land on Home — even if
+  /// the route was opened via a deep-link / cold start (where there's
+  /// nothing to pop to). When the stack has a parent, pop; otherwise
+  /// explicitly go to /family/<id> (Family Space overview). Only fall
+  /// back to /home when no family context is available at all.
+  void _backToFamilySpace() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    final fid = widget.familyId ?? _resolvedFamilyId;
+    if (fid != null && fid.isNotEmpty) {
+      context.go('/family/$fid');
+    } else {
+      context.go('/home');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final familyId = _resolvedFamilyId;
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
+      // PopScope ties the Android hardware-back button to the same
+      // logic as the AppBar back arrow — both must return to Family
+      // Space, never to Home. canPop=true means a parent is on the
+      // stack → Framework pops automatically; canPop=false triggers
+      // our onPopInvokedWithResult callback where we route to
+      // /family/<id> explicitly.
+      body: PopScope(
+        canPop: context.canPop(),
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _backToFamilySpace();
+        },
+        child: _resolving
+            ? const Center(
+                child: CircularProgressIndicator(color: KinrelColors.orange))
+            : familyId == null
+                ? _NoFamilyState()
+                : _GamingDashboardBody(familyId: familyId),
+      ),
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/home');
-            }
-          },
+          onPressed: _backToFamilySpace,
         ),
         title: Text(
           'Family Arena',
@@ -128,12 +159,6 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
       bottomNavigationBar: familyId != null
           ? FamilySpaceFloatingNav(familyId: familyId)
           : null,
-      body: _resolving
-          ? const Center(
-              child: CircularProgressIndicator(color: KinrelColors.orange))
-          : familyId == null
-              ? _NoFamilyState()
-              : _GamingDashboardBody(familyId: familyId),
     );
   }
 }

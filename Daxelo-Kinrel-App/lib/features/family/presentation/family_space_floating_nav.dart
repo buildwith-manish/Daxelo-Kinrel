@@ -238,7 +238,14 @@ class FamilySpaceFloatingNav extends StatelessWidget {
       case 0:
         context.go('/family/$familyId/members');
       case 1:
-        context.go('/games?familyId=$familyId');
+        // Family Arena (Games) is a CHILD section of Family Space — it
+        // must preserve the parent on the navigation stack so the back
+        // button returns to Family Space (not Home). Using push() keeps
+        // /family/<id> below /games in the stack. The GamesHubScreen's
+        // AppBar back arrow + Android hardware back both pop to here.
+        // (Other tabs remain on go() because they are sibling tabs that
+        //  share the FamilySpaceFloatingNav and should not stack.)
+        context.push('/games?familyId=$familyId');
       case 2:
         context.go('/family/$familyId/calendar');
       case 3:
