@@ -1,8 +1,11 @@
 // lib/features/gaming_ecosystem/data/game_registry.dart
 //
-// The single source of truth for the 14 multiplayer games (+ Ghost Painter).
-// Replaces the 15 hard-coded _GameCatalogCards in the old Games hub with a
-// typed registry that powers:
+// The single source of truth for the 31 multiplayer games in the hub.
+// (Was "14 + Ghost Painter" — every game added since is registered here
+// AND — enforced by test/features/games/game_registration_contract_test.dart
+// — wired into the shared GameType invite system.) Replaces the
+// hard-coded game cards in the old Games hub with a typed registry that
+// powers:
 //   • the redesigned Games hub grid (categorised, progressive disclosure)
 //   • per-game leaderboards
 //   • smart match suggestion deep links
