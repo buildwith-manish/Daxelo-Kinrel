@@ -689,7 +689,7 @@ class _StatRow extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: _StatChip(
-            icon: KinrelIconData.users,
+            icon: Icons.people_outline_rounded,
             label: 'PLAYERS',
             value: '${state.participationCount} joined',
             color: KinrelColors.amber,
@@ -698,7 +698,7 @@ class _StatRow extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: _StatChip(
-            icon: KinrelIconData.flame,
+            icon: Icons.local_fire_department_outlined,
             label: state.myStats != null && state.myStats!.currentStreak > 0
                 ? 'YOUR STREAK'
                 : 'REWARD',
