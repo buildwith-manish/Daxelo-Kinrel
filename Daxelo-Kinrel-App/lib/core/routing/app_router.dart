@@ -77,6 +77,9 @@ import '../../features/chat/presentation/chat_inbox_screen.dart';
 import '../../features/chat/presentation/archived_chats_screen.dart';
 import '../../features/chat/presentation/wallpaper_settings_screen.dart';
 import '../../features/prediction_battle/prediction_battle_screen.dart';
+// TEMPORARY: preview-only import for the redesigned numeric-guess
+// prediction card. Remove when the card is approved and wired in.
+import '../../features/prediction_battle/numeric_guess_prediction_card.dart';
 import '../../features/hot_seat/presentation/hot_seat_screen.dart';
 import '../../features/relation_riddles/presentation/relation_riddle_screen.dart';
 import '../../features/calendar/presentation/family_calendar_screen.dart'
@@ -2766,6 +2769,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: const EngagementDashboard(),
+        ),
+      ),
+
+      // ── TEMPORARY: Numeric-Guess Prediction Card preview ──────────
+      // Review-only route for the redesigned warm/family-friendly
+      // prediction card. NOT wired into the live provider yet — see
+      // lib/features/prediction_battle/numeric_guess_prediction_card.dart.
+      // Remove this route before merging once the card is approved and
+      // wired into FamilyDetailScreen in place of PredictionBattleCard.
+      GoRoute(
+        path: '/debug/numeric-guess-prediction-card',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const NumericGuessPredictionPreviewScreen(),
         ),
       ),
 
