@@ -32,6 +32,8 @@ import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/game_board_shell.dart';
 import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'ludo_game_logic.dart';
 import 'ludo_models.dart';
 import 'ludo_provider.dart';
@@ -1015,20 +1017,35 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
                 familyId: widget.familyId,
               ),
               const SizedBox(height: KinrelSpacing.xxl),
-              DKButton(
-                label: 'Play Again',
-                variant: DKButtonVariant.gradient,
-                fullWidth: true,
-                icon: Icons.refresh_rounded,
-                onPressed: () {
-                  ref.read(ludoProvider(widget.familyId).notifier).leaveGame();
-                  if (context.mounted) {
-                    context.pushReplacement(
-                      '/family/${widget.familyId}/ludo/lobby',
-                    );
-                  }
-                },
-              ),
+              // Host: one-tap rematch — same player count, invites everyone
+              // from this match. Non-host: back to the lobby.
+              if (game.hostUserId == myId)
+                RematchButton(
+                  familyId: widget.familyId,
+                  gameType: GameType.ludo,
+                  previousGameId: game.id,
+                  participantUserIds:
+                      state.players.map((p) => p.userId).toList(),
+                  maxPlayers: game.playerCount,
+                  onCreateNewGame: () => ref
+                      .read(ludoProvider(widget.familyId).notifier)
+                      .createGame(playerCount: game.playerCount),
+                )
+              else
+                DKButton(
+                  label: 'Play Again',
+                  variant: DKButtonVariant.gradient,
+                  fullWidth: true,
+                  icon: Icons.refresh_rounded,
+                  onPressed: () {
+                    ref.read(ludoProvider(widget.familyId).notifier).leaveGame();
+                    if (context.mounted) {
+                      context.pushReplacement(
+                        '/family/${widget.familyId}/ludo/lobby',
+                      );
+                    }
+                  },
+                ),
               const SizedBox(height: KinrelSpacing.sm),
               DKButton(
                 label: 'Back to Hub',

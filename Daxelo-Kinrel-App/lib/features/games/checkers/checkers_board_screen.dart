@@ -29,6 +29,8 @@ import '../shared/multiplayer/multiplayer.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/game_board_shell.dart';
 import '../shared/widgets/game_confetti.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'checkers_game_logic.dart';
 import 'checkers_models.dart';
 import 'checkers_provider.dart';
@@ -705,27 +707,43 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
               ),
                 const SizedBox(height: KinrelSpacing.xl),
               ],
-              DKButton(
-                label: 'Play Again',
-                variant: DKButtonVariant.gradient,
-                fullWidth: true,
-                icon: Icons.refresh_rounded,
-                onPressed: () {
-                  final gameId = ref.read(checkersProvider(widget.familyId)).game?.id;
-                  ref.read(checkersProvider(widget.familyId).notifier).leaveGame();
-                  if (gameId != null) {
-                    ref.read(temporaryRoomServiceProvider).endGame(
-                          gameTable: 'checkers_games',
-                          gameId: gameId,
-                        );
-                  }
-                  if (context.mounted) {
-                    context.pushReplacement(
-                      '/family/${widget.familyId}/checkers/lobby',
-                    );
-                  }
-                },
-              ),
+              // Host: one-tap rematch — creates a fresh room with the same
+              // settings and invites everyone from this match.
+              if (game.hostUserId == myId)
+                RematchButton(
+                  familyId: widget.familyId,
+                  gameType: GameType.checkers,
+                  previousGameId: game.id,
+                  participantUserIds: [
+                    game.playerOneId,
+                    if (game.playerTwoId.isNotEmpty) game.playerTwoId,
+                  ],
+                  onCreateNewGame: () => ref
+                      .read(checkersProvider(widget.familyId).notifier)
+                      .createRoom(spectatorsEnabled: game.spectatorsEnabled),
+                )
+              else
+                DKButton(
+                  label: 'Play Again',
+                  variant: DKButtonVariant.gradient,
+                  fullWidth: true,
+                  icon: Icons.refresh_rounded,
+                  onPressed: () {
+                    final gameId = ref.read(checkersProvider(widget.familyId)).game?.id;
+                    ref.read(checkersProvider(widget.familyId).notifier).leaveGame();
+                    if (gameId != null) {
+                      ref.read(temporaryRoomServiceProvider).endGame(
+                            gameTable: 'checkers_games',
+                            gameId: gameId,
+                          );
+                    }
+                    if (context.mounted) {
+                      context.pushReplacement(
+                        '/family/${widget.familyId}/checkers/lobby',
+                      );
+                    }
+                  },
+                ),
               const SizedBox(height: KinrelSpacing.sm),
               DKButton(
                 label: 'Back to Hub',

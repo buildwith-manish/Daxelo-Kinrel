@@ -13,7 +13,9 @@ import '../shared/icons/kinrel_icons.dart';
 import '../shared/multiplayer/multiplayer.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/game_board_shell.dart';
+import '../shared/models/game_invite.dart';
 import '../shared/widgets/game_confetti.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'tictactoe_models.dart';
 import 'tictactoe_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
@@ -253,15 +255,34 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
           familyId: widget.familyId,
         ),
         const SizedBox(height: KinrelSpacing.xxl),
-        DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,
-          onPressed: () {
-            final gameId = ref.read(tttProvider(widget.familyId)).game?.id;
-            ref.read(tttProvider(widget.familyId).notifier).leaveGame();
-            if (gameId != null) {
-              ref.read(temporaryRoomServiceProvider).endGame(gameTable: 'tictactoe_games', gameId: gameId);
-            }
-            if (context.mounted) context.pushReplacement('/family/${widget.familyId}/tictactoe/lobby');
-          }),
+        // Host: one-tap rematch — creates a fresh room with the same settings
+        // and invites everyone from this match. Non-host: back to the lobby.
+        if (game.hostUserId == myId)
+          RematchButton(
+            familyId: widget.familyId,
+            gameType: GameType.tictactoe,
+            previousGameId: game.id,
+            participantUserIds: [
+              game.playerXId,
+              if (game.playerOId.isNotEmpty) game.playerOId,
+            ],
+            onCreateNewGame: () => ref
+                .read(tttProvider(widget.familyId).notifier)
+                .createRoom(
+                  spectatorsEnabled: game.spectatorsEnabled,
+                  bestOf: game.bestOf,
+                ),
+          )
+        else
+          DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,
+            onPressed: () {
+              final gameId = ref.read(tttProvider(widget.familyId)).game?.id;
+              ref.read(tttProvider(widget.familyId).notifier).leaveGame();
+              if (gameId != null) {
+                ref.read(temporaryRoomServiceProvider).endGame(gameTable: 'tictactoe_games', gameId: gameId);
+              }
+              if (context.mounted) context.pushReplacement('/family/${widget.familyId}/tictactoe/lobby');
+            }),
         const SizedBox(height: KinrelSpacing.sm),
         DKButton(label: 'Back to Hub', variant: DKButtonVariant.secondary, fullWidth: true,
           onPressed: () {

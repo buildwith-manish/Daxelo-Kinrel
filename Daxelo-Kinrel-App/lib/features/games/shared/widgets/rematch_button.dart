@@ -20,6 +20,18 @@
 //     participantUserIds: state.allCards.map((c) => c.playerId).toList(),
 //     onCreateNewGame: () => ref.read(bingoProvider(widget.familyId).notifier).createGame(),
 //   )
+//
+// The roster is passed in as a constructor parameter — it is therefore
+// captured at RESULTS-SCREEN BUILD time, BEFORE the button is tapped and
+// BEFORE onCreateNewGame() swaps the provider onto the new game (the QA bug
+// where "rematch invited nobody" was exactly a roster read after create).
+//
+// Two rollout knobs:
+//   • maxPlayers — recorded on the invite rows (was hardcoded 2, which
+//     mislabelled 3–4 player games).
+//   • insertInvites — set to false for games whose provider rematch()
+//     already inserts game_invites (and carries the roster over), so the
+//     two paths don't double-invite.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,6 +51,8 @@ class RematchButton extends ConsumerWidget {
     required this.participantUserIds,
     required this.onCreateNewGame,
     this.hostUserId,
+    this.maxPlayers = 2,
+    this.insertInvites = true,
   });
 
   final String familyId;
@@ -47,6 +61,14 @@ class RematchButton extends ConsumerWidget {
   final List<String> participantUserIds;
   final Future<String?> Function() onCreateNewGame;
   final String? hostUserId;
+
+  /// Recorded on the invite rows. Pass the completed game's real capacity
+  /// (e.g. ludo/dotsboxes support 4) — defaults to 2 for duels.
+  final int maxPlayers;
+
+  /// Whether THIS widget inserts the game_invites rows. Games whose provider
+  /// rematch() already inserts invites (and pre-fills the roster) pass false.
+  final bool insertInvites;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -94,7 +116,7 @@ class RematchButton extends ConsumerWidget {
               'invitedUserId': userId,
               'invitedByUserId': myId,
               'invitedByName': myName,
-              'maxPlayers': 2,
+              'maxPlayers': maxPlayers,
               'currentPlayers': 1,
               'message': '$myName wants a rematch in ${gameType.displayName}',
               'status': 'pending',
@@ -102,7 +124,7 @@ class RematchButton extends ConsumerWidget {
             }))
         .toList();
 
-    if (invites.isNotEmpty && client != null) {
+    if (insertInvites && invites.isNotEmpty && client != null) {
       try {
         await client.from('game_invites').insert(invites);
       } catch (_) {

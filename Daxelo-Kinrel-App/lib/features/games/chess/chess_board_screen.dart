@@ -28,7 +28,9 @@ import '../shared/icons/kinrel_icons.dart';
 import '../shared/multiplayer/multiplayer.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/game_board_shell.dart';
+import '../shared/models/game_invite.dart';
 import '../shared/widgets/game_confetti.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'chess_models.dart';
 import 'chess_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
@@ -822,29 +824,45 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
                 familyId: widget.familyId,
               ),
               const SizedBox(height: KinrelSpacing.xxl),
-              DKButton(
-                label: 'Play Again',
-                variant: DKButtonVariant.gradient,
-                fullWidth: true,
-                icon: Icons.refresh_rounded,
-                onPressed: () {
-                  final gameId = ref.read(chessProvider(widget.familyId)).game?.id;
-                  ref.read(chessProvider(widget.familyId).notifier).leaveGame();
-                  // Eager end-game cleanup (safety-net Timer also fires 30s
-                  // after the game completed in the provider).
-                  if (gameId != null) {
-                    ref.read(temporaryRoomServiceProvider).endGame(
-                          gameTable: 'chess_games',
-                          gameId: gameId,
-                        );
-                  }
-                  if (context.mounted) {
-                    context.pushReplacement(
-                      '/family/${widget.familyId}/chess/lobby',
-                    );
-                  }
-                },
-              ),
+              // Host: one-tap rematch — creates a fresh room with the same
+              // settings and invites everyone from this match.
+              if (game.hostUserId == myId)
+                RematchButton(
+                  familyId: widget.familyId,
+                  gameType: GameType.chess,
+                  previousGameId: game.id,
+                  participantUserIds: [
+                    game.playerWhiteId,
+                    if (game.playerBlackId.isNotEmpty) game.playerBlackId,
+                  ],
+                  onCreateNewGame: () => ref
+                      .read(chessProvider(widget.familyId).notifier)
+                      .createRoom(spectatorsEnabled: game.spectatorsEnabled),
+                )
+              else
+                DKButton(
+                  label: 'Play Again',
+                  variant: DKButtonVariant.gradient,
+                  fullWidth: true,
+                  icon: Icons.refresh_rounded,
+                  onPressed: () {
+                    final gameId = ref.read(chessProvider(widget.familyId)).game?.id;
+                    ref.read(chessProvider(widget.familyId).notifier).leaveGame();
+                    // Eager end-game cleanup (safety-net Timer also fires 30s
+                    // after the game completed in the provider).
+                    if (gameId != null) {
+                      ref.read(temporaryRoomServiceProvider).endGame(
+                            gameTable: 'chess_games',
+                            gameId: gameId,
+                          );
+                    }
+                    if (context.mounted) {
+                      context.pushReplacement(
+                        '/family/${widget.familyId}/chess/lobby',
+                      );
+                    }
+                  },
+                ),
               const SizedBox(height: KinrelSpacing.sm),
               DKButton(
                 label: 'Back to Hub',

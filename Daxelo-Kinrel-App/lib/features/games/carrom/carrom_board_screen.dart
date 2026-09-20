@@ -24,7 +24,9 @@ import '../shared/icons/kinrel_icons.dart';
 import '../shared/multiplayer/multiplayer.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/game_board_shell.dart';
+import '../shared/models/game_invite.dart';
 import '../shared/widgets/game_confetti.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'carrom_models.dart';
 import 'carrom_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
@@ -652,31 +654,47 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen>
                 familyId: widget.familyId,
               ),
               const SizedBox(height: KinrelSpacing.xxl),
-              DKButton(
-                label: 'Play Again',
-                variant: DKButtonVariant.gradient,
-                fullWidth: true,
-                icon: Icons.refresh_rounded,
-                onPressed: () {
-                  final gameId = ref
-                      .read(carromProvider(widget.familyId))
-                      .game
-                      ?.id;
-                  ref
+              // Host: one-tap rematch — creates a fresh room with the same
+              // settings and invites everyone from this match.
+              if (game.hostUserId == myId)
+                RematchButton(
+                  familyId: widget.familyId,
+                  gameType: GameType.carrom,
+                  previousGameId: game.id,
+                  participantUserIds: [
+                    game.playerOneId,
+                    if (game.playerTwoId.isNotEmpty) game.playerTwoId,
+                  ],
+                  onCreateNewGame: () => ref
                       .read(carromProvider(widget.familyId).notifier)
-                      .leaveGame();
-                  if (gameId != null) {
+                      .createRoom(spectatorsEnabled: game.spectatorsEnabled),
+                )
+              else
+                DKButton(
+                  label: 'Play Again',
+                  variant: DKButtonVariant.gradient,
+                  fullWidth: true,
+                  icon: Icons.refresh_rounded,
+                  onPressed: () {
+                    final gameId = ref
+                        .read(carromProvider(widget.familyId))
+                        .game
+                        ?.id;
                     ref
-                        .read(temporaryRoomServiceProvider)
-                        .endGame(gameTable: 'carrom_games', gameId: gameId);
-                  }
-                  if (context.mounted) {
-                    context.pushReplacement(
-                      '/family/${widget.familyId}/carrom/lobby',
-                    );
-                  }
-                },
-              ),
+                        .read(carromProvider(widget.familyId).notifier)
+                        .leaveGame();
+                    if (gameId != null) {
+                      ref
+                          .read(temporaryRoomServiceProvider)
+                          .endGame(gameTable: 'carrom_games', gameId: gameId);
+                    }
+                    if (context.mounted) {
+                      context.pushReplacement(
+                        '/family/${widget.familyId}/carrom/lobby',
+                      );
+                    }
+                  },
+                ),
               const SizedBox(height: KinrelSpacing.sm),
               DKButton(
                 label: 'Back to Hub',
