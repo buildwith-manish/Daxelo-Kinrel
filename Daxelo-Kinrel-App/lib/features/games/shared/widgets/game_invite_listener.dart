@@ -15,8 +15,14 @@
 //      unreachable. game_invites is in the supabase_realtime
 //      publication with REPLICA IDENTITY FULL.
 //
-// Both legs funnel into _handleInvite, which dedupes by (gameId,
-// fromUserId) within a short window so the two legs never double-show
+//   3. Offline inbox catch-up (2026-09-22) — a one-shot SELECT of
+//      pending, unread (isRead = false), unexpired rows at app start,
+//      realtime-(re)subscribe, and app-resume. Invites that arrived
+//      while the member was OFFLINE surface through the same dialog.
+//      Non-throwing: any failure degrades to “no unread invites”.
+//
+// All legs funnel into _handleInvite, which dedupes by (gameId,
+// fromUserId) within a short window so the legs never double-show
 // the same invitation. Accepting navigates the user into the host's
 // game lobby via the standard `?join=` deep-link format.
 //
@@ -37,6 +43,7 @@ import '../../../../core/network/socket_service.dart';
 import '../../../../core/routing/app_router.dart' show rootNavigatorKey;
 import '../../../../core/services/supabase_service.dart';
 import '../models/game_invite.dart';
+import '../services/game_invite_inbox.dart';
 
 class GameInviteListener extends ConsumerStatefulWidget {
   const GameInviteListener({super.key, required this.child});
@@ -46,7 +53,8 @@ class GameInviteListener extends ConsumerStatefulWidget {
   ConsumerState<GameInviteListener> createState() => _GameInviteListenerState();
 }
 
-class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
+class _GameInviteListenerState extends ConsumerState<GameInviteListener>
+    with WidgetsBindingObserver {
   SocketService? _socket;
   VoidCallback? _unsub;
   RealtimeChannel? _inviteChannel;
@@ -58,10 +66,37 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
   final Map<String, DateTime> _shownPairAt = {};
   bool _dbLegAttached = false;
 
+  // ── Leg 3: offline inbox catch-up state ──
+  bool _inboxRunning = false;
+  DateTime? _lastCatchUpAt;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _attachSocket());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _unsub?.call();
+    _inviteChannel?.unsubscribe();
+    unawaited(_authSub?.cancel());
+    super.dispose();
+  }
+
+  /// Leg 3 hook — coming back to the foreground: the socket and the
+  /// realtime channel typically died in the background, so anything
+  /// invited meanwhile was missed. Throttled to one scan per 30s.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final client = ref.read(supabaseProvider);
+      if (client?.auth.currentUser != null) {
+        unawaited(_maybeCatchUpInbox(client!));
+      }
+    }
   }
 
   void _attachSocket() {
@@ -79,11 +114,19 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
 
     if (client.auth.currentUser != null) {
       unawaited(_subscribeToInviteRows(client));
+      // Leg 3 — surface anything that arrived while we were away.
+      // Delayed so it never competes with the first frame of startup.
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted && client.auth.currentUser != null) {
+          unawaited(_maybeCatchUpInbox(client));
+        }
+      });
     }
     _authSub = client.auth.onAuthStateChange.listen((data) {
       if (!mounted) return;
       if (data.event == AuthChangeEvent.signedIn) {
         unawaited(_subscribeToInviteRows(client));
+        unawaited(_maybeCatchUpInbox(client));
       } else if (data.event == AuthChangeEvent.signedOut) {
         _inviteChannel?.unsubscribe();
         _inviteChannel = null;
@@ -159,6 +202,11 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
           // InvalidJWTToken after the captured JWT expired). Without
           // this, the listener stayed dead until an app restart and
           // invites were silently missed.
+          if (status == RealtimeSubscribeStatus.subscribed) {
+            // Leg 3 — every (re)subscribe is a chance the member was
+            // offline while invites landed. Throttled inside.
+            unawaited(_maybeCatchUpInbox(client));
+          }
           if (status == RealtimeSubscribeStatus.channelError ||
               status == RealtimeSubscribeStatus.closed ||
               status == RealtimeSubscribeStatus.timedOut) {
@@ -205,11 +253,40 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
     );
   }
 
-  void _handleInvite(GameInvite invite) {
+  /// Leg 3 — offline inbox catch-up. Fetches pending, unread, unexpired
+  /// invites and surfaces each through the SAME Accept/Decline dialog,
+  /// one at a time (a dialog popping advances the queue). Throttled to
+  /// one scan per 30s across all trigger points; never runs concurrently.
+  Future<void> _maybeCatchUpInbox(SupabaseClient client) async {
+    if (!mounted || _inboxRunning) return;
+    final now = DateTime.now();
+    final last = _lastCatchUpAt;
+    if (last != null && now.difference(last).inSeconds < 30) return;
+    _lastCatchUpAt = now;
+    _inboxRunning = true;
+    try {
+      final invites = await GameInviteInbox.fetchUnread(client);
+      if (invites.isEmpty) return;
+      debugPrint('📮 GameInviteListener: inbox catch-up surfacing '
+          '${invites.length} unread invite(s)');
+      for (final invite in invites) {
+        if (!mounted) break;
+        // Sequential — wait for this dialog to close before the next.
+        await _handleInvite(invite);
+      }
+    } finally {
+      _inboxRunning = false;
+    }
+  }
+
+  /// Dedupes and surfaces an invite. Returns a Future that completes
+  /// when the dialog CLOSES (or immediately when deduped) — the inbox
+  /// catch-up uses this to show its queue one dialog at a time.
+  Future<void> _handleInvite(GameInvite invite) async {
     if (!mounted) return;
 
-    // Dedupe — same invite may arrive on both legs (socket + DB row)
-    // or twice if the socket reconnects.
+    // Dedupe — same invite may arrive on multiple legs (socket + DB row
+    // + inbox catch-up) or twice if the socket reconnects.
     final pairKey = '${invite.gameId}:${invite.fromUserId}';
     final lastShown = _shownPairAt[pairKey];
     final now = DateTime.now();
@@ -224,10 +301,16 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
     _shownInviteIds.add(invite.inviteId);
     _shownPairAt[pairKey] = now;
 
-    _showInviteDialog(invite);
+    // Inbox bookkeeping — mark the durable row as surfaced so future
+    // catch-ups never re-show it. Fire-and-forget, non-throwing.
+    unawaited(GameInviteInbox.markSurfaced(
+        ref.read(supabaseProvider), invite));
+
+    await _showInviteDialog(invite);
   }
 
-  void _showInviteDialog(GameInvite invite) {
+  /// Returns a Future that completes when the dialog is dismissed.
+  Future<void> _showInviteDialog(GameInvite invite) async {
     // This widget lives ABOVE the Router in the widget tree
     // (MaterialApp.builder wraps the Router), so its own context has no
     // Navigator ancestor and showDialog(context: context) would fail.
@@ -239,7 +322,7 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
           'dialog skipped (invite still delivered via DM + push)');
       return;
     }
-    showDialog<void>(
+    await showDialog<void>(
       context: navContext,
       barrierDismissible: false,
       builder: (dialogContext) => _GameInviteDialog(
@@ -325,14 +408,6 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
       debugPrint('⚠️ GameInviteListener: persist $status failed '
           '(non-blocking): $e');
     }
-  }
-
-  @override
-  void dispose() {
-    _unsub?.call();
-    _inviteChannel?.unsubscribe();
-    unawaited(_authSub?.cancel());
-    super.dispose();
   }
 
   @override
