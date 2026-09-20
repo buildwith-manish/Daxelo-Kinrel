@@ -40,9 +40,10 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/utils/share_helper.dart';
 import '../../../../shared/widgets/dk_components.dart';
 import '../../game_motion_tokens.dart';
-import '../models/game_invite.dart' show GameType;
+import '../models/game_invite.dart' show GameType, GameTypeX;
 import '../multiplayer/room_state.dart' show RoomParticipant;
 import '../services/room_presence_heartbeat.dart';
 import '../services/temporary_room_service.dart';
@@ -779,6 +780,35 @@ class _BoardGameRoomLobbyScreenState
               ),
             ),
             const SizedBox(height: KinrelSpacing.lg),
+            // ── QA hardening 5b: the 6-char code was display-only (there is
+            // no "enter a code" flow anywhere in the app) — the actionable
+            // share is a deep link that opens this exact room, identical to
+            // tapping Accept on an in-app invite.
+            DKButton(
+              label: 'Copy Invite Link',
+              variant: DKButtonVariant.gradient,
+              fullWidth: true,
+              icon: Icons.link_rounded,
+              onPressed: () async {
+                final copied = await ShareHelper.copyGameRoomLink(
+                  familyId: _familyId,
+                  routeSegment: _spec.gameType.routeSegment,
+                  gameId: gameId,
+                );
+                if (!mounted) return;
+                if (context.canPop()) context.pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(copied
+                        ? 'Invite link copied — share it with family!'
+                        : 'Couldn\'t copy the link — please try again'),
+                    backgroundColor:
+                        copied ? KinrelColors.success : KinrelColors.error,
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: KinrelSpacing.sm),
             DKButton(
               label: 'Done',
               variant: DKButtonVariant.primary,

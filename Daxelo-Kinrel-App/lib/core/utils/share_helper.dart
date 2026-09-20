@@ -6,6 +6,7 @@
 // Uses share_plus (already in pubspec.yaml) and generates
 // URLs consistent with the DeepLinkService.
 
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart' as share_plus;
 import '../services/crashlytics_service.dart';
 import '../services/analytics_service.dart';
@@ -94,5 +95,43 @@ class ShareHelper {
       text,
       subject: 'Kinrel — Indian Family Relationship Intelligence',
     );
+  }
+
+  // ── Game rooms (QA hardening 5b: room-code copy link) ─────────────
+
+  /// Build a game-room join deep link — the SAME route the in-app invite
+  /// Accept flow navigates to (/family/:id/<game>/lobby?join=<gameId>),
+  /// so a copied link behaves identically to tapping Accept on an invite.
+  static String gameRoomJoinUrl({
+    required String familyId,
+    required String routeSegment,
+    required String gameId,
+  }) =>
+      '$_baseUrl/family/$familyId/$routeSegment/lobby?join=$gameId';
+
+  /// Copy a game-room join link to the clipboard. Returns true on success.
+  /// Non-throwing — clipboard failures (rare platform errors) return false
+  /// so lobby UI can skip the confirmation snackbar.
+  static Future<bool> copyGameRoomLink({
+    required String familyId,
+    required String routeSegment,
+    required String gameId,
+  }) async {
+    final url = gameRoomJoinUrl(
+      familyId: familyId,
+      routeSegment: routeSegment,
+      gameId: gameId,
+    );
+    try {
+      await Clipboard.setData(ClipboardData(text: url));
+      logActionBreadcrumb('copy_game_room_link', {
+        'familyId': familyId,
+        'routeSegment': routeSegment,
+      });
+      return true;
+    } catch (e) {
+      logActionBreadcrumb('copy_game_room_link_failed', {'error': '$e'});
+      return false;
+    }
   }
 }

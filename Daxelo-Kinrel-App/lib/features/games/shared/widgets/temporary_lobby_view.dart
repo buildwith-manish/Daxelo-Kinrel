@@ -57,11 +57,13 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/utils/share_helper.dart';
 import '../../../../shared/widgets/dk_components.dart';
 import '../../game_motion_tokens.dart';
 import '../icons/kinrel_icons.dart';
 import '../multiplayer/widgets/room_close_dialog.dart';
 import 'family_invite_card.dart';
+import '../models/game_invite.dart' show GameTypeX;
 import 'lobby_chat_panel.dart';
 import 'room_exit_barrier.dart';
 
@@ -770,6 +772,13 @@ class _RoomHeaderCard extends StatelessWidget {
                     letterSpacing: 1,
                   ),
                 ),
+                // ── QA hardening 5b: tap the room code (or the little copy
+                // icon) to copy a deep link that opens this exact room —
+                // the same route an invite Accept navigates to. The 6-char
+                // code itself was display-only (there is no "enter a code"
+                // flow anywhere in the app).
+                const SizedBox(width: 2),
+                _CopyRoomLinkButton(config: config),
                 const SizedBox(width: KinrelSpacing.sm),
                 _dot(),
                 const SizedBox(width: KinrelSpacing.sm),
@@ -1583,6 +1592,74 @@ class _CloseRoomButtonState extends State<_CloseRoomButton> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tiny tap target next to the room code in the facts strip: copies a deep
+/// link that opens this exact room (QA hardening 5b). Uses the reverse
+/// gameTable → GameType map kept in lockstep with the forward map by the
+/// game-registration contract test.
+class _CopyRoomLinkButton extends StatefulWidget {
+  const _CopyRoomLinkButton({required this.config});
+
+  final TemporaryLobbyConfig config;
+
+  @override
+  State<_CopyRoomLinkButton> createState() => _CopyRoomLinkButtonState();
+}
+
+class _CopyRoomLinkButtonState extends State<_CopyRoomLinkButton> {
+  bool _copied = false;
+
+  Future<void> _copy() async {
+    final gameType = gameTypeForTable(widget.config.gameTable);
+    if (gameType == null) {
+      // Unknown table — nothing we can build a link for. Still show a
+      // friendly failure so the tap isn't a silent dead end.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Couldn\'t build a link for this room'),
+          backgroundColor: KinrelColors.error,
+        ),
+      );
+      return;
+    }
+    final copied = await ShareHelper.copyGameRoomLink(
+      familyId: widget.config.familyId,
+      routeSegment: gameType.routeSegment,
+      gameId: widget.config.gameId,
+    );
+    if (!mounted) return;
+    setState(() => _copied = copied);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(copied
+            ? 'Invite link copied — share it with family!'
+            : 'Couldn\'t copy the link — please try again'),
+        backgroundColor: copied ? KinrelColors.success : KinrelColors.error,
+      ),
+    );
+    // Revert the check icon after a beat so the affordance stays honest.
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: _copy,
+      borderRadius: BorderRadius.circular(KinrelRadius.sm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+        child: Icon(
+          _copied ? Icons.check : Icons.copy,
+          size: 13,
+          color: _copied ? KinrelColors.success : KinrelColors.textDim,
         ),
       ),
     );
