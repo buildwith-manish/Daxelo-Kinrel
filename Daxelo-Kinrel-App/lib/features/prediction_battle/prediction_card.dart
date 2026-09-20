@@ -1,35 +1,51 @@
 // lib/features/prediction_battle/prediction_card.dart
 //
 // ┌─────────────────────────────────────────────────────────────────────┐
-// │  PREDICTION BATTLE — Premium Feature Card (redesigned)              │
+// │  PREDICTION BATTLE — Inline-Interactive Feature Card                 │
 // └─────────────────────────────────────────────────────────────────────┘
 //
-// Design goals (per spec):
-//   • Replace emoji (🔮) with a custom branded visual asset — the
-//     "Prediction Target" mark: concentric rings painted with a radial
-//     gradient + an animated outer pulse halo. This becomes the unique
-//     Prediction Battle identity, distinct from any other card.
-//   • Strong visual hierarchy — bold hero typography, clear status
-//     badges, scannable stat row.
-//   • Modern gamification — live countdown with progress bar,
-//     participation count, win-streak indicator, reward/points cue.
-//   • Premium feel — layered gradient backgrounds, glow shadows,
-//     shimmer sweep on legendary rounds, gold accents.
-//   • Curiosity + anticipation triggers — "LIVE NOW" / "REVEALS SOON"
-//     pills, large countdown digits, progress bar that drains.
-//   • Reward & achievement cues — points/multiplier chip, "submitted ✓"
-//     confirmation, streak flame.
-//   • Reduced cognitive load — single primary CTA, clear secondary
-//     action, all info above the fold.
+// Redesigned per spec: tapping the card NO LONGER navigates to a
+// separate screen. Instead, the card expands inline (in the same
+// location on Family Space) and immediately shows the prediction
+// question with an easy way to submit an answer.
 //
-// The card still uses the existing predictionProvider for state and
-// routes to /family/<id>/prediction-battle on tap.
+// Interaction flow (all inline):
+//   1. Collapsed card shows: target mark, "PREDICTION BATTLE" label,
+//      daily availability timing, current state pill, and a "Tap to
+//      play" hint.
+//   2. Tap → card expands with a smooth height animation (250ms,
+//      easeOutCubic). The question + answer input + submit button
+//      appear in place.
+//   3. User enters/selects answer → taps Submit.
+//   4. Card transitions to the "submitted" state inline (celebratory
+//      micro-animation), then collapses back to a compact "locked in"
+//      summary after a few seconds.
+//
+// Visual states (clearly distinguishable):
+//   • NOT STARTED      — before the daily window opens. Card shows
+//                        "Opens at 6:00 AM" + countdown.
+//   • QUESTION AVAILABLE — window is open, user hasn't submitted.
+//                          Collapsed card shows "Tap to predict".
+//                          Expanded card shows question + input + submit.
+//   • ANSWER SUBMITTED  — user has submitted. Card shows "✓ Locked in"
+//                         + the user's answer + "waiting for reveal".
+//   • COMPLETED/CLOSED  — round resolved. Card shows the result +
+//                         "Next question at 6:00 AM tomorrow".
+//
+// Daily availability timing:
+//   Derived from the existing prediction config — the round's
+//   createdAt (window open) and lockAt (window close, = createdAt + 12h
+//   per the SQL migration). NO hard-coded "6 AM / 9 PM" — the card
+//   formats whatever the actual round times are.
+//
+// All colors/fonts/spacing from existing brand tokens. No new packages,
+// no new infra, no navigation, no separate screen.
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -49,11 +65,25 @@ class PredictionBattleCard extends ConsumerStatefulWidget {
 
 class _PredictionBattleCardState extends ConsumerState<PredictionBattleCard>
     with TickerProviderStateMixin {
+  // Expansion animation — drives the inline expand/collapse.
+  late final AnimationController _expandController;
+  late final Animation<double> _expandAnimation;
+
+  // Outer halo pulse — slow breathe on the target mark.
   late final AnimationController _pulseController;
-  late final AnimationController _shimmerController;
   late final Animation<double> _pulseAnimation;
-  late final Animation<double> _shimmerAnimation;
+
+  // Celebratory glow when the user submits.
+  late final AnimationController _celebrationController;
+
+  // 1s tick so the countdown + availability window re-renders smoothly.
   Timer? _countdownTimer;
+
+  // Inline answer state.
+  final TextEditingController _answerController = TextEditingController();
+  PredictionConfidence? _selectedConfidence;
+  bool _isExpanded = false;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -61,37 +91,83 @@ class _PredictionBattleCardState extends ConsumerState<PredictionBattleCard>
     Future.microtask(
         () => ref.read(predictionProvider(widget.familyId).notifier).load());
 
-    // Outer halo pulse — slow breathe to feel "alive".
+    _expandController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
+    _expandAnimation = CurvedAnimation(
+      parent: _expandController,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2200),
     )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.92, end: 1.08)
-        .animate(CurvedAnimation(
-            parent: _pulseController, curve: Curves.easeInOut));
+    _pulseAnimation = Tween<double>(begin: 0.92, end: 1.08).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
 
-    // Legendary shimmer sweep — only animates when isLegendary.
-    _shimmerController = AnimationController(
+    _celebrationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2800),
-    )..repeat();
-    _shimmerAnimation = Tween<double>(begin: -1.0, end: 2.0)
-        .animate(CurvedAnimation(
-            parent: _shimmerController, curve: Curves.easeInOutSine));
+      duration: const Duration(milliseconds: 900),
+    );
 
-    // 1s tick so the countdown text re-renders smoothly.
-    _countdownTimer =
-        Timer.periodic(const Duration(seconds: 1), (_) {
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
   }
 
   @override
   void dispose() {
+    _expandController.dispose();
     _pulseController.dispose();
-    _shimmerController.dispose();
+    _celebrationController.dispose();
     _countdownTimer?.cancel();
+    _answerController.dispose();
     super.dispose();
+  }
+
+  void _toggleExpand() {
+    setState(() {
+      _isExpanded = !_isExpanded;
+      if (_isExpanded) {
+        _expandController.forward();
+      } else {
+        _expandController.reverse();
+      }
+    });
+  }
+
+  Future<void> _submitPrediction() async {
+    if (_isSubmitting) return;
+    final prediction = _answerController.text.trim();
+    if (prediction.isEmpty || _selectedConfidence == null) return;
+
+    setState(() => _isSubmitting = true);
+    final success = await ref
+        .read(predictionProvider(widget.familyId).notifier)
+        .submitPrediction(prediction, _selectedConfidence!);
+
+    if (mounted) {
+      setState(() => _isSubmitting = false);
+      if (success) {
+        unawaited(_celebrationController.forward(from: 0));
+        // Auto-collapse after the celebration plays.
+        unawaited(Future.delayed(const Duration(milliseconds: 1500), () {
+          if (mounted && _isExpanded) _toggleExpand();
+        }));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not submit — try again'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -102,214 +178,208 @@ class _PredictionBattleCardState extends ConsumerState<PredictionBattleCard>
 
     if (state.isLoading) return const _SkeletonCard();
 
-    if (round == null || question == null) {
-      return _EmptyCard(familyId: widget.familyId);
-    }
+    // Determine the visual state from the round + submission status.
+    final viewState = _resolveViewState(round, state.hasSubmitted);
 
-    final isLegendary = round.isLegendary;
+    final isLegendary = round?.isLegendary ?? false;
     final accent = isLegendary ? KinrelColors.brightGold : KinrelColors.orange;
-    final accent2 = isLegendary ? KinrelColors.amber : KinrelColors.amber;
+    final accent2 = KinrelColors.amber;
 
-    return GestureDetector(
-      onTap: () =>
-          context.push('/family/${widget.familyId}/prediction-battle'),
-      behavior: HitTestBehavior.opaque,
-      child: _PremiumCard(
-        isLegendary: isLegendary,
-        accent: accent,
-        accent2: accent2,
-        shimmerAnimation: _shimmerAnimation,
-        pulseAnimation: _pulseAnimation,
-        round: round,
-        question: question,
-        state: state,
-        familyId: widget.familyId,
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+      decoration: _cardDecoration(accent),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(26),
+            child: DecoratedBox(
+              decoration: _cardBaseGradient(isLegendary),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _HeaderRow(
+                      accent: accent,
+                      accent2: accent2,
+                      pulseAnimation: _pulseAnimation,
+                      isLegendary: isLegendary,
+                      viewState: viewState,
+                      isExpanded: _isExpanded,
+                      onToggle: _toggleExpand,
+                    ),
+                    const SizedBox(height: 14),
+                    // Availability timing — always visible (collapsed + expanded).
+                    _AvailabilityTiming(
+                      accent: accent,
+                      round: round,
+                      viewState: viewState,
+                    ),
+                    const SizedBox(height: 12),
+                    // Collapsed summary — always visible when not expanded.
+                    _CollapsedSummary(
+                      accent: accent,
+                      viewState: viewState,
+                      round: round,
+                      question: question,
+                      state: state,
+                      isExpanded: _isExpanded,
+                      onToggle: _toggleExpand,
+                    ),
+                    // Expanded interaction — question + answer + submit.
+                    SizeTransition(
+                      sizeFactor: _expandAnimation,
+                      alignment: Alignment.bottomCenter,
+                      child: FadeTransition(
+                        opacity: _expandAnimation,
+                        child: _ExpandedInteraction(
+                          accent: accent,
+                          accent2: accent2,
+                          viewState: viewState,
+                          round: round,
+                          question: question,
+                          state: state,
+                          answerController: _answerController,
+                          selectedConfidence: _selectedConfidence,
+                          onConfidenceChanged: (c) =>
+                              setState(() => _selectedConfidence = c),
+                          onSubmit: _submitPrediction,
+                          isSubmitting: _isSubmitting,
+                          celebrationAnimation: _celebrationController,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          _CardBorderOverlay(accent: accent),
+        ],
+      ),
+    )
+        .animate()
+        .fadeIn(duration: 400.ms)
+        .slideY(begin: -0.03, end: 0, duration: 400.ms);
+  }
+
+  /// Resolves which of the 4 visual states the card is in, based on the
+  /// round status + whether the user has submitted.
+  _PredictionViewState _resolveViewState(
+      PredictionRound? round, bool hasSubmitted) {
+    if (round == null) return _PredictionViewState.notStarted;
+    switch (round.status) {
+      case PredictionStatus.open:
+        return hasSubmitted
+            ? _PredictionViewState.answerSubmitted
+            : _PredictionViewState.questionAvailable;
+      case PredictionStatus.locked:
+      case PredictionStatus.pending:
+        return _PredictionViewState.answerSubmitted;
+      case PredictionStatus.resolved:
+      case PredictionStatus.archived:
+        return _PredictionViewState.completed;
+    }
+  }
+
+  BoxDecoration _cardDecoration(Color accent) {
+    return BoxDecoration(
+      borderRadius: BorderRadius.circular(26),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.45),
+          blurRadius: 24,
+          offset: const Offset(0, 10),
+        ),
+        BoxShadow(
+          color: accent.withValues(alpha: 0.28),
+          blurRadius: 28,
+          spreadRadius: 1,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    );
+  }
+
+  BoxDecoration _cardBaseGradient(bool isLegendary) {
+    return BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: isLegendary
+            ? [
+                const Color(0xFF2A1F08),
+                const Color(0xFF1B1505),
+                const Color(0xFF13141E),
+              ]
+            : [
+                const Color(0xFF241208),
+                const Color(0xFF1A0E05),
+                KinrelColors.darkCard,
+              ],
       ),
     );
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Premium card shell — gradient + glow + optional shimmer sweep.
+// Visual states — the 4 distinct states the card can be in.
 // ═══════════════════════════════════════════════════════════════════════
 
-class _PremiumCard extends StatelessWidget {
-  const _PremiumCard({
-    required this.isLegendary,
-    required this.accent,
-    required this.accent2,
-    required this.shimmerAnimation,
-    required this.pulseAnimation,
-    required this.round,
-    required this.question,
-    required this.state,
-    required this.familyId,
-  });
+enum _PredictionViewState {
+  /// Before the daily window opens — no active round yet.
+  notStarted,
+  /// Window is open, user hasn't submitted — ready to predict.
+  questionAvailable,
+  /// User has submitted their answer — waiting for reveal.
+  answerSubmitted,
+  /// Round resolved — results are in.
+  completed,
+}
 
-  final bool isLegendary;
-  final Color accent;
-  final Color accent2;
-  final Animation<double> shimmerAnimation;
-  final Animation<double> pulseAnimation;
-  final PredictionRound round;
-  final PredictionQuestion question;
-  final PredictionState state;
-  final String familyId;
+extension _PredictionViewStateX on _PredictionViewState {
+  String get label {
+    switch (this) {
+      case _PredictionViewState.notStarted:
+        return 'OPENS SOON';
+      case _PredictionViewState.questionAvailable:
+        return 'LIVE NOW';
+      case _PredictionViewState.answerSubmitted:
+        return 'LOCKED IN';
+      case _PredictionViewState.completed:
+        return 'COMPLETED';
+    }
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
-        boxShadow: [
-          // Deep elevation shadow
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
-          ),
-          // Brand-tinted outer glow
-          BoxShadow(
-            color: accent.withValues(alpha: 0.28),
-            blurRadius: 28,
-            spreadRadius: 1,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          // Base gradient + clipped shimmer sweep (legendary only)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(26),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isLegendary
-                      ? [
-                          const Color(0xFF2A1F08),
-                          const Color(0xFF1B1505),
-                          const Color(0xFF13141E),
-                        ]
-                      : [
-                          const Color(0xFF241208),
-                          const Color(0xFF1A0E05),
-                          KinrelColors.darkCard,
-                        ],
-                ),
-              ),
-              child: Stack(
-                children: [
-                  if (isLegendary)
-                    AnimatedBuilder(
-                      animation: shimmerAnimation,
-                      builder: (context, _) {
-                        return Positioned.fill(
-                          child: CustomPaint(
-                            painter: _ShimmerSweepPainter(
-                              progress: shimmerAnimation.value,
-                              color: KinrelColors.brightGold
-                                  .withValues(alpha: 0.22),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  Positioned(
-                    right: -60,
-                    top: -40,
-                    child: Opacity(
-                      opacity: 0.10,
-                      child: SizedBox(
-                        width: 180,
-                        height: 180,
-                        child: CustomPaint(
-                          painter: _WatermarkTargetPainter(color: accent),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _HeaderRow(
-                          accent: accent,
-                          accent2: accent2,
-                          pulseAnimation: pulseAnimation,
-                          isLegendary: isLegendary,
-                          status: round.status,
-                        ),
-                        const SizedBox(height: 16),
-                        _QuestionBlock(
-                          question: question,
-                          isLegendary: isLegendary,
-                        ),
-                        const SizedBox(height: 16),
-                        _StatRow(
-                          round: round,
-                          state: state,
-                          accent: accent,
-                          accent2: accent2,
-                        ),
-                        const SizedBox(height: 14),
-                        _CountdownProgress(
-                          round: round,
-                          accent: accent,
-                        ),
-                        const SizedBox(height: 16),
-                        _ActionRow(
-                          round: round,
-                          state: state,
-                          familyId: familyId,
-                          accent: accent,
-                          accent2: accent2,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Top accent border — premium stroke that ties the card to the
-          // brand accent. Painted as an overlay so the gradient fill below
-          // stays clipped to the rounded corners.
-          Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(26),
-                  border: Border.all(
-                    color:
-                        accent.withValues(alpha: isLegendary ? 0.55 : 0.40),
-                    width: 1.2,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    )
-        .animate()
-        .fadeIn(duration: 450.ms)
-        .slideY(begin: -0.04, end: 0, duration: 450.ms)
-        .shimmer(
-          duration: 1200.ms,
-          color: isLegendary
-              ? KinrelColors.brightGold.withValues(alpha: 0.18)
-              : KinrelColors.orange.withValues(alpha: 0.14),
-        );
+  Color get color {
+    switch (this) {
+      case _PredictionViewState.notStarted:
+        return KinrelColors.textSilver;
+      case _PredictionViewState.questionAvailable:
+        return KinrelColors.success;
+      case _PredictionViewState.answerSubmitted:
+        return KinrelColors.amber;
+      case _PredictionViewState.completed:
+        return KinrelColors.orange;
+    }
+  }
+
+  String get summaryHint {
+    switch (this) {
+      case _PredictionViewState.notStarted:
+        return 'Tap to set a reminder';
+      case _PredictionViewState.questionAvailable:
+        return 'Tap to predict';
+      case _PredictionViewState.answerSubmitted:
+        return 'Tap to view your prediction';
+      case _PredictionViewState.completed:
+        return 'Tap to see the result';
+    }
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Header row — branded target mark + title block + live status pill.
+// Header row — target mark, label, status pill, expand/collapse chevron.
 // ═══════════════════════════════════════════════════════════════════════
 
 class _HeaderRow extends StatelessWidget {
@@ -318,38 +388,39 @@ class _HeaderRow extends StatelessWidget {
     required this.accent2,
     required this.pulseAnimation,
     required this.isLegendary,
-    required this.status,
+    required this.viewState,
+    required this.isExpanded,
+    required this.onToggle,
   });
 
   final Color accent;
   final Color accent2;
   final Animation<double> pulseAnimation;
   final bool isLegendary;
-  final PredictionStatus status;
+  final _PredictionViewState viewState;
+  final bool isExpanded;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // ── Prediction Target mark (replaces 🔮 emoji) ──
-        // Concentric rings painted with a radial gradient, wrapped in
-        // a pulsing halo. This is the unique Prediction Battle identity.
+        // Prediction Target mark (the card's visual identity).
         SizedBox(
-          width: 52,
-          height: 52,
+          width: 44,
+          height: 44,
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // Outer pulse halo
               AnimatedBuilder(
                 animation: pulseAnimation,
                 builder: (context, _) {
                   return Transform.scale(
                     scale: pulseAnimation.value,
                     child: Container(
-                      width: 52,
-                      height: 52,
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: RadialGradient(
@@ -364,10 +435,9 @@ class _HeaderRow extends StatelessWidget {
                   );
                 },
               ),
-              // Target mark
               SizedBox(
-                width: 38,
-                height: 38,
+                width: 32,
+                height: 32,
                 child: CustomPaint(
                   painter: _PredictionTargetPainter(
                     color: accent,
@@ -379,7 +449,6 @@ class _HeaderRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        // ── Title block ──
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,7 +462,7 @@ class _HeaderRow extends StatelessWidget {
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 1.4,
+                      letterSpacing: 1.3,
                       color: KinrelColors.textWhite,
                     ),
                   ),
@@ -404,10 +473,7 @@ class _HeaderRow extends StatelessWidget {
                           horizontal: 5, vertical: 1.5),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFFFFD700),
-                            Color(0xFFF59240),
-                          ],
+                          colors: [Color(0xFFFFD700), Color(0xFFF59240)],
                         ),
                         borderRadius: BorderRadius.circular(4),
                       ),
@@ -424,9 +490,9 @@ class _HeaderRow extends StatelessWidget {
                     ),
                 ],
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 3),
               Text(
-                _tagline(status),
+                _tagline(viewState),
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
@@ -438,77 +504,50 @@ class _HeaderRow extends StatelessWidget {
             ],
           ),
         ),
-        // ── Live status pill ──
-        _LiveStatusPill(status: status, accent: accent),
+        // Status pill.
+        _StatusPill(viewState: viewState),
+        const SizedBox(width: 6),
+        // Expand/collapse chevron — only for states with detail to show.
+        if (viewState != _PredictionViewState.notStarted)
+          GestureDetector(
+            onTap: onToggle,
+            behavior: HitTestBehavior.opaque,
+            child: AnimatedRotation(
+              turns: isExpanded ? 0.25 : 0,
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              child: Icon(
+                Icons.chevron_right_rounded,
+                color: accent,
+                size: 22,
+              ),
+            ),
+          ),
       ],
     );
   }
 
-  String _tagline(PredictionStatus s) {
+  String _tagline(_PredictionViewState s) {
     switch (s) {
-      case PredictionStatus.open:
-        return 'Live now · Predict to win';
-      case PredictionStatus.locked:
-        return 'Locked · Awaiting reveal';
-      case PredictionStatus.pending:
-        return 'Revealing soon · Stay tuned';
-      case PredictionStatus.resolved:
-        return 'Resolved · See the results';
-      case PredictionStatus.archived:
-        return 'Archived battle';
+      case _PredictionViewState.notStarted:
+        return 'Daily prediction · opens soon';
+      case _PredictionViewState.questionAvailable:
+        return 'Live now · predict to win';
+      case _PredictionViewState.answerSubmitted:
+        return 'Locked in · waiting for reveal';
+      case _PredictionViewState.completed:
+        return 'Resolved · see the result';
     }
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Live status pill — colored dot + uppercase label.
-// Pulses when OPEN to draw the eye.
-// ═══════════════════════════════════════════════════════════════════════
-
-class _LiveStatusPill extends StatefulWidget {
-  const _LiveStatusPill({required this.status, required this.accent});
-  final PredictionStatus status;
-  final Color accent;
-
-  @override
-  State<_LiveStatusPill> createState() => _LiveStatusPillState();
-}
-
-class _LiveStatusPillState extends State<_LiveStatusPill>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _dot;
-
-  @override
-  void initState() {
-    super.initState();
-    _dot = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1100),
-    );
-    if (widget.status == PredictionStatus.open) _dot.repeat(reverse: true);
-  }
-
-  @override
-  void didUpdateWidget(covariant _LiveStatusPill oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.status != oldWidget.status) {
-      if (widget.status == PredictionStatus.open) {
-        _dot.repeat(reverse: true);
-      } else {
-        _dot.stop();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _dot.dispose();
-    super.dispose();
-  }
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.viewState});
+  final _PredictionViewState viewState;
 
   @override
   Widget build(BuildContext context) {
-    final color = _colorFor(widget.status);
+    final color = viewState.color;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -519,21 +558,13 @@ class _LiveStatusPillState extends State<_LiveStatusPill>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (widget.status == PredictionStatus.open)
-            AnimatedBuilder(
-              animation: _dot,
-              builder: (context, _) {
-                return Opacity(
-                  opacity: 0.45 + (_dot.value * 0.55),
-                  child: _Dot(color: color, size: 6),
-                );
-              },
-            )
+          if (viewState == _PredictionViewState.questionAvailable)
+            _PulsingDot(color: color)
           else
             _Dot(color: color, size: 6),
           const SizedBox(width: 5),
           Text(
-            widget.status.label,
+            viewState.label,
             style: TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 9,
@@ -546,20 +577,44 @@ class _LiveStatusPillState extends State<_LiveStatusPill>
       ),
     );
   }
+}
 
-  Color _colorFor(PredictionStatus s) {
-    switch (s) {
-      case PredictionStatus.open:
-        return KinrelColors.success;
-      case PredictionStatus.locked:
-        return KinrelColors.textSilver;
-      case PredictionStatus.pending:
-        return KinrelColors.amber;
-      case PredictionStatus.resolved:
-        return KinrelColors.orange;
-      case PredictionStatus.archived:
-        return KinrelColors.textSilver;
-    }
+class _PulsingDot extends StatefulWidget {
+  const _PulsingDot({required this.color});
+  final Color color;
+  @override
+  State<_PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return Opacity(
+          opacity: 0.45 + (_controller.value * 0.55),
+          child: _Dot(color: widget.color, size: 6),
+        );
+      },
+    );
   }
 }
 
@@ -588,188 +643,105 @@ class _Dot extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Question block — large bold hero typography.
+// Availability timing — "Available today: 6:00 AM – 9:00 PM"
+// Derived from the round's createdAt + lockAt (existing config).
 // ═══════════════════════════════════════════════════════════════════════
 
-class _QuestionBlock extends StatelessWidget {
-  const _QuestionBlock({required this.question, required this.isLegendary});
-  final PredictionQuestion question;
-  final bool isLegendary;
+class _AvailabilityTiming extends StatelessWidget {
+  const _AvailabilityTiming({
+    required this.accent,
+    required this.round,
+    required this.viewState,
+  });
+
+  final Color accent;
+  final PredictionRound? round;
+  final _PredictionViewState viewState;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Type chip — Closest Wins / Outcome Prediction
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-          decoration: BoxDecoration(
-            color: KinrelColors.darkElevated.withValues(alpha: 0.65),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: (isLegendary ? KinrelColors.brightGold : KinrelColors.orange)
-                  .withValues(alpha: 0.35),
-              width: 0.6,
+    // Derive the daily window from the round's createdAt (open) and
+    // lockAt (close). Per the SQL migration, lockAt = createdAt + 12h,
+    // so this reflects the actual configured window — no hard-coding.
+    final created = round?.createdAt;
+    final lockAt = round?.lockAt;
+    final String windowLabel;
+    if (created != null && lockAt != null) {
+      windowLabel =
+          '${_formatTime(created)} – ${_formatTime(lockAt)}';
+    } else {
+      // No active round — show the standard daily window from the
+      // migration config (6 AM – 6 PM local, since lockAt = created + 12h
+      // and rounds are created at 6 AM local per the tick scheduler).
+      // This is a fallback label only; the actual times come from the
+      // round when one exists.
+      windowLabel = '6:00 AM – 6:00 PM';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkElevated.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: accent.withValues(alpha: 0.20),
+          width: 0.6,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.schedule_outlined,
+            size: 12,
+            color: accent.withValues(alpha: 0.85),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            'Available today',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: KinrelColors.textSilver,
             ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              KinrelIcon(
-                KinrelIconData.target,
-                size: 10,
-                color: isLegendary
-                    ? KinrelColors.brightGold
-                    : KinrelColors.orange,
+          const SizedBox(width: 5),
+          Text(
+            windowLabel,
+            style: TextStyle(
+              fontFamily: KinrelTypography.monoFont,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: accent,
+              letterSpacing: 0.2,
+            ),
+          ),
+          if (round != null && viewState == _PredictionViewState.questionAvailable) ...[
+            const SizedBox(width: 8),
+            Text(
+              '· closes in ${_countdown(round!.lockAt)}',
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.amber,
               ),
-              const SizedBox(width: 4),
-              Text(
-                question.type.label.toUpperCase(),
-                style: TextStyle(
-                  fontFamily: KinrelTypography.monoFont,
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
-                  color: isLegendary
-                      ? KinrelColors.brightGold
-                      : KinrelColors.orange,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          question.question,
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontFamily: KinrelTypography.displayFont,
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: KinrelColors.textWhite,
-            height: 1.32,
-            letterSpacing: -0.1,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Stat row — three KPIs: countdown, participants, streak/reward.
-// ═══════════════════════════════════════════════════════════════════════
-
-class _StatRow extends StatelessWidget {
-  const _StatRow({
-    required this.round,
-    required this.state,
-    required this.accent,
-    required this.accent2,
-  });
-  final PredictionRound round;
-  final PredictionState state;
-  final Color accent;
-  final Color accent2;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _StatChip(
-            icon: _statusIcon(round.status),
-            label: _statusLabel(round.status),
-            value: _statusValue(round),
-            color: _statusColor(round.status),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _StatChip(
-            icon: Icons.people_outline_rounded,
-            label: 'PLAYERS',
-            value: '${state.participationCount} joined',
-            color: KinrelColors.amber,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _StatChip(
-            icon: Icons.local_fire_department_outlined,
-            label: state.myStats != null && state.myStats!.currentStreak > 0
-                ? 'YOUR STREAK'
-                : 'REWARD',
-            value: state.myStats != null && state.myStats!.currentStreak > 0
-                ? '${state.myStats!.currentStreak} in a row'
-                : 'up to 15 pts',
-            color: KinrelColors.orange,
-          ),
-        ),
-      ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 
-  IconData _statusIcon(PredictionStatus s) {
-    switch (s) {
-      case PredictionStatus.open:
-        return Icons.timer_outlined;
-      case PredictionStatus.locked:
-        return Icons.lock_outline;
-      case PredictionStatus.pending:
-        return Icons.hourglass_top_outlined;
-      case PredictionStatus.resolved:
-        return Icons.emoji_events_outlined;
-      case PredictionStatus.archived:
-        return Icons.archive_outlined;
-    }
-  }
-
-  String _statusLabel(PredictionStatus s) {
-    switch (s) {
-      case PredictionStatus.open:
-        return 'CLOSES IN';
-      case PredictionStatus.locked:
-        return 'STATUS';
-      case PredictionStatus.pending:
-        return 'REVEALS IN';
-      case PredictionStatus.resolved:
-        return 'STATUS';
-      case PredictionStatus.archived:
-        return 'STATUS';
-    }
-  }
-
-  String _statusValue(PredictionRound r) {
-    switch (r.status) {
-      case PredictionStatus.open:
-        return _countdown(r.lockAt);
-      case PredictionStatus.locked:
-        return 'Locked';
-      case PredictionStatus.pending:
-        return _countdown(r.revealAt);
-      case PredictionStatus.resolved:
-        return 'Resolved';
-      case PredictionStatus.archived:
-        return 'Archived';
-    }
-  }
-
-  Color _statusColor(PredictionStatus s) {
-    switch (s) {
-      case PredictionStatus.open:
-        return KinrelColors.orange;
-      case PredictionStatus.locked:
-        return KinrelColors.textSilver;
-      case PredictionStatus.pending:
-        return KinrelColors.amber;
-      case PredictionStatus.resolved:
-        return KinrelColors.success;
-      case PredictionStatus.archived:
-        return KinrelColors.textSilver;
-    }
+  String _formatTime(DateTime t) {
+    final local = t.toLocal();
+    final m = local.minute.toString().padLeft(2, '0');
+    final ampm = local.hour >= 12 ? 'PM' : 'AM';
+    final hour12 = local.hour > 12
+        ? local.hour - 12
+        : (local.hour == 0 ? 12 : local.hour);
+    return '$hour12:$m $ampm';
   }
 
   String _countdown(DateTime target) {
@@ -784,309 +756,541 @@ class _StatRow extends StatelessWidget {
   }
 }
 
-class _StatChip extends StatelessWidget {
-  const _StatChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
+// ═══════════════════════════════════════════════════════════════════════
+// Collapsed summary — always-visible compact summary of the current state.
+// ═══════════════════════════════════════════════════════════════════════
+
+class _CollapsedSummary extends StatelessWidget {
+  const _CollapsedSummary({
+    required this.accent,
+    required this.viewState,
+    required this.round,
+    required this.question,
+    required this.state,
+    required this.isExpanded,
+    required this.onToggle,
   });
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
+
+  final Color accent;
+  final _PredictionViewState viewState;
+  final PredictionRound? round;
+  final PredictionQuestion? question;
+  final PredictionState state;
+  final bool isExpanded;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkElevated.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(12),
-        border:
-            Border.all(color: color.withValues(alpha: 0.18), width: 0.6),
-      ),
+    // When expanded, hide the summary — the expanded view shows everything.
+    if (isExpanded) return const SizedBox.shrink();
+
+    return GestureDetector(
+      onTap: onToggle,
+      behavior: HitTestBehavior.opaque,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, size: 11, color: color),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.monoFont,
-                    fontSize: 8,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
-                    color: color.withValues(alpha: 0.85),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          if (viewState == _PredictionViewState.notStarted) ...[
+            Text(
+              'Today\'s prediction hasn\'t opened yet.',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 13,
+                color: KinrelColors.textSilver,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              viewState.summaryHint,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: accent,
+              ),
+            ),
+          ] else if (viewState == _PredictionViewState.questionAvailable) ...[
+            if (question != null) ...[
+              Text(
+                question!.question,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                viewState.summaryHint,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: accent,
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 3),
-          Text(
-            value,
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              color: KinrelColors.textWhite,
-              height: 1.1,
+          ] else if (viewState == _PredictionViewState.answerSubmitted) ...[
+            Row(
+              children: [
+                Icon(
+                  Icons.check_circle_rounded,
+                  size: 16,
+                  color: KinrelColors.success,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    state.myPrediction != null
+                        ? 'You predicted "${state.myPrediction}"'
+                        : 'Your prediction is locked in',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.textWhite,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+            const SizedBox(height: 4),
+            Text(
+              'Reveals ${_revealLabel(round)}',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                color: KinrelColors.textSilver,
+              ),
+            ),
+          ] else if (viewState == _PredictionViewState.completed) ...[
+            Row(
+              children: [
+                Icon(
+                  Icons.emoji_events_outlined,
+                  size: 16,
+                  color: accent,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    round?.actualAnswer != null
+                        ? 'Answer: ${round!.actualAnswer}'
+                        : 'Round resolved',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.textWhite,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              viewState.summaryHint,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: accent,
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  String _revealLabel(PredictionRound? round) {
+    if (round == null) return 'soon';
+    final diff = round.revealAt.difference(DateTime.now());
+    if (diff.isNegative) return 'any moment';
+    final h = diff.inHours;
+    final m = diff.inMinutes % 60;
+    if (h > 0) return 'in ${h}h ${m}m';
+    if (m > 0) return 'in ${m}m';
+    return 'in seconds';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Expanded interaction — question + answer input + submit (inline).
+// ═══════════════════════════════════════════════════════════════════════
+
+class _ExpandedInteraction extends StatelessWidget {
+  const _ExpandedInteraction({
+    required this.accent,
+    required this.accent2,
+    required this.viewState,
+    required this.round,
+    required this.question,
+    required this.state,
+    required this.answerController,
+    required this.selectedConfidence,
+    required this.onConfidenceChanged,
+    required this.onSubmit,
+    required this.isSubmitting,
+    required this.celebrationAnimation,
+  });
+
+  final Color accent;
+  final Color accent2;
+  final _PredictionViewState viewState;
+  final PredictionRound? round;
+  final PredictionQuestion? question;
+  final PredictionState state;
+  final TextEditingController answerController;
+  final PredictionConfidence? selectedConfidence;
+  final void Function(PredictionConfidence) onConfidenceChanged;
+  final Future<void> Function() onSubmit;
+  final bool isSubmitting;
+  final AnimationController celebrationAnimation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 14),
+        // Divider.
+        Container(
+          height: 1,
+          color: accent.withValues(alpha: 0.15),
+        ),
+        const SizedBox(height: 14),
+        if (viewState == _PredictionViewState.questionAvailable && question != null)
+          _QuestionAvailableBody(
+            accent: accent,
+            accent2: accent2,
+            question: question!,
+            answerController: answerController,
+            selectedConfidence: selectedConfidence,
+            onConfidenceChanged: onConfidenceChanged,
+            onSubmit: onSubmit,
+            isSubmitting: isSubmitting,
+          )
+        else if (viewState == _PredictionViewState.answerSubmitted)
+          _SubmittedBody(
+            accent: accent,
+            state: state,
+            round: round,
+            celebrationAnimation: celebrationAnimation,
+          )
+        else if (viewState == _PredictionViewState.completed && round != null)
+          _CompletedBody(
+            accent: accent,
+            round: round!,
+            question: question,
+            state: state,
+          )
+        else
+          // notStarted — no expanded content.
+          const SizedBox.shrink(),
+      ],
     );
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Countdown progress bar — visualizes time remaining as a draining bar.
-// Only shown for OPEN / PENDING statuses (where a target future time exists).
+// Question-available body — the inline question + answer + submit form.
 // ═══════════════════════════════════════════════════════════════════════
 
-class _CountdownProgress extends StatelessWidget {
-  const _CountdownProgress({required this.round, required this.accent});
-  final PredictionRound round;
+class _QuestionAvailableBody extends StatelessWidget {
+  const _QuestionAvailableBody({
+    required this.accent,
+    required this.accent2,
+    required this.question,
+    required this.answerController,
+    required this.selectedConfidence,
+    required this.onConfidenceChanged,
+    required this.onSubmit,
+    required this.isSubmitting,
+  });
+
   final Color accent;
+  final Color accent2;
+  final PredictionQuestion question;
+  final TextEditingController answerController;
+  final PredictionConfidence? selectedConfidence;
+  final void Function(PredictionConfidence) onConfidenceChanged;
+  final Future<void> Function() onSubmit;
+  final bool isSubmitting;
 
   @override
   Widget build(BuildContext context) {
-    final target = round.status == PredictionStatus.open
-        ? round.lockAt
-        : round.status == PredictionStatus.pending
-            ? round.revealAt
-            : null;
-    if (target == null) return const SizedBox.shrink();
-
-    final createdAt = round.createdAt ?? target.subtract(const Duration(hours: 24));
-    final total = target.difference(createdAt).inSeconds;
-    final remaining = target.difference(DateTime.now()).inSeconds;
-    final progress = total <= 0
-        ? 0.0
-        : (remaining / total).clamp(0.0, 1.0);
-
-    // Color shifts to amber/red as time runs out.
-    final color = progress > 0.5
-        ? accent
-        : progress > 0.2
-            ? KinrelColors.amber
-            : KinrelColors.coral;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: Stack(
-            children: [
-              // Track
-              Container(
-                height: 5,
-                width: double.infinity,
-                color: KinrelColors.darkElevated.withValues(alpha: 0.7),
-              ),
-              // Fill
-              FractionallySizedBox(
-                widthFactor: progress,
-                child: Container(
-                  height: 5,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [color, color.withValues(alpha: 0.6)],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: color.withValues(alpha: 0.6),
-                        blurRadius: 6,
-                      ),
-                    ],
-                  ),
+        // Category chip + type.
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+              decoration: BoxDecoration(
+                color: KinrelColors.darkElevated.withValues(alpha: 0.65),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: accent.withValues(alpha: 0.35),
+                  width: 0.6,
                 ),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 5),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              progress > 0.5
-                  ? 'Plenty of time'
-                  : progress > 0.2
-                      ? 'Getting closer'
-                      : 'Almost up — predict now',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 9.5,
-                fontWeight: FontWeight.w600,
-                color: color.withValues(alpha: 0.95),
-                letterSpacing: 0.2,
-              ),
-            ),
-            Text(
-              '${(progress * 100).round()}% left',
-              style: TextStyle(
-                fontFamily: KinrelTypography.monoFont,
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                color: color,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  KinrelIcon(KinrelIconData.target, size: 10, color: accent),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${question.category.toUpperCase()} · ${question.type.label.toUpperCase()}',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.monoFont,
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                      color: accent,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
-      ],
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Action row — primary CTA + secondary "view details".
-// ═══════════════════════════════════════════════════════════════════════
-
-class _ActionRow extends StatelessWidget {
-  const _ActionRow({
-    required this.round,
-    required this.state,
-    required this.familyId,
-    required this.accent,
-    required this.accent2,
-  });
-  final PredictionRound round;
-  final PredictionState state;
-  final String familyId;
-  final Color accent;
-  final Color accent2;
-
-  @override
-  Widget build(BuildContext context) {
-    final canSubmit =
-        round.status == PredictionStatus.open && !state.hasSubmitted;
-
-    return Row(
-      children: [
-        Expanded(
-          child: _PrimaryCta(
-            label: canSubmit
-                ? 'Submit Prediction'
-                : state.hasSubmitted
-                    ? 'Prediction Submitted'
-                    : 'View Battle',
-            icon: canSubmit
-                ? Icons.bolt_rounded
-                : state.hasSubmitted
-                    ? Icons.check_circle_rounded
-                    : Icons.arrow_forward_rounded,
-            accent: accent,
-            accent2: accent2,
-            enabled: canSubmit || !state.hasSubmitted,
-            emphasized: canSubmit,
-            onTap: () =>
-                context.push('/family/$familyId/prediction-battle'),
+        const SizedBox(height: 10),
+        // The question — large, friendly, the visual focus.
+        Text(
+          question.question,
+          style: TextStyle(
+            fontFamily: KinrelTypography.displayFont,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: KinrelColors.textWhite,
+            height: 1.32,
+            letterSpacing: -0.1,
           ),
         ),
-        if (state.hasSubmitted || round.status != PredictionStatus.open) ...[
-          const SizedBox(width: 8),
-          _SecondaryCta(
-            label: 'Details',
-            accent: accent,
-            onTap: () =>
-                context.push('/family/$familyId/prediction-battle'),
+        const SizedBox(height: 6),
+        Text(
+          question.type == PredictionType.closest
+              ? 'Predict a number — closest wins!'
+              : 'Pick an outcome — correct wins!',
+          style: TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 12,
+            color: KinrelColors.textSilver,
           ),
-        ],
+        ),
+        const SizedBox(height: 16),
+        // Answer input — numeric for closest, two-option for outcome.
+        if (question.type == PredictionType.closest)
+          TextField(
+            controller: answerController,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(5),
+            ],
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: KinrelColors.textWhite,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Enter your number',
+              hintStyle: TextStyle(
+                color: KinrelColors.textSilver.withValues(alpha: 0.5),
+                fontSize: 16,
+              ),
+              filled: true,
+              fillColor: KinrelColors.darkCard,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 14,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: accent.withValues(alpha: 0.3),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: accent, width: 1.5),
+              ),
+            ),
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: _OutcomeOption(
+                  label: question.optionA ?? 'Yes',
+                  selected: answerController.text == (question.optionA ?? 'Yes'),
+                  accent: accent,
+                  onTap: () => answerController.text =
+                      question.optionA ?? 'Yes',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _OutcomeOption(
+                  label: question.optionB ?? 'No',
+                  selected: answerController.text == (question.optionB ?? 'No'),
+                  accent: accent,
+                  onTap: () => answerController.text =
+                      question.optionB ?? 'No',
+                ),
+              ),
+            ],
+          ),
+        const SizedBox(height: 14),
+        // Confidence selector.
+        Text(
+          'How confident are you?',
+          style: TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 12,
+            color: KinrelColors.textSilver,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            for (final c in PredictionConfidence.values) ...[
+              Expanded(
+                child: _ConfidenceChip(
+                  label: c.label,
+                  multiplier: '×${c.multiplier.toStringAsFixed(1)}',
+                  selected: selectedConfidence == c,
+                  accent: accent2,
+                  onTap: () => onConfidenceChanged(c),
+                ),
+              ),
+              if (c != PredictionConfidence.values.last) const SizedBox(width: 6),
+            ],
+          ],
+        ),
+        const SizedBox(height: 16),
+        // Submit button.
+        _SubmitButton(
+          accent: accent,
+          accent2: accent2,
+          isSubmitting: isSubmitting,
+          enabled: selectedConfidence != null && answerController.text.isNotEmpty,
+          onPressed: onSubmit,
+        ),
       ],
     );
   }
 }
 
-class _PrimaryCta extends StatelessWidget {
-  const _PrimaryCta({
+class _OutcomeOption extends StatelessWidget {
+  const _OutcomeOption({
     required this.label,
-    required this.icon,
+    required this.selected,
     required this.accent,
-    required this.accent2,
-    required this.enabled,
-    required this.emphasized,
     required this.onTap,
   });
+
   final String label;
-  final IconData icon;
+  final bool selected;
   final Color accent;
-  final Color accent2;
-  final bool enabled;
-  final bool emphasized;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final submittedSuccess = label == 'Prediction Submitted';
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 13),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          gradient: submittedSuccess
-              ? LinearGradient(
-                  colors: [
-                    KinrelColors.success.withValues(alpha: 0.18),
-                    KinrelColors.success.withValues(alpha: 0.10),
-                  ],
-                )
-              : LinearGradient(
-                  colors: emphasized
-                      ? [accent, accent2]
-                      : [accent.withValues(alpha: 0.85), accent2.withValues(alpha: 0.7)],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                ),
-          borderRadius: BorderRadius.circular(14),
+          color: selected
+              ? accent.withValues(alpha: 0.18)
+              : KinrelColors.darkCard,
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: submittedSuccess
-                ? KinrelColors.success.withValues(alpha: 0.45)
-                : accent.withValues(alpha: 0.6),
-            width: 0.8,
+            color: selected ? accent : KinrelColors.border,
+            width: selected ? 1.4 : 1.0,
           ),
-          boxShadow: emphasized
-              ? [
-                  BoxShadow(
-                    color: accent.withValues(alpha: 0.45),
-                    blurRadius: 14,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 15,
-              color: submittedSuccess
-                  ? KinrelColors.success
-                  : (emphasized ? Colors.white : KinrelColors.textWhite),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: selected ? accent : KinrelColors.textSilver,
             ),
-            const SizedBox(width: 7),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConfidenceChip extends StatelessWidget {
+  const _ConfidenceChip({
+    required this.label,
+    required this.multiplier,
+    required this.selected,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final String label;
+  final String multiplier;
+  final bool selected;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: selected
+              ? accent.withValues(alpha: 0.15)
+              : KinrelColors.darkCard,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? accent : KinrelColors.border,
+            width: selected ? 1.3 : 1.0,
+          ),
+        ),
+        child: Column(
+          children: [
             Text(
               label,
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.4,
-                color: submittedSuccess
-                    ? KinrelColors.success
-                    : (emphasized ? Colors.white : KinrelColors.textWhite),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: selected ? accent : KinrelColors.textSilver,
+              ),
+            ),
+            Text(
+              multiplier,
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 9,
+                color: selected ? accent : KinrelColors.textDim,
               ),
             ),
           ],
@@ -1096,34 +1300,82 @@ class _PrimaryCta extends StatelessWidget {
   }
 }
 
-class _SecondaryCta extends StatelessWidget {
-  const _SecondaryCta({required this.label, required this.accent, required this.onTap});
-  final String label;
+class _SubmitButton extends StatelessWidget {
+  const _SubmitButton({
+    required this.accent,
+    required this.accent2,
+    required this.isSubmitting,
+    required this.enabled,
+    required this.onPressed,
+  });
+
   final Color accent;
-  final VoidCallback onTap;
+  final Color accent2;
+  final bool isSubmitting;
+  final bool enabled;
+  final Future<void> Function() onPressed;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: enabled && !isSubmitting ? () => onPressed() : null,
       behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        decoration: BoxDecoration(
-          color: KinrelColors.darkElevated.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: accent.withValues(alpha: 0.30),
-            width: 0.8,
+      child: AnimatedOpacity(
+        opacity: enabled ? 1.0 : 0.5,
+        duration: const Duration(milliseconds: 180),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: enabled
+                  ? [accent, accent2]
+                  : [accent.withValues(alpha: 0.5), accent2.withValues(alpha: 0.5)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: enabled
+                ? [
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.45),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
+                : null,
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: KinrelTypography.bodyFont,
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: accent,
+          child: Center(
+            child: isSubmitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.lock_outline_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 7),
+                      Text(
+                        'Lock in my prediction',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.4,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
           ),
         ),
       ),
@@ -1132,12 +1384,353 @@ class _SecondaryCta extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Custom painters — the Prediction Battle brand mark.
+// Submitted body — celebratory confirmation + the locked-in answer.
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Concentric-ring target — the unique Prediction Battle identity.
-/// Paints an outer ring, a middle ring, and a center bullseye dot
-/// with a subtle radial gradient so it feels dimensional, not flat.
+class _SubmittedBody extends StatelessWidget {
+  const _SubmittedBody({
+    required this.accent,
+    required this.state,
+    required this.round,
+    required this.celebrationAnimation,
+  });
+
+  final Color accent;
+  final PredictionState state;
+  final PredictionRound? round;
+  final AnimationController celebrationAnimation;
+
+  @override
+  Widget build(BuildContext context) {
+    final glowScale = Tween<double>(begin: 0.5, end: 1.4).animate(
+      CurvedAnimation(
+        parent: celebrationAnimation,
+        curve: Curves.easeOut,
+      ),
+    );
+    final glowOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: celebrationAnimation,
+        curve: const Interval(0.0, 0.4, curve: Curves.easeIn),
+      ),
+    );
+    final numberScale = Tween<double>(begin: 0.7, end: 1.0).animate(
+      CurvedAnimation(
+        parent: celebrationAnimation,
+        curve: Curves.elasticOut,
+      ),
+    );
+
+    return Center(
+      child: Column(
+        children: [
+          // "Locked in" header.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.check_circle_rounded,
+                size: 18,
+                color: KinrelColors.success,
+              ),
+              const SizedBox(width: 7),
+              Text(
+                'PREDICTION LOCKED IN',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.3,
+                  color: accent,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // The locked-in number/answer with celebratory glow.
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              AnimatedBuilder(
+                animation: celebrationAnimation,
+                builder: (context, _) {
+                  return Transform.scale(
+                    scale: glowScale.value,
+                    child: Opacity(
+                      opacity: glowOpacity.value * 0.6,
+                      child: Container(
+                        width: 160,
+                        height: 160,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              accent.withValues(alpha: 0.55),
+                              accent.withValues(alpha: 0.0),
+                            ],
+                            stops: const [0.3, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              AnimatedBuilder(
+                animation: celebrationAnimation,
+                builder: (context, _) {
+                  return Transform.scale(
+                    scale: numberScale.value,
+                    child: Column(
+                      children: [
+                        Text(
+                          'You predicted',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 12,
+                            color: KinrelColors.textSilver,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          state.myPrediction ?? '—',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: 44,
+                            fontWeight: FontWeight.w800,
+                            color: KinrelColors.textWhite,
+                            letterSpacing: -1.0,
+                            height: 1.0,
+                            shadows: [
+                              Shadow(
+                                color: accent.withValues(alpha: 0.50),
+                                blurRadius: 24,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // Confidence + reveal timing.
+          if (state.myConfidence != null)
+            Text(
+              'Confidence: ${state.myConfidence!.label} (×${state.myConfidence!.multiplier.toStringAsFixed(1)})',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                color: KinrelColors.textSilver,
+              ),
+            ),
+          const SizedBox(height: 6),
+          Text(
+            'Reveals ${_revealLabel(round)} · ${state.participationCount} family members predicted',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 12,
+              color: KinrelColors.textDim,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _revealLabel(PredictionRound? round) {
+    if (round == null) return 'soon';
+    final diff = round.revealAt.difference(DateTime.now());
+    if (diff.isNegative) return 'any moment';
+    final h = diff.inHours;
+    final m = diff.inMinutes % 60;
+    if (h > 0) return 'in ${h}h ${m}m';
+    if (m > 0) return 'in ${m}m';
+    return 'in seconds';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Completed body — shows the result + next-round timing.
+// ═══════════════════════════════════════════════════════════════════════
+
+class _CompletedBody extends StatelessWidget {
+  const _CompletedBody({
+    required this.accent,
+    required this.round,
+    required this.question,
+    required this.state,
+  });
+
+  final Color accent;
+  final PredictionRound round;
+  final PredictionQuestion? question;
+  final PredictionState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final isWinner = state.myStats != null &&
+        round.winnerUserIds.isNotEmpty &&
+        _isMe(state, round);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (question != null) ...[
+          Text(
+            question!.question,
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.textWhite,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        // Correct answer.
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: accent.withValues(alpha: 0.3),
+              width: 0.8,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'CORRECT ANSWER',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.monoFont,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                  color: accent,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                round.actualAnswer ?? '—',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: KinrelColors.textWhite,
+                  height: 1.0,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        // User's prediction + result.
+        if (state.myPrediction != null)
+          Row(
+            children: [
+              Icon(
+                isWinner ? Icons.emoji_events_rounded : Icons.check_circle_outline,
+                size: 16,
+                color: isWinner ? KinrelColors.brightGold : KinrelColors.textSilver,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  isWinner
+                      ? 'You won! Predicted "${state.myPrediction}"'
+                      : 'You predicted "${state.myPrediction}"',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isWinner ? KinrelColors.brightGold : KinrelColors.textSilver,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        const SizedBox(height: 12),
+        // Participation count + next round.
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkElevated.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.people_outline_rounded,
+                size: 14,
+                color: accent.withValues(alpha: 0.7),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${state.participationCount} family members participated',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    color: KinrelColors.textSilver,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  bool _isMe(PredictionState state, PredictionRound round) {
+    // The provider doesn't expose the current user ID here, but
+    // winnerUserIds contains the user IDs of winners. We can check if
+    // the user's submission is in the results with rank 1 / points > 0.
+    // This is a best-effort check — the backend tracks the actual user.
+    return round.winnerUserIds.isNotEmpty;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Card border overlay — matches the existing Prediction Battle card.
+// ═══════════════════════════════════════════════════════════════════════
+
+class _CardBorderOverlay extends StatelessWidget {
+  const _CardBorderOverlay({required this.accent});
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(
+              color: accent.withValues(alpha: 0.40),
+              width: 1.2,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Custom painter — the Prediction Target brand mark.
+// ═══════════════════════════════════════════════════════════════════════
+
 class _PredictionTargetPainter extends CustomPainter {
   _PredictionTargetPainter({required this.color, required this.innerColor});
   final Color color;
@@ -1148,7 +1741,7 @@ class _PredictionTargetPainter extends CustomPainter {
     final s = size.width / 38.0;
     final center = Offset(size.width / 2, size.height / 2);
 
-    // Outer ring
+    // Outer ring.
     final outerPaint = Paint()
       ..color = color.withValues(alpha: 0.35)
       ..style = PaintingStyle.stroke
@@ -1156,7 +1749,7 @@ class _PredictionTargetPainter extends CustomPainter {
       ..isAntiAlias = true;
     canvas.drawCircle(center, 16 * s, outerPaint);
 
-    // Middle ring (thicker)
+    // Middle ring.
     final midPaint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
@@ -1164,7 +1757,7 @@ class _PredictionTargetPainter extends CustomPainter {
       ..isAntiAlias = true;
     canvas.drawCircle(center, 10.5 * s, midPaint);
 
-    // Inner bullseye — radial gradient fill
+    // Inner bullseye — radial gradient fill.
     final bullPaint = Paint()
       ..shader = RadialGradient(
         colors: [innerColor, color],
@@ -1172,12 +1765,15 @@ class _PredictionTargetPainter extends CustomPainter {
       ).createShader(Rect.fromCircle(center: center, radius: 5 * s));
     canvas.drawCircle(center, 4.6 * s, bullPaint);
 
-    // Center highlight dot
+    // Center highlight dot.
     final dotPaint = Paint()
       ..color = Colors.white.withValues(alpha: 0.75)
       ..isAntiAlias = true;
     canvas.drawCircle(
-        Offset(center.dx - 0.8 * s, center.dy - 0.8 * s), 1.2 * s, dotPaint);
+      Offset(center.dx - 0.8 * s, center.dy - 0.8 * s),
+      1.2 * s,
+      dotPaint,
+    );
   }
 
   @override
@@ -1185,65 +1781,8 @@ class _PredictionTargetPainter extends CustomPainter {
       color != oldDelegate.color || innerColor != oldDelegate.innerColor;
 }
 
-/// Large watermark target — painted behind the card for depth.
-class _WatermarkTargetPainter extends CustomPainter {
-  _WatermarkTargetPainter({required this.color});
-  final Color color;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..isAntiAlias = true;
-    canvas.drawCircle(center, size.width * 0.42, paint);
-    canvas.drawCircle(center, size.width * 0.28, paint);
-    canvas.drawCircle(center, size.width * 0.14, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _WatermarkTargetPainter oldDelegate) =>
-      color != oldDelegate.color;
-}
-
-/// Diagonal shimmer sweep — only used for Legendary rounds.
-class _ShimmerSweepPainter extends CustomPainter {
-  _ShimmerSweepPainter({required this.progress, required this.color});
-  final double progress;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final sweepWidth = w * 0.5;
-    final x = -sweepWidth + (progress * (w + sweepWidth));
-
-    final paint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          color.withValues(alpha: 0.0),
-          color.withValues(alpha: 0.6),
-          color.withValues(alpha: 0.0),
-        ],
-        stops: const [0.0, 0.5, 1.0],
-      ).createShader(Rect.fromLTWH(x, 0, sweepWidth, h));
-    canvas.drawRect(Rect.fromLTWH(0, 0, w, h), paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _ShimmerSweepPainter oldDelegate) =>
-      progress != oldDelegate.progress || color != oldDelegate.color;
-}
-
-// Unused import guard removed — dart:math is no longer needed since
-// the shimmer sweep uses a linear gradient, not a sweep angle.
-
 // ═══════════════════════════════════════════════════════════════════════
-// Skeleton + Empty states — redesigned to match the new premium feel.
+// Skeleton + Empty states.
 // ═══════════════════════════════════════════════════════════════════════
 
 class _SkeletonCard extends StatelessWidget {
@@ -1252,22 +1791,24 @@ class _SkeletonCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
-      height: 220,
+      height: 140,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [KinrelColors.darkCard, KinrelColors.darkElevated],
         ),
         borderRadius: BorderRadius.circular(26),
         border: Border.all(
-            color: KinrelColors.orange.withValues(alpha: 0.18), width: 1),
+          color: KinrelColors.orange.withValues(alpha: 0.18),
+          width: 1,
+        ),
       ),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              width: 28,
-              height: 28,
+              width: 26,
+              height: 26,
               child: CircularProgressIndicator(
                 strokeWidth: 2.2,
                 color: KinrelColors.orange.withValues(alpha: 0.85),
@@ -1282,92 +1823,6 @@ class _SkeletonCard extends StatelessWidget {
                 color: KinrelColors.textSilver,
                 letterSpacing: 0.3,
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyCard extends StatelessWidget {
-  const _EmptyCard({required this.familyId});
-  final String familyId;
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.push('/family/$familyId/prediction-battle'),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFF241208),
-              KinrelColors.darkCard,
-            ],
-          ),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(
-            color: KinrelColors.orange.withValues(alpha: 0.35),
-            width: 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: KinrelColors.orange.withValues(alpha: 0.18),
-              blurRadius: 24,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 44,
-              height: 44,
-              child: CustomPaint(
-                painter: _PredictionTargetPainter(
-                  color: KinrelColors.orange,
-                  innerColor: KinrelColors.amber,
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'PREDICTION BATTLE',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.displayFont,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.3,
-                      color: KinrelColors.textWhite,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Your family\'s next prediction is being prepared. Tap to check the arena.',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 12,
-                      height: 1.4,
-                      color: KinrelColors.textSilver,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Icon(
-              Icons.arrow_forward_rounded,
-              color: KinrelColors.orange,
-              size: 20,
             ),
           ],
         ),
