@@ -14,6 +14,8 @@ import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/reactions_bar.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'color_trap_engine.dart';
 import 'color_trap_models.dart';
 import 'color_trap_provider.dart';
@@ -39,6 +41,7 @@ class _ColorTrapGameScreenState extends ConsumerState<ColorTrapGameScreen> {
   @override Widget build(BuildContext context) {
     final state = ref.watch(colorTrapProvider(widget.familyId));
     final game = state.game;
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     if (state.isLoading && game == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave), title: const Text('Color Trap'), backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite), body: const Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
     if (game == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.go('/family/${widget.familyId}')), title: const Text('Color Trap'), backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite), body: Center(child: GamingEmptyCard(emoji: '🎨', title: 'Game not found', message: 'This game may have ended.')));
     return DKScaffold(backgroundColor: KinrelColors.darkSurface,
@@ -46,7 +49,7 @@ class _ColorTrapGameScreenState extends ConsumerState<ColorTrapGameScreen> {
         title: Text(game.roomName?.isNotEmpty == true ? game.roomName! : 'Color Trap', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [if (game.isInProgress) Padding(padding: const EdgeInsets.only(right: 14), child: Center(child: _RoundInfo(game: game))), if (game.hostUserId == ref.read(supabaseProvider)?.auth.currentUser?.id && game.isInProgress) IconButton(tooltip: 'Leave', icon: const Icon(Icons.logout, size: 20), onPressed: _confirmLeave)]),
-      body: game.isCompleted ? _ResultsView(game: game, familyId: widget.familyId, players: state.players, onRematch: () => ref.read(colorTrapProvider(widget.familyId).notifier).rematch(), onExit: () { if (context.canPop()) context.pop(); else context.go('/family/${widget.familyId}'); })
+      body: game.isCompleted ? _ResultsView(game: game, familyId: widget.familyId, players: state.players, isHost: game.hostUserId == myId, onRematch: () => ref.read(colorTrapProvider(widget.familyId).notifier).rematch(), onExit: () { if (context.canPop()) context.pop(); else context.go('/family/${widget.familyId}'); })
         : _GameView(state: state, familyId: widget.familyId, onMove: (r, c) => ref.read(colorTrapProvider(widget.familyId).notifier).movePlayer(r, c), onAdvance: () => ref.read(colorTrapProvider(widget.familyId).notifier).advancePhase()));
   }
 }
@@ -196,8 +199,8 @@ class _EliminationView extends StatelessWidget {
 }
 
 class _ResultsView extends StatelessWidget {
-  const _ResultsView({required this.game, required this.familyId, required this.players, required this.onRematch, required this.onExit});
-  final ColorTrapGame game; final String familyId; final List<ColorTrapPlayerWire> players;
+  const _ResultsView({required this.game, required this.familyId, required this.players, required this.isHost, required this.onRematch, required this.onExit});
+  final ColorTrapGame game; final String familyId; final List<ColorTrapPlayerWire> players; final bool isHost;
   final Future<String?> Function() onRematch; final VoidCallback onExit;
   @override Widget build(BuildContext context) {
     final board = game.boardState; final winnerIds = game.winnerUserIds;
@@ -228,8 +231,12 @@ class _ResultsView extends StatelessWidget {
         const SizedBox(height: 18),
         Row(children: [
           Expanded(child: DKButton(label: 'Exit', variant: DKButtonVariant.secondary, fullWidth: true, onPressed: onExit)),
-          const SizedBox(width: 10),
-          Expanded(child: DKButton(label: 'Rematch', variant: DKButtonVariant.primary, fullWidth: true, onPressed: () async { final newId = await onRematch(); if (newId != null && context.mounted) context.pushReplacement('/family/$familyId/color-trap/game/$newId'); })),
+          // Host-gated shared rematch — provider rematch() carries the roster
+          // and writes invites itself (insertInvites: false).
+          if (isHost) ...[
+            const SizedBox(width: 10),
+            Expanded(child: RematchButton(familyId: familyId, gameType: GameType.colorTrap, previousGameId: game.id, participantUserIds: players.where((p) => p.isActive).map((p) => p.userId).toList(), maxPlayers: game.maxPlayers, insertInvites: false, onCreateNewGame: onRematch)),
+          ],
         ]),
       ]));
   }

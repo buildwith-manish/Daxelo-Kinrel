@@ -32,8 +32,10 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 import '../game_motion_tokens.dart';
+import '../shared/models/game_invite.dart';
 import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
+import '../shared/widgets/rematch_button.dart';
 import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/reactions_bar.dart';
 import 'memorymatch_card_faces.dart';
@@ -994,12 +996,20 @@ class _ResultsView extends ConsumerWidget {
               familyId: familyId,
             ),
             const SizedBox(height: KinrelSpacing.xl),
+            // Host-gated shared rematch (was a local _rematch helper with the
+            // same behaviour — provider rematch() carries the roster and
+            // writes invites itself, hence insertInvites: false).
             if (game.hostUserId == myUserId) ...[
-              DKButton(
-                label: 'Rematch · Same Settings',
-                variant: DKButtonVariant.primary,
-                fullWidth: true,
-                onPressed: () => _rematch(context, ref),
+              RematchButton(
+                familyId: familyId,
+                gameType: GameType.memoryMatch,
+                previousGameId: game.id,
+                participantUserIds:
+                    state.players.map((p) => p.userId).toList(),
+                maxPlayers: game.maxPlayers,
+                insertInvites: false,
+                onCreateNewGame: () =>
+                    ref.read(memoryMatchProvider(familyId).notifier).rematch(),
               ),
               const SizedBox(height: KinrelSpacing.sm),
             ],
@@ -1094,17 +1104,6 @@ class _ResultsView extends ConsumerWidget {
     );
   }
 
-  Future<void> _rematch(BuildContext context, WidgetRef ref) async {
-    GameMotionTokens.tap();
-    final router = GoRouter.of(context);
-    final newGameId =
-        await ref.read(memoryMatchProvider(familyId).notifier).rematch();
-    if (newGameId != null) {
-      router.go(
-        '/family/$familyId/memory-match/lobby?join=$newGameId',
-      );
-    }
-  }
 }
 
 class _SectionLabel extends StatelessWidget {

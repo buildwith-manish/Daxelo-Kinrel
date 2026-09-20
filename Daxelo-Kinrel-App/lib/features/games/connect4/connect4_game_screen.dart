@@ -40,6 +40,8 @@ import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/reactions_bar.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'connect4_engine.dart';
 import 'connect4_models.dart';
 import 'connect4_provider.dart';
@@ -119,6 +121,7 @@ class _Connect4GameScreenState extends ConsumerState<Connect4GameScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(connect4Provider(widget.familyId));
     final game = state.game;
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
 
     if (state.isLoading && game == null) {
       return DKScaffold(
@@ -168,6 +171,7 @@ class _Connect4GameScreenState extends ConsumerState<Connect4GameScreen> {
               game: game,
               familyId: widget.familyId,
               players: state.players,
+              isHost: game.hostUserId == myId,
               onRematch: () => ref
                   .read(connect4Provider(widget.familyId).notifier)
                   .rematch(),
@@ -530,6 +534,7 @@ class _ResultsView extends StatelessWidget {
     required this.game,
     required this.familyId,
     required this.players,
+    required this.isHost,
     required this.onRematch,
     required this.onExit,
   });
@@ -537,6 +542,7 @@ class _ResultsView extends StatelessWidget {
   final Connect4Game game;
   final String familyId;
   final List<Connect4Player> players;
+  final bool isHost;
   final Future<String?> Function() onRematch;
   final VoidCallback onExit;
 
@@ -642,22 +648,24 @@ class _ResultsView extends StatelessWidget {
                   onPressed: onExit,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: DKButton(
-                  label: 'Rematch',
-                  variant: DKButtonVariant.primary,
-                  fullWidth: true,
-                  onPressed: () async {
-                    final newId = await onRematch();
-                    if (newId != null && context.mounted) {
-                      context.pushReplacement(
-                        '/family/$familyId/connect4/game/$newId',
-                      );
-                    }
-                  },
+              // Host-gated shared rematch — the provider's rematch() carries
+              // the roster over and writes the invites itself, so the shared
+              // button only provides UI + navigation (insertInvites: false).
+              if (isHost) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: RematchButton(
+                    familyId: familyId,
+                    gameType: GameType.connect4,
+                    previousGameId: game.id,
+                    participantUserIds:
+                        players.map((p) => p.userId).toList(),
+                    maxPlayers: game.maxPlayers,
+                    insertInvites: false,
+                    onCreateNewGame: onRematch,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ],

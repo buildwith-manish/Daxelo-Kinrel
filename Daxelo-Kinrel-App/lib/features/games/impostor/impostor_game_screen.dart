@@ -15,6 +15,8 @@ import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/reactions_bar.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'impostor_engine.dart';
 import 'impostor_models.dart';
 import 'impostor_provider.dart';
@@ -58,6 +60,7 @@ class _ImpostorGameScreenState extends ConsumerState<ImpostorGameScreen> {
   @override Widget build(BuildContext context) {
     final state = ref.watch(impostorProvider(widget.familyId));
     final game = state.game;
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     if (state.isLoading && game == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave), title: const Text('Who\'s the Impostor?'), backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite), body: const Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
     if (game == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.go('/family/${widget.familyId}')), title: const Text('Who\'s the Impostor?'), backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite), body: Center(child: GamingEmptyCard(emoji: '🕵️', title: 'Game not found', message: 'This game may have ended or been cancelled.')));
     return DKScaffold(backgroundColor: KinrelColors.darkSurface,
@@ -65,7 +68,7 @@ class _ImpostorGameScreenState extends ConsumerState<ImpostorGameScreen> {
         title: Text(game.roomName?.isNotEmpty == true ? game.roomName! : 'Who\'s the Impostor?', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [if (game.isInProgress) Padding(padding: const EdgeInsets.only(right: 14), child: Center(child: _RoundIndicator(game: game))), if (game.hostUserId == ref.read(supabaseProvider)?.auth.currentUser?.id && game.isInProgress) IconButton(tooltip: 'Leave game', icon: const Icon(Icons.logout, size: 20), onPressed: _confirmLeave)]),
-      body: game.isCompleted ? _ResultsView(game: game, familyId: widget.familyId, players: state.players, onRematch: () => ref.read(impostorProvider(widget.familyId).notifier).rematch(), onExit: () { if (context.canPop()) context.pop(); else context.go('/family/${widget.familyId}'); })
+      body: game.isCompleted ? _ResultsView(game: game, familyId: widget.familyId, players: state.players, isHost: game.hostUserId == myId, onRematch: () => ref.read(impostorProvider(widget.familyId).notifier).rematch(), onExit: () { if (context.canPop()) context.pop(); else context.go('/family/${widget.familyId}'); })
         : _GameView(state: state, familyId: widget.familyId, onSubmitClue: (clue) => ref.read(impostorProvider(widget.familyId).notifier).submitClue(clue), onSubmitVote: (idx) => ref.read(impostorProvider(widget.familyId).notifier).submitVote(idx), onAdvance: () => ref.read(impostorProvider(widget.familyId).notifier).advancePhase()));
   }
 }
@@ -325,8 +328,8 @@ class _RoundResultView extends StatelessWidget {
 }
 
 class _ResultsView extends StatelessWidget {
-  const _ResultsView({required this.game, required this.familyId, required this.players, required this.onRematch, required this.onExit});
-  final ImpostorGame game; final String familyId; final List<ImpostorPlayer> players;
+  const _ResultsView({required this.game, required this.familyId, required this.players, required this.isHost, required this.onRematch, required this.onExit});
+  final ImpostorGame game; final String familyId; final List<ImpostorPlayer> players; final bool isHost;
   final Future<String?> Function() onRematch; final VoidCallback onExit;
   @override Widget build(BuildContext context) {
     final board = game.boardState; final winnerIds = game.winnerUserIds;
@@ -358,8 +361,12 @@ class _ResultsView extends StatelessWidget {
         const SizedBox(height: 18),
         Row(children: [
           Expanded(child: DKButton(label: 'Exit', variant: DKButtonVariant.secondary, fullWidth: true, onPressed: onExit)),
-          const SizedBox(width: 10),
-          Expanded(child: DKButton(label: 'Rematch', variant: DKButtonVariant.primary, fullWidth: true, onPressed: () async { final newId = await onRematch(); if (newId != null && context.mounted) context.pushReplacement('/family/$familyId/impostor/game/$newId'); })),
+          // Host-gated shared rematch — provider rematch() carries the roster
+          // and writes invites itself (insertInvites: false).
+          if (isHost) ...[
+            const SizedBox(width: 10),
+            Expanded(child: RematchButton(familyId: familyId, gameType: GameType.impostor, previousGameId: game.id, participantUserIds: players.where((p) => p.isActive).map((p) => p.userId).toList(), maxPlayers: game.maxPlayers, insertInvites: false, onCreateNewGame: onRematch)),
+          ],
         ]),
       ]));
   }

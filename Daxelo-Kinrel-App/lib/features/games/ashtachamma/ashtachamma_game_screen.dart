@@ -45,6 +45,8 @@ import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/reactions_bar.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'ashtachamma_engine.dart';
 import 'ashtachamma_models.dart';
 import 'ashtachamma_provider.dart';
@@ -127,6 +129,7 @@ class _AshtaChammaGameScreenState extends ConsumerState<AshtaChammaGameScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(ashtaChammaProvider(widget.familyId));
     final game = state.game;
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
 
     if (state.isLoading && game == null) {
       return DKScaffold(
@@ -175,6 +178,7 @@ class _AshtaChammaGameScreenState extends ConsumerState<AshtaChammaGameScreen> {
           ? _ResultsView(
               game: game,
               familyId: widget.familyId,
+              isHost: game.hostUserId == myId,
               onRematch: () => ref
                   .read(ashtaChammaProvider(widget.familyId).notifier)
                   .rematch(),
@@ -962,12 +966,14 @@ class _ResultsView extends StatelessWidget {
   const _ResultsView({
     required this.game,
     required this.familyId,
+    required this.isHost,
     required this.onRematch,
     required this.onExit,
   });
 
   final AshtaChammaGame game;
   final String familyId;
+  final bool isHost;
   final Future<String?> Function() onRematch;
   final VoidCallback onExit;
 
@@ -1058,22 +1064,24 @@ class _ResultsView extends StatelessWidget {
                   onPressed: onExit,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: DKButton(
-                  label: 'Rematch',
-                  variant: DKButtonVariant.primary,
-                  fullWidth: true,
-                  onPressed: () async {
-                    final newId = await onRematch();
-                    if (newId != null && context.mounted) {
-                      context.pushReplacement(
-                        '/family/$familyId/ashta-chamma/game/$newId',
-                      );
-                    }
-                  },
+              // Host-gated shared rematch — the provider's rematch() carries
+              // the roster over and writes the invites itself (insertInvites:
+              // false). Participants come from the final placements.
+              if (isHost) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: RematchButton(
+                    familyId: familyId,
+                    gameType: GameType.ashtaChamma,
+                    previousGameId: game.id,
+                    participantUserIds:
+                        game.placements.map((p) => p.userId).toList(),
+                    maxPlayers: game.maxPlayers,
+                    insertInvites: false,
+                    onCreateNewGame: onRematch,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ],
