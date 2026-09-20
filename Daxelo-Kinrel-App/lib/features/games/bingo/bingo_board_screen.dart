@@ -30,7 +30,9 @@ import '../shared/widgets/game_board_shell.dart';
 import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/widgets/badges_toast.dart';
+import '../shared/models/game_invite.dart';
 import '../shared/widgets/reactions_bar.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'bingo_models.dart';
 import 'bingo_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
@@ -1193,20 +1195,39 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                 familyId: widget.familyId,
               ),
               const SizedBox(height: KinrelSpacing.xxl),
-              DKButton(
-                label: 'Play Again',
-                variant: DKButtonVariant.gradient,
-                fullWidth: true,
-                icon: Icons.refresh_rounded,
-                onPressed: () {
-                  ref.read(bingoProvider(widget.familyId).notifier).leaveGame();
-                  if (context.mounted) {
-                    context.pushReplacement(
-                      '/family/${widget.familyId}/bingo/lobby',
-                    );
-                  }
-                },
-              ),
+              // Host: one-tap rematch — same pattern & call speed, invites
+              // everyone who had a card in this match.
+              if (game.hostUserId == myId)
+                RematchButton(
+                  familyId: widget.familyId,
+                  gameType: GameType.bingo,
+                  previousGameId: game.id,
+                  participantUserIds:
+                      state.allCards.map((c) => c.playerId).toList(),
+                  maxPlayers: game.maxPlayers,
+                  onCreateNewGame: () => ref
+                      .read(bingoProvider(widget.familyId).notifier)
+                      .createGame(
+                        winPattern: game.winPattern,
+                        callIntervalSeconds: game.callIntervalSeconds,
+                        maxPlayers: game.maxPlayers,
+                      ),
+                )
+              else
+                DKButton(
+                  label: 'Play Again',
+                  variant: DKButtonVariant.gradient,
+                  fullWidth: true,
+                  icon: Icons.refresh_rounded,
+                  onPressed: () {
+                    ref.read(bingoProvider(widget.familyId).notifier).leaveGame();
+                    if (context.mounted) {
+                      context.pushReplacement(
+                        '/family/${widget.familyId}/bingo/lobby',
+                      );
+                    }
+                  },
+                ),
               const SizedBox(height: KinrelSpacing.sm),
               DKButton(
                 label: 'Back to Hub',

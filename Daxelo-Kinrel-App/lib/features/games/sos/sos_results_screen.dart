@@ -14,7 +14,9 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../shared/icons/kinrel_icons.dart';
+import '../shared/models/game_invite.dart';
 import '../shared/widgets/game_confetti.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'sos_models.dart';
 import 'sos_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
@@ -139,18 +141,39 @@ class SosResultsScreen extends ConsumerWidget {
             familyId: familyId,
           ),
           const SizedBox(height: KinrelSpacing.xxl),
-          DKButton(
-            label: 'Play Again',
-            variant: DKButtonVariant.gradient,
-            fullWidth: true,
-            icon: Icons.refresh_rounded,
-            onPressed: () {
-              ref.read(sosProvider(familyId).notifier).leaveGame();
-              if (context.mounted) {
-                context.pushReplacement('/family/$familyId/sos/lobby');
-              }
-            },
-          ),
+          // Host: one-tap rematch — same mode/grid, invites everyone back.
+          if (game.hostUserId == myId)
+            RematchButton(
+              familyId: familyId,
+              gameType: GameType.sos,
+              previousGameId: game.id,
+              participantUserIds:
+                  state.players.map((p) => p.userId).toList(),
+              maxPlayers: game.mode == SosMode.fourPlayerTeams ? 4 : 2,
+              onCreateNewGame: () => ref
+                  .read(sosProvider(familyId).notifier)
+                  .createGame(
+                    mode: game.mode,
+                    gridSize: game.gridSize,
+                    teamPlayerUserIds:
+                        game.mode == SosMode.fourPlayerTeams
+                            ? state.players.map((p) => p.userId).toList()
+                            : null,
+                  ),
+            )
+          else
+            DKButton(
+              label: 'Play Again',
+              variant: DKButtonVariant.gradient,
+              fullWidth: true,
+              icon: Icons.refresh_rounded,
+              onPressed: () {
+                ref.read(sosProvider(familyId).notifier).leaveGame();
+                if (context.mounted) {
+                  context.pushReplacement('/family/$familyId/sos/lobby');
+                }
+              },
+            ),
           const SizedBox(height: KinrelSpacing.sm),
           DKButton(
             label: 'Back to Hub',

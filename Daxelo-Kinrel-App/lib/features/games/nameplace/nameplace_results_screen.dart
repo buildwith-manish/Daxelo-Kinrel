@@ -17,7 +17,9 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/icons/kinrel_icons.dart';
+import '../shared/models/game_invite.dart';
 import '../shared/widgets/game_confetti.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'nameplace_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 
@@ -223,8 +225,27 @@ class _NameplaceResultsScreenState extends ConsumerState<NameplaceResultsScreen>
           familyId: widget.familyId,
         ),
         const SizedBox(height: KinrelSpacing.xxl),
-        DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,
-          onPressed: () { ref.read(nameplaceProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.pushReplacement('/family/${widget.familyId}/nameplace/lobby'); }),
+        // Host: one-tap rematch — same rounds & timer, invites everyone
+        // who played this match. (state is dynamic here by design — the
+        // provider state type is re-exported through nameplace_provider.)
+        if (game.hostUserId == myId)
+          RematchButton(
+            familyId: widget.familyId,
+            gameType: GameType.nameplace,
+            previousGameId: game.id,
+            participantUserIds:
+                (state.players as List).map((p) => p.userId as String).toList(),
+            maxPlayers: 8,
+            onCreateNewGame: () => ref
+                .read(nameplaceProvider(widget.familyId).notifier)
+                .createGame(
+                  totalRounds: game.totalRounds,
+                  roundTimerSeconds: game.roundTimerSeconds,
+                ),
+          )
+        else
+          DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,
+            onPressed: () { ref.read(nameplaceProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.pushReplacement('/family/${widget.familyId}/nameplace/lobby'); }),
         const SizedBox(height: KinrelSpacing.sm),
         DKButton(label: 'Back to Hub', variant: DKButtonVariant.secondary, fullWidth: true,
           onPressed: () { ref.read(nameplaceProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.go('/games?familyId=${widget.familyId}'); }),

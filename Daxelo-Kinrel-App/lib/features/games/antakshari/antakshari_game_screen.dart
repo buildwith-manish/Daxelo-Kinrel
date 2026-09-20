@@ -25,7 +25,9 @@ import '../../../shared/widgets/dk_components.dart';
 import '../shared/icons/kinrel_icons.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/game_confetti.dart';
+import '../shared/models/game_invite.dart';
 import '../shared/widgets/leave_game_dialog.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'antakshari_models.dart';
 import 'antakshari_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
@@ -1048,22 +1050,42 @@ class _AntakshariGameScreenState
           ),
             const SizedBox(height: KinrelSpacing.xxl),
           ],
-          DKButton(
-            label: 'Play Again',
-            variant: DKButtonVariant.gradient,
-            fullWidth: true,
-            icon: Icons.refresh_rounded,
-            onPressed: () {
-              ref
+          // Host: one-tap rematch — same mode & timers, invites everyone
+          // who played this match.
+          if (game.hostUserId == myId)
+            RematchButton(
+              familyId: widget.familyId,
+              gameType: GameType.antakshari,
+              previousGameId: game.id,
+              participantUserIds:
+                  state.players.map((p) => p.userId).toList(),
+              maxPlayers: game.maxPlayers,
+              onCreateNewGame: () => ref
                   .read(antakshariProvider(widget.familyId).notifier)
-                  .leaveGame();
-              if (context.mounted) {
-                context.pushReplacement(
-                  '/family/${widget.familyId}/antakshari/lobby',
-                );
-              }
-            },
-          ),
+                  .createGame(
+                    mode: game.mode,
+                    maxPlayers: game.maxPlayers,
+                    turnTimerSeconds: game.turnTimerSeconds,
+                    roundLimit: game.roundLimit,
+                  ),
+            )
+          else
+            DKButton(
+              label: 'Play Again',
+              variant: DKButtonVariant.gradient,
+              fullWidth: true,
+              icon: Icons.refresh_rounded,
+              onPressed: () {
+                ref
+                    .read(antakshariProvider(widget.familyId).notifier)
+                    .leaveGame();
+                if (context.mounted) {
+                  context.pushReplacement(
+                    '/family/${widget.familyId}/antakshari/lobby',
+                  );
+                }
+              },
+            ),
           const SizedBox(height: KinrelSpacing.sm),
           DKButton(
             label: 'Back to Hub',

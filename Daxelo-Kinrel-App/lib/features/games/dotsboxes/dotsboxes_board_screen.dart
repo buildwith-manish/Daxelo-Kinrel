@@ -11,8 +11,10 @@ import '../../../shared/widgets/dk_components.dart';
 import '../shared/icons/kinrel_icons.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/game_board_shell.dart';
+import '../shared/models/game_invite.dart';
 import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
+import '../shared/widgets/rematch_button.dart';
 import 'dotsboxes_models.dart';
 import 'dotsboxes_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
@@ -213,8 +215,21 @@ class _DotsboxesBoardScreenState extends ConsumerState<DotsboxesBoardScreen> {
           familyId: widget.familyId,
         ),
         const SizedBox(height: KinrelSpacing.xxl),
-        DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,
-          onPressed: () { ref.read(dbProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.pushReplacement('/family/${widget.familyId}/dotsboxes/lobby'); }),
+        // Host: one-tap rematch — same grid, invites everyone from this match.
+        if (game.hostUserId == myId)
+          RematchButton(
+            familyId: widget.familyId,
+            gameType: GameType.dotsboxes,
+            previousGameId: game.id,
+            participantUserIds: state.players.map((p) => p.userId).toList(),
+            maxPlayers: 4,
+            onCreateNewGame: () => ref
+                .read(dbProvider(widget.familyId).notifier)
+                .createGame(gridSize: game.gridSize),
+          )
+        else
+          DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,
+            onPressed: () { ref.read(dbProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.pushReplacement('/family/${widget.familyId}/dotsboxes/lobby'); }),
         const SizedBox(height: 8),
         DKButton(label: 'Back to Hub', variant: DKButtonVariant.secondary, fullWidth: true,
           onPressed: () { ref.read(dbProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.go('/games?familyId=${widget.familyId}'); }),
