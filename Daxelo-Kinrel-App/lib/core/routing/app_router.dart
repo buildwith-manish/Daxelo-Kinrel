@@ -14,9 +14,11 @@
 // gold indicator, badge support on Alerts tab.
 //
 // ── P2 Optimizations ─────────────────────────────────────────────
-// • CustomTransitionPage with 200ms FadeTransition + Curves.easeOut
-//   for ALL non-shell routes (33% faster than Flutter default 300ms)
-// • Instant (0ms) transitions for ShellRoute tab switches
+// • premiumPage: 220ms fade + 12px slide-up with easeOutCubic for ALL
+//   non-shell routes. Subtle spatial continuity ("moving forward")
+//   without slowing the user down. See page_transitions.dart.
+// • tabSwitchPage: 150ms cross-fade for ShellRoute tab switches.
+//   Feels instant but removes the "flash" of a 0ms swap.
 // • Prefetch wrappers for 3 most-visited routes (/families, /family/:id, /profile)
 // • AutomaticKeepAliveClientMixin on all tab screens
 //
@@ -288,6 +290,7 @@ import '../services/analytics_service.dart';
 import '../../shared/widgets/dk_components.dart';
 import '../../core/family/family_provider.dart';
 import '../../features/profile/data/profile_provider.dart';
+import 'page_transitions.dart';
 import '../../features/trackc/presentation/screens/trackc_hub_screen.dart';
 import '../../features/trackc/presentation/screens/constitution_screen.dart';
 import '../../features/trackc/presentation/screens/decisions_list_screen.dart';
@@ -315,40 +318,38 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 // ═══════════════════════════════════════════════════════════════════════
 // P2 — CustomTransitionPage Helpers
 // ═══════════════════════════════════════════════════════════════════════
+//
+// NOTE: The transition implementations now live in page_transitions.dart.
+// The three helpers below are thin wrappers kept so the ~200 existing
+// call sites in this file continue to compile. They also document which
+// transition each call site gets:
+//
+//   _fastFadePage  → premiumPage  (fade + 12px slide-up, 220ms)
+//   _instantPage   → tabSwitchPage for ShellRoute tabs (150ms cross-fade)
+//                    instantPage   for genuine instant needs (0ms)
+//
+// See page_transitions.dart for the full performance + design rationale.
 
-/// Fast page transition: 200ms fade with Curves.easeOut.
-/// 33% faster than Flutter's default 300ms MaterialPage transition.
+/// Pushed-route transition: fade + slight slide-up, 220ms.
+///
+/// Wraps [premiumPage] from page_transitions.dart. Used for all
+/// non-shell routes (~200 call sites in this file).
 CustomTransitionPage<void> _fastFadePage({
   required LocalKey key,
   required Widget child,
 }) {
-  return CustomTransitionPage(
-    key: key,
-    child: child,
-    transitionDuration: const Duration(milliseconds: 200),
-    transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      return FadeTransition(
-        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-        child: child,
-      );
-    },
-  );
+  return premiumPage(key: key, child: child);
 }
 
-/// Instant page transition: 0ms — used for ShellRoute tab switches
-/// where the shell itself handles the visual transition.
+/// Tab-switch transition: 150ms cross-fade.
+///
+/// Wraps [tabSwitchPage] from page_transitions.dart. Used for ShellRoute
+/// tab switches (Home, Chat, Family, Search, Profile).
 CustomTransitionPage<void> _instantPage({
   required LocalKey key,
   required Widget child,
 }) {
-  return CustomTransitionPage(
-    key: key,
-    child: child,
-    transitionDuration: Duration.zero,
-    transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      return child;
-    },
-  );
+  return tabSwitchPage(key: key, child: child);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
