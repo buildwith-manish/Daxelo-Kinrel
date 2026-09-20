@@ -118,11 +118,33 @@ jobs:
       # --dart-define injects the git SHA so the build identifier is
       # visible in the deployed bundle (vercel-build.sh uses the same
       # pattern with VERCEL_GIT_COMMIT_SHA).
+      #
+      # ── QA hardening 2026-09-20: SUPABASE_URL / SUPABASE_ANON_KEY are
+      # injected from repo secrets — the app no longer carries hardcoded
+      # fallbacks, so a build without them would deploy a web app that
+      # throws at first Supabase use. Fail LOUDLY before wasting a full
+      # dart2js build when the secrets are missing.
+      - name: Verify Supabase config secrets (fail loudly)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_URL and/or SUPABASE_ANON_KEY secrets are missing."
+            echo "::error::Add them under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
       - name: Build Flutter Web
         working-directory: ${{ env.FLUTTER_APP_DIR }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           flutter build web --release \
             --base-href "/" \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
             --dart-define=KINREL_BUILD_COMMIT=${{ github.sha }} \
             --dart-define=KINREL_BUILD_TIMESTAMP="$(date -u '+%Y-%m-%d %H:%M UTC')"
 

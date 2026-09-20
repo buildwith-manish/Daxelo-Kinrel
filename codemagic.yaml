@@ -25,14 +25,27 @@ workflows:
     working_directory: Daxelo-Kinrel-App
 
     scripts:
-      - name: Create .env file
+      # ── QA hardening 2026-09-20 ──────────────────────────────────
+      # Replaced "Create .env file": that file was never bundled (.env is
+      # not a pubspec asset), so builds silently ran on the hardcoded
+      # Supabase fallbacks AppConfig used to carry. Those were removed —
+      # the keys are injected via --dart-define and missing config fails
+      # the build LOUDLY.
+      # Set SUPABASE_URL + SUPABASE_ANON_KEY in Codemagic:
+      #   codemagic.yaml `environment.vars` from secure environment
+      #   variables, or the workflow's Environment Variables in the
+      #   Codemagic UI (Settings → Environment variables).
+      - name: Verify Supabase config (fail loudly)
         script: |
-          cat > .env <<'EOF'
-          SUPABASE_URL=https://promxswvsnvilplmrtsj.supabase.co
-          SUPABASE_ANON_KEY=sb_publishable_LcAMCNq9bh-pDQxtpcW0Rg_-gR0MyTb
-          API_BASE_URL=https://daxelo-kinrel-server.onrender.com
-          EOF
-          echo ".env file created"
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "FATAL: SUPABASE_URL / SUPABASE_ANON_KEY are not set."
+            echo "The app's hardcoded Supabase fallbacks were removed (QA"
+            echo "hardening 2026-09-20). Add them as Codemagic environment"
+            echo "variables (Settings → Environment variables), values from"
+            echo "Supabase Dashboard → Settings → API (publishable key)."
+            exit 1
+          fi
+          echo "Supabase config present (dart-define injection enabled)"
 
       - name: Install Android SDK components
         script: |
@@ -55,7 +68,9 @@ workflows:
       - name: Build debug APK
         script: |
           BUILD_NUMBER="${CM_BUILD_NUMBER:-1}"
-          flutter build apk --debug --build-number="$BUILD_NUMBER"
+          flutter build apk --debug --build-number="$BUILD_NUMBER" \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
 
     artifacts:
       - build/app/outputs/flutter-apk/app-debug.apk

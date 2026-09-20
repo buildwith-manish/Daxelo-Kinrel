@@ -117,8 +117,32 @@ jobs:
       - name: Generate code (build_runner)
         run: dart run build_runner build --delete-conflicting-outputs
 
+      # ── QA hardening 2026-09-20 ────────────────────────────────────
+      # The app no longer carries hardcoded Supabase fallbacks — the
+      # keys are env-only and FAIL LOUDLY when missing. Inject them via
+      # --dart-define from repo secrets so the tests exercise the real
+      # resolution path, and fail the job up front when the secrets are
+      # absent instead of letting tests hit opaque StateErrors.
+      - name: Verify Supabase config secrets (fail loudly)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_URL and/or SUPABASE_ANON_KEY secrets are missing."
+            echo "::error::Add them under Settings → Secrets and variables → Actions."
+            echo "::error::(Values: Supabase Dashboard → Settings → API — use the publishable/anon key.)"
+            exit 1
+          fi
+
       - name: Run Flutter tests
-        run: flutter test --no-pub
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: >-
+          flutter test --no-pub
+          --dart-define=SUPABASE_URL="$SUPABASE_URL"
+          --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
 
   # ═══════════════════════════════════════════════════════════════
   # Job 3: Backend CI
@@ -195,14 +219,22 @@ jobs:
             "platforms;android-33" "build-tools;33.0.0" "cmake;3.22.1"
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      - name: Create .env file
+      # ── QA hardening 2026-09-20 ────────────────────────────────────
+      # Replaced the old "Create .env file" step: that file was never
+      # bundled (.env is not a pubspec asset), so the build silently ran
+      # on the hardcoded fallbacks AppConfig used to carry. Those are
+      # gone — the keys are injected at compile time via --dart-define,
+      # and the build fails loudly when the secrets are missing.
+      - name: Verify Supabase config secrets (fail loudly)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          cat > .env <<'EOF'
-          SUPABASE_URL=https://promxswvsnvilplmrtsj.supabase.co
-          SUPABASE_ANON_KEY=sb_publishable_LcAMCNq9bh-pDQxtpcW0Rg_-gR0MyTb
-          API_BASE_URL=https://daxelo-kinrel-server.onrender.com
-          EOF
-          sed -i 's/^[[:space:]]*//' .env
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_URL and/or SUPABASE_ANON_KEY secrets are missing."
+            echo "::error::Add them under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
 
       - name: Install native build toolchain
         run: |
@@ -222,7 +254,13 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Build release APK
-        run: flutter build apk --release --build-number=$GITHUB_RUN_NUMBER
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: >-
+          flutter build apk --release --build-number=$GITHUB_RUN_NUMBER
+          --dart-define=SUPABASE_URL="$SUPABASE_URL"
+          --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

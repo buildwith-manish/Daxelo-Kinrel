@@ -88,8 +88,21 @@ final isSupabaseReadyProvider = Provider<bool>((ref) {
 // ── Initialize Supabase ──────────────────────────────────────────────
 
 Future<bool> initSupabase() async {
-  final url = _resolveSupabaseUrl();
-  final anonKey = _resolveSupabaseAnonKey();
+  final String url;
+  final String anonKey;
+  // QA hardening 2026-09-20: AppConfig's Supabase getters are env-only
+  // and THROW a StateError when a key is missing (hardcoded fallbacks
+  // were removed). Resolve them separately from the init retry loop so
+  // a packaging/config problem is reported once, clearly, instead of
+  // being retried as if it were a transient network failure.
+  try {
+    url = _resolveSupabaseUrl();
+    anonKey = _resolveSupabaseAnonKey();
+  } catch (e) {
+    _log.e('Supabase config missing: $e');
+    _supabaseInitialized = false;
+    return false;
+  }
   _log.i('Initializing Supabase...');
   _log.i('  URL: $url');
   _log.i('  Anon Key: ${anonKey.isNotEmpty ? "SET" : "EMPTY"}');

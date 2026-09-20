@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// App-level configuration constants
@@ -9,24 +10,80 @@ class AppConfig {
   static const String appNameByDaxelo = 'Daxelo KINREL';
   static const String version = '1.0.0';
 
-  // Hardcoded fallbacks — Supabase publishable key is safe for client-side
-  // use (only service_role/secret keys are secret). These ensure the app
-  // ALWAYS has valid credentials even when .env is missing or env vars are
-  // empty.
+  // ── Supabase: ENV-ONLY, fails loudly (QA hardening 2026-09-20) ────
   //
-  // QA fix 2026-09-19: the Supabase gateway began rejecting the LEGACY
-  // anon JWT (401 UNAUTHORIZED_INVALID_API_KEY) mid-session — the app could
-  // not sign in or make any REST call. Migrated to the project's new
-  // publishable key (sb_publishable_…), the platform's designated
-  // replacement. Keep in mind: if this key is ever rotated again, the same
-  // breakage returns — prefer setting SUPABASE_ANON_KEY via .env/dart-define
-  // so it can be changed without a code release.
-  static const String _fallbackSupabaseUrl =
-      'https://promxswvsnvilplmrtsj.supabase.co';
-  static const String _fallbackSupabaseAnonKey =
-      'sb_publishable_LcAMCNq9bh-pDQxtpcW0Rg_-gR0MyTb';
-  static const String _fallbackApiBaseUrl =
-      'https://daxelo-kinrel-server.onrender.com';
+  // The hardcoded Supabase URL + publishable-key fallbacks were REMOVED.
+  // Resolution order: .env (flutter_dotenv) → --dart-define at compile
+  // time → THROW. Rationale from the QA pass:
+  //
+  //   • The 2026-09-19 key rotation (legacy anon JWT → publishable key)
+  //     proved a baked-in key cannot be rotated without a code release.
+  //   • The fallback silently masked missing CI config: the "Create .env"
+  //     steps in the build workflows wrote a file that was never bundled
+  //     (.env is NOT a pubspec asset), so every CI build was actually
+  //     running on these constants.
+  //   • Build pipelines now inject the values via --dart-define from
+  //     GitHub secrets / Vercel environment variables and FAIL loudly
+  //     when they are absent.
+  //
+  // Non-secret public identifiers (Google OAuth client IDs, the backend
+  // API base URL) keep their defaults below — they are not credentials,
+  // they cannot be rotated server-side, and the native client IDs must
+  // stay in lockstep with google-services.json / GoogleService-Info.plist
+  // which are committed to the repo anyway.
+  static String get supabaseUrl => _requiredEnv(
+      'SUPABASE_URL', const String.fromEnvironment('SUPABASE_URL'));
+
+  static String get supabaseAnonKey => _requiredEnv(
+      'SUPABASE_ANON_KEY', const String.fromEnvironment('SUPABASE_ANON_KEY'));
+
+  /// [dartDefineValue] must be passed as a `const String.fromEnvironment`
+  /// literal from the getter above — the environment key is baked in at
+  /// compile time, so it cannot flow through a runtime [key] parameter.
+  static String _requiredEnv(String key, String dartDefineValue) {
+    final env = _safeDotenv(key);
+    if (env != null && env.isNotEmpty) return env;
+    if (dartDefineValue.isNotEmpty) return dartDefineValue;
+    throw StateError(missingConfigMessage(key));
+  }
+
+  /// The error surfaced when a required key is absent. Separate static
+  /// so tests can pin the remediation instructions.
+  @visibleForTesting
+  static String missingConfigMessage(String key) =>
+      '$key is not configured. Provide it via .env (flutter_dotenv) or at '
+      'build time with --dart-define=$key=<value>. Hardcoded fallbacks were '
+      'removed (QA hardening 2026-09-20) so a rotated key can never be '
+      'silently masked by a stale baked-in value. CI: check the $key '
+      'GitHub secret / Vercel environment variable.';
+
+  /// Non-throwing diagnostic peek at [supabaseUrl].
+  ///
+  /// FOR LOGGING ONLY — real resolution must use the throwing getter so
+  /// missing config fails loudly. Returns null when the key is unset.
+  static String? get peekSupabaseUrl => _peekEnv(
+      'SUPABASE_URL', const String.fromEnvironment('SUPABASE_URL'));
+
+  /// Non-throwing diagnostic peek at [supabaseAnonKey].
+  ///
+  /// FOR LOGGING ONLY — never use this to build a Supabase client.
+  /// Returns null when the key is unset (never the key material).
+  static String? get peekSupabaseAnonKey => _peekEnv(
+      'SUPABASE_ANON_KEY', const String.fromEnvironment('SUPABASE_ANON_KEY'));
+
+  static String? _peekEnv(String key, String dartDefineValue) {
+    final env = _safeDotenv(key);
+    if (env != null && env.isNotEmpty) return env;
+    if (dartDefineValue.isNotEmpty) return dartDefineValue;
+    return null;
+  }
+
+  /// Check if Supabase is properly configured.
+  ///
+  /// Built on the non-throwing peek so the check itself can never crash
+  /// startup diagnostics (main.dart logs this before any Supabase use).
+  static bool get isSupabaseConfigured =>
+      peekSupabaseUrl != null && peekSupabaseAnonKey != null;
 
   /// Safely read a value from dotenv, returning null if dotenv is not
   /// initialized or the key is absent (instead of throwing NotInitializedError).
@@ -34,44 +91,20 @@ class AppConfig {
     try {
       return dotenv.env[key];
     } catch (_) {
-      // dotenv not initialized — return null so fallback is used
+      // dotenv not initialized — return null so dart-define is used
       return null;
     }
   }
 
-  // Supabase — reads from .env file (loaded via flutter_dotenv)
-  // Falls back to --dart-define, then hardcoded defaults
-  // IMPORTANT: Handles both null AND empty string from dotenv
-  static String get supabaseUrl {
-    final env = _safeDotenv('SUPABASE_URL');
-    if (env != null && env.isNotEmpty) return env;
-    return const String.fromEnvironment(
-      'SUPABASE_URL',
-      defaultValue: _fallbackSupabaseUrl,
-    );
-  }
-
-  static String get supabaseAnonKey {
-    final env = _safeDotenv('SUPABASE_ANON_KEY');
-    if (env != null && env.isNotEmpty) return env;
-    return const String.fromEnvironment(
-      'SUPABASE_ANON_KEY',
-      defaultValue: _fallbackSupabaseAnonKey,
-    );
-  }
-
-  // Backend API
+  // Backend API — non-secret endpoint, keeps its default (see note above).
   static String get apiBaseUrl {
     final env = _safeDotenv('API_BASE_URL');
     if (env != null && env.isNotEmpty) return env;
     return const String.fromEnvironment(
       'API_BASE_URL',
-      defaultValue: _fallbackApiBaseUrl,
+      defaultValue: 'https://daxelo-kinrel-server.onrender.com',
     );
   }
-
-  /// Check if Supabase is properly configured
-  static bool get isSupabaseConfigured => supabaseAnonKey.isNotEmpty;
 
   // Google OAuth Client IDs
   //

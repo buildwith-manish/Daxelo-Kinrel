@@ -1,21 +1,41 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+import 'app_config.dart';
 import 'app_environment.dart';
 
-/// Environment configuration with secure handling
+/// Environment configuration with secure handling.
+///
+/// QA hardening 2026-09-20: this class previously DUPLICATED AppConfig's
+/// entire resolution chain — including its own copies of the hardcoded
+/// Supabase URL + publishable-key fallbacks. It now DELEGATES to
+/// AppConfig wherever the two overlapped, so:
+///
+///   • there is exactly ONE place that resolves SUPABASE_URL /
+///     SUPABASE_ANON_KEY (env-only, fails loudly, no fallback), and
+///   • the two config classes can never drift apart again the way they
+///     did during the 2026-09-19 key rotation.
+///
+/// Only the members unique to this class keep their own logic: the
+/// environment-mode helpers and the AppEnvironmentConfig-aware
+/// [apiBaseUrl] chain.
 class EnvConfig {
   EnvConfig._();
-
-  // Hardcoded fallbacks (same as AppConfig)
-  static const String _fallbackSupabaseUrl =
-      'https://promxswvsnvilplmrtsj.supabase.co';
-  static const String _fallbackSupabaseAnonKey =
-      'sb_publishable_LcAMCNq9bh-pDQxtpcW0Rg_-gR0MyTb';
-  static const String _fallbackApiBaseUrl =
-      'https://daxelo-kinrel-server.onrender.com';
 
   static bool get isProduction => const bool.fromEnvironment('dart.vm.product');
   static bool get isDebug => !isProduction;
   static bool get isProfile => const bool.fromEnvironment('dart.vm.profile');
+
+  // ── Supabase — single source of truth in AppConfig ────────────────
+  // Env-only resolution (dotenv → --dart-define → StateError). See
+  // AppConfig for the rationale and the non-throwing peek API.
+  static String get supabaseUrl => AppConfig.supabaseUrl;
+  static String get supabaseAnonKey => AppConfig.supabaseAnonKey;
+
+  /// Non-throwing diagnostic peeks (logging only — see AppConfig).
+  static String? get peekSupabaseUrl => AppConfig.peekSupabaseUrl;
+  static String? get peekSupabaseAnonKey => AppConfig.peekSupabaseAnonKey;
+
+  static bool get isSupabaseConfigured => AppConfig.isSupabaseConfigured;
 
   /// Safely read a value from dotenv, returning null if dotenv is not
   /// initialized or the key is absent (instead of throwing NotInitializedError).
@@ -27,25 +47,6 @@ class EnvConfig {
     }
   }
 
-  // IMPORTANT: Handles both null AND empty string from dotenv
-  static String get supabaseUrl {
-    final env = _safeDotenv('SUPABASE_URL');
-    if (env != null && env.isNotEmpty) return env;
-    return const String.fromEnvironment(
-      'SUPABASE_URL',
-      defaultValue: _fallbackSupabaseUrl,
-    );
-  }
-
-  static String get supabaseAnonKey {
-    final env = _safeDotenv('SUPABASE_ANON_KEY');
-    if (env != null && env.isNotEmpty) return env;
-    return const String.fromEnvironment(
-      'SUPABASE_ANON_KEY',
-      defaultValue: _fallbackSupabaseAnonKey,
-    );
-  }
-
   static String get apiBaseUrl {
     final env = _safeDotenv('API_BASE_URL');
     if (env != null && env.isNotEmpty) return env;
@@ -53,48 +54,13 @@ class EnvConfig {
     try {
       return AppEnvironmentConfig.current.apiBaseUrl;
     } catch (_) {}
-    return const String.fromEnvironment(
-      'API_BASE_URL',
-      defaultValue: _fallbackApiBaseUrl,
-    );
+    return AppConfig.apiBaseUrl;
   }
 
-  // Google OAuth Client IDs
-  // Web client ID is from project 726935858050 (must match Supabase Google provider config)
-  // Android/iOS client IDs are from project 643588134212 (must match google-services.json)
-  static const String _fallbackGoogleWebClientId =
-      '726935858050-b0q96taocaa7rto463u466c49jdqkp41.apps.googleusercontent.com';
-  static const String _fallbackGoogleAndroidClientId =
-      '643588134212-e74dp3uuh526ticm3c413b3gioefsenp.apps.googleusercontent.com';
-  static const String _fallbackGoogleIosClientId =
-      '643588134212-ep2guf1q8fk5idsa224fu9e3t4bdu2e3.apps.googleusercontent.com';
-
-  static String get googleWebClientId {
-    final env = _safeDotenv('GOOGLE_WEB_CLIENT_ID');
-    if (env != null && env.isNotEmpty) return env;
-    return const String.fromEnvironment(
-      'GOOGLE_WEB_CLIENT_ID',
-      defaultValue: _fallbackGoogleWebClientId,
-    );
-  }
-
-  static String get googleAndroidClientId {
-    final env = _safeDotenv('GOOGLE_ANDROID_CLIENT_ID');
-    if (env != null && env.isNotEmpty) return env;
-    return const String.fromEnvironment(
-      'GOOGLE_ANDROID_CLIENT_ID',
-      defaultValue: _fallbackGoogleAndroidClientId,
-    );
-  }
-
-  static String get googleIosClientId {
-    final env = _safeDotenv('GOOGLE_IOS_CLIENT_ID');
-    if (env != null && env.isNotEmpty) return env;
-    return const String.fromEnvironment(
-      'GOOGLE_IOS_CLIENT_ID',
-      defaultValue: _fallbackGoogleIosClientId,
-    );
-  }
+  // Google OAuth Client IDs — delegated to AppConfig (single source).
+  static String get googleWebClientId => AppConfig.googleWebClientId;
+  static String get googleAndroidClientId => AppConfig.googleAndroidClientId;
+  static String get googleIosClientId => AppConfig.googleIosClientId;
 
   /// Deep link scheme for the app (e.g. 'kinrel' → 'kinrel://')
   static const String appDeepLinkScheme = 'kinrel';

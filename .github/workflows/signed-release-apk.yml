@@ -80,11 +80,23 @@ jobs:
       - name: Enable native assets
         run: flutter config --enable-native-assets
 
-      - name: Create .env file
+      # ── QA hardening 2026-09-20 ────────────────────────────────
+      # Replaced the old "Create .env file" step (which wrote a file
+      # that was never bundled — .env is not a pubspec asset — while the
+      # build silently ran on the hardcoded fallbacks AppConfig used to
+      # carry). The keys are now injected at compile time via
+      # --dart-define from repo secrets, and missing secrets fail the
+      # build LOUDLY before any compile time is wasted.
+      - name: Verify Supabase config secrets (fail loudly)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          echo "SUPABASE_URL=https://promxswvsnvilplmrtsj.supabase.co" > .env
-          echo "SUPABASE_ANON_KEY=sb_publishable_LcAMCNq9bh-pDQxtpcW0Rg_-gR0MyTb" >> .env
-          echo "API_BASE_URL=https://daxelo-kinrel-server.onrender.com" >> .env
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_URL and/or SUPABASE_ANON_KEY secrets are missing."
+            echo "::error::Add them under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
 
       - name: Install dependencies
         run: flutter pub get
@@ -122,10 +134,22 @@ jobs:
           EOF
 
       - name: Build release APK
-        run: flutter build apk --release --target-platform android-arm64
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: >-
+          flutter build apk --release --target-platform android-arm64
+          --dart-define=SUPABASE_URL="$SUPABASE_URL"
+          --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
 
       - name: Build debug APK
-        run: flutter build apk --debug --target-platform android-arm64
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: >-
+          flutter build apk --debug --target-platform android-arm64
+          --dart-define=SUPABASE_URL="$SUPABASE_URL"
+          --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
 
       - name: Verify libthermion_dart.so in APK
         run: |

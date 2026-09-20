@@ -265,9 +265,16 @@ Future<void> _initializeServices() async {
     debugPrint('✅ .env file loaded successfully');
   } catch (e) {
     try {
-      dotenv.loadFromString(envString: '# fallback — using hardcoded defaults');
+      dotenv.loadFromString(envString: '# no .env asset bundled');
     } catch (_) {}
-    debugPrint('⚠️ .env file not found, using hardcoded defaults');
+    // QA hardening 2026-09-20: there is no hardcoded fallback anymore —
+    // the Supabase keys must come from --dart-define (CI injects them
+    // from GitHub secrets / Vercel env vars). If they are missing, the
+    // first real use fails loudly with remediation instructions.
+    debugPrint(
+      '⚠️ .env not bundled — Supabase config relies on --dart-define '
+      'injection (missing keys will fail loudly at first use)',
+    );
   }
 
   // ── 2. Initialize Firebase + Supabase IN PARALLEL ─────────────────
@@ -361,9 +368,21 @@ Future<void> _initializeServices() async {
   } catch (_) {}
 
   // ── Debug: log resolved AppConfig values ───────────────────────────
-  debugPrint('🔧 AppConfig SUPABASE_URL: ${AppConfig.supabaseUrl}');
+  // QA hardening 2026-09-20: uses the NON-THROWING peek getters. The
+  // real getters (AppConfig.supabaseUrl / supabaseAnonKey) now throw a
+  // StateError when a key is missing — env-only, no hardcoded fallback —
+  // so calling them here would turn this diagnostic block into a crash
+  // instead of a log line. The peek logs exactly what we want to know:
+  // whether the key resolved, without risking the startup path.
+  final supabaseUrlPeek = AppConfig.peekSupabaseUrl;
+  final supabaseKeyPeek = AppConfig.peekSupabaseAnonKey;
   debugPrint(
-    '🔧 AppConfig SUPABASE_ANON_KEY: ${AppConfig.supabaseAnonKey.isNotEmpty ? "SET (length: ${AppConfig.supabaseAnonKey.length})" : "EMPTY"}',
+    '🔧 AppConfig SUPABASE_URL: '
+    '${supabaseUrlPeek ?? 'NOT SET — first use will throw (fail-loudly)'}',
+  );
+  debugPrint(
+    '🔧 AppConfig SUPABASE_ANON_KEY: '
+    '${supabaseKeyPeek != null ? 'SET (length: ${supabaseKeyPeek.length})' : 'NOT SET — first use will throw (fail-loudly)'}',
   );
   debugPrint(
     '🔧 AppConfig isSupabaseConfigured: ${AppConfig.isSupabaseConfigured}',

@@ -37,6 +37,36 @@ if ! command -v flutter >/dev/null 2>&1; then
   exit 1
 fi
 
+# ── QA hardening 2026-09-20: Supabase config is ENV-ONLY ────────────
+# The app no longer carries hardcoded Supabase fallbacks — the keys
+# MUST come from the Vercel project environment and are injected at
+# compile time via --dart-define. Without this check a build would
+# silently deploy a web app that throws StateError at first Supabase
+# use (sign-in, REST, realtime — everything) .
+#
+# One-time setup (Vercel Dashboard → this project → Settings →
+# Environment Variables, for ALL environments):
+#   SUPABASE_URL      = https://<project-ref>.supabase.co
+#   SUPABASE_ANON_KEY = <publishable / anon key from Supabase Dashboard
+#                        → Settings → API — NEVER a service_role key>
+if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+  echo ""
+  echo "=== ❌ FATAL: SUPABASE_URL / SUPABASE_ANON_KEY not set ==="
+  echo "The app's hardcoded Supabase fallbacks were removed (QA hardening"
+  echo "2026-09-20) — a rotated key can no longer be masked by a stale"
+  echo "baked-in value. The build refuses to ship an app that would throw"
+  echo "at first Supabase use."
+  echo ""
+  echo "Fix: Vercel Dashboard → this project → Settings → Environment"
+  echo "Variables → add (for Production + Preview + Development):"
+  echo "  SUPABASE_URL=https://<project-ref>.supabase.co"
+  echo "  SUPABASE_ANON_KEY=<publishable key — Supabase Dashboard → Settings → API>"
+  echo ""
+  exit 1
+fi
+
+echo "  Supabase config: SUPABASE_URL set, SUPABASE_ANON_KEY set (dart-define injection enabled)"
+
 # ── 2. Run build_runner to generate Drift .g.dart files ─────────────────
 # The Drift database code generator must run BEFORE the web build, otherwise
 # lib/core/database/app_database.g.dart will be missing and dart2js will
@@ -102,6 +132,8 @@ if [ -n "$PMTILES_URL" ]; then
   echo "  PMTILES_URL env var set — passing as --dart-define"
   set +e
   flutter build web --release --base-href "/" \
+    --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+    --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
     --dart-define=PMTILES_URL="$PMTILES_URL" \
     --dart-define=KINREL_BUILD_COMMIT="$BUILD_COMMIT" \
     --dart-define=KINREL_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" \
@@ -112,6 +144,8 @@ else
   echo "  PMTILES_URL env var NOT set — using OpenFreeMap default (no PMTiles)"
   set +e
   flutter build web --release --base-href "/" \
+    --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+    --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
     --dart-define=KINREL_BUILD_COMMIT="$BUILD_COMMIT" \
     --dart-define=KINREL_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" \
     > /tmp/flutter_build.log 2>&1
