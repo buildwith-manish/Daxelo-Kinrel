@@ -2,24 +2,34 @@
 //
 // Stickman Heist — wire models for Supabase.
 //
-// Three tables back this game:
-//   stickman_heist_games   — one row per match (status, boardState JSONB,
-//                            host config: mapId, respawnsEnabled,
-//                            matchSeconds, etc.)
+// Two Postgres tables back this game's DURABLE state:
+//   stickman_heist_games   — one row per match (status, boardState JSONB
+//                            persisted only on match end, host config:
+//                            mapId, respawnsEnabled, matchSeconds, etc.)
 //   stickman_heist_players — one row per participant (RLS: insert by self
 //                            or host; update by self)
-//   stickman_heist_inputs  — one row per player per current input frame
-//                            (UNIQUE gameId+userId — upserted by the
-//                            client's input loop, read by the host's sim
-//                            loop)
+//
+// Per-frame input + per-frame board state travel over Supabase Realtime
+// Broadcast (pure websocket pub/sub, no DB) — see
+// stickman_heist_provider.dart for the channel topology.
+//
+// The `stickman_heist_inputs` table is retained in the schema for
+// backward compatibility but is no longer written or read by the
+// client. The previous design upserted a row per player per input
+// frame at 20Hz (DB WRITE) and the host polled at 20Hz (DB READ) —
+// both eliminated in favour of Broadcast. See worklog Task
+// 2-stickman-heist.
 //
 // The host-authoritative model means:
 //   • The host's client owns the Forge2D physics simulation.
-//   • Every 100ms the host calls fn_stickmanheist_broadcast_state(p_state)
-//     with the latest boardState JSON. That RPC updates the game row,
-//     which Supabase Realtime broadcasts to all clients.
+//   • Every 100ms the host broadcasts the latest boardState JSON via
+//     `channel.sendBroadcastMessage(event: 'state', ...)`. Realtime
+//     delivers it to every other client over the websocket.
+//   • On match completion, the host makes ONE final durable RPC call
+//     to `fn_stickmanheist_broadcast_state(p_state)` to persist
+//     winnerUserIds + endReason + completedAt + status='completed'.
 //   • Non-host clients only render the boardState they receive and
-//     upsert their input row (~20Hz) for the host to consume.
+//     broadcast their input frame (~20Hz) for the host to consume.
 
 import 'stickman_heist_engine.dart';
 
