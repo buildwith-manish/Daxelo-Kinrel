@@ -38,7 +38,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/brand_colors.dart';
-import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../../shared/widgets/dk_components.dart';
 import '../models/game_invite.dart';
