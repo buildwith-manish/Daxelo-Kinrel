@@ -350,8 +350,6 @@ class _SyncMetaKeys {
 /// Minimum interval between two sync operations (rate limiting).
 const Duration _minSyncInterval = Duration(seconds: 30);
 
-/// How often periodic sync runs while the app is active.
-const Duration _periodicSyncInterval = Duration(minutes: 5);
 
 /// Maximum number of pending operations processed per batch.
 const int _maxBatchSize = 50;
@@ -401,7 +399,6 @@ class SyncEngine {
   SyncStatus get status => _status;
 
   DateTime? _lastSyncAttempt;
-  Timer? _periodicSyncTimer;
   bool _disposed = false;
 
   /// In-memory conflict log (persisted to UserSettings periodically).
@@ -448,15 +445,13 @@ class SyncEngine {
     // NOTE: Connectivity-change listener is managed by BackgroundSyncManager
     // to prevent duplicate fullSync triggers when connectivity restores.
     // BackgroundSyncManager.onConnectivityRestored() calls engine.fullSync().
-
-    // Set up periodic sync
-    _periodicSyncTimer?.cancel();
-    _periodicSyncTimer = Timer.periodic(_periodicSyncInterval, (_) {
-      final userId = _currentUserId;
-      if (userId != null && _connectivity.isOnline) {
-        deltaSync(userId);
-      }
-    });
+    //
+    // NOTE: The 5-min periodic sync timer is also managed by
+    // BackgroundSyncManager.init() (calls engine.deltaSync every 5 min).
+    // We previously ran a duplicate timer here that fired deltaSync a
+    // second time every 5 min — wasted CPU + connectivity checks. The
+    // single source of truth for the periodic timer is now
+    // BackgroundSyncManager. See worklog Task 7-p0-p2.
 
     // Initial sync if online
     if (_connectivity.isOnline) {
@@ -471,8 +466,8 @@ class SyncEngine {
 
   /// Stop the sync engine and release resources.
   void stop() {
-    _periodicSyncTimer?.cancel();
-    _periodicSyncTimer = null;
+    // Periodic sync timer is owned by BackgroundSyncManager — nothing
+    // to cancel here. Kept as a no-op for backward-compatible callers.
     debugPrint('🔄 SyncEngine stopped');
   }
 

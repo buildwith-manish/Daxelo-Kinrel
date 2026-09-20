@@ -58,7 +58,6 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late final AnimationController _emptyAnimController;
-  Timer? _refreshTimer;
 
   @override
   bool get wantKeepAlive => true;
@@ -76,19 +75,20 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
       ref.read(notificationsProvider.notifier).loadNotifications();
     });
 
-    // v109: Refresh every 10 seconds for real-time timestamp updates +
-    // near-real-time notification delivery. The realtime subscription
-    // API had compatibility issues with realtime_client 2.11.0, so we
-    // rely on the 10-second polling timer which provides a reliable
-    // ~10 second delay for new notifications + status changes.
-    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      ref.read(notificationsProvider.notifier).loadNotifications();
-    });
+    // v109→v111: The 10-second refresh timer that used to live here was
+    // removed — it was a duplicate of the notificationsProvider's own
+    // 30-second poll (notifications_provider.dart _startPolling). When
+    // this screen was mounted, both timers fired, producing 4 Supabase
+    // queries/minute instead of 2. The provider's 30s poll already
+    // refreshes timestamps + delivers new notifications; pull-to-refresh
+    // is still wired up below for instant manual refresh. The realtime
+    // subscription approach was attempted (see comment in v109) but hit
+    // a realtime_client 2.11.0 compat issue — that fix is deferred until
+    // the SDK can be upgraded. See worklog Task 7-p0-p2.
   }
 
   @override
   void dispose() {
-    _refreshTimer?.cancel();
     _emptyAnimController.dispose();
     super.dispose();
   }
