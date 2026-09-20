@@ -1063,7 +1063,7 @@ class _AntakshariGameScreenState
               onCreateNewGame: () => ref
                   .read(antakshariProvider(widget.familyId).notifier)
                   .createGame(
-                    mode: game.mode,
+                    mode: game.gameMode,
                     maxPlayers: game.maxPlayers,
                     turnTimerSeconds: game.turnTimerSeconds,
                     roundLimit: game.roundLimit,
