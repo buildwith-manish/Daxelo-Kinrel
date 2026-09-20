@@ -55,10 +55,15 @@ const double kStickmanHeistPlayerSpeed = 5.0;
 /// Carrier moves 10% slower than everyone else (encumbrance).
 const double kStickmanHeistCarrierSpeedMultiplier = 0.9;
 
-/// Host broadcasts full state every 100ms (10Hz).
+/// Host broadcasts full state every 100ms (10Hz) via Realtime Broadcast
+/// (pure websocket, no DB). Same cadence as the previous DB-RPC pattern.
 const int kStickmanHeistBroadcastIntervalMs = 100;
 
-/// Host polls the inputs table every 50ms (20Hz).
+/// Non-host clients send their input frame every 50ms (20Hz) via Realtime
+/// Broadcast (pure websocket, no DB). Same cadence as the previous
+/// `stickman_heist_inputs` upsert pattern. Named "Poll" for historical
+/// continuity — the host no longer polls; the host receives via
+/// `onBroadcast(event: 'input')`.
 const int kStickmanHeistInputPollIntervalMs = 50;
 
 /// Respawn delay in seconds after death.

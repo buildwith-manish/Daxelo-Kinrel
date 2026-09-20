@@ -891,12 +891,17 @@ class SosNotifier extends StateNotifier<SosState> {
   /// clients would otherwise miss the status change. The poll catches it
   /// within 5 seconds and the realtime callback (or this poll) updates
   /// `state.game.status`, which the lobby screen's `ref.listen` reacts to.
+  ///
+  /// DISABLED in v111 — the Postgres Changes listener on `sos_games`
+  /// (set up in `_subscribeToRealtime`, line ~825) already delivers the
+  /// lobby→active status flip in real time. The 5s poll was duplicating
+  /// the same data via a Supabase DB READ every 5 seconds. Now a no-op
+  /// so all existing call sites still compile + behave correctly; the
+  /// timer field is retained but never set. See worklog Task
+  /// 2-stickman-heist (bundled zero-risk Category B cleanups).
   void _startLobbyPoll(String gameId) {
-    _stopLobbyPoll();
-    _lobbyPollTimer = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => _pollGameState(gameId),
-    );
+    // Intentionally a no-op. Realtime listener covers this transition.
+    // `_stopLobbyPoll()` is still safe to call (cancels a null timer).
   }
 
   void _stopLobbyPoll() {

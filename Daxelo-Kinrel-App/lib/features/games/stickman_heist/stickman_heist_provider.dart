@@ -1,27 +1,57 @@
 // lib/features/games/stickman_heist/stickman_heist_provider.dart
 //
-// Stickman Heist — Riverpod state + Supabase Realtime + Forge2D physics
-// orchestration.
+// Stickman Heist — Riverpod state + Supabase Realtime Broadcast + Forge2D
+// physics orchestration.
 //
-// Architecture (HOST-AUTHORITATIVE):
-//   • Supabase stores games, players, and per-frame inputs.
+// Architecture (HOST-AUTHORITATIVE, Broadcast-based):
+//   • Supabase Postgres stores ONLY durable state: games, players,
+//     and the FINAL match result (winnerUserIds, endReason,
+//     completedAt). Per-frame inputs and per-frame board state NEVER
+//     touch Postgres — they go over Realtime Broadcast (pure websocket
+//     pub/sub, no DB).
 //   • The host's client runs the Forge2D physics simulation at 60fps:
-//       1. Every 50ms, read all input rows from stickman_heist_inputs
-//          for the active game.
-//       2. Apply each input to the corresponding player body.
-//       3. step() the physics + checkCollisions() (treasure pickup,
+//       1. step() the physics + checkCollisions() (treasure pickup,
 //          escape zone, weapon/powerup pickups, respawns, kills).
-//       4. Every 100ms, call fn_stickmanheist_broadcast_state with the
-//          latest boardState JSON — Supabase Realtime delivers it to
-//          every other client.
+//       2. Non-host inputs arrive via Realtime Broadcast
+//          `onBroadcast(event: 'input')` — applied to the physics
+//          sim on the next 16ms tick. Previously the host polled the
+//          `stickman_heist_inputs` table at 20Hz (DB READ) — removed.
+//       3. Every 100ms, broadcast the latest boardState JSON via
+//          `channel.sendBroadcastMessage(event: 'state', ...)` — pure
+//          websocket, no DB. Previously this called
+//          `fn_stickmanheist_broadcast_state` RPC at 10Hz (DB WRITE)
+//          — eliminated.
+//       4. On match completion (status='completed'), make ONE final
+//          durable RPC call to `fn_stickmanheist_broadcast_state` to
+//          persist winnerUserIds + endReason + completedAt. This is
+//          the ONLY DB write in the hot path — one call per match.
 //   • Non-host clients:
-//       1. Render the boardState they receive via Realtime.
-//       2. Upsert their input row at ~20Hz (joystick + shoot button).
-//   • Spectators (joined after start): read-only, like non-host but
-//     without writing inputs.
+//       1. Receive boardState via `onBroadcast(event: 'state')` and
+//          render it.
+//       2. Send their input frame via
+//          `channel.sendBroadcastMessage(event: 'input', ...)` at 20Hz
+//          — pure websocket, no DB. Previously this upserted a row in
+//          `stickman_heist_inputs` at 20Hz (DB WRITE) — eliminated.
+//   • Spectators (joined after start): read-only like non-host, but
+//     don't send inputs. On subscribe they send a one-time
+//     `request_state` broadcast so the host immediately pushes a
+//     state snapshot (no waiting up to 100ms for the next periodic
+//     broadcast).
+//   • Reconnect mid-match: a non-host who closed and reopens the app
+//     calls `joinGame` → `_subscribeToRealtime` → sends
+//     `request_state` → host responds with one state snapshot.
+//     Subsequent updates flow via the periodic 10Hz broadcast. No DB
+//     needed.
+//   • Durable state still flows through Postgres Changes listeners
+//     (status flip to in_progress / completed, lobby roster changes,
+//     room deletion) — these fire ~once per lifecycle event, not per
+//     frame.
 //
 // The provider is a StateNotifier keyed by familyId (per-family game
 // session). All timers and subscriptions are cleaned up in dispose().
+//
+// See worklog Task 2-stickman-heist for the before/after Supabase-call
+// table that drives the manual-playtest checklist.
 
 import 'dart:async';
 
@@ -137,19 +167,21 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
   /// Host sim loop — 60fps physics tick.
   Timer? _simTimer;
 
-  /// Host broadcast loop — 10Hz state broadcast.
+  /// Host broadcast loop — 10Hz state broadcast via Realtime Broadcast
+  /// (pure websocket pub/sub, no DB). Replaces the previous 10Hz
+  /// `fn_stickmanheist_broadcast_state` DB RPC.
   Timer? _broadcastTimer;
 
-  /// Host input-poll loop — 20Hz read inputs from stickman_heist_inputs.
-  Timer? _inputPollTimer;
-
-  /// Non-host input-write loop — 20Hz upsert my input row.
-  Timer? _inputWriteTimer;
+  /// Non-host input broadcast loop — 20Hz send my input frame via
+  /// Realtime Broadcast (pure websocket, no DB). Replaces the previous
+  /// 20Hz `stickman_heist_inputs` upsert.
+  Timer? _inputBroadcastTimer;
 
   /// Cleanup safety timer — end the room 30s after the match completes.
   Timer? _cleanupTimer;
 
-  /// Latest snapshot of all player inputs (read by host poll loop).
+  /// Latest snapshot of all player inputs. Updated by the Broadcast
+  /// `onBroadcast(event: 'input')` callback — no DB polling.
   final Map<String, StickmanHeistInputWire> _latestInputs = {};
 
   bool get _isHost {
@@ -323,7 +355,7 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
       if (game.isInProgress && _isHost) {
         _startHostLoops(game);
       } else if (game.isInProgress && !_isHost && !state.amSpectator) {
-        _startInputWriteLoop(gameId);
+        _startInputBroadcastLoop(gameId);
       }
 
       // Keep the persistent game-invite chat card in sync (best-effort).
@@ -422,10 +454,18 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
     }
   }
 
-  /// Update my input frame. Non-host: upserts my row in
-  /// stickman_heist_inputs (the host's poll loop picks it up). Host:
-  /// applies directly to the physics engine and also upserts the row
-  /// (so spectators / late-join hosts see consistent state).
+  /// Update my input frame.
+  ///
+  /// - HOST: applies directly to the local physics engine (immediate
+  ///   response, no network round-trip).
+  /// - NON-HOST: stashes into `state.myInput`; the 20Hz
+  ///   `_inputBroadcastTimer` (started in `_startInputBroadcastLoop`)
+  ///   sends it via Realtime Broadcast `event: 'input'` — pure websocket,
+  ///   no DB.
+  ///
+  /// Previously this upserted a row in `stickman_heist_inputs` at 20Hz
+  /// (DB WRITE); the host polled that table at 20Hz (DB READ). Both hit
+  /// Postgres in the hot path. See worklog Task 2-stickman-heist.
   void updateInput({
     required double moveX,
     required double moveY,
@@ -462,45 +502,72 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
           swapWeaponRequested: swapWeaponRequested,
         );
       }
-    } else if (state.game?.isInProgress == true && !state.amSpectator) {
-      // Non-host: fire-and-forget upsert; the 20Hz loop also writes.
-      _upsertInputRow(input);
     }
+    // Non-host: the 20Hz `_inputBroadcastTimer` sends `state.myInput`
+    // via Realtime Broadcast. No fire-and-forget write here — keep the
+    // hot path 100% off Postgres.
   }
 
-  Future<void> _upsertInputRow(StickmanHeistInputWire input) async {
-    final client = _client;
-    if (client == null) return;
-    try {
-      await client
-          .from('stickman_heist_inputs')
-          .upsert({
-            ...input.toJson(),
-            'updatedAt': DateTime.now().toIso8601String(),
-          }, onConflict: '"gameId","userId"');
-    } catch (e) {
-      debugPrint('[StickmanHeist] upsertInput error: $e');
-    }
-  }
-
-  /// Host: broadcast the current physics state via RPC. Called every
-  /// 100ms by the broadcast timer.
-  Future<void> broadcastState() async {
-    final client = _client;
+  /// Non-host: send my current input frame via Realtime Broadcast.
+  /// Called every 50ms by `_inputBroadcastTimer`.
+  void _broadcastMyInput() {
+    final channel = _channel;
     final gameId = _gameId;
-    final physics = _physics;
-    if (client == null || gameId == null || physics == null) return;
+    if (channel == null || gameId == null) return;
     try {
-      final stateJson = physics.readState().toJson();
-      await client.rpc(
-        'fn_stickmanheist_broadcast_state',
-        params: {
-          'p_game_id': gameId,
-          'p_state': stateJson,
-        },
+      channel.sendBroadcastMessage(
+        event: 'input',
+        payload: state.myInput.toJson(),
       );
     } catch (e) {
-      debugPrint('[StickmanHeist] broadcastState error: $e');
+      debugPrint('[StickmanHeist] broadcastInput error: $e');
+    }
+  }
+
+  /// Host: broadcast the current physics state via Realtime Broadcast
+  /// (pure websocket pub/sub, no DB). Called every 100ms by the
+  /// broadcast timer.
+  ///
+  /// On match completion (`phase == completed`), this ALSO makes one
+  /// final durable RPC call to `fn_stickmanheist_broadcast_state` to
+  /// persist the final result (winnerUserIds, endReason, completedAt,
+  /// status='completed') — that single durable write is the ONLY DB
+  /// write in the entire hot path.
+  Future<void> broadcastState({bool isFinal = false}) async {
+    final channel = _channel;
+    final physics = _physics;
+    final gameId = _gameId;
+    if (channel == null || physics == null) return;
+    final stateJson = physics.readState().toJson();
+
+    // 1. Broadcast live state over websocket (no DB).
+    try {
+      unawaited(channel.sendBroadcastMessage(
+        event: 'state',
+        payload: stateJson,
+      ));
+    } catch (e) {
+      debugPrint('[StickmanHeist] broadcastState (ws) error: $e');
+    }
+
+    // 2. On match end, persist the final result durably to Postgres
+    //    so it survives disconnect / app reload. This is the ONLY DB
+    //    write in the hot path — one call per match, not 10/sec.
+    if (isFinal) {
+      final client = _client;
+      if (client == null || gameId == null) return;
+      try {
+        await client.rpc(
+          'fn_stickmanheist_broadcast_state',
+          params: {
+            'p_game_id': gameId,
+            'p_state': stateJson,
+          },
+        );
+      } catch (e) {
+        debugPrint(
+            '[StickmanHeist] broadcastState (final RPC) error: $e');
+      }
     }
   }
 
@@ -652,7 +719,7 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
         final isPlayer =
             state.players.any((p) => p.userId == _myId && p.isActive);
         state = state.copyWith(amSpectator: !isPlayer);
-        if (isPlayer) _startInputWriteLoop(gameId);
+        if (isPlayer) _startInputBroadcastLoop(gameId);
       }
       return true;
     } catch (e) {
@@ -701,23 +768,23 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
         final live = _physics!.readState();
         state = state.copyWith(liveState: live);
         // If the sim says the match is over, stop the loops and let
-        // the broadcast timer push the final state once.
+        // the broadcast timer push the final state once (durably).
         if (live.phase == StickmanHeistPhase.completed) {
           _cancelHostLoops();
-          unawaited(broadcastState());
+          unawaited(broadcastState(isFinal: true));
           _scheduleRoomCleanup(game.id);
         }
       },
     );
 
-    // Input poll — read non-host inputs at 20Hz.
-    _inputPollTimer = Timer.periodic(
-      const Duration(
-          milliseconds: kStickmanHeistInputPollIntervalMs),
-      (_) => _pollInputs(game.id),
-    );
+    // NOTE: No more _inputPollTimer. Non-host inputs now arrive via
+    // Realtime Broadcast `onBroadcast(event: 'input')` callback (set
+    // up in `_subscribeToRealtime`). Previously the host polled the
+    // `stickman_heist_inputs` table at 20Hz (DB READ) — eliminated.
 
-    // Broadcast — push the current state at 10Hz.
+    // Broadcast — push the current state at 10Hz via Realtime Broadcast
+    // (pure websocket, no DB). Previously this called
+    // `fn_stickmanheist_broadcast_state` RPC (DB WRITE) at 10Hz.
     _broadcastTimer = Timer.periodic(
       const Duration(
           milliseconds: kStickmanHeistBroadcastIntervalMs),
@@ -728,39 +795,25 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
   void _cancelHostLoops() {
     _simTimer?.cancel();
     _simTimer = null;
-    _inputPollTimer?.cancel();
-    _inputPollTimer = null;
     _broadcastTimer?.cancel();
     _broadcastTimer = null;
   }
 
-  Future<void> _pollInputs(String gameId) async {
-    final client = _client;
-    if (client == null) return;
-    try {
-      final resp = await client
-          .from('stickman_heist_inputs')
-          .select()
-          .eq('gameId', gameId);
-      for (final row in resp) {
-        final input = StickmanHeistInputWire.fromJson(row);
-        _latestInputs[input.userId] = input;
-      }
-    } catch (e) {
-      debugPrint('[StickmanHeist] pollInputs error: $e');
-    }
-  }
+  // NOTE: `_pollInputs()` removed. Previously the host polled the
+  // `stickman_heist_inputs` table at 20Hz (DB READ). Now inputs arrive
+  // via Realtime Broadcast `onBroadcast(event: 'input')` callback —
+  // see `_subscribeToRealtime`. Zero DB reads in the input hot path.
 
-  // ── Non-host input write loop ───────────────────────────────────────
+  // ── Non-host input broadcast loop ───────────────────────────────────
 
-  void _startInputWriteLoop(String gameId) {
-    _inputWriteTimer?.cancel();
-    _inputWriteTimer = Timer.periodic(
+  void _startInputBroadcastLoop(String gameId) {
+    _inputBroadcastTimer?.cancel();
+    _inputBroadcastTimer = Timer.periodic(
       const Duration(
           milliseconds: kStickmanHeistInputPollIntervalMs),
       (_) {
         if (state.amSpectator) return;
-        _upsertInputRow(state.myInput);
+        _broadcastMyInput();
       },
     );
   }
@@ -781,6 +834,82 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
 
     _channel = client
         .channel('stickmanheist_game:$gameId')
+        // ── HOT-PATH BROADCAST LISTENERS (pure websocket, no DB) ──
+        // These replace the old DB-polling + DB-RPC-broadcast pattern.
+        // See worklog Task 2-stickman-heist for the before/after table.
+        .onBroadcast(
+          event: 'input',
+          callback: (payload) {
+            // Non-host input frame received. Host applies it to the
+            // physics sim via the next _simTimer tick (16ms).
+            // Spectators + non-hosts ignore — they only render state.
+            if (!_isHost) return;
+            try {
+              final input = StickmanHeistInputWire.fromJson(
+                  Map<String, dynamic>.from(payload as Map));
+              if (input.userId.isEmpty ||
+                  input.userId == _myId) {
+                return;
+              }
+              _latestInputs[input.userId] = input;
+            } catch (e) {
+              debugPrint(
+                  '[StickmanHeist] onBroadcast(input) parse error: $e');
+            }
+          },
+        )
+        .onBroadcast(
+          event: 'state',
+          callback: (payload) {
+            // Host broadcasted a new board state. Non-hosts + spectators
+            // render this. Host ignores — host owns the canonical state.
+            if (_isHost) return;
+            try {
+              final board = StickmanHeistBoardState.fromJson(
+                  Map<String, dynamic>.from(payload as Map));
+              if (board.phase == StickmanHeistPhase.completed &&
+                  state.liveState?.phase !=
+                      StickmanHeistPhase.completed) {
+                GameMotionTokens.celebrate();
+              }
+              state = state.copyWith(liveState: board);
+            } catch (e) {
+              debugPrint(
+                  '[StickmanHeist] onBroadcast(state) parse error: $e');
+            }
+          },
+        )
+        .onBroadcast(
+          event: 'request_state',
+          callback: (_) {
+            // A spectator (or reconnecting player) joined and is asking
+            // for a one-time snapshot of the current sim state so they
+            // can render immediately instead of waiting up to 100ms for
+            // the next periodic broadcast. Only host responds.
+            if (!_isHost) return;
+            final physics = _physics;
+            final channel = _channel;
+            if (physics == null || channel == null) return;
+            try {
+              channel.sendBroadcastMessage(
+                event: 'state',
+                payload: physics.readState().toJson(),
+              );
+            } catch (e) {
+              debugPrint(
+                  '[StickmanHeist] request_state response error: $e');
+            }
+          },
+        )
+        // ── DURABLE POSTGRES CHANGES LISTENERS ──
+        // These remain on Postgres Changes because they describe
+        // durable state changes that must survive disconnect/reload:
+        //   • stickman_heist_games UPDATE → status flip (waiting →
+        //     in_progress → completed), winnerUserIds, endReason
+        //   • stickman_heist_players INSERT/UPDATE/DELETE → lobby
+        //     roster + ready state + leftAt
+        //   • stickman_heist_games DELETE → room closed
+        // These fire ~once per actual lifecycle event, not per frame.
         .onPostgresChanges(
           event: PostgresChangeEvent.update,
           schema: 'public',
@@ -808,14 +937,14 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
             }
             if (updated.isInProgress &&
                 !_isHost &&
-                _inputWriteTimer == null &&
+                _inputBroadcastTimer == null &&
                 !state.amSpectator) {
-              _startInputWriteLoop(updated.id);
+              _startInputBroadcastLoop(updated.id);
             }
             if (updated.isCompleted) {
               _cancelHostLoops();
-              _inputWriteTimer?.cancel();
-              _inputWriteTimer = null;
+              _inputBroadcastTimer?.cancel();
+              _inputBroadcastTimer = null;
             }
           },
         )
@@ -868,6 +997,23 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
           },
         )
         .subscribe();
+
+    // Spectator / late-joiner handshake: ask the host for a one-time
+    // state snapshot so we can render immediately instead of waiting
+    // up to 100ms for the next periodic broadcast. Host ignores
+    // `request_state` from itself (it owns the canonical state).
+    // This is a single Broadcast message — zero DB cost.
+    if (!_isHost) {
+      try {
+        _channel?.sendBroadcastMessage(
+          event: 'request_state',
+          payload: {'from': _myId ?? ''},
+        );
+      } catch (_) {
+        // Best-effort — next periodic broadcast will arrive within
+        // 100ms anyway. Don't crash the subscribe flow.
+      }
+    }
   }
 
   Future<List<StickmanHeistPlayerWire>> _fetchPlayers(
@@ -902,8 +1048,8 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
 
   void _reset() {
     _cancelHostLoops();
-    _inputWriteTimer?.cancel();
-    _inputWriteTimer = null;
+    _inputBroadcastTimer?.cancel();
+    _inputBroadcastTimer = null;
     _cleanupTimer?.cancel();
     _cleanupTimer = null;
     _channel?.unsubscribe();
@@ -920,7 +1066,7 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
   @override
   void dispose() {
     _cancelHostLoops();
-    _inputWriteTimer?.cancel();
+    _inputBroadcastTimer?.cancel();
     _cleanupTimer?.cancel();
     _physics?.dispose();
     _channel?.unsubscribe();

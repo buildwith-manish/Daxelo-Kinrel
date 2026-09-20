@@ -648,8 +648,12 @@ class BingoNotifier extends StateNotifier<BingoState> {
   // ── Watchdogs ────────────────────────────────────────────────────
 
   /// While in progress: drive the server-side caller every second (the
-  /// server only advances when the interval elapses) + poll a full
-  /// refresh every 10 s as a realtime safety net.
+  /// server only advances when the interval elapses). The 10-second
+  /// `_safetyPollTimer` was removed in v111 — the Postgres Changes
+  /// listeners on `bingo_games` + `bingo_cards` (set up in
+  /// `_subscribeToRealtime`) already deliver every state change in
+  /// real time. The 10s poll was a redundant DB READ. See worklog
+  /// Task 2-stickman-heist (bundled zero-risk Category B cleanups).
   void _startWatchdogs() {
     _tickTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
       if (_disposed || !state.isInProgress) {
@@ -658,13 +662,10 @@ class BingoNotifier extends StateNotifier<BingoState> {
       }
       _tick();
     });
-    _safetyPollTimer ??= Timer.periodic(const Duration(seconds: 10), (_) {
-      if (_disposed || !state.isInProgress) {
-        _stopWatchdogs();
-        return;
-      }
-      refreshGame();
-    });
+    // NOTE: `_safetyPollTimer` removed — was a 10s DB READ on
+    // `bingo_games` + `bingo_cards`, duplicating the existing
+    // Postgres Changes listeners. Field kept for backward-compat
+    // with `_stopWatchdogs()` but never set.
   }
 
   void _stopWatchdogs() {
