@@ -440,52 +440,59 @@ class _RelationshipPickerSheetState
       );
     }
 
-    return ListView(
+    // v114 — Step 4 perf: build a flat list of rows then use
+    // ListView.builder so the relationship tiles (the dynamic part)
+    // are built lazily as they scroll into view.
+    final rows = <Widget>[
+      // Back-to-browse link
+      InkWell(
+        onTap: () {
+          setState(() => _selectedCategory = null);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              Icon(Icons.arrow_back, size: 16, color: KinrelColors.purple),
+              SizedBox(width: 6),
+              Text(
+                'Back to categories',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.purple,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      _SectionHeader(title: _selectedCategory!.snakeToTitle),
+      const SizedBox(height: 4),
+      Text(
+        '${rels.length} ${rels.length == 1 ? "relationship" : "relationships"}',
+        style: TextStyle(
+          fontFamily: KinrelTypography.bodyFont,
+          fontSize: 12,
+          color: KinrelColors.textDim,
+        ),
+      ),
+      const SizedBox(height: 8),
+    ];
+    for (final rel in rels) {
+      rows.add(_ContextualRelationshipTile(
+        relationship: rel,
+        kinshipService: kinshipService,
+        onTap: () => _selectRelationship(rel.relationshipKey),
+      ));
+    }
+
+    return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
-      children: [
-        // Back-to-browse link
-        InkWell(
-          onTap: () {
-            setState(() => _selectedCategory = null);
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              children: [
-                Icon(Icons.arrow_back, size: 16, color: KinrelColors.purple),
-                SizedBox(width: 6),
-                Text(
-                  'Back to categories',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: KinrelColors.purple,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        _SectionHeader(title: _selectedCategory!.snakeToTitle),
-        const SizedBox(height: 4),
-        Text(
-          '${rels.length} ${rels.length == 1 ? "relationship" : "relationships"}',
-          style: TextStyle(
-            fontFamily: KinrelTypography.bodyFont,
-            fontSize: 12,
-            color: KinrelColors.textDim,
-          ),
-        ),
-        const SizedBox(height: 8),
-        for (final rel in rels)
-          _ContextualRelationshipTile(
-            relationship: rel,
-            kinshipService: kinshipService,
-            onTap: () => _selectRelationship(rel.relationshipKey),
-          ),
-      ],
+      itemCount: rows.length,
+      itemBuilder: (context, index) => rows[index],
     );
   }
 
@@ -538,22 +545,29 @@ class _RelationshipPickerSheetState
           grouped.putIfAbsent(cat, () => []).add(r);
         }
 
-        return ListView(
+        // v114 — Step 4 perf: build a flat list of rows then use
+        // ListView.builder so search-result tiles are built lazily.
+        // Section headers between categories stay as direct children
+        // of the flat list (small count).
+        final rows = <Widget>[];
+        for (final entry in grouped.entries) {
+          rows.add(_SectionHeader(title: entry.key.snakeToTitle));
+          rows.add(const SizedBox(height: 4));
+          for (final result in entry.value) {
+            rows.add(_ContextualRelationshipTile(
+              relationship: result.relationship,
+              kinshipService: ref.read(kinshipServiceProvider),
+              onTap: () =>
+                  _selectRelationship(result.relationship.relationshipKey),
+            ));
+          }
+          rows.add(const SizedBox(height: 8));
+        }
+
+        return ListView.builder(
           padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
-          children: [
-            for (final entry in grouped.entries) ...[
-              _SectionHeader(title: entry.key.snakeToTitle),
-              const SizedBox(height: 4),
-              for (final result in entry.value)
-                _ContextualRelationshipTile(
-                  relationship: result.relationship,
-                  kinshipService: ref.read(kinshipServiceProvider),
-                  onTap: () =>
-                      _selectRelationship(result.relationship.relationshipKey),
-                ),
-              SizedBox(height: 8),
-            ],
-          ],
+          itemCount: rows.length,
+          itemBuilder: (context, index) => rows[index],
         );
       },
     );

@@ -100,34 +100,41 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
                 final activeDms =
                     dmItems.where((d) => !d.isArchived).toList();
 
-                return ListView(
+                // v114 — Step 4 perf: build a flat list of rows then use
+                // ListView.builder so DM rows are built lazily. The
+                // group-chat row, section header, and empty state stay
+                // as direct children of the flat list (small, fixed).
+                final rows = <Widget>[];
+                // ── Family Group Chat (pinned at top) ──────────
+                if (_filter == _ChatFilter.all ||
+                    _filter == _ChatFilter.family) {
+                  rows.add(_GroupChatRow(
+                    familyId: widget.familyId,
+                    familyName: familyName,
+                    familyAvatarUrl: familyAvatarUrl,
+                  ));
+                }
+                // ── Direct Messages ────────────────────────────
+                if (_filter == _ChatFilter.all ||
+                    _filter == _ChatFilter.direct) {
+                  if (_filter == _ChatFilter.all &&
+                      activeDms.isNotEmpty) {
+                    rows.add(_buildSectionHeader('Direct Messages'));
+                  }
+                  for (final dm in activeDms) {
+                    rows.add(_DmRow(item: dm));
+                  }
+                }
+                // ── Empty state ────────────────────────────────
+                if (activeDms.isEmpty &&
+                    _filter == _ChatFilter.direct) {
+                  rows.add(_buildEmptyState('No direct messages yet'));
+                }
+
+                return ListView.builder(
                   padding: const EdgeInsets.only(bottom: 100),
-                  children: [
-                    // ── Family Group Chat (pinned at top) ──────────
-                    if (_filter == _ChatFilter.all ||
-                        _filter == _ChatFilter.family)
-                      _GroupChatRow(
-                        familyId: widget.familyId,
-                        familyName: familyName,
-                        familyAvatarUrl: familyAvatarUrl,
-                      ),
-
-                    // ── Direct Messages ────────────────────────────
-                    if (_filter == _ChatFilter.all ||
-                        _filter == _ChatFilter.direct) ...[
-                      if (_filter == _ChatFilter.all &&
-                          activeDms.isNotEmpty)
-                        _buildSectionHeader('Direct Messages'),
-                      ...activeDms.map((dm) => _DmRow(
-                            item: dm,
-                          )),
-                    ],
-
-                    // ── Empty state ────────────────────────────────
-                    if (activeDms.isEmpty &&
-                        _filter == _ChatFilter.direct)
-                      _buildEmptyState('No direct messages yet'),
-                  ],
+                  itemCount: rows.length,
+                  itemBuilder: (context, index) => rows[index],
                 );
               },
             ),
