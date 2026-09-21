@@ -25,11 +25,13 @@
 //     card is the UX win; full OG metadata is a polish follow-up.
 
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/services/image_cache_manager.dart';
 
 /// A single URL detected in a message, with its character offsets so
 /// the renderer can avoid double-rendering the URL as part of the
@@ -166,12 +168,19 @@ class LinkPreviewCard extends StatelessWidget {
                 // Favicon
                 ClipRRect(
                   borderRadius: BorderRadius.circular(6),
-                  child: Image.network(
-                    link.faviconUrl,
+                  child: CachedNetworkImage(
+                    imageUrl: link.faviconUrl,
+                    cacheManager: KinrelImageCacheManager.instance,
                     width: 28,
                     height: 28,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
+                    memCacheWidth:
+                        (28 * MediaQuery.of(context).devicePixelRatio)
+                            .toInt(),
+                    memCacheHeight:
+                        (28 * MediaQuery.of(context).devicePixelRatio)
+                            .toInt(),
+                    errorWidget: (_, __, ___) => Container(
                       width: 28,
                       height: 28,
                       decoration: BoxDecoration(

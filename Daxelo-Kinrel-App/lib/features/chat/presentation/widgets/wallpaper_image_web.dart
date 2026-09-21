@@ -2,6 +2,15 @@
 //
 // Web implementation: renders a wallpaper from a data: URI via
 // Image.network. No dart:io needed.
+//
+// PERF PASS STEP 3 — INTENTIONALLY SKIPPED:
+// This file is web-only and the path it receives is always a `data:`
+// URI (base64 in-memory), never an HTTP URL. CachedNetworkImage uses
+// an HTTP client (HttpFileService) under the hood and cannot fetch
+// `data:` URIs — converting this call would silently break wallpaper
+// rendering on web (errorWidget would always fire). Web also doesn't
+// benefit from CachedNetworkImage's on-disk cache (the data URI is
+// already in memory). Leave Image.network as-is.
 
 import 'package:flutter/material.dart';
 

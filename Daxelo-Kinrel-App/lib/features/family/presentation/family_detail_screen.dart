@@ -22,6 +22,7 @@ import '../../../core/family/optimistic_actions.dart';
 import '../../../core/family/optimistic_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/networking/dio_client.dart';
+import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/member_list_skeleton.dart';
@@ -3884,22 +3885,21 @@ class _FullScreenAvatarViewer extends StatelessWidget {
           minScale: 0.5,
           maxScale: 4.0,
           boundaryMargin: const EdgeInsets.all(double.infinity),
-          child: Image.network(
-            imageUrl,
+          child: CachedNetworkImage(
+            imageUrl: imageUrl,
+            cacheManager: KinrelImageCacheManager.instance,
             fit: BoxFit.contain,
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return Center(
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  value: loadingProgress.expectedTotalBytes != null
-                      ? loadingProgress.cumulativeBytesLoaded /
-                          loadingProgress.expectedTotalBytes!
-                      : null,
-                ),
-              );
-            },
-            errorBuilder: (_, __, ___) => const Center(
+            // Full-screen avatar viewer: cap decode width to screen
+            // width × DPR so we don't hold a 4K decode in memory.
+            memCacheWidth: (MediaQuery.of(context).size.width *
+                    MediaQuery.of(context).devicePixelRatio)
+                .toInt(),
+            placeholder: (context, url) => const Center(
+              child: CircularProgressIndicator(
+                color: Colors.white,
+              ),
+            ),
+            errorWidget: (_, __, ___) => const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

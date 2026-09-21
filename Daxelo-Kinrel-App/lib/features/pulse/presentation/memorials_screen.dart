@@ -2,11 +2,13 @@
 //
 // Pitru Pt-4 Memorials screen — list of deceased family members with living memorials.
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
+import '../../../core/services/image_cache_manager.dart';
 import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
 
@@ -110,7 +112,22 @@ class _MemorialCard extends StatelessWidget {
                         border: Border.all(color: KinrelColors.extendedPurple.withOpacity(0.4), width: 2),
                       ),
                       child: memorial.person.photoThumb != null
-                          ? ClipOval(child: Image.network(memorial.person.photoThumb!, fit: BoxFit.cover))
+                          ? ClipOval(
+                              child: CachedNetworkImage(
+                                imageUrl: memorial.person.photoThumb!,
+                                cacheManager: KinrelImageCacheManager.instance,
+                                fit: BoxFit.cover,
+                                memCacheWidth: (64 *
+                                        MediaQuery.of(context).devicePixelRatio)
+                                    .toInt(),
+                                memCacheHeight: (64 *
+                                        MediaQuery.of(context).devicePixelRatio)
+                                    .toInt(),
+                                errorWidget: (_, __, ___) => const Center(
+                                    child: Text('🪔',
+                                        style: TextStyle(fontSize: 28))),
+                              ),
+                            )
                           : const Center(child: Text('🪔', style: TextStyle(fontSize: 28))),
                     ),
                     const SizedBox(width: 16),

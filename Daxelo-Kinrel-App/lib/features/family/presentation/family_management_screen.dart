@@ -18,6 +18,7 @@
 //   Admin   — can edit approved settings, Creator-only controls locked
 //   Member  — view-only
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -26,6 +27,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/networking/dio_client.dart' show dioProvider;
+import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -992,8 +994,20 @@ class _FamilyManagementScreenState
             ),
             child: m.avatarUrl != null && m.avatarUrl!.isNotEmpty
                 ? ClipOval(
-                    child: Image.network(m.avatarUrl!, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _buildInitials(m.name)))
+                    child: CachedNetworkImage(
+                      imageUrl: m.avatarUrl!,
+                      cacheManager: KinrelImageCacheManager.instance,
+                      fit: BoxFit.cover,
+                      memCacheWidth:
+                          (40 * MediaQuery.of(context).devicePixelRatio)
+                              .toInt(),
+                      memCacheHeight:
+                          (40 * MediaQuery.of(context).devicePixelRatio)
+                              .toInt(),
+                      errorWidget: (_, __, ___) =>
+                          _buildInitials(m.name),
+                    ),
+                  )
                 : _buildInitials(m.name),
           ),
           const SizedBox(width: 12),

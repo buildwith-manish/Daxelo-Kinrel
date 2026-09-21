@@ -31,6 +31,7 @@ import '../../../core/widgets/person_avatar.dart';
 
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,6 +39,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart';
 import '../data/thinking_service.dart';
 
@@ -518,13 +520,27 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
                                             BlendMode.saturation),
                                     child: (member.avatarUrl != null &&
                                             member.avatarUrl!.isNotEmpty)
-                                        ? Image.network(
-                                            member.avatarUrl!,
+                                        ? CachedNetworkImage(
+                                            imageUrl: member.avatarUrl!,
+                                            cacheManager:
+                                                KinrelImageCacheManager
+                                                    .instance,
                                             width: 52,
                                             height: 52,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) =>
-                                                _Placeholder(name: member.name),
+                                            memCacheWidth:
+                                                (52 *
+                                                        MediaQuery.of(context)
+                                                            .devicePixelRatio)
+                                                    .toInt(),
+                                            memCacheHeight:
+                                                (52 *
+                                                        MediaQuery.of(context)
+                                                            .devicePixelRatio)
+                                                    .toInt(),
+                                            errorWidget: (_, __, ___) =>
+                                                _Placeholder(
+                                                    name: member.name),
                                           )
                                         : _Placeholder(name: member.name),
                                   ),

@@ -22,7 +22,10 @@
 //     on web, a failed CORS fetch can spam the browser console with
 //     errors. The errorBuilder silences this gracefully.
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+
+import '../../core/services/image_cache_manager.dart';
 
 /// A network image widget optimized for graph node avatars.
 ///
@@ -52,21 +55,21 @@ class GraphNetworkImage extends StatelessWidget {
     }
 
     return ClipOval(
-      child: Image.network(
-        photoUrl!,
+      child: CachedNetworkImage(
+        imageUrl: photoUrl!,
+        cacheManager: KinrelImageCacheManager.instance,
         width: diameter,
         height: diameter,
         fit: BoxFit.cover,
         // Downsample to display size — reduces memory on mobile and
-        // GPU texture size on web (CanvasKit). The cacheWidth is in
+        // GPU texture size on web (CanvasKit). memCacheWidth is in
         // physical pixels, so we multiply by the device pixel ratio.
-        cacheWidth: (diameter * 2).round(),
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return _buildShimmer(diameter);
-        },
-        errorBuilder: (context, error, stackTrace) =>
-            _buildInitials(diameter),
+        memCacheWidth:
+            (diameter * MediaQuery.of(context).devicePixelRatio).toInt(),
+        memCacheHeight:
+            (diameter * MediaQuery.of(context).devicePixelRatio).toInt(),
+        placeholder: (context, url) => _buildShimmer(diameter),
+        errorWidget: (context, url, error) => _buildInitials(diameter),
       ),
     );
   }
