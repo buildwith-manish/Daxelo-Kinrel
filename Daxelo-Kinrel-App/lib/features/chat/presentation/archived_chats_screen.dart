@@ -74,7 +74,7 @@ class _ArchivedChatsScreenState extends ConsumerState<ArchivedChatsScreen> {
             }
           },
         ),
-        title: Text(
+        title: const Text(
           'Archived',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -84,10 +84,10 @@ class _ArchivedChatsScreenState extends ConsumerState<ArchivedChatsScreen> {
       ),
       body: SafeArea(
         child: familiesAsync.when(
-          loading: () => Center(
+          loading: () => const Center(
             child: CircularProgressIndicator(color: KinrelColors.orange),
           ),
-          error: (_, __) => Center(
+          error: (_, __) => const Center(
             child: Text(
               'Could not load archived chats',
               style: TextStyle(color: KinrelColors.textDim),
@@ -105,7 +105,7 @@ class _ArchivedChatsScreenState extends ConsumerState<ArchivedChatsScreen> {
                 dmItems.where((d) => d.isArchived).toList();
 
             if (archivedGroups.isEmpty && archivedDms.isEmpty) {
-              return Center(
+              return const Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -114,7 +114,7 @@ class _ArchivedChatsScreenState extends ConsumerState<ArchivedChatsScreen> {
                       size: 56,
                       color: KinrelColors.textDim,
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16),
                     Text(
                       'No archived chats',
                       style: TextStyle(
@@ -124,7 +124,7 @@ class _ArchivedChatsScreenState extends ConsumerState<ArchivedChatsScreen> {
                         color: KinrelColors.textWhite,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Text(
                       'Swipe left on a chat to archive it',
                       style: TextStyle(
@@ -180,7 +180,7 @@ class _ArchivedChatsScreenState extends ConsumerState<ArchivedChatsScreen> {
       ),
       child: Text(
         title,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 13,
           fontWeight: FontWeight.w600,
@@ -257,7 +257,7 @@ class _ArchivedGroupRowState extends ConsumerState<_ArchivedGroupRow> {
             widget.family.name.isNotEmpty
                 ? widget.family.name[0].toUpperCase()
                 : 'F',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 20,
               fontWeight: FontWeight.w700,
@@ -267,7 +267,7 @@ class _ArchivedGroupRowState extends ConsumerState<_ArchivedGroupRow> {
         ),
         title: Text(
           widget.family.name,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -276,7 +276,7 @@ class _ArchivedGroupRowState extends ConsumerState<_ArchivedGroupRow> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text(
+        subtitle: const Text(
           'Group chat',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -341,7 +341,7 @@ class _ArchivedDmRow extends StatelessWidget {
                   item.otherUserAvatar!.isEmpty
               ? Text(
                   _initials(item.otherUserName),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
@@ -352,7 +352,7 @@ class _ArchivedDmRow extends StatelessWidget {
         ),
         title: Text(
           item.otherUserName,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -363,7 +363,7 @@ class _ArchivedDmRow extends StatelessWidget {
         ),
         subtitle: Text(
           item.lastMessage,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             color: KinrelColors.textDim,

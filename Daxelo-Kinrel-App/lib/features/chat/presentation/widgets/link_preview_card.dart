@@ -187,7 +187,7 @@ class LinkPreviewCard extends StatelessWidget {
                         color: KinrelColors.ember.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Icon(Icons.public_rounded,
+                      child: const Icon(Icons.public_rounded,
                           size: 16, color: KinrelColors.ember),
                     ),
                   ),
@@ -203,7 +203,7 @@ class LinkPreviewCard extends StatelessWidget {
                         link.domain,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -216,7 +216,7 @@ class LinkPreviewCard extends StatelessWidget {
                           link.path,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.monoFont,
                             fontSize: 10.5,
                             color: KinrelColors.textDim,
@@ -228,7 +228,7 @@ class LinkPreviewCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                Icon(Icons.open_in_new_rounded,
+                const Icon(Icons.open_in_new_rounded,
                     size: 14, color: KinrelColors.textDim),
               ],
             ),

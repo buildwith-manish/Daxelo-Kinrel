@@ -136,7 +136,7 @@ class GroupInfoScreen extends ConsumerWidget {
       backgroundColor: const Color(0xFF0A0B16),
       appBar: AppBar(
         backgroundColor: const Color(0xFF11132A),
-        title: Text(
+        title: const Text(
           'Group Info',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -151,7 +151,7 @@ class GroupInfoScreen extends ConsumerWidget {
         loading: () => const Center(
           child: CircularProgressIndicator(color: KinrelColors.ember, strokeWidth: 1.5),
         ),
-        error: (_, __) => Center(
+        error: (_, __) => const Center(
           child: Text(
             'Failed to load group info',
             style: TextStyle(color: KinrelColors.textSilver, fontSize: 14),
@@ -159,7 +159,7 @@ class GroupInfoScreen extends ConsumerWidget {
         ),
         data: (info) {
           if (info == null) {
-            return Center(
+            return const Center(
               child: Text(
                 'Group not found',
                 style: TextStyle(color: KinrelColors.textSilver, fontSize: 14),
@@ -201,7 +201,7 @@ class GroupInfoScreen extends ConsumerWidget {
                   info.familyName.isNotEmpty
                       ? info.familyName[0].toUpperCase()
                       : '?',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 36,
                     fontWeight: FontWeight.w700,
@@ -213,7 +213,7 @@ class GroupInfoScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             Text(
               info.familyName,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -223,7 +223,7 @@ class GroupInfoScreen extends ConsumerWidget {
             const SizedBox(height: 4),
             Text(
               '${info.memberCount} member${info.memberCount != 1 ? 's' : ''}',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 color: KinrelColors.textSilver,
@@ -288,7 +288,7 @@ class _ParticipantTile extends StatelessWidget {
               participant.name.isNotEmpty
                   ? participant.name[0].toUpperCase()
                   : '?',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -316,7 +316,7 @@ class _ParticipantTile extends StatelessWidget {
         children: [
           Text(
             participant.name,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -331,7 +331,7 @@ class _ParticipantTile extends StatelessWidget {
                 color: KinrelColors.ember.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
+              child: const Text(
                 'admin',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,

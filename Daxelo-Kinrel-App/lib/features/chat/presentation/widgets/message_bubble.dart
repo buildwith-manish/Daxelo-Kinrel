@@ -170,7 +170,7 @@ class MessageBubble extends ConsumerWidget {
                           (message.senderName.isNotEmpty
                               ? message.senderName[0].toUpperCase()
                               : '?'),
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.displayFont,
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
@@ -484,7 +484,7 @@ class MessageBubble extends ConsumerWidget {
               ),
               child: Text(
                 relationshipLabel,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 9.5,
                   fontWeight: FontWeight.w600,
@@ -522,7 +522,7 @@ class MessageBubble extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.forward_rounded,
+          const Icon(Icons.forward_rounded,
               size: 11, color: KinrelColors.textDim),
           const SizedBox(width: 4),
           Flexible(
@@ -530,7 +530,7 @@ class MessageBubble extends ConsumerWidget {
               'Forwarded from ${message.forwardedFrom}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
@@ -568,14 +568,14 @@ class MessageBubble extends ConsumerWidget {
                 content: message.content,
                 mentions: message.mentions,
                 currentUserId: currentUserId ?? '',
-                baseStyle: TextStyle(
+                baseStyle: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
                   color: KinrelColors.textWhite,
                   height: 1.5,
                   letterSpacing: 0.1,
                 ),
-                mentionStyle: TextStyle(
+                mentionStyle: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
@@ -595,7 +595,7 @@ class MessageBubble extends ConsumerWidget {
               )
             : Text(
                 message.content,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
                   color: KinrelColors.textWhite,
@@ -731,7 +731,7 @@ class MessageBubble extends ConsumerWidget {
               const SizedBox(height: 8),
               Text(
                 message.content,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14.5,
                   color: KinrelColors.textWhite,
@@ -762,11 +762,11 @@ class MessageBubble extends ConsumerWidget {
               Container(
                 width: 32,
                 height: 32,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: KinrelGradients.igniteGradient,
                 ),
-                child: Icon(Icons.play_arrow, size: 18, color: Colors.white),
+                child: const Icon(Icons.play_arrow, size: 18, color: Colors.white),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -794,7 +794,7 @@ class MessageBubble extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Text(
                       '${message.durationSeconds ?? 0}s',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 10,
                         color: KinrelColors.textDim,
@@ -849,18 +849,18 @@ class MessageBubble extends ConsumerWidget {
                   Container(
                     width: 28,
                     height: 28,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: KinrelGradients.igniteGradient,
                     ),
-                    child: Icon(
+                    child: const Icon(
                       Icons.celebration,
                       size: 14,
                       color: Colors.white,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(
+                  const Expanded(
                     child: Text(
                       'Family Event',
                       style: TextStyle(
@@ -879,7 +879,7 @@ class MessageBubble extends ConsumerWidget {
               if (message.eventTitle != null)
                 Text(
                   message.eventTitle!,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -891,7 +891,7 @@ class MessageBubble extends ConsumerWidget {
               if (message.eventDate != null)
                 Row(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.calendar_today_outlined,
                       size: 12,
                       color: KinrelColors.orange,
@@ -899,7 +899,7 @@ class MessageBubble extends ConsumerWidget {
                     const SizedBox(width: 4),
                     Text(
                       message.eventDate!,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
                         color: KinrelColors.textSilver,
@@ -912,7 +912,7 @@ class MessageBubble extends ConsumerWidget {
                 const SizedBox(height: 6),
                 Text(
                   message.content,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     color: KinrelColors.textSilver,
@@ -979,7 +979,7 @@ class MessageBubble extends ConsumerWidget {
                       color: const Color(0xFF11132A),
                       height: 120,
                       alignment: Alignment.center,
-                      child: Icon(Icons.broken_image_outlined,
+                      child: const Icon(Icons.broken_image_outlined,
                           color: KinrelColors.textDim),
                     ),
                   )
@@ -987,7 +987,7 @@ class MessageBubble extends ConsumerWidget {
                     color: const Color(0xFF11132A),
                     height: 120,
                     alignment: Alignment.center,
-                    child: Icon(Icons.gif_box_outlined,
+                    child: const Icon(Icons.gif_box_outlined,
                         color: KinrelColors.textDim),
                   ),
           ),
@@ -1054,7 +1054,7 @@ class MessageBubble extends ConsumerWidget {
                       fileName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -1063,7 +1063,7 @@ class MessageBubble extends ConsumerWidget {
                     ),
                     Text(
                       ext.isEmpty ? 'File' : ext.toUpperCase(),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 10,
                         color: KinrelColors.textDim,
@@ -1074,7 +1074,7 @@ class MessageBubble extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.download_rounded,
+              const Icon(Icons.download_rounded,
                   size: 18, color: KinrelColors.textDim),
             ],
           ),
@@ -1136,7 +1136,7 @@ class MessageBubble extends ConsumerWidget {
                   color: KinrelColors.ember.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(Icons.location_on_rounded,
+                child: const Icon(Icons.location_on_rounded,
                     size: 18, color: KinrelColors.ember),
               ),
               const SizedBox(width: 10),
@@ -1148,7 +1148,7 @@ class MessageBubble extends ConsumerWidget {
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -1158,7 +1158,7 @@ class MessageBubble extends ConsumerWidget {
                     if (lat != null && lng != null)
                       Text(
                         '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 10,
                           color: KinrelColors.textDim,
@@ -1169,7 +1169,7 @@ class MessageBubble extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.map_outlined, size: 18, color: KinrelColors.textDim),
+              const Icon(Icons.map_outlined, size: 18, color: KinrelColors.textDim),
             ],
           ),
         ),
@@ -1317,7 +1317,7 @@ class MessageBubble extends ConsumerWidget {
                   children: [
                     Text(
                       displayName,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
@@ -1325,7 +1325,7 @@ class MessageBubble extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 1),
-                    Text(
+                    const Text(
                       'GAME INVITE',
                       style: TextStyle(
                         fontFamily: KinrelTypography.monoFont,
@@ -1352,7 +1352,7 @@ class MessageBubble extends ConsumerWidget {
               const SizedBox(width: 4),
               Text(
                 '$currentPlayers/$maxPlayers players',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -1374,7 +1374,7 @@ class MessageBubble extends ConsumerWidget {
                   ),
                   child: Text(
                     roomCode,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -1418,7 +1418,7 @@ class MessageBubble extends ConsumerWidget {
                   child: Text(
                     waitingLabel,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
@@ -1534,7 +1534,7 @@ class MessageBubble extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Thinking of You',
                   style: TextStyle(
                     fontFamily: KinrelTypography.monoFont,
@@ -1554,7 +1554,7 @@ class MessageBubble extends ConsumerWidget {
                   // name resolved to the "You" fallback. See migration
                   // 20260906150000_fix_thinking_of_you_grammar_and_per_receiver_cooldown.sql.
                   message.content,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     color: KinrelColors.textWhite,

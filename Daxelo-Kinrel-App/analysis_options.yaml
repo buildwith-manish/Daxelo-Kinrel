@@ -2,7 +2,7 @@ include: package:flutter_lints/flutter.yaml
 
 linter:
   rules:
-    prefer_const_constructors: false
+    prefer_const_constructors: true
     prefer_const_declarations: false
     prefer_const_constructors_in_immutables: false
     prefer_final_fields: true
@@ -29,7 +29,7 @@ linter:
 analyzer:
   errors:
     invalid_annotation_target: ignore
-    prefer_const_constructors: ignore
+    prefer_const_constructors: warning
     prefer_const_declarations: ignore
     prefer_const_constructors_in_immutables: ignore
     unnecessary_const: ignore
