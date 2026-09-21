@@ -148,11 +148,11 @@ class QuickPicksRow extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 2, bottom: 10),
-              child: Text(
+            const Padding(
+              padding: EdgeInsets.only(left: 2, bottom: 10),
+              child: const Text(
                 'Quick picks',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -258,7 +258,7 @@ class QuickPickCard extends StatelessWidget {
                     ),
                     child: Text(
                       '${pick.playCountLast30d}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 9,
                         fontWeight: FontWeight.w800,
@@ -273,7 +273,7 @@ class QuickPickCard extends StatelessWidget {
               pick.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -285,7 +285,7 @@ class QuickPickCard extends StatelessWidget {
               pick.playerCountRange,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 10,
                 color: KinrelColors.textDim,

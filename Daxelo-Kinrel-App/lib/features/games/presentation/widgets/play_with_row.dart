@@ -172,11 +172,11 @@ class PlayWithRow extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 2, bottom: 10),
-              child: Text(
+            const Padding(
+              padding: EdgeInsets.only(left: 2, bottom: 10),
+              child: const Text(
                 'Play with',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -304,9 +304,9 @@ class PlayWithCard extends StatelessWidget {
                       color: KinrelColors.amber.withValues(alpha: 0.18),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text(
+                    child: const Text(
                       'NEW',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 8,
                         fontWeight: FontWeight.w800,
@@ -322,7 +322,7 @@ class PlayWithCard extends StatelessWidget {
               s.userName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -334,7 +334,7 @@ class PlayWithCard extends StatelessWidget {
               subtext,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 10.5,
                 height: 1.25,
@@ -342,14 +342,14 @@ class PlayWithCard extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            Row(
+            const Row(
               children: [
-                KinrelIcon(KinrelIconData.controller,
+                const KinrelIcon(KinrelIconData.controller,
                     size: 12, color: KinrelColors.orange),
-                const SizedBox(width: 4),
-                Text(
+                SizedBox(width: 4),
+                const Text(
                   'Play',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10.5,
                     fontWeight: FontWeight.w800,
@@ -397,7 +397,7 @@ class _Avatar extends StatelessWidget {
                 : null,
             child: Text(
               name.isEmpty ? '?' : name.substring(0, 1).toUpperCase(),
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 17,
                 fontWeight: FontWeight.w800,

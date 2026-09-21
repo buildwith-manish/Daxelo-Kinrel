@@ -30,58 +30,65 @@ class FestivalScreen extends ConsumerWidget {
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Today's festivals
-          todayAsync.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-            data: (today) {
-              if (today.isEmpty) return const SizedBox.shrink();
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '🎉 Today',
-                    style: TextStyle(color: KinrelColors.brightGold, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.5),
-                  ),
-                  const SizedBox(height: 8),
-                  ...today.map((f) => _TodayFestivalCard(festival: f)),
-                  const SizedBox(height: 24),
-                ],
-              );
-            },
-          ),
-          // Upcoming festivals
-          const Text(
-            '📅 Upcoming',
-            style: TextStyle(color: KinrelColors.amber, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.5),
-          ),
-          const SizedBox(height: 8),
-          festivalsAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator(color: KinrelColors.brightGold)),
-            error: (err, _) => Center(child: Text('Error: $err', style: const TextStyle(color: Colors.white54))),
-            data: (festivals) {
-              if (festivals.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Center(
-                    child: Text(
-                      'No upcoming festivals in the next 90 days.',
-                      style: TextStyle(color: Colors.white.withOpacity(0.5)),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                );
-              }
-              return Column(
-                children: festivals.map((f) => _FestivalCard(festival: f)).toList(),
-              );
-            },
-          ),
-        ],
-      ),
+      // v114 — Step 4 perf: build a flat list of rows then use
+      // ListView.builder so festival cards (the dynamic part) are
+      // built lazily as they scroll into view. Today's festivals and
+      // upcoming festivals are flattened into one list.
+      body: Builder(builder: (context) {
+        final rows = <Widget>[];
+
+        // ── Today's festivals ──
+        final today = todayAsync.valueOrNull ?? const <Festival>[];
+        if (today.isNotEmpty) {
+          rows.add(const Text(
+            '🎉 Today',
+            style: TextStyle(color: KinrelColors.brightGold, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+          ));
+          rows.add(const SizedBox(height: 8));
+          for (final f in today) {
+            rows.add(_TodayFestivalCard(festival: f));
+          }
+          rows.add(const SizedBox(height: 24));
+        }
+
+        // ── Upcoming ──
+        rows.add(const Text(
+          '📅 Upcoming',
+          style: TextStyle(color: KinrelColors.amber, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+        ));
+        rows.add(const SizedBox(height: 8));
+
+        // Upcoming festivals content (loading / error / empty / list)
+        if (festivalsAsync.isLoading) {
+          rows.add(const Center(child: CircularProgressIndicator(color: KinrelColors.brightGold)));
+        } else if (festivalsAsync.hasError) {
+          rows.add(Center(child: Text('Error: ${festivalsAsync.error}', style: const TextStyle(color: Colors.white54))));
+        } else {
+          final festivals = festivalsAsync.valueOrNull ?? const <Festival>[];
+          if (festivals.isEmpty) {
+            rows.add(Padding(
+              padding: const EdgeInsets.all(32),
+              child: Center(
+                child: Text(
+                  'No upcoming festivals in the next 90 days.',
+                  style: TextStyle(color: Colors.white.withOpacity(0.5)),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ));
+          } else {
+            for (final f in festivals) {
+              rows.add(_FestivalCard(festival: f));
+            }
+          }
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: rows.length,
+          itemBuilder: (context, index) => rows[index],
+        );
+      }),
     );
   }
 }

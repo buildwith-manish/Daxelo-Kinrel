@@ -357,7 +357,7 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
                           : 'Family Members · ${invitable.length} available',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -366,9 +366,9 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
                       ),
                     ),
                   ),
-                  Text(
+                  const Text(
                     'View All',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -395,18 +395,18 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
               ),
             )
           else if (_isRoomFull)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
+            const Padding(
+              padding: EdgeInsets.fromLTRB(
                   KinrelSpacing.md, 4, KinrelSpacing.md, 12),
               child: Row(
                 children: [
-                  const KinrelIcon(KinrelIconData.checkCircle,
+                  KinrelIcon(KinrelIconData.checkCircle,
                       size: 14, color: KinrelColors.success),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
+                  SizedBox(width: 6),
+                  const Expanded(
+                    child: const Text(
                       'Room is full — everyone who can join is here.',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11.5,
                         color: KinrelColors.textDim,
@@ -430,7 +430,7 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
                       memberState.stats.membershipCount > 1
                           ? 'Everyone in your family is already in this room.'
                           : 'Invite relatives to Kinrel, then bring them into the game.',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11.5,
                         color: KinrelColors.textDim,
@@ -471,13 +471,13 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
                     horizontal: KinrelSpacing.md, vertical: 9),
                 child: Row(
                   children: [
-                    Icon(Icons.more_horiz,
+                    const Icon(Icons.more_horiz,
                         size: 16, color: KinrelColors.textDim),
                     const SizedBox(width: 6),
                     Text(
                       '${invitable.length - kFamilyInviteCardRows} more '
                       'member${invitable.length - kFamilyInviteCardRows == 1 ? '' : 's'} to invite',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11.5,
                         color: KinrelColors.textDim,
@@ -616,7 +616,7 @@ class _MemberRow extends StatelessWidget {
                     member.user.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -628,7 +628,7 @@ class _MemberRow extends StatelessWidget {
                       '@${member.user.username}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 10,
                         color: KinrelColors.orange,
@@ -660,7 +660,7 @@ class _MemberRow extends StatelessWidget {
     return Center(
       child: Text(
         member.user.initials,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.displayFont,
           fontSize: 12,
           fontWeight: FontWeight.w700,

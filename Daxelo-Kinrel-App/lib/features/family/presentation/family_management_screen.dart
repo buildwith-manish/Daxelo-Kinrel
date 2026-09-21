@@ -352,7 +352,7 @@ class _FamilyManagementScreenState
           icon: const Icon(Icons.arrow_back, color: KinrelColors.textWhite),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
-        title: Text(
+        title: const Text(
           'Family Management',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -528,7 +528,7 @@ class _FamilyManagementScreenState
     return Padding(
       padding: const EdgeInsets.only(top: 16, bottom: 8),
       child: Text(title,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 16,
             fontWeight: FontWeight.w700,
@@ -559,18 +559,18 @@ class _FamilyManagementScreenState
           children: [
             Expanded(
               child: Text(title,
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w500,
                       color: canEdit ? KinrelColors.textWhite : KinrelColors.textSilver)),
             ),
             if (!canEdit) ...[
-              Icon(Icons.lock_outline, size: 14, color: KinrelColors.textDim),
+              const Icon(Icons.lock_outline, size: 14, color: KinrelColors.textDim),
               const SizedBox(width: 6),
             ],
           ],
         ),
         subtitle: Text(_permissionLabel(currentValue),
-            style: TextStyle(fontSize: 11, color: KinrelColors.textDim)),
+            style: const TextStyle(fontSize: 11, color: KinrelColors.textDim)),
         childrenPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
         children: [
@@ -626,12 +626,12 @@ class _FamilyManagementScreenState
           children: [
             Expanded(
               child: Text(title,
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w500,
                       color: canEdit ? KinrelColors.textWhite : KinrelColors.textSilver)),
             ),
             if (!canEdit) ...[
-              Icon(Icons.lock_outline, size: 14, color: KinrelColors.textDim),
+              const Icon(Icons.lock_outline, size: 14, color: KinrelColors.textDim),
               const SizedBox(width: 6),
             ],
           ],
@@ -675,18 +675,18 @@ class _FamilyManagementScreenState
           children: [
             Expanded(
               child: Text('Family Visibility',
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w500,
                       color: canEdit ? KinrelColors.textWhite : KinrelColors.textSilver)),
             ),
             if (!canEdit) ...[
-              Icon(Icons.lock_outline, size: 14, color: KinrelColors.textDim),
+              const Icon(Icons.lock_outline, size: 14, color: KinrelColors.textDim),
               const SizedBox(width: 6),
             ],
           ],
         ),
         subtitle: Text(_visibilityLabel(currentValue),
-            style: TextStyle(fontSize: 11, color: KinrelColors.textDim)),
+            style: const TextStyle(fontSize: 11, color: KinrelColors.textDim)),
         childrenPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
         children: [
@@ -750,13 +750,13 @@ class _FamilyManagementScreenState
                                   color: canEdit ? KinrelColors.textWhite : KinrelColors.textSilver)),
                         ),
                         if (!canEdit) ...[
-                          Icon(Icons.lock_outline, size: 14, color: KinrelColors.textDim),
+                          const Icon(Icons.lock_outline, size: 14, color: KinrelColors.textDim),
                           const SizedBox(width: 6),
                         ],
                       ],
                     ),
                     const SizedBox(height: 2),
-                    Text(
+                    const Text(
                       'Admins get a private alert if a member is inactive for 7+ days. '
                       'The inactive member is never notified.',
                       style: TextStyle(
@@ -840,17 +840,17 @@ class _FamilyManagementScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(title,
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontSize: 14, fontWeight: FontWeight.w600,
                               color: KinrelColors.textWhite)),
                       const SizedBox(height: 2),
                       Text(subtitle,
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontSize: 12, color: KinrelColors.textDim)),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right, size: 20,
+                const Icon(Icons.chevron_right, size: 20,
                     color: KinrelColors.textDim),
               ],
             ),
@@ -885,13 +885,13 @@ class _FamilyManagementScreenState
           ),
           const SizedBox(width: 10),
           Text(role,
-              style: TextStyle(
+              style: const TextStyle(
                   fontSize: 13, fontWeight: FontWeight.w600,
                   color: KinrelColors.textWhite)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(description,
-                style: TextStyle(
+                style: const TextStyle(
                     fontSize: 12, color: KinrelColors.textDim)),
           ),
         ],
@@ -940,7 +940,7 @@ class _FamilyManagementScreenState
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              Text('Manage Members',
+              const Text('Manage Members',
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 18, fontWeight: FontWeight.w700,
@@ -1017,7 +1017,7 @@ class _FamilyManagementScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(m.name,
-                    style: TextStyle(
+                    style: const TextStyle(
                         fontSize: 14, fontWeight: FontWeight.w600,
                         color: KinrelColors.textWhite)),
                 const SizedBox(height: 4),
@@ -1030,7 +1030,7 @@ class _FamilyManagementScreenState
           // (Transfer ownership is a Creator-only action.)
           if (!m.isCreator && _canEdit)
             PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert, color: KinrelColors.textDim, size: 20),
+              icon: const Icon(Icons.more_vert, color: KinrelColors.textDim, size: 20),
               color: KinrelColors.darkCard,
               onSelected: (action) => _handleMemberAction(m, action),
               itemBuilder: (ctx) => [
@@ -1075,7 +1075,7 @@ class _FamilyManagementScreenState
             : (parts.first[0] + parts[1][0]).toUpperCase();
     return Center(
       child: Text(initials,
-          style: TextStyle(
+          style: const TextStyle(
               fontSize: 16, fontWeight: FontWeight.w700,
               color: KinrelColors.orange)),
     );
@@ -1106,15 +1106,15 @@ class _FamilyManagementScreenState
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: KinrelColors.darkCard,
-          title: Text('Remove Member',
+          title: const Text('Remove Member',
               style: TextStyle(color: KinrelColors.textWhite)),
           content: Text('Are you sure you want to remove ${m.name} from the family?',
-              style: TextStyle(color: KinrelColors.textSilver)),
+              style: const TextStyle(color: KinrelColors.textSilver)),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false),
                 child: const Text('Cancel')),
             TextButton(onPressed: () => Navigator.pop(ctx, true),
-                child: Text('Remove', style: TextStyle(color: Colors.red))),
+                child: const Text('Remove', style: TextStyle(color: Colors.red))),
           ],
         ),
       );
@@ -1196,7 +1196,7 @@ class _FamilyManagementScreenState
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              Text('Family Activity Log',
+              const Text('Family Activity Log',
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 18, fontWeight: FontWeight.w700,
@@ -1205,7 +1205,7 @@ class _FamilyManagementScreenState
               const SizedBox(height: 16),
               Expanded(
                 child: entries.isEmpty
-                    ? Center(
+                    ? const Center(
                         child: Text('No activity yet',
                             style: TextStyle(color: KinrelColors.textDim)))
                     : ListView.builder(
@@ -1252,7 +1252,7 @@ class _FamilyManagementScreenState
               shape: BoxShape.circle,
               color: KinrelColors.orange.withValues(alpha: 0.12),
             ),
-            child: Icon(Icons.history, size: 14, color: KinrelColors.orange),
+            child: const Icon(Icons.history, size: 14, color: KinrelColors.orange),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1260,11 +1260,11 @@ class _FamilyManagementScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(e.description,
-                    style: TextStyle(
+                    style: const TextStyle(
                         fontSize: 13, color: KinrelColors.textWhite)),
                 const SizedBox(height: 2),
                 Text(_formatLogTime(e.createdAt),
-                    style: TextStyle(
+                    style: const TextStyle(
                         fontSize: 11, color: KinrelColors.textDim)),
               ],
             ),

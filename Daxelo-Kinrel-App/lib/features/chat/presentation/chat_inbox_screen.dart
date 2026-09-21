@@ -82,7 +82,7 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
               ),
               child: Row(
                 children: [
-                  Text(
+                  const Text(
                     'Chats',
                     style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
@@ -94,7 +94,7 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
                   const Spacer(),
                   // v113: Search button
                   IconButton(
-                    icon: Icon(
+                    icon: const Icon(
                       Icons.search_rounded,
                       color: KinrelColors.textSilver,
                       size: 24,
@@ -104,7 +104,7 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
                   // v113: Compose new DM — opens a bottom sheet to pick
                   // a family member to start a DM with.
                   IconButton(
-                    icon: Icon(
+                    icon: const Icon(
                       Icons.edit_outlined,
                       color: KinrelColors.textSilver,
                       size: 24,
@@ -117,9 +117,8 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
             // ── Unified inbox list ──────────────────────────────────
             Expanded(
               child: familiesAsync.when(
-                loading: () => Center(
-                  child:
-                      CircularProgressIndicator(color: KinrelColors.orange),
+                loading: () => const Center(
+                  child: CircularProgressIndicator(color: KinrelColors.orange),
                 ),
                 error: (e, _) => DKErrorState(
                   message: 'Could not load chats: $e',
@@ -127,7 +126,7 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
                 ),
                 data: (families) {
                   if (families.isEmpty && dmInboxAsync.isLoading) {
-                    return Center(
+                    return const Center(
                       child: CircularProgressIndicator(
                           color: KinrelColors.orange),
                     );
@@ -154,62 +153,73 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
                     return _buildEmptyState();
                   }
 
-                  return ListView(
-                    children: [
-                      // ── Section 1: Groups ──
-                      if (activeGroups.isNotEmpty) ...[
-                        _buildSectionHeader('Groups'),
-                        ...activeGroups.map((family) => _FamilyChatRow(
-                              family: family,
-                              onArchived: () => _archiveGroup(family.id),
-                            )),
-                      ],
-                      // ── Section 2: Direct Messages ──
-                      if (activeDms.isNotEmpty) ...[
-                        _buildSectionHeader('Direct Messages'),
-                        ...activeDms.map((dm) => _DmChatRow(
-                              item: dm,
-                              onArchived: () => _archiveDm(dm.otherUserId),
-                            )),
-                      ],
-                      // ── Archived row (only if there are archived items) ──
-                      if (totalArchived > 0) ...[
-                        const SizedBox(height: 8),
-                        ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: KinrelColors.darkElevated,
-                            child: Icon(
-                              Icons.archive_outlined,
-                              color: KinrelColors.textSilver,
-                              size: 22,
-                            ),
-                          ),
-                          title: Text(
-                            'Archived',
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.displayFont,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: KinrelColors.textWhite,
-                            ),
-                          ),
-                          subtitle: Text(
-                            '$totalArchived ${totalArchived == 1 ? "conversation" : "conversations"}',
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 13,
-                              color: KinrelColors.textDim,
-                            ),
-                          ),
-                          onTap: () => context.push('/chats/archived'),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: KinrelSpacing.base,
-                            vertical: 4,
-                          ),
+                  // v114 — Step 4 perf: build a flat list of rows then
+                  // use ListView.builder so chat rows are built lazily.
+                  // The section headers, archived row, and trailing
+                  // spacer stay as direct children of the flat list
+                  // (small, fixed count).
+                  final rows = <Widget>[];
+                  // ── Section 1: Groups ──
+                  if (activeGroups.isNotEmpty) {
+                    rows.add(_buildSectionHeader('Groups'));
+                    for (final family in activeGroups) {
+                      rows.add(_FamilyChatRow(
+                        family: family,
+                        onArchived: () => _archiveGroup(family.id),
+                      ));
+                    }
+                  }
+                  // ── Section 2: Direct Messages ──
+                  if (activeDms.isNotEmpty) {
+                    rows.add(_buildSectionHeader('Direct Messages'));
+                    for (final dm in activeDms) {
+                      rows.add(_DmChatRow(
+                        item: dm,
+                        onArchived: () => _archiveDm(dm.otherUserId),
+                      ));
+                    }
+                  }
+                  // ── Archived row (only if there are archived items) ──
+                  if (totalArchived > 0) {
+                    rows.add(const SizedBox(height: 8));
+                    rows.add(ListTile(
+                      leading: const CircleAvatar(
+                        backgroundColor: KinrelColors.darkElevated,
+                        child: Icon(
+                          Icons.archive_outlined,
+                          color: KinrelColors.textSilver,
+                          size: 22,
                         ),
-                      ],
-                      const SizedBox(height: 80),
-                    ],
+                      ),
+                      title: const Text(
+                        'Archived',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: KinrelColors.textWhite,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '$totalArchived ${totalArchived == 1 ? "conversation" : "conversations"}',
+                        style: const TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 13,
+                          color: KinrelColors.textDim,
+                        ),
+                      ),
+                      onTap: () => context.push('/chats/archived'),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: KinrelSpacing.base,
+                        vertical: 4,
+                      ),
+                    ));
+                  }
+                  rows.add(const SizedBox(height: 80));
+
+                  return ListView.builder(
+                    itemCount: rows.length,
+                    itemBuilder: (context, index) => rows[index],
                   );
                 },
               ),
@@ -228,7 +238,7 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
       ),
       child: Text(
         title,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 13,
           fontWeight: FontWeight.w600,
@@ -271,8 +281,8 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
       if (familyIds.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Join a family first to start a DM.'),
+            const SnackBar(
+              content: Text('Join a family first to start a DM.'),
               backgroundColor: KinrelColors.darkCard,
             ),
           );
@@ -297,8 +307,8 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
+                  const Padding(
+                    padding: EdgeInsets.all(16),
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
@@ -342,7 +352,7 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
                                   KinrelColors.orange.withValues(alpha: 0.15),
                               child: Text(
                                 m.initials,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: KinrelTypography.displayFont,
                                   fontWeight: FontWeight.w700,
                                   color: KinrelColors.orange,
@@ -351,7 +361,7 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
                             ),
                             title: Text(
                               m.name,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 color: KinrelColors.textWhite,
                               ),
@@ -418,13 +428,13 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.chat_bubble_outline_rounded,
               size: 56,
               color: KinrelColors.textDim,
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'No chats yet',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -434,7 +444,7 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Create or join a family, or start a DM to begin chatting',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -446,8 +456,8 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
             const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: () => context.push('/families/create'),
-              icon: Icon(Icons.add, size: 18),
-              label: Text('Create Family'),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Create Family'),
               style: FilledButton.styleFrom(
                 backgroundColor: KinrelColors.orange,
                 foregroundColor: Colors.white,
@@ -607,7 +617,7 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
                         family.name.isNotEmpty
                             ? family.name[0].toUpperCase()
                             : 'F',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
@@ -620,7 +630,7 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
                         family.name.isNotEmpty
                             ? family.name[0].toUpperCase()
                             : 'F',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
@@ -638,7 +648,7 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
                   family.name.isNotEmpty
                       ? family.name[0].toUpperCase()
                       : 'F',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
@@ -701,7 +711,7 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
               )
             : Text(
                 _isLoading ? 'Loading…' : 'No messages yet',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   color: KinrelColors.textDim,
@@ -833,7 +843,7 @@ class _DmChatRow extends StatelessWidget {
           child: item.otherUserAvatar == null || item.otherUserAvatar!.isEmpty
               ? Text(
                   _initials(item.otherUserName),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 20,
                     fontWeight: FontWeight.w700,

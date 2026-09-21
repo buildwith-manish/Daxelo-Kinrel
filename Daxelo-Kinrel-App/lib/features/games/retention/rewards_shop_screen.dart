@@ -40,8 +40,8 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.canPop() ? context.pop() : context.go('/home'),
         ),
-        title: Text('Rewards Shop',
-            style: TextStyle(
+        title: const Text('Rewards Shop',
+            style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontWeight: FontWeight.w700)),
         backgroundColor: KinrelColors.darkCard,
@@ -67,7 +67,7 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
                     const SizedBox(width: 4),
                     Text(
                       '${balance.balance}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
@@ -85,8 +85,8 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
         loading: () => const Center(
           child: CircularProgressIndicator(color: KinrelColors.orange),
         ),
-        error: (e, _) => Center(
-          child: GamingEmptyCard(
+        error: (e, _) => const Center(
+          child: const GamingEmptyCard(
             emoji: '🔌',
             title: 'Couldn\'t load rewards',
             message: 'Pull down to try again.',
@@ -94,8 +94,8 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
         ),
         data: (rewards) {
           if (rewards.isEmpty) {
-            return Center(
-              child: GamingEmptyCard(
+            return const Center(
+              child: const GamingEmptyCard(
                 emoji: '🪙',
                 title: 'No rewards available yet',
                 message: 'Play games to earn Family Coins, then check back!',
@@ -124,9 +124,10 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
               ref.invalidate(rewardsProvider(widget.familyId));
               ref.invalidate(coinBalanceProvider(widget.familyId));
             },
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-              children: [
+            // v114 — Step 4 perf: build a flat list of rows then use
+            // ListView.builder so reward cards are built lazily.
+            child: Builder(builder: (context) {
+              final rows = <Widget>[
                 // Family treasury summary
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -149,9 +150,9 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            const Text(
                               'Family Treasury',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.displayFont,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
@@ -160,7 +161,7 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
                             ),
                             Text(
                               '${balance.familyTreasury} coins combined',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.monoFont,
                                 fontSize: 12,
                                 color: KinrelColors.amber,
@@ -172,9 +173,9 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text(
+                          const Text(
                             'Your balance',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 10,
                               color: KinrelColors.textDim,
@@ -182,7 +183,7 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
                           ),
                           Text(
                             '🪙 ${balance.balance}',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.monoFont,
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
@@ -195,22 +196,29 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                for (final entry in categories.entries) ...[
-                  GamingSectionHeader(
-                    title: categoryLabels[entry.key] ?? entry.key,
-                    icon: _iconForCategory(entry.key),
-                  ),
-                  for (final reward in entry.value)
-                    _RewardCard(
-                      reward: reward,
-                      balance: balance.balance,
-                      isRedeeming: _redeemingId == reward.id,
-                      onRedeem: () => _handleRedeem(reward),
-                    ),
-                  const SizedBox(height: 12),
-                ],
-              ],
-            ),
+              ];
+              for (final entry in categories.entries) {
+                rows.add(GamingSectionHeader(
+                  title: categoryLabels[entry.key] ?? entry.key,
+                  icon: _iconForCategory(entry.key),
+                ));
+                for (final reward in entry.value) {
+                  rows.add(_RewardCard(
+                    reward: reward,
+                    balance: balance.balance,
+                    isRedeeming: _redeemingId == reward.id,
+                    onRedeem: () => _handleRedeem(reward),
+                  ));
+                }
+                rows.add(const SizedBox(height: 12));
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+                itemCount: rows.length,
+                itemBuilder: (context, index) => rows[index],
+              );
+            }),
           );
         },
       ),
@@ -320,7 +328,7 @@ class _RewardCard extends StatelessWidget {
                   reward.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -332,7 +340,7 @@ class _RewardCard extends StatelessWidget {
                     reward.description,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
                       color: KinrelColors.textDim,
@@ -351,9 +359,9 @@ class _RewardCard extends StatelessWidget {
                 border: Border.all(
                     color: KinrelColors.success.withValues(alpha: 0.4)),
               ),
-              child: Text(
+              child: const Text(
                 'Owned',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
                   fontWeight: FontWeight.w700,

@@ -875,7 +875,7 @@ class _RelationshipQuickPickSheetState
         children: [
           Text(
             'Add ${widget.selectedUser.name} as your...',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 18,
               fontWeight: FontWeight.w700,
@@ -914,7 +914,7 @@ class _RelationshipQuickPickSheetState
                 Flexible(
                   child: Text(
                     '@$username',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 13,
                       color: KinrelColors.orange,
@@ -969,7 +969,7 @@ class _RelationshipQuickPickSheetState
             // Default helper text (shown only when no gender follow-up
             // is active, so the inline prompt doesn't visually compete
             // with the generic helper text).
-            Text(
+            const Text(
               'Tapping a chip immediately adds the relationship. '
               'You can undo it right after.',
               style: TextStyle(
@@ -1009,7 +1009,7 @@ class _RelationshipQuickPickSheetState
           // Prompt title
           Text(
             'Is ${widget.selectedUser.name}...',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 16,
               fontWeight: FontWeight.w700,
@@ -1025,7 +1025,7 @@ class _RelationshipQuickPickSheetState
             '${_prettyLabel(category.fundamentalKey)}. '
             'This is only used for this relationship — it does not '
             'change their profile.',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
               color: KinrelColors.textDim,
@@ -1532,14 +1532,14 @@ class _MoreRelationshipListState extends ConsumerState<_MoreRelationshipList> {
                   controller: _searchController,
                   autofocus: true,
                   onChanged: _filter,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 15,
                     color: KinrelColors.textWhite,
                   ),
                   decoration: InputDecoration(
                     hintText: 'Search relations (uncle, cousin, in-law...)',
-                    hintStyle: TextStyle(
+                    hintStyle: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       color: KinrelColors.textDim,
@@ -1581,7 +1581,7 @@ class _MoreRelationshipListState extends ConsumerState<_MoreRelationshipList> {
                   ? Center(
                       child: Text(
                         'No relations found for "$_query"',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 14,
                           color: KinrelColors.textDim,
@@ -1644,7 +1644,7 @@ class _MoreRelationshipTile extends StatelessWidget {
                   children: [
                     Text(
                       englishTerm,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -1654,7 +1654,7 @@ class _MoreRelationshipTile extends StatelessWidget {
                     if (relationshipKey != englishTerm.toLowerCase())
                       Text(
                         relationshipKey.replaceAll('_', ' '),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 11,
                           color: KinrelColors.textDim,

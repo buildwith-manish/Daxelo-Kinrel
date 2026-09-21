@@ -129,7 +129,7 @@ class _KinrelUserSearchScreenState
           icon: const Icon(Icons.arrow_back, color: KinrelColors.textWhite),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
-        title: Text(
+        title: const Text(
           'Find on Kinrel',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -164,14 +164,14 @@ class _KinrelUserSearchScreenState
         autofocus: true,
         textInputAction: TextInputAction.search,
         onSubmitted: (value) => _performSearch(value),
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 16,
           color: KinrelColors.textWhite,
         ),
         decoration: InputDecoration(
           hintText: 'Search by name or @username',
-          hintStyle: TextStyle(
+          hintStyle: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 15,
             color: KinrelColors.textDim,
@@ -274,7 +274,7 @@ class _KinrelUserSearchScreenState
             const SizedBox(height: 16),
             Text(
               title,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -285,7 +285,7 @@ class _KinrelUserSearchScreenState
             const SizedBox(height: 8),
             Text(
               subtitle,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 color: KinrelColors.textDim,
@@ -361,7 +361,7 @@ class _KinrelUserCard extends StatelessWidget {
                       // Name
                       Text(
                         user.name,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -379,7 +379,7 @@ class _KinrelUserCard extends StatelessWidget {
                             Flexible(
                               child: Text(
                                 '@${user.username}',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: KinrelTypography.monoFont,
                                   fontSize: 13,
                                   color: KinrelColors.orange,
@@ -393,7 +393,7 @@ class _KinrelUserCard extends StatelessWidget {
                             const SizedBox(width: 8),
                           Text(
                             user.displayId,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.monoFont,
                               fontSize: 12,
                               color: KinrelColors.textDim,
@@ -405,7 +405,7 @@ class _KinrelUserCard extends StatelessWidget {
                         const SizedBox(height: 3),
                         Text(
                           user.bio!,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 12,
                             color: KinrelColors.textDim,
@@ -425,13 +425,13 @@ class _KinrelUserCard extends StatelessWidget {
                 //   2. Invitation Pending (amber clock)
                 //   3. Available (orange "Add")
                 if (isAlreadyAdded)
-                  _StatusBadge(
+                  const _StatusBadge(
                     icon: Icons.check_circle,
                     label: 'Already Added',
                     color: KinrelColors.textDim,
                   )
                 else if (isPendingInvite)
-                  _StatusBadge(
+                  const _StatusBadge(
                     icon: Icons.schedule,
                     label: 'Invitation Pending',
                     color: KinrelColors.amber,
@@ -444,7 +444,7 @@ class _KinrelUserCard extends StatelessWidget {
                       color: KinrelColors.orange,
                       borderRadius: BorderRadius.circular(KinrelRadius.md),
                     ),
-                    child: Text(
+                    child: const Text(
                       'Add',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -492,7 +492,7 @@ class _KinrelUserCard extends StatelessWidget {
     return Center(
       child: Text(
         user.initials,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.displayFont,
           fontSize: 18,
           fontWeight: FontWeight.w700,

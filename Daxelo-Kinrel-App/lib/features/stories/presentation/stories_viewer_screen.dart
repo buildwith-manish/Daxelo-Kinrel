@@ -203,7 +203,7 @@ class _StoriesViewerScreenState extends ConsumerState<StoriesViewerScreen>
 
   List<Color> _parseGradientColors(List<String>? hexColors) {
     if (hexColors == null || hexColors.isEmpty) {
-      return [Color(0xFF131416), _cOrange];
+      return [const Color(0xFF131416), _cOrange];
     }
     return hexColors.map((hex) {
       final code = hex.replaceAll('#', '');
@@ -307,7 +307,7 @@ class _StoriesViewerScreenState extends ConsumerState<StoriesViewerScreen>
           child: Text(
             story.caption ?? '',
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 24,
               fontWeight: FontWeight.w700,
@@ -442,7 +442,7 @@ class _StoriesViewerScreenState extends ConsumerState<StoriesViewerScreen>
             children: [
               Text(
                 group.userName,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -451,7 +451,7 @@ class _StoriesViewerScreenState extends ConsumerState<StoriesViewerScreen>
               ),
               Text(
                 story.timeAgo,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
                   color: _cTextSecondary,
@@ -547,14 +547,14 @@ class _StoriesViewerScreenState extends ConsumerState<StoriesViewerScreen>
                 ),
                 child: TextField(
                   controller: _replyController,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     color: _cTextPrimary,
                   ),
                   decoration: InputDecoration(
                     hintText: 'Reply to ${group.userName}...',
-                    hintStyle: TextStyle(
+                    hintStyle: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       color: Colors.white54,
@@ -576,7 +576,7 @@ class _StoriesViewerScreenState extends ConsumerState<StoriesViewerScreen>
               child: Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: KinrelGradients.igniteGradient,
                 ),
@@ -604,8 +604,8 @@ class _StoriesViewerScreenState extends ConsumerState<StoriesViewerScreen>
     final myUserId = client?.auth.currentUser?.id;
     if (myUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please sign in to reply'),
+        const SnackBar(
+          content: const Text('Please sign in to reply'),
           backgroundColor: _cCard,
           behavior: SnackBarBehavior.floating,
         ),

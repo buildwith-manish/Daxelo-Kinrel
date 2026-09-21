@@ -37,8 +37,8 @@ class GamingActivityFeedScreen extends ConsumerWidget {
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.canPop() ? context.pop() : context.go('/home')),
-        title: Text('Family Moments',
-            style: TextStyle(
+        title: const Text('Family Moments',
+            style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontWeight: FontWeight.w700)),
         backgroundColor: KinrelColors.darkCard,
@@ -48,41 +48,46 @@ class GamingActivityFeedScreen extends ConsumerWidget {
       body: momentsAsync.when(
         loading: () => const Center(
             child: CircularProgressIndicator(color: KinrelColors.orange)),
-        error: (e, _) => Center(
-          child: GamingEmptyCard(
+        error: (e, _) => const Center(
+          child: const GamingEmptyCard(
             emoji: '🔌',
             title: 'Couldn\'t load the activity feed',
             message: 'Pull down to try again.',
           ),
         ),
-        data: (moments) => RefreshIndicator(
-          color: KinrelColors.orange,
-          backgroundColor: KinrelColors.darkCard,
-          onRefresh: () async {
-            ref.invalidate(familyMomentsProvider(familyId));
-            await ref.read(familyMomentsProvider(familyId).future);
-          },
-          child: moments.isEmpty
-              ? ListView(children: const [
-                  SizedBox(height: 80),
-                  GamingEmptyCard(
-                    emoji: '✨',
-                    title: 'No family moments yet',
-                    message:
-                        'Wins, badges, milestones and cheers from your family\'s '
-                        'games will appear here.',
+        data: (moments) {
+          // v114 — Step 4 perf: precompute the date-grouped list once
+          // per build, then use ListView.builder so date-group widgets
+          // are built lazily as they scroll into view.
+          final groups = groupMomentsByDate(moments);
+          return RefreshIndicator(
+            color: KinrelColors.orange,
+            backgroundColor: KinrelColors.darkCard,
+            onRefresh: () async {
+              ref.invalidate(familyMomentsProvider(familyId));
+              await ref.read(familyMomentsProvider(familyId).future);
+            },
+            child: moments.isEmpty
+                ? ListView(children: const [
+                    SizedBox(height: 80),
+                    GamingEmptyCard(
+                      emoji: '✨',
+                      title: 'No family moments yet',
+                      message:
+                          'Wins, badges, milestones and cheers from your family\'s '
+                          'games will appear here.',
+                    ),
+                  ])
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+                    itemCount: groups.length,
+                    itemBuilder: (context, index) => MomentDateGroupWidget(
+                      group: groups[index],
+                      familyId: familyId,
+                    ),
                   ),
-                ])
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-                  children: [
-                    // Group by date so the header (Today / Yesterday / Sep 15)
-                    // renders once per group, not per-entry.
-                    for (final g in groupMomentsByDate(moments))
-                      MomentDateGroupWidget(group: g, familyId: familyId),
-                  ],
-                ),
-        ),
+          );
+        },
       ),
     );
   }

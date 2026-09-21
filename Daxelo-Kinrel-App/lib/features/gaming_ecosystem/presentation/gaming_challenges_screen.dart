@@ -37,8 +37,8 @@ class GamingChallengesScreen extends ConsumerWidget {
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.canPop() ? context.pop() : context.go('/home')),
-        title: Text('Challenges',
-            style: TextStyle(
+        title: const Text('Challenges',
+            style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontWeight: FontWeight.w700)),
         backgroundColor: KinrelColors.darkCard,
@@ -48,31 +48,36 @@ class GamingChallengesScreen extends ConsumerWidget {
       body: challengesAsync.when(
         loading: () => const Center(
             child: CircularProgressIndicator(color: KinrelColors.orange)),
-        error: (e, _) => Center(
-          child: GamingEmptyCard(
+        error: (e, _) => const Center(
+          child: const GamingEmptyCard(
             emoji: '🔌',
             title: 'Couldn\'t load challenges',
             message: 'Pull down to try again.',
           ),
         ),
-        data: (challenges) => RefreshIndicator(
-          color: KinrelColors.orange,
-          backgroundColor: KinrelColors.darkCard,
-          onRefresh: () async {
-            ref.invalidate(gamingChallengesProvider(familyId));
-            await ref.read(gamingChallengesProvider(familyId).future);
-          },
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-            children: [
-              _IntroCard(challenges: challenges),
-              const SizedBox(height: 16),
-              ..._grouped(challenges, 'weekly'),
-              const SizedBox(height: 8),
-              ..._grouped(challenges, 'monthly'),
-            ],
-          ),
-        ),
+        data: (challenges) {
+          // v114 — Step 4 perf: build a flat list of rows then use
+          // ListView.builder so challenge cards are built lazily.
+          final rows = <Widget>[];
+          rows.add(_IntroCard(challenges: challenges));
+          rows.add(const SizedBox(height: 16));
+          rows.addAll(_grouped(challenges, 'weekly'));
+          rows.add(const SizedBox(height: 8));
+          rows.addAll(_grouped(challenges, 'monthly'));
+          return RefreshIndicator(
+            color: KinrelColors.orange,
+            backgroundColor: KinrelColors.darkCard,
+            onRefresh: () async {
+              ref.invalidate(gamingChallengesProvider(familyId));
+              await ref.read(gamingChallengesProvider(familyId).future);
+            },
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+              itemCount: rows.length,
+              itemBuilder: (context, index) => rows[index],
+            ),
+          );
+        },
       ),
     );
   }
@@ -129,7 +134,7 @@ class _IntroCard extends StatelessWidget {
               children: [
                 Text(
                   '$completed of ${challenges.length} complete',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -141,7 +146,7 @@ class _IntroCard extends StatelessWidget {
                   totalPoints > 0
                       ? 'You\'ve earned $totalPoints bonus points playing together'
                       : 'Finish games as a family to complete challenges and earn bonus points',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     height: 1.35,
@@ -194,7 +199,7 @@ class _ChallengeCard extends StatelessWidget {
                         color: KinrelColors.brightGold, size: 24)
                     : Text(
                         '${challenge.progress}/${challenge.target}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -227,7 +232,7 @@ class _ChallengeCard extends StatelessWidget {
                             challenge.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -245,7 +250,7 @@ class _ChallengeCard extends StatelessWidget {
                             ),
                             child: Text(
                               '+${challenge.rewardPoints} pts',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.monoFont,
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
@@ -258,7 +263,7 @@ class _ChallengeCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       challenge.description,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
                         height: 1.35,

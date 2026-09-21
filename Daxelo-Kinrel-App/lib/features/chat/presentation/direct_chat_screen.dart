@@ -122,8 +122,8 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
+            const Padding(
+              padding: EdgeInsets.all(16),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -138,11 +138,11 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
               ),
             ),
             ListTile(
-              leading: Icon(
+              leading: const Icon(
                 Icons.photo_library_rounded,
                 color: KinrelColors.orange,
               ),
-              title: Text(
+              title: const Text(
                 'Choose from Gallery',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -169,11 +169,11 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
             ),
             if (currentPath != null)
               ListTile(
-                leading: Icon(
+                leading: const Icon(
                   Icons.delete_outline_rounded,
                   color: Colors.redAccent,
                 ),
-                title: Text(
+                title: const Text(
                   'Remove Wallpaper',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -196,11 +196,11 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                 },
               ),
             ListTile(
-              leading: Icon(
+              leading: const Icon(
                 Icons.photo_library_outlined,
                 color: KinrelColors.textSilver,
               ),
-              title: Text(
+              title: const Text(
                 'Set as Default Wallpaper',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -249,7 +249,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
           padding: const EdgeInsets.all(24),
           child: Text(
             chatState.error!,
-            style: TextStyle(color: KinrelColors.textDim, fontSize: 14),
+            style: const TextStyle(color: KinrelColors.textDim, fontSize: 14),
             textAlign: TextAlign.center,
           ),
         ),
@@ -326,7 +326,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                               errorWidget: (_, __, ___) => Center(
                                 child: Text(
                                   peer.initials,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
                                     color: KinrelColors.orange,
@@ -338,7 +338,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                         : Center(
                             child: Text(
                               peer?.initials ?? '?',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
                                 color: KinrelColors.orange,
@@ -355,7 +355,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                       children: [
                         Text(
                           peer?.name ?? 'Loading…',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.displayFont,
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
@@ -364,7 +364,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        Text(
+                        const Text(
                           'Private chat',
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
@@ -383,7 +383,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
         // v114: Wallpaper menu for DM — uses chatId 'dm_<otherUserId>'.
         actions: [
           PopupMenuButton<String>(
-            icon: Icon(Icons.more_vert,
+            icon: const Icon(Icons.more_vert,
                 color: KinrelColors.textSilver, size: 22),
             color: KinrelColors.darkCard,
             onSelected: (value) {
@@ -416,7 +416,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
               color: KinrelColors.error.withValues(alpha: 0.1),
               child: Text(
                 chatState.error!,
-                style: TextStyle(color: KinrelColors.error, fontSize: 12),
+                style: const TextStyle(color: KinrelColors.error, fontSize: 12),
               ),
             ),
           _buildInputBar(),
@@ -432,7 +432,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.lock_outline,
               size: 40,
               color: KinrelColors.textDim,
@@ -440,7 +440,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
             const SizedBox(height: 12),
             Text(
               'This is a private chat with $peerName',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 color: KinrelColors.textDim,
@@ -484,7 +484,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                   focusNode: _focusNode,
                   maxLines: null,
                   textInputAction: TextInputAction.newline,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 15,
                     color: KinrelColors.textWhite,
@@ -492,7 +492,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                   ),
                   decoration: InputDecoration(
                     hintText: 'Message…',
-                    hintStyle: TextStyle(
+                    hintStyle: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 15,
                       color: KinrelColors.textDim,
@@ -597,8 +597,8 @@ class _DirectMessageBubble extends StatelessWidget {
               ? const Color(0xFFE8612A).withValues(alpha: 0.08)
               : const Color(0xFF191B2C),
           borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(KinrelRadius.lg),
-            topRight: Radius.circular(KinrelRadius.lg),
+            topLeft: const Radius.circular(KinrelRadius.lg),
+            topRight: const Radius.circular(KinrelRadius.lg),
             bottomLeft: Radius.circular(isMe ? KinrelRadius.lg : 4),
             bottomRight: Radius.circular(isMe ? 4 : KinrelRadius.lg),
           ),
@@ -615,7 +615,7 @@ class _DirectMessageBubble extends StatelessWidget {
           children: [
             Text(
               message.content,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14.5,
                 color: KinrelColors.textWhite,
@@ -628,7 +628,7 @@ class _DirectMessageBubble extends StatelessWidget {
               children: [
                 Text(
                   message.formattedTime,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 10,
                     color: KinrelColors.textDim,
@@ -702,7 +702,7 @@ class _DirectMessageBubble extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Thinking of You',
                     style: TextStyle(
                       fontFamily: KinrelTypography.monoFont,
@@ -723,7 +723,7 @@ class _DirectMessageBubble extends StatelessWidget {
                     // third-person verb phrases. See migration
                     // 20260906150000_fix_thinking_of_you_grammar_and_per_receiver_cooldown.sql.
                     message.content,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
                       color: KinrelColors.textWhite,
@@ -733,7 +733,7 @@ class _DirectMessageBubble extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     message.formattedTime,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 10,
                       color: KinrelColors.textDim,
@@ -817,7 +817,7 @@ class _DirectMessageBubble extends StatelessWidget {
                     children: [
                       Text(
                         '$displayName invitation',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -829,7 +829,7 @@ class _DirectMessageBubble extends StatelessWidget {
                         'From $fromName'
                         '${roomCode.isNotEmpty ? ' · Room $roomCode' : ''}'
                         '${maxPlayers > 0 ? ' · $currentPlayers/$maxPlayers players' : ''}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 10,
                           color: KinrelColors.textDim,
@@ -844,7 +844,7 @@ class _DirectMessageBubble extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 inviteMessage,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12.5,
                   color: KinrelColors.textWhite,
@@ -891,7 +891,7 @@ class _DirectMessageBubble extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               message.formattedTime,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 9,
                 color: KinrelColors.textDim,

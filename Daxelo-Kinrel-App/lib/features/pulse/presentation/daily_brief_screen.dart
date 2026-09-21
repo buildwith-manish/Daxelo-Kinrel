@@ -101,36 +101,45 @@ class _BriefContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // v114 — Step 4 perf: build a flat list of rows then use
+    // ListView.builder so brief-item cards (the dynamic part) are
+    // built lazily as they scroll into view.
+    final rows = <Widget>[
+      // ── Greeting header ────────────────────────────────────────────
+      _GreetingHeader(brief: brief),
+
+      const SizedBox(height: 24),
+
+      // ── Summary + karma strip ──────────────────────────────────────
+      if (brief.summary != null || brief.karmaEarned > 0)
+        _SummaryStrip(brief: brief),
+
+      const SizedBox(height: 16),
+    ];
+
+    // ── Brief items (dynamic part) ──────────────────────────────────
+    if (brief.items.isEmpty) {
+      rows.add(_NoItemsState());
+    } else {
+      for (final item in brief.items) {
+        rows.add(_BriefItemCard(item: item));
+      }
+    }
+
+    rows.add(const SizedBox(height: 32));
+
+    // ── Footer: engagement stats ───────────────────────────────────
+    rows.add(_EngagementFooter(brief: brief));
+
     return RefreshIndicator(
       color: KinrelColors.orange,
       onRefresh: () async {
         ref.invalidate(todayBriefProvider);
       },
-      child: ListView(
+      child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-        children: [
-          // ── Greeting header ────────────────────────────────────────────
-          _GreetingHeader(brief: brief),
-
-          const SizedBox(height: 24),
-
-          // ── Summary + karma strip ──────────────────────────────────────
-          if (brief.summary != null || brief.karmaEarned > 0)
-            _SummaryStrip(brief: brief),
-
-          const SizedBox(height: 16),
-
-          // ── Brief items ────────────────────────────────────────────────
-          if (brief.items.isEmpty)
-            _NoItemsState()
-          else
-            ...brief.items.map((item) => _BriefItemCard(item: item)),
-
-          const SizedBox(height: 32),
-
-          // ── Footer: engagement stats ───────────────────────────────────
-          _EngagementFooter(brief: brief),
-        ],
+        itemCount: rows.length,
+        itemBuilder: (context, index) => rows[index],
       ),
     );
   }
@@ -196,7 +205,7 @@ class _GreetingHeader extends StatelessWidget {
               ),
               child: Text(
                 '${_archetypeEmoji(brief.familyArchetype)} ${brief.familyArchetype} family',
-                style: TextStyle(
+                style: const TextStyle(
                   color: KinrelColors.amber,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
@@ -341,7 +350,7 @@ class _BriefItemCard extends ConsumerWidget {
                 ),
               ),
               if (isInteracted)
-                Icon(Icons.check_circle, color: KinrelColors.success, size: 18),
+                const Icon(Icons.check_circle, color: KinrelColors.success, size: 18),
             ],
           ),
 
@@ -468,10 +477,10 @@ class _ActionButton extends ConsumerWidget {
           // For now, just show a snackbar — the actual dialer launch would
           // use url_launcher with 'tel:${phone}'
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Calling... (interaction recorded, +karma earned)'),
+            const SnackBar(
+              content: const Text('Calling... (interaction recorded, +karma earned)'),
               backgroundColor: KinrelColors.success,
-              duration: const Duration(seconds: 2),
+              duration: Duration(seconds: 2),
             ),
           );
           break;

@@ -707,9 +707,9 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(KinrelRadius.lg),
         ),
-        title: Text(
+        title: const Text(
           'Invite entire family space?',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 16,
             fontWeight: FontWeight.w700,
@@ -719,7 +719,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
         content: Text(
           'Invite all ${eligible.length} linked family member'
           '${eligible.length == 1 ? '' : 's'} to ${widget.gameType.displayName}?$spotsNote',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             color: KinrelColors.textWhite,
@@ -729,9 +729,9 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(
+            child: const Text(
               'Cancel',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 color: KinrelColors.textDim,
               ),
@@ -747,7 +747,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 child: Text(
                   'Invite all ${eligible.length}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -788,7 +788,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
               Expanded(
                 child: Text(
                   'Room is full (${widget.currentPlayers}/${widget.maxPlayers}) — invites disabled.',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     color: KinrelColors.error,
@@ -856,7 +856,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                 crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(
                 'Invite Family to ${widget.gameType.displayName}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -866,7 +866,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
               const SizedBox(height: 2),
               Text(
                 'Room ${widget.roomCode} · ${widget.currentPlayers}/${widget.maxPlayers} players',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
                   color: KinrelColors.textDim,
@@ -985,9 +985,9 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
               const Icon(Icons.error_outline,
                   color: KinrelColors.error, size: 48),
               const SizedBox(height: KinrelSpacing.md),
-              Text(
+              const Text(
                 'Couldn\'t load family members',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -998,7 +998,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
               Text(
                 memberState.error!,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim,
@@ -1072,7 +1072,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
             const SizedBox(height: KinrelSpacing.lg),
             Text(
               title,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -1084,7 +1084,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
             Text(
               subtitle,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textDim,
@@ -1158,9 +1158,9 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                         padding:
                             const EdgeInsets.only(bottom: KinrelSpacing.sm),
                         child: Row(children: [
-                          Text(
+                          const Text(
                             'FAMILY MEMBERS',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.monoFont,
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
@@ -1171,7 +1171,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                           const SizedBox(width: 6),
                           Text(
                             '${members.length}',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.monoFont,
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
@@ -1190,7 +1190,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                           const SizedBox(width: 4),
                           Text(
                             '${memberState.onlineCount} online',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.monoFont,
                               fontSize: 10,
                               color: KinrelColors.textDim,
@@ -1211,13 +1211,13 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                         currentPlayerIds: widget.currentPlayerIds,
                       ),
                     if (_selectedUserIds.isEmpty && query.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: KinrelSpacing.sm),
-                        child: Row(
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: KinrelSpacing.sm),
+                        child: const Row(
                           children: [
-                            Text(
+                            const Text(
                               'Tap Invite for one, or long-press a row to multi-select.',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 10,
                                 color: KinrelColors.textDim,
@@ -1233,7 +1233,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                         child: Text(
                           'Only $_remainingSlots spot${_remainingSlots == 1 ? '' : 's'} '
                           'open — unselect someone to add more.',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 10,
                             color: KinrelColors.orange,
@@ -1265,14 +1265,14 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
           KinrelSpacing.lg, KinrelSpacing.sm, KinrelSpacing.lg, 0),
       child: TextField(
         onChanged: (v) => setState(() => _searchQuery = v),
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 14,
           color: KinrelColors.textWhite,
         ),
         decoration: InputDecoration(
           hintText: 'Search by name, username, or email…',
-          hintStyle: TextStyle(
+          hintStyle: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             color: KinrelColors.textDim,
@@ -1303,18 +1303,18 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
   }
 
   Widget _buildNoSearchResults() {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(KinrelSpacing.xl),
+        padding: EdgeInsets.all(KinrelSpacing.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.search_off,
+            Icon(Icons.search_off,
                 color: KinrelColors.textDim, size: 40),
-            const SizedBox(height: KinrelSpacing.md),
-            Text(
+            SizedBox(height: KinrelSpacing.md),
+            const Text(
               'No matching Kinrel users found.',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 color: KinrelColors.textDim,
@@ -1442,7 +1442,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                       m.user.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -1486,7 +1486,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                         '@${m.user.username}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 12,
                           color: KinrelColors.orange,
@@ -1520,7 +1520,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                       m.user.bio!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
                         color: KinrelColors.textDim,
@@ -1570,9 +1570,9 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
           children: [
             TextButton(
               onPressed: () => setState(() => _selectedUserIds.clear()),
-              child: Text(
+              child: const Text(
                 'Cancel',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   color: KinrelColors.textDim,
                 ),
@@ -1632,7 +1632,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
               const SizedBox(height: KinrelSpacing.md),
               Text(
                 'Invite all ${eligible.length} linked member${eligible.length == 1 ? '' : 's'}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -1641,11 +1641,11 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 4),
-              Text(
+              const Text(
                 'Sends a real-time invite to every family member with a '
                 'Kinrel account in this space simultaneously.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim,
@@ -1671,7 +1671,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                         child: Text(
                           'Only $_remainingSlots spot${_remainingSlots == 1 ? '' : 's'} '
                           'available — invites are first-come, first-served.',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 11,
                             color: KinrelColors.orange,
@@ -1752,11 +1752,11 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
         // Per-member status (if any invites already sent)
         if (inviteStatus.isNotEmpty) ...[
           const SizedBox(height: KinrelSpacing.lg),
-          Align(
+          const Align(
             alignment: Alignment.centerLeft,
-            child: Text(
+            child: const Text(
               'INVITE STATUS',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
@@ -1772,7 +1772,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                   Expanded(
                     child: Text(
                       r.name,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
                         color: KinrelColors.textWhite,
@@ -1795,7 +1795,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
           Expanded(
             child: Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textDim,
@@ -1880,7 +1880,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
       child: Center(
         child: Text(
           user.initials,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 16,
             fontWeight: FontWeight.w700,

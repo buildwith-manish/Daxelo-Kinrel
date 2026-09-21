@@ -214,11 +214,11 @@ class _TimeCapsuleCreateSheetState extends State<_TimeCapsuleCreateSheet> {
             ),
           ),
           const SizedBox(height: 20),
-          Text('Seal a Time Capsule',
+          const Text('Seal a Time Capsule',
             style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
-          Text('Write a message to the future. It locks until the reveal date.',
+          const Text('Write a message to the future. It locks until the reveal date.',
             style: TextStyle(color: Colors.white54, fontSize: 13),
           ),
           const SizedBox(height: 20),
@@ -228,7 +228,7 @@ class _TimeCapsuleCreateSheetState extends State<_TimeCapsuleCreateSheet> {
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
               hintText: 'Dear future family...',
-              hintStyle: TextStyle(color: Colors.white38),
+              hintStyle: const TextStyle(color: Colors.white38),
               filled: true,
               fillColor: KinrelColors.darkElevated,
               border: OutlineInputBorder(
@@ -257,7 +257,7 @@ class _TimeCapsuleCreateSheetState extends State<_TimeCapsuleCreateSheet> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.calendar_today, color: KinrelColors.tealAccent, size: 20),
+                  const Icon(Icons.calendar_today, color: KinrelColors.tealAccent, size: 20),
                   const SizedBox(width: 12),
                   Text(
                     _revealDate == null
@@ -347,7 +347,7 @@ class _CapsuleCard extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.lock_clock, color: KinrelColors.tealAccent, size: 18),
+                  const Icon(Icons.lock_clock, color: KinrelColors.tealAccent, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(

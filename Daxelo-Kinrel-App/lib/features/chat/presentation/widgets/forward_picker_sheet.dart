@@ -121,7 +121,7 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
               child: Row(
                 children: [
-                  Text(
+                  const Text(
                     'Forward to…',
                     style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
@@ -160,20 +160,31 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
                   if (targetFamilies.isEmpty && dmItems.isEmpty) {
                     return _buildEmptyState();
                   }
-                  return ListView(
+                  // v114 — Step 4 perf: build a flat list of rows then
+                  // use ListView.builder so family/DM rows are built
+                  // lazily. Section headers stay as direct children of
+                  // the flat list (small, fixed count).
+                  final rows = <Widget>[];
+                  if (targetFamilies.isNotEmpty) {
+                    rows.add(_sectionHeader('Family chats'));
+                    for (final f in targetFamilies) {
+                      rows.add(_familyRow(f));
+                    }
+                  }
+                  // Preserve original behavior: the "Direct messages"
+                  // section header is shown whenever any DM exists
+                  // (archived or not), but only non-archived DMs render
+                  // as rows.
+                  if (dmItems.isNotEmpty) {
+                    rows.add(_sectionHeader('Direct messages'));
+                    for (final d in dmItems.where((d) => !d.isArchived)) {
+                      rows.add(_dmRow(d));
+                    }
+                  }
+                  return ListView.builder(
                     padding: const EdgeInsets.only(bottom: 80),
-                    children: [
-                      if (targetFamilies.isNotEmpty) ...[
-                        _sectionHeader('Family chats'),
-                        ...targetFamilies.map((f) => _familyRow(f)),
-                      ],
-                      if (dmItems.isNotEmpty) ...[
-                        _sectionHeader('Direct messages'),
-                        ...dmItems
-                            .where((d) => !d.isArchived)
-                            .map((d) => _dmRow(d)),
-                      ],
-                    ],
+                    itemCount: rows.length,
+                    itemBuilder: (context, index) => rows[index],
                   );
                 },
                 loading: () => const Center(
@@ -185,7 +196,7 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
                     padding: const EdgeInsets.all(24),
                     child: Text(
                       'Could not load chats: $e',
-                      style: TextStyle(color: KinrelColors.error),
+                      style: const TextStyle(color: KinrelColors.error),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -235,7 +246,7 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
                         _isSending
                             ? 'Forwarding…'
                             : 'Forward to $_totalSelected ${_totalSelected == 1 ? 'chat' : 'chats'}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
@@ -257,7 +268,7 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
       child: Text(
         label.toUpperCase(),
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.monoFont,
           fontSize: 10,
           fontWeight: FontWeight.w600,
@@ -269,15 +280,15 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.forward_to_inbox_outlined,
                 size: 48, color: KinrelColors.textDim),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Text(
               'No other chats to forward to',
               style: TextStyle(
@@ -286,7 +297,7 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
                 fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(
               'Join or create another family, or start a DM.',
               style: TextStyle(color: KinrelColors.textDim, fontSize: 13),
@@ -315,7 +326,7 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
               backgroundColor: KinrelColors.ember.withValues(alpha: 0.15),
               child: Text(
                 (f.name.isNotEmpty ? f.name[0] : '?').toUpperCase(),
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: KinrelColors.ember,
@@ -332,7 +343,7 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
                     f.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -341,7 +352,7 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
                   ),
                   Text(
                     '${f.memberCount} ${f.memberCount == 1 ? 'member' : 'members'}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11.5,
                       color: KinrelColors.textDim,
@@ -379,7 +390,7 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
                               ? d.otherUserName[0]
                               : '?')
                           .toUpperCase(),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: KinrelColors.orange,
@@ -393,7 +404,7 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
                 d.otherUserName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,

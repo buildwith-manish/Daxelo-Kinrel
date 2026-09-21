@@ -136,7 +136,7 @@ class GroupInfoScreen extends ConsumerWidget {
       backgroundColor: const Color(0xFF0A0B16),
       appBar: AppBar(
         backgroundColor: const Color(0xFF11132A),
-        title: Text(
+        title: const Text(
           'Group Info',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -151,7 +151,7 @@ class GroupInfoScreen extends ConsumerWidget {
         loading: () => const Center(
           child: CircularProgressIndicator(color: KinrelColors.ember, strokeWidth: 1.5),
         ),
-        error: (_, __) => Center(
+        error: (_, __) => const Center(
           child: Text(
             'Failed to load group info',
             style: TextStyle(color: KinrelColors.textSilver, fontSize: 14),
@@ -159,7 +159,7 @@ class GroupInfoScreen extends ConsumerWidget {
         ),
         data: (info) {
           if (info == null) {
-            return Center(
+            return const Center(
               child: Text(
                 'Group not found',
                 style: TextStyle(color: KinrelColors.textSilver, fontSize: 14),
@@ -175,87 +175,94 @@ class GroupInfoScreen extends ConsumerWidget {
   }
 
   Widget _buildBody(BuildContext context, GroupInfo info, ChatEngagementState eng) {
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      children: [
-        // ── Family avatar + name ──────────────────────────────────────
-        Center(
-          child: Column(
-            children: [
-              Container(
-                width: 96,
-                height: 96,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: KinrelGradients.igniteGradient,
-                  boxShadow: [
-                    BoxShadow(
-                      color: KinrelColors.ember.withValues(alpha: 0.25),
-                      blurRadius: 20,
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    info.familyName.isNotEmpty
-                        ? info.familyName[0].toUpperCase()
-                        : '?',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.displayFont,
-                      fontSize: 36,
-                      fontWeight: FontWeight.w700,
-                      color: KinrelColors.textWhite,
-                    ),
+    // v114 — Step 4 perf: build a flat list of children then use
+    // ListView.builder so participant tiles (the dynamic part of the
+    // list) are built lazily as they become visible.
+    final rows = <Widget>[
+      // ── Family avatar + name ──────────────────────────────────────
+      Center(
+        child: Column(
+          children: [
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: KinrelGradients.igniteGradient,
+                boxShadow: [
+                  BoxShadow(
+                    color: KinrelColors.ember.withValues(alpha: 0.25),
+                    blurRadius: 20,
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  info.familyName.isNotEmpty
+                      ? info.familyName[0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 36,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                info.familyName,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${info.memberCount} member${info.memberCount != 1 ? 's' : ''}',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 13,
-                  color: KinrelColors.textSilver,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-
-        // ── Participants section header ───────────────────────────────
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'PARTICIPANTS (${info.participants.length})',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: KinrelColors.textSilver.withValues(alpha: 0.6),
-              letterSpacing: 1.0,
             ),
+            const SizedBox(height: 12),
+            Text(
+              info.familyName,
+              style: const TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.textWhite,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${info.memberCount} member${info.memberCount != 1 ? 's' : ''}',
+              style: const TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 13,
+                color: KinrelColors.textSilver,
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 24),
+
+      // ── Participants section header ───────────────────────────────
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Text(
+          'PARTICIPANTS (${info.participants.length})',
+          style: TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: KinrelColors.textSilver.withValues(alpha: 0.6),
+            letterSpacing: 1.0,
           ),
         ),
-        const SizedBox(height: 8),
+      ),
+      const SizedBox(height: 8),
+    ];
 
-        // ── Participant list ──────────────────────────────────────────
-        for (final p in info.participants)
-          _ParticipantTile(
-            participant: p,
-            livePresence: eng.presence[p.userId],
-          ),
-      ],
+    // ── Participant list (dynamic part) ──────────────────────────────
+    for (final p in info.participants) {
+      rows.add(_ParticipantTile(
+        participant: p,
+        livePresence: eng.presence[p.userId],
+      ));
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      itemCount: rows.length,
+      itemBuilder: (context, index) => rows[index],
     );
   }
 }
@@ -281,7 +288,7 @@ class _ParticipantTile extends StatelessWidget {
               participant.name.isNotEmpty
                   ? participant.name[0].toUpperCase()
                   : '?',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -309,7 +316,7 @@ class _ParticipantTile extends StatelessWidget {
         children: [
           Text(
             participant.name,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -324,7 +331,7 @@ class _ParticipantTile extends StatelessWidget {
                 color: KinrelColors.ember.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
+              child: const Text(
                 'admin',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,

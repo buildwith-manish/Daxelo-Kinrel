@@ -336,13 +336,13 @@ class _NumericGuessPredictionCardState
   }
 
   BoxDecoration _cardBaseGradient(Color accent) {
-    return BoxDecoration(
+    return const BoxDecoration(
       gradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          const Color(0xFF241208),
-          const Color(0xFF1A0E05),
+          Color(0xFF241208),
+          Color(0xFF1A0E05),
           KinrelColors.darkCard,
         ],
       ),
@@ -526,7 +526,7 @@ class _QuestionText extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: TextStyle(
+      style: const TextStyle(
         fontFamily: KinrelTypography.displayFont,
         fontSize: 19,
         fontWeight: FontWeight.w700,
@@ -761,7 +761,7 @@ class _DirectEntryField extends StatelessWidget {
           FilteringTextInputFormatter.digitsOnly,
           LengthLimitingTextInputFormatter(5),
         ],
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.displayFont,
           fontSize: 48,
           fontWeight: FontWeight.w800,
@@ -808,7 +808,7 @@ class _AverageGuessLine extends StatelessWidget {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 12,
           fontWeight: FontWeight.w500,
@@ -862,9 +862,9 @@ class _PredictorAvatarRow extends StatelessWidget {
           ),
         ),
         if (shown.isEmpty)
-          Text(
+          const Text(
             'Be the first to predict',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -880,7 +880,7 @@ class _PredictorAvatarRow extends StatelessWidget {
                     ? '${shown.length}+ predicted · $remaining more to go'
                     : '${shown.length} predicted'
                         '${totalFamilyMembers > shown.length ? ' · all in!' : ''}',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -1068,18 +1068,18 @@ class _SubmitButton extends StatelessWidget {
               ),
             ],
           ),
-          child: Row(
+          child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
+              Icon(
                 Icons.lock_outline_rounded,
                 size: 16,
                 color: Colors.white,
               ),
-              const SizedBox(width: KinrelSpacing.sm),
-              Text(
+              SizedBox(width: KinrelSpacing.sm),
+              const Text(
                 'Lock in my prediction',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
@@ -1164,10 +1164,10 @@ class _CelebratoryBody extends StatelessWidget {
           ],
         ),
         const SizedBox(height: KinrelSpacing.md),
-        Text(
+        const Text(
           'You guessed',
           textAlign: TextAlign.center,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: FontWeight.w500,
@@ -1299,13 +1299,13 @@ class _NumericGuessPredictionPreviewScreenState
   bool _showSubmitted = false;
 
   // Mock view-models — match the shape the live provider will produce.
-  static final _activeVm = NumericGuessPredictionViewModel(
+  static final _activeVm = const NumericGuessPredictionViewModel(
     questionText: 'How many colors are in a rainbow?',
     category: 'science',
     countdownLabel: 'Closes in 11h 23m',
     literalTimeLabel: 'Sep 20 · 9:00 AM  →  Sep 21 · 9:00 AM',
     averageGuessLabel: 'Family average so far · 47',
-    predictors: const [
+    predictors: [
       NumericGuessPredictor(userId: 'u1', displayName: 'Manish'),
       NumericGuessPredictor(userId: 'u2', displayName: 'Riya'),
       NumericGuessPredictor(userId: 'u3', displayName: 'Yakshitha'),
@@ -1318,13 +1318,13 @@ class _NumericGuessPredictionPreviewScreenState
     step: 1,
   );
 
-  static final _submittedVm = NumericGuessPredictionViewModel(
+  static final _submittedVm = const NumericGuessPredictionViewModel(
     questionText: 'How many floors are in Burj Khalifa?',
     category: 'geography',
     countdownLabel: 'Reveals in 4h 12m',
     literalTimeLabel: 'Sep 20 · 1:00 PM  →  Sep 20 · 9:00 PM',
     averageGuessLabel: '',
-    predictors: const [
+    predictors: [
       NumericGuessPredictor(userId: 'u1', displayName: 'Manish'),
       NumericGuessPredictor(userId: 'u2', displayName: 'Riya'),
       NumericGuessPredictor(userId: 'u3', displayName: 'Yakshitha'),
@@ -1400,16 +1400,16 @@ class _NumericGuessPredictionPreviewScreenState
             },
           ),
           const SizedBox(height: KinrelSpacing.xxl),
-          Padding(
-            padding: const EdgeInsets.symmetric(
+          const Padding(
+            padding: EdgeInsets.symmetric(
               horizontal: KinrelSpacing.base + KinrelSpacing.sm,
             ),
-            child: Text(
+            child: const Text(
               'This is a preview-only screen. The card is not yet wired '
               'into predictionProvider — once you approve the visual '
               'design, it will replace the existing PredictionBattleCard '
               'on the Family Space overview.',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 height: 1.5,

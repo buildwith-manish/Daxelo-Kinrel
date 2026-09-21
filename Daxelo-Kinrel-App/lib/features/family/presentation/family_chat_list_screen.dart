@@ -65,7 +65,7 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
             }
           },
         ),
-        title: Text(
+        title: const Text(
           'Chats',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -86,11 +86,10 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
           // ── Chat list ───────────────────────────────────────────
           Expanded(
             child: dmInboxAsync.when(
-              loading: () => Center(
-                child:
-                    CircularProgressIndicator(color: KinrelColors.orange),
+              loading: () => const Center(
+                child: CircularProgressIndicator(color: KinrelColors.orange),
               ),
-              error: (_, __) => Center(
+              error: (_, __) => const Center(
                 child: Text(
                   'Could not load chats',
                   style: TextStyle(color: KinrelColors.textDim),
@@ -100,34 +99,41 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
                 final activeDms =
                     dmItems.where((d) => !d.isArchived).toList();
 
-                return ListView(
+                // v114 — Step 4 perf: build a flat list of rows then use
+                // ListView.builder so DM rows are built lazily. The
+                // group-chat row, section header, and empty state stay
+                // as direct children of the flat list (small, fixed).
+                final rows = <Widget>[];
+                // ── Family Group Chat (pinned at top) ──────────
+                if (_filter == _ChatFilter.all ||
+                    _filter == _ChatFilter.family) {
+                  rows.add(_GroupChatRow(
+                    familyId: widget.familyId,
+                    familyName: familyName,
+                    familyAvatarUrl: familyAvatarUrl,
+                  ));
+                }
+                // ── Direct Messages ────────────────────────────
+                if (_filter == _ChatFilter.all ||
+                    _filter == _ChatFilter.direct) {
+                  if (_filter == _ChatFilter.all &&
+                      activeDms.isNotEmpty) {
+                    rows.add(_buildSectionHeader('Direct Messages'));
+                  }
+                  for (final dm in activeDms) {
+                    rows.add(_DmRow(item: dm));
+                  }
+                }
+                // ── Empty state ────────────────────────────────
+                if (activeDms.isEmpty &&
+                    _filter == _ChatFilter.direct) {
+                  rows.add(_buildEmptyState('No direct messages yet'));
+                }
+
+                return ListView.builder(
                   padding: const EdgeInsets.only(bottom: 100),
-                  children: [
-                    // ── Family Group Chat (pinned at top) ──────────
-                    if (_filter == _ChatFilter.all ||
-                        _filter == _ChatFilter.family)
-                      _GroupChatRow(
-                        familyId: widget.familyId,
-                        familyName: familyName,
-                        familyAvatarUrl: familyAvatarUrl,
-                      ),
-
-                    // ── Direct Messages ────────────────────────────
-                    if (_filter == _ChatFilter.all ||
-                        _filter == _ChatFilter.direct) ...[
-                      if (_filter == _ChatFilter.all &&
-                          activeDms.isNotEmpty)
-                        _buildSectionHeader('Direct Messages'),
-                      ...activeDms.map((dm) => _DmRow(
-                            item: dm,
-                          )),
-                    ],
-
-                    // ── Empty state ────────────────────────────────
-                    if (activeDms.isEmpty &&
-                        _filter == _ChatFilter.direct)
-                      _buildEmptyState('No direct messages yet'),
-                  ],
+                  itemCount: rows.length,
+                  itemBuilder: (context, index) => rows[index],
                 );
               },
             ),
@@ -195,7 +201,7 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
       ),
       child: Text(
         title,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 13,
           fontWeight: FontWeight.w600,
@@ -212,7 +218,7 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
       child: Center(
         child: Column(
           children: [
-            Icon(
+            const Icon(
               Icons.chat_bubble_outline_rounded,
               size: 48,
               color: KinrelColors.textDim,
@@ -220,7 +226,7 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
             const SizedBox(height: 12),
             Text(
               message,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 color: KinrelColors.textDim,
@@ -337,7 +343,7 @@ class _GroupChatRowState extends ConsumerState<_GroupChatRow> {
                       widget.familyName.isNotEmpty
                           ? widget.familyName[0].toUpperCase()
                           : 'F',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
@@ -350,7 +356,7 @@ class _GroupChatRowState extends ConsumerState<_GroupChatRow> {
                       widget.familyName.isNotEmpty
                           ? widget.familyName[0].toUpperCase()
                           : 'F',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
@@ -368,7 +374,7 @@ class _GroupChatRowState extends ConsumerState<_GroupChatRow> {
                 widget.familyName.isNotEmpty
                     ? widget.familyName[0].toUpperCase()
                     : 'F',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
@@ -435,7 +441,7 @@ class _GroupChatRowState extends ConsumerState<_GroupChatRow> {
             )
           : Text(
               _isLoading ? 'Loading…' : 'Tap to start chatting',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 color: KinrelColors.textDim,
@@ -524,7 +530,7 @@ class _DmRow extends StatelessWidget {
                 item.otherUserAvatar!.isEmpty
             ? Text(
                 _initials(item.otherUserName),
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 20,
                   fontWeight: FontWeight.w700,

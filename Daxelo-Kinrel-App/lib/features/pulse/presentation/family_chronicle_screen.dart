@@ -102,114 +102,122 @@ class _ChronicleContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // ── Cover ──────────────────────────────────────────────────────
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                KinrelColors.blue.withOpacity(0.15),
-                KinrelColors.extendedPurple.withOpacity(0.1),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: KinrelColors.blue.withOpacity(0.3)),
-          ),
-          child: Column(
-            children: [
-              const Text('📖', style: TextStyle(fontSize: 40)),
-              const SizedBox(height: 12),
-              Text(
-                chronicle.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  height: 1.3,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              if (chronicle.subtitle != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  chronicle.subtitle!,
-                  style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13, fontStyle: FontStyle.italic),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-              const SizedBox(height: 16),
-              // Stats row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _Stat(label: 'Chapters', value: '${chronicle.chapterCount}'),
-                  if (chronicle.lastGeneratedAt != null)
-                    _Stat(
-                      label: 'Updated',
-                      value: '${chronicle.lastGeneratedAt!.day}/${chronicle.lastGeneratedAt!.month}',
-                    ),
-                ],
-              ),
+    // v114 — Step 4 perf: build a flat list of rows then use
+    // ListView.builder so chapter cards (the dynamic part) are built
+    // lazily as they scroll into view.
+    final rows = <Widget>[
+      // ── Cover ──────────────────────────────────────────────────────
+      Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              KinrelColors.blue.withOpacity(0.15),
+              KinrelColors.extendedPurple.withOpacity(0.1),
             ],
           ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: KinrelColors.blue.withOpacity(0.3)),
         ),
-
-        const SizedBox(height: 24),
-
-        // ── Chapters ───────────────────────────────────────────────────
-        ...chronicle.chapters.map((ch) => _ChapterCard(chapter: ch)),
-
-        const SizedBox(height: 24),
-
-        // P7.1: Honest disclosure — "How is this generated?"
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.info_outline,
-                      size: 16, color: Colors.white.withValues(alpha: 0.5)),
-                  const SizedBox(width: 6),
-                  Text(
-                    'How is this generated?',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+        child: Column(
+          children: [
+            const Text('📖', style: TextStyle(fontSize: 40)),
+            const SizedBox(height: 12),
+            Text(
+              chronicle.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                height: 1.3,
               ),
+              textAlign: TextAlign.center,
+            ),
+            if (chronicle.subtitle != null) ...[
               const SizedBox(height: 8),
               Text(
-                'Your chronicle is compiled from your family\'s shared '
-                'data — member profiles, relationships, milestones, and '
-                'memories. Chapters are organized by generation and '
-                'updated periodically as your family grows.',
+                chronicle.subtitle!,
+                style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13, fontStyle: FontStyle.italic),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            const SizedBox(height: 16),
+            // Stats row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _Stat(label: 'Chapters', value: '${chronicle.chapterCount}'),
+                if (chronicle.lastGeneratedAt != null)
+                  _Stat(
+                    label: 'Updated',
+                    value: '${chronicle.lastGeneratedAt!.day}/${chronicle.lastGeneratedAt!.month}',
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+
+      const SizedBox(height: 24),
+    ];
+
+    // ── Chapters (dynamic part) ────────────────────────────────────
+    for (final ch in chronicle.chapters) {
+      rows.add(_ChapterCard(chapter: ch));
+    }
+
+    rows.add(const SizedBox(height: 24));
+
+    // P7.1: Honest disclosure — "How is this generated?"
+    rows.add(Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline,
+                  size: 16, color: Colors.white.withValues(alpha: 0.5)),
+              const SizedBox(width: 6),
+              Text(
+                'How is this generated?',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.5),
-                  fontSize: 12,
-                  height: 1.5,
+                  color: Colors.white.withValues(alpha: 0.7),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 8),
+          Text(
+            'Your chronicle is compiled from your family\'s shared '
+            'data — member profiles, relationships, milestones, and '
+            'memories. Chapters are organized by generation and '
+            'updated periodically as your family grows.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.5),
+              fontSize: 12,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    ));
 
-        const SizedBox(height: 32),
-      ],
+    rows.add(const SizedBox(height: 32));
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: rows.length,
+      itemBuilder: (context, index) => rows[index],
     );
   }
 }

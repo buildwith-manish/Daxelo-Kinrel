@@ -315,9 +315,9 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
           icon: const Icon(Icons.arrow_back, color: _textPrimary),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
-        title: Text(
+        title: const Text(
           'Join Family',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 20,
             fontWeight: FontWeight.w700,
@@ -342,7 +342,7 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                   color: _orange.withValues(alpha: 0.1),
                   border: Border.all(color: _orange.withValues(alpha: 0.3), width: 2),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.family_restroom_rounded,
                   size: 40,
                   color: _orange,
@@ -351,15 +351,15 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
             )
             .animate(onPlay: (c) => c.forward())
             .fadeIn(duration: 500.ms)
-            .scale(begin: Offset(0.8, 0.8), end: Offset(1.0, 1.0), duration: 400.ms),
+            .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.0, 1.0), duration: 400.ms),
 
             const SizedBox(height: 24),
 
             // ── Title ────────────────────────────────────────────────
-            Center(
+            const Center(
               child: Text(
                 'Enter Family ID',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
@@ -370,11 +370,11 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
 
             const SizedBox(height: 8),
 
-            Center(
+            const Center(
               child: Text(
                 'Ask a family member for their Family ID\n(Format: KIN-XXXXXXXX)',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   color: _textDim,
@@ -394,14 +394,14 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                     borderRadius: BorderRadius.circular(KinrelRadius.md),
                     border: Border.all(color: _orange.withValues(alpha: 0.2)),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.link_rounded, size: 14, color: _orange),
-                      const SizedBox(width: 6),
-                      Text(
+                      const Icon(Icons.link_rounded, size: 14, color: _orange),
+                      SizedBox(width: 6),
+                      const Text(
                         'Opened from invite link',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
                           color: _orange,
@@ -427,14 +427,14 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                       borderRadius: BorderRadius.circular(KinrelRadius.md),
                       border: Border.all(color: _successColor.withValues(alpha: 0.2)),
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.content_paste_rounded, size: 14, color: _successColor),
-                        const SizedBox(width: 6),
-                        Text(
+                        const Icon(Icons.content_paste_rounded, size: 14, color: _successColor),
+                        SizedBox(width: 6),
+                        const Text(
                           'KIN ID found in clipboard — tap to use',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 12,
                             color: _successColor,
@@ -458,7 +458,7 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
               textInputAction: TextInputAction.search,
               onSubmitted: (_) => _searchFamily(),
               textCapitalization: TextCapitalization.characters,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -473,9 +473,9 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                   color: _textDim.withValues(alpha: 0.4),
                   letterSpacing: 2,
                 ),
-                prefixIcon: Padding(
-                  padding: const EdgeInsets.only(left: 16, right: 8),
-                  child: Icon(
+                prefixIcon: const Padding(
+                  padding: EdgeInsets.only(left: 16, right: 8),
+                  child: const Icon(
                     Icons.qr_code_rounded,
                     color: _orange,
                     size: 24,
@@ -486,13 +486,13 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                   children: [
                     // Valid checkmark
                     if (_isValid)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: Icon(Icons.check_circle, color: _successColor, size: 20),
+                      const Padding(
+                        padding: EdgeInsets.only(right: 4),
+                        child: const Icon(Icons.check_circle, color: _successColor, size: 20),
                       ),
                     if (_familyIdController.text.isNotEmpty)
                       IconButton(
-                        icon: Icon(Icons.clear, color: _textDim, size: 20),
+                        icon: const Icon(Icons.clear, color: _textDim, size: 20),
                         onPressed: () {
                           _familyIdController.clear();
                           ref.read(familyIdProvider.notifier).resetSearch();
@@ -504,7 +504,7 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                         },
                       ),
                     IconButton(
-                      icon: Icon(Icons.paste_rounded, color: _textDim, size: 20),
+                      icon: const Icon(Icons.paste_rounded, color: _textDim, size: 20),
                       tooltip: 'Paste from clipboard',
                       onPressed: _pasteFromClipboard,
                     ),
@@ -543,11 +543,11 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                 padding: const EdgeInsets.only(left: 16),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, size: 14, color: _textDim),
+                    const Icon(Icons.info_outline, size: 14, color: _textDim),
                     const SizedBox(width: 6),
                     Text(
                       _validationMessage!,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
                         color: _textDim,
@@ -560,15 +560,15 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
 
             if (_isValid) ...[
               const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.only(left: 16),
+              const Padding(
+                padding: EdgeInsets.only(left: 16),
                 child: Row(
                   children: [
-                    Icon(Icons.check_circle_outline, size: 14, color: _successColor),
-                    const SizedBox(width: 6),
-                    Text(
+                    const Icon(Icons.check_circle_outline, size: 14, color: _successColor),
+                    SizedBox(width: 6),
+                    const Text(
                       'Valid Family ID format',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
                         color: _successColor,
@@ -641,12 +641,12 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.error_outline, color: _errorColor, size: 20),
+                    const Icon(Icons.error_outline, color: _errorColor, size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         familyIdState.error!,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 13,
                           color: _errorColor,
@@ -684,13 +684,13 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              Icon(Icons.preview_rounded, color: _orange, size: 16),
-              const SizedBox(width: 8),
-              Text(
+              const Icon(Icons.preview_rounded, color: _orange, size: 16),
+              SizedBox(width: 8),
+              const Text(
                 'Family Preview (from cache)',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -709,8 +709,8 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                   borderRadius: BorderRadius.circular(10),
                   color: KinrelColors.amber.withValues(alpha: 0.15),
                 ),
-                child: Center(
-                  child: Icon(Icons.group, color: KinrelColors.amber, size: 20),
+                child: const Center(
+                  child: const Icon(Icons.group, color: KinrelColors.amber, size: 20),
                 ),
               ),
               const SizedBox(width: 12),
@@ -720,7 +720,7 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                   children: [
                     Text(
                       preview.name,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -730,7 +730,7 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                     const SizedBox(height: 2),
                     Text(
                       preview.kinFamilyId,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 11,
                         color: _orange,
@@ -749,7 +749,7 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                   ),
                   child: Text(
                     '${preview.memberCount} members',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
                       color: _successColor,
@@ -760,9 +760,9 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Full details will load from server...',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 11,
               color: _textDim,
@@ -791,11 +791,11 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
         ),
         child: Column(
           children: [
-            Icon(Icons.search_off_rounded, size: 48, color: _textDim),
+            const Icon(Icons.search_off_rounded, size: 48, color: _textDim),
             const SizedBox(height: 12),
-            Text(
+            const Text(
               'Family Not Found',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -806,7 +806,7 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
             Text(
               result.message ?? 'No family found with this ID',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 color: _textDim,
@@ -839,8 +839,8 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                   borderRadius: BorderRadius.circular(12),
                   color: KinrelColors.amber.withValues(alpha: 0.15),
                 ),
-                child: Center(
-                  child: Icon(Icons.group, color: KinrelColors.amber, size: 24),
+                child: const Center(
+                  child: const Icon(Icons.group, color: KinrelColors.amber, size: 24),
                 ),
               ),
               const SizedBox(width: 14),
@@ -850,7 +850,7 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                   children: [
                     Text(
                       result.name ?? 'Family',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
@@ -860,7 +860,7 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                     const SizedBox(height: 2),
                     Text(
                       result.kinFamilyId ?? '',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 12,
                         color: _orange,
@@ -892,7 +892,7 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                               .toInt(),
                       errorWidget: (_, __, ___) => Container(
                         color: _orange.withValues(alpha: 0.1),
-                        child: Icon(Icons.group, color: _orange, size: 20),
+                        child: const Icon(Icons.group, color: _orange, size: 20),
                       ),
                     ),
                   ),
@@ -901,16 +901,16 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
           ),
 
           // Divider
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Divider(color: _borderSubtle, height: 1),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 14),
+            child: const Divider(color: _borderSubtle, height: 1),
           ),
 
           // Family details
           if (result.description != null && result.description!.isNotEmpty) ...[
             Text(
               result.description!,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 color: _textSecondary,
@@ -971,7 +971,7 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
         const SizedBox(width: 4),
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 12,
             color: _textDim,
@@ -993,13 +993,13 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              Icon(Icons.info_outline, color: _orange, size: 18),
-              const SizedBox(width: 8),
-              Text(
+              const Icon(Icons.info_outline, color: _orange, size: 18),
+              SizedBox(width: 8),
+              const Text(
                 'How to get a Family ID',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -1037,7 +1037,7 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
           child: Center(
             child: Text(
               number,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -1050,7 +1050,7 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
         Expanded(
           child: Text(
             text,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               color: _textSecondary,

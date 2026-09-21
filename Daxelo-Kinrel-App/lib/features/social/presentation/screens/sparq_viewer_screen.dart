@@ -105,17 +105,17 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Delete Sparq', style: TextStyle(color: Colors.white, fontFamily: 'DM Sans', fontWeight: FontWeight.w600)),
-        content: Text('Are you sure you want to delete this Sparq?',
-            style: TextStyle(color: KinrelColors.textSilver, fontFamily: 'DM Sans')),
+        title: const Text('Delete Sparq', style: const TextStyle(color: Colors.white, fontFamily: 'DM Sans', fontWeight: FontWeight.w600)),
+        content: const Text('Are you sure you want to delete this Sparq?',
+            style: const TextStyle(color: KinrelColors.textSilver, fontFamily: 'DM Sans')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: TextStyle(color: KinrelColors.textSilver, fontFamily: 'DM Sans')),
+            child: const Text('Cancel', style: const TextStyle(color: KinrelColors.textSilver, fontFamily: 'DM Sans')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Delete', style: TextStyle(color: KinrelColors.error, fontFamily: 'DM Sans', fontWeight: FontWeight.w600)),
+            child: const Text('Delete', style: const TextStyle(color: KinrelColors.error, fontFamily: 'DM Sans', fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -224,9 +224,9 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
   @override
   Widget build(BuildContext context) {
     if (_sparqs.isEmpty) {
-      return Scaffold(
+      return const Scaffold(
         backgroundColor: Colors.black,
-        body: Center(child: CircularProgressIndicator(color: KinrelColors.orange)),
+        body: const Center(child: const CircularProgressIndicator(color: KinrelColors.orange)),
       );
     }
 
@@ -353,7 +353,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                       children: [
                         Text(
                           sparq.userId,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -365,7 +365,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                           children: [
                             Text(
                               _timeAgo(sparq.createdAt),
-                              style: TextStyle(color: Colors.white54, fontSize: 11, fontFamily: 'DM Sans'),
+                              style: const TextStyle(color: Colors.white54, fontSize: 11, fontFamily: 'DM Sans'),
                             ),
                             // Mood chip — no emoji, just name in accent
                             if (sparq.mood.isNotEmpty) ...[
@@ -396,7 +396,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                   ),
                   // Close button
                   IconButton(
-                    icon: Icon(Icons.close, color: Colors.white70, size: 22),
+                    icon: const Icon(Icons.close, color: Colors.white70, size: 22),
                     onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
                   ),
                 ],
@@ -476,7 +476,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                       const Spacer(),
                       // Delete button (creator only)
                       IconButton(
-                        icon: Icon(Icons.delete_outline, color: Colors.white38, size: 20),
+                        icon: const Icon(Icons.delete_outline, color: Colors.white38, size: 20),
                         onPressed: _deleteSparq,
                       ),
                     ],
@@ -493,12 +493,12 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                       ),
                       child: TextField(
                         onChanged: (v) => _replyText = v,
-                        style: TextStyle(color: Colors.white, fontSize: 14, fontFamily: 'DM Sans'),
+                        style: const TextStyle(color: Colors.white, fontSize: 14, fontFamily: 'DM Sans'),
                         decoration: InputDecoration(
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                           hintText: 'Reply to Sparq...',
-                          hintStyle: TextStyle(color: Colors.white30, fontSize: 14, fontFamily: 'DM Sans'),
+                          hintStyle: const TextStyle(color: Colors.white30, fontSize: 14, fontFamily: 'DM Sans'),
                           suffixIcon: IconButton(
                             icon: Icon(Icons.send, color: moodAccent, size: 18),
                             onPressed: () => _submitReply(sparq),
@@ -510,7 +510,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                   if (sparq.audience == 'FAMILY_ONLY') ...[
                     const SizedBox(height: 8),
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: moodAccent.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(10),
@@ -520,7 +520,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.family_restroom, size: 12, color: moodAccent),
-                          SizedBox(width: 4),
+                          const SizedBox(width: 4),
                           Text('Family',
                             style: TextStyle(color: moodAccent, fontSize: 10, fontWeight: FontWeight.w600, fontFamily: 'DM Sans'),
                           ),
@@ -531,7 +531,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                   if (sparq.audience == 'VIP') ...[
                     const SizedBox(height: 8),
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: moodAccent.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(10),
@@ -541,7 +541,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.star_outline, size: 12, color: moodAccent),
-                          SizedBox(width: 4),
+                          const SizedBox(width: 4),
                           Text('VIP',
                             style: TextStyle(color: moodAccent, fontSize: 10, fontWeight: FontWeight.w600, fontFamily: 'DM Sans'),
                           ),
@@ -692,11 +692,11 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.lock_clock_outlined, size: 56, color: const Color(0xFFD4AF37)),
+                const Icon(Icons.lock_clock_outlined, size: 56, color: Color(0xFFD4AF37)),
                 const SizedBox(height: 24),
-                Text(
+                const Text(
                   'Time Capsule',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: KinrelColors.textWhite,
                     fontFamily: 'DM Sans',
                     fontWeight: FontWeight.w600,
@@ -705,15 +705,15 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
+                const Text(
                   'This Sparq is locked until',
-                  style: TextStyle(color: KinrelColors.textSilver, fontFamily: 'DM Sans', fontSize: 14),
+                  style: const TextStyle(color: KinrelColors.textSilver, fontFamily: 'DM Sans', fontSize: 14),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   _formatDuration(remaining),
-                  style: TextStyle(
-                    color: const Color(0xFFD4AF37),
+                  style: const TextStyle(
+                    color: Color(0xFFD4AF37),
                     fontFamily: 'DM Sans',
                     fontWeight: FontWeight.w600,
                     fontSize: 28,
@@ -721,7 +721,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                 ),
                 const SizedBox(height: 40),
                 IconButton(
-                  icon: Icon(Icons.close, color: KinrelColors.textSilver, size: 24),
+                  icon: const Icon(Icons.close, color: KinrelColors.textSilver, size: 24),
                   onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
                 ),
               ],
@@ -785,7 +785,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1),
                 ),
-                child: Icon(Icons.play_arrow, color: Colors.white, size: 28),
+                child: const Icon(Icons.play_arrow, color: Colors.white, size: 28),
               ),
               // Duration badge
               Positioned(
@@ -799,7 +799,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                   ),
                   child: Text(
                     '${sparq.duration ?? 0}s',
-                    style: TextStyle(color: Colors.white70, fontSize: 11, fontFamily: 'DM Sans'),
+                    style: const TextStyle(color: Colors.white70, fontSize: 11, fontFamily: 'DM Sans'),
                   ),
                 ),
               ),
@@ -811,10 +811,10 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
           color: _parseBackgroundColor(sparq.backgroundColor),
           child: Center(
             child: Padding(
-              padding: EdgeInsets.all(32),
+              padding: const EdgeInsets.all(32),
               child: Text(
                 sparq.text ?? '',
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 24,
                   fontWeight: FontWeight.w600,
@@ -831,11 +831,11 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.graphic_eq, size: 56, color: _getMoodAccent(sparq.mood).withValues(alpha: 0.6)),
-              SizedBox(height: 12),
-              Text('Voice Note', style: TextStyle(color: Colors.white54, fontSize: 14, fontFamily: 'DM Sans')),
-              SizedBox(height: 4),
+              const SizedBox(height: 12),
+              const Text('Voice Note', style: const TextStyle(color: Colors.white54, fontSize: 14, fontFamily: 'DM Sans')),
+              const SizedBox(height: 4),
               Text('${sparq.duration ?? 0}s',
-                style: TextStyle(color: Colors.white38, fontSize: 12, fontFamily: 'DM Sans')),
+                style: const TextStyle(color: Colors.white38, fontSize: 12, fontFamily: 'DM Sans')),
             ],
           ),
         );
@@ -845,13 +845,13 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
   }
 
   Widget _buildErrorContent() {
-    return Center(
-      child: Column(
+    return const Center(
+      child: const Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.broken_image_outlined, size: 40, color: Colors.white24),
-          SizedBox(height: 8),
-          Text('Content unavailable', style: TextStyle(color: Colors.white24, fontFamily: 'DM Sans')),
+          const Icon(Icons.broken_image_outlined, size: 40, color: Colors.white24),
+          const SizedBox(height: 8),
+          const Text('Content unavailable', style: const TextStyle(color: Colors.white24, fontFamily: 'DM Sans')),
         ],
       ),
     );
