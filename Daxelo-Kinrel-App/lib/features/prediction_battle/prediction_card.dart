@@ -225,6 +225,7 @@ class _PredictionBattleCardState extends ConsumerState<PredictionBattleCard>
                       state: state,
                       isExpanded: _isExpanded,
                       onToggle: _toggleExpand,
+                      inactiveReason: state.inactiveReason,
                     ),
                     // Expanded interaction — question + answer + submit.
                     SizeTransition(
@@ -660,23 +661,13 @@ class _AvailabilityTiming extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Derive the daily window from the round's createdAt (open) and
-    // lockAt (close). Per the SQL migration, lockAt = createdAt + 12h,
-    // so this reflects the actual configured window — no hard-coding.
-    final created = round?.createdAt;
-    final lockAt = round?.lockAt;
-    final String windowLabel;
-    if (created != null && lockAt != null) {
-      windowLabel =
-          '${_formatTime(created)} – ${_formatTime(lockAt)}';
-    } else {
-      // No active round — show the standard daily window from the
-      // migration config (6 AM – 6 PM local, since lockAt = created + 12h
-      // and rounds are created at 6 AM local per the tick scheduler).
-      // This is a fallback label only; the actual times come from the
-      // round when one exists.
-      windowLabel = '6:00 AM – 6:00 PM';
-    }
+    // The daily window is now a FIXED schedule: 8:00 AM – 9:30 PM IST.
+    // (Configured in the fn_prediction_get_active SQL function via
+    // AT TIME ZONE 'Asia/Kolkata'.) We display this fixed label rather
+    // than deriving from the round's createdAt/lockAt, because the
+    // window is the same every day regardless of when the round was
+    // actually created.
+    const windowLabel = '8:00 AM – 9:30 PM';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -734,16 +725,6 @@ class _AvailabilityTiming extends StatelessWidget {
     );
   }
 
-  String _formatTime(DateTime t) {
-    final local = t.toLocal();
-    final m = local.minute.toString().padLeft(2, '0');
-    final ampm = local.hour >= 12 ? 'PM' : 'AM';
-    final hour12 = local.hour > 12
-        ? local.hour - 12
-        : (local.hour == 0 ? 12 : local.hour);
-    return '$hour12:$m $ampm';
-  }
-
   String _countdown(DateTime target) {
     final diff = target.difference(DateTime.now());
     if (diff.isNegative) return 'soon';
@@ -769,6 +750,7 @@ class _CollapsedSummary extends StatelessWidget {
     required this.state,
     required this.isExpanded,
     required this.onToggle,
+    this.inactiveReason,
   });
 
   final Color accent;
@@ -778,6 +760,8 @@ class _CollapsedSummary extends StatelessWidget {
   final PredictionState state;
   final bool isExpanded;
   final VoidCallback onToggle;
+  /// 'before_window' | 'after_window' | 'no_questions_available' | null
+  final String? inactiveReason;
 
   @override
   Widget build(BuildContext context) {
@@ -792,7 +776,11 @@ class _CollapsedSummary extends StatelessWidget {
         children: [
           if (viewState == _PredictionViewState.notStarted) ...[
             Text(
-              'Today\'s prediction hasn\'t opened yet.',
+              inactiveReason == 'after_window'
+                  ? 'Today\'s prediction is closed. Come back tomorrow at 8:00 AM.'
+                  : inactiveReason == 'no_questions_available'
+                      ? 'No new questions available right now.'
+                      : 'Today\'s prediction opens at 8:00 AM.',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
@@ -802,7 +790,9 @@ class _CollapsedSummary extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              viewState.summaryHint,
+              inactiveReason == 'after_window'
+                  ? 'Closed for today'
+                  : viewState.summaryHint,
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
