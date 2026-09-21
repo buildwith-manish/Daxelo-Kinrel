@@ -286,7 +286,13 @@ class _PredictionBattleCardState extends ConsumerState<PredictionBattleCard>
             : _PredictionViewState.questionAvailable;
       case PredictionStatus.locked:
       case PredictionStatus.pending:
-        return _PredictionViewState.answerSubmitted;
+        // FIX: branch on hasSubmitted same as the 'open' case. Previously
+        // this returned answerSubmitted unconditionally, so users who
+        // never predicted incorrectly saw "Locked in / waiting for
+        // reveal" instead of a "you missed this round" message.
+        return hasSubmitted
+            ? _PredictionViewState.answerSubmitted
+            : _PredictionViewState.missedRound;
       case PredictionStatus.resolved:
       case PredictionStatus.archived:
         return _PredictionViewState.completed;
@@ -344,6 +350,11 @@ enum _PredictionViewState {
   questionAvailable,
   /// User has submitted their answer — waiting for reveal.
   answerSubmitted,
+  /// Round is locked/pending but user didn't submit — missed it.
+  /// Shows "This round has closed — you didn't predict this time" +
+  /// when the next round opens, WITHOUT an input field (the round
+  /// is genuinely locked, don't let them submit late).
+  missedRound,
   /// Round resolved — results are in.
   completed,
 }
@@ -357,6 +368,8 @@ extension _PredictionViewStateX on _PredictionViewState {
         return 'LIVE NOW';
       case _PredictionViewState.answerSubmitted:
         return 'LOCKED IN';
+      case _PredictionViewState.missedRound:
+        return 'MISSED';
       case _PredictionViewState.completed:
         return 'COMPLETED';
     }
@@ -370,6 +383,8 @@ extension _PredictionViewStateX on _PredictionViewState {
         return KinrelColors.success;
       case _PredictionViewState.answerSubmitted:
         return KinrelColors.amber;
+      case _PredictionViewState.missedRound:
+        return KinrelColors.textDim;
       case _PredictionViewState.completed:
         return KinrelColors.orange;
     }
@@ -383,6 +398,8 @@ extension _PredictionViewStateX on _PredictionViewState {
         return 'Tap to predict';
       case _PredictionViewState.answerSubmitted:
         return 'Tap to view your prediction';
+      case _PredictionViewState.missedRound:
+        return 'Tap to see details';
       case _PredictionViewState.completed:
         return 'Tap to see the result';
     }
@@ -546,6 +563,8 @@ class _HeaderRow extends StatelessWidget {
         return 'Live now · predict to win';
       case _PredictionViewState.answerSubmitted:
         return 'Locked in · waiting for reveal';
+      case _PredictionViewState.missedRound:
+        return 'Round closed · you missed it';
       case _PredictionViewState.completed:
         return 'Resolved · see the result';
     }
@@ -801,6 +820,55 @@ class _CollapsedSummary extends StatelessWidget {
                 color: KinrelColors.textSilver,
               ),
             ),
+          ] else if (viewState == _PredictionViewState.missedRound) ...[
+            // Question text as the primary line.
+            if (question != null) ...[
+              Text(
+                question!.question,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                  height: 1.3,
+                ),
+              ),
+            ],
+            const SizedBox(height: 6),
+            const Row(
+              children: [
+                Icon(
+                  Icons.lock_clock,
+                  size: 16,
+                  color: KinrelColors.textDim,
+                ),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'This round has closed — you didn\'t predict this time',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: KinrelColors.textSilver,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Next round opens at 8:00 AM IST',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                color: KinrelColors.textDim,
+              ),
+            ),
           ] else if (viewState == _PredictionViewState.completed) ...[
             // RESTRUCTURED: question text as the primary line, then
             // the answer + result below.
@@ -940,6 +1008,13 @@ class _ExpandedInteraction extends StatelessWidget {
             allSubmissions: state.allSubmissions,
             myUserId: myUserId,
             celebrationAnimation: celebrationAnimation,
+          )
+        else if (viewState == _PredictionViewState.missedRound && round != null)
+          _MissedRoundBody(
+            accent: accent,
+            round: round!,
+            question: question,
+            state: state,
           )
         else if (viewState == _PredictionViewState.completed && round != null)
           _CompletedBody(
@@ -2285,6 +2360,151 @@ class _LeaderboardTeaserRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Missed-round body — shows the question + "you missed it" message +
+// when the next round opens. NO input field (the round is genuinely
+// locked, don't let them submit late).
+// ═══════════════════════════════════════════════════════════════════════
+
+class _MissedRoundBody extends StatelessWidget {
+  const _MissedRoundBody({
+    required this.accent,
+    required this.round,
+    required this.question,
+    required this.state,
+  });
+
+  final Color accent;
+  final PredictionRound round;
+  final PredictionQuestion? question;
+  final PredictionState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Question text (if available).
+        if (question != null) ...[
+          Text(
+            question!.question,
+            style: const TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.textWhite,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        // "You missed it" message.
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: KinrelColors.textDim.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: KinrelColors.textDim.withValues(alpha: 0.20),
+              width: 0.6,
+            ),
+          ),
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.lock_clock,
+                    size: 18,
+                    color: KinrelColors.textDim,
+                  ),
+                  SizedBox(width: 8),
+                  const Expanded(
+                    child: const Text(
+                      'This round has closed',
+                      style: const TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: KinrelColors.textSilver,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 6),
+              Text(
+                'You didn\'t predict this time. The round is locked — late predictions aren\'t accepted.',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12,
+                  color: KinrelColors.textDim,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Next round timing.
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkElevated.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.schedule_outlined,
+                size: 14,
+                color: accent.withValues(alpha: 0.7),
+              ),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  'Next round opens at 8:00 AM IST',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    color: KinrelColors.textSilver,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Participation count (count only — no individual answers before reveal).
+        if (state.participationCount > 0)
+          Row(
+            children: [
+              Icon(
+                Icons.people_outline_rounded,
+                size: 14,
+                color: accent.withValues(alpha: 0.7),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${state.participationCount} family member${state.participationCount != 1 ? 's' : ''} predicted',
+                  style: const TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    color: KinrelColors.textDim,
+                  ),
+                ),
+              ),
+            ],
+          ),
+      ],
     );
   }
 }
