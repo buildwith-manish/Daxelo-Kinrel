@@ -91,26 +91,32 @@ class _GamingLeaderboardScreenState
           ),
 
           // ── Per-game filter chips ──────────────────────────────────
+          // v114 — Step 4 perf: use ListView.builder so chip widgets
+          // are built lazily (only the visible ~5 of ~30 are built
+          // at any time during horizontal scroll).
           SizedBox(
             height: 44,
-            child: ListView(
+            child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: [
-                _GameFilterChip(
-                  label: 'All Games',
-                  icon: '🎮',
-                  selected: _gameTable == null,
-                  onTap: () => setState(() => _gameTable = null),
-                ),
-                for (final g in kGameCatalog)
-                  _GameFilterChip(
-                    label: g.name,
-                    icon: '🏆',
-                    selected: _gameTable == g.gameTable,
-                    onTap: () => setState(() => _gameTable = g.gameTable),
-                  ),
-              ],
+              itemCount: 1 + kGameCatalog.length,
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return _GameFilterChip(
+                    label: 'All Games',
+                    icon: '🎮',
+                    selected: _gameTable == null,
+                    onTap: () => setState(() => _gameTable = null),
+                  );
+                }
+                final g = kGameCatalog[index - 1];
+                return _GameFilterChip(
+                  label: g.name,
+                  icon: '🏆',
+                  selected: _gameTable == g.gameTable,
+                  onTap: () => setState(() => _gameTable = g.gameTable),
+                );
+              },
             ),
           ),
           const SizedBox(height: 6),
@@ -153,39 +159,64 @@ class _GamingLeaderboardScreenState
                     await ref.read(
                         participationLeaderboardProvider(key).future);
                   },
-                  child: ListView(
+                  // v114 — Step 4 perf: build a flat list of rows then
+                  // use ListView.builder so leaderboard rows + "not
+                  // playing yet" prompts are built lazily.
+                  child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-                    children: [
-                      if (ranked.length >= 2)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: GamingPodium(
-                            entries: ranked,
-                            myUserId: myUserId,
-                            onTap: (e) => context.push(
-                                '/family/${widget.familyId}/gaming/player/${e.userId}'),
-                          ),
-                        ),
-                      for (var i = 0; i < ranked.length; i++)
-                        GamingRankRow(
-                          rank: i + 1,
-                          userName: ranked[i].userName,
-                          points: ranked[i].points,
-                          matches: ranked[i].matches,
-                          streak: ranked[i].userId == myUserId &&
+                    itemCount: () {
+                      int count = 0;
+                      if (ranked.length >= 2) count += 1; // podium
+                      count += ranked.length; // rank rows
+                      if (notPlayed.isNotEmpty) {
+                        count += 1; // spacer (SizedBox(height: 20))
+                        count += 1; // section header
+                        count += notPlayed.length; // not-played prompts
+                      }
+                      return count;
+                    }(),
+                    itemBuilder: (context, index) {
+                      var i = index;
+                      if (ranked.length >= 2) {
+                        if (i == 0) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: GamingPodium(
+                              entries: ranked,
+                              myUserId: myUserId,
+                              onTap: (e) => context.push(
+                                  '/family/${widget.familyId}/gaming/player/${e.userId}'),
+                            ),
+                          );
+                        }
+                        i -= 1;
+                      }
+                      if (i < ranked.length) {
+                        final rankIndex = i;
+                        return GamingRankRow(
+                          rank: rankIndex + 1,
+                          userName: ranked[rankIndex].userName,
+                          points: ranked[rankIndex].points,
+                          matches: ranked[rankIndex].matches,
+                          streak: ranked[rankIndex].userId == myUserId &&
                                   _period == 'all_time'
-                              ? ranked[i].streakCurrent
+                              ? ranked[rankIndex].streakCurrent
                               : 0,
-                          isMe: ranked[i].userId == myUserId,
+                          isMe: ranked[rankIndex].userId == myUserId,
                           hideScoreChip: true,
                           onTap: () => context.push(
-                              '/family/${widget.familyId}/gaming/player/${ranked[i].userId}'),
+                              '/family/${widget.familyId}/gaming/player/${ranked[rankIndex].userId}'),
                         )
                             .animate()
-                            .fadeIn(delay: (30 * i).ms, duration: 250.ms),
-                      if (notPlayed.isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        Padding(
+                            .fadeIn(delay: (30 * rankIndex).ms, duration: 250.ms);
+                      }
+                      i -= ranked.length;
+                      // "Not playing yet" section header + prompts.
+                      if (i == 0) {
+                        return const SizedBox(height: 20);
+                      }
+                      if (i == 1) {
+                        return Padding(
                           padding: const EdgeInsets.only(bottom: 8, left: 2),
                           child: Text(
                             'Not playing yet',
@@ -197,18 +228,19 @@ class _GamingLeaderboardScreenState
                               color: KinrelColors.amber,
                             ),
                           ),
+                        );
+                      }
+                      final npIndex = i - 2;
+                      final m = notPlayed[npIndex];
+                      return NotYetPlayedPrompt(
+                        member: NotYetPlayedMemberData(
+                          userId: m.userId,
+                          userName: m.userName,
+                          avatarUrl: m.avatarUrl,
                         ),
-                        for (final m in notPlayed)
-                          NotYetPlayedPrompt(
-                            member: NotYetPlayedMemberData(
-                              userId: m.userId,
-                              userName: m.userName,
-                              avatarUrl: m.avatarUrl,
-                            ),
-                            familyId: widget.familyId,
-                          ),
-                      ],
-                    ],
+                        familyId: widget.familyId,
+                      );
+                    },
                   ),
                 );
               },

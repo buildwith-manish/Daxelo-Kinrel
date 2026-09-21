@@ -55,24 +55,29 @@ class GamingChallengesScreen extends ConsumerWidget {
             message: 'Pull down to try again.',
           ),
         ),
-        data: (challenges) => RefreshIndicator(
-          color: KinrelColors.orange,
-          backgroundColor: KinrelColors.darkCard,
-          onRefresh: () async {
-            ref.invalidate(gamingChallengesProvider(familyId));
-            await ref.read(gamingChallengesProvider(familyId).future);
-          },
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-            children: [
-              _IntroCard(challenges: challenges),
-              const SizedBox(height: 16),
-              ..._grouped(challenges, 'weekly'),
-              const SizedBox(height: 8),
-              ..._grouped(challenges, 'monthly'),
-            ],
-          ),
-        ),
+        data: (challenges) {
+          // v114 — Step 4 perf: build a flat list of rows then use
+          // ListView.builder so challenge cards are built lazily.
+          final rows = <Widget>[];
+          rows.add(_IntroCard(challenges: challenges));
+          rows.add(const SizedBox(height: 16));
+          rows.addAll(_grouped(challenges, 'weekly'));
+          rows.add(const SizedBox(height: 8));
+          rows.addAll(_grouped(challenges, 'monthly'));
+          return RefreshIndicator(
+            color: KinrelColors.orange,
+            backgroundColor: KinrelColors.darkCard,
+            onRefresh: () async {
+              ref.invalidate(gamingChallengesProvider(familyId));
+              await ref.read(gamingChallengesProvider(familyId).future);
+            },
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+              itemCount: rows.length,
+              itemBuilder: (context, index) => rows[index],
+            ),
+          );
+        },
       ),
     );
   }

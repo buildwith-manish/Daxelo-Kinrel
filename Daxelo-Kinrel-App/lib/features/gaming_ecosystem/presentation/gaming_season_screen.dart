@@ -49,94 +49,101 @@ class GamingSeasonScreen extends ConsumerWidget {
             message: 'Pull down to try again.',
           ),
         ),
-        data: (dash) => RefreshIndicator(
-          color: KinrelColors.orange,
-          backgroundColor: KinrelColors.darkCard,
-          onRefresh: () async {
-            ref.invalidate(gamingDashboardProvider(familyId));
-            await ref.read(gamingDashboardProvider(familyId).future);
-          },
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-            children: [
-              _CupHero(
-                seasonName: dash.season?.name ?? 'The Family Cup',
-                daysRemaining: dash.season?.daysRemaining ?? 0,
-              ),
-              const SizedBox(height: 16),
-              GamingSectionHeader(
-                title: 'How the Cup Works',
-                subtitle: 'Everyone contributes — showing up matters most',
-                icon: Icons.help_outline,
-              ),
-              const _PointsExplainer(),
-              const SizedBox(height: 16),
-              GamingSectionHeader(
-                title: 'Standings',
-                subtitle: 'Top 3 at month-end are crowned family champions',
-                icon: Icons.leaderboard_outlined,
-              ),
-              if (dash.seasonStandings.isEmpty)
-                GamingEmptyCard(
-                  emoji: '🏁',
-                  title: 'The cup is wide open',
-                  message:
-                      'No points yet this month. Play a game together — the '
-                      'whole family\'s points count toward the cup.',
-                )
-              else ...[
-                GamingPodium(
-                  entries: dash.seasonStandings,
-                  myUserId: dash.me.userId,
-                  onTap: (e) => context.push(
-                      '/family/$familyId/gaming/player/${e.userId}'),
-                ),
-                const SizedBox(height: 10),
-                ...dash.seasonStandings.asMap().entries.map((entry) {
-                  final i = entry.key;
-                  final s = entry.value;
-                  return GamingRankRow(
-                    rank: i + 1,
-                    userName: s.userName,
-                    points: s.points,
-                    matches: s.gamesPlayed,
-                    isMe: s.userId == dash.me.userId,
-                    onTap: () => context
-                        .push('/family/$familyId/gaming/player/${s.userId}'),
-                  );
-                }),
-              ],
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: KinrelColors.darkCard,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                      color: KinrelColors.gold.withValues(alpha: 0.25)),
-                ),
-                child: Row(
-                  children: [
-                    const KinrelIcon(KinrelIconData.crown,
-                        size: 24, color: KinrelColors.brightGold),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'The monthly champion earns the Family Cup Champion badge — a permanent crown in the trophy room.',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 12,
-                          height: 1.45,
-                          color: KinrelColors.textSilver,
-                        ),
-                      ),
+        data: (dash) {
+          // v114 — Step 4 perf: build a flat list of rows then use
+          // ListView.builder so the standings rank rows (the dynamic
+          // part) are built lazily as they scroll into view.
+          final rows = <Widget>[
+            _CupHero(
+              seasonName: dash.season?.name ?? 'The Family Cup',
+              daysRemaining: dash.season?.daysRemaining ?? 0,
+            ),
+            const SizedBox(height: 16),
+            GamingSectionHeader(
+              title: 'How the Cup Works',
+              subtitle: 'Everyone contributes — showing up matters most',
+              icon: Icons.help_outline,
+            ),
+            const _PointsExplainer(),
+            const SizedBox(height: 16),
+            GamingSectionHeader(
+              title: 'Standings',
+              subtitle: 'Top 3 at month-end are crowned family champions',
+              icon: Icons.leaderboard_outlined,
+            ),
+          ];
+          if (dash.seasonStandings.isEmpty) {
+            rows.add(GamingEmptyCard(
+              emoji: '🏁',
+              title: 'The cup is wide open',
+              message:
+                  'No points yet this month. Play a game together — the '
+                  'whole family\'s points count toward the cup.',
+            ));
+          } else {
+            rows.add(GamingPodium(
+              entries: dash.seasonStandings,
+              myUserId: dash.me.userId,
+              onTap: (e) => context.push(
+                  '/family/$familyId/gaming/player/${e.userId}'),
+            ));
+            rows.add(const SizedBox(height: 10));
+            for (var i = 0; i < dash.seasonStandings.length; i++) {
+              final s = dash.seasonStandings[i];
+              rows.add(GamingRankRow(
+                rank: i + 1,
+                userName: s.userName,
+                points: s.points,
+                matches: s.gamesPlayed,
+                isMe: s.userId == dash.me.userId,
+                onTap: () => context
+                    .push('/family/$familyId/gaming/player/${s.userId}'),
+              ));
+            }
+          }
+          rows.add(const SizedBox(height: 16));
+          rows.add(Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: KinrelColors.darkCard,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                  color: KinrelColors.gold.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              children: [
+                const KinrelIcon(KinrelIconData.crown,
+                    size: 24, color: KinrelColors.brightGold),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'The monthly champion earns the Family Cup Champion badge — a permanent crown in the trophy room.',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 12,
+                      height: 1.45,
+                      color: KinrelColors.textSilver,
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ),
+              ],
+            ),
+          ));
+
+          return RefreshIndicator(
+            color: KinrelColors.orange,
+            backgroundColor: KinrelColors.darkCard,
+            onRefresh: () async {
+              ref.invalidate(gamingDashboardProvider(familyId));
+              await ref.read(gamingDashboardProvider(familyId).future);
+            },
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+              itemCount: rows.length,
+              itemBuilder: (context, index) => rows[index],
+            ),
+          );
+        },
       ),
     );
   }

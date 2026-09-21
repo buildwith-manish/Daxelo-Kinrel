@@ -124,9 +124,10 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
               ref.invalidate(rewardsProvider(widget.familyId));
               ref.invalidate(coinBalanceProvider(widget.familyId));
             },
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-              children: [
+            // v114 — Step 4 perf: build a flat list of rows then use
+            // ListView.builder so reward cards are built lazily.
+            child: Builder(builder: (context) {
+              final rows = <Widget>[
                 // Family treasury summary
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -195,22 +196,29 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                for (final entry in categories.entries) ...[
-                  GamingSectionHeader(
-                    title: categoryLabels[entry.key] ?? entry.key,
-                    icon: _iconForCategory(entry.key),
-                  ),
-                  for (final reward in entry.value)
-                    _RewardCard(
-                      reward: reward,
-                      balance: balance.balance,
-                      isRedeeming: _redeemingId == reward.id,
-                      onRedeem: () => _handleRedeem(reward),
-                    ),
-                  const SizedBox(height: 12),
-                ],
-              ],
-            ),
+              ];
+              for (final entry in categories.entries) {
+                rows.add(GamingSectionHeader(
+                  title: categoryLabels[entry.key] ?? entry.key,
+                  icon: _iconForCategory(entry.key),
+                ));
+                for (final reward in entry.value) {
+                  rows.add(_RewardCard(
+                    reward: reward,
+                    balance: balance.balance,
+                    isRedeeming: _redeemingId == reward.id,
+                    onRedeem: () => _handleRedeem(reward),
+                  ));
+                }
+                rows.add(const SizedBox(height: 12));
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+                itemCount: rows.length,
+                itemBuilder: (context, index) => rows[index],
+              );
+            }),
           );
         },
       ),
