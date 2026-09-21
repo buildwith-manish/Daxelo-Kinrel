@@ -69,8 +69,8 @@ class _AllGamesScreenState extends ConsumerState<AllGamesScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.canPop() ? context.pop() : context.go('/home'),
         ),
-        title: Text('All Games',
-            style: TextStyle(
+        title: const Text('All Games',
+            style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontWeight: FontWeight.w700)),
         backgroundColor: KinrelColors.darkCard,
@@ -97,7 +97,7 @@ class _AllGamesScreenState extends ConsumerState<AllGamesScreen> {
                 Expanded(
                   child: Text(
                     '${kGameCatalog.length} games · $exploredCount explored together',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -170,7 +170,7 @@ class _CategorySection extends StatelessWidget {
                     children: [
                       Text(
                         category.label,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -179,7 +179,7 @@ class _CategorySection extends StatelessWidget {
                       ),
                       Text(
                         category.tagline,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 11,
                           color: KinrelColors.textDim,
@@ -317,7 +317,7 @@ class _GameGridCard extends ConsumerWidget {
               game.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 13.5,
                 fontWeight: FontWeight.w700,
@@ -327,7 +327,7 @@ class _GameGridCard extends ConsumerWidget {
             const SizedBox(height: 2),
             Text(
               game.playersLabel,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 10,
                 color: KinrelColors.textDim,

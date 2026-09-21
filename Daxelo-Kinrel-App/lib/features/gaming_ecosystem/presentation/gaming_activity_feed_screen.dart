@@ -37,8 +37,8 @@ class GamingActivityFeedScreen extends ConsumerWidget {
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.canPop() ? context.pop() : context.go('/home')),
-        title: Text('Family Moments',
-            style: TextStyle(
+        title: const Text('Family Moments',
+            style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontWeight: FontWeight.w700)),
         backgroundColor: KinrelColors.darkCard,
@@ -48,8 +48,8 @@ class GamingActivityFeedScreen extends ConsumerWidget {
       body: momentsAsync.when(
         loading: () => const Center(
             child: CircularProgressIndicator(color: KinrelColors.orange)),
-        error: (e, _) => Center(
-          child: GamingEmptyCard(
+        error: (e, _) => const Center(
+          child: const GamingEmptyCard(
             emoji: '🔌',
             title: 'Couldn\'t load the activity feed',
             message: 'Pull down to try again.',

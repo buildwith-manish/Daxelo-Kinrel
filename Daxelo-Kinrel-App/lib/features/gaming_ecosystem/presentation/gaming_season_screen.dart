@@ -31,8 +31,8 @@ class GamingSeasonScreen extends ConsumerWidget {
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.canPop() ? context.pop() : context.go('/home')),
-        title: Text('Family Cup',
-            style: TextStyle(
+        title: const Text('Family Cup',
+            style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontWeight: FontWeight.w700)),
         backgroundColor: KinrelColors.darkCard,
@@ -42,8 +42,8 @@ class GamingSeasonScreen extends ConsumerWidget {
       body: dashAsync.when(
         loading: () => const Center(
             child: CircularProgressIndicator(color: KinrelColors.orange)),
-        error: (e, _) => Center(
-          child: GamingEmptyCard(
+        error: (e, _) => const Center(
+          child: const GamingEmptyCard(
             emoji: '🔌',
             title: 'Couldn\'t load the Family Cup',
             message: 'Pull down to try again.',
@@ -59,21 +59,21 @@ class GamingSeasonScreen extends ConsumerWidget {
               daysRemaining: dash.season?.daysRemaining ?? 0,
             ),
             const SizedBox(height: 16),
-            GamingSectionHeader(
+            const GamingSectionHeader(
               title: 'How the Cup Works',
               subtitle: 'Everyone contributes — showing up matters most',
               icon: Icons.help_outline,
             ),
             const _PointsExplainer(),
             const SizedBox(height: 16),
-            GamingSectionHeader(
+            const GamingSectionHeader(
               title: 'Standings',
               subtitle: 'Top 3 at month-end are crowned family champions',
               icon: Icons.leaderboard_outlined,
             ),
           ];
           if (dash.seasonStandings.isEmpty) {
-            rows.add(GamingEmptyCard(
+            rows.add(const GamingEmptyCard(
               emoji: '🏁',
               title: 'The cup is wide open',
               message:
@@ -110,15 +110,15 @@ class GamingSeasonScreen extends ConsumerWidget {
               border: Border.all(
                   color: KinrelColors.gold.withValues(alpha: 0.25)),
             ),
-            child: Row(
+            child: const Row(
               children: [
-                const KinrelIcon(KinrelIconData.crown,
+                KinrelIcon(KinrelIconData.crown,
                     size: 24, color: KinrelColors.brightGold),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
+                SizedBox(width: 12),
+                const Expanded(
+                  child: const Text(
                     'The monthly champion earns the Family Cup Champion badge — a permanent crown in the trophy room.',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       height: 1.45,
@@ -182,7 +182,7 @@ class _CupHero extends StatelessWidget {
           Text(
             seasonName,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 18,
               fontWeight: FontWeight.w900,
@@ -203,7 +203,7 @@ class _CupHero extends StatelessWidget {
               daysRemaining > 0
                   ? '$daysRemaining days remaining'
                   : 'Final results coming',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -238,7 +238,7 @@ class _PointsExplainer extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12.5,
                     color: KinrelColors.textSilver,
@@ -247,7 +247,7 @@ class _PointsExplainer extends StatelessWidget {
               ),
               Text(
                 value,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w800,

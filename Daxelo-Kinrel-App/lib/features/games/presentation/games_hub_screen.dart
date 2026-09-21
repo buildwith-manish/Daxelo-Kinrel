@@ -144,9 +144,9 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: _backToFamilySpace,
         ),
-        title: Text(
+        title: const Text(
           'Family Arena',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.3,
@@ -166,30 +166,30 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
 class _NoFamilyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const KinrelIcon(KinrelIconData.users,
+            KinrelIcon(KinrelIconData.users,
                 size: 44, color: KinrelColors.orange),
-            const SizedBox(height: 12),
-            Text(
+            SizedBox(height: 12),
+            const Text(
               'Create your family to unlock the Arena',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
                 color: KinrelColors.textWhite,
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
+            SizedBox(height: 8),
+            const Text(
               'Games, challenges, leaderboards and cups live inside your family space.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 height: 1.4,
@@ -291,7 +291,7 @@ class _GamingDashboardBody extends ConsumerWidget {
           // ═══════════════════════════════════════════════════════════════
           dashAsync.when(
             loading: () => const _DashboardSkeleton(),
-            error: (e, _) => GamingEmptyCard(
+            error: (e, _) => const GamingEmptyCard(
               emoji: '🔌',
               title: 'Could not load your Arena',
               message: 'Check your connection and pull to refresh.',
@@ -349,23 +349,23 @@ class _BrowseAllGamesLink extends StatelessWidget {
               border: Border.all(
                   color: KinrelColors.orange.withValues(alpha: 0.25)),
             ),
-            child: Row(
+            child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const KinrelIcon(KinrelIconData.controller,
+                KinrelIcon(KinrelIconData.controller,
                     size: 13, color: KinrelColors.orange),
-                const SizedBox(width: 6),
-                Text(
+                SizedBox(width: 6),
+                const Text(
                   'Browse all games',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: KinrelColors.orange,
                   ),
                 ),
-                const SizedBox(width: 4),
-                const Icon(Icons.chevron_right,
+                SizedBox(width: 4),
+                Icon(Icons.chevron_right,
                     size: 16, color: KinrelColors.orange),
               ],
             ),
@@ -411,7 +411,7 @@ class _FamilyMomentsPreview extends ConsumerWidget {
       error: (_, __) => const SizedBox.shrink(),
       data: (moments) {
         if (moments.isEmpty) {
-          return GamingEmptyCard(
+          return const GamingEmptyCard(
             emoji: '✨',
             title: 'No family moments yet',
             message: 'Wins, badges, milestones and cheers from your family\'s '
@@ -515,11 +515,11 @@ class _LeaderboardPreview extends ConsumerWidget {
                 ),
               if (lb.notYetPlayed.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6, left: 2),
-                  child: Text(
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 6, left: 2),
+                  child: const Text(
                     'Not playing yet',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
@@ -590,10 +590,10 @@ class _MilestoneStrip extends StatelessWidget {
                 const KinrelIcon(KinrelIconData.flag,
                     size: 18, color: KinrelColors.amber),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
+                const Expanded(
+                  child: const Text(
                     'Family Milestones',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -603,7 +603,7 @@ class _MilestoneStrip extends StatelessWidget {
                 ),
                 Text(
                   '$reached unlocked',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 11,
                     color: KinrelColors.amber,
@@ -614,7 +614,7 @@ class _MilestoneStrip extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               'Next: $nextTarget games played together',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textSilver,
@@ -628,7 +628,7 @@ class _MilestoneStrip extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               '$total of $nextTarget games · keep playing as a family',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 10.5,
                 color: KinrelColors.textDim,

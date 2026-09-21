@@ -57,8 +57,8 @@ class _GamingLeaderboardScreenState
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.canPop() ? context.pop() : context.go('/home')),
-        title: Text('Leaderboard',
-            style: TextStyle(
+        title: const Text('Leaderboard',
+            style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontWeight: FontWeight.w700)),
         backgroundColor: KinrelColors.darkCard,
@@ -126,8 +126,8 @@ class _GamingLeaderboardScreenState
             child: lbAsync.when(
               loading: () => const Center(
                   child: CircularProgressIndicator(color: KinrelColors.orange)),
-              error: (e, _) => Center(
-                child: GamingEmptyCard(
+              error: (e, _) => const Center(
+                child: const GamingEmptyCard(
                   emoji: '🔌',
                   title: 'Couldn\'t load the leaderboard',
                   message: 'Pull down to try again.',
@@ -216,11 +216,11 @@ class _GamingLeaderboardScreenState
                         return const SizedBox(height: 20);
                       }
                       if (i == 1) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8, left: 2),
-                          child: Text(
+                        return const Padding(
+                          padding: EdgeInsets.only(bottom: 8, left: 2),
+                          child: const Text(
                             'Not playing yet',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.displayFont,
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
