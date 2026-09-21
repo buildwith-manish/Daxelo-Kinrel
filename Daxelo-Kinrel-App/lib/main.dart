@@ -56,6 +56,10 @@ import 'core/services/remote_config_service.dart';
 import 'core/app_startup.dart';
 import 'core/family/family_provider.dart';
 import 'core/viewer/viewer_provider.dart' show invalidateViewerCache;
+// Step 1 — shared timezone-aware time utility. Initialized at app start so
+// `tz.local` works (needed by flutter_local_notifications zonedSchedule)
+// and so `nowServerAccurate()` / `nowIst()` are available to all screens.
+import 'core/utils/app_time.dart';
 import 'features/games/shared/widgets/game_invite_listener.dart';
 import 'features/presence/presence_heartbeat.dart';
 
@@ -78,6 +82,20 @@ void main() async {
   // color constants from the release build, causing edges to render
   // with no color (invisible) on Flutter Web.
   kinshipEdgeStyleRegistryCheck();
+
+  // ── Step 1 — Initialize timezone package + IST location ──────────
+  // MUST run before any code reads `tz.local` (e.g., the local
+  // notification scheduler's zonedSchedule). Best-effort — failures
+  // fall back to UTC, which is fine for the notification scheduler
+  // since we use explicit IST offsets for shared scheduling.
+  // Also MUST run before any screen calls `AppTime.nowIst()` so
+  // `tz.getLocation('Asia/Kolkata')` succeeds.
+  try {
+    await AppTime.initialize();
+    debugPrint('🕐 AppTime initialized (timezone package ready)');
+  } catch (e) {
+    debugPrint('⚠️ AppTime.initialize failed (continuing with UTC): $e');
+  }
 
   // ── 1. Initialize environment ────────────────────────────────────
   try {
@@ -319,6 +337,26 @@ Future<void> _initializeServices() async {
   // Suppress unused variable warning
   // ignore: unused_local_variable
   final _ = results;
+
+  // ── Step 1 — Sync device clock against server clock ────────────
+  // Now that Supabase is ready, fetch the server's UTC time (via a
+  // HEAD request to the Supabase URL — the Date header is the
+  // server's UTC time in RFC 1123 format) and compute the device-vs-
+  // server offset. This corrects for device clock drift on cheap
+  // Android hardware — `AppTime.nowServerAccurate()` and `nowIst()`
+  // use this offset for all subsequent "what time is it right now"
+  // logic (Prediction Battle window check, streak day-boundary check).
+  // Best-effort — failures fall back to `DateTime.now()`.
+  if (supabaseReady) {
+    try {
+      final url = AppConfig.supabaseUrl;
+      if (url.isNotEmpty) {
+        await AppTime.syncServerClock(url);
+      }
+    } catch (e) {
+      debugPrint('⚠️ AppTime.syncServerClock failed: $e');
+    }
+  }
 
   // ── 3. Initialize Crashlytics + FCM (after Firebase) ──────────────
   try {
