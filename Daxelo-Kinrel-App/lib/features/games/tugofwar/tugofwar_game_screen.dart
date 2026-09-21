@@ -111,14 +111,18 @@ class _TugOfWarGameScreenState extends ConsumerState<TugOfWarGameScreen>
     // Feed authoritative rope samples into the spring. The FIRST sample
     // snaps rather than glides, so anyone landing mid-match (reconnect,
     // spectator, late joiner) sees the rope exactly where it truly is.
-    final ropeTarget = state.game?.ropePosition;
-    if (ropeTarget != null) {
-      if (!_ropeSynced) {
-        _ropeSynced = true;
-        _rope.snapTo(ropeTarget);
-      } else {
-        _rope.setTarget(ropeTarget);
-      }
+    //
+    // Step 1 (broadcast migration): now reads `state.effectiveRope` which
+    // prefers the live broadcast value (low-latency, ~6 Hz from host via
+    // Realtime Broadcast) during active play and falls back to
+    // `state.game.ropePosition` for the durable final value at match
+    // completion (delivered via Postgres Changes).
+    final ropeTarget = state.effectiveRope;
+    if (!_ropeSynced) {
+      _ropeSynced = true;
+      _rope.snapTo(ropeTarget);
+    } else {
+      _rope.setTarget(ropeTarget);
     }
 
     return ReactionOverlay(
@@ -178,7 +182,7 @@ class _TugOfWarGameScreenState extends ConsumerState<TugOfWarGameScreen>
           ),
         );
 
-        final header = _TopBar(game: game);
+        final header = _TopBar(game: game, effectiveRope: state.effectiveRope);
         final teams = _TeamsPanel(state: state, myUserId: myId);
         final puller = _PullSection(
           state: state,
@@ -261,9 +265,13 @@ class TugTeamBoardColors {
 // ────────────────────────────────────────────────────────────────────
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.game});
+  const _TopBar({required this.game, required this.effectiveRope});
 
   final TugOfWarGame game;
+  /// Step 1 (broadcast migration): live rope position from the host's
+  /// Realtime Broadcast during active play, falling back to
+  /// `game.ropePosition` for the durable final value at match end.
+  final double effectiveRope;
 
   @override
   Widget build(BuildContext context) {
@@ -332,8 +340,10 @@ class _TopBar extends StatelessWidget {
           const SizedBox(height: KinrelSpacing.sm),
           // Advantage meter — the gold lead marker slides toward the
           // leading team's side, mirroring the arena flag exactly.
+          // Step 1: use effectiveRope (live broadcast value during
+          // play, falls back to game.ropePosition at match end).
           _AdvantageMeter(
-            lead: game.ropePosition.clamp(-1.0, 1.0),
+            lead: effectiveRope.clamp(-1.0, 1.0),
           ),
         ],
       ),

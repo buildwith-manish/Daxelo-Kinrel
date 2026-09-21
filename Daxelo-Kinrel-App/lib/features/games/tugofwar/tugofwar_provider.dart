@@ -1,18 +1,67 @@
 // lib/features/games/tugofwar/tugofwar_provider.dart
 //
-// Tug of War — Riverpod state + Supabase Realtime + server-authoritative pulls.
+// Tug of War — Riverpod state + Supabase Realtime + host-authoritative rope.
 //
-// Architecture:
-//   • Supabase stores the game row (rope position, team taps, winner) and
-//     the player roster (validated pull counts, teams).
-//   • The fn_tugofwar_pull RPC is the ONLY place taps are counted — it
-//     enforces the 15 taps/sec anti-cheat cap server-side and recomputes
-//     the rope from per-player averages (fairness formula).
-//   • Clients batch taps every 400 ms (~2.5 RPCs/sec/player) and animate
-//     locally at 60 fps; the game row updates arrive via Realtime at up to
-//     ~6 Hz (server-throttled) and are interpolated by the rope controller.
-//   • fn_tugofwar_tick is a watchdog any client runs every 2 s so timed
-//     matches end the moment they expire.
+// Architecture (perf/smoothness-pass-2 Step 1 — migrated from per-batch
+// DB-pull RPC to Realtime Broadcast, mirroring the stickman_heist
+// pattern from commit aa46b5a9):
+//
+//   • Supabase stores the game row (roster, winner, endReason) and the
+//     per-player row (team, validated pullCount, ready state). These
+//     rows are written ONLY on lifecycle events (create/join/start/
+//     leave/complete) — NOT on every tap batch.
+//
+//   • HOT PATH (active play, pure websocket — NO DB):
+//       NON-HOST clients:
+//         • Tap batches accumulate locally; every 400 ms the local
+//           batch is sent via `channel.sendBroadcastMessage(event:
+//           'tap_batch', payload: {userId, taps})` — pure websocket.
+//         • Receive authoritative rope state via
+//           `onBroadcast(event: 'rope_state')` every 150 ms.
+//         • On subscribe, send `request_state` to get an instant
+//           snapshot from the host (no waiting up to 150 ms for the
+//           next periodic broadcast).
+//       HOST client:
+//         • Receives non-host tap batches via
+//           `onBroadcast(event: 'tap_batch')` and accumulates per-
+//           player pullCount locally.
+//         • Every 150 ms (matching the SQL's previous 6 Hz cadence),
+//           computes the authoritative rope position using the SAME
+//           fairness formula (avgA - avgB) / 30 and broadcasts it via
+//           `sendBroadcastMessage(event: 'rope_state', payload:
+//           {rope, teamATaps, teamBTaps, players: [...]})`.
+//         • Host's own taps are applied directly to the local
+//           accumulator (no network round-trip).
+//         • Responds to `request_state` handshake with a one-time
+//           snapshot for spectators / reconnecting players.
+//
+//   • DURABLE DB calls (event-driven, one per match):
+//       • createGame / joinGame / leaveGame (one-time per player).
+//       • startMatch / fn_tugofwar_start (one-time per match).
+//       • MATCH COMPLETION: ONE call to fn_tugofwar_persist_match
+//         (host only) — persists per-player pullCount + final rope +
+//         winner + endReason. The ONLY DB write in the hot path; one
+//         call per match, not 10/sec.
+//
+//   • Watchdog: the 2s _watchdogTimer is left alone per the user's
+//     instruction ("local sanity-check timer — leave it alone"). It
+//     still calls fn_tugofwar_tick every 2s during a timed match so
+//     an expired match ends even if the host disconnects. Edge case:
+//     under the new architecture, tugofwar_players.pullCount is only
+//     updated by fn_tugofwar_persist_match at match end — so if the
+//     host disconnects BEFORE persisting, the watchdog will compute
+//     a 0-0 draw. This is the same trade-off stickman_heist made
+//     (host disconnect → match can't complete authoritatively).
+//
+//   • Anti-cheat: the previous fn_tugofwar_pull RPC enforced a
+//     15 taps/sec cap per player server-side. The new architecture
+//     trusts the host as the authority (host is elected by the
+//     family). Each client could in theory inflate its own broadcast
+//     count, but the host applies a local 15 taps/sec cap per
+//     player before accumulating — same effective cap, just enforced
+//     by the host instead of the DB. The fn_tugofwar_pull RPC is
+//     retained for backward compatibility but is no longer called
+//     in the hot path.
 
 import 'dart:async';
 
@@ -26,8 +75,22 @@ import '../shared/data/game_invite_chat_sync.dart';
 import '../shared/services/temporary_room_service.dart';
 import 'tugofwar_models.dart';
 
-/// How often the local tap buffer is flushed to fn_tugofwar_pull.
+/// How often the local tap buffer is broadcast to the host via Realtime
+/// Broadcast (pure websocket, no DB). Was 400ms for the DB-pull path;
+/// kept the same for the Broadcast path — tap responsiveness unchanged.
 const Duration kPullBatchWindow = Duration(milliseconds: 400);
+
+/// How often the HOST recomputes the authoritative rope position and
+/// broadcasts it to all clients. Matches the SQL's previous 6 Hz
+/// throttle (every 150ms inside fn_tugofwar_pull).
+const Duration kRopeBroadcastInterval = Duration(milliseconds: 150);
+
+/// Local anti-cheat cap: each client enforces 15 taps/sec + 10 burst
+/// budget on its OWN count before broadcasting (mirrors the server-side
+/// cap previously enforced by fn_tugofwar_pull). The host additionally
+/// re-checks received counts against this cap before accumulating.
+const int _kTapsPerSecCap = 15;
+const int _kTapsBurstBudget = 10;
 
 class TugOfWarState {
   const TugOfWarState({
@@ -40,6 +103,12 @@ class TugOfWarState {
     this.amSpectator = false,
     this.myLocalTaps = 0,
     this.rateLimitedUntil,
+    /// Broadcast-authoritative rope position (live, host-broadcast).
+    /// This is the value the rope controller should render. It mirrors
+    /// game.ropePosition once a match completes (the durable final value).
+    this.broadcastRope,
+    this.broadcastTeamATaps = 0,
+    this.broadcastTeamBTaps = 0,
   });
 
   final TugOfWarGame? game;
@@ -50,12 +119,27 @@ class TugOfWarState {
   final String? error;
   final bool amSpectator;
 
-  /// Optimistic local tap counter (instant PULL feedback). The server's
-  /// count for me lives on my player row and arrives via Realtime.
+  /// Optimistic local tap counter (instant PULL feedback). The host's
+  /// authoritative count for me arrives via Broadcast (as part of the
+  /// rope_state payload) and is mirrored into the matching player row.
   final int myLocalTaps;
 
-  /// While set, the server is rejecting part of our taps (15/sec cap).
+  /// While set, the host is rejecting part of our taps (15/sec cap).
   final DateTime? rateLimitedUntil;
+
+  /// Latest broadcast rope position from the host (-1 .. +1). Updated
+  /// every 150 ms during active play (pure websocket). Null before the
+  /// first rope_state event arrives (or for spectators before they send
+  /// `request_state`). The `game.ropePosition` field is still updated
+  /// via Postgres Changes for the durable final value at match end.
+  final double? broadcastRope;
+
+  /// Latest broadcast team-A tap total (sum of all Team A players'
+  /// pullCounts). Mirrors `game.teamATaps` once the match completes.
+  final int broadcastTeamATaps;
+
+  /// Latest broadcast team-B tap total.
+  final int broadcastTeamBTaps;
 
   bool get isWaiting => game?.isWaiting ?? false;
   bool get isInProgress => game?.isInProgress ?? false;
@@ -98,6 +182,20 @@ class TugOfWarState {
         teamRoster(TugTeam.b).isNotEmpty;
   }
 
+  /// Effective rope position: prefer the live broadcast value during
+  /// active play (low-latency), fall back to the durable game.ropePosition
+  /// for the final value after match completion.
+  double get effectiveRope => broadcastRope ?? game?.ropePosition ?? 0.0;
+
+  /// Effective team A taps: prefer the live broadcast total during
+  /// active play, fall back to game.teamATaps.
+  int get effectiveTeamATaps =>
+      broadcastTeamATaps > 0 ? broadcastTeamATaps : (game?.teamATaps ?? 0);
+
+  /// Effective team B taps.
+  int get effectiveTeamBTaps =>
+      broadcastTeamBTaps > 0 ? broadcastTeamBTaps : (game?.teamBTaps ?? 0);
+
   TugOfWarState copyWith({
     TugOfWarGame? game,
     List<TugOfWarPlayer>? players,
@@ -111,6 +209,9 @@ class TugOfWarState {
     bool resetLocalTaps = false,
     DateTime? rateLimitedUntil,
     bool clearRateLimit = false,
+    double? broadcastRope,
+    int? broadcastTeamATaps,
+    int? broadcastTeamBTaps,
   }) =>
       TugOfWarState(
         game: game ?? this.game,
@@ -123,12 +224,17 @@ class TugOfWarState {
         myLocalTaps: resetLocalTaps ? 0 : (myLocalTaps ?? this.myLocalTaps),
         rateLimitedUntil:
             clearRateLimit ? null : (rateLimitedUntil ?? this.rateLimitedUntil),
+        broadcastRope: broadcastRope ?? this.broadcastRope,
+        broadcastTeamATaps: broadcastTeamATaps ?? this.broadcastTeamATaps,
+        broadcastTeamBTaps: broadcastTeamBTaps ?? this.broadcastTeamBTaps,
       );
 }
 
 class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
   TugOfWarNotifier(this._ref, this.familyId) : super(const TugOfWarState()) {
-    _batchTimer = Timer.periodic(kPullBatchWindow, (_) => _flushTaps());
+    _batchTimer = Timer.periodic(kPullBatchWindow, (_) => _broadcastTaps());
+    _ropeBroadcastTimer =
+        Timer.periodic(kRopeBroadcastInterval, (_) => _broadcastRopeState());
   }
 
   final Ref _ref;
@@ -144,16 +250,39 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
   Timer? _watchdogTimer;
   Timer? _cleanupTimer;
   late final Timer _batchTimer;
+  late final Timer _ropeBroadcastTimer;
 
+  /// Local tap buffer for THIS client (the host's own taps if I'm the
+  /// host, my own taps if I'm a non-host). Flushed every 400 ms via
+  /// `sendBroadcastMessage(event: 'tap_batch', ...)`.
   int _pendingTaps = 0;
-  bool _flushInFlight = false;
 
-  /// Cold-start retries: deep-linking or RELOADING straight onto the game
-  /// screen can create this notifier BEFORE the Supabase client/session is
-  /// wired into Riverpod. Without a retry the load bails once and a
-  /// reconnecting player is stranded on the loading spinner forever even
-  /// though the match is live (same class of bug as Ghost Painter f28fb88).
+  /// True while a tap-batch broadcast is in-flight (prevents overlapping
+  /// sends if the 400 ms tick fires faster than the network can deliver).
+  bool _broadcastInFlight = false;
+
+  /// Host-only: per-player authoritative pullCount accumulator. Updated
+  /// from received `tap_batch` broadcasts AND from the host's own local
+  /// `_pendingTaps` flush.
+  /// Keyed by userId. Only players on a team (A or B) are tracked.
+  final Map<String, int> _authoritativePullCounts = {};
+
+  /// Host-only: timestamp the match started (for the 15 taps/sec cap).
+  DateTime? _matchStartTime;
+
+  /// Host-only: latest computed rope position. Broadcast every 150 ms.
+  double _currentRope = 0.0;
+
+  /// Cold-start retries (kept from the original — same purpose).
   int _loadRetries = 0;
+
+  /// True iff this client is the host of the current game. Set in
+  /// `_applyGameRow` from `game.hostUserId == _myId`.
+  bool get _isHost {
+    final game = state.game;
+    if (game == null) return false;
+    return game.hostUserId == _myId;
+  }
 
   // ── Public API ───────────────────────────────────────────────────
 
@@ -374,6 +503,18 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
       state = state.copyWith(isStarting: false);
       if (map['ok'] == true) {
         GameMotionTokens.celebrate();
+        // Host initializes the authoritative accumulator when the match
+        // starts. Non-hosts will receive the rope_state broadcasts.
+        if (_isHost) {
+          _matchStartTime = DateTime.now();
+          _authoritativePullCounts.clear();
+          _currentRope = 0.0;
+          for (final p in state.players) {
+            if (p.team != null) {
+              _authoritativePullCounts[p.userId] = 0;
+            }
+          }
+        }
         return null;
       }
       return switch (map['reason']) {
@@ -390,53 +531,229 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
   }
 
   /// PULL! Called on every tap of the big button. Registers locally at
-  /// once (instant haptics + rope impulse) and batches to the server.
+  /// once (instant haptics + rope impulse) and batches for broadcast.
+  ///
+  /// Step 1 (broadcast migration): the local cap is now enforced here
+  /// (15 taps/sec + 10 burst budget, mirroring the previous server-side
+  /// cap in fn_tugofwar_pull). If the local cap rejects the tap, we
+  /// set rateLimitedUntil to show the "steady!" hint.
   void pull() {
     if (!state.isInProgress || state.amSpectator) return;
     final myId = _myId;
+    if (myId == null) return;
     if (state.playerFor(myId)?.team == null) return;
+
+    // Local anti-cheat: 15 taps/sec + 10 burst budget since match start.
+    // Same formula as fn_tugofwar_pull (line 381-383 of the migration).
+    if (_matchStartTime != null) {
+      final elapsed = DateTime.now().difference(_matchStartTime!).inMilliseconds /
+          1000.0;
+      final cap = (elapsed * _kTapsPerSecCap).floor() + _kTapsBurstBudget;
+      final myCurrentAuthoritative =
+          _isHost ? (_authoritativePullCounts[myId] ?? 0) : state.myLocalTaps;
+      if (myCurrentAuthoritative >= cap) {
+        // Rate-limited — show "steady!" hint for 900 ms.
+        state = state.copyWith(
+          rateLimitedUntil:
+              DateTime.now().add(const Duration(milliseconds: 900)),
+        );
+        return;
+      }
+    }
+
     _pendingTaps += 1;
     state = state.copyWith(myLocalTaps: state.myLocalTaps + 1);
+
+    // If I'm the host, apply my own taps directly to the authoritative
+    // accumulator (no network round-trip). The 400 ms _broadcastTaps
+    // timer will also broadcast my taps to spectators / late-joiners,
+    // but the rope state is computed from the live accumulator.
+    if (_isHost) {
+      _authoritativePullCounts[myId] =
+          (_authoritativePullCounts[myId] ?? 0) + 1;
+    }
   }
 
-  Future<void> _flushTaps() async {
-    if (_flushInFlight || _pendingTaps <= 0) return;
+  /// Non-host: send my local tap batch to the host via Realtime Broadcast
+  /// (pure websocket, NO DB). Host: also broadcasts own taps so spectators
+  /// can see them. Called every kPullBatchWindow (400 ms) by _batchTimer.
+  ///
+  /// If the match has ended (game == null or game.isCompleted or
+  /// game.isWaiting), the pending taps are silently dropped — the host
+  /// won't accept them and we don't want to leak them when the next match
+  /// starts.
+  void _broadcastTaps() {
+    if (_broadcastInFlight) return;
     final gameId = _gameId;
-    if (gameId == null) {
+    final channel = _channel;
+    final myId = _myId;
+    if (gameId == null || channel == null || myId == null) {
+      _pendingTaps = 0;
+      return;
+    }
+    // Only broadcast during active play.
+    if (!state.isInProgress) {
       _pendingTaps = 0;
       return;
     }
     final taps = _pendingTaps;
+    if (taps <= 0) return;
     _pendingTaps = 0;
-    _flushInFlight = true;
-    final client = _client;
+    _broadcastInFlight = true;
     try {
-      if (client != null) {
-        final result = await client.rpc('fn_tugofwar_pull', params: {
-          'p_game_id': gameId,
-          'p_taps': taps,
-        });
-        final map = result is Map<String, dynamic>
-            ? result
-            : (result is Map ? Map<String, dynamic>.from(result) : null);
-        if (map != null) {
-          final accepted = (map['accepted'] as num?)?.toInt() ?? 0;
-          if (accepted < taps) {
-            // Server clipped us (anti-cheat). Ease off the local counter and
-            // briefly show the "steady!" hint.
-            state = state.copyWith(
-              myLocalTaps:
-                  (state.myLocalTaps - (taps - accepted)).clamp(0, 1 << 30),
-              rateLimitedUntil:
-                  DateTime.now().add(const Duration(milliseconds: 900)),
-            );
+      unawaited(channel.sendBroadcastMessage(
+        event: 'tap_batch',
+        payload: {
+          'userId': myId,
+          'taps': taps,
+          'ts': DateTime.now().toIso8601String(),
+        },
+      ));
+    } catch (e) {
+      debugPrint('[TugOfWar] broadcastTaps error: $e');
+    } finally {
+      _broadcastInFlight = false;
+    }
+  }
+
+  /// Host-only: recompute the authoritative rope position from the
+  /// per-player accumulator and broadcast it to all clients (including
+  /// spectators) every kRopeBroadcastInterval (150 ms). Called by
+  /// _ropeBroadcastTimer.
+  ///
+  /// On match completion (rope crosses ±1.0 OR host detects time-up),
+  /// makes ONE durable RPC to fn_tugofwar_persist_match to persist
+  /// the final result.
+  Future<void> _broadcastRopeState() async {
+    if (!_isHost) return;
+    final gameId = _gameId;
+    final channel = _channel;
+    final client = _client;
+    if (gameId == null || channel == null || client == null) return;
+    if (!state.isInProgress) return;
+
+    // 1. Compute team totals + averages from the authoritative accumulator.
+    int sumA = 0, sumB = 0, nA = 0, nB = 0;
+    for (final p in state.players) {
+      if (p.team == null) continue;
+      final count = _authoritativePullCounts[p.userId] ?? p.pullCount;
+      if (p.team == TugTeam.a) {
+        sumA += count;
+        nA++;
+      } else {
+        sumB += count;
+        nB++;
+      }
+    }
+    final avgA = nA == 0 ? 0.0 : sumA / nA;
+    final avgB = nB == 0 ? 0.0 : sumB / nB;
+
+    // 2. FAIRNESS: normalized per-player averages, not raw team totals.
+    // Same formula as fn_tugofwar_pull (line 404 of the migration).
+    final rope = ((avgA - avgB) / 30.0).clamp(-1.0, 1.0);
+    _currentRope = rope;
+
+    // 3. Update the broadcast state (live, for the rope controller + UI).
+    state = state.copyWith(
+      broadcastRope: rope,
+      broadcastTeamATaps: sumA,
+      broadcastTeamBTaps: sumB,
+      // Mirror the authoritative pullCounts back into the player rows so
+      // team stats / leaderboards render the live counts during play.
+      players: state.players.map((p) {
+        if (p.team == null) return p;
+        final live = _authoritativePullCounts[p.userId];
+        if (live == null || live == p.pullCount) return p;
+        return p.copyWith(pullCount: live);
+      }).toList(),
+    );
+
+    // 4. Broadcast the rope state to all clients (pure websocket).
+    try {
+      unawaited(channel.sendBroadcastMessage(
+        event: 'rope_state',
+        payload: {
+          'rope': rope,
+          'teamATaps': sumA,
+          'teamBTaps': sumB,
+          'players': state.players
+              .where((p) => p.team != null)
+              .map((p) => {
+                    'userId': p.userId,
+                    'pullCount': _authoritativePullCounts[p.userId] ?? p.pullCount,
+                  })
+              .toList(),
+          'ts': DateTime.now().toIso8601String(),
+        },
+      ));
+    } catch (e) {
+      debugPrint('[TugOfWar] broadcastRopeState (ws) error: $e');
+    }
+
+    // 5. Check match-completion conditions:
+    //    a) rope crossed ±1.0 → victory_line
+    //    b) timed match + time expired → time_up
+    String? endReason;
+    String? winnerTeam;
+    if (rope >= 1.0 && nA > 0 && nB > 0) {
+      endReason = 'victory_line';
+      winnerTeam = 'A';
+    } else if (rope <= -1.0 && nA > 0 && nB > 0) {
+      endReason = 'victory_line';
+      winnerTeam = 'B';
+    } else {
+      final game = state.game;
+      if (game != null && game.hasTimer && game.endsAt != null) {
+        if (DateTime.now().isAfter(game.endsAt!)) {
+          endReason = 'time_up';
+          if (avgA > avgB) {
+            winnerTeam = 'A';
+          } else if (avgB > avgA) {
+            winnerTeam = 'B';
+          } else {
+            winnerTeam = null; // draw
           }
         }
       }
+    }
+
+    if (endReason == null) return;
+
+    // 6. ONE durable RPC to persist the final result. This is the ONLY
+    //    DB write in the hot path — one call per match, not 10/sec.
+    await _persistMatchFinal(
+      gameId: gameId,
+      client: client,
+      rope: rope,
+      endReason: endReason,
+      winnerTeam: winnerTeam,
+    );
+  }
+
+  /// Host-only: ONE durable RPC to persist the match final result.
+  /// Calls fn_tugofwar_persist_match (added in migration
+  /// 20260922100000_tugofwar_broadcast_persist.sql).
+  Future<void> _persistMatchFinal({
+    required String gameId,
+    required SupabaseClient client,
+    required double rope,
+    required String endReason,
+    required String? winnerTeam,
+  }) async {
+    try {
+      final pullCountsJson = <String, dynamic>{};
+      for (final entry in _authoritativePullCounts.entries) {
+        pullCountsJson[entry.key] = entry.value;
+      }
+      await client.rpc('fn_tugofwar_persist_match', params: {
+        'p_game_id': gameId,
+        'p_pull_counts': pullCountsJson,
+        'p_final_rope': rope,
+        'p_end_reason': endReason,
+        'p_winner_team': winnerTeam ?? '',
+      });
     } catch (e) {
-      debugPrint('[TugOfWar] pull flush error: $e');
-    } finally {
-      _flushInFlight = false;
+      debugPrint('[TugOfWar] persistMatchFinal error: $e');
     }
   }
 
@@ -615,7 +932,8 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
     state = state.copyWith(game: game);
 
     // Watchdog: while a timed match runs, ping the server every 2 s so an
-    // expired match ends even if both teams stop pulling.
+    // expired match ends even if both teams stop pulling. LEFT ALONE per
+    // user instruction — local sanity-check timer, not a hot-path DB hit.
     if (game.isInProgress && game.hasTimer && _watchdogTimer == null) {
       _watchdogTimer = Timer.periodic(const Duration(seconds: 2), (_) {
         _tryRpc('fn_tugofwar_tick', {'p_game_id': game.id});
@@ -626,6 +944,21 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
     }
     if (game.isInProgress && !wasInProgress) {
       state = state.copyWith(resetLocalTaps: true);
+      // Host initializes the authoritative accumulator when the match
+      // starts (also done in startMatch, but this path covers the case
+      // where the host was already in the lobby and another client
+      // triggered the start, OR the host is reconnecting mid-match).
+      if (_isHost) {
+        _matchStartTime = game.startedAt ?? DateTime.now();
+        if (_authoritativePullCounts.isEmpty) {
+          _currentRope = game.ropePosition;
+          for (final p in state.players) {
+            if (p.team != null) {
+              _authoritativePullCounts[p.userId] = p.pullCount;
+            }
+          }
+        }
+      }
     }
     if (game.isCompleted && wasInProgress) {
       GameMotionTokens.celebrate();
@@ -646,6 +979,15 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
           .map((p) => TugOfWarPlayer.fromJson(p))
           .toList();
       state = state.copyWith(players: players);
+      // If I'm the host and the match is in progress, sync the
+      // authoritative accumulator with the freshly-loaded roster.
+      if (_isHost && state.isInProgress && _authoritativePullCounts.isEmpty) {
+        for (final p in players) {
+          if (p.team != null) {
+            _authoritativePullCounts[p.userId] ??= p.pullCount;
+          }
+        }
+      }
     } catch (e) {
       debugPrint('[TugOfWar] refreshPlayers error: $e');
     }
@@ -682,6 +1024,143 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
 
     _channel = client
         .channel('tugofwar_game:$gameId')
+        // ── HOT-PATH BROADCAST LISTENERS (pure websocket, no DB) ──
+        // These replace the previous 400 ms `fn_tugofwar_pull` RPC.
+        .onBroadcast(
+          event: 'tap_batch',
+          callback: (payload) {
+            // Host receives a non-host's tap batch. Accumulate locally.
+            if (!_isHost) return;
+            try {
+              final map = Map<String, dynamic>.from(payload as Map);
+              final userId = map['userId'] as String?;
+              final taps = (map['taps'] as num?)?.toInt() ?? 0;
+              if (userId == null || userId.isEmpty || taps <= 0) return;
+              if (userId == _myId) return; // host's own taps already applied
+
+              // Local anti-cheat: enforce the 15 taps/sec + 10 burst
+              // cap per player before accumulating. Same formula as
+              // fn_tugofwar_pull.
+              final player = state.playerFor(userId);
+              if (player?.team == null) return;
+              if (_matchStartTime != null) {
+                final elapsed = DateTime.now()
+                        .difference(_matchStartTime!)
+                        .inMilliseconds /
+                    1000.0;
+                final cap = (elapsed * _kTapsPerSecCap).floor() +
+                    _kTapsBurstBudget;
+                final current = _authoritativePullCounts[userId] ?? 0;
+                final accepted = (taps).clamp(0, (cap - current).clamp(0, 1 << 30));
+                if (accepted <= 0) return;
+                _authoritativePullCounts[userId] = current + accepted;
+              } else {
+                _authoritativePullCounts[userId] =
+                    (_authoritativePullCounts[userId] ?? 0) + taps;
+              }
+            } catch (e) {
+              debugPrint('[TugOfWar] onBroadcast(tap_batch) parse error: $e');
+            }
+          },
+        )
+        .onBroadcast(
+          event: 'rope_state',
+          callback: (payload) {
+            // Non-hosts + spectators receive the authoritative rope
+            // state from the host. Host ignores — host owns the
+            // canonical state.
+            if (_isHost) return;
+            try {
+              final map = Map<String, dynamic>.from(payload as Map);
+              final rope = (map['rope'] as num?)?.toDouble() ?? 0.0;
+              final teamATaps = (map['teamATaps'] as num?)?.toInt() ?? 0;
+              final teamBTaps = (map['teamBTaps'] as num?)?.toInt() ?? 0;
+              final playersList = map['players'];
+              // Mirror per-player pullCounts into state.players so the
+              // team-stats / leaderboard UIs render live during play.
+              List<TugOfWarPlayer>? updatedPlayers;
+              if (playersList is List) {
+                final byId = <String, int>{};
+                for (final item in playersList) {
+                  if (item is Map) {
+                    final uid = item['userId'] as String?;
+                    final cnt = (item['pullCount'] as num?)?.toInt();
+                    if (uid != null && cnt != null) {
+                      byId[uid] = cnt;
+                    }
+                  }
+                }
+                if (byId.isNotEmpty) {
+                  updatedPlayers = state.players.map((p) {
+                    final live = byId[p.userId];
+                    if (live == null || live == p.pullCount) return p;
+                    return p.copyWith(pullCount: live);
+                  }).toList();
+                }
+              }
+              state = state.copyWith(
+                broadcastRope: rope.clamp(-1.0, 1.0),
+                broadcastTeamATaps: teamATaps,
+                broadcastTeamBTaps: teamBTaps,
+                players: updatedPlayers ?? state.players,
+              );
+            } catch (e) {
+              debugPrint('[TugOfWar] onBroadcast(rope_state) parse error: $e');
+            }
+          },
+        )
+        .onBroadcast(
+          event: 'request_state',
+          callback: (_) {
+            // A spectator (or reconnecting player) joined and is asking
+            // for a one-time snapshot of the current rope state so they
+            // can render immediately instead of waiting up to 150 ms for
+            // the next periodic broadcast. Only host responds.
+            if (!_isHost) return;
+            final channel = _channel;
+            if (channel == null) return;
+            try {
+              // Reuse the same payload shape as _broadcastRopeState.
+              int sumA = 0, sumB = 0;
+              for (final p in state.players) {
+                if (p.team == null) continue;
+                final count = _authoritativePullCounts[p.userId] ?? p.pullCount;
+                if (p.team == TugTeam.a) {
+                  sumA += count;
+                } else {
+                  sumB += count;
+                }
+              }
+              channel.sendBroadcastMessage(
+                event: 'rope_state',
+                payload: {
+                  'rope': _currentRope,
+                  'teamATaps': sumA,
+                  'teamBTaps': sumB,
+                  'players': state.players
+                      .where((p) => p.team != null)
+                      .map((p) => {
+                            'userId': p.userId,
+                            'pullCount':
+                                _authoritativePullCounts[p.userId] ?? p.pullCount,
+                          })
+                      .toList(),
+                  'ts': DateTime.now().toIso8601String(),
+                },
+              );
+            } catch (e) {
+              debugPrint('[TugOfWar] request_state response error: $e');
+            }
+          },
+        )
+        // ── DURABLE POSTGRES CHANGES LISTENERS ──
+        // These remain on Postgres Changes because they describe
+        // durable state changes that must survive disconnect/reload:
+        //   • tugofwar_games UPDATE → status flip (waiting →
+        //     in_progress → completed), winnerTeam, endReason
+        //   • tugofwar_players INSERT/UPDATE/DELETE → lobby
+        //     roster + ready state
+        // These fire ~once per actual lifecycle event, not per frame.
         .onPostgresChanges(
           event: PostgresChangeEvent.update,
           schema: 'public',
@@ -710,6 +1189,11 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
             final player = TugOfWarPlayer.fromJson(payload.newRecord);
             if (!state.players.any((p) => p.userId == player.userId)) {
               state = state.copyWith(players: [...state.players, player]);
+              // Host: add to the authoritative accumulator if the new
+              // player is on a team.
+              if (_isHost && player.team != null) {
+                _authoritativePullCounts[player.userId] ??= 0;
+              }
             }
           },
         )
@@ -748,9 +1232,30 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
                   .where((p) => p.userId != goneId)
                   .toList(),
             );
+            // Host: drop from the authoritative accumulator.
+            _authoritativePullCounts.remove(goneId);
           },
         )
         .subscribe();
+
+    // Spectator / reconnecting-player handshake: ask the host for a
+    // one-time snapshot so we render the rope immediately instead of
+    // waiting up to 150 ms for the next periodic broadcast.
+    if (!_isHost) {
+      // Small delay so the host's onBroadcast('request_state') listener
+      // is wired before we send (otherwise the request is lost).
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (!mounted || _channel == null) return;
+        try {
+          unawaited(_channel!.sendBroadcastMessage(
+            event: 'request_state',
+            payload: {'userId': _myId, 'ts': DateTime.now().toIso8601String()},
+          ));
+        } catch (e) {
+          debugPrint('[TugOfWar] request_state send error: $e');
+        }
+      });
+    }
   }
 
   void _cleanup() {
@@ -762,12 +1267,16 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
     _cleanupTimer = null;
     _gameId = null;
     _pendingTaps = 0;
+    _authoritativePullCounts.clear();
+    _matchStartTime = null;
+    _currentRope = 0.0;
     state = const TugOfWarState();
   }
 
   @override
   void dispose() {
     _batchTimer.cancel();
+    _ropeBroadcastTimer.cancel();
     _watchdogTimer?.cancel();
     _cleanupTimer?.cancel();
     _channel?.unsubscribe();
