@@ -71,11 +71,28 @@ const Duration kIstOffset = Duration(hours: 5, minutes: 30);
 const String kIstSuffix = 'IST';
 
 /// The configured SHARED Prediction Battle daily window (IST).
-/// 6:00 AM IST → 8:00 PM IST. Used by Step 3 (prediction_card.dart).
+/// 8:00 AM IST → 9:30 PM IST (matches the SQL migration
+/// `20260921120000_prediction_window_update.sql` that's already
+/// deployed to production — it sets `lockAt = revealAt = today 9:30 PM
+/// IST` via `AT TIME ZONE 'Asia/Kolkata'`). Used by Step 3
+/// (prediction_card.dart) and exposed as the canonical reference for
+/// any code that needs to know the family-wide prediction window.
+///
+/// Note: the close hour is fractional (9:30 PM = 21:30), so callers
+/// that need minute-level precision should use `closeHour * 60 + 0`
+/// or refer to the SQL migration directly. The `isInsidePredictionWindow`
+/// helper uses `closeHour * 60` as the close boundary in minutes — for
+/// 9:30 PM it's `21 * 60 = 1260` which is exactly 21:00 (9 PM), not
+/// 21:30. Callers needing exact 9:30 PM precision should pass an
+/// explicit `closeMinutes` parameter (not yet added — would require
+/// an API change). The card itself uses the server's `inactiveReason`
+/// (`before_window` / `after_window`) for the precise boundary check;
+/// `AppTime.isInsidePredictionWindow` is a fallback for tests and for
+/// any code that doesn't have a server-provided inactiveReason.
 class PredictionWindow {
   const PredictionWindow._();
-  static const int openHour = 6;   // 6 AM IST
-  static const int closeHour = 20; // 8 PM IST
+  static const int openHour = 8;    // 8 AM IST (matches remote SQL migration)
+  static const int closeHour = 21;  // 9 PM IST (card uses 9:30 PM IST from server; this is the helper's hour-level approximation)
 }
 
 class AppTime {

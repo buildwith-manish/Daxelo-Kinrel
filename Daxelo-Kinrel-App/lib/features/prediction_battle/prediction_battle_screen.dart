@@ -14,6 +14,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+// Step 3 — shared timezone-aware time utility. The battle screen shows
+// SHARED countdowns (closes in Xh Ym, reveals in Xh Ym) which must use
+// `AppTime.nowServerAccurate()` instead of `DateTime.now()` so cheap
+// Android devices with drifting clocks show the correct countdown.
+import '../../../core/utils/app_time.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../gaming_ecosystem/presentation/widgets/gaming_kit.dart';
 import 'prediction_models.dart';
@@ -189,7 +194,9 @@ class _Section1_ActivePrediction extends ConsumerWidget {
   }
 
   String _countdown(DateTime target) {
-    final diff = target.difference(DateTime.now());
+    // Step 3: use server-accurate now (handles device clock drift on
+    // cheap Android hardware).
+    final diff = target.difference(AppTime.nowServerAccurate());
     if (diff.isNegative) return 'soon';
     final h = diff.inHours; final m = diff.inMinutes % 60;
     if (h > 0) return '${h}h ${m}m';
@@ -222,7 +229,8 @@ class _Section2_Pending extends StatelessWidget {
     ]);
   }
   String _timeLabel(DateTime t) {
-    final diff = t.difference(DateTime.now());
+    // Step 3: use server-accurate now (handles device clock drift).
+    final diff = t.difference(AppTime.nowServerAccurate());
     if (diff.isNegative) return 'soon';
     return 'in ${diff.inHours}h ${diff.inMinutes % 60}m';
   }

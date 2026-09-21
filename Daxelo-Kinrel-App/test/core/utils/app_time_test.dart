@@ -153,39 +153,47 @@ void main() {
   });
 
   group('AppTime.isInsidePredictionWindow', () {
-    test('5:59 AM IST is OUTSIDE (just before open)', () {
-      // 5:59 AM IST = 00:29 UTC
-      final utc = DateTime.utc(2026, 9, 21, 0, 29, 0);
+    // Step 3: defaults now match the remote SQL migration
+    // 20260921120000_prediction_window_update.sql which sets the
+    // Prediction Battle window to 8 AM – 9:30 PM IST. The helper uses
+    // hour-level precision (integer openHour / closeHour), so the
+    // default close is 9 PM IST (not 9:30 PM). The card itself uses
+    // the server's `inactiveReason` for the exact 9:30 PM boundary;
+    // this helper is for tests and code that doesn't have a server-
+    // provided reason.
+    test('7:59 AM IST is OUTSIDE (just before open)', () {
+      // 7:59 AM IST = 02:29 UTC
+      final utc = DateTime.utc(2026, 9, 21, 2, 29, 0);
       expect(AppTime.isInsidePredictionWindow(utc), isFalse);
     });
 
-    test('6:00 AM IST is INSIDE (exactly at open, inclusive)', () {
-      // 6:00 AM IST = 00:30 UTC
-      final utc = DateTime.utc(2026, 9, 21, 0, 30, 0);
+    test('8:00 AM IST is INSIDE (exactly at open, inclusive)', () {
+      // 8:00 AM IST = 02:30 UTC
+      final utc = DateTime.utc(2026, 9, 21, 2, 30, 0);
       expect(AppTime.isInsidePredictionWindow(utc), isTrue);
     });
 
-    test('7:30 AM IST is INSIDE (mid-window)', () {
-      // 7:30 AM IST = 02:00 UTC
-      final utc = DateTime.utc(2026, 9, 21, 2, 0, 0);
+    test('10:30 AM IST is INSIDE (mid-window)', () {
+      // 10:30 AM IST = 05:00 UTC
+      final utc = DateTime.utc(2026, 9, 21, 5, 0, 0);
       expect(AppTime.isInsidePredictionWindow(utc), isTrue);
     });
 
-    test('7:59 PM IST is INSIDE (just before close)', () {
-      // 7:59 PM IST = 14:29 UTC
-      final utc = DateTime.utc(2026, 9, 21, 14, 29, 0);
+    test('8:59 PM IST is INSIDE (just before close)', () {
+      // 8:59 PM IST = 15:29 UTC
+      final utc = DateTime.utc(2026, 9, 21, 15, 29, 0);
       expect(AppTime.isInsidePredictionWindow(utc), isTrue);
     });
 
-    test('8:00 PM IST is OUTSIDE (exactly at close, exclusive)', () {
-      // 8:00 PM IST = 14:30 UTC
-      final utc = DateTime.utc(2026, 9, 21, 14, 30, 0);
-      expect(AppTime.isInsidePredictionWindow(utc), isFalse);
-    });
-
-    test('9:00 PM IST is OUTSIDE (after close)', () {
+    test('9:00 PM IST is OUTSIDE (exactly at close, exclusive)', () {
       // 9:00 PM IST = 15:30 UTC
       final utc = DateTime.utc(2026, 9, 21, 15, 30, 0);
+      expect(AppTime.isInsidePredictionWindow(utc), isFalse);
+    });
+
+    test('10:00 PM IST is OUTSIDE (after close)', () {
+      // 10:00 PM IST = 16:30 UTC
+      final utc = DateTime.utc(2026, 9, 21, 16, 30, 0);
       expect(AppTime.isInsidePredictionWindow(utc), isFalse);
     });
 
@@ -204,7 +212,7 @@ void main() {
     test('honors custom open/close hours', () {
       // 9 AM IST = 03:30 UTC
       final utc = DateTime.utc(2026, 9, 21, 3, 30, 0);
-      // Default 6 AM–8 PM IST: 9 AM IST is inside.
+      // Default 8 AM–9 PM IST: 9 AM IST is inside.
       expect(AppTime.isInsidePredictionWindow(utc), isTrue);
       // Custom 10 AM–11 AM IST: 9 AM IST is outside.
       expect(AppTime.isInsidePredictionWindow(utc, openHour: 10, closeHour: 11), isFalse);

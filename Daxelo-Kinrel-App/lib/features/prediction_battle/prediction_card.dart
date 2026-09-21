@@ -50,6 +50,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+// Step 3 — shared timezone-aware time utility. The card displays a
+// SHARED family-wide daily window (8 AM – 9:30 PM IST per the remote
+// SQL migration 20260921120000_prediction_window_update.sql) and uses
+// AppTime.nowServerAccurate() in _countdown so cheap Android devices
+// with drifting clocks show the correct countdown. The "IST" suffix
+// on the window label is explicit so a family member traveling abroad
+// isn't confused about which timezone the displayed times refer to.
+import '../../../core/utils/app_time.dart';
 import '../games/shared/icons/kinrel_icons.dart';
 import 'prediction_models.dart';
 import 'prediction_provider.dart';
@@ -667,7 +675,13 @@ class _AvailabilityTiming extends StatelessWidget {
     // than deriving from the round's createdAt/lockAt, because the
     // window is the same every day regardless of when the round was
     // actually created.
-    const windowLabel = '8:00 AM – 9:30 PM';
+    //
+    // Step 3 — append the explicit 'IST' suffix so a family member
+    // traveling abroad isn't confused about which timezone the
+    // displayed times refer to. Per the user's instructions: "do NOT
+    // convert the shared window itself to the traveler's local time;
+    // just label it clearly."
+    const windowLabel = '8:00 AM – 9:30 PM IST';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -725,8 +739,12 @@ class _AvailabilityTiming extends StatelessWidget {
     );
   }
 
+  /// Step 3 — server-accurate countdown. Uses AppTime.nowServerAccurate()
+  /// instead of DateTime.now() so cheap Android devices with drifting
+  /// clocks show the correct countdown. Returns a friendly "Xh Ym" /
+  /// "Ym Zs" / "Zs" string. Negative → "soon".
   String _countdown(DateTime target) {
-    final diff = target.difference(DateTime.now());
+    final diff = target.difference(AppTime.nowServerAccurate());
     if (diff.isNegative) return 'soon';
     final h = diff.inHours;
     final m = diff.inMinutes % 60;
@@ -776,11 +794,16 @@ class _CollapsedSummary extends StatelessWidget {
         children: [
           if (viewState == _PredictionViewState.notStarted) ...[
             Text(
+              // Step 3 — explicit 'IST' suffix on the open/close times
+              // so a family member traveling abroad isn't confused about
+              // which timezone the displayed times refer to. The window
+              // itself stays at IST 8 AM – 9:30 PM (not converted to
+              // traveler-local), per the user's instructions.
               inactiveReason == 'after_window'
-                  ? 'Today\'s prediction is closed. Come back tomorrow at 8:00 AM.'
+                  ? 'Today\'s prediction is closed. Come back tomorrow at 8:00 AM IST.'
                   : inactiveReason == 'no_questions_available'
                       ? 'No new questions available right now.'
-                      : 'Today\'s prediction opens at 8:00 AM.',
+                      : 'Today\'s prediction opens at 8:00 AM IST.',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
@@ -904,7 +927,7 @@ class _CollapsedSummary extends StatelessWidget {
 
   String _revealLabel(PredictionRound? round) {
     if (round == null) return 'soon';
-    final diff = round.revealAt.difference(DateTime.now());
+    final diff = round.revealAt.difference(AppTime.nowServerAccurate());
     if (diff.isNegative) return 'any moment';
     final h = diff.inHours;
     final m = diff.inMinutes % 60;
@@ -1534,7 +1557,7 @@ class _SubmittedBody extends StatelessWidget {
 
   String _revealLabel(PredictionRound? round) {
     if (round == null) return 'soon';
-    final diff = round.revealAt.difference(DateTime.now());
+    final diff = round.revealAt.difference(AppTime.nowServerAccurate());
     if (diff.isNegative) return 'any moment';
     final h = diff.inHours;
     final m = diff.inMinutes % 60;
