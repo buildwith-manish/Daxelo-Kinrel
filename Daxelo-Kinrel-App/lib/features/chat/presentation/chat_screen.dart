@@ -43,6 +43,11 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../l10n/app_localizations.dart';
+// Step 4 — shared timezone-aware time utility. The "Today"/"Yesterday"
+// date-grouping in this screen must use the VIEWER'S device-local day
+// boundary (not UTC or IST), so a message sent at 11 PM in one timezone
+// doesn't misfile under the wrong day for a viewer elsewhere.
+import '../../../core/utils/app_time.dart';
 import '../../../core/utils/web_keyboard_height.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
@@ -4215,6 +4220,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   // ── Date Grouping ────────────────────────────────────────────────
+  //
+  // Step 4: "Today" / "Yesterday" labels use the VIEWER'S device-local
+  // day boundary — NOT UTC, NOT IST. A message sent at 11:30 PM in the
+  // viewer's local timezone on July 15 must be grouped under "Today"
+  // (if the viewer's local date is still July 15) or "Yesterday" (if
+  // it's now past midnight on July 16). Previously the code extracted
+  // `msg.timestamp.year/month/day` directly from the UTC-parsed
+  // server timestamp, which gave the UTC day — a message sent at
+  // 11:30 PM IST (18:00 UTC) would have its UTC day be the same IST
+  // day, but a message sent at 1 AM IST (the previous day in UTC)
+  // would be misfiled.
 
   List<DateGroup> _groupByDate(List<ChatMessage> messages) {
     final groups = <DateGroup>[];
@@ -4223,11 +4239,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final yesterday = today.subtract(const Duration(days: 1));
 
     for (final msg in messages) {
-      final msgDate = DateTime(
-        msg.timestamp.year,
-        msg.timestamp.month,
-        msg.timestamp.day,
-      );
+      // Step 4: convert the server-returned UTC timestamp to the
+      // viewer's device-local timezone before extracting year/month/day.
+      // AppTime.toLocalDisplay() is `utc.toUtc().toLocal()` — handles
+      // UTC-parsed DateTimes, naive timestamps, and local DateTimes
+      // uniformly.
+      final local = AppTime.toLocalDisplay(msg.timestamp);
+      final msgDate = DateTime(local.year, local.month, local.day);
 
       String label;
       if (msgDate == today) {
@@ -4251,7 +4269,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           'December',
         ];
         label =
-            '${months[msg.timestamp.month]} ${msg.timestamp.day}, ${msg.timestamp.year}';
+            '${months[local.month]} ${local.day}, ${local.year}';
       }
 
       final existing = groups.where((g) => g.dateLabel == label).firstOrNull;

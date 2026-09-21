@@ -23,6 +23,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
+// Step 4 — shared timezone-aware time utility. DirectMessage timestamps
+// are PERSONAL — each viewer sees their own device-local time.
+import '../../../core/utils/app_time.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Model
@@ -82,9 +85,15 @@ class DirectMessage {
     return null;
   }
 
+  /// Step 4: formatted time string (e.g., "10:30 AM"). PERSONAL —
+  /// each viewer sees their own device-local time. Previously this
+  /// read `createdAt.hour` directly on a UTC-parsed DateTime, which
+  /// returned the UTC hour — non-UTC viewers saw the wrong wall-clock
+  /// time on every DM message bubble.
   String get formattedTime {
-    final hour = createdAt.hour;
-    final minute = createdAt.minute.toString().padLeft(2, '0');
+    final local = AppTime.toLocalDisplay(createdAt);
+    final hour = local.hour;
+    final minute = local.minute.toString().padLeft(2, '0');
     final period = hour >= 12 ? 'PM' : 'AM';
     final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
     return '$displayHour:$minute $period';

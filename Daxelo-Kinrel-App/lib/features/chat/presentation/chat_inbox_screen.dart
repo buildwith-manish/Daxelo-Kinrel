@@ -24,6 +24,10 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/services/supabase_service.dart';
+// Step 4 — shared timezone-aware time utility. Chat inbox row
+// timestamps ("Now", "5m", "10:30 AM", "Yesterday", "3d", "M/D") are
+// PERSONAL — each viewer sees their own device-local time.
+import '../../../core/utils/app_time.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/direct_message_provider.dart';
 import '../providers/chat_provider.dart';
@@ -711,21 +715,29 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
     );
   }
 
+  /// Step 4: chat inbox row timestamps ("Now", "5m", "10:30 AM",
+  /// "Yesterday", "3d", "M/D") are PERSONAL — each viewer sees their
+  /// own device-local time. Previously this read `dt.hour` /
+  /// `dt.minute` / `dt.month` / `dt.day` directly on a UTC-parsed
+  /// DateTime, returning the UTC values — so non-UTC viewers saw the
+  /// wrong wall-clock time AND "Yesterday" / date label flipped at
+  /// midnight UTC instead of midnight viewer-local.
   String _formatTime(DateTime dt) {
     final now = DateTime.now();
-    final diff = now.difference(dt);
+    final local = AppTime.toLocalDisplay(dt);
+    final diff = now.difference(local);
     if (diff.inMinutes < 1) return 'Now';
     if (diff.inHours < 1) return '${diff.inMinutes}m';
     if (diff.inDays < 1) {
-      final hour = dt.hour;
-      final minute = dt.minute.toString().padLeft(2, '0');
+      final hour = local.hour;
+      final minute = local.minute.toString().padLeft(2, '0');
       final period = hour >= 12 ? 'PM' : 'AM';
       final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
       return '$displayHour:$minute $period';
     }
     if (diff.inDays < 2) return 'Yesterday';
     if (diff.inDays < 7) return '${diff.inDays}d';
-    return '${dt.month}/${dt.day}';
+    return '${local.month}/${local.day}';
   }
 
   /// Phase 13: build a short preview string for the latest message in
@@ -897,20 +909,25 @@ class _DmChatRow extends StatelessWidget {
     return name[0].toUpperCase();
   }
 
+  /// Step 4: DM inbox row timestamps — same PERSONAL fix as
+  /// `_FamilyChatRowState._formatTime`. Use AppTime.toLocalDisplay(dt)
+  /// before extracting hour/minute/day/month so the values reflect
+  /// the viewer's device-local timezone.
   String _formatTime(DateTime dt) {
     final now = DateTime.now();
-    final diff = now.difference(dt);
+    final local = AppTime.toLocalDisplay(dt);
+    final diff = now.difference(local);
     if (diff.inMinutes < 1) return 'Now';
     if (diff.inHours < 1) return '${diff.inMinutes}m';
     if (diff.inDays < 1) {
-      final hour = dt.hour;
-      final minute = dt.minute.toString().padLeft(2, '0');
+      final hour = local.hour;
+      final minute = local.minute.toString().padLeft(2, '0');
       final period = hour >= 12 ? 'PM' : 'AM';
       final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
       return '$displayHour:$minute $period';
     }
     if (diff.inDays < 2) return 'Yesterday';
     if (diff.inDays < 7) return '${diff.inDays}d';
-    return '${dt.month}/${dt.day}';
+    return '${local.month}/${local.day}';
   }
 }

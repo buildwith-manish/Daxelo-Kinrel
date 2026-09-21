@@ -34,6 +34,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
+// Step 4 — shared timezone-aware time utility. Chat timestamps are
+// PERSONAL (each viewer sees their own device-local time), so they go
+// through AppTime.toLocalDisplay() to normalize UTC-from-server
+// timestamps to the viewer's local timezone before extracting
+// hour/minute/day for display.
+import '../../../core/utils/app_time.dart';
 import '../../games/shared/models/game_invite.dart';
 import '../../presence/last_seen_provider.dart';
 
@@ -368,9 +374,17 @@ class ChatMessage {
   }
 
   /// Convenience: formatted time string (e.g., "10:30 AM").
+  ///
+  /// Step 4: Now uses `AppTime.toLocalDisplay(timestamp)` to convert
+  /// the server-returned UTC timestamp to the viewer's device-local
+  /// timezone before extracting hour/minute. Previously this read
+  /// `timestamp.hour` directly, which on a UTC DateTime returned the
+  /// UTC hour — meaning non-UTC viewers saw the wrong wall-clock time
+  /// for every chat message.
   String get formattedTime {
-    final hour = timestamp.hour;
-    final minute = timestamp.minute.toString().padLeft(2, '0');
+    final local = AppTime.toLocalDisplay(timestamp);
+    final hour = local.hour;
+    final minute = local.minute.toString().padLeft(2, '0');
     final period = hour >= 12 ? 'PM' : 'AM';
     final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
     return '$displayHour:$minute $period';
