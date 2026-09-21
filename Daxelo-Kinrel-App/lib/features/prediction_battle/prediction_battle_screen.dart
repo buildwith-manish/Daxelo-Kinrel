@@ -236,23 +236,46 @@ class _Section2_Pending extends StatelessWidget {
   }
 }
 
-// ─── Section 3: Recent Results ───────────────────────────────────────
+// ─── Section 3: Recent Results (full history) ─────────────────────────
 class _Section3_RecentResults extends StatelessWidget {
   const _Section3_RecentResults({required this.state});
   final PredictionState state;
   @override
   Widget build(BuildContext context) {
-    final results = state.recentResults.where((r) => r.status == PredictionStatus.resolved).take(10).toList();
+    final results = state.recentResults.where((r) => r.status == PredictionStatus.resolved).take(20).toList();
     if (results.isEmpty) return const SizedBox.shrink();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const GamingSectionHeader(title: 'Recent Results', icon: Icons.history),
-      for (final r in results) Padding(padding: const EdgeInsets.only(bottom: 6),
-        child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12)),
+      const GamingSectionHeader(title: 'Past Rounds & Results', icon: Icons.history),
+      for (final r in results) Padding(padding: const EdgeInsets.only(bottom: 8),
+        child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // Question text (truncated if long).
+            if (r.question?.question != null)
+              Text(r.question!.question, maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textSilver))
+            else
+              Text('Round ${r.id.substring(0, 6)}', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textSilver)),
+            const SizedBox(height: 6),
+            // Correct answer.
             Row(children: [
-              Expanded(child: Text('Answer: ${r.actualAnswer ?? '—'}', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
-              if (r.winnerUserIds.isNotEmpty) const Text('🏆 Winner!', style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 10, color: KinrelColors.brightGold)),
+              const Text('Answer: ', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
+              Text(r.actualAnswer ?? '—', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 14, fontWeight: FontWeight.w800, color: KinrelColors.brightGold)),
             ]),
+            const SizedBox(height: 6),
+            // Every member's prediction + outcome.
+            if (r.results.isNotEmpty) ...[
+              const Text('Family predictions:', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: KinrelColors.textDim)),
+              const SizedBox(height: 4),
+              for (final res in r.results)
+                Padding(padding: const EdgeInsets.only(bottom: 2),
+                  child: Row(children: [
+                    Expanded(child: Text('${res.userId.substring(0, 8)} → ${res.prediction}', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
+                    if (res.points > 0)
+                      Text('+${res.points}', style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.success))
+                    else if (!res.correct)
+                      const Text('—', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, color: KinrelColors.textDim)),
+                  ])),
+            ],
           ]))),
     ]);
   }
@@ -284,8 +307,8 @@ class _Section4_Leaderboard extends StatelessWidget {
 }
 
 /// A single row in the full leaderboard (battle screen). Shows all
-/// the fields the user asked for: rank, member name, points (primary
-/// sort), wins, accuracy %, current streak, best streak.
+/// the fields the user asked for: rank with medal icons, member name,
+/// points (primary sort), wins, accuracy %, current streak, best streak.
 class _FullLeaderboardRow extends StatelessWidget {
   const _FullLeaderboardRow({
     required this.rank,
@@ -299,13 +322,9 @@ class _FullLeaderboardRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Rank color: gold for 1, silver for 2, bronze for 3, dim for the rest.
-    final rankColor = switch (rank) {
-      1 => KinrelColors.brightGold,
-      2 => const Color(0xFFC0C0C0),
-      3 => const Color(0xFFCD7F32),
-      _ => KinrelColors.textDim,
-    };
+    // Medal icons for ranks 1-3.
+    const medals = ['🥇', '🥈', '🥉'];
+    final medal = rank <= 3 ? medals[rank - 1] : '#$rank';
     final accuracyPct = (entry.accuracy * 100).round();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -323,17 +342,12 @@ class _FullLeaderboardRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Rank.
+          // Rank with medal icon.
           SizedBox(
-            width: 28,
+            width: 32,
             child: Text(
-              '#$rank',
-              style: TextStyle(
-                fontFamily: KinrelTypography.monoFont,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: rankColor,
-              ),
+              medal,
+              style: const TextStyle(fontSize: 16),
             ),
           ),
           const SizedBox(width: 8),
