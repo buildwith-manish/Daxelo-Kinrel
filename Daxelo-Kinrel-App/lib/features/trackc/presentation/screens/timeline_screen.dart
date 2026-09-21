@@ -14,6 +14,10 @@
 
 import 'package:flutter/material.dart';
 import '../../../../core/constants/brand_colors.dart';
+// Step 6 — shared timezone-aware time utility. Track-C timeline
+// event timestamps are PERSONAL — each viewer sees their own device-
+// local date when the date-only fallback fires.
+import '../../../../core/utils/app_time.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -342,16 +346,21 @@ class _TimelineTile extends ConsumerWidget {
     }[kind] ?? (Icons.circle, Colors.grey);
   }
 
+  /// Step 6: PERSONAL — Track-C timeline event timestamps are shown
+  /// in the viewer's device-local timezone. Previously this read
+  /// `d.day/month/year` directly on a UTC-parsed DateTime, returning
+  /// UTC values — non-UTC viewers saw the wrong date label.
   String _formatRelative(String? iso) {
     if (iso == null) return '';
     final d = DateTime.tryParse(iso);
     if (d == null) return '';
-    final diff = DateTime.now().difference(d);
+    final local = AppTime.toLocalDisplay(d);
+    final diff = DateTime.now().difference(local);
     if (diff.inMinutes < 1) return 'now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     if (diff.inDays < 7) return '${diff.inDays}d ago';
-    return '${d.day}/${d.month}/${d.year}';
+    return '${local.day}/${local.month}/${local.year}';
   }
 }
 

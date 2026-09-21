@@ -6,6 +6,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+// Step 6 — shared timezone-aware time utility. Referral history dates
+// are PERSONAL — each viewer sees their own device-local date when
+// the date-only fallback fires.
+import '../../../core/utils/app_time.dart';
 import '../providers/referral_provider.dart';
 
 class ReferralScreen extends ConsumerStatefulWidget {
@@ -762,16 +766,21 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
 
   // ── Helpers ───────────────────────────────────────────────────────
 
+  /// Step 6: PERSONAL — referral history dates are shown in the
+  /// viewer's device-local timezone. Previously this read
+  /// `date.day/month/year` directly on a UTC-parsed DateTime,
+  /// returning UTC values — non-UTC viewers saw the wrong date label.
   String _formatDate(String isoDate) {
     try {
       final date = DateTime.parse(isoDate);
+      final local = AppTime.toLocalDisplay(date);
       final now = DateTime.now();
-      final diff = now.difference(date);
+      final diff = now.difference(local);
 
       if (diff.inDays == 0) return 'Today';
       if (diff.inDays == 1) return 'Yesterday';
       if (diff.inDays < 7) return '${diff.inDays} days ago';
-      return '${date.day}/${date.month}/${date.year}';
+      return '${local.day}/${local.month}/${local.year}';
     } catch (_) {
       return isoDate;
     }

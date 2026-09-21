@@ -16,6 +16,10 @@ import 'package:shimmer/shimmer.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/services/supabase_service.dart';
+// Step 6 — shared timezone-aware time utility. Session "last active"
+// timestamps are PERSONAL — each viewer sees their own device-local
+// date when the date-only fallback fires.
+import '../../../core/utils/app_time.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/profile_provider.dart';
@@ -71,16 +75,22 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     }
   }
 
+  /// Step 6: session "last active" timestamps are PERSONAL — each
+  /// viewer sees their own device-local date when the date-only
+  /// fallback fires (">= 7 days ago"). Previously this read
+  /// `lastActive.day/month/year` directly on a UTC-parsed DateTime,
+  /// returning UTC values — non-UTC viewers saw the wrong date label.
   String _relativeTime(DateTime lastActive) {
     final now = DateTime.now();
-    final diff = now.difference(lastActive);
+    final local = AppTime.toLocalDisplay(lastActive);
+    final diff = now.difference(local);
 
     if (diff.inSeconds < 60) return 'Just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
     if (diff.inHours < 24) return '${diff.inHours} hours ago';
     if (diff.inDays == 1) return 'Yesterday';
     if (diff.inDays < 7) return '${diff.inDays} days ago';
-    return '${lastActive.day}/${lastActive.month}/${lastActive.year}';
+    return '${local.day}/${local.month}/${local.year}';
   }
 
   Future<void> _revokeSession(String sessionId) async {

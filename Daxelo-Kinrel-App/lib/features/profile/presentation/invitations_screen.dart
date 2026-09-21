@@ -15,6 +15,10 @@ import 'package:shimmer/shimmer.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/device_tier.dart';
+// Step 6 — shared timezone-aware time utility. Invitation "createdAt"
+// timestamps are PERSONAL — each viewer sees their own device-local
+// date when the date-only fallback fires.
+import '../../../core/utils/app_time.dart';
 import '../../../core/services/analytics_service.dart';
 import '../../../core/services/supabase_service.dart' show supabaseProvider;
 import '../../../core/viewer/viewer_provider.dart'
@@ -60,16 +64,21 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen>
     super.dispose();
   }
 
+  /// Step 6: PERSONAL — invitation "createdAt" timestamps are shown
+  /// in the viewer's device-local timezone. Previously this read
+  /// `dateTime.day/month/year` directly on a UTC-parsed DateTime,
+  /// returning UTC values — non-UTC viewers saw the wrong date label.
   String _relativeTime(DateTime dateTime) {
     final now = DateTime.now();
-    final diff = now.difference(dateTime);
+    final local = AppTime.toLocalDisplay(dateTime);
+    final diff = now.difference(local);
 
     if (diff.inSeconds < 60) return 'Just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     if (diff.inDays == 1) return 'Yesterday';
     if (diff.inDays < 7) return '${diff.inDays}d ago';
-    return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+    return '${local.day}/${local.month}/${local.year}';
   }
 
   Future<void> _acceptInvitation(InvitationModel invitation) async {

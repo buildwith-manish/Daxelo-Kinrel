@@ -5,6 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+// Step 6 — shared timezone-aware time utility. AI chat message
+// timestamps are PERSONAL — each viewer sees their own device-local
+// wall-clock time.
+import '../../../core/utils/app_time.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../core/utils/error_boundary.dart';
 import '../providers/ai_chat_provider.dart';
@@ -438,9 +442,14 @@ class _ChatBubble extends StatelessWidget {
     );
   }
 
+  /// Step 6: PERSONAL — AI chat message timestamps are shown in the
+  /// viewer's device-local timezone. Previously this read `dt.hour` /
+  /// `dt.minute` directly on a UTC-parsed DateTime, returning UTC
+  /// values — non-UTC viewers saw the wrong wall-clock time.
   String _formatTime(DateTime dt) {
-    final hour = dt.hour.toString().padLeft(2, '0');
-    final minute = dt.minute.toString().padLeft(2, '0');
+    final local = AppTime.toLocalDisplay(dt);
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
   }
 }
