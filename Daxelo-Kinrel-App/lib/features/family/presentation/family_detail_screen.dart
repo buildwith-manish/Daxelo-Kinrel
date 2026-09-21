@@ -104,7 +104,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
       child: DKScaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back),
           tooltip: 'Go back',
           onPressed: () {
             // v116: Fix dead-end back button. Previously the fallback
@@ -120,23 +120,23 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           },
         ),
         title: detailAsync.when(
-          loading: () => Text(
+          loading: () => const Text(
             'Family Tree',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
             ),
           ),
-          error: (_, __) => Text(
+          error: (_, __) => const Text(
             'Family Tree',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
             ),
           ),
           data: (detail) => Text(
             detail?.family.name ?? 'Family Tree',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
             ),
@@ -188,7 +188,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           // available in the Settings menu (via _showFamilySettings),
           // making this toolbar entry redundant.
           IconButton(
-            icon: Icon(Icons.settings_outlined),
+            icon: const Icon(Icons.settings_outlined),
             tooltip: 'Settings',
             onPressed: () => _showFamilySettings(context),
           ),
@@ -443,13 +443,13 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Align(
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: const Align(
                 alignment: Alignment.centerLeft,
-                child: Text(
+                child: const Text(
                   'Family Profile Picture',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -461,10 +461,10 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
             // View (only if an avatar exists)
             if (hasAvatar)
               ListTile(
-                leading: Icon(Icons.visibility_outlined,
+                leading: const Icon(Icons.visibility_outlined,
                     color: KinrelColors.textSilver),
-                title: Text('View Profile Picture',
-                    style: TextStyle(color: KinrelColors.textWhite)),
+                title: const Text('View Profile Picture',
+                    style: const TextStyle(color: KinrelColors.textWhite)),
                 onTap: () {
                   Navigator.pop(ctx);
                   _showFullScreenAvatar(avatarUrl, family.name);
@@ -472,10 +472,10 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               ),
             // Change
             ListTile(
-              leading: Icon(Icons.photo_library_rounded,
+              leading: const Icon(Icons.photo_library_rounded,
                   color: KinrelColors.orange),
-              title: Text('Change Profile Picture',
-                  style: TextStyle(color: KinrelColors.textWhite)),
+              title: const Text('Change Profile Picture',
+                  style: const TextStyle(color: KinrelColors.textWhite)),
               onTap: () {
                 Navigator.pop(ctx);
                 _uploadAvatar();
@@ -484,10 +484,10 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
             // Remove (only if one exists)
             if (hasAvatar)
               ListTile(
-                leading: Icon(Icons.delete_outline_rounded,
+                leading: const Icon(Icons.delete_outline_rounded,
                     color: Colors.redAccent),
-                title: Text('Remove Profile Picture',
-                    style: TextStyle(color: KinrelColors.textWhite)),
+                title: const Text('Remove Profile Picture',
+                    style: const TextStyle(color: KinrelColors.textWhite)),
                 onTap: () {
                   Navigator.pop(ctx);
                   _removeAvatar();
@@ -616,7 +616,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
       await client.storage.from('avatars').uploadBinary(
             path,
             croppedBytes,
-            fileOptions: FileOptions(
+            fileOptions: const FileOptions(
               contentType: 'image/png',
               upsert: false,
             ),
@@ -743,19 +743,19 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: KinrelColors.darkCard,
-        title: Text('Remove Profile Picture?',
-            style: TextStyle(color: KinrelColors.textWhite)),
-        content: Text(
+        title: const Text('Remove Profile Picture?',
+            style: const TextStyle(color: KinrelColors.textWhite)),
+        content: const Text(
             'The family profile picture will be removed for all members.',
-            style: TextStyle(color: KinrelColors.textSilver)),
+            style: const TextStyle(color: KinrelColors.textSilver)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Cancel')),
           TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: Text('Remove',
-                  style: TextStyle(color: Colors.redAccent))),
+              child: const Text('Remove',
+                  style: const TextStyle(color: Colors.redAccent))),
         ],
       ),
     );
@@ -928,9 +928,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: DKColors.cardColor(context),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.bottomSheet),
+      shape: const RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(
+          top: const Radius.circular(KinrelRadius.bottomSheet),
         ),
       ),
       builder: (ctx) => SafeArea(
@@ -941,7 +941,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               padding: const EdgeInsets.all(KinrelSpacing.base),
               child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.settings_outlined,
                     color: KinrelColors.purple,
                     size: 22,
@@ -959,7 +959,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                 ],
               ),
             ),
-            Divider(color: KinrelColors.border, height: 1),
+            const Divider(color: KinrelColors.border, height: 1),
 
             // Family info section
             if (family != null) ...[
@@ -981,7 +981,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                         children: [
                           Text(
                             family.name,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.displayFont,
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
@@ -989,10 +989,10 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                             ),
                           ),
                           if (family.familyCode != null) ...[
-                            SizedBox(height: 2),
+                            const SizedBox(height: 2),
                             Text(
                               'Code: ${family.familyCode}',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 12,
                                 color: KinrelColors.textSilver,
@@ -1000,7 +1000,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                             ),
                           ],
                           if (family.kinFamilyId != null) ...[
-                            SizedBox(height: 2),
+                            const SizedBox(height: 2),
                             GestureDetector(
                               onTap: () {
                                 Clipboard.setData(
@@ -1019,15 +1019,15 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(
+                                  const Icon(
                                     Icons.copy,
                                     size: 12,
                                     color: KinrelColors.purple,
                                   ),
-                                  SizedBox(width: 4),
+                                  const SizedBox(width: 4),
                                   Text(
                                     family.kinFamilyId!,
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       fontFamily: KinrelTypography.monoFont,
                                       fontSize: 12,
                                       color: KinrelColors.purple,
@@ -1044,7 +1044,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   ],
                 ),
               ),
-              Divider(color: KinrelColors.border, height: 1),
+              const Divider(color: KinrelColors.border, height: 1),
             ],
 
             // Invite Members option (admin/owner only)
@@ -1058,7 +1058,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   context.push('/family/${widget.familyId}/invite');
                 },
               ),
-              Divider(color: KinrelColors.border, height: 1),
+              const Divider(color: KinrelColors.border, height: 1),
             ],
 
             // Share option
@@ -1073,7 +1073,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
             // Copy Family ID option
             if (family?.kinFamilyId != null) ...[
-              Divider(color: KinrelColors.border, height: 1),
+              const Divider(color: KinrelColors.border, height: 1),
               _QuickActionTile(
                 icon: Icons.copy_rounded,
                 label: 'Copy Family ID (${family!.kinFamilyId})',
@@ -1105,7 +1105,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                 context.push('/family/${widget.familyId}/management');
               },
             ),
-            Divider(color: KinrelColors.border, height: 1),
+            const Divider(color: KinrelColors.border, height: 1),
 
             // v109: Family Map + Memory Vault options REMOVED from the
             // Family Settings menu. These features are accessed from their
@@ -1124,7 +1124,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                 context.push('/family/${widget.familyId}/story-mode');
               },
             ),
-            Divider(color: KinrelColors.border, height: 1),
+            const Divider(color: KinrelColors.border, height: 1),
 
             // P12.6 — Health Heritage (family health conditions)
             _QuickActionTile(
@@ -1136,10 +1136,10 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                 context.push('/family/${widget.familyId}/health-heritage');
               },
             ),
-            Divider(color: KinrelColors.border, height: 1),
+            const Divider(color: KinrelColors.border, height: 1),
 
             // Delete option — moves family to archive (available to all members)
-            Divider(color: KinrelColors.border, height: 1),
+            const Divider(color: KinrelColors.border, height: 1),
             _QuickActionTile(
               icon: Icons.delete_outline_rounded,
               label: 'Delete Family',
@@ -1151,23 +1151,23 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
             ),
 
             // Info: deleted families go to archive
-            Padding(
-              padding: const EdgeInsets.symmetric(
+            const Padding(
+              padding: EdgeInsets.symmetric(
                 horizontal: KinrelSpacing.base,
                 vertical: KinrelSpacing.sm,
               ),
               child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.info_outline,
                     size: 16,
                     color: KinrelColors.textDim,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
+                  SizedBox(width: 8),
+                  const Expanded(
+                    child: const Text(
                       'Deleted families are moved to archive. You can restore or permanently delete them from there.',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
                         color: KinrelColors.textDim,
@@ -1180,7 +1180,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
             // Leave Family option (not available if user is the only admin)
             if (!isOnlyAdmin) ...[
-              Divider(color: KinrelColors.border, height: 1),
+              const Divider(color: KinrelColors.border, height: 1),
               _QuickActionTile(
                 icon: Icons.exit_to_app_outlined,
                 label: 'Leave Family',
@@ -1192,24 +1192,24 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               ),
             ] else ...[
               // Show info that sole admin must transfer role first
-              Divider(color: KinrelColors.border, height: 1),
-              Padding(
-                padding: const EdgeInsets.symmetric(
+              const Divider(color: KinrelColors.border, height: 1),
+              const Padding(
+                padding: EdgeInsets.symmetric(
                   horizontal: KinrelSpacing.base,
                   vertical: KinrelSpacing.sm,
                 ),
                 child: Row(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.info_outline,
                       size: 16,
                       color: KinrelColors.textDim,
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
+                    SizedBox(width: 8),
+                    const Expanded(
+                      child: const Text(
                         'Transfer your admin role to another member before leaving',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
                           color: KinrelColors.textDim,
@@ -1238,7 +1238,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
         ),
         title: Row(
           children: [
-            Icon(
+            const Icon(
               Icons.delete_outline_rounded,
               color: KinrelColors.error,
               size: 24,
@@ -1279,14 +1279,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   color: KinrelColors.error.withValues(alpha: 0.2),
                 ),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  Icon(Icons.info_outline, size: 18, color: KinrelColors.error),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
+                  const Icon(Icons.info_outline, size: 18, color: KinrelColors.error),
+                  SizedBox(width: 8),
+                  const Expanded(
+                    child: const Text(
                       'Archived families are automatically deleted after 30 days if not restored.',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
@@ -1315,9 +1315,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               Navigator.of(ctx).pop();
               await _performDeleteFamily(context);
             },
-            child: Text(
+            child: const Text(
               'Delete',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontWeight: FontWeight.w600,
                 color: KinrelColors.error,
@@ -1343,8 +1343,8 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
         context: context,
         barrierDismissible: false,
         useRootNavigator: true,
-        builder: (_) => Center(
-          child: CircularProgressIndicator(color: KinrelColors.purple),
+        builder: (_) => const Center(
+          child: const CircularProgressIndicator(color: KinrelColors.purple),
         ),
       ),
     );
@@ -1358,8 +1358,8 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
       // Use captured references — the original context may be unmounted now
       navigator.pop(); // Close loading dialog
       messenger.showSnackBar(
-        SnackBar(
-          content: Text(
+        const SnackBar(
+          content: const Text(
             'Family moved to archive. You can restore it from the Archived section.',
           ),
           backgroundColor: KinrelColors.success,
@@ -1389,7 +1389,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
         ),
         title: Row(
           children: [
-            Icon(
+            const Icon(
               Icons.exit_to_app_outlined,
               color: KinrelColors.warning,
               size: 24,
@@ -1430,18 +1430,18 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   color: KinrelColors.warning.withValues(alpha: 0.3),
                 ),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.info_outline,
                     size: 18,
                     color: KinrelColors.warning,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
+                  SizedBox(width: 8),
+                  const Expanded(
+                    child: const Text(
                       'This action cannot be undone. You will need a new invitation to rejoin.',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
@@ -1470,9 +1470,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               Navigator.of(ctx).pop(); // Close dialog
               await _performLeaveFamily(context);
             },
-            child: Text(
+            child: const Text(
               'Leave Family',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontWeight: FontWeight.w600,
                 color: KinrelColors.warning,
@@ -1496,8 +1496,8 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
         context: context,
         barrierDismissible: false,
         useRootNavigator: true,
-        builder: (_) => Center(
-          child: CircularProgressIndicator(color: KinrelColors.warning),
+        builder: (_) => const Center(
+          child: const CircularProgressIndicator(color: KinrelColors.warning),
         ),
       ),
     );
@@ -1513,8 +1513,8 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
       // Use captured references — the original context may be unmounted now
       navigator.pop(); // Close loading dialog
       messenger.showSnackBar(
-        SnackBar(
-          content: Text('You have left the family'),
+        const SnackBar(
+          content: const Text('You have left the family'),
           backgroundColor: KinrelColors.success,
           behavior: SnackBarBehavior.floating,
         ),
@@ -1776,7 +1776,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                   borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
                 ),
                 child: PopupMenuButton<String>(
-                  icon: Icon(Icons.sort, color: KinrelColors.textSilver),
+                  icon: const Icon(Icons.sort, color: KinrelColors.textSilver),
                   onSelected: (value) => setState(() => _sortBy = value),
                   itemBuilder: (ctx) => [
                     PopupMenuItem(
@@ -1893,7 +1893,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
               },
             ),
           ),
-          Divider(
+          const Divider(
             color: KinrelColors.border,
             height: 24,
             indent: KinrelSpacing.base,
@@ -1911,19 +1911,19 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
         ],
 
         // Tree members section label
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
           child: Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.account_tree_outlined,
                 size: 14,
                 color: KinrelColors.textSilver,
               ),
-              const SizedBox(width: 6),
-              Text(
+              SizedBox(width: 6),
+              const Text(
                 'Family Tree Members',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -1949,7 +1949,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                 )
               : ListView.builder(
                   controller: _scrollController,
-                  scrollCacheExtent: ScrollCacheExtent.pixels(500),
+                  scrollCacheExtent: const ScrollCacheExtent.pixels(500),
                   padding: const EdgeInsets.only(
                     left: KinrelSpacing.base,
                     right: KinrelSpacing.base,
@@ -2003,11 +2003,11 @@ class _CollaboratorsHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       child: Row(
         children: [
-          Icon(Icons.group_outlined, size: 14, color: KinrelColors.textSilver),
+          const Icon(Icons.group_outlined, size: 14, color: KinrelColors.textSilver),
           const SizedBox(width: 6),
-          Text(
+          const Text(
             'Collaborators',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -2018,18 +2018,18 @@ class _CollaboratorsHeader extends StatelessWidget {
           if (isAdmin)
             GestureDetector(
               onTap: onInviteTap,
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.person_add_outlined,
                     size: 14,
                     color: KinrelColors.purple,
                   ),
-                  const SizedBox(width: 4),
-                  Text(
+                  SizedBox(width: 4),
+                  const Text(
                     'Invite',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -2135,9 +2135,9 @@ class _CollaboratorCard extends ConsumerWidget {
                               ),
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: Text(
+                            child: const Text(
                               'You',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
@@ -2156,7 +2156,7 @@ class _CollaboratorCard extends ConsumerWidget {
                           const SizedBox(width: 6),
                           Text(
                             '@${user!.username}',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 11,
                               color: KinrelColors.textDim,
@@ -2171,7 +2171,7 @@ class _CollaboratorCard extends ConsumerWidget {
 
               // Manage button (admin only, not for self)
               if (canManage)
-                Icon(
+                const Icon(
                   Icons.more_horiz,
                   size: 20,
                   color: KinrelColors.textSilver,
@@ -2202,9 +2202,9 @@ class _CollaboratorCard extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: DKColors.cardColor(context),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.bottomSheet),
+      shape: const RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(
+          top: const Radius.circular(KinrelRadius.bottomSheet),
         ),
       ),
       builder: (ctx) => SafeArea(
@@ -2238,7 +2238,7 @@ class _CollaboratorCard extends ConsumerWidget {
                         ),
                         Text(
                           membership.displayRole,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 13,
                             color: KinrelColors.textSilver,
@@ -2250,7 +2250,7 @@ class _CollaboratorCard extends ConsumerWidget {
                 ],
               ),
             ),
-            Divider(color: KinrelColors.border, height: 1),
+            const Divider(color: KinrelColors.border, height: 1),
 
             // Change Role section
             Padding(
@@ -2258,9 +2258,9 @@ class _CollaboratorCard extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Change Role',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -2318,7 +2318,7 @@ class _CollaboratorCard extends ConsumerWidget {
                 ],
               ),
             ),
-            Divider(color: KinrelColors.border, height: 1),
+            const Divider(color: KinrelColors.border, height: 1),
 
             // Remove member option (only for admins, not for other admins unless creator)
             if (membership.role.toLowerCase() != 'admin' || isCreator) ...[
@@ -2416,9 +2416,9 @@ class _CollaboratorCard extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
+            child: const Text(
               'Remove',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontWeight: FontWeight.w600,
                 color: KinrelColors.warning,
@@ -2547,30 +2547,30 @@ class _InviteCollaboratorCTA extends StatelessWidget {
                 color: KinrelColors.purple.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.person_add_outlined,
                 size: 18,
                 color: KinrelColors.purple,
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Invite Collaborators',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: KinrelColors.purple,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
+                  SizedBox(height: 2),
+                  const Text(
                     'Share access with family members to build the tree together',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.textSilver,
@@ -2751,15 +2751,15 @@ class _GamesRow extends ConsumerWidget {
           ),
           child: Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.sports_esports_outlined,
                 size: 18,
                 color: KinrelColors.orange,
               ),
               const SizedBox(width: 6),
-              Text(
+              const Text(
                 'Games',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -2769,9 +2769,9 @@ class _GamesRow extends ConsumerWidget {
               const Spacer(),
               GestureDetector(
                 onTap: () => context.push('/games?familyId=$familyId'),
-                child: Text(
+                child: const Text(
                   'See All',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     color: KinrelColors.orange,
@@ -2878,7 +2878,7 @@ class _CompactGameCard extends ConsumerWidget {
               ),
             ),
             if (isDownloadGated && !isDownloaded)
-              Icon(
+              const Icon(
                 Icons.download_outlined,
                 size: 10,
                 color: KinrelColors.textDim,
@@ -2930,7 +2930,7 @@ class _EmbeddedHierarchyGraph extends StatelessWidget {
                       BoxShadow(
                         color: KinrelColors.orange.withValues(alpha: 0.08),
                         blurRadius: 24,
-                        offset: Offset(0, 8),
+                        offset: const Offset(0, 8),
                       ),
                     ],
                   ),
@@ -2949,7 +2949,7 @@ class _EmbeddedHierarchyGraph extends StatelessWidget {
                             width: 2,
                           ),
                         ),
-                        child: Icon(
+                        child: const Icon(
                           Icons.account_tree_rounded,
                           size: 36,
                           color: KinrelColors.orange,
@@ -3009,20 +3009,20 @@ class _EmbeddedHierarchyGraph extends StatelessWidget {
                           ),
                           borderRadius: BorderRadius.circular(24),
                         ),
-                        child: Row(
+                        child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
+                            const Text(
                               'Open Full Graph',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.displayFont,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white,
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Icon(
+                            SizedBox(width: 8),
+                            const Icon(
                               Icons.arrow_forward_rounded,
                               size: 18,
                               color: Colors.white,
@@ -3113,7 +3113,7 @@ class _ViewTogglePill extends StatelessWidget {
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 8,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -3216,7 +3216,7 @@ class _ToolbarButton extends StatelessWidget {
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -3311,7 +3311,7 @@ class _MemberCard extends StatelessWidget {
                 ? KinrelColors.textSilver.withValues(alpha: 0.3)
                 : KinrelColors.purple,
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
 
           // Name and relationship
           Expanded(
@@ -3336,9 +3336,9 @@ class _MemberCard extends StatelessWidget {
                     ),
                     // Pending indicator badge
                     if (_isPending) ...[
-                      SizedBox(width: 6),
+                      const SizedBox(width: 6),
                       Container(
-                        padding: EdgeInsets.symmetric(
+                        padding: const EdgeInsets.symmetric(
                           horizontal: 6,
                           vertical: 2,
                         ),
@@ -3349,21 +3349,21 @@ class _MemberCard extends StatelessWidget {
                             color: KinrelColors.orange.withValues(alpha: 0.3),
                           ),
                         ),
-                        child: Row(
+                        child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            SizedBox(
+                            const SizedBox(
                               width: 8,
                               height: 8,
-                              child: CircularProgressIndicator(
+                              child: const CircularProgressIndicator(
                                 strokeWidth: 1.5,
                                 color: KinrelColors.orange,
                               ),
                             ),
-                            SizedBox(width: 4),
-                            Text(
+                            const SizedBox(width: 4),
+                            const Text(
                               'Saving',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 9,
                                 fontWeight: FontWeight.w600,
@@ -3378,10 +3378,10 @@ class _MemberCard extends StatelessWidget {
                   ],
                 ),
                 if (person.gender != null) ...[
-                  SizedBox(height: 2),
+                  const SizedBox(height: 2),
                   Text(
                     person.gender!.toUpperCase(),
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.purple,
@@ -3390,7 +3390,7 @@ class _MemberCard extends StatelessWidget {
                   ),
                 ],
                 if (personRels.isNotEmpty) ...[
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Wrap(
                     spacing: 4,
                     runSpacing: 2,
@@ -3420,9 +3420,9 @@ class _MemberCard extends StatelessWidget {
                 color: KinrelColors.textSilver,
               ),
               if (person.isDeceased)
-                Text(
+                const Text(
                   'Late',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 9,
                     color: KinrelColors.textSilver,
@@ -3724,15 +3724,15 @@ class _DiscoveryGrid extends StatelessWidget {
             ),
           ),
           // Play group
-          _DiscoveryGroupHeader(label: 'Play'),
+          const _DiscoveryGroupHeader(label: 'Play'),
           _DiscoveryRow(tiles: playTiles),
           const SizedBox(height: 12),
           // Preserve group
-          _DiscoveryGroupHeader(label: 'Preserve'),
+          const _DiscoveryGroupHeader(label: 'Preserve'),
           _DiscoveryRow(tiles: preserveTiles),
           const SizedBox(height: 12),
           // Insights group
-          _DiscoveryGroupHeader(label: 'Insights'),
+          const _DiscoveryGroupHeader(label: 'Insights'),
           _DiscoveryRow(tiles: insightsTiles),
         ],
       ),

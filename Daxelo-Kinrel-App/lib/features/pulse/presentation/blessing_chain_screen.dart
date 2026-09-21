@@ -391,7 +391,7 @@ class _AudioBlessingPlayerState extends State<_AudioBlessingPlayer> {
               child: Container(
                 width: 44,
                 height: 44,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: KinrelColors.gold,
                   shape: BoxShape.circle,
                 ),
@@ -428,7 +428,7 @@ class _AudioBlessingPlayerState extends State<_AudioBlessingPlayer> {
                       backgroundColor:
                           KinrelColors.gold.withOpacity(0.2),
                       valueColor:
-                          AlwaysStoppedAnimation<Color>(KinrelColors.gold),
+                          const AlwaysStoppedAnimation<Color>(KinrelColors.gold),
                       minHeight: 3,
                     ),
                     const SizedBox(height: 4),

@@ -504,7 +504,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
           color: KinrelColors.orange.withValues(alpha: 0.3),
         ),
         boxShadow: [
-          BoxShadow(
+          const BoxShadow(
             color: KinrelColors.orangeGlow,
             blurRadius: 16.0,
             spreadRadius: 2.0,
@@ -514,8 +514,8 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
       child: Row(
         children: [
           // Search icon
-          Padding(
-            padding: const EdgeInsetsDirectional.only(start: 14.0),
+          const Padding(
+            padding: EdgeInsetsDirectional.only(start: 14.0),
             child: Icon(
               Icons.search,
               size: 20.0,
@@ -529,12 +529,12 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
               controller: _searchController,
               focusNode: _searchFocusNode,
               onChanged: _onSearchChanged,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 15.0,
                 color: KinrelColors.textWhite,
               ),
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: 'Search by name, username, or relationship...',
                 hintStyle: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -542,7 +542,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
                   color: KinrelColors.textDim,
                 ),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
+                contentPadding: EdgeInsets.symmetric(
                   horizontal: 12.0,
                   vertical: 14.0,
                 ),
@@ -619,7 +619,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
         mainAxisSize: MainAxisSize.min,
         children: [
           // ── Relationship Type Chips ───────────────────────────────
-          Text(
+          const Text(
             'Relationship Type',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -671,7 +671,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'Generation',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -698,7 +698,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
                             size: 18.0,
                             color: KinrelColors.textDim,
                           ),
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 13.0,
                             color: KinrelColors.textWhite,
@@ -726,7 +726,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Connection',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -800,7 +800,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
                 children: [
                   Text(
                     'Max degree: ${_degreeRange.round()}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12.0,
                       color: KinrelColors.textSilver,
@@ -915,8 +915,8 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
               ),
             )
           : _results.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.all(24.0),
+              ? const Padding(
+                  padding: EdgeInsets.all(24.0),
                   child: Text(
                     'No results found',
                     style: TextStyle(
@@ -1000,7 +1000,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
                 children: [
                   Text(
                     result.name,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14.0,
                       fontWeight: FontWeight.w600,
@@ -1037,7 +1037,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
               ),
               child: Text(
                 'Gen ${result.generationIndex}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 10.0,
                   color: KinrelColors.textDim,

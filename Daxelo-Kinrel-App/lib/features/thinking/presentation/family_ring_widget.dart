@@ -383,8 +383,8 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 16, bottom: 8),
+        const Padding(
+          padding: EdgeInsets.only(left: 16, bottom: 8),
           child: Text(
             'Who are you thinking of?',
             style: TextStyle(
@@ -402,7 +402,7 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   color: KinrelColors.darkCard,
                   border: Border.all(
@@ -410,14 +410,14 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
                     width: 1,
                   ),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.person_outline,
                   size: 20,
                   color: KinrelColors.textDim,
                 ),
               ),
               const SizedBox(width: 12),
-              Expanded(
+              const Expanded(
                 child: Text(
                   'No other family members available.\nInvite members to send them a Thinking of You.',
                   style: TextStyle(
@@ -441,8 +441,8 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 16, bottom: 8),
+        const Padding(
+          padding: EdgeInsets.only(left: 16, bottom: 8),
           child: Text(
             'Who are you thinking of?',
             style: TextStyle(
@@ -572,7 +572,7 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
                                             width: 1,
                                           ),
                                         ),
-                                        child: Icon(
+                                        child: const Icon(
                                           Icons.lock_rounded,
                                           size: 10,
                                           color: KinrelColors.textDim,
@@ -607,7 +607,7 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
                           padding: const EdgeInsets.only(top: 2),
                           child: Text(
                             cooldownLabel,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.w500,
                               color: KinrelColors.orange,
@@ -641,7 +641,7 @@ class _Placeholder extends StatelessWidget {
       alignment: Alignment.center,
       child: Text(
         initial,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.bold,
           color: KinrelColors.orange,

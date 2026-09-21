@@ -87,7 +87,7 @@ class PendingInvitesSection extends ConsumerWidget {
               const Icon(Icons.mail_outline,
                   color: KinrelColors.orange, size: 16),
               const SizedBox(width: 8),
-              Expanded(
+              const Expanded(
                 child: Text(
                   'Invites sent',
                   style: TextStyle(
@@ -102,7 +102,7 @@ class PendingInvitesSection extends ConsumerWidget {
                 '$pending pending · $accepted accepted'
                 '${declined > 0 ? ' · $declined declined' : ''}'
                 '${expired > 0 ? ' · $expired expired' : ''}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 10,
                   color: KinrelColors.textDim,
@@ -138,7 +138,7 @@ class PendingInvitesSection extends ConsumerWidget {
                   r.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -148,7 +148,7 @@ class PendingInvitesSection extends ConsumerWidget {
                 if (r.username != null && r.username!.isNotEmpty)
                   Text(
                     '@${r.username}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 10,
                       color: KinrelColors.textDim,
@@ -200,7 +200,7 @@ class PendingInvitesSection extends ConsumerWidget {
       child: Center(
         child: Text(
           init,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 11,
             fontWeight: FontWeight.w700,
