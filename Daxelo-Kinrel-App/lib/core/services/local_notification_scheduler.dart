@@ -19,6 +19,14 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+// Step 5 — shared timezone-aware time utility. The Truth Streak daily
+// reminder must fire at 8 PM IST (the SHARED family-wide deadline
+// hint), not at 8 PM device-local. A user abroad in a timezone behind
+// IST would otherwise get the reminder AFTER the streak already
+// reset, defeating the purpose. AppTime.nextIstInstantUtc returns
+// the next 8 PM IST as a UTC instant; the OS handles the conversion
+// to the device's local timezone.
+import '../utils/app_time.dart';
 import 'retention_service.dart';
 import 'crashlytics_service.dart';
 
@@ -429,24 +437,40 @@ class LocalNotificationScheduler {
     );
   }
 
-  /// Schedule a daily recurring reminder for Truth Streak at 8 PM local.
-  /// ID 5004 is reserved for this. Uses matchDateTimeComponents: time
-  /// for daily recurrence.
+  /// Schedule a daily recurring reminder for Truth Streak at 8 PM IST
+  /// (the SHARED family-wide deadline hint — the streak resets at
+  /// midnight IST, so the reminder fires at 8 PM IST regardless of the
+  /// viewer's device timezone). ID 5004 is reserved for this. Uses
+  /// matchDateTimeComponents: time for daily recurrence at the same
+  /// UTC instant (which is always 8 PM IST, regardless of the
+  /// viewer's timezone — a traveler abroad gets the reminder at the
+  /// correct IST instant, even if their local wall-clock time is
+  /// different).
+  ///
+  /// Step 5 fix: previously this used `_nextOccurrence(20, 0)` which
+  /// computed the next 8 PM DEVICE-LOCAL — meaning a user in a
+  /// timezone behind IST would get the reminder AFTER the streak
+  /// already reset (or vice-versa). Now uses
+  /// `AppTime.nextIstInstantUtc(20, 0)` which returns the next 8 PM
+  /// IST as a UTC instant.
   static Future<void> scheduleTruthStreakDailyReminder() async {
     if (!_initialized) {
       await initialize();
       if (!_initialized) return;
     }
 
-    final when = _nextOccurrence(20, 0); // 8 PM local
+    final when = AppTime.nextIstInstantUtc(
+      AppTime.nowServerAccurate(),
+      20, 0,
+    ); // 8 PM IST as a UTC instant
 
     await _scheduleNotification(
       id: 5004,
       title: '🔥 Don\'t break your streak!',
-      body: 'Answer today\'s Truth Streak question before midnight.',
+      body: 'Answer today\'s Truth Streak question before midnight IST.',
       scheduledDate: when,
       isRepeating: true,
-      repeatPattern: DateTimeComponents.time, // daily recurrence
+      repeatPattern: DateTimeComponents.time, // daily recurrence at same UTC instant = 8 PM IST
     );
   }
 

@@ -11,6 +11,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
+// Step 5 — shared timezone-aware time utility. Truth streak day
+// boundary is a SHARED concept — a streak's "day" should mean the
+// same thing for the whole family. The family base is India-only
+// today, so the streak resets at IST midnight. A traveler abroad
+// computes the same "today" as the rest of the family.
+import '../../../core/utils/app_time.dart';
 import '../models/truth_streak_models.dart';
 
 // ── State ──────────────────────────────────────────────────────────
@@ -124,9 +130,15 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
     // to the "locked" state during the reload.
 
     try {
-      final today = DateTime.now();
+      // Step 5: use the SHARED IST date — not the viewer's device-local
+      // date — for the `assignedDate` key. A traveler abroad in a
+      // timezone behind IST would otherwise compute a different
+      // "today" than the rest of the family and miss the day's
+      // assignment. AppTime.istDate(nowServerAccurate()) returns the
+      // IST year/month/day (server-accurate, handles device clock drift).
+      final todayIst = AppTime.istDate(AppTime.nowServerAccurate());
       final todayStr =
-          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+          '${todayIst.year}-${todayIst.month.toString().padLeft(2, '0')}-${todayIst.day.toString().padLeft(2, '0')}';
 
       // 1. Fetch or create today's assignment
       var assignmentResponse = await client
@@ -255,8 +267,16 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
           TruthStreakAnswer.fromJson(answerRow);
 
       // 2. Update streak stats
-      final today = DateTime.now();
-      final todayDate = DateTime(today.year, today.month, today.day);
+      //
+      // Step 5: streak day-boundary is SHARED — uses IST midnight, not
+      // the viewer's device-local midnight. AppTime.istDate() returns
+      // a DateTime whose year/month/day are the IST date (with
+      // hour/minute/second zero). Comparing against `lastAnsweredDate`
+      // (which is also an IST date when stored correctly) tells us
+      // whether the user already answered on this IST day or whether
+      // the streak should increment / reset.
+      final todayIst = AppTime.istDate(AppTime.nowServerAccurate());
+      final todayDate = todayIst;
       final yesterday = todayDate.subtract(const Duration(days: 1));
 
       final existingStats = state.stats;

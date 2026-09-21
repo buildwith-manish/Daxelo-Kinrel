@@ -4,6 +4,22 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { FcmService } from './fcm.service';
 import { NotificationsService } from './notifications.service';
 import { UserEngagementService } from './user-engagement.service';
+// Step 5 — IST helpers. The scheduler previously used
+// `new Date().getHours()` (server-local = UTC in production) as a
+// proxy for the user's local hour. Since the family base is India-only
+// today, we now compute the IST hour explicitly via date-fns-tz so
+// the "best send hour" comparison is correct. Per-user timezone
+// support is intentionally NOT built here — see the TODO in the
+// handleBirthdayReminders comment below.
+import {
+  IST_TZ,
+  getIstHour,
+  getIstDay,
+  getIstMonth,
+  getIstDateOfMonth,
+  getIstYear,
+  isInIstQuietHours,
+} from './timezone-utils';
 
 /**
  * NotificationsScheduler — Birthday reminder push notifications.
@@ -33,9 +49,11 @@ export class NotificationsScheduler {
   private readonly logger = new Logger(NotificationsScheduler.name);
 
   // Default send hour when the user has no engagement profile yet, or the
-  // profile is stale / has insufficient samples. 8 AM in the user's local
-  // timezone — matches the previous behavior.
-  private readonly DEFAULT_SEND_HOUR_LOCAL = 8;
+  // profile is stale / has insufficient samples. 8 AM IST — matches the
+  // previous behavior. Step 5: this is now explicitly IST (was previously
+  // documented as "8 AM in the user's local timezone" but the scheduler
+  // ran in UTC, so it was effectively 8 AM UTC = 1:30 PM IST).
+  private readonly DEFAULT_SEND_HOUR_IST = 8;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -46,23 +64,35 @@ export class NotificationsScheduler {
 
   /**
    * Runs hourly at minute 0. For each user whose best-send-hour matches the
-   * current hour (in their local timezone approximation), checks for
-   * upcoming birthdays in the next 7 days and sends reminders.
+   * current IST hour, checks for upcoming birthdays in the next 7 days and
+   * sends reminders.
    *
-   * Timezone note: this implementation uses the SERVER's local hour as a
-   * proxy for the user's local hour. If the server runs in UTC, the
-   * "current hour" is the UTC hour. The engagement profile also records
-   * engagement in server-local hours, so the two are consistent — we're
-   * matching "what hour is it now (server-local)" against "what hour does
-   * this user typically engage (server-local)".
+   * Step 5 timezone fix:
+   * ───────────────────
+   * Previously the cron ran with `timeZone: 'UTC'` and the code used
+   * `now.getHours()` (server-local = UTC) as a proxy for the user's local
+   * hour. The engagement histogram was also recorded in server-local
+   * hours, so the two were CONSISTENT but the labels were wrong — a
+   * "9 AM" histogram entry was actually "9 AM UTC = 2:30 PM IST", and
+   * the scheduler fired at 9 AM UTC (2:30 PM IST) too.
    *
-   * A future improvement would be to store the user's actual timezone
-   * (from User.timezone if it exists, or fall back to family timezone) and
-   * convert both the current time and the engagement histogram to that TZ.
-   * For now, server-local is good enough — most production deployments run
-   * in UTC, and users in different timezones will see their notifications
-   * at different UTC hours, which their device converts to the correct
-   * local display time.
+   * Now: the cron still fires at every UTC hour (hourly at minute 0),
+   * but the hour-comparison uses the explicit IST hour computed via
+   * `getIstHour(now)`. The engagement histogram is also recorded in
+   * IST hours (see UserEngagementService.recordEngagement). So a user
+   * whose histogram says "9 AM" (IST) gets the notification at 9 AM
+   * IST — not 9 AM UTC (2:30 PM IST). For users in non-IST timezones,
+   * the histogram is still in IST — which is wrong, but no worse than
+   * the previous UTC behavior, and the family base is India-only
+   * today.
+   *
+   * FUTURE IMPROVEMENT (kept as a TODO; not built in this step):
+   * Store the user's actual timezone in `User.timezone` (a column
+   * already exists for `quietHoursTimezone` with default
+   * 'Asia/Kolkata'; we'd extend it to be the user's full timezone),
+   * and convert both the current time and the engagement histogram
+   * to that per-user TZ. Until then, IST is the best approximation
+   * for the current India-only family base.
    */
   @Cron('0 * * * *', {
     name: 'birthday-reminder-personalized',
@@ -70,8 +100,12 @@ export class NotificationsScheduler {
   })
   async handleBirthdayReminders() {
     const now = new Date();
-    const currentHour = now.getHours(); // server-local hour
-    this.logger.log(`Birthday reminder job running at hour ${currentHour} (server-local)`);
+    // Step 5: compute the IST hour explicitly via date-fns-tz.
+    const currentIstHour = getIstHour(now);
+    this.logger.log(
+      `Birthday reminder job running at IST hour ${currentIstHour} ` +
+      `(UTC: ${now.toISOString()})`,
+    );
 
     try {
       // Find all upcoming birthdays in the next 7 days. We fetch ALL of them
@@ -131,15 +165,16 @@ export class NotificationsScheduler {
             try {
               usersChecked++;
 
-              // ── Per-user send-hour check ──────────────────────────────
-              // Look up this user's best-send-hour from their engagement
-              // profile. If it doesn't match the current hour, skip them —
-              // they'll be picked up by the run that fires at their hour.
+              // ── Per-user send-hour check (IST) ──────────────────────
+              // Step 5: look up this user's best-send-hour (now in IST)
+              // and compare against the current IST hour. If they
+              // don't match, skip them — they'll be picked up by the
+              // run that fires at their IST hour.
               const bestHourResult = await this.userEngagementService.getBestSendHour(
                 member.user.id,
-                this.DEFAULT_SEND_HOUR_LOCAL,
+                this.DEFAULT_SEND_HOUR_IST,
               );
-              if (bestHourResult.hour !== currentHour) {
+              if (bestHourResult.hour !== currentIstHour) {
                 usersSkippedDueToHour++;
                 continue;
               }
@@ -170,10 +205,10 @@ export class NotificationsScheduler {
                 continue;
               }
 
-              // Check quiet hours
-              if (pref && this.isInQuietHours(pref.quietHoursStart, pref.quietHoursEnd)) {
+              // Check quiet hours (Step 5: now IST-aware)
+              if (pref && isInIstQuietHours(now, pref.quietHoursStart, pref.quietHoursEnd)) {
                 this.logger.debug?.(
-                  `User ${member.user.id} is in quiet hours - skipping push notification`,
+                  `User ${member.user.id} is in IST quiet hours - skipping push notification`,
                 );
                 await this.createInAppNotification(
                   member.user.id,
@@ -197,6 +232,9 @@ export class NotificationsScheduler {
                 // Tag the source so we can verify per-user personalization
                 // is actually working after deploy.
                 sendHourSource: bestHourResult.source,
+                // Step 5: tag the timezone so we can verify IST scheduling
+                // is actually being used after deploy.
+                sendHourTimezone: IST_TZ,
               };
 
               if (family?.name) {
@@ -236,7 +274,7 @@ export class NotificationsScheduler {
 
       this.logger.log(
         `Birthday reminder job complete - sent ${notificationsSent} push notification(s) ` +
-          `(checked ${usersChecked} user-birthday pairs, skipped ${usersSkippedDueToHour} due to hour mismatch)`,
+          `(checked ${usersChecked} user-birthday pairs, skipped ${usersSkippedDueToHour} due to IST-hour mismatch)`,
       );
     } catch (error: any) {
       this.logger.error(
@@ -249,6 +287,12 @@ export class NotificationsScheduler {
   /**
    * Find all persons with birthdays in the next N days.
    * Compares only month and day (ignoring year) to find recurring birthdays.
+   *
+   * Step 5: "Today" is now computed as IST today (not server-local today).
+   * For an IST user on Sep 22 at 00:30 IST (= Sep 21 19:00 UTC), this
+   * correctly returns Sep 22 as today. Previously it returned Sep 21
+   * (the UTC date), which would have missed a Sep 22 birthday until
+   * the UTC clock caught up 5.5 hours later.
    */
   private async findUpcomingBirthdays(
     now: Date,
@@ -263,7 +307,7 @@ export class NotificationsScheduler {
     }>
   > {
     // We need to find persons whose birthday (month-day) falls within
-    // the next `daysAhead` days from today.
+    // the next `daysAhead` days from today (IST today).
     // Since Person.dateOfBirth is a DateTime field in SQLite (stored as string),
     // we need to query all persons with a dateOfBirth and filter in JS.
 
@@ -281,6 +325,13 @@ export class NotificationsScheduler {
       },
     });
 
+    // Step 5: compute the IST "today" components once for efficiency.
+    // We pass them into getDaysUntilNextBirthday so it doesn't have to
+    // re-derive them per person.
+    const istYear = getIstYear(now);
+    const istMonth = getIstMonth(now); // 0-11
+    const istDay = getIstDateOfMonth(now);
+
     const results: Array<{
       id: string;
       name: string;
@@ -292,7 +343,12 @@ export class NotificationsScheduler {
     for (const person of persons) {
       if (!person.dateOfBirth) continue;
 
-      const daysUntil = this.getDaysUntilNextBirthday(person.dateOfBirth, now);
+      const daysUntil = this.getDaysUntilNextBirthday(
+        person.dateOfBirth,
+        istYear,
+        istMonth,
+        istDay,
+      );
 
       if (daysUntil >= 0 && daysUntil <= daysAhead) {
         results.push({
@@ -314,60 +370,36 @@ export class NotificationsScheduler {
   /**
    * Calculate the number of days until the next occurrence of a birthday.
    * Compares month and day only, ignoring the year.
+   *
+   * Step 5: the "today" reference is now passed in as IST components
+   * (year, month, day) computed via date-fns-tz. The birthday month/
+   * day are from the stored `dateOfBirth` which is timezone-agnostic
+   * (a birthday is a calendar date, not an instant).
    */
-  private getDaysUntilNextBirthday(dateOfBirth: Date, now: Date): number {
+  private getDaysUntilNextBirthday(
+    dateOfBirth: Date,
+    todayYear: number,
+    todayMonth: number, // 0-11
+    todayDay: number,    // 1-31
+  ): number {
     const birthMonth = dateOfBirth.getMonth(); // 0-11
     const birthDay = dateOfBirth.getDate(); // 1-31
 
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
-    const currentDay = now.getDate();
+    // This year's birthday (in IST terms)
+    let nextBirthday = new Date(todayYear, birthMonth, birthDay);
 
-    // This year's birthday
-    let nextBirthday = new Date(currentYear, birthMonth, birthDay);
-
-    // If birthday has already passed this year, use next year
+    // If birthday has already passed this IST year, use next year
     if (
-      nextBirthday.getMonth() < currentMonth ||
-      (nextBirthday.getMonth() === currentMonth && nextBirthday.getDate() < currentDay)
+      nextBirthday.getMonth() < todayMonth ||
+      (nextBirthday.getMonth() === todayMonth && nextBirthday.getDate() < todayDay)
     ) {
-      nextBirthday = new Date(currentYear + 1, birthMonth, birthDay);
+      nextBirthday = new Date(todayYear + 1, birthMonth, birthDay);
     }
 
-    // Calculate days difference
-    const diffMs = nextBirthday.getTime() - new Date(currentYear, currentMonth, currentDay).getTime();
+    // Calculate days difference (IST today vs IST next birthday)
+    const todayMidnight = new Date(todayYear, todayMonth, todayDay);
+    const diffMs = nextBirthday.getTime() - todayMidnight.getTime();
     return Math.round(diffMs / (1000 * 60 * 60 * 24));
-  }
-
-  /**
-   * Check if the current time is within quiet hours.
-   */
-  private isInQuietHours(
-    quietStart: string | null | undefined,
-    quietEnd: string | null | undefined,
-  ): boolean {
-    if (!quietStart || !quietEnd) return false;
-
-    try {
-      const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-      const [startH, startM] = quietStart.split(':').map(Number);
-      const [endH, endM] = quietEnd.split(':').map(Number);
-
-      const startMinutes = startH * 60 + startM;
-      const endMinutes = endH * 60 + endM;
-
-      if (startMinutes <= endMinutes) {
-        // e.g. 08:00 - 22:00
-        return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
-      } else {
-        // e.g. 22:00 - 08:00 (overnight)
-        return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
-      }
-    } catch {
-      return false;
-    }
   }
 
   /**

@@ -17,10 +17,30 @@
 // at the user's typical engagement hour instead of a fixed 8 AM IST for
 // everyone. Two users with different patterns will receive the same
 // birthday reminder at different times, each near their own engagement peak.
+//
+// ── Step 5 — IST hour/weekday ────────────────────────────────────────────
+// Previously: `when.getHours()` and `when.getDay()` returned SERVER-LOCAL
+// (UTC in production) hours/weekdays. The scheduler also matched in
+// server-local — so the two were CONSISTENT, but the "best hour" the
+// transparency screen showed the user was "X UTC" not "X IST". For an
+// India-only family base, the natural unit is the IST hour.
+//
+// Now: the histogram records IST hours and IST weekdays (via date-fns-tz).
+// The scheduler also compares against the IST hour. So a user whose
+// histogram says "9 AM" gets the notification at 9 AM IST.
+//
+// FUTURE IMPROVEMENT (kept as a TODO; not built in this step):
+// Accept a `userTimezone` param per call (read from `User.timezone` /
+// `User.quietHoursTimezone`) and convert both the histogram recording
+// and the scheduler comparison to that per-user TZ. Until then, IST is
+// the best approximation for the current India-only family base.
 // =============================================================================
 
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+// Step 5 — IST helpers. The histogram records IST hours and IST weekdays
+// via date-fns-tz, so the scheduler's hour comparison is IST-accurate.
+import { getIstHour, getIstDay } from './timezone-utils';
 
 // Minimum number of engagement samples before we trust the histogram to
 // shift a user's send time. With <10 samples the "best hour" could just be
@@ -47,9 +67,7 @@ export class UserEngagementService {
 
   /**
    * Record an engagement signal. Call this whenever a user opens OR acts on
-   * a notification. The `when` parameter defaults to now and should be in
-   * the user's local timezone (we record the hour-of-day as the user
-   * experienced it, not UTC).
+   * a notification. The `when` parameter defaults to now.
    *
    * P1.3: This is a NO-OP for users who have NOT opted in to smart
    * notification timing (notificationTimingOptIn = false, the default).
@@ -58,6 +76,9 @@ export class UserEngagementService {
    * Idempotent in the sense that calling it twice with the same timestamp
    * increments the histogram twice — but the scheduler only calls this when
    * a real engagement event happens, so duplicates are not a concern.
+   *
+   * Step 5: the `when` Date is now converted to IST via date-fns-tz
+   * before extracting hour/weekday, so the histogram records IST values.
    */
   async recordEngagement(userId: string, when: Date = new Date()): Promise<void> {
     try {
@@ -72,13 +93,18 @@ export class UserEngagementService {
         // User has not opted in — return immediately without recording.
         return;
       }
-      // We use the LOCAL hour-of-day and day-of-week. The `when` date should
-      // already be in the user's TZ (callers should pass `new Date()` which
-      // is server-local — if the server runs in UTC, the histogram is in UTC
-      // and the scheduler must also send in UTC. That's a known limitation;
-      // a future improvement would be to store the user's TZ and convert.)
-      const hour = when.getHours(); // 0-23, local
-      const weekday = when.getDay(); // 0=Sunday, 6=Saturday, local
+      // Step 5: convert `when` to IST via date-fns-tz before extracting
+      // hour/weekday. Previously used `when.getHours()` / `when.getDay()`
+      // which returned SERVER-LOCAL (UTC in production) — so the histogram
+      // was labeled as "X local" but was actually "X UTC = X+5:30 IST".
+      // The histogram is now correctly labeled in IST hours.
+      //
+      // FUTURE: pass an explicit `userTimezone` param (read from
+      // `User.quietHoursTimezone` or a new `User.timezone` field) and
+      // convert to that per-user TZ. Until then, IST is the family-base
+      // default.
+      const hour = getIstHour(when);  // 0-23, IST
+      const weekday = getIstDay(when); // 0=Sunday, 6=Saturday, IST
 
       // Fetch existing profile (or initialize empty)
       const existing = await this.prisma.userEngagementProfile.findUnique({
@@ -136,7 +162,7 @@ export class UserEngagementService {
   }
 
   /**
-   * Get the best hour-of-day (0-23, local) to send a notification to this
+   * Get the best hour-of-day (0-23, IST) to send a notification to this
    * user. Returns `fallbackHour` if:
    *   - the profile doesn't exist (new user)
    *   - total samples < MIN_SAMPLES_FOR_TRUST (not enough data yet)
@@ -144,6 +170,12 @@ export class UserEngagementService {
    *
    * Otherwise returns the hour with the highest engagement count, blended
    * with its immediate neighbors to smooth out single-hour spikes.
+   *
+   * Step 5: the returned hour is now interpreted as IST (was previously
+   * server-local = UTC in production). Callers that compare against the
+   * current hour must also use the IST hour (see
+   * `NotificationsScheduler.handleBirthdayReminders` which uses
+   * `getIstHour(now)`).
    */
   async getBestSendHour(userId: string, fallbackHour: number = 8): Promise<{
     hour: number;
@@ -247,6 +279,10 @@ export class UserEngagementService {
    * P1.3: Get the user's engagement profile for the transparency screen.
    * Returns the raw histogram data so the user can see exactly what the ML
    * has learned. Returns null if no profile exists.
+   *
+   * Step 5: the histogram is now in IST hours (was previously server-local
+   * = UTC). The transparency screen should label the histogram as IST
+   * when showing it to the user.
    */
   async getEngagementProfile(userId: string): Promise<{
     hourHistogram: number[];

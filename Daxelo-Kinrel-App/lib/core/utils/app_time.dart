@@ -270,11 +270,33 @@ class AppTime {
   /// given UTC reference. Used for "streak resets at midnight IST"
   /// computations on the client side. Returns a UTC DateTime.
   static DateTime nextIstMidnightUtc(DateTime utc) {
+    return nextIstInstantUtc(utc, 0, 0);
+  }
+
+  /// Return the next IST [hour]:[minute] DateTime (as a UTC instant)
+  /// for the given UTC reference. If today's [hour]:[minute] IST has
+  /// not yet passed, returns today's; otherwise returns tomorrow's.
+  /// Used by the SHARED local notification scheduler to schedule
+  /// reminders at a fixed IST time (e.g., 8 PM IST truth-streak
+  /// reminder) that fire at the same IST instant regardless of the
+  /// viewer's device timezone.
+  ///
+  /// Returns a UTC DateTime — pass it to `flutter_local_notifications
+  /// .zonedSchedule` and the OS will fire at the correct instant
+  /// translated to the device's local timezone.
+  static DateTime nextIstInstantUtc(DateTime utc, int hour, int minute) {
     final ist = utc.toUtc().add(kIstOffset);
-    // DateTime.utc handles month/day overflow (e.g., day=32 → next month).
-    final istNextMidnightWall = DateTime.utc(ist.year, ist.month, ist.day + 1);
-    // Convert IST wall-clock to UTC by subtracting IST offset.
-    return istNextMidnightWall.subtract(kIstOffset);
+    // DateTime.utc handles day/month overflow automatically.
+    final todayAtHourWall = DateTime.utc(ist.year, ist.month, ist.day, hour, minute);
+    final todayAtHourUtc = todayAtHourWall.subtract(kIstOffset);
+    if (utc.isBefore(todayAtHourUtc)) {
+      return todayAtHourUtc;
+    }
+    // Today's [hour]:[minute] IST has passed — next is tomorrow's.
+    final tomorrowAtHourWall = DateTime.utc(
+      ist.year, ist.month, ist.day + 1, hour, minute,
+    );
+    return tomorrowAtHourWall.subtract(kIstOffset);
   }
 
   /// Compute the IST "date" (year, month, day only) for a UTC instant.
