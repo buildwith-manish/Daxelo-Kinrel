@@ -559,7 +559,7 @@ class _FamilyManagementScreenState
           children: [
             Expanded(
               child: Text(title,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w500,
                       color: canEdit ? KinrelColors.textWhite : KinrelColors.textSilver)),
             ),
@@ -626,7 +626,7 @@ class _FamilyManagementScreenState
           children: [
             Expanded(
               child: Text(title,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w500,
                       color: canEdit ? KinrelColors.textWhite : KinrelColors.textSilver)),
             ),
@@ -675,7 +675,7 @@ class _FamilyManagementScreenState
           children: [
             Expanded(
               child: Text('Family Visibility',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w500,
                       color: canEdit ? KinrelColors.textWhite : KinrelColors.textSilver)),
             ),

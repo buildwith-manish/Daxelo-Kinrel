@@ -402,7 +402,7 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
               Container(
                 width: 40,
                 height: 40,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: KinrelColors.darkCard,
                   border: Border.all(
