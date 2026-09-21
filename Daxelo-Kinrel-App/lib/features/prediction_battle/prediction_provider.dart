@@ -141,6 +141,14 @@ class PredictionNotifier extends StateNotifier<PredictionState> {
     final client = _client;
     if (client == null) return;
     try {
+      // Step (locked-in expand): also fetch my own submissions for the
+      // recent resolved rounds so the card can show "Your guess: X" in
+      // the expanded locked-in / completed state's "Recent rounds" list.
+      // We fetch the resolved rounds first (joined with their question),
+      // then a separate query for my submissions on those round ids,
+      // then merge my prediction + points into each round's `results`
+      // list so the UI can find "my result" via `results.firstWhere(
+      // (r) => r.userId == myId)`.
       final resp = await client.from('prediction_rounds').select('*, prediction_questions(*)').eq('familyId', familyId).eq('status', 'resolved').order('resolvedAt', ascending: false).limit(20);
       final rounds = resp.map((r) {
         final map = Map<String, dynamic>.from(r);
@@ -149,7 +157,83 @@ class PredictionNotifier extends StateNotifier<PredictionState> {
         }
         return PredictionRound.fromJson(map);
       }).toList();
-      state = state.copyWith(recentResults: rounds);
+
+      // Fetch my submissions for these rounds (one query, not N).
+      final myId = _myId;
+      if (myId != null && rounds.isNotEmpty) {
+        final roundIds = rounds.map((r) => r.id).toList();
+        try {
+          final subsResp = await client
+              .from('prediction_submissions')
+              .select('roundId, prediction, confidence')
+              .inFilter('roundId', roundIds)
+              .eq('userId', myId);
+          // Index by roundId for O(1) merge.
+          final mySubsByRoundId = <String, Map<String, dynamic>>{};
+          for (final s in subsResp) {
+            // Supabase returns PostgREST rows as Map<String, dynamic>.
+            final rid = s['roundId'] as String?;
+            if (rid != null) mySubsByRoundId[rid] = Map<String, dynamic>.from(s);
+          }
+          // Merge each submission into the matching round's results list
+          // so the UI can find "my result" via round.results.firstWhere(
+          // (r) => r.userId == myId). For rounds where I didn't submit,
+          // we leave the results list as-is (I just didn't play).
+          final merged = <PredictionRound>[];
+          for (final round in rounds) {
+            final mySub = mySubsByRoundId[round.id];
+            if (mySub == null) {
+              merged.add(round);
+              continue;
+            }
+            // Build a PredictionResult for me. Use the existing result
+            // entry if it exists (the resolve RPC populates results with
+            // points/rank/correct), otherwise synthesize one with the
+            // prediction + confidence (points default to 0).
+            final existing = round.results.where((r) => r.userId == myId).toList();
+            final myResult = existing.isNotEmpty
+                ? existing.first
+                : PredictionResult(
+                    userId: myId,
+                    prediction: (mySub['prediction'] as String?) ?? '',
+                    confidence: PredictionConfidenceX.fromString(
+                        mySub['confidence'] as String?),
+                    correct: false,
+                  );
+            // If the round's results list already had me, keep it as-is
+            // (the resolve RPC may have set points/rank). Otherwise,
+            // append my synthesized result so the UI can find it.
+            if (existing.isEmpty) {
+              merged.add(PredictionRound(
+                id: round.id,
+                familyId: round.familyId,
+                questionId: round.questionId,
+                status: round.status,
+                lockAt: round.lockAt,
+                revealAt: round.revealAt,
+                resolvedAt: round.resolvedAt,
+                actualAnswer: round.actualAnswer,
+                winnerUserIds: round.winnerUserIds,
+                results: [...round.results, myResult],
+                isLegendary: round.isLegendary,
+                createdAt: round.createdAt,
+                question: round.question,
+              ));
+            } else {
+              merged.add(round);
+            }
+          }
+          state = state.copyWith(recentResults: merged);
+        } catch (e) {
+          // Submissions fetch failed — still show the rounds without my
+          // submissions merged in. The UI gracefully falls back to
+          // "Your guess: —" for past rounds.
+          debugPrint('[Prediction] fetchRecent (my submissions) error: $e');
+          state = state.copyWith(recentResults: rounds);
+        }
+      } else {
+        state = state.copyWith(recentResults: rounds);
+      }
     } catch (e) { debugPrint('[Prediction] fetchRecent error: $e'); }
   }
 
@@ -159,6 +243,43 @@ class PredictionNotifier extends StateNotifier<PredictionState> {
     try {
       final resp = await client.from('prediction_leaderboard').select().eq('familyId', familyId).order('points', ascending: false);
       final entries = resp.map((e) => PredictionLeaderboardEntry.fromJson(e)).toList();
+      // Step (locked-in expand): join family-member names so the card's
+      // compact leaderboard teaser can show "Manish" instead of
+      // "a4e58129". Uses the existing fn_get_family_member_names helper
+      // (SECURITY DEFINER, family-self-gated).
+      final byUserId = <String, PredictionLeaderboardEntry>{};
+      for (final e in entries) {
+        byUserId[e.userId] = e;
+      }
+      try {
+        final namesResp =
+            await client.rpc('fn_get_family_member_names', params: {'family_id': familyId});
+        if (namesResp is List) {
+          final namesByUserId = <String, String>{};
+          for (final row in namesResp) {
+            if (row is Map) {
+              final uid = row['userId'] as String?;
+              final name = row['name'] as String?;
+              if (uid != null && name != null && name.isNotEmpty) {
+                namesByUserId[uid] = name;
+              }
+            }
+          }
+          if (namesByUserId.isNotEmpty) {
+            for (var i = 0; i < entries.length; i++) {
+              final e = entries[i];
+              final name = namesByUserId[e.userId];
+              if (name != null) {
+                entries[i] = e.copyWithUserName(name);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // Names fetch failed — leaderboard still works, just shows
+        // truncated userIds as before.
+        debugPrint('[Prediction] fetchLeaderboard (names) error: $e');
+      }
       final myId = _myId;
       PredictionLeaderboardEntry? myStats;
       if (myId != null) {
