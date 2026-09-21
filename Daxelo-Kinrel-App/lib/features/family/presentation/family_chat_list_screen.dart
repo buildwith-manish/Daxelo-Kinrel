@@ -65,7 +65,7 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
             }
           },
         ),
-        title: Text(
+        title: const Text(
           'Chats',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -86,11 +86,10 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
           // ── Chat list ───────────────────────────────────────────
           Expanded(
             child: dmInboxAsync.when(
-              loading: () => Center(
-                child:
-                    CircularProgressIndicator(color: KinrelColors.orange),
+              loading: () => const Center(
+                child: CircularProgressIndicator(color: KinrelColors.orange),
               ),
-              error: (_, __) => Center(
+              error: (_, __) => const Center(
                 child: Text(
                   'Could not load chats',
                   style: TextStyle(color: KinrelColors.textDim),
@@ -202,7 +201,7 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
       ),
       child: Text(
         title,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 13,
           fontWeight: FontWeight.w600,
@@ -219,7 +218,7 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
       child: Center(
         child: Column(
           children: [
-            Icon(
+            const Icon(
               Icons.chat_bubble_outline_rounded,
               size: 48,
               color: KinrelColors.textDim,
@@ -227,7 +226,7 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
             const SizedBox(height: 12),
             Text(
               message,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 color: KinrelColors.textDim,
@@ -344,7 +343,7 @@ class _GroupChatRowState extends ConsumerState<_GroupChatRow> {
                       widget.familyName.isNotEmpty
                           ? widget.familyName[0].toUpperCase()
                           : 'F',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
@@ -357,7 +356,7 @@ class _GroupChatRowState extends ConsumerState<_GroupChatRow> {
                       widget.familyName.isNotEmpty
                           ? widget.familyName[0].toUpperCase()
                           : 'F',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
@@ -375,7 +374,7 @@ class _GroupChatRowState extends ConsumerState<_GroupChatRow> {
                 widget.familyName.isNotEmpty
                     ? widget.familyName[0].toUpperCase()
                     : 'F',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
@@ -442,7 +441,7 @@ class _GroupChatRowState extends ConsumerState<_GroupChatRow> {
             )
           : Text(
               _isLoading ? 'Loading…' : 'Tap to start chatting',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 color: KinrelColors.textDim,
@@ -531,7 +530,7 @@ class _DmRow extends StatelessWidget {
                 item.otherUserAvatar!.isEmpty
             ? Text(
                 _initials(item.otherUserName),
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
