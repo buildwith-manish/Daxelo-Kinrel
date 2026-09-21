@@ -46,6 +46,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -465,9 +466,9 @@ class _HeaderRow extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Text(
+                  const Text(
                     'PREDICTION BATTLE',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
@@ -702,9 +703,9 @@ class _AvailabilityTiming extends StatelessWidget {
             color: accent.withValues(alpha: 0.85),
           ),
           const SizedBox(width: 5),
-          Text(
+          const Text(
             'Available today',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 11,
               fontWeight: FontWeight.w500,
@@ -726,7 +727,7 @@ class _AvailabilityTiming extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               '· closes in ${_countdown(round!.lockAt)}',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
@@ -804,7 +805,7 @@ class _CollapsedSummary extends StatelessWidget {
                   : inactiveReason == 'no_questions_available'
                       ? 'No new questions available right now.'
                       : 'Today\'s prediction opens at 8:00 AM IST.',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 color: KinrelColors.textSilver,
@@ -829,7 +830,7 @@ class _CollapsedSummary extends StatelessWidget {
                 question!.question,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -851,7 +852,7 @@ class _CollapsedSummary extends StatelessWidget {
           ] else if (viewState == _PredictionViewState.answerSubmitted) ...[
             Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.check_circle_rounded,
                   size: 16,
                   color: KinrelColors.success,
@@ -862,7 +863,7 @@ class _CollapsedSummary extends StatelessWidget {
                     state.myPrediction != null
                         ? 'You predicted "${state.myPrediction}"'
                         : 'Your prediction is locked in',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -877,7 +878,7 @@ class _CollapsedSummary extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'Reveals ${_revealLabel(round)}',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textSilver,
@@ -897,7 +898,7 @@ class _CollapsedSummary extends StatelessWidget {
                     round?.actualAnswer != null
                         ? 'Answer: ${round!.actualAnswer}'
                         : 'Round resolved',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -998,6 +999,11 @@ class _ExpandedInteraction extends StatelessWidget {
             accent: accent,
             state: state,
             round: round,
+            question: question,
+            // familyId for the "View Full →" navigation — comes from the
+            // active round (same family as the card itself, since the
+            // card is family-scoped via the Riverpod family provider).
+            familyId: round?.familyId ?? '',
             celebrationAnimation: celebrationAnimation,
           )
         else if (viewState == _PredictionViewState.completed && round != null)
@@ -1082,7 +1088,7 @@ class _QuestionAvailableBody extends StatelessWidget {
         // The question — large, friendly, the visual focus.
         Text(
           question.question,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -1096,7 +1102,7 @@ class _QuestionAvailableBody extends StatelessWidget {
           question.type == PredictionType.closest
               ? 'Predict a number — closest wins!'
               : 'Pick an outcome — correct wins!',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 12,
             color: KinrelColors.textSilver,
@@ -1112,7 +1118,7 @@ class _QuestionAvailableBody extends StatelessWidget {
               FilteringTextInputFormatter.digitsOnly,
               LengthLimitingTextInputFormatter(5),
             ],
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 22,
               fontWeight: FontWeight.w800,
@@ -1168,9 +1174,9 @@ class _QuestionAvailableBody extends StatelessWidget {
           ),
         const SizedBox(height: 14),
         // Confidence selector.
-        Text(
+        const Text(
           'How confident are you?',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 12,
             color: KinrelColors.textSilver,
@@ -1368,18 +1374,18 @@ class _SubmitButton extends StatelessWidget {
                       color: Colors.white,
                     ),
                   )
-                : Row(
+                : const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.lock_outline_rounded,
                         size: 16,
                         color: Colors.white,
                       ),
-                      const SizedBox(width: 7),
-                      Text(
+                      SizedBox(width: 7),
+                      const Text(
                         'Lock in my prediction',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
@@ -1405,12 +1411,22 @@ class _SubmittedBody extends StatelessWidget {
     required this.accent,
     required this.state,
     required this.round,
+    required this.question,
+    required this.familyId,
     required this.celebrationAnimation,
   });
 
   final Color accent;
   final PredictionState state;
   final PredictionRound? round;
+  /// The active round's question. May be null if the round was loaded
+  /// without the question join — in that case we fall back to "Today's
+  /// question" as a placeholder label.
+  final PredictionQuestion? question;
+  /// Family id for the "View Full →" navigation to the full leaderboard
+  /// screen. Empty string when the round is null (defensive — the
+  /// "View Full" button is hidden in that case).
+  final String familyId;
   final AnimationController celebrationAnimation;
 
   @override
@@ -1436,12 +1452,13 @@ class _SubmittedBody extends StatelessWidget {
 
     return Center(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // "Locked in" header.
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
+              const Icon(
                 Icons.check_circle_rounded,
                 size: 18,
                 color: KinrelColors.success,
@@ -1496,9 +1513,9 @@ class _SubmittedBody extends StatelessWidget {
                     scale: numberScale.value,
                     child: Column(
                       children: [
-                        Text(
+                        const Text(
                           'You predicted',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 12,
                             color: KinrelColors.textSilver,
@@ -1534,7 +1551,7 @@ class _SubmittedBody extends StatelessWidget {
           if (state.myConfidence != null)
             Text(
               'Confidence: ${state.myConfidence!.label} (×${state.myConfidence!.multiplier.toStringAsFixed(1)})',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textSilver,
@@ -1543,13 +1560,54 @@ class _SubmittedBody extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'Reveals ${_revealLabel(round)} · ${state.participationCount} family members predicted',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
               color: KinrelColors.textDim,
             ),
             textAlign: TextAlign.center,
           ),
+
+          // ── Locked-in expand: today's question + your answer ──────────
+          // The "missing piece" the user called out — even when the rest
+          // of the prompt isn't done, this needs to render. Always shows
+          // the question text + the user's submitted answer so the user
+          // can confirm what they predicted at a glance.
+          const SizedBox(height: 18),
+          _LockedInDivider(accent: accent),
+          const SizedBox(height: 14),
+          _LockedInQuestionBlock(
+            accent: accent,
+            question: question,
+            myPrediction: state.myPrediction,
+            myConfidence: state.myConfidence,
+          ),
+
+          // ── Recent rounds (last 1-2 resolved) ──────────────────────────
+          // Pulled from state.recentResults (already fetched by the
+          // provider — no new query needed). Filter to resolved, take 2.
+          if (state.recentResults.any((r) => r.status == PredictionStatus.resolved)) ...[
+            const SizedBox(height: 14),
+            _LockedInDivider(accent: accent),
+            const SizedBox(height: 12),
+            _RecentRoundsTeaser(
+              accent: accent,
+              state: state,
+            ),
+          ],
+
+          // ── Compact leaderboard teaser (top 3) + "View Full →" ─────────
+          if (state.leaderboard.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _LockedInDivider(accent: accent),
+            const SizedBox(height: 12),
+            _LeaderboardTeaser(
+              accent: accent,
+              leaderboard: state.leaderboard,
+              myUserId: state.myStats?.userId,
+              familyId: familyId,
+            ),
+          ],
         ],
       ),
     );
@@ -1564,6 +1622,569 @@ class _SubmittedBody extends StatelessWidget {
     if (h > 0) return 'in ${h}h ${m}m';
     if (m > 0) return 'in ${m}m';
     return 'in seconds';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Locked-in expand: divider + question block + recent rounds + leaderboard
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Thin horizontal divider used between the celebratory number and the
+/// extra locked-in expand sections. Matches the divider style used in
+/// `_ExpandedInteraction` above (line 980) so the expanded section
+/// feels like a natural extension of the card.
+class _LockedInDivider extends StatelessWidget {
+  const _LockedInDivider({required this.accent});
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 1,
+      color: accent.withValues(alpha: 0.15),
+    );
+  }
+}
+
+/// Shows today's question text + the user's submitted answer beneath it.
+/// This is the "missing piece" the user explicitly called out — the
+/// locked-in state used to show only "Locked in · waiting for reveal"
+/// with no trace of the question or the user's own answer.
+class _LockedInQuestionBlock extends StatelessWidget {
+  const _LockedInQuestionBlock({
+    required this.accent,
+    required this.question,
+    required this.myPrediction,
+    required this.myConfidence,
+  });
+
+  final Color accent;
+  final PredictionQuestion? question;
+  final String? myPrediction;
+  final PredictionConfidence? myConfidence;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkElevated.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: accent.withValues(alpha: 0.18),
+          width: 0.6,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section label.
+          Row(
+            children: [
+              Icon(
+                Icons.help_outline_rounded,
+                size: 12,
+                color: accent.withValues(alpha: 0.85),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                'TODAY\'S QUESTION',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.monoFont,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                  color: accent,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          // The question text — fall back to a placeholder if the
+          // question wasn't loaded (shouldn't happen for active rounds,
+          // but defensive).
+          Text(
+            question?.question ?? 'Today\'s prediction question',
+            style: const TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.textWhite,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          // The user's own submitted answer — the missing piece.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.check_circle_rounded,
+                size: 14,
+                color: KinrelColors.success,
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Your guess: ',
+                style: const TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textSilver,
+                ),
+              ),
+              Flexible(
+                child: Text(
+                  myPrediction ?? '—',
+                  style: const TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: KinrelColors.textWhite,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (myConfidence != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.amber.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: KinrelColors.amber.withValues(alpha: 0.30),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Text(
+                    '${myConfidence!.label} ×${myConfidence!.multiplier.toStringAsFixed(1)}',
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.monoFont,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: KinrelColors.amber,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Recent rounds" teaser — the last 1-2 resolved rounds only. Each row
+/// shows the question (truncated if long), the user's own answer, and
+/// the result (correct / closest-wins outcome with points delta).
+/// Pulled from `state.recentResults` — the provider already fetches
+/// the last 20 resolved rounds AND merges my own submission into each
+/// round's `results` list (see prediction_provider.dart).
+class _RecentRoundsTeaser extends StatelessWidget {
+  const _RecentRoundsTeaser({
+    required this.accent,
+    required this.state,
+  });
+
+  final Color accent;
+  final PredictionState state;
+
+  @override
+  Widget build(BuildContext context) {
+    // Take the last 2 resolved rounds — keep the provider's full list
+    // untouched (the battle screen uses it for the full history).
+    final resolved = state.recentResults
+        .where((r) => r.status == PredictionStatus.resolved)
+        .take(2)
+        .toList();
+    if (resolved.isEmpty) return const SizedBox.shrink();
+    final myId = state.myStats?.userId;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section label.
+        Row(
+          children: [
+            Icon(
+              Icons.history_rounded,
+              size: 12,
+              color: accent.withValues(alpha: 0.85),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              'RECENT ROUNDS',
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.6,
+                color: accent,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (final r in resolved)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: _RecentRoundRow(
+              accent: accent,
+              round: r,
+              myUserId: myId,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// A single recent round row inside the locked-in expand section.
+class _RecentRoundRow extends StatelessWidget {
+  const _RecentRoundRow({
+    required this.accent,
+    required this.round,
+    required this.myUserId,
+  });
+
+  final Color accent;
+  final PredictionRound round;
+  final String? myUserId;
+
+  @override
+  Widget build(BuildContext context) {
+    // Find my result in the round's results list (the provider merges
+    // my submission in via the recent-rounds fetch; see
+    // prediction_provider.dart).
+    PredictionResult? myResult;
+    if (myUserId != null) {
+      for (final r in round.results) {
+        if (r.userId == myUserId) {
+          myResult = r;
+          break;
+        }
+      }
+    }
+    final questionText = round.question?.question;
+    final truncatedQuestion = questionText != null && questionText.length > 60
+        ? '${questionText.substring(0, 57)}...'
+        : (questionText ?? 'Round ${round.id.substring(0, 6)}');
+
+    // Outcome label: for closest-wins, "closest" if rank==1 else
+    // "off by <distance>"; for outcome, "correct" / "wrong".
+    String outcomeLabel;
+    Color outcomeColor;
+    if (myResult == null) {
+      outcomeLabel = 'didn\'t play';
+      outcomeColor = KinrelColors.textDim;
+    } else if (round.question?.type == PredictionType.outcome) {
+      if (myResult.correct) {
+        outcomeLabel = '✓ correct';
+        outcomeColor = KinrelColors.success;
+      } else {
+        outcomeLabel = '✗ wrong';
+        outcomeColor = KinrelColors.textDim;
+      }
+    } else {
+      // closest-wins
+      if (myResult.rank == 1) {
+        outcomeLabel = '🏆 closest';
+        outcomeColor = KinrelColors.brightGold;
+      } else if (myResult.distance != null) {
+        final dist = myResult.distance!;
+        outcomeLabel = 'off by ${dist.toStringAsFixed(dist == dist.roundToDouble() ? 0 : 1)}';
+        outcomeColor = KinrelColors.textDim;
+      } else {
+        outcomeLabel = myResult.correct ? '✓ correct' : '✗ wrong';
+        outcomeColor = myResult.correct ? KinrelColors.success : KinrelColors.textDim;
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: accent.withValues(alpha: 0.10),
+          width: 0.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Question (truncated).
+          Text(
+            truncatedQuestion,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: KinrelColors.textSilver,
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Answer + outcome + points delta.
+          Row(
+            children: [
+              if (myResult != null) ...[
+                Text(
+                  'You: ${myResult.prediction}',
+                  style: const TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 11,
+                    color: KinrelColors.textDim,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: Text(
+                  'Answer: ${round.actualAnswer ?? '—'}',
+                  style: const TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 11,
+                    color: KinrelColors.textDim,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                outcomeLabel,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.monoFont,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: outcomeColor,
+                ),
+              ),
+              if (myResult != null && myResult.points > 0) ...[
+                const SizedBox(width: 6),
+                Text(
+                  '+${myResult.points}',
+                  style: const TextStyle(
+                    fontFamily: KinrelTypography.monoFont,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: KinrelColors.success,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact leaderboard teaser — top 3 entries only. Each row shows
+/// rank, member display name, current streak icon if > 0, points.
+/// Followed by a "View Full →" button that navigates to
+/// `prediction_battle_screen.dart` (the existing full-screen
+/// destination which has the complete leaderboard).
+class _LeaderboardTeaser extends StatelessWidget {
+  const _LeaderboardTeaser({
+    required this.accent,
+    required this.leaderboard,
+    required this.myUserId,
+    required this.familyId,
+  });
+
+  final Color accent;
+  final List<PredictionLeaderboardEntry> leaderboard;
+  final String? myUserId;
+  /// Family id for the "View Full →" navigation. Empty string when the
+  /// round is null (the "View Full" button is hidden in that case).
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context) {
+    final top3 = leaderboard.take(3).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section label.
+        Row(
+          children: [
+            Icon(
+              Icons.leaderboard_outlined,
+              size: 12,
+              color: accent.withValues(alpha: 0.85),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              'LEADERBOARD',
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.6,
+                color: accent,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (var i = 0; i < top3.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: _LeaderboardTeaserRow(
+              accent: accent,
+              rank: i + 1,
+              entry: top3[i],
+              isMe: top3[i].userId == myUserId,
+            ),
+          ),
+        // "View Full →" link — navigates to the battle screen which has
+        // the complete leaderboard (extended in this commit to show all
+        // the fields: points, wins, accuracy, current streak, best
+        // streak per member).
+        if (familyId.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: () {
+              final ctx = context;
+              if (ctx.canPop()) {
+                // Push onto the existing navigation stack so the back
+                // button returns to the family hub the card lives on.
+                ctx.push('/family/$familyId/prediction-battle');
+              } else {
+                ctx.go('/family/$familyId/prediction-battle');
+              }
+            },
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'View Full',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: accent,
+                    ),
+                  ),
+                  const SizedBox(width: 3),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 12,
+                    color: accent,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// A single row in the leaderboard teaser. Highlights the calling user
+/// with a subtle accent border.
+class _LeaderboardTeaserRow extends StatelessWidget {
+  const _LeaderboardTeaserRow({
+    required this.accent,
+    required this.rank,
+    required this.entry,
+    required this.isMe,
+  });
+
+  final Color accent;
+  final int rank;
+  final PredictionLeaderboardEntry entry;
+  final bool isMe;
+
+  @override
+  Widget build(BuildContext context) {
+    // Rank color: gold for 1, silver for 2, bronze for 3.
+    final rankColor = switch (rank) {
+      1 => KinrelColors.brightGold,
+      2 => const Color(0xFFC0C0C0),
+      3 => const Color(0xFFCD7F32),
+      _ => KinrelColors.textDim,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: isMe
+            ? accent.withValues(alpha: 0.10)
+            : KinrelColors.darkCard.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isMe ? accent.withValues(alpha: 0.30) : accent.withValues(alpha: 0.06),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          // Rank.
+          SizedBox(
+            width: 22,
+            child: Text(
+              '#$rank',
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: rankColor,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          // Member name.
+          Expanded(
+            child: Text(
+              entry.displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                fontWeight: isMe ? FontWeight.w700 : FontWeight.w500,
+                color: isMe ? KinrelColors.textWhite : KinrelColors.textSilver,
+              ),
+            ),
+          ),
+          // Streak icon if > 0.
+          if (entry.currentStreak > 0) ...[
+            const SizedBox(width: 6),
+            Text(
+              '🔥${entry.currentStreak}',
+              style: const TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.amber,
+              ),
+            ),
+          ],
+          const SizedBox(width: 8),
+          // Points.
+          Text(
+            '${entry.points} pts',
+            style: TextStyle(
+              fontFamily: KinrelTypography.monoFont,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: accent,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1596,7 +2217,7 @@ class _CompletedBody extends StatelessWidget {
         if (question != null) ...[
           Text(
             question!.question,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 16,
               fontWeight: FontWeight.w700,
@@ -1634,7 +2255,7 @@ class _CompletedBody extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 round.actualAnswer ?? '—',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
@@ -1691,7 +2312,7 @@ class _CompletedBody extends StatelessWidget {
               Expanded(
                 child: Text(
                   '${state.participationCount} family members participated',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     color: KinrelColors.textSilver,
@@ -1806,7 +2427,7 @@ class _SkeletonCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       height: 140,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           colors: [KinrelColors.darkCard, KinrelColors.darkElevated],
         ),
         borderRadius: BorderRadius.circular(26),
@@ -1828,9 +2449,9 @@ class _SkeletonCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Text(
+            const Text(
               'Loading Prediction Battle…',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
                 color: KinrelColors.textSilver,

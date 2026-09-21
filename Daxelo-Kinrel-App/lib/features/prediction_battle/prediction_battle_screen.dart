@@ -55,7 +55,7 @@ class _PredictionBattleScreenState extends ConsumerState<PredictionBattleScreen>
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.canPop() ? context.pop() : context.go('/home')),
-        title: Text('Prediction Battle', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w700)),
+        title: const Text('Prediction Battle', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w700)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),
       body: state.isLoading
@@ -129,42 +129,42 @@ class _Section1_ActivePrediction extends ConsumerWidget {
         Row(children: [
           Text(round.isLegendary ? '🔮 Legendary' : '🔮', style: const TextStyle(fontSize: 22)),
           const SizedBox(width: 8),
-          Expanded(child: Text(question.type.label, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.purple))),
+          Expanded(child: Text(question.type.label, style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.purple))),
           if (round.status == PredictionStatus.open)
-            Text('Closes in ${_countdown(round.lockAt)}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, color: KinrelColors.orange)),
+            Text('Closes in ${_countdown(round.lockAt)}', style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, color: KinrelColors.orange)),
           if (round.status == PredictionStatus.locked)
-            Text('Locked — reveals in ${_countdown(round.revealAt)}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, color: KinrelColors.amber)),
+            Text('Locked — reveals in ${_countdown(round.revealAt)}', style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, color: KinrelColors.amber)),
           if (round.status == PredictionStatus.pending)
-            Text('Reveals in ${_countdown(round.revealAt)}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, color: KinrelColors.amber)),
+            Text('Reveals in ${_countdown(round.revealAt)}', style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, color: KinrelColors.amber)),
         ]),
         const SizedBox(height: 12),
-        Text(question.question, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w800, color: KinrelColors.textWhite, height: 1.3)),
+        Text(question.question, style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w800, color: KinrelColors.textWhite, height: 1.3)),
         const SizedBox(height: 8),
         if (question.type == PredictionType.closest)
-          Text('Predict a number. Closest wins!', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim))
+          const Text('Predict a number. Closest wins!', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim))
         else
-          Text('Choose an outcome. Correct wins!', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
+          const Text('Choose an outcome. Correct wins!', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
         const SizedBox(height: 16),
         if (state.hasSubmitted) ...[
           Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: KinrelColors.success.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(14), border: Border.all(color: KinrelColors.success.withValues(alpha: 0.25))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('✓ Your Prediction', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w700, color: KinrelColors.success)),
+              const Text('✓ Your Prediction', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w700, color: KinrelColors.success)),
               const SizedBox(height: 6),
               Row(children: [
-                Text('Prediction: ', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textSilver)),
-                Text(state.myPrediction ?? '—', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w800, color: KinrelColors.textWhite)),
+                const Text('Prediction: ', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textSilver)),
+                Text(state.myPrediction ?? '—', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w800, color: KinrelColors.textWhite)),
                 const SizedBox(width: 12),
-                Text('Confidence: ', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textSilver)),
-                Text((state.myConfidence ?? PredictionConfidence.low).label, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.amber)),
+                const Text('Confidence: ', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textSilver)),
+                Text((state.myConfidence ?? PredictionConfidence.low).label, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.amber)),
               ]),
               const SizedBox(height: 6),
-              Text('Predictions are hidden until reveal. Good luck! 🔒', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: KinrelColors.textDim)),
+              const Text('Predictions are hidden until reveal. Good luck! 🔒', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: KinrelColors.textDim)),
             ])),
         ] else if (round.status == PredictionStatus.open) ...[
           if (question.type == PredictionType.closest) ...[
-            TextField(controller: controller, keyboardType: TextInputType.number, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, color: KinrelColors.textWhite),
+            TextField(controller: controller, keyboardType: TextInputType.number, style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, color: KinrelColors.textWhite),
               decoration: InputDecoration(hintText: 'Enter your number...', filled: true, fillColor: KinrelColors.darkCard,
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: KinrelColors.border)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: KinrelColors.border)),
                 focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: KinrelColors.purple, width: 1.4)))),
           ] else ...[
             Row(children: [
@@ -174,7 +174,7 @@ class _Section1_ActivePrediction extends ConsumerWidget {
             ]),
           ],
           const SizedBox(height: 14),
-          Text('How confident are you?', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
+          const Text('How confident are you?', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
           const SizedBox(height: 6),
           Row(children: [
             for (final c in PredictionConfidence.values) ...[
@@ -185,10 +185,10 @@ class _Section1_ActivePrediction extends ConsumerWidget {
           const SizedBox(height: 14),
           DKButton(label: 'Submit Prediction', variant: DKButtonVariant.primary, fullWidth: true, onPressed: selectedConfidence != null && controller.text.isNotEmpty ? onSubmit : null),
         ] else ...[
-          Center(child: Padding(padding: const EdgeInsets.all(20), child: Text(round.status == PredictionStatus.locked ? '🔒 Predictions are locked. Reveal coming soon!' : '⏳ Waiting for reveal...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)))),
+          Center(child: Padding(padding: const EdgeInsets.all(20), child: Text(round.status == PredictionStatus.locked ? '🔒 Predictions are locked. Reveal coming soon!' : '⏳ Waiting for reveal...', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)))),
         ],
         const SizedBox(height: 8),
-        Text('${state.participationCount} family members participated', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: KinrelColors.textDim)),
+        Text('${state.participationCount} family members participated', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: KinrelColors.textDim)),
       ]),
     );
   }
@@ -217,14 +217,14 @@ class _Section2_Pending extends StatelessWidget {
     final allPending = [...activePending, ...pending];
     if (allPending.isEmpty) return const SizedBox.shrink();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      GamingSectionHeader(title: 'Pending Reveal', icon: Icons.hourglass_top_outlined),
+      const GamingSectionHeader(title: 'Pending Reveal', icon: Icons.hourglass_top_outlined),
       for (final r in allPending.take(3)) Padding(padding: const EdgeInsets.only(bottom: 6),
         child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12)),
           child: Row(children: [
-            Icon(Icons.hourglass_empty, size: 16, color: KinrelColors.amber),
+            const Icon(Icons.hourglass_empty, size: 16, color: KinrelColors.amber),
             const SizedBox(width: 8),
-            Expanded(child: Text('Reveals ${_timeLabel(r.revealAt)}', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
-            Text(r.status.label, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 10, color: KinrelColors.amber)),
+            Expanded(child: Text('Reveals ${_timeLabel(r.revealAt)}', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
+            Text(r.status.label, style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 10, color: KinrelColors.amber)),
           ]))),
     ]);
   }
@@ -245,13 +245,13 @@ class _Section3_RecentResults extends StatelessWidget {
     final results = state.recentResults.where((r) => r.status == PredictionStatus.resolved).take(10).toList();
     if (results.isEmpty) return const SizedBox.shrink();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      GamingSectionHeader(title: 'Recent Results', icon: Icons.history),
+      const GamingSectionHeader(title: 'Recent Results', icon: Icons.history),
       for (final r in results) Padding(padding: const EdgeInsets.only(bottom: 6),
         child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Expanded(child: Text('Answer: ${r.actualAnswer ?? '—'}', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
-              if (r.winnerUserIds.isNotEmpty) Text('🏆 Winner!', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 10, color: KinrelColors.brightGold)),
+              Expanded(child: Text('Answer: ${r.actualAnswer ?? '—'}', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
+              if (r.winnerUserIds.isNotEmpty) const Text('🏆 Winner!', style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 10, color: KinrelColors.brightGold)),
             ]),
           ]))),
     ]);
@@ -265,18 +265,172 @@ class _Section4_Leaderboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.leaderboard.isEmpty) return const SizedBox.shrink();
+    final myId = state.myStats?.userId;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      GamingSectionHeader(title: 'Prediction Ranking', icon: Icons.leaderboard_outlined),
-      for (var i = 0; i < state.leaderboard.length && i < 10; i++)
+      const GamingSectionHeader(title: 'Prediction Ranking', icon: Icons.leaderboard_outlined),
+      // Full ranked list — uses PredictionLeaderboardEntry's existing
+      // fields (points as primary sort, wins, accuracy %, current
+      // streak, best streak per member). No artificial top-N cap —
+      // shows every family member who has played at least once.
+      for (var i = 0; i < state.leaderboard.length; i++)
         Padding(padding: const EdgeInsets.only(bottom: 6),
-          child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12)),
-            child: Row(children: [
-              SizedBox(width: 24, child: Text('#${i + 1}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: i == 0 ? KinrelColors.brightGold : KinrelColors.textDim))),
-              const SizedBox(width: 8),
-              Expanded(child: Text(state.leaderboard[i].userId.substring(0, 8), style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
-              Text('${state.leaderboard[i].points} pts', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.purple)),
-            ]))),
+          child: _FullLeaderboardRow(
+            rank: i + 1,
+            entry: state.leaderboard[i],
+            isMe: state.leaderboard[i].userId == myId,
+          )),
     ]);
+  }
+}
+
+/// A single row in the full leaderboard (battle screen). Shows all
+/// the fields the user asked for: rank, member name, points (primary
+/// sort), wins, accuracy %, current streak, best streak.
+class _FullLeaderboardRow extends StatelessWidget {
+  const _FullLeaderboardRow({
+    required this.rank,
+    required this.entry,
+    required this.isMe,
+  });
+
+  final int rank;
+  final PredictionLeaderboardEntry entry;
+  final bool isMe;
+
+  @override
+  Widget build(BuildContext context) {
+    // Rank color: gold for 1, silver for 2, bronze for 3, dim for the rest.
+    final rankColor = switch (rank) {
+      1 => KinrelColors.brightGold,
+      2 => const Color(0xFFC0C0C0),
+      3 => const Color(0xFFCD7F32),
+      _ => KinrelColors.textDim,
+    };
+    final accuracyPct = (entry.accuracy * 100).round();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: isMe
+            ? KinrelColors.purple.withValues(alpha: 0.10)
+            : KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isMe
+              ? KinrelColors.purple.withValues(alpha: 0.30)
+              : KinrelColors.border.withValues(alpha: 0.5),
+          width: 0.6,
+        ),
+      ),
+      child: Row(
+        children: [
+          // Rank.
+          SizedBox(
+            width: 28,
+            child: Text(
+              '#$rank',
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: rankColor,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Member name + stats row beneath.
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                    fontWeight: isMe ? FontWeight.w800 : FontWeight.w600,
+                    color: isMe ? KinrelColors.textWhite : KinrelColors.textSilver,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                // Stats row: wins · accuracy · current streak · best streak.
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 2,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _StatChip(
+                      label: '🏆 ${entry.wins}',
+                      color: KinrelColors.brightGold,
+                    ),
+                    _StatChip(
+                      label: '$accuracyPct% acc',
+                      color: KinrelColors.textDim,
+                    ),
+                    if (entry.currentStreak > 0)
+                      _StatChip(
+                        label: '🔥 ${entry.currentStreak}',
+                        color: KinrelColors.amber,
+                      ),
+                    if (entry.bestStreak > 0)
+                      _StatChip(
+                        label: 'best ${entry.bestStreak}',
+                        color: KinrelColors.textDim,
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Points (primary sort) — right-aligned.
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${entry.points}',
+                style: const TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: KinrelColors.purple,
+                ),
+              ),
+              const Text(
+                'pts',
+                style: const TextStyle(
+                  fontFamily: KinrelTypography.monoFont,
+                  fontSize: 9,
+                  color: KinrelColors.textDim,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tiny chip used inside _FullLeaderboardRow's stats row. Matches the
+/// battle screen's existing dark theme.
+class _StatChip extends StatelessWidget {
+  const _StatChip({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: TextStyle(
+        fontFamily: KinrelTypography.monoFont,
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        color: color,
+      ),
+    );
   }
 }
 
@@ -289,7 +443,7 @@ class _Section5_PersonalStats extends StatelessWidget {
     final stats = state.myStats;
     if (stats == null) return const SizedBox.shrink();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      GamingSectionHeader(title: 'Your Statistics', icon: Icons.person_outline),
+      const GamingSectionHeader(title: 'Your Statistics', icon: Icons.person_outline),
       Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(14)),
         child: Column(children: [
           _StatRow(label: 'Predictions Made', value: '${stats.totalPredictions}'),
@@ -310,8 +464,8 @@ class _StatRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(children: [
-        Expanded(child: Text(label, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim))),
-        Text(value, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
+        Expanded(child: Text(label, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim))),
+        Text(value, style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
       ]));
   }
 }
@@ -325,20 +479,20 @@ class _ResolvedView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(20), border: Border.all(color: KinrelColors.brightGold.withValues(alpha: 0.3))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('🏆 Prediction Result', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w800, color: KinrelColors.brightGold)),
+        const Text('🏆 Prediction Result', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w800, color: KinrelColors.brightGold)),
         const SizedBox(height: 12),
-        Text(question.question, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textSilver)),
+        Text(question.question, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textSilver)),
         const SizedBox(height: 8),
-        Text('Correct Answer: ${round.actualAnswer ?? '—'}', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w800, color: KinrelColors.brightGold)),
+        Text('Correct Answer: ${round.actualAnswer ?? '—'}', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w800, color: KinrelColors.brightGold)),
         const SizedBox(height: 12),
         if (round.results.isNotEmpty) ...[
-          Text('Family Predictions:', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
+          const Text('Family Predictions:', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
           const SizedBox(height: 6),
           for (final r in round.results)
             Padding(padding: const EdgeInsets.only(bottom: 4),
               child: Row(children: [
-                Expanded(child: Text('${r.userId.substring(0, 8)} → ${r.prediction}', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
-                if (r.points > 0) Text('+${r.points}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.success)),
+                Expanded(child: Text('${r.userId.substring(0, 8)} → ${r.prediction}', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
+                if (r.points > 0) Text('+${r.points}', style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.success)),
               ])),
         ],
       ]));
@@ -368,7 +522,7 @@ class _ConfidenceChip extends StatelessWidget {
         decoration: BoxDecoration(color: selected ? KinrelColors.amber.withValues(alpha: 0.15) : KinrelColors.darkCard, borderRadius: BorderRadius.circular(10), border: Border.all(color: selected ? KinrelColors.amber : KinrelColors.border)),
         child: Column(children: [
           Text(label, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, fontWeight: FontWeight.w700, color: selected ? KinrelColors.amber : KinrelColors.textDim)),
-          Text(multiplier, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 9, color: KinrelColors.textDim)),
+          Text(multiplier, style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 9, color: KinrelColors.textDim)),
         ])));
   }
 }

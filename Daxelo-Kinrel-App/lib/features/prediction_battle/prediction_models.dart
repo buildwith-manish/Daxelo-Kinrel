@@ -96,6 +96,13 @@ class PredictionRound {
     this.results = const [],
     this.isLegendary = false,
     this.createdAt,
+    /// Optional embedded question — populated when the round is fetched
+    /// via a query that joins `prediction_questions(*)`. Null when the
+    /// round is fetched without the join (e.g., from the active-round
+    /// RPC which returns the question separately). UIs that need the
+    /// question text should fall back to a separate `PredictionQuestion`
+    /// when this is null.
+    this.question,
   });
   final String id;
   final String familyId;
@@ -109,6 +116,8 @@ class PredictionRound {
   final List<PredictionResult> results;
   final bool isLegendary;
   final DateTime? createdAt;
+  /// Embedded question for the round (optional — see constructor doc).
+  final PredictionQuestion? question;
 
   factory PredictionRound.fromJson(Map<String, dynamic> json) {
     final winners = <String>[];
@@ -119,6 +128,26 @@ class PredictionRound {
     if (rawResults is List) {
       for (final r in rawResults) {
         if (r is Map) results.add(PredictionResult.fromJson(Map<String, dynamic>.from(r)));
+      }
+    }
+    // The `prediction_questions(*)` Postgres join returns the question
+    // under the `prediction_questions` key. The provider's
+    // `_fetchRecentResults` rewrites that to `question` before calling
+    // fromJson, so we accept both keys here. Either may be a Map
+    // (the full question row) or null (when the round was fetched
+    // without the join).
+    PredictionQuestion? embeddedQuestion;
+    final rawQuestion = json['question'];
+    final rawPq = json['prediction_questions'];
+    final questionSource = rawQuestion is Map
+        ? rawQuestion
+        : (rawPq is Map ? rawPq : null);
+    if (questionSource != null) {
+      try {
+        embeddedQuestion =
+            PredictionQuestion.fromJson(Map<String, dynamic>.from(questionSource));
+      } catch (_) {
+        embeddedQuestion = null;
       }
     }
     return PredictionRound(
@@ -134,6 +163,7 @@ class PredictionRound {
       results: results,
       isLegendary: (json['isLegendary'] as bool?) ?? false,
       createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'] as String) : null,
+      question: embeddedQuestion,
     );
   }
 }
@@ -176,6 +206,11 @@ class PredictionLeaderboardEntry {
     required this.totalPredictions,
     required this.currentStreak,
     required this.bestStreak,
+    /// Optional display name — populated by the provider when it joins
+    /// `fn_get_family_member_names(family_id)` to the leaderboard query.
+    /// Falls back to a truncated userId when null (the caller should
+    /// render `userName ?? userId.substring(0, 8)`).
+    this.userName,
   });
   final String userId;
   final int points;
@@ -184,8 +219,16 @@ class PredictionLeaderboardEntry {
   final int totalPredictions;
   final int currentStreak;
   final int bestStreak;
+  final String? userName;
 
   double get accuracy => totalPredictions > 0 ? correctPredictions / totalPredictions : 0.0;
+
+  /// Convenience for UIs: returns userName if set, otherwise a
+  /// truncated userId (first 8 chars) so the leaderboard never shows
+  /// an empty name cell.
+  String get displayName => (userName != null && userName!.isNotEmpty)
+      ? userName!
+      : (userId.length > 8 ? userId.substring(0, 8) : userId);
 
   factory PredictionLeaderboardEntry.fromJson(Map<String, dynamic> json) => PredictionLeaderboardEntry(
     userId: (json['userId'] ?? '') as String,
@@ -195,7 +238,22 @@ class PredictionLeaderboardEntry {
     totalPredictions: (json['totalPredictions'] as num?)?.toInt() ?? 0,
     currentStreak: (json['currentStreak'] as num?)?.toInt() ?? 0,
     bestStreak: (json['bestStreak'] as num?)?.toInt() ?? 0,
+    userName: json['userName'] as String?,
   );
+
+  /// Copy with an updated userName (used by the provider when it joins
+  /// family-member names into the leaderboard entries).
+  PredictionLeaderboardEntry copyWithUserName(String? userName) =>
+      PredictionLeaderboardEntry(
+        userId: userId,
+        points: points,
+        wins: wins,
+        correctPredictions: correctPredictions,
+        totalPredictions: totalPredictions,
+        currentStreak: currentStreak,
+        bestStreak: bestStreak,
+        userName: userName,
+      );
 }
 
 /// Pure Dart scoring engine — mirrors the server-side fn_prediction_resolve logic.
