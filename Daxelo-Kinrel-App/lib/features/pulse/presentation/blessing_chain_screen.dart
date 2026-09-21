@@ -3,12 +3,14 @@
 // A-1 Blessing Chain screen — shows blessings delivered to the user + family blessings.
 // P1.1: Real audio playback via just_audio; elder-side recording via blessing_record_sheet.
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../../core/constants/brand_colors.dart';
+import '../../../core/services/image_cache_manager.dart';
 import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
 import 'blessing_record_sheet.dart';
@@ -194,7 +196,22 @@ class _BlessingCard extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: blessing.elderPerson?.photoThumb != null
-                    ? ClipOval(child: Image.network(blessing.elderPerson!.photoThumb!))
+                    ? ClipOval(
+                        child: CachedNetworkImage(
+                          imageUrl: blessing.elderPerson!.photoThumb!,
+                          cacheManager: KinrelImageCacheManager.instance,
+                          fit: BoxFit.cover,
+                          memCacheWidth:
+                              (40 * MediaQuery.of(context).devicePixelRatio)
+                                  .toInt(),
+                          memCacheHeight:
+                              (40 * MediaQuery.of(context).devicePixelRatio)
+                                  .toInt(),
+                          errorWidget: (_, __, ___) => const Center(
+                              child: Text('👵',
+                                  style: TextStyle(fontSize: 20))),
+                        ),
+                      )
                     : const Center(child: Text('👵', style: TextStyle(fontSize: 20))),
               ),
               const SizedBox(width: 12),

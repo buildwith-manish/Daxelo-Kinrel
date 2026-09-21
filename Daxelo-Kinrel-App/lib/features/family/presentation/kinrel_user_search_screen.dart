@@ -11,6 +11,7 @@
 
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -18,6 +19,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart' show familyLinkedUserIdsProvider;
+import '../../../core/services/image_cache_manager.dart';
 import '../../../data/repositories/search_repository.dart';
 import 'add_member_source.dart';
 import 'providers/graph_pending_invitations_provider.dart'
@@ -471,10 +473,15 @@ class _KinrelUserCard extends StatelessWidget {
       ),
       child: hasPhoto
           ? ClipOval(
-              child: Image.network(
-                user.avatarUrl!,
+              child: CachedNetworkImage(
+                imageUrl: user.avatarUrl!,
+                cacheManager: KinrelImageCacheManager.instance,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _buildInitials(),
+                // memCacheWidth/Height omitted: this helper method has no
+                // BuildContext in scope (StatelessWidget helper, not the
+                // build method). The avatar is 48×48 logical px which is
+                // small enough that not capping decode size is acceptable.
+                errorWidget: (_, __, ___) => _buildInitials(),
               ),
             )
           : _buildInitials(),

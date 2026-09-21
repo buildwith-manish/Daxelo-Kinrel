@@ -41,6 +41,7 @@
 // The graph updates instantly behind the sheet. Undo reverses the
 // addition; no separate confirmation dialog needed.
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -50,6 +51,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_models.dart' show KinshipRelationship;
 import '../../../core/kinship/kinship_provider.dart';
+import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart' show supabaseProvider;
 import '../../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider;
 import 'add_member_source.dart' show KinrelUser;
@@ -892,12 +894,19 @@ class _RelationshipQuickPickSheetState
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: ClipOval(
-                      child: Image.network(
-                        avatarUrl,
+                      child: CachedNetworkImage(
+                        imageUrl: avatarUrl,
+                        cacheManager: KinrelImageCacheManager.instance,
                         width: 20,
                         height: 20,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
+                        memCacheWidth:
+                            (20 * MediaQuery.of(context).devicePixelRatio)
+                                .toInt(),
+                        memCacheHeight:
+                            (20 * MediaQuery.of(context).devicePixelRatio)
+                                .toInt(),
+                        errorWidget: (_, __, ___) =>
                             const SizedBox(width: 20, height: 20),
                       ),
                     ),

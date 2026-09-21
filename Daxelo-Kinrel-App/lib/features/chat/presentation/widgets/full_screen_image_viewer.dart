@@ -17,7 +17,10 @@
 //     timestamp: DateTime.now(),
 //   );
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+
+import '../../../../core/services/image_cache_manager.dart';
 
 
 class FullScreenImageViewer extends StatefulWidget {
@@ -126,22 +129,22 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
                 maxScale: 4.0,
                 boundaryMargin: const EdgeInsets.all(double.infinity),
                 child: Center(
-                  child: Image.network(
-                    widget.imageUrl,
+                  child: CachedNetworkImage(
+                    imageUrl: widget.imageUrl,
+                    cacheManager: KinrelImageCacheManager.instance,
                     fit: BoxFit.contain,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                        ),
-                      );
-                    },
-                    errorBuilder: (_, __, ___) => const Center(
+                    // Full-screen viewer: cap decode width to the
+                    // physical screen width so we don't hold a 4K image
+                    // in memory when the device is ~1080p.
+                    memCacheWidth: (MediaQuery.of(context).size.width *
+                            MediaQuery.of(context).devicePixelRatio)
+                        .toInt(),
+                    placeholder: (context, url) => const Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                      ),
+                    ),
+                    errorWidget: (_, __, ___) => const Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [

@@ -1,8 +1,10 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/brand_colors.dart';
+import '../../../../core/services/image_cache_manager.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../data/models/sparq_model.dart';
 import '../../data/providers/sparq_provider.dart';
@@ -739,8 +741,18 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
       case 'IMAGE':
         if (sparq.mediaUrl != null && sparq.mediaUrl!.isNotEmpty) {
           return Center(
-            child: Image.network(sparq.mediaUrl!, fit: BoxFit.cover, width: double.infinity, height: double.infinity,
-              errorBuilder: (_, __, ___) => _buildErrorContent(),
+            child: CachedNetworkImage(
+              imageUrl: sparq.mediaUrl!,
+              cacheManager: KinrelImageCacheManager.instance,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              // Full-screen viewer: cap decode width to screen width
+              // × DPR so we don't hold a 4K decode in memory.
+              memCacheWidth: (MediaQuery.of(context).size.width *
+                      MediaQuery.of(context).devicePixelRatio)
+                  .toInt(),
+              errorWidget: (_, __, ___) => _buildErrorContent(),
             ),
           );
         }
@@ -751,8 +763,17 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
             alignment: Alignment.center,
             children: [
               if (sparq.thumbnailUrl != null && sparq.thumbnailUrl!.isNotEmpty)
-                Image.network(sparq.thumbnailUrl!, fit: BoxFit.cover, width: double.infinity, height: double.infinity,
-                  errorBuilder: (_, __, ___) => Container(color: const Color(0xFF0A0A0A)),
+                CachedNetworkImage(
+                  imageUrl: sparq.thumbnailUrl!,
+                  cacheManager: KinrelImageCacheManager.instance,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
+                  memCacheWidth: (MediaQuery.of(context).size.width *
+                          MediaQuery.of(context).devicePixelRatio)
+                      .toInt(),
+                  errorWidget: (_, __, ___) =>
+                      Container(color: const Color(0xFF0A0A0A)),
                 )
               else
                 Container(color: const Color(0xFF0A0A0A)),

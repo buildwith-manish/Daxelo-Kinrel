@@ -27,6 +27,7 @@
 
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,6 +35,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/kinship/kinship_edge_style.dart';
+import '../../core/services/image_cache_manager.dart';
 import '../analytics/analytics_tracker.dart';
 import '../interaction/graph_search_state.dart' show graphSearchProvider;
 // v5.175: fuzzy/phonetic search for Indian names.
@@ -968,12 +970,21 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
               ),
               child: result.photoUrl != null
                   ? ClipOval(
-                      child: Image.network(
-                        result.photoUrl!,
+                      child: CachedNetworkImage(
+                        imageUrl: result.photoUrl!,
+                        cacheManager: KinrelImageCacheManager.instance,
+                        fit: BoxFit.cover,
                         width: 36.0,
                         height: 36.0,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
+                        memCacheWidth:
+                            (36.0 * MediaQuery.of(context).devicePixelRatio)
+                                .toInt(),
+                        memCacheHeight:
+                            (36.0 * MediaQuery.of(context).devicePixelRatio)
+                                .toInt(),
+                        placeholder: (context, url) =>
+                            _buildInitialsAvatar(result, borderColor),
+                        errorWidget: (context, url, error) =>
                             _buildInitialsAvatar(result, borderColor),
                       ),
                     )

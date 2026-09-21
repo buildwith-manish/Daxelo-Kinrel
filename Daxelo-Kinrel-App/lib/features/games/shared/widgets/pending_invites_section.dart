@@ -18,12 +18,14 @@
 // The section watches gameInviteStatusProvider(gameId) so it updates in
 // real-time when recipients tap Accept / Decline in their dialog.
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/services/image_cache_manager.dart';
 import '../models/game_invite_status.dart';
 import '../providers/game_invite_status_provider.dart';
 import 'invite_status_badge.dart';
@@ -165,10 +167,17 @@ class PendingInvitesSection extends ConsumerWidget {
     final photo = r.photoThumb ?? r.avatarUrl;
     if (photo != null && photo.isNotEmpty) {
       return ClipOval(
-        child: Image.network(
-          photo,
-          width: 28, height: 28, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _initials(r),
+        child: CachedNetworkImage(
+          imageUrl: photo,
+          cacheManager: KinrelImageCacheManager.instance,
+          width: 28,
+          height: 28,
+          fit: BoxFit.cover,
+          // memCacheWidth/Height omitted: this helper method has no
+          // BuildContext in scope (ConsumerWidget helper, not the build
+          // method). The avatar is 28×28 logical px which is small
+          // enough that not capping decode size is acceptable.
+          errorWidget: (_, __, ___) => _initials(r),
         ),
       );
     }

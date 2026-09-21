@@ -15,6 +15,7 @@
 //   • Recently joined families section
 //   • Join request status feedback
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -28,6 +29,7 @@ import '../../../core/constants/feature_flags.dart';
 import '../../../core/family/family_id_provider.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/services/deep_link_service.dart';
+import '../../../core/services/image_cache_manager.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/extensions/context_extensions.dart';
 import 'qr_scanner_screen.dart';
@@ -878,10 +880,17 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                     border: Border.all(color: _orange.withValues(alpha: 0.3), width: 1.5),
                   ),
                   child: ClipOval(
-                    child: Image.network(
-                      result.avatarUrl!,
+                    child: CachedNetworkImage(
+                      imageUrl: result.avatarUrl!,
+                      cacheManager: KinrelImageCacheManager.instance,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+                      memCacheWidth:
+                          (44 * MediaQuery.of(context).devicePixelRatio)
+                              .toInt(),
+                      memCacheHeight:
+                          (44 * MediaQuery.of(context).devicePixelRatio)
+                              .toInt(),
+                      errorWidget: (_, __, ___) => Container(
                         color: _orange.withValues(alpha: 0.1),
                         child: Icon(Icons.group, color: _orange, size: 20),
                       ),

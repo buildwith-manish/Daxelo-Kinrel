@@ -2,11 +2,13 @@
 //
 // A-2 Time Capsule screen — shows locked + revealed capsules.
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
+import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/networking/dio_client.dart';
 import '../../trackc/presentation/providers/trackc_providers.dart';
@@ -384,8 +386,26 @@ class _CapsuleCard extends ConsumerWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: capsule.mediaType == 'photo'
-                    ? Image.network(capsule.mediaUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) =>
-                        Container(height: 120, color: Colors.white.withOpacity(0.05), child: const Center(child: Icon(Icons.broken_image, color: Colors.white30))))
+                    ? CachedNetworkImage(
+                        imageUrl: capsule.mediaUrl!,
+                        cacheManager: KinrelImageCacheManager.instance,
+                        fit: BoxFit.cover,
+                        // Card padding is 16px on each side; image is
+                        // bound by card width. Height is unconstrained
+                        // (preserves the image's aspect ratio), so we
+                        // cap only the decode width and let Flutter
+                        // preserve aspect ratio.
+                        memCacheWidth: ((MediaQuery.of(context).size.width -
+                                    32) *
+                                MediaQuery.of(context).devicePixelRatio)
+                            .toInt(),
+                        errorWidget: (_, __, ___) => Container(
+                            height: 120,
+                            color: Colors.white.withOpacity(0.05),
+                            child: const Center(
+                                child: Icon(Icons.broken_image,
+                                    color: Colors.white30))),
+                      )
                     : Container(
                         height: 80,
                         color: KinrelColors.darkElevated,

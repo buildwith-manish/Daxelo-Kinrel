@@ -36,6 +36,7 @@
 // palette or typography introduced.
 
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -45,6 +46,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/services/image_cache_manager.dart';
 import '../games/shared/icons/kinrel_icons.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -913,12 +915,20 @@ class _PredictorAvatar extends StatelessWidget {
         child: predictor.avatarUrl != null &&
             predictor.avatarUrl!.trim().isNotEmpty
             ? ClipOval(
-                child: Image.network(
-                  predictor.avatarUrl!,
+                child: CachedNetworkImage(
+                  imageUrl: predictor.avatarUrl!,
+                  cacheManager: KinrelImageCacheManager.instance,
                   width: 24,
                   height: 24,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _initial(predictor.initial),
+                  memCacheWidth:
+                      (24 * MediaQuery.of(context).devicePixelRatio)
+                          .toInt(),
+                  memCacheHeight:
+                      (24 * MediaQuery.of(context).devicePixelRatio)
+                          .toInt(),
+                  errorWidget: (_, __, ___) =>
+                      _initial(predictor.initial),
                 ),
               )
             : _initial(predictor.initial),

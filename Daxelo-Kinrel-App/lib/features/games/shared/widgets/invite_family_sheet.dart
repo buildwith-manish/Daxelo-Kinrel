@@ -51,6 +51,7 @@
 
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -59,6 +60,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/network/socket_service.dart';
+import '../../../../core/services/image_cache_manager.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../chat/providers/chat_provider.dart';
 import '../../../chat/data/direct_message_provider.dart';
@@ -1851,10 +1853,17 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     final photo = user.photoThumb ?? user.avatarUrl;
     if (photo != null && photo.isNotEmpty) {
       return ClipOval(
-        child: Image.network(
-          photo,
-          width: 44, height: 44, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildInitialsAvatar(user),
+        child: CachedNetworkImage(
+          imageUrl: photo,
+          cacheManager: KinrelImageCacheManager.instance,
+          width: 44,
+          height: 44,
+          fit: BoxFit.cover,
+          memCacheWidth:
+              (44 * MediaQuery.of(context).devicePixelRatio).toInt(),
+          memCacheHeight:
+              (44 * MediaQuery.of(context).devicePixelRatio).toInt(),
+          errorWidget: (_, __, ___) => _buildInitialsAvatar(user),
         ),
       );
     }

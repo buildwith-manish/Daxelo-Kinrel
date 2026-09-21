@@ -21,6 +21,7 @@ import '../../../../../core/constants/brand_colors.dart';
 import '../../../../../core/constants/brand_spacing.dart';
 import '../../../../../core/constants/brand_typography.dart';
 import '../../../../../core/kinship/kinship_edge_style.dart';
+import '../../../../../core/services/image_cache_manager.dart';
 import '../../../family/data/relationship_label_provider.dart';
 import '../../../games/shared/icons/game_icons.dart';
 import '../../../games/shared/models/game_invite.dart';
@@ -632,35 +633,37 @@ class MessageBubble extends ConsumerWidget {
                   ),
                   child: ClipRRect(
                 borderRadius: BorderRadius.circular(14),
-                child: Image.network(
-                  message.mediaUrl!,
+                child: CachedNetworkImage(
+                  imageUrl: message.mediaUrl!,
+                  cacheManager: KinrelImageCacheManager.instance,
                   fit: BoxFit.cover,
                   width: double.infinity,
                   height: 200,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Container(
-                      width: double.infinity,
-                      height: 200,
-                      color: const Color(0xFF202338),
-                      child: Center(
-                        child: SizedBox(
-                          width: 26,
-                          height: 26,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            value: loadingProgress.expectedTotalBytes !=
-                                    null
-                                ? loadingProgress.cumulativeBytesLoaded /
-                                    loadingProgress.expectedTotalBytes!
-                                : null,
-                            color: KinrelColors.orange,
-                          ),
+                  // Bubble caps at ~85% of screen width. Decode at
+                  // the screen width × DPR (slightly larger than the
+                  // actual bubble display, but well below a 4K decode).
+                  memCacheWidth: (MediaQuery.of(context).size.width *
+                          MediaQuery.of(context).devicePixelRatio)
+                      .toInt(),
+                  memCacheHeight:
+                      (200 * MediaQuery.of(context).devicePixelRatio)
+                          .toInt(),
+                  placeholder: (context, url) => Container(
+                    width: double.infinity,
+                    height: 200,
+                    color: const Color(0xFF202338),
+                    child: const Center(
+                      child: SizedBox(
+                        width: 26,
+                        height: 26,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: KinrelColors.orange,
                         ),
                       ),
-                    );
-                  },
-                  errorBuilder: (_, __, ___) => Container(
+                    ),
+                  ),
+                  errorWidget: (_, __, ___) => Container(
                     width: double.infinity,
                     height: 200,
                     decoration: BoxDecoration(

@@ -1,4 +1,74 @@
 // lib/features/games/ghost_painter/ghost_painter_provider.dart
+//
+// Ghost Painter — Riverpod state + Supabase Realtime + broadcast-first strokes.
+//
+// Architecture (perf/smoothness-pass-2 Step 2 — migrated from per-stroke
+// DB inserts to Realtime Broadcast, mirroring the stickman_heist
+// migration pattern from commit aa46b5a9):
+//
+//   • ghost_painter_rounds + ghost_painter_guesses remain DB-backed
+//     for durable state (round lifecycle, guess records). These are
+//     low-volume (one per round / one per guesser) and not hot-path.
+//
+//   • HOT PATH (active drawing, pure websocket — NO DB):
+//       DRAWER client:
+//         • On each onPanEnd, accumulates the new stroke into the
+//           local `_pendingStrokes` buffer and broadcasts it
+//           immediately via `sendBroadcastMessage(event: 'stroke',
+//           payload: {points, sequenceOrder, ts})` — pure websocket.
+//         • The drawer's own canvas already renders from the local
+//           `_allStrokes` on the draw screen, so no local round-trip
+//           is needed for self-render.
+//         • On `transitionToGuessing()` (drawer taps Done), the
+//           drawer makes ONE batch INSERT of all accumulated strokes
+//           to `ghost_painter_strokes` for replay/history. This is
+//           the ONLY DB write in the hot path — one call per round,
+//           not one per stroke.
+//         • Responds to `request_state` handshake with a one-time
+//           snapshot of all accumulated strokes so late-joiners /
+//           reconnecting spectators render immediately.
+//       NON-DRAWER clients (guessers + spectators):
+//         • Receive strokes via `onBroadcast(event: 'stroke')` and
+//           append to `state.strokes` for the canvas to render.
+//         • On subscribe, send `request_state` to ask the drawer for
+//           a one-time snapshot (no waiting for the next stroke).
+//
+//   • DURABLE DB calls (event-driven, NOT per-stroke):
+//       • startRound — one INSERT to ghost_painter_rounds (one-time
+//         per round).
+//       • transitionToGuessing — one UPDATE on ghost_painter_rounds
+//         + ONE batch INSERT to ghost_painter_strokes (the durable
+//         stroke history — one batch per round, not one per stroke).
+//       • submitGuess — one INSERT to ghost_painter_guesses (one per
+//         guesser per round, by constraint).
+//       • endRound — one UPDATE on ghost_painter_rounds.
+//
+//   • The `1s _countdownTimer` (line 336) is a local tick that drives
+//     the countdown UI; the round's `endsAt` is set ONCE at startRound
+//     and the timer just decrements locally. LEFT ALONE per user
+//     instruction.
+//
+//   • The `_roundWatchChannel` (Postgres Changes on
+//     `ghost_painter_rounds` INSERT) is retained — it notifies
+//     clients when a new round starts in their family (low-volume,
+//     one-time per round). Not in the hot path.
+//
+//   • The durable Postgres Changes listener on
+//     `ghost_painter_rounds` UPDATE is retained — it delivers the
+//     status flip (drawing → guessing → completed) to all clients
+//     durably. Not in the hot path.
+//
+//   • The Postgres Changes listener on `ghost_painter_strokes` INSERT
+//     is REMOVED — strokes are now received via Broadcast. The
+//     `ghost_painter_strokes` table is still written once at round
+//     end for replay/history, but Realtime clients don't need to
+//     listen to its INSERTs anymore.
+//
+//   • The Postgres Changes listener on `ghost_painter_guesses` INSERT
+//     is RETAINED — guesses are still durable inserts (one per guesser
+//     per round, by constraint), and the volume is low enough that
+//     Postgres Changes is fine. Could also be migrated to Broadcast,
+//     but that's a separate optimization.
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
@@ -60,9 +130,13 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
 
   RealtimeChannel? _channel;
   RealtimeChannel? _roundWatchChannel; // Watches for NEW rounds (when no active round)
-  Timer? _strokeBatchTimer;
   Timer? _countdownTimer;
-  final List<Map<String, dynamic>> _pendingStrokes = [];
+
+  /// Step 2 — broadcast-first stroke buffer. Drawer accumulates
+  /// finished strokes here, broadcasts each immediately via
+  /// `sendBroadcastMessage`, and persists them all at once when the
+  /// round transitions to 'guessing'.
+  final List<GhostPainterStroke> _broadcastStrokes = [];
 
   /// Cold-start retries: when the app is deep-linked straight onto the
   /// Ghost Painter screen, this notifier can be created BEFORE the
@@ -103,13 +177,25 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
         return;
       }
       final round = GhostPainterRound.fromJson(roundResp.first);
-      // Fetch strokes
+      // Fetch strokes (persisted at round transition — may be empty for
+      // an in-progress 'drawing' round under the new architecture, since
+      // strokes are only flushed when the drawer taps Done).
       final strokesResp = await client
           .from('ghost_painter_strokes')
           .select()
           .eq('roundId', round.id)
           .order('sequenceOrder', ascending: true);
       final strokes = strokesResp.map((s) => GhostPainterStroke.fromJson(s)).toList();
+      // Step 2: if I'm the drawer and the round is still 'drawing',
+      // re-seed my local broadcast accumulator from any strokes already
+      // persisted (handles the reconnect-mid-draw case where I may
+      // have already transitioned once and resumed).
+      final myId = _myId;
+      if (round.status == 'drawing' && round.drawerPersonId == myId) {
+        _broadcastStrokes
+          ..clear()
+          ..addAll(strokes);
+      }
       // Fetch guesses
       final guessesResp = await client
           .from('ghost_painter_guesses')
@@ -117,7 +203,6 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
           .eq('roundId', round.id)
           .order('guessedAt', ascending: true);
       final guesses = guessesResp.map((g) => GhostPainterGuess.fromJson(g)).toList();
-      final myId = _myId;
       // Latest guess (guesses are ordered by guessedAt ascending) — the
       // guess screen keeps the input visible until the latest guess is
       // correct, so this must not pin to the first-ever guess.
@@ -156,17 +241,110 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
     _channel?.unsubscribe();
     final client = _client;
     if (client == null) return;
+    final myId = _myId;
+    final isDrawer = state.activeRound?.drawerPersonId == myId;
     _channel = client.channel('ghost_painter:$roundId')
-      .onPostgresChanges(
-        event: PostgresChangeEvent.insert,
-        schema: 'public',
-        table: 'ghost_painter_strokes',
-        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'roundId', value: roundId),
+      // ── HOT-PATH BROADCAST LISTENERS (pure websocket, no DB) ──
+      // These replace the previous per-stroke DB INSERT + Postgres
+      // Changes pattern. Strokes now flow through the drawer's
+      // broadcast only.
+      .onBroadcast(
+        event: 'stroke',
         callback: (payload) {
-          final stroke = GhostPainterStroke.fromJson(payload.newRecord);
-          state = state.copyWith(strokes: [...state.strokes, stroke]);
+          // Non-drawer clients receive a new stroke from the drawer
+          // and append to state.strokes for rendering. The drawer
+          // ignores — drawer renders from its own local _allStrokes
+          // on the draw screen, and accumulates into _broadcastStrokes
+          // for the round-end persist.
+          if (isDrawer) return;
+          try {
+            final map = Map<String, dynamic>.from(payload as Map);
+            final stroke = _strokeFromBroadcast(map, roundId);
+            if (stroke != null) {
+              state = state.copyWith(strokes: [...state.strokes, stroke]);
+            }
+          } catch (e) {
+            debugPrint('[GhostPainter] onBroadcast(stroke) parse error: $e');
+          }
         },
       )
+      .onBroadcast(
+        event: 'request_state',
+        callback: (payload) {
+          // A non-drawer (or spectator, or reconnecting player) joined
+          // and is asking for a one-time snapshot of all accumulated
+          // strokes so they can render immediately instead of waiting
+          // for the next onPanEnd broadcast. Only drawer responds.
+          if (!isDrawer) return;
+          final channel = _channel;
+          if (channel == null) return;
+          try {
+            // Send a 'state_snapshot' broadcast with the full stroke list.
+            // Payload shape mirrors what the load() function returns
+            // from the DB so the receiver can reuse fromJson.
+            channel.sendBroadcastMessage(
+              event: 'state_snapshot',
+              payload: {
+                'strokes': _broadcastStrokes
+                    .map((s) => {
+                          'id': s.id,
+                          'roundId': s.roundId,
+                          'strokeData': s.points.map((p) => p.toJson()).toList(),
+                          'sequenceOrder': s.sequenceOrder,
+                        })
+                    .toList(),
+                'ts': DateTime.now().toIso8601String(),
+              },
+            );
+          } catch (e) {
+            debugPrint('[GhostPainter] request_state response error: $e');
+          }
+        },
+      )
+      .onBroadcast(
+        event: 'state_snapshot',
+        callback: (payload) {
+          // Non-drawer receives the full stroke list as a one-time
+          // snapshot from the drawer (in response to its own
+          // 'request_state'). Replace state.strokes entirely with the
+          // snapshot so we don't double-add strokes that arrived both
+          // via the snapshot AND via subsequent 'stroke' broadcasts.
+          if (isDrawer) return;
+          try {
+            final map = Map<String, dynamic>.from(payload as Map);
+            final strokesList = map['strokes'];
+            if (strokesList is! List) return;
+            final snapshots = <GhostPainterStroke>[];
+            for (final item in strokesList) {
+              if (item is Map) {
+                final stroke = _strokeFromBroadcast(
+                  Map<String, dynamic>.from(item),
+                  roundId,
+                );
+                if (stroke != null) snapshots.add(stroke);
+              }
+            }
+            // Sort by sequenceOrder so the canvas renders in order.
+            snapshots.sort((a, b) => a.sequenceOrder.compareTo(b.sequenceOrder));
+            // Dedupe by stroke id (in case a late 'stroke' broadcast
+            // arrived before the snapshot response).
+            final existingIds = state.strokes.map((s) => s.id).toSet();
+            final merged = <GhostPainterStroke>[...state.strokes];
+            for (final s in snapshots) {
+              if (!existingIds.contains(s.id)) {
+                merged.add(s);
+              }
+            }
+            merged.sort((a, b) => a.sequenceOrder.compareTo(b.sequenceOrder));
+            state = state.copyWith(strokes: merged);
+          } catch (e) {
+            debugPrint('[GhostPainter] onBroadcast(state_snapshot) parse error: $e');
+          }
+        },
+      )
+      // ── DURABLE POSTGRES CHANGES LISTENERS ──
+      // Guesses remain Postgres-backed (low-volume, one per guesser
+      // per round by constraint).
       .onPostgresChanges(
         event: PostgresChangeEvent.insert,
         schema: 'public',
@@ -177,6 +355,8 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
           state = state.copyWith(guesses: [...state.guesses, guess]);
         },
       )
+      // Round status flip (drawing → guessing → completed) is durable
+      // and must survive disconnect/reload.
       .onPostgresChanges(
         event: PostgresChangeEvent.update,
         schema: 'public',
@@ -194,6 +374,47 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
         },
       )
       .subscribe();
+
+    // Spectator / reconnecting-player handshake: ask the drawer for a
+    // one-time snapshot so we render all strokes that were drawn BEFORE
+    // we joined. Small delay so the drawer's listener is wired first.
+    if (!isDrawer) {
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (!mounted || _channel == null) return;
+        try {
+          unawaited(_channel!.sendBroadcastMessage(
+            event: 'request_state',
+            payload: {'userId': myId, 'ts': DateTime.now().toIso8601String()},
+          ));
+        } catch (e) {
+          debugPrint('[GhostPainter] request_state send error: $e');
+        }
+      });
+    }
+  }
+
+  /// Build a GhostPainterStroke from a broadcast payload. Generates a
+  /// stable-ish id from the sequenceOrder so dedupe-by-id works for
+  /// the state_snapshot path.
+  GhostPainterStroke? _strokeFromBroadcast(Map<String, dynamic> map, String roundId) {
+    try {
+      final rawPoints = map['strokeData'] ?? map['points'];
+      if (rawPoints is! List) return null;
+      final points = rawPoints
+          .map((p) => OffsetPoint.fromJson(Map<String, dynamic>.from(p as Map)))
+          .toList();
+      final sequenceOrder = (map['sequenceOrder'] as num?)?.toInt() ?? 0;
+      final id = map['id'] as String? ??
+          'bc_${roundId}_$sequenceOrder'; // stable id for dedupe
+      return GhostPainterStroke(
+        id: id,
+        roundId: roundId,
+        points: points,
+        sequenceOrder: sequenceOrder,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Start a new round — caller is the drawer
@@ -214,6 +435,8 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
         'endsAt': endsAt.toIso8601String(),
       }).select().single();
       final round = GhostPainterRound.fromJson(resp);
+      // Step 2: drawer starts with an empty broadcast accumulator.
+      _broadcastStrokes.clear();
       state = GhostPainterState(activeRound: round, isLoading: false);
       _subscribeToRealtime(round.id);
       return true;
@@ -223,7 +446,12 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
     }
   }
 
-  /// Batch stroke writes — called from the draw screen every ~100ms
+  /// Step 2 — stroke send via Realtime Broadcast (pure websocket, NO DB).
+  /// Called from the draw screen on every onPanEnd. Accumulates the
+  /// stroke locally for the round-end persist AND broadcasts it to all
+  /// non-drawer clients immediately so their canvas renders in real
+  /// time. Persists to Postgres only when the round transitions to
+  /// 'guessing' (one batch INSERT per round, not per stroke).
   void queueStroke(List<OffsetPoint> points, int sequenceOrder) {
     if (points.isEmpty) return;
     // Only the round's drawer may author strokes — a guesser (or a
@@ -231,26 +459,71 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
     final round = state.activeRound;
     final myId = _myId;
     if (round == null || myId == null || round.drawerPersonId != myId) return;
-    _pendingStrokes.add({
-      'roundId': state.activeRound?.id,
-      // Insert as a native jsonb ARRAY — jsonEncode would store a
-      // string, which the readers (and SQL) then have to unwrap.
-      'strokeData': points.map((p) => p.toJson()).toList(),
-      'sequenceOrder': sequenceOrder,
-    });
-    _strokeBatchTimer?.cancel();
-    _strokeBatchTimer = Timer(const Duration(milliseconds: 100), _flushStrokes);
+
+    // 1. Accumulate locally for the round-end batch INSERT.
+    final stroke = GhostPainterStroke(
+      id: 'bc_${round.id}_$sequenceOrder',
+      roundId: round.id,
+      points: points,
+      sequenceOrder: sequenceOrder,
+    );
+    _broadcastStrokes.add(stroke);
+
+    // 2. Broadcast to non-drawer clients (pure websocket, NO DB).
+    final channel = _channel;
+    if (channel != null) {
+      try {
+        unawaited(channel.sendBroadcastMessage(
+          event: 'stroke',
+          payload: {
+            'id': stroke.id,
+            'strokeData': points.map((p) => p.toJson()).toList(),
+            'sequenceOrder': sequenceOrder,
+            'ts': DateTime.now().toIso8601String(),
+          },
+        ));
+      } catch (e) {
+        debugPrint('[GhostPainter] queueStroke broadcast error: $e');
+      }
+    }
   }
 
-  Future<void> _flushStrokes() async {
+  /// Step 2 — ONE batch INSERT of all accumulated strokes to
+  /// `ghost_painter_strokes` for replay / history. Called from
+  /// `transitionToGuessing()` (the only caller). One DB write per
+  /// round, not one per stroke.
+  Future<void> _persistAllStrokes(String roundId) async {
     final client = _client;
-    if (client == null || _pendingStrokes.isEmpty) return;
-    final batch = List<Map<String, dynamic>>.from(_pendingStrokes);
-    _pendingStrokes.clear();
+    if (client == null) return;
+    if (_broadcastStrokes.isEmpty) return;
+    final batch = _broadcastStrokes
+        .map((s) => {
+              'roundId': roundId,
+              // Insert as a native jsonb ARRAY — jsonEncode would
+              // store a string, which the readers (and SQL) then
+              // have to unwrap.
+              'strokeData': s.points.map((p) => p.toJson()).toList(),
+              'sequenceOrder': s.sequenceOrder,
+            })
+        .toList();
     try {
       await client.from('ghost_painter_strokes').insert(batch);
+      // Mirror the persisted strokes into state.strokes so any
+      // future reload (e.g. via a re-fetch) sees the same set. We
+      // use the locally-tracked ids to avoid duplicates if the
+      // Postgres Changes listener ever fires (it won't anymore —
+      // we removed the stroke INSERT listener — but defensive).
+      final existingIds = state.strokes.map((s) => s.id).toSet();
+      final merged = <GhostPainterStroke>[...state.strokes];
+      for (final s in _broadcastStrokes) {
+        if (!existingIds.contains(s.id)) {
+          merged.add(s);
+        }
+      }
+      merged.sort((a, b) => a.sequenceOrder.compareTo(b.sequenceOrder));
+      state = state.copyWith(strokes: merged);
     } catch (e) {
-      debugPrint('⚠️ GhostPainter stroke flush error: $e');
+      debugPrint('⚠️ GhostPainter stroke persist error: $e');
     }
   }
 
@@ -277,6 +550,11 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
       final guess = GhostPainterGuess.fromJson(resp);
       state = state.copyWith(myGuess: guess, isSubmitting: false);
       if (isCorrect) {
+        // If I'm the drawer (shouldn't happen — drawer can't guess —
+        // but defensively) flush strokes first.
+        if (_broadcastStrokes.isNotEmpty) {
+          await _persistAllStrokes(roundId);
+        }
         // Complete the round
         await client.from('ghost_painter_rounds').update({
           'status': 'completed',
@@ -294,6 +572,10 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
   /// Updates the Supabase row — other family members see this via Realtime.
   /// Guarded: never downgrades a round that already left 'drawing'
   /// (e.g. completed because someone guessed correctly).
+  ///
+  /// Step 2: now also flushes all accumulated strokes to Postgres as
+  /// ONE batch INSERT (the only DB write in the hot path — one call
+  /// per round, not one per stroke).
   Future<void> transitionToGuessing() async {
     final client = _client;
     final roundId = state.activeRound?.id;
@@ -301,6 +583,9 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
     if (state.activeRound?.status != 'drawing') return; // already guessing/completed
     _countdownTimer?.cancel();
     try {
+      // Step 2: persist all accumulated strokes BEFORE the status
+      // flip so guessers who reload see the full drawing.
+      await _persistAllStrokes(roundId);
       await client.from('ghost_painter_rounds').update({
         'status': 'guessing',
       }).eq('id', roundId).eq('status', 'drawing'); // server-side guard too
@@ -367,6 +652,10 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
     final roundId = state.activeRound?.id;
     if (client == null || roundId == null) return;
     try {
+      // Step 2: flush strokes before completing.
+      if (_broadcastStrokes.isNotEmpty) {
+        await _persistAllStrokes(roundId);
+      }
       await client.from('ghost_painter_rounds').update({
         'status': 'completed',
         'endsAt': DateTime.now().toIso8601String(),
@@ -378,7 +667,6 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
   void dispose() {
     _channel?.unsubscribe();
     _roundWatchChannel?.unsubscribe();
-    _strokeBatchTimer?.cancel();
     _countdownTimer?.cancel();
     super.dispose();
   }

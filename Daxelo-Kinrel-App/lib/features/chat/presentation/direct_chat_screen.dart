@@ -19,6 +19,7 @@
 //     the SENDER as the other user
 //   - (Future) a DM inbox section in the ChatInboxScreen
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -26,6 +27,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
@@ -307,10 +309,21 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                     child: peer?.avatarUrl != null &&
                             peer!.avatarUrl!.isNotEmpty
                         ? ClipOval(
-                            child: Image.network(
-                              peer.avatarUrl!,
+                            child: CachedNetworkImage(
+                              imageUrl: peer.avatarUrl!,
+                              cacheManager: KinrelImageCacheManager.instance,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Center(
+                              memCacheWidth:
+                                  (36 *
+                                          MediaQuery.of(context)
+                                              .devicePixelRatio)
+                                      .toInt(),
+                              memCacheHeight:
+                                  (36 *
+                                          MediaQuery.of(context)
+                                              .devicePixelRatio)
+                                      .toInt(),
+                              errorWidget: (_, __, ___) => Center(
                                 child: Text(
                                   peer.initials,
                                   style: TextStyle(

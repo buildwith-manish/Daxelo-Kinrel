@@ -15,11 +15,13 @@
 
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart';
 import '../providers/stories_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
@@ -268,10 +270,18 @@ class _StoriesViewerScreenState extends ConsumerState<StoriesViewerScreen>
       return Container(
         color: _cBg,
         child: Center(
-          child: Image.network(
-            story.mediaUrl!,
+          child: CachedNetworkImage(
+            imageUrl: story.mediaUrl!,
+            cacheManager: KinrelImageCacheManager.instance,
             fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => _buildTextStoryContent(story),
+            // Stories are displayed full-screen; cap the decode width
+            // to the screen width × device pixel ratio so we don't
+            // hold a 4K decode in memory when the screen is ~1080p.
+            memCacheWidth:
+                (MediaQuery.of(context).size.width *
+                        MediaQuery.of(context).devicePixelRatio)
+                    .toInt(),
+            errorWidget: (_, __, ___) => _buildTextStoryContent(story),
           ),
         ),
       );

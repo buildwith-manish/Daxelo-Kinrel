@@ -248,6 +248,15 @@ class WallpaperSettingsScreen extends ConsumerWidget {
     required Widget fallback,
   }) {
     // Data URIs (web) → Image.network
+    //
+    // NOTE (perf pass step 3): the Image.network below is intentionally
+    // left as-is. This branch only runs on web where `path` is a base64
+    // `data:` URI (already in memory). CachedNetworkImage cannot fetch
+    // `data:` URIs (its HttpFileService uses an HTTP client), so
+    // converting this call would silently break the wallpaper preview
+    // on web. The native branch below already uses Image.file via the
+    // platform helper. There is no HTTP network URL case in this file.
+    // Same rationale as `wallpaper_image_web.dart` (skipped per spec).
     if (path.startsWith('data:')) {
       return Image.network(
         path,

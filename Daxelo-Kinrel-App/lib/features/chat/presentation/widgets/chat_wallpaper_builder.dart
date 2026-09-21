@@ -44,6 +44,16 @@ class ChatWallpaperBuilder extends ConsumerWidget {
     // inside buildWallpaperImageFromFile.
     // On web, path is always a data: URI → Image.network.
     // On native, path is a file path → Image.file (with existsSync check).
+    //
+    // NOTE (perf pass step 3): the Image.network below is intentionally
+    // left as-is — it only handles `data:` URI payloads on web, which are
+    // already in-memory (base64). CachedNetworkImage cannot fetch
+    // `data:` URIs (it uses an HTTP client under the hood), so converting
+    // this call would break wallpaper rendering on web. The native path
+    // already uses Image.file via the platform helper. There is no HTTP
+    // network URL case in this file, so nothing is gained by switching
+    // to CachedNetworkImage here. See `wallpaper_image_web.dart` for the
+    // same rationale on the web-only file.
     if (path.startsWith('data:')) {
       return Stack(
         children: [

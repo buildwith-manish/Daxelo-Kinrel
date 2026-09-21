@@ -179,6 +179,16 @@ class _BlurredWallpaperImage extends StatelessWidget {
     final isDataUri = imagePath.startsWith('data:');
 
     if (isDataUri) {
+      // NOTE (perf pass step 3): the Image.network below is intentionally
+      // left as-is. This branch only runs on web where the wallpaper
+      // path is a base64 `data:` URI (already in memory). CachedNetworkImage
+      // cannot fetch `data:` URIs (its HttpFileService uses an HTTP
+      // client), so converting this call would silently break wallpaper
+      // rendering on web (the errorWidget would always fire and show
+      // SizedBox.shrink). The native branch below already uses
+      // Image.file via the platform helper. There is no HTTP network
+      // URL case in this file, so CachedNetworkImage buys us nothing.
+      // Same rationale as `wallpaper_image_web.dart` (skipped per spec).
       return ImageFiltered(
         // ImageFiltered wraps Image.network (works for data: URIs on
         // both web and native) and applies a sigma-24 blur via
