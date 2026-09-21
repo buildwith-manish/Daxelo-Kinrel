@@ -59,6 +59,7 @@ import '../../../core/constants/brand_spacing.dart';
 // on the window label is explicit so a family member traveling abroad
 // isn't confused about which timezone the displayed times refer to.
 import '../../../core/utils/app_time.dart';
+import '../../../core/services/supabase_service.dart' show supabaseProvider;
 import '../games/shared/icons/kinrel_icons.dart';
 import 'prediction_models.dart';
 import 'prediction_provider.dart';
@@ -184,6 +185,9 @@ class _PredictionBattleCardState extends ConsumerState<PredictionBattleCard>
     final state = ref.watch(predictionProvider(widget.familyId));
     final round = state.activeRound;
     final question = state.activeQuestion;
+    // Current user id — used by the expanded _SubmittedBody to filter
+    // "my" answer from the "other members" list for reveal-time gating.
+    final myUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
 
     if (state.isLoading) return const _SkeletonCard();
 
@@ -218,14 +222,10 @@ class _PredictionBattleCardState extends ConsumerState<PredictionBattleCard>
                       onToggle: _toggleExpand,
                     ),
                     const SizedBox(height: 14),
-                    // Availability timing — always visible (collapsed + expanded).
-                    _AvailabilityTiming(
-                      accent: accent,
-                      round: round,
-                      viewState: viewState,
-                    ),
-                    const SizedBox(height: 12),
                     // Collapsed summary — always visible when not expanded.
+                    // Restructured per user prompt: question text is the
+                    // primary line, availability window removed from
+                    // collapsed view (moved to expanded).
                     _CollapsedSummary(
                       accent: accent,
                       viewState: viewState,
@@ -255,6 +255,7 @@ class _PredictionBattleCardState extends ConsumerState<PredictionBattleCard>
                               setState(() => _selectedConfidence = c),
                           onSubmit: _submitPrediction,
                           isSubmitting: _isSubmitting,
+                          myUserId: myUserId,
                           celebrationAnimation: _celebrationController,
                         ),
                       ),
@@ -657,104 +658,6 @@ class _Dot extends StatelessWidget {
 // Derived from the round's createdAt + lockAt (existing config).
 // ═══════════════════════════════════════════════════════════════════════
 
-class _AvailabilityTiming extends StatelessWidget {
-  const _AvailabilityTiming({
-    required this.accent,
-    required this.round,
-    required this.viewState,
-  });
-
-  final Color accent;
-  final PredictionRound? round;
-  final _PredictionViewState viewState;
-
-  @override
-  Widget build(BuildContext context) {
-    // The daily window is now a FIXED schedule: 8:00 AM – 9:30 PM IST.
-    // (Configured in the fn_prediction_get_active SQL function via
-    // AT TIME ZONE 'Asia/Kolkata'.) We display this fixed label rather
-    // than deriving from the round's createdAt/lockAt, because the
-    // window is the same every day regardless of when the round was
-    // actually created.
-    //
-    // Step 3 — append the explicit 'IST' suffix so a family member
-    // traveling abroad isn't confused about which timezone the
-    // displayed times refer to. Per the user's instructions: "do NOT
-    // convert the shared window itself to the traveler's local time;
-    // just label it clearly."
-    const windowLabel = '8:00 AM – 9:30 PM IST';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkElevated.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: accent.withValues(alpha: 0.20),
-          width: 0.6,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.schedule_outlined,
-            size: 12,
-            color: accent.withValues(alpha: 0.85),
-          ),
-          const SizedBox(width: 5),
-          const Text(
-            'Available today',
-            style: const TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: KinrelColors.textSilver,
-            ),
-          ),
-          const SizedBox(width: 5),
-          Text(
-            windowLabel,
-            style: TextStyle(
-              fontFamily: KinrelTypography.monoFont,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: accent,
-              letterSpacing: 0.2,
-            ),
-          ),
-          if (round != null && viewState == _PredictionViewState.questionAvailable) ...[
-            const SizedBox(width: 8),
-            Text(
-              '· closes in ${_countdown(round!.lockAt)}',
-              style: const TextStyle(
-                fontFamily: KinrelTypography.monoFont,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: KinrelColors.amber,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  /// Step 3 — server-accurate countdown. Uses AppTime.nowServerAccurate()
-  /// instead of DateTime.now() so cheap Android devices with drifting
-  /// clocks show the correct countdown. Returns a friendly "Xh Ym" /
-  /// "Ym Zs" / "Zs" string. Negative → "soon".
-  String _countdown(DateTime target) {
-    final diff = target.difference(AppTime.nowServerAccurate());
-    if (diff.isNegative) return 'soon';
-    final h = diff.inHours;
-    final m = diff.inMinutes % 60;
-    if (h > 0) return '${h}h ${m}m';
-    final s = diff.inSeconds % 60;
-    if (m > 0) return '${m}m ${s}s';
-    return '${s}s';
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════════════
 // Collapsed summary — always-visible compact summary of the current state.
@@ -795,11 +698,6 @@ class _CollapsedSummary extends StatelessWidget {
         children: [
           if (viewState == _PredictionViewState.notStarted) ...[
             Text(
-              // Step 3 — explicit 'IST' suffix on the open/close times
-              // so a family member traveling abroad isn't confused about
-              // which timezone the displayed times refer to. The window
-              // itself stays at IST 8 AM – 9:30 PM (not converted to
-              // traveler-local), per the user's instructions.
               inactiveReason == 'after_window'
                   ? 'Today\'s prediction is closed. Come back tomorrow at 8:00 AM IST.'
                   : inactiveReason == 'no_questions_available'
@@ -825,6 +723,7 @@ class _CollapsedSummary extends StatelessWidget {
               ),
             ),
           ] else if (viewState == _PredictionViewState.questionAvailable) ...[
+            // Question is already the primary line here — keep as-is.
             if (question != null) ...[
               Text(
                 question!.question,
@@ -850,6 +749,24 @@ class _CollapsedSummary extends StatelessWidget {
               ),
             ],
           ] else if (viewState == _PredictionViewState.answerSubmitted) ...[
+            // RESTRUCTURED: question text is the primary line (was hidden
+            // after lock-in). Below it: user's own answer + countdown.
+            // No availability window in collapsed view.
+            if (question != null) ...[
+              Text(
+                question!.question,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                  height: 1.3,
+                ),
+              ),
+            ],
+            const SizedBox(height: 6),
             Row(
               children: [
                 const Icon(
@@ -861,7 +778,7 @@ class _CollapsedSummary extends StatelessWidget {
                 Expanded(
                   child: Text(
                     state.myPrediction != null
-                        ? 'You predicted "${state.myPrediction}"'
+                        ? 'Your guess: ${state.myPrediction}'
                         : 'Your prediction is locked in',
                     style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -885,6 +802,23 @@ class _CollapsedSummary extends StatelessWidget {
               ),
             ),
           ] else if (viewState == _PredictionViewState.completed) ...[
+            // RESTRUCTURED: question text as the primary line, then
+            // the answer + result below.
+            if (question != null) ...[
+              Text(
+                question!.question,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                  height: 1.3,
+                ),
+              ),
+            ],
+            const SizedBox(height: 6),
             Row(
               children: [
                 Icon(
@@ -955,6 +889,7 @@ class _ExpandedInteraction extends StatelessWidget {
     required this.onConfidenceChanged,
     required this.onSubmit,
     required this.isSubmitting,
+    required this.myUserId,
     required this.celebrationAnimation,
   });
 
@@ -969,6 +904,7 @@ class _ExpandedInteraction extends StatelessWidget {
   final void Function(PredictionConfidence) onConfidenceChanged;
   final Future<void> Function() onSubmit;
   final bool isSubmitting;
+  final String? myUserId;
   final AnimationController celebrationAnimation;
 
   @override
@@ -1000,10 +936,9 @@ class _ExpandedInteraction extends StatelessWidget {
             state: state,
             round: round,
             question: question,
-            // familyId for the "View Full →" navigation — comes from the
-            // active round (same family as the card itself, since the
-            // card is family-scoped via the Riverpod family provider).
             familyId: round?.familyId ?? '',
+            allSubmissions: state.allSubmissions,
+            myUserId: myUserId,
             celebrationAnimation: celebrationAnimation,
           )
         else if (viewState == _PredictionViewState.completed && round != null)
@@ -1413,21 +1348,36 @@ class _SubmittedBody extends StatelessWidget {
     required this.round,
     required this.question,
     required this.familyId,
+    required this.allSubmissions,
+    required this.myUserId,
     required this.celebrationAnimation,
   });
 
   final Color accent;
   final PredictionState state;
   final PredictionRound? round;
-  /// The active round's question. May be null if the round was loaded
-  /// without the question join — in that case we fall back to "Today's
-  /// question" as a placeholder label.
   final PredictionQuestion? question;
-  /// Family id for the "View Full →" navigation to the full leaderboard
-  /// screen. Empty string when the round is null (defensive — the
-  /// "View Full" button is hidden in that case).
   final String familyId;
+  /// All submissions for the active round — used to show other members'
+  /// answers AFTER the reveal time has passed. Before reveal time, only
+  /// the count is shown (gated by `_isRevealed` below).
+  final List<PredictionSubmission> allSubmissions;
+  /// The current user's id — used to filter out "my" answer from the
+  /// "other members" list (my answer is always visible in the collapsed
+  /// view; only OTHER members' answers are gated by reveal time).
+  final String? myUserId;
   final AnimationController celebrationAnimation;
+
+  /// Reveal-time gate: returns true if the round's revealAt instant has
+  /// passed (using the server-accurate clock from the date/time fix,
+  /// NOT raw DateTime.now() — handles device clock drift on cheap
+  /// Android hardware). The user's OWN answer is always visible
+  /// regardless of this gate; only OTHER members' answers are hidden
+  /// before reveal.
+  bool get _isRevealed {
+    if (round == null) return false;
+    return AppTime.nowServerAccurate().isAfter(round!.revealAt);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1515,7 +1465,7 @@ class _SubmittedBody extends StatelessWidget {
                       children: [
                         const Text(
                           'You predicted',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 12,
                             color: KinrelColors.textSilver,
@@ -1559,7 +1509,7 @@ class _SubmittedBody extends StatelessWidget {
             ),
           const SizedBox(height: 6),
           Text(
-            'Reveals ${_revealLabel(round)} · ${state.participationCount} family members predicted',
+            'Reveals ${_revealLabel(round)}',
             style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
@@ -1568,24 +1518,36 @@ class _SubmittedBody extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
 
-          // ── Locked-in expand: today's question + your answer ──────────
-          // The "missing piece" the user called out — even when the rest
-          // of the prompt isn't done, this needs to render. Always shows
-          // the question text + the user's submitted answer so the user
-          // can confirm what they predicted at a glance.
+          // ── Availability window (moved from collapsed view) ──────────
           const SizedBox(height: 18),
           _LockedInDivider(accent: accent),
           const SizedBox(height: 14),
-          _LockedInQuestionBlock(
+          _AvailabilityWindowExpanded(accent: accent),
+
+          // ── Predictor count ──────────────────────────────────────────
+          const SizedBox(height: 10),
+          _PredictorCountRow(
             accent: accent,
-            question: question,
-            myPrediction: state.myPrediction,
-            myConfidence: state.myConfidence,
+            count: state.participationCount,
           ),
 
+          // ── Reveal-gated member answers ──────────────────────────────
+          // Before reveal time: show only the count (already shown above).
+          // After reveal time: show each member's answer + the resolved
+          // result (correct/closest) inline.
+          if (_isRevealed && allSubmissions.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _LockedInDivider(accent: accent),
+            const SizedBox(height: 12),
+            _RevealedAnswersSection(
+              accent: accent,
+              round: round,
+              allSubmissions: allSubmissions,
+              myUserId: myUserId,
+            ),
+          ],
+
           // ── Recent rounds (last 1-2 resolved) ──────────────────────────
-          // Pulled from state.recentResults (already fetched by the
-          // provider — no new query needed). Filter to resolved, take 2.
           if (state.recentResults.any((r) => r.status == PredictionStatus.resolved)) ...[
             const SizedBox(height: 14),
             _LockedInDivider(accent: accent),
@@ -1596,7 +1558,7 @@ class _SubmittedBody extends StatelessWidget {
             ),
           ],
 
-          // ── Compact leaderboard teaser (top 3) + "View Full →" ─────────
+          // ── Compact leaderboard teaser (top 3) with medal icons ──────
           if (state.leaderboard.isNotEmpty) ...[
             const SizedBox(height: 14),
             _LockedInDivider(accent: accent),
@@ -1605,6 +1567,15 @@ class _SubmittedBody extends StatelessWidget {
               accent: accent,
               leaderboard: state.leaderboard,
               myUserId: state.myStats?.userId,
+              familyId: familyId,
+            ),
+          ],
+
+          // ── "View Past Rounds & Results →" button ────────────────────
+          if (familyId.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _ViewPastRoundsButton(
+              accent: accent,
               familyId: familyId,
             ),
           ],
@@ -1646,137 +1617,320 @@ class _LockedInDivider extends StatelessWidget {
   }
 }
 
-/// Shows today's question text + the user's submitted answer beneath it.
-/// This is the "missing piece" the user explicitly called out — the
-/// locked-in state used to show only "Locked in · waiting for reveal"
-/// with no trace of the question or the user's own answer.
-class _LockedInQuestionBlock extends StatelessWidget {
-  const _LockedInQuestionBlock({
-    required this.accent,
-    required this.question,
-    required this.myPrediction,
-    required this.myConfidence,
-  });
-
+/// Availability window text shown in the expanded section (moved from
+/// the collapsed view per the user's restructure prompt). Shows the
+/// SHARED family-wide window "8:00 AM – 9:30 PM IST".
+class _AvailabilityWindowExpanded extends StatelessWidget {
+  const _AvailabilityWindowExpanded({required this.accent});
   final Color accent;
-  final PredictionQuestion? question;
-  final String? myPrediction;
-  final PredictionConfidence? myConfidence;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkElevated.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: accent.withValues(alpha: 0.18),
-          width: 0.6,
+    return Row(
+      children: [
+        Icon(
+          Icons.schedule_outlined,
+          size: 12,
+          color: accent.withValues(alpha: 0.85),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Section label.
-          Row(
-            children: [
-              Icon(
-                Icons.help_outline_rounded,
-                size: 12,
-                color: accent.withValues(alpha: 0.85),
-              ),
-              const SizedBox(width: 5),
-              Text(
-                'TODAY\'S QUESTION',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.monoFont,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.6,
-                  color: accent,
-                ),
-              ),
-            ],
+        const SizedBox(width: 5),
+        const Text(
+          'Available today 8:00 AM – 9:30 PM IST',
+          style: TextStyle(
+            fontFamily: KinrelTypography.monoFont,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: KinrelColors.textSilver,
+            letterSpacing: 0.2,
           ),
-          const SizedBox(height: 6),
-          // The question text — fall back to a placeholder if the
-          // question wasn't loaded (shouldn't happen for active rounds,
-          // but defensive).
-          Text(
-            question?.question ?? 'Today\'s prediction question',
+        ),
+      ],
+    );
+  }
+}
+
+/// Shows the count of family members who have predicted so far.
+/// Before reveal time, this is the ONLY thing shown about other
+/// members' submissions — individual answers are hidden until reveal.
+class _PredictorCountRow extends StatelessWidget {
+  const _PredictorCountRow({required this.accent, required this.count});
+  final Color accent;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(
+          Icons.people_outline_rounded,
+          size: 14,
+          color: accent.withValues(alpha: 0.7),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            count == 1
+                ? '1 family member has predicted'
+                : '$count family members have predicted',
             style: const TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: KinrelColors.textWhite,
-              height: 1.3,
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 12,
+              color: KinrelColors.textSilver,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Revealed answers section — shown only AFTER the round's revealAt
+/// has passed (gated by `_SubmittedBody._isRevealed`). Shows each
+/// family member's prediction, confidence, and the resolved result
+/// (correct/closest outcome with points delta). The user's OWN answer
+/// is always visible in the collapsed view; only OTHER members' answers
+/// are gated here.
+class _RevealedAnswersSection extends StatelessWidget {
+  const _RevealedAnswersSection({
+    required this.accent,
+    required this.round,
+    required this.allSubmissions,
+    required this.myUserId,
+  });
+
+  final Color accent;
+  final PredictionRound? round;
+  final List<PredictionSubmission> allSubmissions;
+  final String? myUserId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section label.
+        Row(
+          children: [
+            Icon(
+              Icons.lock_open_outlined,
+              size: 12,
+              color: accent.withValues(alpha: 0.85),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              'FAMILY PREDICTIONS',
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.6,
+                color: accent,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        // Correct answer (if resolved).
+        if (round?.actualAnswer != null) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: accent.withValues(alpha: 0.20),
+                width: 0.6,
+              ),
+            ),
+            child: Text(
+              'Answer: ${round!.actualAnswer}',
+              style: const TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: KinrelColors.textWhite,
+              ),
             ),
           ),
           const SizedBox(height: 8),
-          // The user's own submitted answer — the missing piece.
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.check_circle_rounded,
-                size: 14,
-                color: KinrelColors.success,
-              ),
-              const SizedBox(width: 6),
-              const Text(
-                'Your guess: ',
-                style: const TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.textSilver,
-                ),
-              ),
-              Flexible(
-                child: Text(
-                  myPrediction ?? '—',
-                  style: const TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: KinrelColors.textWhite,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (myConfidence != null) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: KinrelColors.amber.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: KinrelColors.amber.withValues(alpha: 0.30),
-                      width: 0.5,
-                    ),
-                  ),
-                  child: Text(
-                    '${myConfidence!.label} ×${myConfidence!.multiplier.toStringAsFixed(1)}',
-                    style: const TextStyle(
-                      fontFamily: KinrelTypography.monoFont,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      color: KinrelColors.amber,
-                    ),
-                  ),
-                ),
-              ],
-            ],
+        ],
+        // Each member's prediction.
+        for (final sub in allSubmissions)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: _RevealedAnswerRow(
+              accent: accent,
+              submission: sub,
+              isMe: sub.userId == myUserId,
+              round: round,
+            ),
           ),
+      ],
+    );
+  }
+}
+
+/// A single member's revealed answer row.
+class _RevealedAnswerRow extends StatelessWidget {
+  const _RevealedAnswerRow({
+    required this.accent,
+    required this.submission,
+    required this.isMe,
+    required this.round,
+  });
+
+  final Color accent;
+  final PredictionSubmission submission;
+  final bool isMe;
+  final PredictionRound? round;
+
+  @override
+  Widget build(BuildContext context) {
+    // Find this user's result in the round's results list (if resolved).
+    PredictionResult? result;
+    if (round != null) {
+      for (final r in round!.results) {
+        if (r.userId == submission.userId) {
+          result = r;
+          break;
+        }
+      }
+    }
+    // Name to display.
+    final displayName = submission.userName.isNotEmpty
+        ? submission.userName
+        : (submission.userId.length > 8
+            ? submission.userId.substring(0, 8)
+            : submission.userId);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isMe
+            ? accent.withValues(alpha: 0.10)
+            : KinrelColors.darkCard.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isMe ? accent.withValues(alpha: 0.25) : accent.withValues(alpha: 0.06),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          // Member name.
+          Expanded(
+            child: Text(
+              isMe ? 'You' : displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                fontWeight: isMe ? FontWeight.w700 : FontWeight.w500,
+                color: isMe ? KinrelColors.textWhite : KinrelColors.textSilver,
+              ),
+            ),
+          ),
+          // Prediction.
+          Text(
+            submission.prediction,
+            style: const TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: KinrelColors.textWhite,
+            ),
+          ),
+          // Result label + points.
+          if (result != null) ...[
+            const SizedBox(width: 8),
+            if (result.points > 0)
+              Text(
+                '+${result.points}',
+                style: const TextStyle(
+                  fontFamily: KinrelTypography.monoFont,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: KinrelColors.success,
+                ),
+              )
+            else if (!result.correct)
+              const Text(
+                '—',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.monoFont,
+                  fontSize: 10,
+                  color: KinrelColors.textDim,
+                ),
+              ),
+          ],
         ],
       ),
     );
   }
 }
+
+/// "View Past Rounds & Results →" button — navigates to
+/// prediction_battle_screen.dart which shows the full history of
+/// previous (already-revealed) rounds with every member's answer and
+/// outcome, plus the complete ranked leaderboard with medal icons.
+class _ViewPastRoundsButton extends StatelessWidget {
+  const _ViewPastRoundsButton({required this.accent, required this.familyId});
+  final Color accent;
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        final ctx = context;
+        if (ctx.canPop()) {
+          ctx.push('/family/$familyId/prediction-battle');
+        } else {
+          ctx.go('/family/$familyId/prediction-battle');
+        }
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: accent.withValues(alpha: 0.25),
+            width: 0.6,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'View Past Rounds & Results',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: accent,
+              ),
+            ),
+            const SizedBox(width: 5),
+            Icon(
+              Icons.arrow_forward_rounded,
+              size: 14,
+              color: accent,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shows today's question text + the user's submitted answer beneath it.
+/// This is the "missing piece" the user explicitly called out — the
+/// locked-in state used to show only "Locked in · waiting for reveal"
+/// with no trace of the question or the user's own answer.
 
 /// "Recent rounds" teaser — the last 1-2 resolved rounds only. Each row
 /// shows the question (truncated if long), the user's own answer, and
@@ -1986,10 +2140,9 @@ class _RecentRoundRow extends StatelessWidget {
 }
 
 /// Compact leaderboard teaser — top 3 entries only. Each row shows
-/// rank, member display name, current streak icon if > 0, points.
-/// Followed by a "View Full →" button that navigates to
-/// `prediction_battle_screen.dart` (the existing full-screen
-/// destination which has the complete leaderboard).
+/// medal icon (🥇 for rank 1, 🥈 for rank 2, 🥉 for rank 3), name,
+/// points right-aligned. The "View Past Rounds & Results →" button is
+/// now a separate widget (`_ViewPastRoundsButton`) below the teaser.
 class _LeaderboardTeaser extends StatelessWidget {
   const _LeaderboardTeaser({
     required this.accent,
@@ -2001,8 +2154,6 @@ class _LeaderboardTeaser extends StatelessWidget {
   final Color accent;
   final List<PredictionLeaderboardEntry> leaderboard;
   final String? myUserId;
-  /// Family id for the "View Full →" navigation. Empty string when the
-  /// round is null (the "View Full" button is hidden in that case).
   final String familyId;
 
   @override
@@ -2043,57 +2194,14 @@ class _LeaderboardTeaser extends StatelessWidget {
               isMe: top3[i].userId == myUserId,
             ),
           ),
-        // "View Full →" link — navigates to the battle screen which has
-        // the complete leaderboard (extended in this commit to show all
-        // the fields: points, wins, accuracy, current streak, best
-        // streak per member).
-        if (familyId.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          GestureDetector(
-            onTap: () {
-              final ctx = context;
-              if (ctx.canPop()) {
-                // Push onto the existing navigation stack so the back
-                // button returns to the family hub the card lives on.
-                ctx.push('/family/$familyId/prediction-battle');
-              } else {
-                ctx.go('/family/$familyId/prediction-battle');
-              }
-            },
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'View Full',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: accent,
-                    ),
-                  ),
-                  const SizedBox(width: 3),
-                  Icon(
-                    Icons.arrow_forward_rounded,
-                    size: 12,
-                    color: accent,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
       ],
     );
   }
 }
 
-/// A single row in the leaderboard teaser. Highlights the calling user
-/// with a subtle accent border.
+/// A single row in the leaderboard teaser. Uses medal icons
+/// 🥇🥈🥉 for ranks 1-3. Highlights the calling user with a subtle
+/// accent border. Points are right-aligned.
 class _LeaderboardTeaserRow extends StatelessWidget {
   const _LeaderboardTeaserRow({
     required this.accent,
@@ -2109,13 +2217,9 @@ class _LeaderboardTeaserRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Rank color: gold for 1, silver for 2, bronze for 3.
-    final rankColor = switch (rank) {
-      1 => KinrelColors.brightGold,
-      2 => const Color(0xFFC0C0C0),
-      3 => const Color(0xFFCD7F32),
-      _ => KinrelColors.textDim,
-    };
+    // Medal icons for ranks 1-3.
+    const medals = ['🥇', '🥈', '🥉'];
+    final medal = rank <= 3 ? medals[rank - 1] : '#$rank';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -2130,16 +2234,13 @@ class _LeaderboardTeaserRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Rank.
+          // Medal icon.
           SizedBox(
-            width: 22,
+            width: 24,
             child: Text(
-              '#$rank',
-              style: TextStyle(
-                fontFamily: KinrelTypography.monoFont,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: rankColor,
+              medal,
+              style: const TextStyle(
+                fontSize: 14,
               ),
             ),
           ),
@@ -2172,7 +2273,7 @@ class _LeaderboardTeaserRow extends StatelessWidget {
             ),
           ],
           const SizedBox(width: 8),
-          // Points.
+          // Points — right-aligned.
           Text(
             '${entry.points} pts',
             style: TextStyle(

@@ -168,6 +168,44 @@ class PredictionRound {
   }
 }
 
+/// A single submission by a family member for a prediction round.
+/// Used by the expanded card to show other members' answers AFTER the
+/// reveal time has passed. Before reveal time, the UI shows only the
+/// count of submissions, not the individual predictions.
+class PredictionSubmission {
+  const PredictionSubmission({
+    required this.userId,
+    required this.userName,
+    required this.prediction,
+    required this.confidence,
+    required this.submittedAt,
+  });
+  final String userId;
+  final String userName;
+  final String prediction;
+  final PredictionConfidence confidence;
+  final DateTime submittedAt;
+
+  factory PredictionSubmission.fromJson(Map<String, dynamic> json) {
+    // Try to join with the User table for a display name. If the join
+    // isn't present (the prediction_submissions table doesn't have a
+    // userName column), fall back to the userId.
+    String userName = (json['userName'] as String?) ?? '';
+    if (userName.isEmpty && json['User'] is Map) {
+      userName = (json['User'] as Map)['name'] as String? ?? '';
+    }
+    return PredictionSubmission(
+      userId: (json['userId'] ?? '') as String,
+      userName: userName,
+      prediction: (json['prediction'] ?? '') as String,
+      confidence: PredictionConfidenceX.fromString(json['confidence'] as String?),
+      submittedAt: json['submittedAt'] != null
+          ? DateTime.tryParse(json['submittedAt'] as String) ?? DateTime.now()
+          : DateTime.now(),
+    );
+  }
+}
+
 class PredictionResult {
   const PredictionResult({
     required this.userId,

@@ -14,6 +14,12 @@ class PredictionState {
     this.hasSubmitted = false,
     this.myPrediction,
     this.myConfidence,
+    /// All submissions for the active round — used by the expanded
+    /// card to show other members' answers AFTER the reveal time has
+    /// passed (gated by the UI via AppTime.nowIst() vs round.revealAt).
+    /// Before reveal time, the UI should show only the count, not
+    /// individual predictions.
+    this.allSubmissions = const [],
     this.recentResults = const [],
     this.leaderboard = const [],
     this.myStats,
@@ -27,6 +33,7 @@ class PredictionState {
   final bool hasSubmitted;
   final String? myPrediction;
   final PredictionConfidence? myConfidence;
+  final List<PredictionSubmission> allSubmissions;
   final List<PredictionRound> recentResults;
   final List<PredictionLeaderboardEntry> leaderboard;
   final PredictionLeaderboardEntry? myStats;
@@ -46,6 +53,7 @@ class PredictionState {
     bool? hasSubmitted,
     String? myPrediction,
     PredictionConfidence? myConfidence,
+    List<PredictionSubmission>? allSubmissions,
     List<PredictionRound>? recentResults,
     List<PredictionLeaderboardEntry>? leaderboard,
     PredictionLeaderboardEntry? myStats,
@@ -61,6 +69,7 @@ class PredictionState {
     hasSubmitted: hasSubmitted ?? this.hasSubmitted,
     myPrediction: myPrediction ?? this.myPrediction,
     myConfidence: myConfidence ?? this.myConfidence,
+    allSubmissions: allSubmissions ?? this.allSubmissions,
     recentResults: recentResults ?? this.recentResults,
     leaderboard: leaderboard ?? this.leaderboard,
     myStats: myStats ?? this.myStats,
@@ -97,8 +106,6 @@ class PredictionNotifier extends StateNotifier<PredictionState> {
       if (raw is Map) {
         final map = Map<String, dynamic>.from(raw);
         if (map['ok'] == false) {
-          // No active round. Capture the reason so the UI can show
-          // "Opens at 8:00 AM" vs "Closed for today" appropriately.
           final reason = map['reason'] as String?;
           state = state.copyWith(
             activeRound: null,
@@ -111,17 +118,78 @@ class PredictionNotifier extends StateNotifier<PredictionState> {
         final round = PredictionRound.fromJson(Map<String, dynamic>.from(map['round'] as Map));
         final question = PredictionQuestion.fromJson(Map<String, dynamic>.from(map['question'] as Map));
         final participation = (map['participationCount'] as num?)?.toInt() ?? 0;
-        // Check if I've submitted
+        // Check if I've submitted + fetch ALL submissions for this round
+        // (used by the expanded card to show other members' answers
+        // AFTER reveal time — gated by the UI via AppTime.nowIst()).
         final myId = _myId;
         bool submitted = false;
         String? myPred;
         PredictionConfidence? myConf;
-        if (myId != null && (round.status == PredictionStatus.open || round.status == PredictionStatus.locked)) {
-          final subsResp = await client.from('prediction_submissions').select().eq('roundId', round.id).eq('userId', myId).maybeSingle();
-          if (subsResp != null) {
-            submitted = true;
-            myPred = subsResp['prediction'] as String?;
-            myConf = PredictionConfidenceX.fromString(subsResp['confidence'] as String?);
+        List<PredictionSubmission> allSubs = [];
+        if (myId != null && (round.status == PredictionStatus.open || round.status == PredictionStatus.locked || round.status == PredictionStatus.pending)) {
+          // Fetch all submissions for this round — joined with User
+          // table for display names (the prediction_submissions table
+          // has userId but no userName column, so we join).
+          try {
+            final subsResp = await client
+                .from('prediction_submissions')
+                .select('*, User(name)')
+                .eq('roundId', round.id)
+                .order('submittedAt', ascending: true);
+            // Index by roundId for O(1) merge.
+            for (final s in subsResp) {
+              final sub = PredictionSubmission.fromJson(Map<String, dynamic>.from(s));
+              allSubs.add(sub);
+              if (sub.userId == myId) {
+                submitted = true;
+                myPred = sub.prediction;
+                myConf = sub.confidence;
+              }
+            }
+          } catch (e) {
+            // Fallback: just fetch my own submission.
+            debugPrint('[Prediction] fetchActive (all subs) error: $e');
+            final subsResp = await client.from('prediction_submissions').select().eq('roundId', round.id).eq('userId', myId).maybeSingle();
+            if (subsResp != null) {
+              submitted = true;
+              myPred = subsResp['prediction'] as String?;
+              myConf = PredictionConfidenceX.fromString(subsResp['confidence'] as String?);
+            }
+          }
+        }
+        // Join user names for allSubs that have empty userName.
+        if (allSubs.any((s) => s.userName.isEmpty)) {
+          try {
+            final namesResp = await client.rpc('fn_get_family_member_names', params: {'family_id': familyId});
+            if (namesResp is List) {
+              final namesByUserId = <String, String>{};
+              for (final row in namesResp) {
+                if (row is Map) {
+                  final uid = row['userId'] as String?;
+                  final name = row['name'] as String?;
+                  if (uid != null && name != null && name.isNotEmpty) {
+                    namesByUserId[uid] = name;
+                  }
+                }
+              }
+              if (namesByUserId.isNotEmpty) {
+                allSubs = allSubs.map((s) {
+                  final name = namesByUserId[s.userId];
+                  if (name != null && s.userName.isEmpty) {
+                    return PredictionSubmission(
+                      userId: s.userId,
+                      userName: name,
+                      prediction: s.prediction,
+                      confidence: s.confidence,
+                      submittedAt: s.submittedAt,
+                    );
+                  }
+                  return s;
+                }).toList();
+              }
+            }
+          } catch (e) {
+            debugPrint('[Prediction] fetchActive (sub names) error: $e');
           }
         }
         state = state.copyWith(
@@ -131,6 +199,7 @@ class PredictionNotifier extends StateNotifier<PredictionState> {
           hasSubmitted: submitted,
           myPrediction: myPred,
           myConfidence: myConf,
+          allSubmissions: allSubs,
           clearInactiveReason: true,
         );
       }
