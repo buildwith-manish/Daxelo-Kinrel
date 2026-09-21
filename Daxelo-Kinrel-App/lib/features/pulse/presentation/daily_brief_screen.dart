@@ -101,36 +101,45 @@ class _BriefContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // v114 — Step 4 perf: build a flat list of rows then use
+    // ListView.builder so brief-item cards (the dynamic part) are
+    // built lazily as they scroll into view.
+    final rows = <Widget>[
+      // ── Greeting header ────────────────────────────────────────────
+      _GreetingHeader(brief: brief),
+
+      const SizedBox(height: 24),
+
+      // ── Summary + karma strip ──────────────────────────────────────
+      if (brief.summary != null || brief.karmaEarned > 0)
+        _SummaryStrip(brief: brief),
+
+      const SizedBox(height: 16),
+    ];
+
+    // ── Brief items (dynamic part) ──────────────────────────────────
+    if (brief.items.isEmpty) {
+      rows.add(_NoItemsState());
+    } else {
+      for (final item in brief.items) {
+        rows.add(_BriefItemCard(item: item));
+      }
+    }
+
+    rows.add(const SizedBox(height: 32));
+
+    // ── Footer: engagement stats ───────────────────────────────────
+    rows.add(_EngagementFooter(brief: brief));
+
     return RefreshIndicator(
       color: KinrelColors.orange,
       onRefresh: () async {
         ref.invalidate(todayBriefProvider);
       },
-      child: ListView(
+      child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-        children: [
-          // ── Greeting header ────────────────────────────────────────────
-          _GreetingHeader(brief: brief),
-
-          const SizedBox(height: 24),
-
-          // ── Summary + karma strip ──────────────────────────────────────
-          if (brief.summary != null || brief.karmaEarned > 0)
-            _SummaryStrip(brief: brief),
-
-          const SizedBox(height: 16),
-
-          // ── Brief items ────────────────────────────────────────────────
-          if (brief.items.isEmpty)
-            _NoItemsState()
-          else
-            ...brief.items.map((item) => _BriefItemCard(item: item)),
-
-          const SizedBox(height: 32),
-
-          // ── Footer: engagement stats ───────────────────────────────────
-          _EngagementFooter(brief: brief),
-        ],
+        itemCount: rows.length,
+        itemBuilder: (context, index) => rows[index],
       ),
     );
   }
