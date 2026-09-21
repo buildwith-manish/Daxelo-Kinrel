@@ -138,24 +138,34 @@ class _ArchivedChatsScreenState extends ConsumerState<ArchivedChatsScreen> {
               );
             }
 
-            return ListView(
-              children: [
-                if (archivedGroups.isNotEmpty) ...[
-                  _buildSectionHeader('Groups'),
-                  ...archivedGroups.map((family) => _ArchivedGroupRow(
-                        family: family,
-                        onUnarchived: () => _unarchiveGroup(family.id),
-                      )),
-                ],
-                if (archivedDms.isNotEmpty) ...[
-                  _buildSectionHeader('Direct Messages'),
-                  ...archivedDms.map((dm) => _ArchivedDmRow(
-                        item: dm,
-                        onUnarchived: () => _unarchiveDm(dm.otherUserId),
-                      )),
-                ],
-                const SizedBox(height: 80),
-              ],
+            // v114 — Step 4 perf: build a flat list of rows then use
+            // ListView.builder so archived group/DM rows are built lazily.
+            // The section headers and trailing spacer stay as direct
+            // children of the flat list (small, fixed count).
+            final rows = <Widget>[];
+            if (archivedGroups.isNotEmpty) {
+              rows.add(_buildSectionHeader('Groups'));
+              for (final family in archivedGroups) {
+                rows.add(_ArchivedGroupRow(
+                  family: family,
+                  onUnarchived: () => _unarchiveGroup(family.id),
+                ));
+              }
+            }
+            if (archivedDms.isNotEmpty) {
+              rows.add(_buildSectionHeader('Direct Messages'));
+              for (final dm in archivedDms) {
+                rows.add(_ArchivedDmRow(
+                  item: dm,
+                  onUnarchived: () => _unarchiveDm(dm.otherUserId),
+                ));
+              }
+            }
+            rows.add(const SizedBox(height: 80));
+
+            return ListView.builder(
+              itemCount: rows.length,
+              itemBuilder: (context, index) => rows[index],
             );
           },
         ),

@@ -154,62 +154,73 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
                     return _buildEmptyState();
                   }
 
-                  return ListView(
-                    children: [
-                      // ── Section 1: Groups ──
-                      if (activeGroups.isNotEmpty) ...[
-                        _buildSectionHeader('Groups'),
-                        ...activeGroups.map((family) => _FamilyChatRow(
-                              family: family,
-                              onArchived: () => _archiveGroup(family.id),
-                            )),
-                      ],
-                      // ── Section 2: Direct Messages ──
-                      if (activeDms.isNotEmpty) ...[
-                        _buildSectionHeader('Direct Messages'),
-                        ...activeDms.map((dm) => _DmChatRow(
-                              item: dm,
-                              onArchived: () => _archiveDm(dm.otherUserId),
-                            )),
-                      ],
-                      // ── Archived row (only if there are archived items) ──
-                      if (totalArchived > 0) ...[
-                        const SizedBox(height: 8),
-                        ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: KinrelColors.darkElevated,
-                            child: Icon(
-                              Icons.archive_outlined,
-                              color: KinrelColors.textSilver,
-                              size: 22,
-                            ),
-                          ),
-                          title: Text(
-                            'Archived',
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.displayFont,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: KinrelColors.textWhite,
-                            ),
-                          ),
-                          subtitle: Text(
-                            '$totalArchived ${totalArchived == 1 ? "conversation" : "conversations"}',
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 13,
-                              color: KinrelColors.textDim,
-                            ),
-                          ),
-                          onTap: () => context.push('/chats/archived'),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: KinrelSpacing.base,
-                            vertical: 4,
-                          ),
+                  // v114 — Step 4 perf: build a flat list of rows then
+                  // use ListView.builder so chat rows are built lazily.
+                  // The section headers, archived row, and trailing
+                  // spacer stay as direct children of the flat list
+                  // (small, fixed count).
+                  final rows = <Widget>[];
+                  // ── Section 1: Groups ──
+                  if (activeGroups.isNotEmpty) {
+                    rows.add(_buildSectionHeader('Groups'));
+                    for (final family in activeGroups) {
+                      rows.add(_FamilyChatRow(
+                        family: family,
+                        onArchived: () => _archiveGroup(family.id),
+                      ));
+                    }
+                  }
+                  // ── Section 2: Direct Messages ──
+                  if (activeDms.isNotEmpty) {
+                    rows.add(_buildSectionHeader('Direct Messages'));
+                    for (final dm in activeDms) {
+                      rows.add(_DmChatRow(
+                        item: dm,
+                        onArchived: () => _archiveDm(dm.otherUserId),
+                      ));
+                    }
+                  }
+                  // ── Archived row (only if there are archived items) ──
+                  if (totalArchived > 0) {
+                    rows.add(const SizedBox(height: 8));
+                    rows.add(ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: KinrelColors.darkElevated,
+                        child: Icon(
+                          Icons.archive_outlined,
+                          color: KinrelColors.textSilver,
+                          size: 22,
                         ),
-                      ],
-                      const SizedBox(height: 80),
-                    ],
+                      ),
+                      title: Text(
+                        'Archived',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: KinrelColors.textWhite,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '$totalArchived ${totalArchived == 1 ? "conversation" : "conversations"}',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 13,
+                          color: KinrelColors.textDim,
+                        ),
+                      ),
+                      onTap: () => context.push('/chats/archived'),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: KinrelSpacing.base,
+                        vertical: 4,
+                      ),
+                    ));
+                  }
+                  rows.add(const SizedBox(height: 80));
+
+                  return ListView.builder(
+                    itemCount: rows.length,
+                    itemBuilder: (context, index) => rows[index],
                   );
                 },
               ),

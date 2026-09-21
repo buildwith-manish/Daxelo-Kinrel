@@ -160,20 +160,31 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
                   if (targetFamilies.isEmpty && dmItems.isEmpty) {
                     return _buildEmptyState();
                   }
-                  return ListView(
+                  // v114 — Step 4 perf: build a flat list of rows then
+                  // use ListView.builder so family/DM rows are built
+                  // lazily. Section headers stay as direct children of
+                  // the flat list (small, fixed count).
+                  final rows = <Widget>[];
+                  if (targetFamilies.isNotEmpty) {
+                    rows.add(_sectionHeader('Family chats'));
+                    for (final f in targetFamilies) {
+                      rows.add(_familyRow(f));
+                    }
+                  }
+                  // Preserve original behavior: the "Direct messages"
+                  // section header is shown whenever any DM exists
+                  // (archived or not), but only non-archived DMs render
+                  // as rows.
+                  if (dmItems.isNotEmpty) {
+                    rows.add(_sectionHeader('Direct messages'));
+                    for (final d in dmItems.where((d) => !d.isArchived)) {
+                      rows.add(_dmRow(d));
+                    }
+                  }
+                  return ListView.builder(
                     padding: const EdgeInsets.only(bottom: 80),
-                    children: [
-                      if (targetFamilies.isNotEmpty) ...[
-                        _sectionHeader('Family chats'),
-                        ...targetFamilies.map((f) => _familyRow(f)),
-                      ],
-                      if (dmItems.isNotEmpty) ...[
-                        _sectionHeader('Direct messages'),
-                        ...dmItems
-                            .where((d) => !d.isArchived)
-                            .map((d) => _dmRow(d)),
-                      ],
-                    ],
+                    itemCount: rows.length,
+                    itemBuilder: (context, index) => rows[index],
                   );
                 },
                 loading: () => const Center(
