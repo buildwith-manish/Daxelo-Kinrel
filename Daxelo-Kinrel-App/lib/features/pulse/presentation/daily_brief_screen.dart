@@ -205,7 +205,7 @@ class _GreetingHeader extends StatelessWidget {
               ),
               child: Text(
                 '${_archetypeEmoji(brief.familyArchetype)} ${brief.familyArchetype} family',
-                style: TextStyle(
+                style: const TextStyle(
                   color: KinrelColors.amber,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
@@ -350,7 +350,7 @@ class _BriefItemCard extends ConsumerWidget {
                 ),
               ),
               if (isInteracted)
-                Icon(Icons.check_circle, color: KinrelColors.success, size: 18),
+                const Icon(Icons.check_circle, color: KinrelColors.success, size: 18),
             ],
           ),
 
@@ -477,10 +477,10 @@ class _ActionButton extends ConsumerWidget {
           // For now, just show a snackbar — the actual dialer launch would
           // use url_launcher with 'tel:${phone}'
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Calling... (interaction recorded, +karma earned)'),
+            const SnackBar(
+              content: const Text('Calling... (interaction recorded, +karma earned)'),
               backgroundColor: KinrelColors.success,
-              duration: const Duration(seconds: 2),
+              duration: Duration(seconds: 2),
             ),
           );
           break;
