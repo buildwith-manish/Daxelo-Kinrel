@@ -1,0 +1,37 @@
+-- 20260922130000_prediction_index_audit.sql
+--
+-- Tier 1 #3 — Database index audit results.
+--
+-- After running pg_stat_statements and checking existing indexes on
+-- the prediction tables, I identified one missing index that would
+-- improve the leaderboard query performance:
+--
+--   prediction_leaderboard(familyId, points DESC)
+--   — the provider queries .eq('familyId', familyId).order('points', descending)
+--   — the existing PK on (userId, familyId) doesn't help this access pattern
+--   — adding a composite index on (familyId, points DESC) lets Postgres
+--     use an index-only scan + sorted output without a separate sort step
+--
+-- All other prediction tables already have adequate indexes:
+--   prediction_rounds: idx_pr_family(familyId, createdAt DESC) +
+--     idx_pr_status(status, lockAt) — covers the daily tick's scan patterns
+--   prediction_submissions: idx_ps_round(roundId) +
+--     UNIQUE(roundId, userId) — covers both the per-round fetch and
+--     the per-user lookup
+--   prediction_history: UNIQUE(familyId, questionId) — covers the
+--     "unseen questions" lookup
+--
+-- The top pg_stat_statements entries were Supabase internal queries
+-- (WAL processing, timezone lookups, pg_cron run details) which are
+-- not actionable. The most expensive app-level function calls were:
+--   fn_expire_stale_game_rooms() — 146ms mean, 2972 calls
+--   fn_expire_stale_game_invites() — 13.67ms mean, 22815 calls
+--   fn_sweep_stale_presence() — 2.51ms mean, 46815 calls
+--   fn_bingo_call_all_due() — 2.9ms mean, 35571 calls
+-- These are cron-scheduled functions — their frequency and performance
+-- are acceptable for the work they do. No index changes would
+-- meaningfully improve them since they scan status columns that are
+-- already indexed.
+
+CREATE INDEX IF NOT EXISTS idx_prediction_leaderboard_family_points
+  ON "prediction_leaderboard" ("familyId", points DESC);

@@ -33,6 +33,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
+import '../../../core/network/realtime_channel_registry.dart';
 import '../../../core/family/family_provider.dart';
 // Step 4 — shared timezone-aware time utility. Chat timestamps are
 // PERSONAL (each viewer sees their own device-local time), so they go
@@ -1091,6 +1092,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
       });
     } else {
       _channel!.subscribe();
+    }
+
+    // Tier 1 #1 — register with the central registry.
+    if (_channel != null) {
+      final registry = ref.read(realtimeChannelRegistryProvider);
+      registry.register(
+        'chat:$familyId',
+        _channel!,
+        _subscribeToRealtime,
+        isLiveGame: false,
+      );
     }
 
     debugPrint('📡 ChatNotifier: subscribed to chat:$familyId (with presence)');
@@ -2341,6 +2353,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   @override
   void dispose() {
+    final registry = ref.read(realtimeChannelRegistryProvider);
+    registry.unregister('chat:$familyId');
     _channel?.unsubscribe();
     _channel = null;
     _membersSub?.cancel();
