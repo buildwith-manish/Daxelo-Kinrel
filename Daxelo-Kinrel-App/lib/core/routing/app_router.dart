@@ -44,6 +44,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:go_router/go_router.dart';
+// Tier 2 #5 — deferred route helper for lazy-loading feature modules.
+import 'deferred_route_helper.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/splash/presentation/splash_screen.dart';
@@ -99,11 +101,11 @@ import '../../features/gaming_ecosystem/presentation/gaming_activity_feed_screen
 import '../../features/gaming_ecosystem/presentation/gaming_player_profile_screen.dart';
 import '../../features/gaming_ecosystem/presentation/gaming_milestones_screen.dart';
 import '../../features/gaming_ecosystem/presentation/gaming_season_screen.dart';
-import '../../features/games/ghost_painter/ghost_painter_draw_screen.dart';
-import '../../features/games/ghost_painter/ghost_painter_guess_screen.dart';
-import '../../features/games/ghost_painter/ghost_painter_join_screen.dart';
-import '../../features/games/tugofwar/tugofwar_lobby_screen.dart';
-import '../../features/games/tugofwar/tugofwar_game_screen.dart';
+import '../../features/games/ghost_painter/ghost_painter_draw_screen.dart' deferred as ghost_painter_draw;
+import '../../features/games/ghost_painter/ghost_painter_guess_screen.dart' deferred as ghost_painter_guess;
+import '../../features/games/ghost_painter/ghost_painter_join_screen.dart' deferred as ghost_painter_join;
+import '../../features/games/tugofwar/tugofwar_lobby_screen.dart' deferred as tugofwar_lobby;
+import '../../features/games/tugofwar/tugofwar_game_screen.dart' deferred as tugofwar_game;
 import '../../features/games/tugofwar/tugofwar_provider.dart';
 import '../../features/games/memorymatch/memorymatch_lobby_screen.dart';
 import '../../features/games/memorymatch/memorymatch_game_screen.dart';
@@ -145,8 +147,8 @@ import '../../features/games/sketch_telephone/sketch_telephone_provider.dart';
 import '../../features/games/word_forge/word_forge_lobby_screen.dart';
 import '../../features/games/word_forge/word_forge_game_screen.dart';
 import '../../features/games/word_forge/word_forge_provider.dart';
-import '../../features/games/stickman_heist/stickman_heist_lobby_screen.dart';
-import '../../features/games/stickman_heist/stickman_heist_game_screen.dart';
+import '../../features/games/stickman_heist/stickman_heist_lobby_screen.dart' deferred as stickman_heist_lobby;
+import '../../features/games/stickman_heist/stickman_heist_game_screen.dart' deferred as stickman_heist_game;
 import '../../features/games/stickman_heist/stickman_heist_provider.dart';
 import '../../features/games/crystal_bridge/crystal_bridge_lobby_screen.dart';
 import '../../features/games/crystal_bridge/crystal_bridge_game_screen.dart';
@@ -1830,14 +1832,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/ghost-painter/draw',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: GhostPainterDrawScreen(familyId: state.pathParameters['id']!),
+          child: DeferredRouteWidget(
+            loadLibrary: ghost_painter_draw.loadLibrary,
+            builder: () => ghost_painter_draw.GhostPainterDrawScreen(familyId: state.pathParameters['id']!),
+          ),
         ),
       ),
       GoRoute(
         path: '/family/:id/ghost-painter/guess',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: GhostPainterGuessScreen(familyId: state.pathParameters['id']!),
+          child: DeferredRouteWidget(
+            loadLibrary: ghost_painter_guess.loadLibrary,
+            builder: () => ghost_painter_guess.GhostPainterGuessScreen(familyId: state.pathParameters['id']!),
+          ),
         ),
       ),
       // QA fix 2026-09-20: the shared invite system sends every accepted
@@ -1849,7 +1857,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/ghost-painter/lobby',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: GhostPainterJoinScreen(familyId: state.pathParameters['id']!),
+          child: DeferredRouteWidget(
+            loadLibrary: ghost_painter_join.loadLibrary,
+            builder: () => ghost_painter_join.GhostPainterJoinScreen(familyId: state.pathParameters['id']!),
+          ),
         ),
       ),
 
@@ -1859,16 +1870,22 @@ final routerProvider = Provider<GoRouter>((ref) {
         onExit: tugOfWarLobbyExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: TugOfWarLobbyScreen(familyId: state.pathParameters['id']!),
+          child: DeferredRouteWidget(
+            loadLibrary: tugofwar_lobby.loadLibrary,
+            builder: () => tugofwar_lobby.TugOfWarLobbyScreen(familyId: state.pathParameters['id']!),
+          ),
         ),
       ),
       GoRoute(
         path: '/family/:id/tug-of-war/game/:gameId',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: TugOfWarGameScreen(
-            familyId: state.pathParameters['id']!,
-            gameId: state.pathParameters['gameId']!,
+          child: DeferredRouteWidget(
+            loadLibrary: tugofwar_game.loadLibrary,
+            builder: () => tugofwar_game.TugOfWarGameScreen(
+              familyId: state.pathParameters['id']!,
+              gameId: state.pathParameters['gameId']!,
+            ),
           ),
         ),
       ),
@@ -2083,17 +2100,23 @@ final routerProvider = Provider<GoRouter>((ref) {
         onExit: stickmanHeistLobbyExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: StickmanHeistLobbyScreen(
+          child: DeferredRouteWidget(
+            loadLibrary: stickman_heist_lobby.loadLibrary,
+            builder: () => stickman_heist_lobby.StickmanHeistLobbyScreen(
               familyId: state.pathParameters['id']!),
+          ),
         ),
       ),
       GoRoute(
         path: '/family/:id/stickman-heist/game/:gameId',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: StickmanHeistGameScreen(
-            familyId: state.pathParameters['id']!,
-            gameId: state.pathParameters['gameId']!,
+          child: DeferredRouteWidget(
+            loadLibrary: stickman_heist_game.loadLibrary,
+            builder: () => stickman_heist_game.StickmanHeistGameScreen(
+              familyId: state.pathParameters['id']!,
+              gameId: state.pathParameters['gameId']!,
+            ),
           ),
         ),
       ),

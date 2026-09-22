@@ -874,7 +874,15 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     if (state == AppLifecycleState.resumed) {
       _updateSystemUIOverlay();
 
-      // Silently refresh the session in the background
+      // Silently refresh the session in the background.
+      // Tier 2 #6 — Local auth session restore: on cold start, the app
+      // renders the authenticated UI optimistically from the locally
+      // cached session (restored by Supabase.initialize from Hive storage).
+      // Token validation is lazy — it happens here on resume (non-blocking)
+      // and on the first authenticated API call. If refresh fails, the
+      // local session is still used; if the next API call returns 401,
+      // Supabase emits tokenRefreshFailed via onAuthStateChange, which
+      // triggers _handleSignOut → navigates to /sign-in.
       if (isSupabaseInitialized) {
         try {
           final client = ref.read(supabaseProvider);
