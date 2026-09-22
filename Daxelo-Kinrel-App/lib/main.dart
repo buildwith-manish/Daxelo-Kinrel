@@ -60,6 +60,8 @@ import 'core/viewer/viewer_provider.dart' show invalidateViewerCache;
 // `tz.local` works (needed by flutter_local_notifications zonedSchedule)
 // and so `nowServerAccurate()` / `nowIst()` are available to all screens.
 import 'core/utils/app_time.dart';
+// Tier 1 #1 — central Realtime channel lifecycle manager.
+import 'core/network/realtime_channel_registry.dart';
 import 'features/games/shared/widgets/game_invite_listener.dart';
 import 'features/presence/presence_heartbeat.dart';
 
@@ -900,6 +902,12 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
 
       logActionBreadcrumb('app_resume');
       RatingService.instance.onForeground();
+
+      // Tier 1 #1 — Resume all suspended Realtime channels.
+      try {
+        final registry = ref.read(realtimeChannelRegistryProvider);
+        registry.resumeAll();
+      } catch (_) {}
     } else if (state == AppLifecycleState.paused) {
       logActionBreadcrumb('app_background');
       sendUnsentReports();
@@ -909,6 +917,13 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       try {
         final bgSyncManager = ref.read(backgroundSyncManagerProvider);
         bgSyncManager.stop();
+      } catch (_) {}
+
+      // Tier 1 #1 — Suspend all Realtime channels to save WebSocket
+      // connection costs. Game channels get a 30s grace period.
+      try {
+        final registry = ref.read(realtimeChannelRegistryProvider);
+        registry.suspendAll();
       } catch (_) {}
     }
   }

@@ -70,6 +70,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
+import '../../../core/network/realtime_channel_registry.dart';
 import '../game_motion_tokens.dart';
 import '../shared/data/game_invite_chat_sync.dart';
 import '../shared/services/temporary_room_service.dart';
@@ -1238,6 +1239,17 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
         )
         .subscribe();
 
+    // Tier 1 #1 — register with the central registry. Live game —
+    // 30s grace period on background.
+    final registry = _ref.read(realtimeChannelRegistryProvider);
+    final gid = gameId;
+    registry.register(
+      'tugofwar_game:$gid',
+      _channel!,
+      () => _subscribeToRealtime(gid),
+      isLiveGame: true,
+    );
+
     // Spectator / reconnecting-player handshake: ask the host for a
     // one-time snapshot so we render the rope immediately instead of
     // waiting up to 150 ms for the next periodic broadcast.
@@ -1259,6 +1271,11 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
   }
 
   void _cleanup() {
+    final gid = _gameId;
+    if (gid != null) {
+      final registry = _ref.read(realtimeChannelRegistryProvider);
+      registry.unregister('tugofwar_game:$gid');
+    }
     _channel?.unsubscribe();
     _channel = null;
     _watchdogTimer?.cancel();
@@ -1275,6 +1292,11 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
 
   @override
   void dispose() {
+    final gid = _gameId;
+    if (gid != null) {
+      final registry = _ref.read(realtimeChannelRegistryProvider);
+      registry.unregister('tugofwar_game:$gid');
+    }
     _batchTimer.cancel();
     _ropeBroadcastTimer.cancel();
     _watchdogTimer?.cancel();

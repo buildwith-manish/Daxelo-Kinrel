@@ -76,6 +76,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
+import '../../../core/network/realtime_channel_registry.dart';
 import 'ghost_painter_models.dart';
 
 class GhostPainterState {
@@ -375,6 +376,16 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
       )
       .subscribe();
 
+    // Tier 1 #1 — register with the central registry. Live game —
+    // 30s grace period on background.
+    final registry = _ref.read(realtimeChannelRegistryProvider);
+    registry.register(
+      'ghost_painter:$roundId',
+      _channel!,
+      () => _subscribeToRealtime(roundId),
+      isLiveGame: true,
+    );
+
     // Spectator / reconnecting-player handshake: ask the drawer for a
     // one-time snapshot so we render all strokes that were drawn BEFORE
     // we joined. Small delay so the drawer's listener is wired first.
@@ -665,6 +676,11 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
 
   @override
   void dispose() {
+    final roundId = state.activeRound?.id;
+    if (roundId != null) {
+      final registry = _ref.read(realtimeChannelRegistryProvider);
+      registry.unregister('ghost_painter:$roundId');
+    }
     _channel?.unsubscribe();
     _roundWatchChannel?.unsubscribe();
     _countdownTimer?.cancel();

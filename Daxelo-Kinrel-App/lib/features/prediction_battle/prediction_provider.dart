@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/network/realtime_channel_registry.dart';
 import 'prediction_models.dart';
 
 class PredictionState {
@@ -90,9 +91,13 @@ class PredictionNotifier extends StateNotifier<PredictionState> {
 
   Future<void> load() async {
     state = state.copyWith(isLoading: true, clearError: true);
-    await _fetchActive();
-    await _fetchRecentResults();
-    await _fetchLeaderboard();
+    // Tier 1 #4 — parallelize independent fetches (eagerError: false
+    // so partial failure still renders partial UI).
+    await Future.wait([
+      _fetchActive(),
+      _fetchRecentResults(),
+      _fetchLeaderboard(),
+    ]);
     _subscribeToRealtime();
     _startTick();
     state = state.copyWith(isLoading: false);
@@ -388,6 +393,15 @@ class PredictionNotifier extends StateNotifier<PredictionState> {
         filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'familyId', value: familyId),
         callback: (_) { state = state.copyWith(participationCount: state.participationCount + 1); })
       .subscribe();
+
+    // Tier 1 #1 — register with the central registry.
+    final registry = _ref.read(realtimeChannelRegistryProvider);
+    registry.register(
+      'prediction_battle:$familyId',
+      _channel!,
+      _subscribeToRealtime,
+      isLiveGame: false,
+    );
   }
 
   void _startTick() {
@@ -405,7 +419,11 @@ class PredictionNotifier extends StateNotifier<PredictionState> {
   }
 
   @override
-  void dispose() { _channel?.unsubscribe(); _tickTimer?.cancel(); super.dispose(); }
+  void dispose() {
+    final registry = _ref.read(realtimeChannelRegistryProvider);
+    registry.unregister('prediction_battle:$familyId');
+    _channel?.unsubscribe(); _tickTimer?.cancel(); super.dispose();
+  }
 }
 
 final predictionProvider = StateNotifierProvider.autoDispose.family<PredictionNotifier, PredictionState, String>(
