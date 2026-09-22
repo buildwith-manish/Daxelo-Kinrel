@@ -81,6 +81,8 @@ import '../../features/chat/presentation/chat_inbox_screen.dart';
 import '../../features/chat/presentation/archived_chats_screen.dart';
 import '../../features/chat/presentation/wallpaper_settings_screen.dart';
 import '../../features/prediction_battle/prediction_battle_screen.dart';
+// Phase 1 — Prediction Battle v1 reveal screen
+import '../../features/prediction_battle_v1/pb_v1_reveal_screen.dart';
 // TEMPORARY: preview-only import for the redesigned numeric-guess
 // prediction card. Remove when the card is approved and wired in.
 import '../../features/prediction_battle/numeric_guess_prediction_card.dart';
@@ -1632,6 +1634,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: PredictionBattleScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+
+      // ── Prediction Battle v1 Reveal ──────────────────────────────
+      GoRoute(
+        path: '/family/:id/prediction-battle-v1/reveal/:roundId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: PBv1RevealScreen(
+            familyId: state.pathParameters['id']!,
+            roundId: state.pathParameters['roundId']!,
+          ),
         ),
       ),
 
