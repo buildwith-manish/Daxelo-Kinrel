@@ -2504,6 +2504,29 @@ class _MissedRoundBody extends StatelessWidget {
               ),
             ],
           ),
+
+        // ── Top-3 leaderboard teaser (reused from answerSubmitted state) ──
+        // Missing a round shouldn't hide leaderboard/history access —
+        // seeing the leaderboard here can nudge them to participate
+        // next time.
+        if (state.leaderboard.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _LockedInDivider(accent: accent),
+          const SizedBox(height: 12),
+          _LeaderboardTeaser(
+            accent: accent,
+            leaderboard: state.leaderboard,
+            myUserId: state.myStats?.userId,
+            familyId: round.familyId,
+          ),
+        ],
+
+        // ── "View Past Rounds & Results →" button (reused) ───────────
+        const SizedBox(height: 14),
+        _ViewPastRoundsButton(
+          accent: accent,
+          familyId: round.familyId,
+        ),
       ],
     );
   }
