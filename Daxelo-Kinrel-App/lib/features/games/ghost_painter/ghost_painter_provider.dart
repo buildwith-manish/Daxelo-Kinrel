@@ -171,22 +171,29 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
           .order('startedAt', ascending: false)
           .limit(1);
       if (roundResp.isEmpty) {
-        state = GhostPainterState(isLoading: false);
+        state = const GhostPainterState(isLoading: false);
         // Subscribe to round-watch so the card updates live when someone
         // else in the family starts a round
         _subscribeToRoundWatch();
         return;
       }
       final round = GhostPainterRound.fromJson(roundResp.first);
-      // Fetch strokes (persisted at round transition — may be empty for
-      // an in-progress 'drawing' round under the new architecture, since
-      // strokes are only flushed when the drawer taps Done).
-      final strokesResp = await client
+      // Tier 1 #4 (Phase 0 verification) — parallelize the strokes and
+      // guesses fetches (they both depend on round.id but not on each
+      // other's results). Using Future.wait to reduce from 2 sequential
+      // round-trips to 1 concurrent batch.
+      final strokesFuture = client
           .from('ghost_painter_strokes')
           .select()
           .eq('roundId', round.id)
           .order('sequenceOrder', ascending: true);
-      final strokes = strokesResp.map((s) => GhostPainterStroke.fromJson(s)).toList();
+      final guessesFuture = client
+          .from('ghost_painter_guesses')
+          .select()
+          .eq('roundId', round.id)
+          .order('guessedAt', ascending: true);
+      final results = await Future.wait([strokesFuture, guessesFuture]);
+      final strokes = results[0].map((s) => GhostPainterStroke.fromJson(s)).toList();
       // Step 2: if I'm the drawer and the round is still 'drawing',
       // re-seed my local broadcast accumulator from any strokes already
       // persisted (handles the reconnect-mid-draw case where I may
@@ -197,13 +204,7 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
           ..clear()
           ..addAll(strokes);
       }
-      // Fetch guesses
-      final guessesResp = await client
-          .from('ghost_painter_guesses')
-          .select()
-          .eq('roundId', round.id)
-          .order('guessedAt', ascending: true);
-      final guesses = guessesResp.map((g) => GhostPainterGuess.fromJson(g)).toList();
+      final guesses = results[1].map((g) => GhostPainterGuess.fromJson(g)).toList();
       // Latest guess (guesses are ordered by guessedAt ascending) — the
       // guess screen keeps the input visible until the latest guess is
       // correct, so this must not pin to the first-ever guess.

@@ -435,8 +435,11 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
   /// Spectate a room (read-only + emoji reactions).
   Future<void> spectate(String gameId) async {
     await _spectate(gameId);
-    await _loadGame(gameId);
-    await _refreshPlayers(gameId);
+    // Phase 0 #1 — parallelize _loadGame + _refreshPlayers.
+    await Future.wait([
+      _loadGame(gameId),
+      _refreshPlayers(gameId),
+    ]);
     _subscribeToRealtime(gameId);
   }
 
@@ -906,8 +909,12 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
       return;
     }
     _loadRetries = 0;
-    await _loadGame(gameId);
-    await _refreshPlayers(gameId);
+    // Phase 0 #1 — parallelize _loadGame + _refreshPlayers (both take
+    // gameId, neither depends on the other's results).
+    await Future.wait([
+      _loadGame(gameId),
+      _refreshPlayers(gameId),
+    ]);
     _subscribeToRealtime(gameId);
   }
 
