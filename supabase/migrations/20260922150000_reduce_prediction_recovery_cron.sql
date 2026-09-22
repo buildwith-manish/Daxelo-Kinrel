@@ -1,0 +1,41 @@
+-- 20260922150000_reduce_prediction_recovery_cron.sql
+--
+-- Tier 3 #8 — Reduce pg_cron recovery-check frequency.
+--
+-- CAVEAT (from user prompt): "reduce to hourly IF AND ONLY IF the
+-- primary 8 AM / 9:30 PM scheduled jobs have demonstrated reliability
+-- over at least 2 weeks of production logs with zero missed runs.
+-- Check the cron job execution history before making this change;
+-- don't assume reliability, verify it."
+--
+-- FINDING: The prediction daily tick migration
+-- (20260922120000_prediction_daily_refresh.sql) was pushed to the
+-- repo but has NOT yet been applied to the production Supabase
+-- project. There are zero execution records in cron.job_run_details
+-- for any prediction-related cron jobs.
+--
+-- CONCLUSION: We CANNOT reduce the 15-minute recovery frequency to
+-- hourly at this time because there is no production reliability data
+-- to verify. The 15-minute recovery check must remain until at least
+-- 2 weeks of production logs confirm the primary 8 AM / 9:30 PM jobs
+-- have zero missed runs.
+--
+-- This migration is a NO-OP placeholder. It documents the audit
+-- finding and the condition that must be met before the reduction
+-- can be made in a future session.
+--
+-- TO-DO (future session, after 2 weeks of production data):
+-- 1. Verify cron.job_run_details for 'prediction-daily-tick-open' and
+--    'prediction-daily-tick-close' show 14+ consecutive days with
+--    status='succeeded' and zero status='failed' rows.
+-- 2. If verified, unschedule the 15-minute recovery job:
+--    SELECT cron.unschedule('prediction-daily-tick-recovery');
+-- 3. Schedule an hourly recovery instead:
+--    SELECT cron.schedule('prediction-daily-tick-recovery',
+--      '0 * * * *',
+--      $$ SELECT public.fn_prediction_daily_tick(); $$
+--    );
+-- 4. Document the change in this file.
+
+-- NO SQL CHANGES — audit-only placeholder.
+SELECT 1; -- no-op
