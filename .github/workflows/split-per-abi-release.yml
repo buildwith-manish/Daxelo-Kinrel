@@ -1,0 +1,290 @@
+# .github/workflows/split-per-abi-release.yml
+#
+# Daxelo Kinrel — Per-ABI Android Release (low-end device optimization)
+#
+# Builds three per-ABI release APKs (armeabi-v7a, arm64-v8a, x86_64)
+# plus a single AAB for Play Store upload. Replaces the previous
+# fat-APK approach (~80MB) with smaller per-ABI APKs (~25MB each) that
+# are much friendlier for low-end 4G downloads and sideload sharing.
+#
+# When it runs
+# ────────────
+#   - On tag pushes matching `v*` (semantic-version releases)
+#   - On manual dispatch from the Actions tab (with a `force_sign` toggle
+#     to require signing even if the keystore secret is missing)
+#
+# Why not on every push to main
+# ───────────────────────────
+#   - The per-ABI build takes ~25 min on the ubuntu-latest runner
+#     (NDK + native build + 3 ABI builds + 1 AAB). Running on every
+#     push would burn free-tier minutes. Tags = deliberate releases.
+#   - The existing `signed-release-apk.yml` workflow already covers
+#     the per-push build need (arm64 only, ~12 min).
+#
+# Required GitHub Secrets
+# ────────────────────────
+# Same as signed-release-apk.yml plus:
+#   KEYSTORE_BASE64    — Base64-encoded .jks keystore
+#   KEYSTORE_PASSWORD  — Keystore password
+#   KEY_ALIAS          — Key alias
+#   KEY_PASSWORD       — Key password
+#   SUPABASE_URL       — Supabase project URL
+#   SUPABASE_ANON_KEY  — Supabase anon/public key
+#
+# If the keystore secrets are not set, the workflow still produces
+# UNSIGNED artifacts (useful for local testing / Sideloadly).
+
+name: Split-per-ABI Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      force_sign:
+        description: 'Fail if keystore secrets are missing (vs. build unsigned)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+concurrency:
+  group: split-per-abi-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: '3.44.2'
+
+jobs:
+  build:
+    name: Build Split-per-ABI Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install native build toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build \
+            libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev \
+            libc++-19-dev libc++1-19 libc++abi-19-dev libc++abi1-19 libunwind-19
+
+      - name: Install Android SDK & NDK
+        run: |
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install \
+            "ndk;28.2.13676358" "platforms;android-36" "platforms;android-33" \
+            "build-tools;35.0.1" "cmake;3.22.1" || true
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Enable native assets
+        run: flutter config --enable-native-assets
+
+      # ── Secret validation ────────────────────────────────────
+      # Fail loudly BEFORE we waste 25 minutes of build time on a
+      # build that can't possibly produce a working APK (missing
+      # Supabase config) or a signed APK (missing keystore, if the
+      # dispatcher opted into force_sign).
+      - name: Verify Supabase config secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_URL and/or SUPABASE_ANON_KEY secrets are missing."
+            exit 1
+          fi
+
+      - name: Verify keystore secrets (when force_sign=true)
+        if: github.event.inputs.force_sign == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          missing=0
+          for v in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!v:-}" ]; then
+              echo "::error::$v is missing (force_sign=true)"
+              missing=1
+            fi
+          done
+          if [ "$missing" = "1" ]; then exit 1; fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code (Drift)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze (warnings as errors)
+        run: flutter analyze --no-fatal-infos
+
+      # ── Signing setup ────────────────────────────────────────
+      # The keystore is decoded to a temp file inside the Android
+      # project; key.properties is referenced from build.gradle.
+      # Both are cleaned up in the post-step regardless of build
+      # outcome so they never end up in an artifact or cache.
+      - name: Decode signing keystore
+        id: keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "signed=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No keystore secret — building UNSIGNED release"
+          else
+            echo "$KEYSTORE_BASE64" | base64 --decode > android/app/keystore.jks
+            cat > android/key.properties << EOF
+          storePassword=$KEYSTORE_PASSWORD
+          storeFile=keystore.jks
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+            echo "signed=true" >> $GITHUB_OUTPUT
+            echo "✅ Keystore decoded — signing enabled"
+          fi
+
+      # ── Build: split-per-ABI APKs ───────────────────────────
+      # Three APKs are produced:
+      #   app-armeabi-v7a-release.apk  (32-bit ARM — very old / very low-end)
+      #   app-arm64-v8a-release.apk    (64-bit ARM — modern phones, ~95% of users)
+      #   app-x86_64-release.apk       (x86_64 — emulators + Chromebooks)
+      #
+      # Each is ~25MB vs. ~80MB for the fat APK. The arm64 one is the
+      # one most users should install on a modern phone.
+      - name: Build split-per-ABI APKs (release)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: >-
+          flutter build apk
+          --release
+          --split-per-abi
+          --target-platform android-arm,android-arm64,android-x64
+          --dart-define=SUPABASE_URL="$SUPABASE_URL"
+          --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+
+      # ── Build: AAB for Play Store ───────────────────────────
+      # A single AAB — Google Play then serves the right per-ABI
+      # slice to each device automatically. This is the recommended
+      # Play Store distribution format.
+      - name: Build App Bundle (release, for Play Store)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: >-
+          flutter build appbundle
+          --release
+          --dart-define=SUPABASE_URL="$SUPABASE_URL"
+          --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+
+      # ── Verify native lib in each APK ───────────────────────
+      # Mirrors the check in signed-release-apk.yml — the
+      # libthermion_dart.so native library is what powers the 3D
+      # family map. If any per-ABI APK is missing it, the app will
+      # crash on first map render. We check all three.
+      - name: Verify libthermion_dart.so in each APK
+        run: |
+          for abi in armeabi-v7a arm64-v8a x86_64; do
+            APK="build/app/outputs/flutter-apk/app-${abi}-release.apk"
+            if [ ! -f "$APK" ]; then
+              echo "::error::$APK not found"
+              exit 1
+            fi
+            if ! unzip -l "$APK" | grep -q "libthermion_dart.so"; then
+              echo "::error::libthermion_dart.so NOT in $APK"
+              exit 1
+            fi
+            echo "✅ libthermion_dart.so verified in $APK ($(du -h "$APK" | cut -f1))"
+          done
+
+      # ── Upload artifacts ────────────────────────────────────
+      # Each APK is its own artifact so downloaders can pick the
+      # one for their device. The AAB is a separate artifact too.
+      # retention-days: 90 (longer than the per-push workflow
+      # because releases are intentionally long-lived).
+      - name: Upload armeabi-v7a APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kinrel-release-armeabi-v7a
+          path: Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Upload arm64-v8a APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kinrel-release-arm64-v8a
+          path: Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Upload x86_64 APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kinrel-release-x86_64
+          path: Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-x86_64-release.apk
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Upload AAB
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kinrel-release-aab
+          path: Daxelo-Kinrel-App/build/app/outputs/bundle/release/app-release.aab
+          retention-days: 90
+          if-no-files-found: warn
+
+      # ── GitHub Release (on tag pushes only) ─────────────────
+      # When triggered by a `v*` tag, create a GitHub Release and
+      # attach all four artifacts. Manual dispatches skip this step
+      # (the artifacts are still available under the run's summary
+      # page).
+      - name: Create GitHub Release with artifacts
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+            Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-x86_64-release.apk
+            Daxelo-Kinrel-App/build/app/outputs/bundle/release/app-release.aab
+
+      # ── Cleanup ─────────────────────────────────────────────
+      # Always run this even on failure — the keystore file must
+      # never end up in a cache layer or artifact.
+      - name: Cleanup keystore
+        if: always()
+        run: |
+          rm -f android/app/keystore.jks android/key.properties
