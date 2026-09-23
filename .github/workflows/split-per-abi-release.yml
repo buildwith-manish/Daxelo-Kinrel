@@ -190,6 +190,26 @@ jobs:
           --dart-define=SUPABASE_URL="$SUPABASE_URL"
           --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
 
+      # ── Build: fat signed release APK (universal, all ABIs) ──
+      # A single APK containing native libs for ALL ABIs (~80MB).
+      # Useful for:
+      #   - Universal install links (one URL works on any device)
+      #   - Testing on emulators of different ABIs without re-downloading
+      #   - Backup distribution channel if per-ABI naming confuses users
+      #
+      # The per-ABI APKs above are the recommended distribution for
+      # low-end devices (smaller download). This fat APK is the
+      # convenience option.
+      - name: Build fat signed release APK (all ABIs)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: >-
+          flutter build apk
+          --release
+          --dart-define=SUPABASE_URL="$SUPABASE_URL"
+          --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+
       # ── Build: AAB for Play Store ───────────────────────────
       # A single AAB — Google Play then serves the right per-ABI
       # slice to each device automatically. This is the recommended
@@ -208,20 +228,57 @@ jobs:
       # Mirrors the check in signed-release-apk.yml — the
       # libthermion_dart.so native library is what powers the 3D
       # family map. If any per-ABI APK is missing it, the app will
-      # crash on first map render. We check all three.
+      # crash on first map render. We check all three per-ABI APKs
+      # AND the fat APK.
       - name: Verify libthermion_dart.so in each APK
         run: |
-          for abi in armeabi-v7a arm64-v8a x86_64; do
-            APK="build/app/outputs/flutter-apk/app-${abi}-release.apk"
-            if [ ! -f "$APK" ]; then
-              echo "::error::$APK not found"
+          for apk in \
+            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk \
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
+            build/app/outputs/flutter-apk/app-x86_64-release.apk \
+            build/app/outputs/flutter-apk/app-release.apk ; do
+            if [ ! -f "$apk" ]; then
+              echo "::error::$apk not found"
               exit 1
             fi
-            if ! unzip -l "$APK" | grep -q "libthermion_dart.so"; then
-              echo "::error::libthermion_dart.so NOT in $APK"
+            if ! unzip -l "$apk" | grep -q "libthermion_dart.so"; then
+              echo "::error::libthermion_dart.so NOT in $apk"
               exit 1
             fi
-            echo "✅ libthermion_dart.so verified in $APK ($(du -h "$APK" | cut -f1))"
+            echo "✅ libthermion_dart.so verified in $apk ($(du -h "$apk" | cut -f1))"
+          done
+
+      # ── Verify signing status of each APK ───────────────────
+      # apksigner is the authoritative way to check whether an APK
+      # is signed + which signer was used. We run it on all four
+      # APKs and print the result. If the keystore wasn't provided
+      # (SIGNED=false), this step logs that the APKs are unsigned
+      # but doesn't fail the build — the artifacts are still useful
+      # for local testing.
+      - name: Verify APK signing status (apksigner)
+        env:
+          SIGNED: ${{ steps.keystore.outputs.signed }}
+        run: |
+          if [ "$SIGNED" = "true" ]; then
+            echo "🔐 Keystore was provided — verifying APK signatures"
+          else
+            echo "ℹ️ No keystore — APKs are UNSIGNED (verification will fail, that's expected)"
+          fi
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.1/apksigner"
+          for apk in \
+            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk \
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
+            build/app/outputs/flutter-apk/app-x86_64-release.apk \
+            build/app/outputs/flutter-apk/app-release.apk ; do
+            echo "── $apk ──"
+            if [ "$SIGNED" = "true" ]; then
+              "$APKSIGNER" verify --verbose "$apk" && \
+                echo "✅ $apk is SIGNED" || \
+                { echo "::error::$apk signature verification FAILED" ; exit 1 ; }
+            else
+              "$APKSIGNER" verify --verbose "$apk" 2>&1 | head -3 || true
+              echo "ℹ️ $apk is unsigned (expected when keystore not provided)"
+            fi
           done
 
       # ── Upload artifacts ────────────────────────────────────
@@ -256,6 +313,15 @@ jobs:
           retention-days: 90
           if-no-files-found: warn
 
+      - name: Upload fat signed APK (universal, all ABIs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kinrel-signed-release-apk
+          path: Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 90
+          if-no-files-found: warn
+
       - name: Upload AAB
         if: always()
         uses: actions/upload-artifact@v4
@@ -267,7 +333,7 @@ jobs:
 
       # ── GitHub Release (on tag pushes only) ─────────────────
       # When triggered by a `v*` tag, create a GitHub Release and
-      # attach all four artifacts. Manual dispatches skip this step
+      # attach all five artifacts. Manual dispatches skip this step
       # (the artifacts are still available under the run's summary
       # page).
       - name: Create GitHub Release with artifacts
@@ -279,6 +345,7 @@ jobs:
             Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
             Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
             Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-x86_64-release.apk
+            Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-release.apk
             Daxelo-Kinrel-App/build/app/outputs/bundle/release/app-release.aab
 
       # ── Cleanup ─────────────────────────────────────────────
