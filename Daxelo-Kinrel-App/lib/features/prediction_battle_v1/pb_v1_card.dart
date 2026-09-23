@@ -7,10 +7,22 @@
 //   1. OPEN, no guess: question + numeric input + Submit button
 //   2. OPEN, guess locked in: "Guess locked in — reveal at {time}" + countdown
 //   3. REVEALED: compact reveal summary (winner, your result, See full reveal link)
+//
+// ─────────────────────────────────────────────────────────────────────
+// Phase 1.1 — visibility-gated realtime subscription
+// ─────────────────────────────────────────────────────────────────────
+// The card is wrapped in a VisibilityDetector that reports when at
+// least 30% of the card is on-screen. The provider's realtime WS
+// subscription is only opened while the card is visible, freeing a
+// WebSocket connection while the user is scrolled above or below
+// the card. On low-end devices this matters — Supabase bills per
+// concurrent realtime channel, and most users never scroll down to
+// the prediction section in a given session.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -29,6 +41,8 @@ class PredictionBattleV1Card extends ConsumerStatefulWidget {
 class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card> {
   final _controller = TextEditingController();
   bool _submitting = false;
+  // Unique key for VisibilityDetector — must be stable per widget instance.
+  final _visibilityKey = ValueKey('pb_v1_card_${IdentityHash.next()}');
 
   @override
   void initState() {
@@ -38,6 +52,10 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
 
   @override
   void dispose() {
+    // Mark inactive so the provider tears down the WS channel even if
+    // we never get an `onVisibilityChanged(false)` callback (e.g., the
+    // user navigates away by pressing back).
+    ref.read(pbV1Provider(widget.familyId).notifier).setActive(false);
     _controller.dispose();
     super.dispose();
   }
@@ -60,9 +78,26 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(pbV1Provider(widget.familyId));
-    if (state.isLoading) return const _PBCardSkeleton();
-    if (state.round == null || state.question == null) return const SizedBox.shrink();
+    final child = state.isLoading
+        ? const _PBCardSkeleton()
+        : (state.round == null || state.question == null
+            ? const SizedBox.shrink()
+            : _buildCard(context, state));
 
+    // Wrap in VisibilityDetector so the provider can gate its realtime
+    // WS subscription by whether the card is actually on-screen. 30%
+    // threshold avoids flicker on partial scroll overshoots.
+    return VisibilityDetector(
+      key: _visibilityKey,
+      child: child,
+      onVisibilityChanged: (info) {
+        final active = info.visibleFraction > 0.30;
+        ref.read(pbV1Provider(widget.familyId).notifier).setActive(active);
+      },
+    );
+  }
+
+  Widget _buildCard(BuildContext context, PBv1State state) {
     final round = state.round!;
     final question = state.question!;
     final hasGuess = state.myGuess != null;
@@ -249,4 +284,14 @@ class _PBCardSkeleton extends StatelessWidget {
       child: Center(child: CircularProgressIndicator(color: KinrelColors.orange.withValues(alpha: 0.5))),
     );
   }
+}
+
+/// Tiny process-wide counter so each card instance gets a unique key
+/// for `VisibilityDetector`. `VisibilityDetector` requires unique keys
+/// across the whole app — a familyId alone is not enough because the
+/// card may be mounted in multiple places (e.g., main hub + a debug
+/// route) at the same time.
+class IdentityHash {
+  static int _counter = 0;
+  static int next() => _counter++;
 }

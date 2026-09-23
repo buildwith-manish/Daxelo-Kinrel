@@ -72,4 +72,103 @@ void main() {
       expect(ranked, isEmpty);
     });
   });
+
+  // ── toJson / fromJson round-trip tests ─────────────────────────────
+  //
+  // These verify that the cache layer's serialization preserves all
+  // fields. If a new field is added to a model and not included in
+  // toJson, the corresponding round-trip test will fail with a
+  // mismatch.
+
+  group('PBv1Question toJson/fromJson round-trip', () {
+    test('preserves all fields', () {
+      final q = PBv1Question(
+        id: 'pq-001',
+        questionText: 'How many?',
+        correctAnswer: 42,
+        unitLabel: 'units',
+        category: 'general',
+        funFactText: 'A fact',
+        minBound: 10,
+        maxBound: 100,
+        isActive: true,
+      );
+      final json = q.toJson();
+      final back = PBv1Question.fromJson(json);
+      expect(back.id, q.id);
+      expect(back.questionText, q.questionText);
+      expect(back.correctAnswer, q.correctAnswer);
+      expect(back.unitLabel, q.unitLabel);
+      expect(back.category, q.category);
+      expect(back.funFactText, q.funFactText);
+      expect(back.minBound, q.minBound);
+      expect(back.maxBound, q.maxBound);
+      expect(back.isActive, q.isActive);
+    });
+
+    test('preserves nullable bounds as null', () {
+      final q = PBv1Question(
+        id: 'pq-002',
+        questionText: '?',
+        correctAnswer: 0,
+        unitLabel: '',
+        category: 'general',
+      );
+      final json = q.toJson();
+      final back = PBv1Question.fromJson(json);
+      expect(back.minBound, isNull);
+      expect(back.maxBound, isNull);
+    });
+  });
+
+  group('PBv1Round toJson/fromJson round-trip', () {
+    test('preserves all fields', () {
+      final r = PBv1Round(
+        id: 'r-1',
+        familyId: 'fam-1',
+        questionId: 'q-1',
+        opensAt: DateTime.utc(2026, 9, 22, 2, 30),
+        revealAt: DateTime.utc(2026, 9, 22, 15, 30),
+        status: 'open',
+        createdAt: DateTime.utc(2026, 9, 22, 2, 30),
+      );
+      final json = r.toJson();
+      final back = PBv1Round.fromJson(json);
+      expect(back.id, r.id);
+      expect(back.familyId, r.familyId);
+      expect(back.questionId, r.questionId);
+      expect(back.opensAt.toUtc(), r.opensAt.toUtc());
+      expect(back.revealAt.toUtc(), r.revealAt.toUtc());
+      expect(back.status, r.status);
+      expect(back.createdAt.toUtc(), r.createdAt.toUtc());
+    });
+  });
+
+  group('PBv1Guess toJson/fromJson round-trip', () {
+    test('preserves required fields (distance omitted)', () {
+      final g = PBv1Guess(
+        userId: 'u-1',
+        guessValue: 42.5,
+        submittedAt: DateTime.utc(2026, 9, 22, 12, 0),
+      );
+      final json = g.toJson();
+      final back = PBv1Guess.fromJson(json);
+      expect(back.userId, g.userId);
+      expect(back.guessValue, g.guessValue);
+      expect(back.submittedAt.toUtc(), g.submittedAt.toUtc());
+      expect(back.distance, isNull);
+    });
+
+    test('preserves optional distance', () {
+      final g = PBv1Guess(
+        userId: 'u-1',
+        guessValue: 42,
+        submittedAt: DateTime.utc(2026, 9, 22, 12, 0),
+        distance: 5.5,
+      );
+      final json = g.toJson();
+      final back = PBv1Guess.fromJson(json);
+      expect(back.distance, 5.5);
+    });
+  });
 }

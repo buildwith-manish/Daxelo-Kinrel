@@ -37,6 +37,18 @@ class PBv1Question {
     maxBound: (json['maxBound'] ?? json['max_bound'] as num?)?.toDouble(),
     isActive: (json['isActive'] ?? json['is_active'] ?? true) as bool,
   );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'question_text': questionText,
+    'correct_answer': correctAnswer,
+    'unit_label': unitLabel,
+    'category': category,
+    'fun_fact_text': funFactText,
+    'min_bound': minBound,
+    'max_bound': maxBound,
+    'is_active': isActive,
+  };
 }
 
 /// A prediction round from the pb_v1_rounds table.
@@ -72,6 +84,16 @@ class PBv1Round {
     status: (json['status'] ?? 'open') as String,
     createdAt: DateTime.tryParse((json['createdAt'] ?? json['created_at'] ?? '').toString()) ?? DateTime.now(),
   );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'family_id': familyId,
+    'question_id': questionId,
+    'opens_at': opensAt.toUtc().toIso8601String(),
+    'reveal_at': revealAt.toUtc().toIso8601String(),
+    'status': status,
+    'created_at': createdAt.toUtc().toIso8601String(),
+  };
 }
 
 /// A user's guess for a round.
@@ -94,6 +116,13 @@ class PBv1Guess {
     submittedAt: DateTime.tryParse((json['submittedAt'] ?? json['submitted_at'] ?? '').toString()) ?? DateTime.now(),
     distance: (json['distance'] as num?)?.toDouble(),
   );
+
+  Map<String, dynamic> toJson() => {
+    'user_id': userId,
+    'guess_value': guessValue,
+    'submitted_at': submittedAt.toUtc().toIso8601String(),
+    if (distance != null) 'distance': distance,
+  };
 }
 
 /// The full state of the prediction battle for a family.

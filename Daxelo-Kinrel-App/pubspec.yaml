@@ -51,6 +51,11 @@ dependencies:
   # Animation
   flutter_animate: ^4.5.2
   lottie: ^3.3.1
+
+  # Lazy subscriptions — used by PredictionBattleV1Card to defer the
+  # realtime channel until the card is scrolled into view. First-party
+  # Flutter package; small surface area.
+  visibility_detector: ^0.4.0+2
   
   # Images
   cached_network_image: ^3.4.1

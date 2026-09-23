@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/services/supabase_service.dart';
 import 'pb_v1_models.dart';
 import 'pb_v1_provider.dart';
 
@@ -22,10 +23,63 @@ class PBv1RevealScreen extends ConsumerStatefulWidget {
 }
 
 class _PBv1RevealScreenState extends ConsumerState<PBv1RevealScreen> {
+  // userId → display name. Filled once on screen open from the
+  // FamilyMember table joined with User. We store the full map in
+  // state so the rebuild on realtime update doesn't refetch.
+  Map<String, String> _userNames = const {};
+
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.read(pbV1Provider(widget.familyId).notifier).load());
+    // The reveal screen is a full-screen route — once we're here, the
+    // card is NOT visible (it's behind the route stack), so we mark
+    // the provider active to keep the WS subscription open for the
+    // reveal transition.
+    Future.microtask(() {
+      ref.read(pbV1Provider(widget.familyId).notifier).load();
+      ref.read(pbV1Provider(widget.familyId).notifier).setActive(true);
+      _loadUserNames();
+    });
+  }
+
+  @override
+  void dispose() {
+    // On exit, mark inactive so the WS subscription gets torn down.
+    // The card on the family hub will re-activate when the user scrolls
+    // back to it.
+    ref.read(pbV1Provider(widget.familyId).notifier).setActive(false);
+    super.dispose();
+  }
+
+  Future<void> _loadUserNames() async {
+    final client = ref.read(supabaseProvider);
+    if (client == null) return;
+    try {
+      // Join FamilyMember → User to get a userId → name map for the
+      // family that this round belongs to. We use a single select with
+      // the nested User relation so it's one round-trip.
+      final rows = await client
+          .from('FamilyMember')
+          .select('userId, user:User(name)')
+          .eq('familyId', widget.familyId);
+      if (!mounted) return;
+      final map = <String, String>{};
+      for (final r in (rows as List)) {
+        final row = r as Map<String, dynamic>;
+        final uid = (row['userId'] ?? '') as String;
+        if (uid.isEmpty) continue;
+        final user = row['user'];
+        String name = uid.substring(0, 8); // fallback to UUID prefix
+        if (user is Map && user['name'] is String && (user['name'] as String).isNotEmpty) {
+          name = user['name'] as String;
+        }
+        map[uid] = name;
+      }
+      setState(() => _userNames = map);
+    } catch (e) {
+      // Best-effort — keep the UUID prefix fallback if this fails.
+      debugPrint('[PBv1] _loadUserNames: $e');
+    }
   }
 
   @override
@@ -44,14 +98,15 @@ class _PBv1RevealScreenState extends ConsumerState<PBv1RevealScreen> {
           ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
           : !state.revealed
               ? const Center(child: Text('Reveal has not happened yet', style: TextStyle(color: KinrelColors.textDim)))
-              : _RevealBody(state: state),
+              : _RevealBody(state: state, userNames: _userNames),
     );
   }
 }
 
 class _RevealBody extends StatelessWidget {
-  const _RevealBody({required this.state});
+  const _RevealBody({required this.state, required this.userNames});
   final PBv1State state;
+  final Map<String, String> userNames;
 
   @override
   Widget build(BuildContext context) {
@@ -106,6 +161,8 @@ class _RevealBody extends StatelessWidget {
             distance: ranked[i]['distance'] as double,
             isWinner: state.winnerUserIds.contains((ranked[i]['guess'] as PBv1Guess).userId),
             correctAnswer: question.correctAnswer,
+            displayName: userNames[(ranked[i]['guess'] as PBv1Guess).userId] ??
+                (ranked[i]['guess'] as PBv1Guess).userId.substring(0, 8),
           ),
       ],
     );
@@ -119,6 +176,7 @@ class _RankedGuessRow extends StatelessWidget {
     required this.distance,
     required this.isWinner,
     required this.correctAnswer,
+    required this.displayName,
   });
 
   final int rank;
@@ -126,6 +184,7 @@ class _RankedGuessRow extends StatelessWidget {
   final double distance;
   final bool isWinner;
   final double correctAnswer;
+  final String displayName;
 
   @override
   Widget build(BuildContext context) {
@@ -145,7 +204,7 @@ class _RankedGuessRow extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              guess.userId.substring(0, 8),
+              displayName,
               style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: isWinner ? FontWeight.w700 : FontWeight.w500, color: isWinner ? KinrelColors.textWhite : KinrelColors.textSilver),
             ),
           ),
