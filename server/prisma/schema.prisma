@@ -4125,3 +4125,48 @@ model ChatSettings {
   @@index([familyId])
   @@map("ChatSettings")
 }
+
+// ── Phase 3.7 — Coin Economy ──────────────────────────────────────────
+//
+// Two tables back the coin economy. The ledger is the source of truth
+// (append-only); the balance is a per-user-per-family cache that is
+// atomically updated by fn_award_coins inside the same transaction as
+// the ledger insert.
+//
+// Both tables use the existing "userId" / "familyId" naming convention
+// (camelCase, matching the rest of the schema) so they map cleanly to
+// the SQL columns created in 20260923150000_coin_economy.sql.
+
+/// Append-only ledger of every coin credit / spend.
+/// Source of truth — the balance table below is a cache built from
+/// sum(amount) GROUP BY (userId, familyId).
+model CoinLedger {
+  id             String   @id @default(cuid())
+  userId         String
+  familyId       String
+  amount         Int      // can be negative for spends
+  reason         String   // 'prediction_winner' | 'prediction_streak_bonus' | 'prediction_close_guess' | 'prediction_participation' | future
+  idempotencyKey String?  // optional — e.g. round id, prevents double-award
+  metadata       Json     @default("{}") // free-form: round_id, question_id, etc.
+  createdAt      DateTime @default(now()) @db.Timestamptz
+
+  @@unique([userId, familyId, reason, idempotencyKey])
+  @@index([userId, familyId, createdAt])
+  @@index([reason, createdAt])
+  @@map("coin_ledger")
+}
+
+/// Per-user-per-family current coin balance + lifetime earnings.
+/// Updated atomically by fn_award_coins (Postgres RPC) inside the
+/// same transaction as the CoinLedger insert.
+model UserCoinBalance {
+  userId         String
+  familyId       String
+  balance        Int     @default(0)
+  lifetimeEarned Int     @default(0)
+  updatedAt      DateTime @updatedAt @db.Timestamptz
+
+  @@id([userId, familyId])
+  @@index([familyId, balance])
+  @@map("user_coin_balances")
+}

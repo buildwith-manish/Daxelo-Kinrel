@@ -5,7 +5,7 @@
 // Supabase + Prisma + FCM) — instead we test the pure helper functions
 // that are extracted at the bottom of the file.
 
-import { computeDistance, truncate } from './predictions.scheduler';
+import { computeDistance, truncate, isInStreakDangerWindowAt } from './predictions.scheduler';
 
 describe('predictions.scheduler pure helpers', () => {
   describe('computeDistance', () => {
@@ -63,4 +63,76 @@ describe('predictions.scheduler pure helpers', () => {
       expect(result).toBe('…');
     });
   });
+
+  describe('isInStreakDangerWindowAt', () => {
+    // The window is 8:30 PM IST to 9:00 PM IST (exclusive).
+    // 8:30 PM IST = 15:00 UTC (since IST = UTC + 5:30, so UTC = IST - 5:30).
+    // 9:00 PM IST = 15:30 UTC.
+    // So the window in UTC is 15:00–15:30.
+
+    it('returns true at 8:30 PM IST (15:00 UTC)', () => {
+      // 15:00 UTC = 20:30 IST — exactly the start of the window
+      const dt = new Date('2026-09-23T15:00:00.000Z');
+      expect(isInStreakDangerWindowAt(dt)).toBe(true);
+    });
+
+    it('returns true at 8:45 PM IST (15:15 UTC)', () => {
+      const dt = new Date('2026-09-23T15:15:00.000Z');
+      expect(isInStreakDangerWindowAt(dt)).toBe(true);
+    });
+
+    it('returns true at 8:59 PM IST (15:29 UTC)', () => {
+      // Just before 9:00 PM IST — still in window
+      const dt = new Date('2026-09-23T15:29:59.000Z');
+      expect(isInStreakDangerWindowAt(dt)).toBe(true);
+    });
+
+    it('returns false at 9:00 PM IST (15:30 UTC) — exclusive end', () => {
+      // 9:00 PM IST = 15:30 UTC. The window is [20:30, 21:00) IST,
+      // so 21:00 is NOT in window.
+      const dt = new Date('2026-09-23T15:30:00.000Z');
+      expect(isInStreakDangerWindowAt(dt)).toBe(false);
+    });
+
+    it('returns false at 8:29 PM IST (14:59 UTC) — just before start', () => {
+      const dt = new Date('2026-09-23T14:59:59.000Z');
+      expect(isInStreakDangerWindowAt(dt)).toBe(false);
+    });
+
+    it('returns false at 8:00 PM IST (14:30 UTC) — well before start', () => {
+      const dt = new Date('2026-09-23T14:30:00.000Z');
+      expect(isInStreakDangerWindowAt(dt)).toBe(false);
+    });
+
+    it('returns false at 10:00 PM IST (16:30 UTC) — after end', () => {
+      const dt = new Date('2026-09-23T16:30:00.000Z');
+      expect(isInStreakDangerWindowAt(dt)).toBe(false);
+    });
+
+    it('returns false at 12:00 PM IST (06:30 UTC) — noon', () => {
+      const dt = new Date('2026-09-23T06:30:00.000Z');
+      expect(isInStreakDangerWindowAt(dt)).toBe(false);
+    });
+
+    it('returns false at 8:00 AM IST (02:30 UTC) — morning', () => {
+      const dt = new Date('2026-09-23T02:30:00.000Z');
+      expect(isInStreakDangerWindowAt(dt)).toBe(false);
+    });
+
+    it('returns false at midnight UTC (05:30 IST) — early morning IST', () => {
+      const dt = new Date('2026-09-23T00:00:00.000Z');
+      expect(isInStreakDangerWindowAt(dt)).toBe(false);
+    });
+
+    it('handles different dates — window is daily, not date-specific', () => {
+      // Same time on a different day should still be in window
+      const dt1 = new Date('2026-09-22T15:15:00.000Z');
+      const dt2 = new Date('2026-09-23T15:15:00.000Z');
+      const dt3 = new Date('2026-10-01T15:15:00.000Z');
+      expect(isInStreakDangerWindowAt(dt1)).toBe(true);
+      expect(isInStreakDangerWindowAt(dt2)).toBe(true);
+      expect(isInStreakDangerWindowAt(dt3)).toBe(true);
+    });
+  });
 });
+

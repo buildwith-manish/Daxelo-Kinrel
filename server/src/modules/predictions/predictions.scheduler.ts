@@ -239,8 +239,135 @@ export class PredictionsScheduler implements OnModuleInit {
     try {
       await this.handleRoundOpened();
       await this.handleRoundRevealed();
+      // Phase 3.7 — streak-in-danger push. Only fires inside the
+      // 8:30–9:00 PM IST window (see isStreakDangerWindow()). Outside
+      // that window, the method is a fast no-op.
+      await this.handleStreakInDanger();
     } catch (err: any) {
       this.logger.error(`Prediction scheduler tick failed: ${err?.message}`);
+    }
+  }
+
+  // ── Streak-in-danger push (Phase 3.7) ──────────────────────────────
+  //
+  // Drives daily re-engagement. At 8:30 PM IST (90 min before the 9 PM
+  // reveal), find users with a current win streak ≥ 3 who haven't
+  // submitted a guess for today's round. Send them a push:
+  //   "Your 5-day streak is in danger — submit before 9 PM IST!"
+  //
+  // Why a time window check inside the cron tick
+  //   The cron already runs every 15 min. We could add a separate
+  //   @Cron('30 20 * * *', { timeZone: IST_TZ }) — but that would be
+  //   a 4th cron to maintain. Instead, we check `isStreakDangerWindow()`
+  //   inside the existing tick. The check is O(1) (just a Date
+  //   comparison) and returns immediately outside the window, so the
+  //   cost of running the check on every tick is negligible.
+  //
+  // Why the window is 8:30–9:00 IST (not just 8:30)
+  //   If the NestJS server happens to be down at 8:30 (e.g., during a
+  //   deploy), we still want to catch the danger window. Running the
+  //   check inside every tick from 8:30–9:00 means even if the 8:30
+  //   tick was missed, the 8:45 tick still catches it. The
+  //   idempotency check (Notification.personId = roundId) prevents
+  //   double-sending if multiple ticks in the window fire.
+  //
+  // Idempotency
+  //   Same pattern as the other prediction notifications: we check
+  //   for an existing Notification row with eventType='prediction_v1_streak_in_danger'
+  //   and personId=roundId before sending. So even if the 8:30, 8:45,
+  //   and 9:00 ticks all fire (the 9:00 tick is the reveal tick itself,
+  //   so this method bails early anyway since the round is no longer
+  //   'open'), we never send the danger push twice for the same round.
+
+  private isInStreakDangerWindow(): boolean {
+    return isInStreakDangerWindowAt(new Date());
+  }
+
+  private async handleStreakInDanger() {
+    if (!this.isInStreakDangerWindow()) return;
+
+    this.logger.log('[prediction_v1] streak-in-danger window active — scanning');
+
+    // Find all currently-open rounds. For each, look up family members
+    // who:
+    //   1. Have a current_streak >= 3 in pb_v1_win_streaks for this family
+    //   2. Have NOT submitted a guess for this round (no row in
+    //      pb_v1_guesses with round_id = round.id and user_id = their id)
+    //
+    // We do this as a single Supabase query that joins across
+    // pb_v1_rounds, pb_v1_win_streaks, and a LEFT JOIN against
+    // pb_v1_guesses to find users with no guess for this round.
+    // The "no guess" check is `g.user_id IS NULL` after the LEFT JOIN.
+    const { data: rounds, error } = await this.supabase!
+      .from('pb_v1_rounds')
+      .select('id, family_id, reveal_at')
+      .eq('status', 'open');
+
+    if (error) {
+      this.logger.warn(`handleStreakInDanger rounds query failed: ${error.message}`);
+      return;
+    }
+    if (!rounds || rounds.length === 0) return;
+
+    let totalDangerPushes = 0;
+    for (const round of rounds as PbV1Round[]) {
+      try {
+        // ── Get all users with a 3+ streak in this family ──
+        const { data: streaks, error: streakErr } = await this.supabase!
+          .from('pb_v1_win_streaks')
+          .select('user_id, current_streak')
+          .eq('family_id', round.family_id)
+          .gte('current_streak', 3);
+
+        if (streakErr) {
+          this.logger.warn(`handleStreakInDanger streaks query failed: ${streakErr.message}`);
+          continue;
+        }
+        if (!streaks || streaks.length === 0) continue;
+
+        // ── Get all guesses for this round (to filter out users who
+        // already submitted) ──
+        const { data: guesses, error: guessErr } = await this.supabase!
+          .from('pb_v1_guesses')
+          .select('user_id')
+          .eq('round_id', round.id);
+
+        if (guessErr) {
+          this.logger.warn(`handleStreakInDanger guesses query failed: ${guessErr.message}`);
+          continue;
+        }
+        const guessedUserIds = new Set((guesses || []).map((g: any) => g.user_id));
+
+        // ── For each streak-holder who hasn't guessed yet, send the
+        // danger push ──
+        for (const streak of streaks as { user_id: string; current_streak: number }[]) {
+          if (guessedUserIds.has(streak.user_id)) continue; // already submitted
+
+          const streakCount = streak.current_streak;
+          const title = `🔥 Your ${streakCount}-day streak is in danger!`;
+          const body = streakCount >= 7
+            ? `Don't lose your ${streakCount}-day streak — submit your prediction before 9 PM IST!`
+            : `Submit your prediction before 9 PM IST to keep your ${streakCount}-day streak alive.`;
+          const actionUrl = `/family/${round.family_id}`;
+
+          await this.sendOnce({
+            userId: streak.user_id,
+            eventType: 'prediction_v1_streak_in_danger',
+            roundId: round.id,
+            title,
+            body,
+            familyId: round.family_id,
+            actionUrl,
+          });
+          totalDangerPushes++;
+        }
+      } catch (err: any) {
+        this.logger.error(`handleStreakInDanger failed for round ${round.id}: ${err?.message}`);
+      }
+    }
+
+    if (totalDangerPushes > 0) {
+      this.logger.log(`[prediction_v1] streak-in-danger: sent ${totalDangerPushes} push(es)`);
     }
   }
 
@@ -495,3 +622,27 @@ export function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
   return s.slice(0, Math.max(0, max - 1)).trimEnd() + '…';
 }
+
+/**
+ * Returns true iff the given UTC Date falls inside the streak-in-
+ * danger push window (8:30 PM IST to 9:00 PM IST). Exported for unit
+ * testing — the scheduler's `isInStreakDangerWindow()` method just
+ * delegates here with `new Date()`.
+ *
+ * Implementation note: we compute IST by adding the fixed +5:30 offset
+ * to the UTC time. This is correct because IST does NOT observe DST
+ * (India abolished it in 1947). If the family base ever expands to
+ * a DST-observing timezone, this helper will need to be rewritten to
+ * use the IANA tz database via date-fns-tz.
+ */
+export function isInStreakDangerWindowAt(now: Date): boolean {
+  // IST = UTC + 5:30. The offset is fixed (no DST in India).
+  const istOffsetMs = 5 * 60 * 60 * 1000 + 30 * 60 * 1000;
+  const istTime = new Date(now.getTime() + istOffsetMs);
+  const istHour = istTime.getUTCHours();
+  const istMinute = istTime.getUTCMinutes();
+  const istMinuteOfDay = istHour * 60 + istMinute;
+  // Window: 8:30 PM IST = 20:30 = 1230. 9:00 PM IST = 21:00 = 1260.
+  return istMinuteOfDay >= 1230 && istMinuteOfDay < 1260;
+}
+
