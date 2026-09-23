@@ -63,4 +63,21 @@ describe('PredictionsModule', () => {
     // should bail early without throwing.
     await expect(scheduler.handlePredictionNotifications()).resolves.toBeUndefined();
   });
+
+  it('backfill should be a no-op when supabase is not configured', async () => {
+    // Same: SUPABASE_URL is not set in test env. Backfill should bail
+    // early without throwing — and critically, without blocking. The
+    // OnModuleInit hook fires backfill as fire-and-forget; if it threw,
+    // the unhandled rejection would log noise but not crash the app.
+    await expect(scheduler.backfill(24)).resolves.toBeUndefined();
+  });
+
+  it('backfill should accept a custom hours parameter without throwing', async () => {
+    // Even with supabase not configured, the parameter validation
+    // should not throw — the function bails before validating the
+    // numeric range (which is intentional; the admin controller does
+    // the validation).
+    await expect(scheduler.backfill(1)).resolves.toBeUndefined();
+    await expect(scheduler.backfill(168)).resolves.toBeUndefined();
+  });
 });

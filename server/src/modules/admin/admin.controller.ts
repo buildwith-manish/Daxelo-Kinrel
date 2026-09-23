@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { ChatAnalyticsService } from '../analytics/chat-analytics.service';
+import { PredictionsScheduler } from '../predictions/predictions.scheduler';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -16,6 +17,7 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly analyticsService: ChatAnalyticsService,
+    private readonly predictionsScheduler: PredictionsScheduler,
   ) {}
 
   /**
@@ -137,5 +139,36 @@ export class AdminController {
     }
     const count = await this.analyticsService.getEventCount(eventName, userId);
     return { eventName, userId: userId ?? null, count };
+  }
+
+  /**
+   * POST /api/admin/predictions/backfill?hours=24
+   *
+   * Manually triggers a Prediction Battle v1 notification backfill pass
+   * for the last `hours` (default 24). Useful after a long deployment
+   * window, a NestJS crash, or any other scenario where the regular
+   * 15-min cron scheduler may have missed events.
+   *
+   * Idempotent — safe to call multiple times. The underlying `sendOnce`
+   * checks for an existing Notification row with the same (userId,
+   * eventType, roundId) triple before inserting.
+   *
+   * Admin-only. Returns a summary of the scan.
+   */
+  @Get('predictions/backfill')
+  async backfillPredictions(
+    @CurrentUser('role') role: string,
+    @Query('hours') hours?: string,
+  ) {
+    if (role !== 'admin') {
+      throw new ForbiddenException('Admin access required');
+    }
+    const hoursNum = hours ? parseInt(hours, 10) : 24;
+    if (isNaN(hoursNum) || hoursNum < 1 || hoursNum > 168) {
+      // 168h = 7 days; cap to prevent accidental full-table scans.
+      return { ok: false, error: 'hours must be an integer between 1 and 168' };
+    }
+    await this.predictionsScheduler.backfill(hoursNum);
+    return { ok: true, hours: hoursNum };
   }
 }

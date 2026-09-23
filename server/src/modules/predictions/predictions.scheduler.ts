@@ -27,7 +27,9 @@
 // We reuse the existing `Notification.personId` slot to store the
 // round id. We check for existence of a notification with the same
 // (userId, eventType, personId=roundId) before inserting. This gives
-// us exactly-once delivery per (user, round, event).
+// us exactly-once delivery per (user, round, event) — which is what
+// makes the backfill safe to run: it simply re-scans old rounds and
+// silently skips the ones that already have notifications.
 //
 // Failure modes
 // -------------
@@ -37,8 +39,12 @@
 //   - A single user's FCM send failure: logged and skipped; in-app
 //     `Notification` row is still created so they see the bell badge.
 //   - Whole-run failure: caught, logged, retried next tick.
+//   - Server down for >15 min: missed events are picked up by the
+//     `backfill()` method, which runs once on startup (via OnModuleInit)
+//     and scans the last BACKFILL_LOOKBACK_HOURS (default 24h) for
+//     rounds whose notifications were never sent.
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
@@ -51,10 +57,17 @@ const IST_TZ = 'Asia/Kolkata';
 
 // Window: process rounds whose lifecycle event happened in the last
 // 15 minutes. The cron also runs every 15 minutes, so this is a
-// sliding window that covers exactly one tick of the scheduler. If
-// the scheduler is down for an extended period, we miss those events
-// — that's acceptable for v1; we can add a backfill script later.
+// sliding window that covers exactly one tick of the scheduler.
 const LOOKBACK_MS = 15 * 60 * 1000;
+
+// Backfill window: on startup (or when triggered manually), scan
+// rounds whose lifecycle event happened in the last N hours. 24h
+// covers one full daily-tick + reveal-tick cycle; if the server has
+// been down longer than that, we miss notifications for older
+// rounds — but those rounds are already archived server-side, and
+// sending a "round opened!" push for a round that's already revealed
+// would be more confusing than helpful. 24h is the sweet spot.
+const BACKFILL_LOOKBACK_HOURS = 24;
 
 // Per-user-event cap — used as a safety net in case the idempotency
 // check has a race. Should never be hit in practice.
@@ -85,7 +98,7 @@ interface PbV1Guess {
 }
 
 @Injectable()
-export class PredictionsScheduler {
+export class PredictionsScheduler implements OnModuleInit {
   private readonly logger = new Logger(PredictionsScheduler.name);
   private supabase: SupabaseClient | null = null;
 
@@ -96,6 +109,102 @@ export class PredictionsScheduler {
     private readonly notificationsService: NotificationsService,
   ) {
     this.initSupabase();
+  }
+
+  /**
+   * OnModuleInit — runs once after NestJS finishes wiring the module
+   * graph. We use this hook to run the backfill pass: scan the last
+   * BACKFILL_LOOKBACK_HOURS for rounds whose notifications were never
+   * sent (because the server was down during the regular 15-min tick).
+   *
+   * The backfill is safe to run on every restart because `sendOnce`
+   * is idempotent — it checks for an existing Notification row with
+   * the same (userId, eventType, roundId) triple before inserting.
+   *
+   * We intentionally do NOT await this in onModuleInit — the backfill
+   * is fire-and-forget. NestJS will proceed with booting the rest of
+   * the app while the backfill runs in the background. A long backfill
+   * (e.g., 1000 families × 50 notifications) should take <30s in
+   * practice; running it asynchronously avoids blocking app startup.
+   */
+  async onModuleInit() {
+    if (!this.supabase) return;
+    // Fire-and-forget — don't block app startup.
+    this.backfill().catch((err: any) => {
+      this.logger.error(`Backfill on startup failed: ${err?.message}`);
+    });
+  }
+
+  /**
+   * Backfill pass: scan the last `hours` (default 24h) for rounds whose
+   * notifications were never sent, and dispatch them. Safe to call
+   * multiple times — `sendOnce` is idempotent.
+   *
+   * Public so it can be triggered manually by an admin endpoint or a
+   * CLI script. The startup hook calls this once with the default
+   * window.
+   */
+  async backfill(hours: number = BACKFILL_LOOKBACK_HOURS): Promise<void> {
+    if (!this.supabase) return;
+    const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+    this.logger.log(`[prediction_v1] backfill scan: rounds since ${since}`);
+
+    try {
+      let openedCount = 0;
+      let revealedCount = 0;
+
+      // ── Open rounds ────────────────────────────────────────────────
+      // We look at rounds in status='open' OR 'revealed' (a round may
+      // have transitioned to revealed during the downtime) whose
+      // opens_at is within the backfill window. For each, we attempt
+      // to dispatch the round-open notification — `sendOnce` will
+      // silently skip if a notification already exists.
+      const { data: openedRows, error: openedErr } = await this.supabase
+        .from('pb_v1_rounds')
+        .select('id, family_id, question_id, opens_at, reveal_at, status, created_at')
+        .gte('opens_at', since)
+        .order('opens_at', { ascending: true });
+
+      if (openedErr) {
+        this.logger.warn(`backfill open query failed: ${openedErr.message}`);
+      } else if (openedRows && openedRows.length > 0) {
+        for (const row of openedRows as PbV1Round[]) {
+          try {
+            await this.dispatchRoundOpened(row);
+            openedCount++;
+          } catch (err: any) {
+            this.logger.error(`backfill dispatchRoundOpened failed for ${row.id}: ${err?.message}`);
+          }
+        }
+      }
+
+      // ── Revealed rounds ───────────────────────────────────────────
+      const { data: revealedRows, error: revealedErr } = await this.supabase
+        .from('pb_v1_rounds')
+        .select('id, family_id, question_id, opens_at, reveal_at, status, created_at')
+        .eq('status', 'revealed')
+        .gte('reveal_at', since)
+        .order('reveal_at', { ascending: true });
+
+      if (revealedErr) {
+        this.logger.warn(`backfill reveal query failed: ${revealedErr.message}`);
+      } else if (revealedRows && revealedRows.length > 0) {
+        for (const row of revealedRows as PbV1Round[]) {
+          try {
+            await this.dispatchRoundRevealed(row);
+            revealedCount++;
+          } catch (err: any) {
+            this.logger.error(`backfill dispatchRoundRevealed failed for ${row.id}: ${err?.message}`);
+          }
+        }
+      }
+
+      this.logger.log(
+        `[prediction_v1] backfill complete: scanned ${openedCount} open + ${revealedCount} revealed rounds`,
+      );
+    } catch (err: any) {
+      this.logger.error(`Backfill failed: ${err?.message}`);
+    }
   }
 
   private initSupabase() {
