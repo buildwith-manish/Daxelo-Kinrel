@@ -85,7 +85,8 @@ class GameIcon extends StatelessWidget {
       case 'dotsboxes':        return _DotsBoxesIcon(color);
       case 'hot-seat':         return _HotSeatIcon(color);
       case 'relation-riddles':  return _RiddleIcon(color);
-      case 'truth-streak':     return _TruthStreakIcon(color);
+      // 'truth-streak' case removed in Phase 3 — Truth Streak deprecated.
+      // Any stale config string will fall through to the default icon.
       case 'tug-of-war':       return _TugOfWarIcon(color);
       case 'memory-match':     return _MemoryMatchIcon(color);
       case 'ashta-chamma':     return _AshtaChammaIcon(color);
@@ -471,30 +472,11 @@ class _RiddleIcon extends _GameIconPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// ── Truth Streak: flame with streak lines ──────────────────────────
-
-class _TruthStreakIcon extends _GameIconPainter {
-  _TruthStreakIcon(super.color);
-  @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.width;
-    // Flame
-    final path = Path()
-      ..moveTo(s * 0.5, s * 0.1)
-      ..quadraticBezierTo(s * 0.7, s * 0.35, s * 0.6, s * 0.55)
-      ..quadraticBezierTo(s * 0.55, s * 0.6, s * 0.5, s * 0.6)
-      ..quadraticBezierTo(s * 0.45, s * 0.6, s * 0.4, s * 0.55)
-      ..quadraticBezierTo(s * 0.3, s * 0.35, s * 0.5, s * 0.1)
-      ..close();
-    canvas.drawPath(path, fillPaint);
-    // Streak lines (3 horizontal)
-    canvas.drawLine(Offset(s * 0.15, s * 0.75), Offset(s * 0.4, s * 0.75), strokePaint..strokeWidth = s * 0.03);
-    canvas.drawLine(Offset(s * 0.2, s * 0.85), Offset(s * 0.5, s * 0.85), strokePaint..strokeWidth = s * 0.03);
-    canvas.drawLine(Offset(s * 0.6, s * 0.8), Offset(s * 0.85, s * 0.8), strokePaint..strokeWidth = s * 0.03);
-  }
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
+// ── Truth Streak icon — REMOVED in Phase 3 (Truth Streak deprecation) ──
+// The `_TruthStreakIcon` painter and its switch-case were removed when
+// Truth Streak was fully deprecated from the app. Stale config strings
+// that still say 'truth-streak' will fall through to the default game
+// icon; this is intentional and will not crash.
 
 // ── Default fallback ───────────────────────────────────────────────
 

@@ -398,8 +398,11 @@ class _FamilyManagementScreenState
                   Icons.chat_bubble_outline),
               _buildPermissionTile('Who can post stories', 'whoCanPostStories',
                   Icons.auto_stories_outlined),
-              _buildPermissionTile('Who can create Truth Streaks',
-                  'whoCanCreateTruthStreak', Icons.local_fire_department_outlined),
+              // 'Who can create Truth Streaks' permission tile REMOVED in
+              // Phase 3 — Truth Streak deprecated from the app. The
+              // `whoCanCreateTruthStreak` field is kept in the model +
+              // JSON for backward-compat with existing settings stored
+              // on the server, but no longer surfaced in the UI.
               _buildPermissionTile('Who can add calendar events', 'whoCanAddEvents',
                   Icons.calendar_today_outlined),
 

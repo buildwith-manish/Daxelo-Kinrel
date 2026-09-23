@@ -447,37 +447,13 @@ class LocalNotificationScheduler {
   /// correct IST instant, even if their local wall-clock time is
   /// different).
   ///
-  /// Step 5 fix: previously this used `_nextOccurrence(20, 0)` which
-  /// computed the next 8 PM DEVICE-LOCAL — meaning a user in a
-  /// timezone behind IST would get the reminder AFTER the streak
-  /// already reset (or vice-versa). Now uses
-  /// `AppTime.nextIstInstantUtc(20, 0)` which returns the next 8 PM
-  /// IST as a UTC instant.
-  static Future<void> scheduleTruthStreakDailyReminder() async {
-    if (!_initialized) {
-      await initialize();
-      if (!_initialized) return;
-    }
-
-    final when = AppTime.nextIstInstantUtc(
-      AppTime.nowServerAccurate(),
-      20, 0,
-    ); // 8 PM IST as a UTC instant
-
-    await _scheduleNotification(
-      id: 5004,
-      title: '🔥 Don\'t break your streak!',
-      body: 'Answer today\'s Truth Streak question before midnight IST.',
-      scheduledDate: when,
-      isRepeating: true,
-      repeatPattern: DateTimeComponents.time, // daily recurrence at same UTC instant = 8 PM IST
-    );
-  }
-
-  /// Cancel the Truth Streak daily reminder.
-  static Future<void> cancelTruthStreakReminder() async {
-    await _cancel(5004);
-  }
+  // ── Truth Streak daily reminder ─ REMOVED in Phase 3 ─────────────
+  // The `scheduleTruthStreakDailyReminder` and `cancelTruthStreakReminder`
+  // methods were removed when Truth Streak was fully deprecated from
+  // the app. The v1 Prediction Battle now occupies the family-hub slot
+  // that Truth Streak used to fill, and its lifecycle is driven entirely
+  // by backend pg_cron + NestJS scheduler — no local notification
+  // scheduling needed. Notification id 5004 is freed for future reuse.
 
   /// Get the next occurrence of a specific hour:minute today or tomorrow.
   static DateTime _nextOccurrence(int hour, int minute) {

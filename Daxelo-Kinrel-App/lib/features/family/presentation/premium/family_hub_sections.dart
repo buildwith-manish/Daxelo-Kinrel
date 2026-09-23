@@ -37,7 +37,6 @@ import '../../../shared_list/presentation/shared_list_screen.dart';
 import '../../../games/shared/widgets/active_games_list.dart';
 import '../../../games/shared/widgets/family_leaderboard_widget.dart';
 import '../../../occasions/providers/occasion_reminders_provider.dart';
-import '../../../prediction_battle_v1/pb_v1_card.dart';
 import '../family_detail_screen.dart' show premiumGamesRowBridge, AddPersonSheetBridge;
 import 'design_system.dart';
 
@@ -46,46 +45,12 @@ import 'design_system.dart';
 //
 // The one place allowed a "moment" — purple/gold gradient, sparkle icon.
 // Everything else stays restrained so this pops.
+//
+// Phase 3 cleanup: the `TruthStreakMoment` and `PredictionBattleMoment`
+// wrapper classes that used to live here were removed when Truth Streak
+// was fully deprecated. The family detail screen (`family_detail_screen.dart`)
+// now renders `PredictionBattleV1Card` directly — no wrapper needed.
 // ═══════════════════════════════════════════════════════════════════════
-
-/// Wrapper that applies the premium "moment" treatment to the
-/// PredictionBattleV1Card.
-///
-/// As of Phase 2 of the prediction battle v1 rollout, the legacy v0
-/// `PredictionBattleCard` and its feature directory have been removed
-/// from the codebase entirely. This widget now embeds the v1 card
-/// (backend-scheduled, numeric estimation with reveal-at-9PM-IST
-/// enforcement) as the sole prediction surface in the family hub.
-///
-/// We intentionally do NOT wrap the card in a `Padding` here — the v1
-/// card already self-margins (16px horizontal) to match the rest of
-/// the hub. Re-padding would double-pad and misalign against the grid.
-class TruthStreakMoment extends StatelessWidget {
-  const TruthStreakMoment({super.key, required this.familyId});
-
-  final String familyId;
-
-  @override
-  Widget build(BuildContext context) {
-    return PredictionBattleV1Card(familyId: familyId);
-  }
-}
-
-/// The actual v1 prediction card rendered into the hub. We expose this
-/// as a separate public widget so the family detail screen can place it
-/// in the correct scroll position without re-wrapping. Functionally
-/// identical to [TruthStreakMoment] — kept as an alias so call sites can
-/// opt into the new name once they migrate.
-class PredictionBattleMoment extends StatelessWidget {
-  const PredictionBattleMoment({super.key, required this.familyId});
-
-  final String familyId;
-
-  @override
-  Widget build(BuildContext context) {
-    return PredictionBattleV1Card(familyId: familyId);
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════════════
 // SECTION 3: GAMES (with Play / Leaderboard toggle)

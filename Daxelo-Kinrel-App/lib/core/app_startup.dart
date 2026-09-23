@@ -334,13 +334,14 @@ class AppStartupService {
         members: allMembers,
         anniversaries: allAnniversaries,
       );
-      // Schedule daily Truth Streak reminder at 8 PM local
-      try {
-        await LocalNotificationScheduler.scheduleTruthStreakDailyReminder();
-        debugPrint('📬 AppStartup: Truth Streak daily reminder scheduled (8 PM)');
-      } catch (e) {
-        debugPrint('⚠️ AppStartup: Truth Streak reminder scheduling failed: $e');
-      }
+      // ── Truth Streak daily reminder ─ REMOVED in Phase 3 ─────────────
+      // The Truth Streak feature has been fully removed from the app;
+      // the v1 Prediction Battle (scheduled numeric-estimation game)
+      // now occupies its slot in the family hub. The 8 PM IST local
+      // reminder is no longer relevant — the backend pg_cron jobs
+      // handle the prediction-battle lifecycle, and the NestJS
+      // predictions scheduler dispatches FCM + in-app notifications
+      // for round-open and reveal events.
       debugPrint('📬 AppStartup: Occasion reminders scheduled (${allMembers.length} birthdays, ${allAnniversaries.length} anniversaries)');
     } catch (e) {
       debugPrint('⚠️ AppStartup: Occasion reminder scheduling failed: $e');

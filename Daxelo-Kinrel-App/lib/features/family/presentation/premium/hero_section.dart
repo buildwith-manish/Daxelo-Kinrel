@@ -30,7 +30,6 @@ import '../../../../core/constants/brand_typography.dart';
 import '../../../kinrel_intelligence/data/kinrel_model.dart';
 import '../../../kinrel_intelligence/providers/kinrel_provider.dart';
 import '../../../kinrel_intelligence/widgets/kinrel_symbol_widget.dart';
-import '../../../truth_streak/providers/truth_streak_provider.dart';
 import 'design_system.dart';
 import 'mandala_painter.dart';
 
@@ -271,14 +270,20 @@ class HeroSection extends ConsumerWidget {
                       ),
                     ),
                     // ── Threshold teaser ───────────────────────────────
-                    // Small persistent "next threshold" teaser so the hub
-                    // doesn't feel empty on days nothing's happening.
+                    // Removed in Phase 3 — Truth Streak deprecation. The
+                    // teaser used the truth_streak_provider to show a
+                    // "next streak threshold" hint; with Truth Streak
+                    // removed from the app, the teaser had no data source
+                    // and is intentionally left as empty space so the
+                    // hero layout doesn't shift. A future iteration may
+                    // replace this with a "next game unlock" teaser or
+                    // similar — kept as a no-op slot for now.
                     if (symbolSize > 10)
                       Opacity(
                         opacity: nameOpacity * 0.8,
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: _ThresholdTeaser(familyId: familyId),
+                        child: const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: SizedBox.shrink(),
                         ),
                       ),
                   ] else ...[
@@ -589,77 +594,13 @@ class _HeroSymbol extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// THRESHOLD TEASER
-// Small persistent "next threshold" teaser on the Hero section so
-// the hub doesn't feel empty on days nothing's happening.
-// Shows the next Truth Streak threshold with a progress bar.
+// THRESHOLD TEASER — REMOVED in Phase 3 (Truth Streak deprecation)
 // ═══════════════════════════════════════════════════════════════════════
-
-class _ThresholdTeaser extends ConsumerWidget {
-  const _ThresholdTeaser({required this.familyId});
-  final String familyId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final streak = ref.watch(truthStreakProvider(familyId));
-    final stats = streak.stats;
-
-    if (stats == null) return const SizedBox.shrink();
-
-    final current = stats.currentStreak;
-    final nextThreshold = _getNextThreshold(current);
-    if (nextThreshold == null) return const SizedBox.shrink();
-
-    final progress = (current / nextThreshold).clamp(0.0, 1.0);
-    final daysLeft = nextThreshold - current;
-
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: KinrelColors.orange.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: KinrelColors.orange.withValues(alpha: 0.2),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('🔥', style: TextStyle(fontSize: 12)),
-              const SizedBox(width: 6),
-              Text(
-                daysLeft > 0
-                    ? '$daysLeft day${daysLeft == 1 ? '' : 's'} to $nextThreshold-day streak'
-                    : 'New threshold unlocked!',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.orange,
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Mini progress bar
-              SizedBox(
-                width: 40,
-                height: 4,
-                child: LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
-                  valueColor: AlwaysStoppedAnimation<Color>(KinrelColors.orange),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ],
-          ),
-        );
-  }
-
-  int? _getNextThreshold(int current) {
-    const thresholds = [3, 7, 14, 30, 60, 90, 180, 365];
-    for (final t in thresholds) {
-      if (current < t) return t;
-    }
-    return null; // Past all thresholds
-  }
-}
+// The former `_ThresholdTeaser` widget here relied on the
+// `truthStreakProvider` to display a "next streak threshold" hint.
+// With Truth Streak fully removed from the app (the v1 Prediction
+// Battle replaces it), the teaser had no data source and was deleted.
+// The hero section's call site is left as a `SizedBox.shrink()` slot
+// so the surrounding layout doesn't shift. A future iteration can
+// re-introduce a "next game unlock" or "today's prediction" teaser
+// in the same real estate.
