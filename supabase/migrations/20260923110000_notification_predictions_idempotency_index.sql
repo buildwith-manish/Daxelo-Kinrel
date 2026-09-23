@@ -1,0 +1,43 @@
+-- 20260923110000_notification_predictions_idempotency_index.sql
+--
+-- Phase 3.2 — composite index for the predictions idempotency check.
+--
+-- The PredictionsScheduler.sendOnce helper (in
+-- `server/src/modules/predictions/predictions.scheduler.ts`) looks up
+-- notifications by `(userId, eventType, personId)` before inserting —
+-- this is the idempotency check that prevents double-sending push
+-- notifications for the same round event.
+--
+-- Without this composite index, that lookup is a sequential scan.
+-- The predictions module writes ~180k rows/year (50 families × 5
+-- members × 2 events/day × 365 days), and the wider Notification
+-- table also accumulates birthday reminders, chat mentions, family
+-- join events, etc. The idempotency lookup would slow down
+-- noticeably once the table grows past ~1M rows.
+--
+-- This index is also used by the regular NotificationsModule helpers
+-- (e.g. the existing `findFirst({ where: { userId, eventType,
+-- personId } })` pattern in birthday reminders) — small bonus.
+--
+-- The index is `CREATE INDEX IF NOT EXISTS` so re-running this
+-- migration is safe.
+
+CREATE INDEX IF NOT EXISTS "Notification_userId_eventType_personId_idx"
+  ON "Notification" ("userId", "eventType", "personId");
+
+-- ── Index strategy notes ──────────────────────────────────────────────
+-- The columns are ordered (userId, eventType, personId) to match the
+-- exact equality-query pattern in `sendOnce`:
+--
+--   WHERE userId = $1 AND eventType = $2 AND personId = $3
+--
+-- The leading column (userId) is the most selective — every query
+-- goes through the user. eventType is second-most selective
+-- ('prediction_v1_round_open' vs 'prediction_v1_reveal_done' vs
+-- 'birthday_reminder'). personId (round id) is the disambiguator.
+--
+-- A partial index `WHERE personId IS NOT NULL` would be slightly
+-- smaller, but would prevent the planner from using this index for
+-- queries that don't include personId — and there are no such
+-- queries in the codebase right now, so we keep the full index for
+-- future-proofing.

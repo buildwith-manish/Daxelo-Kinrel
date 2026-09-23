@@ -1071,6 +1071,14 @@ model Notification {
 
   @@index([userId, read, createdAt])
   @@index([userId, createdAt])
+  // Phase 3.2 — composite index for the predictions idempotency check.
+  // The PredictionsScheduler.sendOnce helper looks up notifications by
+  // (userId, eventType, personId=roundId) before inserting. Without this
+  // index, that lookup is a sequential scan once the table grows past
+  // ~1M rows (which the predictions module will hit first: one row per
+  // user per round per event, ~50 families × 5 members × 2 events/day
+  // × 365 days = ~180k rows/year just for predictions).
+  @@index([userId, eventType, personId])
 }
 
 // Notification Delivery Tracking (per channel)
