@@ -176,6 +176,22 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
                 'Reveal at ${_formatRevealTime(round.revealAt)} · ${ref.read(pbV1Provider(widget.familyId).notifier).revealCountdown}',
                 style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: KinrelColors.textDim),
               ),
+              const SizedBox(height: 6),
+              // Subtle history link — lets curious users see past
+              // rounds + their win streak without scrolling to the
+              // reveal summary state.
+              GestureDetector(
+                onTap: () => context.push('/family/$familyId/prediction-battle-v1/history'),
+                child: Text(
+                  'View history →',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: KinrelColors.textSilver,
+                  ),
+                ),
+              ),
             ] else if (!state.revealed && hasGuess) ...[
               // State 2: OPEN, guess locked in
               Row(
@@ -194,6 +210,19 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
               Text(
                 'Reveal in ${ref.read(pbV1Provider(widget.familyId).notifier).revealCountdown}',
                 style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.amber),
+              ),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: () => context.push('/family/$familyId/prediction-battle-v1/history'),
+                child: Text(
+                  'View history →',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: KinrelColors.textSilver,
+                  ),
+                ),
               ),
             ] else if (state.revealed) ...[
               // State 3: REVEALED — compact summary
@@ -264,9 +293,37 @@ class _RevealSummary extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 8),
-        GestureDetector(
-          onTap: () => context.push('/family/$familyId/prediction-battle-v1/reveal/${state.round!.id}'),
-          child: Text('See full reveal →', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.orange)),
+        // Reveal link + history link side by side. The reveal link
+        // deep-links to today's reveal screen (current round); the
+        // history link goes to the streaks + past rounds view.
+        Row(
+          children: [
+            GestureDetector(
+              onTap: () => context.push('/family/$familyId/prediction-battle-v1/reveal/${state.round!.id}'),
+              child: Text(
+                'See full reveal →',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.orange,
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            GestureDetector(
+              onTap: () => context.push('/family/$familyId/prediction-battle-v1/history'),
+              child: Text(
+                'View history →',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textSilver,
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );

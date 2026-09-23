@@ -83,6 +83,8 @@ import '../../features/chat/presentation/wallpaper_settings_screen.dart';
 // Phase 1 — Prediction Battle v1 reveal screen (the v0 prediction_battle
 // screen + numeric-guess preview were removed in Phase 2 deprecation).
 import '../../features/prediction_battle_v1/pb_v1_reveal_screen.dart';
+// Phase 3.3 — Prediction Battle v1 history screen.
+import '../../features/prediction_battle_v1/pb_v1_history_screen.dart';
 import '../../features/hot_seat/presentation/hot_seat_screen.dart';
 import '../../features/relation_riddles/presentation/relation_riddle_screen.dart';
 import '../../features/calendar/presentation/family_calendar_screen.dart'
@@ -1637,6 +1639,23 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: PBv1RevealScreen(
             familyId: state.pathParameters['id']!,
             roundId: state.pathParameters['roundId']!,
+          ),
+        ),
+      ),
+
+      // ── Prediction Battle v1 History + Streaks ─────────────────
+      // Phase 3.3 — surfaces the pb_v1_win_streaks data + last 30
+      // revealed rounds for the family. Reachable via the "View
+      // history" link on the v1 card and via the hero teaser (when
+      // the round is revealed, tapping takes you to the reveal
+      // screen; this history route is a separate, longer-lived
+      // view).
+      GoRoute(
+        path: '/family/:id/prediction-battle-v1/history',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: PBv1HistoryScreen(
+            familyId: state.pathParameters['id']!,
           ),
         ),
       ),
