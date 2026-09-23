@@ -143,16 +143,62 @@ class PBv1HistoryRound {
   bool get won => iWon;
 }
 
+/// A single family member's row in the history screen's leaderboard.
+/// Combines the all-time streak stats from pb_v1_win_streaks with the
+/// "in visible window" stats computed by fn_pb_v1_get_history.
+class PBv1LeaderboardEntry {
+  const PBv1LeaderboardEntry({
+    required this.userId,
+    required this.currentStreak,
+    required this.bestStreak,
+    required this.totalWinsInWindow,
+    required this.totalGuessesInWindow,
+  });
+
+  final String userId;
+  final int currentStreak;
+  final int bestStreak;
+  final int totalWinsInWindow;
+  final int totalGuessesInWindow;
+
+  factory PBv1LeaderboardEntry.fromJson(Map<String, dynamic> json) => PBv1LeaderboardEntry(
+    userId: (json['userId'] ?? json['user_id'] ?? '') as String,
+    currentStreak: (json['currentStreak'] ?? json['current_streak'] ?? 0) as int,
+    bestStreak: (json['bestStreak'] ?? json['best_streak'] ?? 0) as int,
+    totalWinsInWindow: (json['totalWinsInWindow'] ?? json['total_wins_in_window'] ?? 0) as int,
+    totalGuessesInWindow: (json['totalGuessesInWindow'] ?? json['total_guesses_in_window'] ?? 0) as int,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'user_id': userId,
+    'current_streak': currentStreak,
+    'best_streak': bestStreak,
+    'total_wins_in_window': totalWinsInWindow,
+    'total_guesses_in_window': totalGuessesInWindow,
+  };
+
+  /// Win rate within the visible history window (0.0–1.0).
+  /// Returns 0 if the user didn't participate in any visible round.
+  double get windowWinRate =>
+      totalGuessesInWindow == 0 ? 0 : totalWinsInWindow / totalGuessesInWindow;
+}
+
 /// The full state returned by the history RPC.
 class PBv1History {
   const PBv1History({
     required this.streak,
     required this.rounds,
+    required this.leaderboard,
     required this.cachedAt,
   });
 
   final PBv1Streak streak;
   final List<PBv1HistoryRound> rounds;
+  /// Family-wide leaderboard. Ordered by current_streak DESC, then
+  /// best_streak DESC. May be empty if no family member has ever won
+  /// (pb_v1_win_streaks is populated on first win — there's no row
+  /// until then).
+  final List<PBv1LeaderboardEntry> leaderboard;
   final String cachedAt;
 
   factory PBv1History.fromJson(Map<String, dynamic> json) => PBv1History(
@@ -163,12 +209,17 @@ class PBv1History {
         .whereType<Map>()
         .map((r) => PBv1HistoryRound.fromJson(Map<String, dynamic>.from(r)))
         .toList(),
+    leaderboard: (json['leaderboard'] as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => PBv1LeaderboardEntry.fromJson(Map<String, dynamic>.from(e)))
+        .toList(),
     cachedAt: (json['cachedAt'] ?? '') as String,
   );
 
   Map<String, dynamic> toJson() => {
     'streak': streak.toJson(),
     'rounds': rounds.map((r) => r.toJson()).toList(),
+    'leaderboard': leaderboard.map((e) => e.toJson()).toList(),
     'cachedAt': cachedAt,
   };
 

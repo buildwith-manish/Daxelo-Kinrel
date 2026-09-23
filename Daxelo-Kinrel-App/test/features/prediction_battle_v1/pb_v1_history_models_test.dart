@@ -313,4 +313,153 @@ void main() {
       expect(back.cachedAt, '2026-09-23T16:00:00.000Z');
     });
   });
+
+  // ── Phase 3.4 — Leaderboard tests ────────────────────────────────
+
+  group('PBv1LeaderboardEntry', () {
+    test('fromJson accepts snake_case keys', () {
+      final e = PBv1LeaderboardEntry.fromJson({
+        'user_id': 'u-1',
+        'current_streak': 5,
+        'best_streak': 10,
+        'total_wins_in_window': 3,
+        'total_guesses_in_window': 8,
+      });
+      expect(e.userId, 'u-1');
+      expect(e.currentStreak, 5);
+      expect(e.bestStreak, 10);
+      expect(e.totalWinsInWindow, 3);
+      expect(e.totalGuessesInWindow, 8);
+    });
+
+    test('fromJson accepts camelCase keys', () {
+      final e = PBv1LeaderboardEntry.fromJson({
+        'userId': 'u-2',
+        'currentStreak': 2,
+        'bestStreak': 7,
+        'totalWinsInWindow': 1,
+        'totalGuessesInWindow': 4,
+      });
+      expect(e.userId, 'u-2');
+      expect(e.currentStreak, 2);
+      expect(e.bestStreak, 7);
+    });
+
+    test('fromJson defaults to zeros when fields missing', () {
+      final e = PBv1LeaderboardEntry.fromJson({'user_id': 'u-3'});
+      expect(e.userId, 'u-3');
+      expect(e.currentStreak, 0);
+      expect(e.bestStreak, 0);
+      expect(e.totalWinsInWindow, 0);
+      expect(e.totalGuessesInWindow, 0);
+    });
+
+    test('toJson round-trips through fromJson', () {
+      final e = PBv1LeaderboardEntry(
+        userId: 'u-4',
+        currentStreak: 6,
+        bestStreak: 12,
+        totalWinsInWindow: 4,
+        totalGuessesInWindow: 10,
+      );
+      final back = PBv1LeaderboardEntry.fromJson(e.toJson());
+      expect(back.userId, 'u-4');
+      expect(back.currentStreak, 6);
+      expect(back.bestStreak, 12);
+      expect(back.totalWinsInWindow, 4);
+      expect(back.totalGuessesInWindow, 10);
+    });
+
+    test('windowWinRate returns 0 when no guesses in window', () {
+      const e = PBv1LeaderboardEntry(
+        userId: 'u-5',
+        currentStreak: 0,
+        bestStreak: 0,
+        totalWinsInWindow: 0,
+        totalGuessesInWindow: 0,
+      );
+      expect(e.windowWinRate, 0);
+    });
+
+    test('windowWinRate returns the correct fraction', () {
+      const e = PBv1LeaderboardEntry(
+        userId: 'u-6',
+        currentStreak: 3,
+        bestStreak: 5,
+        totalWinsInWindow: 4,
+        totalGuessesInWindow: 10,
+      );
+      expect(e.windowWinRate, 0.4);
+    });
+
+    test('windowWinRate is 1.0 when all guesses won', () {
+      const e = PBv1LeaderboardEntry(
+        userId: 'u-7',
+        currentStreak: 5,
+        bestStreak: 5,
+        totalWinsInWindow: 5,
+        totalGuessesInWindow: 5,
+      );
+      expect(e.windowWinRate, 1.0);
+    });
+  });
+
+  group('PBv1History — leaderboard integration', () {
+    test('parses leaderboard from RPC response', () {
+      final json = {
+        'ok': true,
+        'streak': {'current_streak': 3, 'best_streak': 7},
+        'rounds': <Map<String, dynamic>>[],
+        'leaderboard': [
+          {'user_id': 'u-1', 'current_streak': 5, 'best_streak': 10,
+           'total_wins_in_window': 3, 'total_guesses_in_window': 8},
+          {'user_id': 'u-2', 'current_streak': 2, 'best_streak': 4,
+           'total_wins_in_window': 1, 'total_guesses_in_window': 5},
+          {'user_id': 'u-3', 'current_streak': 0, 'best_streak': 1,
+           'total_wins_in_window': 0, 'total_guesses_in_window': 2},
+        ],
+        'cachedAt': '2026-09-23T16:00:00.000Z',
+      };
+      final h = PBv1History.fromJson(json);
+      expect(h.leaderboard.length, 3);
+      expect(h.leaderboard[0].userId, 'u-1');
+      expect(h.leaderboard[0].currentStreak, 5);
+      expect(h.leaderboard[1].userId, 'u-2');
+      expect(h.leaderboard[2].userId, 'u-3');
+    });
+
+    test('leaderboard defaults to empty list when field missing', () {
+      // Simulates an old cache (pre-Phase 3.4) that doesn't have the
+      // leaderboard field. The parser must not crash.
+      final json = {
+        'ok': true,
+        'streak': {'current_streak': 0, 'best_streak': 0},
+        'rounds': <Map<String, dynamic>>[],
+        'cachedAt': '',
+      };
+      final h = PBv1History.fromJson(json);
+      expect(h.leaderboard, isEmpty);
+    });
+
+    test('leaderboard survives toJson → fromJson round-trip', () {
+      final original = PBv1History(
+        streak: const PBv1Streak(currentStreak: 3, bestStreak: 7),
+        rounds: const [],
+        leaderboard: const [
+          PBv1LeaderboardEntry(
+            userId: 'u-1',
+            currentStreak: 5,
+            bestStreak: 10,
+            totalWinsInWindow: 3,
+            totalGuessesInWindow: 8,
+          ),
+        ],
+        cachedAt: '2026-09-23T16:00:00.000Z',
+      );
+      final back = PBv1History.fromJson(original.toJson());
+      expect(back.leaderboard.length, 1);
+      expect(back.leaderboard[0].userId, 'u-1');
+      expect(back.leaderboard[0].currentStreak, 5);
+    });
+  });
 }

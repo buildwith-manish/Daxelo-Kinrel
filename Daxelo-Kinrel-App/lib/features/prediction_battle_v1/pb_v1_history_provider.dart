@@ -32,7 +32,13 @@ class PBv1HistoryNotifier extends StateNotifier<PBv1HistoryState> {
   SupabaseClient? get _client => _ref.read(supabaseProvider);
   String? get _myId => _client?.auth.currentUser?.id;
 
-  static const _cacheKeyPrefix = 'pb_v1_history_';
+  static const _cacheKeyPrefix = 'pb_v1_history_v2_';
+  // Phase 3.4 — bumped from `pb_v1_history_` to invalidate caches that
+  // were written before the leaderboard field was added to the RPC
+  // response. Old caches don't have `leaderboard` and would render
+  // an empty leaderboard section until the refresh completes; bumping
+  // the prefix makes the first load after this update fetch fresh
+  // data immediately.
 
   /// Load history. Renders from cache first (sub-frame), then refreshes
   /// from the backend and overwrites the cache.

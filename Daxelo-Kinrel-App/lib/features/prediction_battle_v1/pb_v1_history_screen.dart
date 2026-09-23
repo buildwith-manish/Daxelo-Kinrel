@@ -39,6 +39,12 @@ class _PBv1HistoryScreenState extends ConsumerState<PBv1HistoryScreen> {
   // from FamilyMember joined with User. Same pattern as the reveal
   // screen.
   Map<String, String> _userNames = const {};
+  // The current user's id — fetched at the same time as user names.
+  // Used by the leaderboard section to highlight the requesting user's
+  // row. May be null briefly during load (before the supabase client
+  // resolves); the leaderboard will render without a highlight until
+  // it's populated.
+  String? _currentUserId;
 
   @override
   void initState() {
@@ -58,6 +64,8 @@ class _PBv1HistoryScreenState extends ConsumerState<PBv1HistoryScreen> {
     final client = ref.read(supabaseProvider);
     if (client == null) return;
     try {
+      // Capture the current user's id for the leaderboard highlight.
+      _currentUserId = client.auth.currentUser?.id;
       final rows = await client
           .from('FamilyMember')
           .select('userId, user:User(name)')
@@ -181,6 +189,19 @@ class _HistoryBody extends StatelessWidget {
         const SizedBox(height: 12),
         _QuickStatsRow(history: history),
         const SizedBox(height: 20),
+        // Phase 3.4 — Family leaderboard section. Sits above the
+        // recent rounds list so the social comparison is the first
+        // thing the user sees after their own streak stats. Hidden
+        // if no family member has ever won (the leaderboard comes
+        // from pb_v1_win_streaks which is populated on first win).
+        if (history.leaderboard.isNotEmpty) ...[
+          _FamilyLeaderboardSection(
+            leaderboard: history.leaderboard,
+            userNames: userNames,
+            currentUserId: _currentUserId,
+          ),
+          const SizedBox(height: 20),
+        ],
         Text(
           'Recent rounds',
           style: TextStyle(
@@ -530,6 +551,277 @@ class _OutcomePill extends StatelessWidget {
           letterSpacing: 0.6,
           color: color,
         ),
+      ),
+    );
+  }
+}
+
+// ── Phase 3.4 — Family leaderboard section ────────────────────────────
+//
+// Ranks all family members by current streak (live) → best streak
+// (historical) → user_id (stable tiebreaker). The requesting user's
+// row is highlighted with a gold background tint so they can spot
+// themselves in the list.
+//
+// Layout:
+//   - Section header: "Family Leaderboard"
+//   - Top 3 entries get medal icons (🥇🥈🥉) + their current streak
+//     in a larger font, in a stacked card row.
+//   - The remaining entries (rank 4+) render as a flat list below
+//     the top 3. If there are ≤3 entries, the flat list is empty.
+//
+// Empty state: handled by the parent (the section is hidden entirely
+// if the leaderboard is empty).
+
+class _FamilyLeaderboardSection extends StatelessWidget {
+  const _FamilyLeaderboardSection({
+    required this.leaderboard,
+    required this.userNames,
+    required this.currentUserId,
+  });
+
+  final List<PBv1LeaderboardEntry> leaderboard;
+  final Map<String, String> userNames;
+  final String? currentUserId;
+
+  @override
+  Widget build(BuildContext context) {
+    // Defensive: the parent only renders this section if
+    // leaderboard.isNotEmpty, but guard anyway in case of stale
+    // rebuilds.
+    if (leaderboard.isEmpty) return const SizedBox.shrink();
+
+    final top3 = leaderboard.take(3).toList();
+    final rest = leaderboard.skip(3).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Family Leaderboard',
+          style: TextStyle(
+            fontFamily: KinrelTypography.displayFont,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: KinrelColors.textWhite,
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Top 3 podium
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < top3.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              Expanded(
+                child: _PodiumTile(
+                  entry: top3[i],
+                  rank: i + 1,
+                  userNames: userNames,
+                  isMe: top3[i].userId == currentUserId,
+                ),
+              ),
+            ],
+          ],
+        ),
+        // Remaining entries (rank 4+)
+        if (rest.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          for (var i = 0; i < rest.length; i++)
+            _LeaderboardRow(
+              entry: rest[i],
+              rank: i + 4,
+              userNames: userNames,
+              isMe: rest[i].userId == currentUserId,
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _PodiumTile extends StatelessWidget {
+  const _PodiumTile({
+    required this.entry,
+    required this.rank,
+    required this.userNames,
+    required this.isMe,
+  });
+
+  final PBv1LeaderboardEntry entry;
+  final int rank;
+  final Map<String, String> userNames;
+  final bool isMe;
+
+  @override
+  Widget build(BuildContext context) {
+    const medals = ['🥇', '🥈', '🥉'];
+    final medal = medals[rank - 1];
+    final name = userNames[entry.userId] ?? entry.userId.substring(0, 8);
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isMe
+            ? KinrelColors.brightGold.withValues(alpha: 0.10)
+            : KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isMe
+              ? KinrelColors.brightGold.withValues(alpha: 0.40)
+              : KinrelColors.border,
+          width: 0.8,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(medal, style: const TextStyle(fontSize: 14)),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  name,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isMe ? KinrelColors.textWhite : KinrelColors.textSilver,
+                  ),
+                ),
+              ),
+              if (isMe)
+                Text(
+                  'YOU',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.monoFont,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                    color: KinrelColors.brightGold,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${entry.currentStreak}',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: entry.currentStreak > 0
+                  ? KinrelColors.brightGold
+                  : KinrelColors.textDim,
+            ),
+          ),
+          Text(
+            'current · best ${entry.bestStreak}',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 10,
+              color: KinrelColors.textDim,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LeaderboardRow extends StatelessWidget {
+  const _LeaderboardRow({
+    required this.entry,
+    required this.rank,
+    required this.userNames,
+    required this.isMe,
+  });
+
+  final PBv1LeaderboardEntry entry;
+  final int rank;
+  final Map<String, String> userNames;
+  final bool isMe;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = userNames[entry.userId] ?? entry.userId.substring(0, 8);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: isMe
+            ? KinrelColors.brightGold.withValues(alpha: 0.06)
+            : KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isMe
+              ? KinrelColors.brightGold.withValues(alpha: 0.30)
+              : KinrelColors.border,
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 24,
+            child: Text(
+              '#$rank',
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.textDim,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              name,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 13,
+                fontWeight: isMe ? FontWeight.w700 : FontWeight.w500,
+                color: isMe ? KinrelColors.textWhite : KinrelColors.textSilver,
+              ),
+            ),
+          ),
+          // Window stats — wins / participated
+          Text(
+            '${entry.totalWinsInWindow}/${entry.totalGuessesInWindow} in window',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 11,
+              color: KinrelColors.textDim,
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Current streak — the main ranking key
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              if (entry.currentStreak >= 3)
+                const Text('🔥', style: TextStyle(fontSize: 11)),
+              if (entry.currentStreak >= 3) const SizedBox(width: 2),
+              Text(
+                '${entry.currentStreak}',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: entry.currentStreak > 0
+                      ? KinrelColors.brightGold
+                      : KinrelColors.textDim,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
