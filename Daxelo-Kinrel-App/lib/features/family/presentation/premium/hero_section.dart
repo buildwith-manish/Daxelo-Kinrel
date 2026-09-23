@@ -30,6 +30,7 @@ import '../../../../core/constants/brand_typography.dart';
 import '../../../kinrel_intelligence/data/kinrel_model.dart';
 import '../../../kinrel_intelligence/providers/kinrel_provider.dart';
 import '../../../kinrel_intelligence/widgets/kinrel_symbol_widget.dart';
+import '../../../prediction_battle_v1/pb_v1_hero_teaser.dart';
 import 'design_system.dart';
 import 'mandala_painter.dart';
 
@@ -269,21 +270,24 @@ class HeroSection extends ConsumerWidget {
                         style: FamilyHubType.caption,
                       ),
                     ),
-                    // ── Threshold teaser ───────────────────────────────
-                    // Removed in Phase 3 — Truth Streak deprecation. The
-                    // teaser used the truth_streak_provider to show a
-                    // "next streak threshold" hint; with Truth Streak
-                    // removed from the app, the teaser had no data source
-                    // and is intentionally left as empty space so the
-                    // hero layout doesn't shift. A future iteration may
-                    // replace this with a "next game unlock" teaser or
-                    // similar — kept as a no-op slot for now.
+                    // ── Today's Prediction teaser ────────────────────────
+                    // Replaces the old Truth Streak threshold teaser that
+                    // used to live here. The new teaser watches the v1
+                    // Prediction Battle provider and shows a one-line
+                    // state-of-the-round hint (submit / locked / revealed),
+                    // with a deep-link to the reveal screen when the
+                    // reveal has happened.
+                    //
+                    // The teaser is intentionally hidden while the
+                    // provider is loading or has no round — that way
+                    // the hero layout doesn't shift before the prediction
+                    // card below has had a chance to load.
                     if (symbolSize > 10)
                       Opacity(
                         opacity: nameOpacity * 0.8,
-                        child: const Padding(
-                          padding: EdgeInsets.only(top: 8),
-                          child: SizedBox.shrink(),
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: PredictionBattleHeroTeaser(familyId: familyId),
                         ),
                       ),
                   ] else ...[
@@ -594,13 +598,9 @@ class _HeroSymbol extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// THRESHOLD TEASER — REMOVED in Phase 3 (Truth Streak deprecation)
+// THRESHOLD TEASER — replaced by PredictionBattleHeroTeaser
 // ═══════════════════════════════════════════════════════════════════════
-// The former `_ThresholdTeaser` widget here relied on the
-// `truthStreakProvider` to display a "next streak threshold" hint.
-// With Truth Streak fully removed from the app (the v1 Prediction
-// Battle replaces it), the teaser had no data source and was deleted.
-// The hero section's call site is left as a `SizedBox.shrink()` slot
-// so the surrounding layout doesn't shift. A future iteration can
-// re-introduce a "next game unlock" or "today's prediction" teaser
-// in the same real estate.
+// The former `_ThresholdTeaser` widget (Truth Streak thresholds) was
+// removed in Phase 3. Its slot in the hero is now occupied by
+// `PredictionBattleHeroTeaser` (imported above), which surfaces the
+// v1 Prediction Battle round state in the same real estate.
