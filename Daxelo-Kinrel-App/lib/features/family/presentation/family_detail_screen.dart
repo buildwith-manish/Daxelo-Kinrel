@@ -35,7 +35,7 @@ import 'add_member_options_sheet.dart';
 
 import '../../../core/utils/smart_preloader.dart';
 import '../../../core/utils/share_helper.dart';
-import '../../prediction_battle/prediction_card.dart';
+import '../../prediction_battle_v1/pb_v1_card.dart';
 import '../../thinking/presentation/family_ring_widget.dart';
 import '../../games/services/game_asset_manager.dart';
 import '../../games/shared/icons/game_icons.dart';
@@ -281,10 +281,12 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
                   const SliverToBoxAdapter(child: SizedBox(height: 4)),
 
-                  // 2. Prediction Battle — the "moment" (replaces Truth Streak).
+                  // 2. Prediction Battle v1 — the "moment" (replaces Truth Streak
+                  //    and the v0 on-demand PredictionBattleCard). Backend-scheduled
+                  //    numeric-estimation game with reveal-at-9PM-IST enforcement.
                   SliverToBoxAdapter(
                     child: staggerFade(
-                      PredictionBattleCard(familyId: widget.familyId),
+                      PredictionBattleV1Card(familyId: widget.familyId),
                       1,
                     ),
                   ),

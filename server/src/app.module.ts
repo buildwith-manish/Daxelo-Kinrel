@@ -20,6 +20,7 @@ import { ViewerModule } from './modules/viewer/viewer.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { TimelineModule } from './modules/timeline/timeline.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { PredictionsModule } from './modules/predictions/predictions.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { InvitationsModule } from './modules/invitations/invitations.module';
 import { SupportModule } from './modules/support/support.module';
@@ -123,6 +124,11 @@ import { TrackcModule } from './trackc/trackc.module';
     ChatModule,
     TimelineModule,
     NotificationsModule,
+    // v1.1: Prediction Battle v1 — push notifications scheduler. Polls
+    // Supabase every 15 min for rounds that crossed the opens_at /
+    // reveal_at boundary and dispatches FCM + in-app notifications to
+    // family members.
+    PredictionsModule,
     PaymentsModule,
 
     // ── New feature modules (Flutter + AI) ──────────────────

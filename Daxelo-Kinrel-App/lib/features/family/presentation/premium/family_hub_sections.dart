@@ -4,7 +4,7 @@
 //
 // The 4 sections of the redesigned family hub, down from 7:
 //   1. HeroSection            (hero_section.dart — replaces FeedHeader + GraphPreviewCard)
-//   2. TruthStreakMoment      (this file — restyled "moment" card)
+//   2. PredictionBattleMoment (this file — wraps the v1 prediction card)
 //   3. GamesSection           (this file — Games row + Play/Leaderboard toggle)
 //   4. FamilyPulseSection     (this file — merges Activity + Calendar)
 //
@@ -16,11 +16,14 @@
 //     (nudges first, activity log below, one header).
 //
 // Visual identity:
-//   - TruthStreakMoment gets a terracotta gradient + single flame
-//     line-icon + Display-type question — the one "moment" that pops.
+//   - PredictionBattleMoment keeps a warm terracotta gradient frame, but
+//     the inner card now comes from the v1 backend-scheduled prediction
+//     system. The wrapper just supplies the horizontal padding so the
+//     card's own margins remain consistent with the rest of the hub.
 //   - All section headers use a kolam-dot glyph bullet (no emoji).
 //   - Stats + activity rows sit flat on Level 0 with hairline dividers,
-//     never bordered boxes. Only Truth Streak + Games get Level 1 cards.
+//     never bordered boxes. Only Prediction Battle + Games get Level 1
+//     cards.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -34,19 +37,30 @@ import '../../../shared_list/presentation/shared_list_screen.dart';
 import '../../../games/shared/widgets/active_games_list.dart';
 import '../../../games/shared/widgets/family_leaderboard_widget.dart';
 import '../../../occasions/providers/occasion_reminders_provider.dart';
-import '../../../prediction_battle/prediction_card.dart';
+import '../../../prediction_battle_v1/pb_v1_card.dart';
 import '../family_detail_screen.dart' show premiumGamesRowBridge, AddPersonSheetBridge;
 import 'design_system.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
-// SECTION 2: PREDICTION BATTLE MOMENT (replaces Truth Streak)
+// SECTION 2: PREDICTION BATTLE MOMENT (v1 — scheduled numeric estimation)
 //
 // The one place allowed a "moment" — purple/gold gradient, sparkle icon.
 // Everything else stays restrained so this pops.
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Wrapper that applies the premium "moment" treatment to the
-/// PredictionBattleCard.
+/// PredictionBattleV1Card.
+///
+/// As of Phase 1 of the prediction battle v1 rollout, this widget now
+/// embeds the v1 card (backend-scheduled, numeric estimation with
+/// reveal-at-9PM-IST enforcement). The legacy v0 card
+/// (`PredictionBattleCard`) is kept in the codebase for backward
+/// compatibility but is no longer surfaced in the family hub —
+/// its previous user-visible position is taken by the v1 card.
+///
+/// We intentionally do NOT wrap the card in a `Padding` here — the v1
+/// card already self-margins (16px horizontal) to match the rest of
+/// the hub. Re-padding would double-pad and misalign against the grid.
 class TruthStreakMoment extends StatelessWidget {
   const TruthStreakMoment({super.key, required this.familyId});
 
@@ -54,10 +68,23 @@ class TruthStreakMoment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: FamilyHubSpace.md),
-      child: PredictionBattleCard(familyId: familyId),
-    );
+    return PredictionBattleV1Card(familyId: familyId);
+  }
+}
+
+/// The actual v1 prediction card rendered into the hub. We expose this
+/// as a separate public widget so the family detail screen can place it
+/// in the correct scroll position without re-wrapping. Functionally
+/// identical to [TruthStreakMoment] — kept as an alias so call sites can
+/// opt into the new name once they migrate.
+class PredictionBattleMoment extends StatelessWidget {
+  const PredictionBattleMoment({super.key, required this.familyId});
+
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context) {
+    return PredictionBattleV1Card(familyId: familyId);
   }
 }
 

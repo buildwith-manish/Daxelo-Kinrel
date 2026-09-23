@@ -496,10 +496,25 @@ GRANT EXECUTE ON FUNCTION public.fn_pb_v1_daily_tick() TO authenticated;
 -- pg_cron schedules
 CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA cron;
 
--- Unscheduled any previous prediction v1 cron jobs
-SELECT cron.unschedule('pb-v1-daily-tick');
-SELECT cron.unschedule('pb-v1-reveal-tick');
-SELECT cron.unschedule('pb-v1-recovery-tick');
+-- Unschedule any previous prediction v1 cron jobs (idempotent — wrapped
+-- in exception blocks so first-run doesn't fail with "could not find
+-- valid entry for job"). pg_cron's unschedule raises an exception if
+-- the job doesn't exist; there is no IF EXISTS variant.
+DO $$
+BEGIN
+  PERFORM cron.unschedule('pb-v1-daily-tick');
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+DO $$
+BEGIN
+  PERFORM cron.unschedule('pb-v1-reveal-tick');
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+DO $$
+BEGIN
+  PERFORM cron.unschedule('pb-v1-recovery-tick');
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
 -- Daily round creation at 8 AM IST (2:30 AM UTC)
 SELECT cron.schedule('pb-v1-daily-tick', '30 2 * * *', $$ SELECT public.fn_pb_v1_daily_tick(); $$);
