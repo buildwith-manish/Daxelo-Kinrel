@@ -82,3 +82,141 @@ workflows:
         notify:
           success: true
           failure: true
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Android Release — split-per-abi build (low-end device optimization)
+  # ─────────────────────────────────────────────────────────────────────
+  #
+  # Why split-per-abi:
+  # - A fat APK ships native .so files for ALL ABIs (arm64-v8a, armeabi-
+  #   v7a, x86_64) in one ~80MB file. On a low-end 4G download that's
+  #   painful and eats storage on the device.
+  # - Splitting produces three smaller APKs (one per ABI). Each is
+  #   ~25MB. Google Play then serves the right one per device via the
+  #   App Bundle (AAB) path; for direct APK distribution (TestFlight
+  #   alternatives, sideloading) the user picks the matching one.
+  #
+  # We emit BOTH a per-ABI set AND an AAB so the user has both options:
+  # - AAB → Google Play internal testing track (auto per-device ABI)
+  # - Per-ABI APKs → direct sideload, e.g. sharing via link
+  #
+  # Triggered on tags matching `v*` (semantic-version releases). Not
+  # run on every push to main — keeps CI minutes cheap.
+  android-release:
+    name: Android Release (split-per-abi + AAB)
+    max_build_duration: 90
+    instance_type: mac_mini_m4
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: v*
+          include: true
+      cancel_previous_builds: true
+
+    environment:
+      flutter: 3.44.1
+      java: '17'
+      vars:
+        FLUTTER_DIR: "Daxelo-Kinrel-App"
+
+    working_directory: Daxelo-Kinrel-App
+
+    scripts:
+      - name: Verify Supabase config (fail loudly)
+        script: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "FATAL: SUPABASE_URL / SUPABASE_ANON_KEY are not set."
+            exit 1
+          fi
+          echo "Supabase config present (dart-define injection enabled)"
+
+      - name: Verify keystore env vars present
+        script: |
+          # Release signing requires a keystore. We expect these vars
+          # to be set as Codemagic secure environment variables:
+          #   CM_KEYSTORE_BASE64       — base64-encoded .keystore file
+          #   CM_KEYSTORE_ALIAS        — key alias inside the keystore
+          #   CM_KEYSTORE_PASSWORD      — keystore file password
+          #   CM_KEYSTORE_KEY_PASSWORD  — key password (may equal above)
+          # If any are missing, the build skips signing and warns —
+          # the AAB/APKs will still be built but unsigned.
+          missing=0
+          for v in CM_KEYSTORE_BASE64 CM_KEYSTORE_ALIAS CM_KEYSTORE_PASSWORD CM_KEYSTORE_KEY_PASSWORD; do
+            if [ -z "${!v:-}" ]; then
+              echo "WARN: $v is not set — release will be UNSIGNED"
+              missing=1
+            fi
+          done
+          if [ "$missing" = "0" ]; then
+            echo "$CM_KEYSTORE_BASE64" | base64 --decode > /tmp/keystore.jks
+            export CM_KEYSTORE_PATH=/tmp/keystore.jks
+            # Stash for later scripts
+            echo "export CM_KEYSTORE_PATH=/tmp/keystore.jks" >> $CM_ENV
+            echo "Keystore decoded — signing enabled"
+          fi
+
+      - name: Install Android SDK components
+        script: |
+          if [ -n "$ANDROID_HOME" ]; then
+            $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.2.13676358" "platforms;android-36" "build-tools;35.0.0" "cmake;3.22.1"
+            yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          else
+            echo "ANDROID_HOME not set — assuming SDK already available"
+          fi
+
+      - name: Flutter clean
+        script: flutter clean
+
+      - name: Flutter pub get
+        script: flutter pub get
+
+      - name: Generate Drift code
+        script: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build split-per-abi APKs (release)
+        script: |
+          BUILD_NUMBER="${CM_BUILD_NUMBER:-1}"
+
+          # If keystore env vars are present, sign the release; else
+          # fall back to an unsigned build (still useful for local
+          # testing / Sideloadly).
+          SIGN_ARGS=""
+          if [ -n "${CM_KEYSTORE_PATH:-}" ]; then
+            SIGN_ARGS="--dart-define=KEYSTORE_PATH=$CM_KEYSTORE_PATH"
+          fi
+
+          flutter build apk \
+            --release \
+            --split-per-abi \
+            --target-platform android-arm,android-arm64,android-x64 \
+            --build-number="$BUILD_NUMBER" \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            $SIGN_ARGS
+
+      - name: Build App Bundle (release, for Play Store)
+        script: |
+          BUILD_NUMBER="${CM_BUILD_NUMBER:-1}"
+          flutter build appbundle \
+            --release \
+            --build-number="$BUILD_NUMBER" \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+
+    artifacts:
+      # Three per-ABI APKs (~25MB each) for direct sideload
+      - build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+      - build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+      - build/app/outputs/flutter-apk/app-x86_64-release.apk
+      # Single AAB for Play Store upload
+      - build/app/outputs/bundle/release/app-release.aab
+
+    publishing:
+      email:
+        recipients:
+          - roadmapx.support@gmail.com
+        notify:
+          success: true
+          failure: true

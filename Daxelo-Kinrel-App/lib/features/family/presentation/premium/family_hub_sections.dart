@@ -51,12 +51,11 @@ import 'design_system.dart';
 /// Wrapper that applies the premium "moment" treatment to the
 /// PredictionBattleV1Card.
 ///
-/// As of Phase 1 of the prediction battle v1 rollout, this widget now
-/// embeds the v1 card (backend-scheduled, numeric estimation with
-/// reveal-at-9PM-IST enforcement). The legacy v0 card
-/// (`PredictionBattleCard`) is kept in the codebase for backward
-/// compatibility but is no longer surfaced in the family hub —
-/// its previous user-visible position is taken by the v1 card.
+/// As of Phase 2 of the prediction battle v1 rollout, the legacy v0
+/// `PredictionBattleCard` and its feature directory have been removed
+/// from the codebase entirely. This widget now embeds the v1 card
+/// (backend-scheduled, numeric estimation with reveal-at-9PM-IST
+/// enforcement) as the sole prediction surface in the family hub.
 ///
 /// We intentionally do NOT wrap the card in a `Padding` here — the v1
 /// card already self-margins (16px horizontal) to match the rest of

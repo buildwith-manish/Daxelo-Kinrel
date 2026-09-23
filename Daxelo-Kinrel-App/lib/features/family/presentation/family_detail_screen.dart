@@ -282,8 +282,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   const SliverToBoxAdapter(child: SizedBox(height: 4)),
 
                   // 2. Prediction Battle v1 — the "moment" (replaces Truth Streak
-                  //    and the v0 on-demand PredictionBattleCard). Backend-scheduled
-                  //    numeric-estimation game with reveal-at-9PM-IST enforcement.
+                  //    and the now-removed v0 on-demand PredictionBattleCard).
+                  //    Backend-scheduled numeric-estimation game with
+                  //    reveal-at-9PM-IST enforcement.
                   SliverToBoxAdapter(
                     child: staggerFade(
                       PredictionBattleV1Card(familyId: widget.familyId),
