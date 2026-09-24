@@ -291,7 +291,7 @@ class HeroSection extends ConsumerWidget {
                           child: Wrap(
                             spacing: 8,
                             runSpacing: 6,
-                            crossAxisAlignment: WrapCenterAlignment.center,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               PredictionBattleHeroTeaser(familyId: familyId),
                               // Phase 3.7 — coin balance chip. Sits

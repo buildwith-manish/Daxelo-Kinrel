@@ -22,6 +22,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/app_time.dart';
 import 'pb_v1_history_models.dart';
 import 'pb_v1_history_provider.dart';
@@ -123,7 +124,12 @@ class _PBv1HistoryScreenState extends ConsumerState<PBv1HistoryScreen> {
           ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
           : state.history == null
               ? _EmptyState(error: state.error)
-              : _HistoryBody(history: state.history!, userNames: _userNames, familyId: widget.familyId),
+              : _HistoryBody(
+                  history: state.history!,
+                  userNames: _userNames,
+                  familyId: widget.familyId,
+                  currentUserId: _currentUserId,
+                ),
     );
   }
 }
@@ -185,10 +191,16 @@ class _EmptyState extends StatelessWidget {
 // ── Main body ────────────────────────────────────────────────────────
 
 class _HistoryBody extends StatelessWidget {
-  const _HistoryBody({required this.history, required this.userNames, required this.familyId});
+  const _HistoryBody({
+    required this.history,
+    required this.userNames,
+    required this.familyId,
+    required this.currentUserId,
+  });
   final PBv1History history;
   final Map<String, String> userNames;
   final String familyId;
+  final String? currentUserId;
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +220,7 @@ class _HistoryBody extends StatelessWidget {
           _FamilyLeaderboardSection(
             leaderboard: history.leaderboard,
             userNames: userNames,
-            currentUserId: _currentUserId,
+            currentUserId: currentUserId,
           ),
           const SizedBox(height: 20),
         ],

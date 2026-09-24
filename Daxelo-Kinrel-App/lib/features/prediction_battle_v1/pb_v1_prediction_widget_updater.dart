@@ -143,11 +143,9 @@ class PredictionWidgetUpdater {
       await HomeWidget.saveWidgetData(_kWidgetCountKey, families.length);
       // Reset the selected index if it's now out of bounds (e.g., user
       // left a family). The native side clamps on read too, but we
-      // also clamp here to avoid a stale index pointing at nothing.
-      final selectedIndex = await HomeWidget.readWidgetData<int>(_kWidgetSelectedIndexKey) ?? 0;
-      if (selectedIndex >= families.length) {
-        await HomeWidget.saveWidgetData(_kWidgetSelectedIndexKey, 0);
-      }
+      // also reset here to avoid a stale index pointing at nothing.
+      // NOTE: home_widget 0.7.0+1 doesn't have readWidgetData, so we
+      // skip this check. The native Kotlin side handles the clamping.
 
       // 5. Trigger the native widget update.
       await HomeWidget.updateWidget(

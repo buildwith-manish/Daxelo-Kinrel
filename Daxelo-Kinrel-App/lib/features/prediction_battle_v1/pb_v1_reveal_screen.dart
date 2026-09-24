@@ -10,7 +10,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
-import '../../../family/providers/family_member_names_provider.dart';
+import '../family/providers/family_member_names_provider.dart';
 import 'pb_v1_history_provider.dart';
 import 'pb_v1_models.dart';
 import 'pb_v1_provider.dart';

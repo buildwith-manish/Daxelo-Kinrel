@@ -19,6 +19,8 @@
 // concurrent realtime channel, and most users never scroll down to
 // the prediction section in a given session.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -357,7 +359,7 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
               // rounds + their win streak without scrolling to the
               // reveal summary state.
               GestureDetector(
-                onTap: () => context.push('/family/$familyId/prediction-battle-v1/history'),
+                onTap: () => context.push('/family/${widget.familyId}/prediction-battle-v1/history'),
                 child: Text(
                   'View history →',
                   style: TextStyle(
@@ -389,7 +391,7 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
               ),
               const SizedBox(height: 6),
               GestureDetector(
-                onTap: () => context.push('/family/$familyId/prediction-battle-v1/history'),
+                onTap: () => context.push('/family/${widget.familyId}/prediction-battle-v1/history'),
                 child: Text(
                   'View history →',
                   style: TextStyle(
