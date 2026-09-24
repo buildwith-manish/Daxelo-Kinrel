@@ -31,6 +31,7 @@ import '../../../kinrel_intelligence/data/kinrel_model.dart';
 import '../../../kinrel_intelligence/providers/kinrel_provider.dart';
 import '../../../kinrel_intelligence/widgets/kinrel_symbol_widget.dart';
 import '../../../prediction_battle_v1/pb_v1_hero_teaser.dart';
+import '../../../prediction_battle_v1/pb_v1_coin_chip.dart';
 import 'design_system.dart';
 import 'mandala_painter.dart';
 
@@ -287,7 +288,20 @@ class HeroSection extends ConsumerWidget {
                         opacity: nameOpacity * 0.8,
                         child: Padding(
                           padding: const EdgeInsets.only(top: 8),
-                          child: PredictionBattleHeroTeaser(familyId: familyId),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            crossAxisAlignment: WrapCenterAlignment.center,
+                            children: [
+                              PredictionBattleHeroTeaser(familyId: familyId),
+                              // Phase 3.7 — coin balance chip. Sits
+                              // alongside the prediction teaser so the
+                              // user sees their coin total at a glance
+                              // every time they open the family hub.
+                              // Tap → coin history screen.
+                              PredictionBattleCoinChip(familyId: familyId),
+                            ],
+                          ),
                         ),
                       ),
                   ] else ...[

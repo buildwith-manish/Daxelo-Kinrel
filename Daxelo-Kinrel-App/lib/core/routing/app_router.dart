@@ -85,6 +85,8 @@ import '../../features/chat/presentation/wallpaper_settings_screen.dart';
 import '../../features/prediction_battle_v1/pb_v1_reveal_screen.dart';
 // Phase 3.3 — Prediction Battle v1 history screen.
 import '../../features/prediction_battle_v1/pb_v1_history_screen.dart';
+// Phase 3.7 — Prediction Battle v1 coin history screen.
+import '../../features/prediction_battle_v1/pb_v1_coin_history_screen.dart';
 import '../../features/hot_seat/presentation/hot_seat_screen.dart';
 import '../../features/relation_riddles/presentation/relation_riddle_screen.dart';
 import '../../features/calendar/presentation/family_calendar_screen.dart'
@@ -1655,6 +1657,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: PBv1HistoryScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+
+      // ── Prediction Battle v1 Coin History ─────────────────────
+      // Phase 3.7 — shows the user's coin balance (hero stat) +
+      // paginated ledger of credits (and future spends). Reachable
+      // via the coin chip on the family hub hero.
+      GoRoute(
+        path: '/family/:id/prediction-battle-v1/coins',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: PBv1CoinHistoryScreen(
             familyId: state.pathParameters['id']!,
           ),
         ),
