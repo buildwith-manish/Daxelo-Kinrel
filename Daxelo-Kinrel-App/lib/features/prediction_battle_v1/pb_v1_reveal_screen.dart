@@ -14,6 +14,7 @@ import '../family/providers/family_member_names_provider.dart';
 import 'pb_v1_history_provider.dart';
 import 'pb_v1_models.dart';
 import 'pb_v1_provider.dart';
+import 'pb_v1_rank_badge.dart';
 
 class PBv1RevealScreen extends ConsumerStatefulWidget {
   const PBv1RevealScreen({super.key, required this.familyId, required this.roundId});
@@ -242,8 +243,6 @@ class _RankedGuessRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const medals = ['🥇', '🥈', '🥉'];
-    final medal = rank <= 3 ? medals[rank - 1] : '#$rank';
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -254,7 +253,7 @@ class _RankedGuessRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(width: 28, child: Text(medal, style: const TextStyle(fontSize: 14))),
+          PBv1RankBadge(rank: rank),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

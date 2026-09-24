@@ -37,7 +37,6 @@ import '../../../core/utils/smart_preloader.dart';
 import '../../../core/utils/share_helper.dart';
 import '../../prediction_battle_v1/pb_v1_card.dart';
 import '../../prediction_battle_v1/pb_v1_fun_fact_card.dart';
-import '../../prediction_battle_v1/pb_v1_recent_rounds_strip.dart';
 import '../../thinking/presentation/family_ring_widget.dart';
 import '../../games/services/game_asset_manager.dart';
 import '../../games/shared/icons/game_icons.dart';
@@ -304,19 +303,6 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                     child: staggerFade(
                       FamilyCoinPoolCard(familyId: widget.familyId),
                       2,
-                    ),
-                  ),
-
-                  // 2b. Phase 3.18 — Recent rounds strip. Shows the
-                  //     top 3 most-recently-revealed rounds so the
-                  //     user can see recent activity (WON/PLAYED/
-                  //     MISSED) without digging into the history
-                  //     screen. Each row taps → reveal screen for
-                  //     that specific round. "See all →" → history.
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      PredictionBattleRecentRoundsStrip(familyId: widget.familyId),
-                      4,
                     ),
                   ),
 

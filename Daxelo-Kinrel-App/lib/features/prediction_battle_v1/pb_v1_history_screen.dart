@@ -26,6 +26,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/app_time.dart';
 import 'pb_v1_history_models.dart';
 import 'pb_v1_history_provider.dart';
+import 'pb_v1_rank_badge.dart';
 import 'pb_v1_submit_question_sheet.dart';
 
 class PBv1HistoryScreen extends ConsumerStatefulWidget {
@@ -801,8 +802,6 @@ class _PodiumTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const medals = ['🥇', '🥈', '🥉'];
-    final medal = medals[rank - 1];
     final name = userNames[entry.userId] ?? entry.userId.substring(0, 8);
 
     return Container(
@@ -824,8 +823,8 @@ class _PodiumTile extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(medal, style: const TextStyle(fontSize: 14)),
-              const SizedBox(width: 4),
+              PBv1RankBadge(rank: rank, size: 24),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   name,
