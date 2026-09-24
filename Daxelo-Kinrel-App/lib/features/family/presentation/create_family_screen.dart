@@ -24,7 +24,14 @@ import 'join_family_screen.dart';
 import 'qr_scanner_screen.dart';
 
 class CreateFamilyScreen extends ConsumerStatefulWidget {
-  CreateFamilyScreen({super.key});
+  CreateFamilyScreen({super.key, this.prefillName});
+
+  /// Optional family-name pre-fill (Phase 3.16). Passed from the
+  /// Join-or-Create decision screen so the user doesn't retype the
+  /// surname they already entered there. May be null (e.g., when
+  /// the user navigates to /families/create from the home screen's
+  /// "Create Family" button — no pre-fill in that case).
+  final String? prefillName;
 
   @override
   ConsumerState<CreateFamilyScreen> createState() => _CreateFamilyScreenState();
@@ -66,6 +73,16 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
         _codeController.text = 'family-$suffix';
         _usernameController.text = 'family$suffix';
         _lastAutoUsername = 'family$suffix';
+
+        // ── Phase 3.16 — pre-fill family name from decision screen ──
+        // If the user came from the Join-or-Create screen with a
+        // surname pre-filled ("Sharma Family"), populate the field
+        // so they don't retype it. Safe to overwrite the empty
+        // initial state — the _onNameChanged listener will fire and
+        // re-generate the slug + username accordingly.
+        if (widget.prefillName != null && widget.prefillName!.isNotEmpty) {
+          _nameController.text = widget.prefillName!;
+        }
 
         // ── Pre-fill the creator's name from their profile ──────────
         // The creator should be added to the family graph by default

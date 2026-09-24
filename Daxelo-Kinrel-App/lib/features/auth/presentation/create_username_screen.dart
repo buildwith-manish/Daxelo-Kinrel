@@ -99,8 +99,16 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
 
       if (!mounted) return;
 
-      // Navigate to home
-      context.go('/home');
+      // Phase 3.16 — Navigate to the Join-or-Create decision screen
+      // instead of /home. The decision screen:
+      //   - Auto-redirects to /home if the user already has a family
+      //     (e.g., joined via deep-link during sign-up).
+      //   - Otherwise shows the "Join an existing family / Start a
+      //     new family" decision UI with surname pre-filled.
+      // This replaces the previous "drop the user on /home with an
+      // empty state and let them figure out family setup later"
+      // behavior — which was the #1 onboarding friction point.
+      context.go('/join-or-create-family');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

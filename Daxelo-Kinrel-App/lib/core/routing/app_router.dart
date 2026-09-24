@@ -68,6 +68,7 @@ import '../../features/family/presentation/group_hub_screen.dart';
 import '../../features/family/presentation/path_finder_screen.dart';
 import '../../features/family/presentation/create_family_screen.dart';
 import '../../features/family/presentation/join_family_screen.dart';
+import '../../features/family/presentation/join_or_create_family_screen.dart';
 import '../../features/family/presentation/family_qr_screen.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_builder_screen.dart';
@@ -1320,7 +1321,28 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/families/create',
         pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: CreateFamilyScreen()),
+            _fastFadePage(
+              key: state.pageKey,
+              // Phase 3.16 — accept optional ?prefillName=... query
+              // param from the Join-or-Create decision screen.
+              child: CreateFamilyScreen(
+                prefillName: state.uri.queryParameters['prefillName'],
+              ),
+            ),
+      ),
+      // ── Join-or-Create first-run decision screen ─────────────────
+      // Phase 3.16 — replaces the "auto-create a default family"
+      // idea (which would explode the family table with orphan
+      // rows). After sign-up + username creation, the user lands
+      // here to pick "Join an existing family" (paste code / scan
+      // QR / auto-detect clipboard) OR "Start a new family"
+      // (surname pre-filled). If the user already has a family
+      // (e.g., joined via deep-link during sign-up), the screen
+      // redirects to /home immediately.
+      GoRoute(
+        path: '/join-or-create-family',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const JoinOrCreateFamilyScreen()),
       ),
       GoRoute(
         path: '/join-family',
