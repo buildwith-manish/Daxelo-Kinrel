@@ -283,7 +283,16 @@ class HeroSection extends ConsumerWidget {
                     // provider is loading or has no round — that way
                     // the hero layout doesn't shift before the prediction
                     // card below has had a chance to load.
-                    if (symbolSize > 10)
+                    //
+                    // Phase 3.23 — Removed the PredictionBattleHeroTeaser
+                    // and PredictionBattleCoinChip from the hero section
+                    // per user request ("remove the small 'Guess Locked •
+                    // Reveal in 24m' bubble and the coin icon"). The
+                    // prediction card below the hero already shows all
+                    // the relevant state — the hero teaser was redundant
+                    // and the coin chip made the interface look
+                    // unprofessional.
+                    if (false)
                       Opacity(
                         opacity: nameOpacity * 0.8,
                         child: Padding(
@@ -294,11 +303,6 @@ class HeroSection extends ConsumerWidget {
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               PredictionBattleHeroTeaser(familyId: familyId),
-                              // Phase 3.7 — coin balance chip. Sits
-                              // alongside the prediction teaser so the
-                              // user sees their coin total at a glance
-                              // every time they open the family hub.
-                              // Tap → coin history screen.
                               PredictionBattleCoinChip(familyId: familyId),
                             ],
                           ),

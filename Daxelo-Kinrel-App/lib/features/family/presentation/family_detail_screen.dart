@@ -36,7 +36,6 @@ import 'add_member_options_sheet.dart';
 import '../../../core/utils/smart_preloader.dart';
 import '../../../core/utils/share_helper.dart';
 import '../../prediction_battle_v1/pb_v1_card.dart';
-import '../../prediction_battle_v1/pb_v1_fun_fact_card.dart';
 import '../../prediction_battle_v1/pb_v1_recent_rounds_strip.dart';
 import '../../thinking/presentation/family_ring_widget.dart';
 import '../../games/services/game_asset_manager.dart';
@@ -294,21 +293,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                     ),
                   ),
 
-                  // 2a. Phase 3.14 — Daily "Did you know?" fun-fact card.
-                  //     Surfaces a random fun fact from pb_v1_questions
-                  //     per day per family (deterministic by date so all
-                  //     family members see the same fact — gives them
-                  //     something to chat about). Hidden if no questions
-                  //     have fun facts.
-                  const SliverToBoxAdapter(child: SizedBox(height: 8)),
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      PredictionBattleFunFactCard(familyId: widget.familyId),
-                      2,
-                    ),
-                  ),
-
-                  // 2b. Phase 3.15 — Family coin pool progress card.
+                  // 2a. Phase 3.15 — Family coin pool progress card.
                   //     Shows the family's collective coin total vs.
                   //     the next goal (500, then 1000, then 1500...).
                   //     Drives collective engagement — family members
@@ -317,11 +302,11 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   SliverToBoxAdapter(
                     child: staggerFade(
                       FamilyCoinPoolCard(familyId: widget.familyId),
-                      3,
+                      2,
                     ),
                   ),
 
-                  // 2c. Phase 3.18 — Recent rounds strip. Shows the
+                  // 2b. Phase 3.18 — Recent rounds strip. Shows the
                   //     top 3 most-recently-revealed rounds so the
                   //     user can see recent activity (WON/PLAYED/
                   //     MISSED) without digging into the history

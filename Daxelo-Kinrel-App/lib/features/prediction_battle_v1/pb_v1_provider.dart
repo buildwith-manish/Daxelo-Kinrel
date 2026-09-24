@@ -53,7 +53,10 @@ class PBv1Notifier extends StateNotifier<PBv1State> {
   bool _isActive = false; // gated by VisibilityDetector from the card
   bool _loadedOnce = false;
 
-  static const _cacheKeyPrefix = 'pb_v1_round_';
+  // Phase 3.23 — bumped from 'pb_v1_round_' to invalidate stale caches
+  // that contain rounds with the old 9 PM reveal time (pre-lifecycle-
+  // change). The new reveal time is 9:30 PM IST.
+  static const _cacheKeyPrefix = 'pb_v1_round_v2_';
 
   // ── Public API ──────────────────────────────────────────────────────
 
