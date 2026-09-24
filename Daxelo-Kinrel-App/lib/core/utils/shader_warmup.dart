@@ -39,6 +39,7 @@
 
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Pre-compiles the shaders used by the Prediction Battle v1 card.
