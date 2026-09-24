@@ -20,6 +20,7 @@
 // the prediction section in a given session.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -29,6 +30,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/utils/app_time.dart';
 import 'pb_v1_models.dart';
 import 'pb_v1_provider.dart';
+import 'pb_v1_submit_question_sheet.dart';
 
 class PredictionBattleV1Card extends ConsumerStatefulWidget {
   const PredictionBattleV1Card({super.key, required this.familyId});
@@ -44,14 +46,31 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
   // Unique key for VisibilityDetector — must be stable per widget instance.
   final _visibilityKey = ValueKey('pb_v1_card_${IdentityHash.next()}');
 
+  // Phase 3.22 (item 14) — Live countdown timer. Updates every second
+  // so the "Reveal in 4h 23m" text doesn't go stale. Only the countdown
+  // text re-builds (via setState), not the whole card — keeps the
+  // cost negligible.
+  Timer? _countdownTimer;
+  String _liveCountdown = '';
+
   @override
   void initState() {
     super.initState();
+    // Phase 3.22 (item 14) — Start the 1-second countdown timer.
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final newCountdown = ref.read(pbV1Provider(widget.familyId).notifier).revealCountdown;
+      if (newCountdown != _liveCountdown) {
+        setState(() => _liveCountdown = newCountdown);
+      }
+    });
     Future.microtask(() => ref.read(pbV1Provider(widget.familyId).notifier).load());
   }
 
   @override
   void dispose() {
+    // Phase 3.22 (item 14) — Cancel the live countdown timer.
+    _countdownTimer?.cancel();
     // Mark inactive so the provider tears down the WS channel even if
     // we never get an `onVisibilityChanged(false)` callback (e.g., the
     // user navigates away by pressing back).
@@ -63,11 +82,75 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
   Future<void> _submit() async {
     final value = double.tryParse(_controller.text.trim());
     if (value == null) return;
+
+    // Phase 3.22 (item 9) — Confirm dialog before locking in the guess.
+    // The guess is permanent (no editing after submit), so we make the
+    // "I'm committed" moment explicit. Shows the guess value + the 1-
+    // coin participation award inline so the user knows what they're
+    // committing to.
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: KinrelColors.darkCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Lock in your guess?', style: TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w700)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Your guess: $value',
+              style: const TextStyle(color: KinrelColors.brightGold, fontSize: 22, fontWeight: FontWeight.w800, fontFamily: KinrelTypography.displayFont),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'You can\'t change this after submitting. Reveal is at 9:30 PM IST.',
+              style: TextStyle(color: KinrelColors.textSilver, fontSize: 12, fontFamily: KinrelTypography.bodyFont),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Text('🪙', style: TextStyle(fontSize: 14)),
+                const SizedBox(width: 4),
+                Text(
+                  '+1 coin for participating',
+                  style: TextStyle(color: KinrelColors.brightGold.withValues(alpha: 0.8), fontSize: 11, fontFamily: KinrelTypography.bodyFont, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: KinrelColors.textDim)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: KinrelColors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Lock in', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    // Phase 3.22 (item 13) — Haptic feedback on submit.
+    HapticFeedback.lightImpact();
+
     setState(() => _submitting = true);
     final ok = await ref.read(pbV1Provider(widget.familyId).notifier).submitGuess(value);
     if (mounted) {
       setState(() => _submitting = false);
-      if (!ok) {
+      if (ok) {
+        // Phase 3.22 (item 13) — Success haptic.
+        HapticFeedback.mediumImpact();
+      } else {
+        // Phase 3.22 (item 13) — Error haptic.
+        HapticFeedback.heavyImpact();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not submit — try again'), backgroundColor: Colors.red),
         );
@@ -84,16 +167,109 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
             ? const SizedBox.shrink()
             : _buildCard(context, state));
 
+    // Phase 3.22 (item 11) — Long-press the card → quick actions menu.
+    // The menu gives 1-tap access to the 4 most-used prediction
+    // destinations, so users don't have to hunt for the small text
+    // links inside the card. Uses showModalBottomSheet for a clean
+    // Material 3 bottom-sheet UX.
+    final withLongPress = state.isLoading || state.round == null
+        ? child
+        : GestureDetector(
+            onLongPress: () => _showQuickActions(context, state),
+            child: child,
+          );
+
     // Wrap in VisibilityDetector so the provider can gate its realtime
     // WS subscription by whether the card is actually on-screen. 30%
     // threshold avoids flicker on partial scroll overshoots.
     return VisibilityDetector(
       key: _visibilityKey,
-      child: child,
+      child: withLongPress,
       onVisibilityChanged: (info) {
         final active = info.visibleFraction > 0.30;
         ref.read(pbV1Provider(widget.familyId).notifier).setActive(active);
       },
+    );
+  }
+
+  /// Phase 3.22 (item 11) — Quick actions bottom sheet.
+  void _showQuickActions(BuildContext context, PBv1State state) {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(top: 12, bottom: 16),
+                decoration: BoxDecoration(
+                  color: KinrelColors.textDim.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            // Quick actions
+            ListTile(
+              leading: const Icon(Icons.history, color: KinrelColors.orange),
+              title: const Text('View history', style: TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont)),
+              subtitle: const Text('See past rounds + your streak', style: TextStyle(color: KinrelColors.textDim, fontSize: 11)),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/family/${widget.familyId}/prediction-battle-v1/history');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined, color: KinrelColors.brightGold),
+              title: const Text('Family Moments', style: TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont)),
+              subtitle: const Text('See wins + featured moments', style: TextStyle(color: KinrelColors.textDim, fontSize: 11)),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/family/${widget.familyId}/prediction-battle-v1/moments');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.add_circle_outline, color: KinrelColors.amber),
+              title: const Text('Suggest a question', style: TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont)),
+              subtitle: const Text('Earn 5 coins when approved', style: TextStyle(color: KinrelColors.textDim, fontSize: 11)),
+              onTap: () {
+                Navigator.pop(ctx);
+                PBv1SubmitQuestionSheet.show(context, ref, widget.familyId);
+              },
+            ),
+            if (state.revealed && state.round != null)
+              ListTile(
+                leading: const Icon(Icons.share_outlined, color: KinrelColors.orange),
+                title: const Text('Share today\'s result', style: TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont)),
+                subtitle: const Text('Send to WhatsApp / SMS', style: TextStyle(color: KinrelColors.textDim, fontSize: 11)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  // Deep-link to the reveal screen where the share
+                  // button is.
+                  context.push('/family/${widget.familyId}/prediction-battle-v1/reveal/${state.round!.id}');
+                },
+              ),
+            ListTile(
+              leading: Icon(Icons.settings_outlined, color: KinrelColors.textDim),
+              title: const Text('Widget settings', style: TextStyle(color: KinrelColors.textSilver, fontFamily: KinrelTypography.bodyFont)),
+              subtitle: const Text('Choose families for the home widget', style: TextStyle(color: KinrelColors.textDim, fontSize: 11)),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/family/${widget.familyId}/prediction-battle-v1/widget-settings');
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
   }
 
@@ -173,7 +349,7 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
               ),
               const SizedBox(height: 8),
               Text(
-                'Reveal at ${_formatRevealTime(round.revealAt)} · ${ref.read(pbV1Provider(widget.familyId).notifier).revealCountdown}',
+                'Reveal at ${_formatRevealTime(round.revealAt)} · $_liveCountdown',
                 style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: KinrelColors.textDim),
               ),
               const SizedBox(height: 6),
@@ -208,7 +384,7 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
               ),
               const SizedBox(height: 6),
               Text(
-                'Reveal in ${ref.read(pbV1Provider(widget.familyId).notifier).revealCountdown}',
+                'Reveal in $_liveCountdown',
                 style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.amber),
               ),
               const SizedBox(height: 6),
@@ -299,7 +475,10 @@ class _RevealSummary extends StatelessWidget {
         Row(
           children: [
             GestureDetector(
-              onTap: () => context.push('/family/$familyId/prediction-battle-v1/reveal/${state.round!.id}'),
+              onTap: () {
+                HapticFeedback.selectionClick();
+                context.push('/family/$familyId/prediction-battle-v1/reveal/${state.round!.id}');
+              },
               child: Text(
                 'See full reveal →',
                 style: TextStyle(

@@ -645,7 +645,131 @@ class _FamilyLeaderboardSection extends StatelessWidget {
               isMe: rest[i].userId == currentUserId,
             ),
         ],
+        // Phase 3.22 (item 12) — "You vs. the leader" gap line.
+        // Gamifies the catch-up. Shows the gap between the user's
+        // current streak and the leader's, so the user knows exactly
+        // how many wins they need to overtake. Hidden if:
+        //   - The user is not in the leaderboard (never won a round)
+        //   - The user IS the leader (no gap to show)
+        if (currentUserId != null && leaderboard.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _LeaderboardGapLine(
+            leaderboard: leaderboard,
+            userNames: userNames,
+            currentUserId: currentUserId!,
+          ),
+        ],
       ],
+    );
+  }
+}
+
+/// Phase 3.22 (item 12) — "You vs. the leader" gap line.
+/// Shows: "You're 2 wins behind [LeaderName] — win today to catch up!"
+/// or hidden if the user is the leader or not in the leaderboard.
+class _LeaderboardGapLine extends StatelessWidget {
+  const _LeaderboardGapLine({
+    required this.leaderboard,
+    required this.userNames,
+    required this.currentUserId,
+  });
+
+  final List<PBv1LeaderboardEntry> leaderboard;
+  final Map<String, String> userNames;
+  final String currentUserId;
+
+  @override
+  Widget build(BuildContext context) {
+    final leader = leaderboard.first;
+    final myEntry = leaderboard.where((e) => e.userId == currentUserId).firstOrNull;
+
+    // User is not in the leaderboard (never won a round) — show
+    // a different copy: "Win your first round to join the leaderboard!"
+    if (myEntry == null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: KinrelColors.darkCard,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: KinrelColors.border, width: 0.5),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.emoji_events_outlined, size: 14, color: KinrelColors.brightGold),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Win your first round to join the leaderboard!',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textSilver,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // User IS the leader — show a celebratory line.
+    if (myEntry.userId == leader.userId) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: KinrelColors.brightGold.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: KinrelColors.brightGold.withValues(alpha: 0.25), width: 0.5),
+        ),
+        child: Row(
+          children: [
+            const Text('🏆', style: TextStyle(fontSize: 14)),
+            const SizedBox(width: 6),
+            Text(
+              'You lead with a ${myEntry.currentStreak}-day streak!',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.brightGold,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // User is behind the leader — show the gap.
+    final gap = leader.currentStreak - myEntry.currentStreak;
+    final leaderName = userNames[leader.userId] ?? leader.userId.substring(0, 8);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: KinrelColors.orange.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.20), width: 0.5),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.trending_up, size: 14, color: KinrelColors.orange),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              gap > 0
+                  ? "You're $gap win${gap == 1 ? '' : 's'} behind $leaderName — win today to catch up!"
+                  : "You're tied with $leaderName at ${myEntry.currentStreak} wins!",
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.orange,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
