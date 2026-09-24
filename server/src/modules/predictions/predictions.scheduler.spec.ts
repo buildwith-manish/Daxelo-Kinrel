@@ -5,7 +5,7 @@
 // Supabase + Prisma + FCM) — instead we test the pure helper functions
 // that are extracted at the bottom of the file.
 
-import { computeDistance, truncate, isInStreakDangerWindowAt } from './predictions.scheduler';
+import { computeDistance, truncate, isInStreakDangerWindowAt, isWeeklyRecapWindowAt } from './predictions.scheduler';
 
 describe('predictions.scheduler pure helpers', () => {
   describe('computeDistance', () => {
@@ -132,6 +132,78 @@ describe('predictions.scheduler pure helpers', () => {
       expect(isInStreakDangerWindowAt(dt1)).toBe(true);
       expect(isInStreakDangerWindowAt(dt2)).toBe(true);
       expect(isInStreakDangerWindowAt(dt3)).toBe(true);
+    });
+  });
+
+  describe('isWeeklyRecapWindowAt', () => {
+    // The window is Sundays 10:00–10:15 AM IST (15-min window).
+    // 10:00 AM IST = 04:30 UTC (since IST = UTC + 5:30, UTC = IST - 5:30).
+    // 10:15 AM IST = 04:45 UTC.
+    // Sunday in IST = Sunday in UTC for these times (since 04:30 UTC is
+    // still the same calendar day as 10:00 IST).
+
+    it('returns true on Sunday at 10:00 AM IST (04:30 UTC)', () => {
+      // 2026-09-27 is a Sunday
+      const dt = new Date('2026-09-27T04:30:00.000Z');
+      expect(isWeeklyRecapWindowAt(dt)).toBe(true);
+    });
+
+    it('returns true on Sunday at 10:10 AM IST (04:40 UTC)', () => {
+      const dt = new Date('2026-09-27T04:40:00.000Z');
+      expect(isWeeklyRecapWindowAt(dt)).toBe(true);
+    });
+
+    it('returns true on Sunday at 10:14 AM IST (04:44 UTC)', () => {
+      const dt = new Date('2026-09-27T04:44:59.000Z');
+      expect(isWeeklyRecapWindowAt(dt)).toBe(true);
+    });
+
+    it('returns false on Sunday at 10:15 AM IST (04:45 UTC) — exclusive end', () => {
+      const dt = new Date('2026-09-27T04:45:00.000Z');
+      expect(isWeeklyRecapWindowAt(dt)).toBe(false);
+    });
+
+    it('returns false on Sunday at 9:59 AM IST (04:29 UTC) — just before start', () => {
+      const dt = new Date('2026-09-27T04:29:59.000Z');
+      expect(isWeeklyRecapWindowAt(dt)).toBe(false);
+    });
+
+    it('returns false on Sunday at 11:00 AM IST (05:30 UTC) — after end', () => {
+      const dt = new Date('2026-09-27T05:30:00.000Z');
+      expect(isWeeklyRecapWindowAt(dt)).toBe(false);
+    });
+
+    it('returns false on Monday at 10:05 AM IST — wrong day', () => {
+      // 2026-09-28 is a Monday
+      const dt = new Date('2026-09-28T04:35:00.000Z');
+      expect(isWeeklyRecapWindowAt(dt)).toBe(false);
+    });
+
+    it('returns false on Saturday at 10:05 AM IST — wrong day', () => {
+      // 2026-09-26 is a Saturday
+      const dt = new Date('2026-09-26T04:35:00.000Z');
+      expect(isWeeklyRecapWindowAt(dt)).toBe(false);
+    });
+
+    it('returns false on Sunday at 8:00 PM IST — wrong time of day', () => {
+      // 8:00 PM IST = 14:30 UTC — same calendar Sunday in both zones
+      const dt = new Date('2026-09-27T14:30:00.000Z');
+      expect(isWeeklyRecapWindowAt(dt)).toBe(false);
+    });
+
+    it('returns false on Sunday at midnight IST — wrong time', () => {
+      // Midnight IST = 18:30 UTC the previous day
+      const dt = new Date('2026-09-26T18:30:00.000Z');
+      expect(isWeeklyRecapWindowAt(dt)).toBe(false);
+    });
+
+    it('handles week boundary — different Sundays all match', () => {
+      const sunday1 = new Date('2026-09-27T04:35:00.000Z'); // Sep 27
+      const sunday2 = new Date('2026-10-04T04:35:00.000Z'); // Oct 4
+      const sunday3 = new Date('2026-11-01T04:35:00.000Z'); // Nov 1
+      expect(isWeeklyRecapWindowAt(sunday1)).toBe(true);
+      expect(isWeeklyRecapWindowAt(sunday2)).toBe(true);
+      expect(isWeeklyRecapWindowAt(sunday3)).toBe(true);
     });
   });
 });

@@ -87,6 +87,8 @@ import '../../features/prediction_battle_v1/pb_v1_reveal_screen.dart';
 import '../../features/prediction_battle_v1/pb_v1_history_screen.dart';
 // Phase 3.7 — Prediction Battle v1 coin history screen.
 import '../../features/prediction_battle_v1/pb_v1_coin_history_screen.dart';
+// Phase 3.13 — Prediction Battle v1 Family Moments feed.
+import '../../features/prediction_battle_v1/pb_v1_moments_screen.dart';
 import '../../features/hot_seat/presentation/hot_seat_screen.dart';
 import '../../features/relation_riddles/presentation/relation_riddle_screen.dart';
 import '../../features/calendar/presentation/family_calendar_screen.dart'
@@ -1671,6 +1673,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: PBv1CoinHistoryScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+
+      // ── Prediction Battle v1 Family Moments feed ───────────────
+      // Phase 3.13 — lists all moments (prediction wins + future
+      // types) with the featured moment pinned to the top. Each
+      // moment card has a "Feature · 🪙 50" button (Tier 2 item 7).
+      GoRoute(
+        path: '/family/:id/prediction-battle-v1/moments',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: PBv1MomentsScreen(
             familyId: state.pathParameters['id']!,
           ),
         ),

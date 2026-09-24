@@ -6,10 +6,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import 'pb_v1_history_provider.dart';
 import 'pb_v1_models.dart';
 import 'pb_v1_provider.dart';
 
@@ -93,6 +95,18 @@ class _PBv1RevealScreenState extends ConsumerState<PBv1RevealScreen> {
         backgroundColor: KinrelColors.darkCard,
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
+        actions: [
+          // Phase 3.8 — Share reveal button. Lets the user share a
+          // text summary of today's result to WhatsApp / SMS / etc.
+          // Only shown after reveal (before reveal, there's nothing
+          // to share).
+          if (state.revealed && state.round != null && state.question != null)
+            IconButton(
+              icon: const Icon(Icons.share_outlined),
+              tooltip: 'Share result',
+              onPressed: () => _shareResult(state),
+            ),
+        ],
       ),
       body: state.isLoading || state.round == null
           ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
@@ -100,6 +114,74 @@ class _PBv1RevealScreenState extends ConsumerState<PBv1RevealScreen> {
               ? const Center(child: Text('Reveal has not happened yet', style: TextStyle(color: KinrelColors.textDim)))
               : _RevealBody(state: state, userNames: _userNames),
     );
+  }
+
+  /// Phase 3.8 — Share today's result via the system share sheet.
+  /// Builds a short text summary that works well in WhatsApp / SMS:
+  ///
+  ///   "I won today's Prediction Battle! 🎯
+  ///    Question: How many X?
+  ///    My guess: 42 (off by 0)
+  ///    Current streak: 5 days
+  ///    — Daxelo Kinrel"
+  ///
+  /// For non-winners, the copy is:
+  ///   "Today's Prediction Battle: How many X?
+  ///    Answer: 42. I guessed 45 — off by 3.
+  ///    — Daxelo Kinrel"
+  ///
+  /// We intentionally DON'T include other family members' guesses
+  /// in the shared text — privacy. The reveal screen itself shows
+  /// the full ranked list, but the share text is just the user's
+  /// own result.
+  Future<void> _shareResult(PBv1State state) async {
+    final question = state.question;
+    final myGuess = state.myGuess;
+    if (question == null) return;
+
+    final isWinner = myGuess != null && state.winnerUserIds.contains(myGuess.userId);
+    final answerStr = question.correctAnswer == question.correctAnswer.roundToDouble()
+        ? question.correctAnswer.toInt().toString()
+        : question.correctAnswer.toStringAsFixed(1);
+
+    final buffer = StringBuffer();
+    if (isWinner) {
+      buffer.writeln('I won today\'s Prediction Battle! 🎯');
+    } else {
+      buffer.writeln('Today\'s Prediction Battle result:');
+    }
+    buffer.writeln('Question: ${question.questionText}');
+    buffer.writeln('Answer: $answerStr ${question.unitLabel}');
+    if (myGuess != null) {
+      final guessStr = myGuess.guessValue == myGuess.guessValue.roundToDouble()
+          ? myGuess.guessValue.toInt().toString()
+          : myGuess.guessValue.toStringAsFixed(1);
+      // Compute distance for the share text. Use the same logic as
+      // PBv1Scoring.distance so the number matches what the user
+      // sees on the screen.
+      final distance = question.correctAnswer > 1000
+          ? (myGuess.guessValue - question.correctAnswer).abs() / question.correctAnswer * 100
+          : (myGuess.guessValue - question.correctAnswer).abs();
+      final distanceStr = question.correctAnswer > 1000
+          ? '${distance.toStringAsFixed(1)}%'
+          : (distance == distance.roundToDouble() ? distance.toInt().toString() : distance.toStringAsFixed(1));
+      buffer.writeln('My guess: $guessStr (off by $distanceStr)');
+      if (isWinner) {
+        // Pull the current streak from the history provider if it's
+        // loaded — but don't block on it. If the history isn't loaded
+        // yet, skip the streak line.
+        try {
+          final historyState = ref.read(pbV1HistoryProvider(widget.familyId));
+          final streak = historyState.history?.streak.currentStreak;
+          if (streak != null && streak > 0) {
+            buffer.writeln('Current streak: $streak day${streak == 1 ? '' : 's'}');
+          }
+        } catch (_) {}
+      }
+    }
+    buffer.writeln('— Daxelo Kinrel');
+
+    await Share.share(buffer.toString().trim());
   }
 }
 

@@ -25,6 +25,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/utils/app_time.dart';
 import 'pb_v1_history_models.dart';
 import 'pb_v1_history_provider.dart';
+import 'pb_v1_submit_question_sheet.dart';
 
 class PBv1HistoryScreen extends ConsumerStatefulWidget {
   const PBv1HistoryScreen({super.key, required this.familyId});
@@ -102,6 +103,15 @@ class _PBv1HistoryScreenState extends ConsumerState<PBv1HistoryScreen> {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
         actions: [
+          // Phase 3.9 — "Suggest a question" button. Opens the
+          // submit-question bottom sheet. Lets users add their own
+          // questions to the rotation (admin-moderated before going
+          // live; 5-coin reward when approved + used).
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline),
+            tooltip: 'Suggest a question',
+            onPressed: () => PBv1SubmitQuestionSheet.show(context, ref, widget.familyId),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',

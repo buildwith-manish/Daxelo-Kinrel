@@ -243,6 +243,9 @@ export class PredictionsScheduler implements OnModuleInit {
       // 8:30–9:00 PM IST window (see isStreakDangerWindow()). Outside
       // that window, the method is a fast no-op.
       await this.handleStreakInDanger();
+      // Phase 3.11 — weekly recap push. Only fires on Sundays inside
+      // the 10:00–10:15 AM IST window (see isWeeklyRecapWindow()).
+      await this.handleWeeklyRecap();
     } catch (err: any) {
       this.logger.error(`Prediction scheduler tick failed: ${err?.message}`);
     }
@@ -368,6 +371,137 @@ export class PredictionsScheduler implements OnModuleInit {
 
     if (totalDangerPushes > 0) {
       this.logger.log(`[prediction_v1] streak-in-danger: sent ${totalDangerPushes} push(es)`);
+    }
+  }
+
+  // ── Weekly recap push (Phase 3.11) ─────────────────────────────────
+  //
+  // Every Sunday at 10 AM IST, sends a "This week in [Family Name]:
+  // N predictions, M winners, K coins earned. See the recap →" push
+  // to every family member. Drives weekly re-engagement.
+  //
+  // Same windowed-cron pattern as the streak-in-danger push: the
+  // check runs inside every 15-min tick but only fires inside the
+  // 10:00–10:15 AM IST window on Sundays. If the 10:00 tick is
+  // missed, the 10:15 tick still catches it. Idempotent via
+  // Notification.personId = 'weekly_recap_<yyyy-mm-dd>' so multiple
+  // ticks in the window don't double-send.
+  //
+  // The recap is per-family, not per-user — every family member
+  // gets the same recap push for their family (with the same
+  // stats). The push title includes the family name so the user
+  // knows which family the recap is for.
+
+  private isInWeeklyRecapWindow(): boolean {
+    return isInWeeklyRecapWindowAt(new Date());
+  }
+
+  private async handleWeeklyRecap() {
+    if (!this.isInWeeklyRecapWindow()) return;
+
+    this.logger.log('[prediction_v1] weekly recap window active — scanning families');
+
+    // Get all distinct family ids that have had any prediction
+    // activity in the last 7 days (rounds OR guesses OR win_streaks).
+    // We use pb_v1_rounds as the source of truth since it's the
+    // main table.
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: familyRows, error } = await this.supabase!
+      .from('pb_v1_rounds')
+      .select('family_id')
+      .gte('created_at', since);
+
+    if (error) {
+      this.logger.warn(`handleWeeklyRecap families query failed: ${error.message}`);
+      return;
+    }
+    if (!familyRows || familyRows.length === 0) return;
+
+    // Deduplicate family_ids (a family with 7 rounds this week will
+    // appear 7 times in the rows array).
+    const familyIds = new Set<string>();
+    for (const row of familyRows as { family_id: string }[]) {
+      familyIds.add(row.family_id);
+    }
+
+    // The idempotency key is 'weekly_recap_<yyyy-mm-dd>' (IST date).
+    // We use the IST date so the recap is unique per calendar day,
+    // not per UTC day (which would split across two days for late-
+    // evening IST pushes).
+    const istOffsetMs = 5 * 60 * 60 * 1000 + 30 * 60 * 1000;
+    const istDate = new Date(Date.now() + istOffsetMs);
+    const dateStr = istDate.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+    const idempotencyKey = `weekly_recap_${dateStr}`;
+
+    let totalRecapPushes = 0;
+    for (const familyId of familyIds) {
+      try {
+        // 1. Fetch the weekly stats for this family.
+        const { data: recapRaw, error: recapErr } = await this.supabase!
+          .rpc('fn_pb_v1_get_weekly_recap', { p_family_id: familyId });
+        if (recapErr) {
+          this.logger.warn(`handleWeeklyRecap recap query failed for ${familyId}: ${recapErr.message}`);
+          continue;
+        }
+        const recap = recapRaw as Record<string, any> | null;
+        if (!recap || recap.ok !== true) continue;
+
+        const totalRounds = (recap.total_rounds ?? 0) as number;
+        const totalWinners = (recap.total_winners ?? 0) as number;
+        const totalCoins = (recap.total_coins_earned ?? 0) as number;
+        const topWinnerName = recap.top_winner_name as string | null;
+        const topWinnerStreak = (recap.top_winner_streak ?? 0) as number;
+
+        // Skip if there was no activity this week (avoid sending
+        // "0 predictions, 0 winners, 0 coins" pushes).
+        if (totalRounds === 0 && totalWinners === 0 && totalCoins === 0) continue;
+
+        // 2. Get the family name + all family members.
+        const family = await this.prisma.family.findUnique({
+          where: { id: familyId },
+          select: { name: true },
+        });
+        const familyName = family?.name ?? 'your family';
+        const familyMembers = await this.getFamilyMemberUserIds(familyId);
+        if (familyMembers.length === 0) continue;
+
+        // 3. Build the push body.
+        const title = `This week in ${familyName}`;
+        const bodyParts: string[] = [];
+        if (totalRounds > 0) bodyParts.push(`${totalRounds} prediction${totalRounds === 1 ? '' : 's'}`);
+        if (totalWinners > 0) bodyParts.push(`${totalWinners} winner${totalWinners === 1 ? '' : 's'}`);
+        if (totalCoins > 0) bodyParts.push(`${totalCoins} coins earned`);
+        let body = bodyParts.join(' · ');
+        if (topWinnerName && topWinnerStreak >= 3) {
+          body += `. ${topWinnerName} leads with a ${topWinnerStreak}-day streak! 🔥`;
+        }
+        body += '. See the recap →';
+        const actionUrl = `/family/${familyId}/prediction-battle-v1/history`;
+
+        // 4. Dispatch to every family member. Idempotent via the
+        //    per-day key.
+        for (const userId of familyMembers) {
+          await this.sendOnce({
+            userId,
+            eventType: 'prediction_v1_weekly_recap',
+            roundId: idempotencyKey, // NOT a round id — but the
+            // personId column is our generic idempotency slot. The
+            // per-day key prevents double-sending if both the 10:00
+            // and 10:15 ticks fire.
+            title,
+            body,
+            familyId,
+            actionUrl,
+          });
+          totalRecapPushes++;
+        }
+      } catch (err: any) {
+        this.logger.error(`handleWeeklyRecap failed for family ${familyId}: ${err?.message}`);
+      }
+    }
+
+    if (totalRecapPushes > 0) {
+      this.logger.log(`[prediction_v1] weekly recap: sent ${totalRecapPushes} push(es) across ${familyIds.size} families`);
     }
   }
 
@@ -645,4 +779,23 @@ export function isInStreakDangerWindowAt(now: Date): boolean {
   // Window: 8:30 PM IST = 20:30 = 1230. 9:00 PM IST = 21:00 = 1260.
   return istMinuteOfDay >= 1230 && istMinuteOfDay < 1260;
 }
+
+/**
+ * Returns true iff the given UTC Date falls inside the weekly recap
+ * push window (Sundays 10:00–10:15 AM IST). Exported for unit
+ * testing. Same fixed-offset IST computation as
+ * isInStreakDangerWindowAt (IST = UTC + 5:30, no DST in India).
+ */
+export function isWeeklyRecapWindowAt(now: Date): boolean {
+  const istOffsetMs = 5 * 60 * 60 * 1000 + 30 * 60 * 1000;
+  const istTime = new Date(now.getTime() + istOffsetMs);
+  const istDay = istTime.getUTCDay();        // 0 = Sunday
+  const istHour = istTime.getUTCHours();
+  const istMinute = istTime.getUTCMinutes();
+  const istMinuteOfDay = istHour * 60 + istMinute;
+  // Sunday = 0. Window: 10:00 AM IST = 600. 10:15 AM IST = 615.
+  return istDay === 0 && istMinuteOfDay >= 600 && istMinuteOfDay < 615;
+}
+
+
 
