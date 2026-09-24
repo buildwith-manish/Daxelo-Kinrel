@@ -128,7 +128,7 @@ class _PBv1MomentsScreenState extends ConsumerState<PBv1MomentsScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: KinrelColors.brightGold, foregroundColor: Colors.black),
+            style: ElevatedButton.styleFrom(backgroundColor: KinrelColors.orange, foregroundColor: Colors.white),
             child: const Text('Feature for 🪙 50'),
           ),
         ],
@@ -151,7 +151,7 @@ class _PBv1MomentsScreenState extends ConsumerState<PBv1MomentsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Moment featured for 24h! 🪙 50 coins spent.'),
-              backgroundColor: KinrelColors.brightGold,
+              backgroundColor: KinrelColors.orange,
             ),
           );
         } else {
@@ -191,7 +191,7 @@ class _PBv1MomentsScreenState extends ConsumerState<PBv1MomentsScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: KinrelColors.brightGold))
+          ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
           : _error != null
               ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('Could not load: $_error', style: const TextStyle(color: KinrelColors.textDim))))
               : _moments.isEmpty

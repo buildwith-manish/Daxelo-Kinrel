@@ -62,7 +62,7 @@ class _PBv1CoinHistoryScreenState extends ConsumerState<PBv1CoinHistoryScreen> {
         ],
       ),
       body: state.isLoading && state.history == null
-          ? const Center(child: CircularProgressIndicator(color: KinrelColors.brightGold))
+          ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
           : state.history == null
               ? _ErrorState(error: state.error)
               : _CoinHistoryBody(history: state.history!),
@@ -217,19 +217,19 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? KinrelColors.brightGold : KinrelColors.textDim;
+    final color = selected ? KinrelColors.orange : KinrelColors.textDim;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: selected
-              ? KinrelColors.brightGold.withValues(alpha: 0.12)
+              ? KinrelColors.orange.withValues(alpha: 0.12)
               : KinrelColors.darkCard,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: selected
-                ? KinrelColors.brightGold.withValues(alpha: 0.35)
+                ? KinrelColors.orange.withValues(alpha: 0.35)
                 : KinrelColors.border,
             width: 0.8,
           ),
@@ -304,13 +304,13 @@ class _BalanceHero extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            KinrelColors.brightGold.withValues(alpha: 0.10),
+            KinrelColors.orange.withValues(alpha: 0.10),
             KinrelColors.darkCard,
           ],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: KinrelColors.brightGold.withValues(alpha: 0.30),
+          color: KinrelColors.orange.withValues(alpha: 0.30),
           width: 1,
         ),
       ),
@@ -331,7 +331,7 @@ class _BalanceHero extends StatelessWidget {
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.8,
-                      color: KinrelColors.brightGold.withValues(alpha: 0.80),
+                      color: KinrelColors.orange.withValues(alpha: 0.80),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -342,7 +342,7 @@ class _BalanceHero extends StatelessWidget {
                       fontSize: 48,
                       fontWeight: FontWeight.w800,
                       color: balance.balance > 0
-                          ? KinrelColors.brightGold
+                          ? KinrelColors.orange
                           : KinrelColors.textDim,
                       height: 1.0,
                     ),

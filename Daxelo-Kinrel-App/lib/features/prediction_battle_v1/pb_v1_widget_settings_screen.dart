@@ -93,7 +93,7 @@ class _PBv1WidgetSettingsScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Widget updated. Add the "Prediction Battle" widget from your home screen to see it.'),
-          backgroundColor: KinrelColors.brightGold,
+          backgroundColor: KinrelColors.orange,
         ),
       );
     }
@@ -160,7 +160,7 @@ class _PBv1WidgetSettingsScreenState
                 color: KinrelColors.textWhite,
               ),
             ),
-            activeColor: KinrelColors.brightGold,
+            activeColor: KinrelColors.orange,
             checkColor: Colors.black,
             contentPadding: const EdgeInsets.symmetric(horizontal: 0),
           ),
@@ -174,8 +174,8 @@ class _PBv1WidgetSettingsScreenState
                 : const Icon(Icons.check_rounded, size: 18),
             label: const Text('Save', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
             style: FilledButton.styleFrom(
-              backgroundColor: KinrelColors.brightGold,
-              foregroundColor: Colors.black,
+              backgroundColor: KinrelColors.orange,
+              foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),

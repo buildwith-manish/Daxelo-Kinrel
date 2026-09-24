@@ -146,7 +146,7 @@ class _PBv1SubmitQuestionSheetState extends ConsumerState<PBv1SubmitQuestionShee
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Question submitted! An admin will review it. You\'ll get 5 coins when it\'s used. 🪙'),
-              backgroundColor: KinrelColors.brightGold,
+              backgroundColor: KinrelColors.orange,
             ),
           );
         } else {
@@ -293,8 +293,8 @@ class _PBv1SubmitQuestionSheetState extends ConsumerState<PBv1SubmitQuestionShee
             child: ElevatedButton(
               onPressed: _submitting ? null : _submit,
               style: ElevatedButton.styleFrom(
-                backgroundColor: KinrelColors.brightGold,
-                foregroundColor: Colors.black,
+                backgroundColor: KinrelColors.orange,
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
@@ -330,7 +330,7 @@ class _PBv1SubmitQuestionSheetState extends ConsumerState<PBv1SubmitQuestionShee
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: KinrelColors.brightGold, width: 1.2),
+        borderSide: BorderSide(color: KinrelColors.orange, width: 1.2),
       ),
     );
   }
