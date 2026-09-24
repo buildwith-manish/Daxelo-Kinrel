@@ -5,7 +5,7 @@
 // The backend pg_cron jobs (defined in migration
 // `20260922160000_prediction_battle_v1_scheduled.sql`) handle:
 //   - daily round creation at 8 AM IST
-//   - reveal transition at 9 PM IST
+//   - reveal transition at 9:30 PM IST (Phase 3.17 — was 9 PM)
 //
 // This NestJS scheduler is a thin **notification layer** that runs every
 // 15 minutes and emits FCM + in-app `Notification` rows for the two
@@ -253,10 +253,10 @@ export class PredictionsScheduler implements OnModuleInit {
 
   // ── Streak-in-danger push (Phase 3.7) ──────────────────────────────
   //
-  // Drives daily re-engagement. At 8:30 PM IST (90 min before the 9 PM
-  // reveal), find users with a current win streak ≥ 3 who haven't
+  // Drives daily re-engagement. At 8:30 PM IST (60 min before the
+  // 9:30 PM reveal — Phase 3.17), find users with a current win streak ≥ 3 who haven't
   // submitted a guess for today's round. Send them a push:
-  //   "Your 5-day streak is in danger — submit before 9 PM IST!"
+  //   "Your 5-day streak is in danger — submit before 9:30 PM IST!"
   //
   // Why a time window check inside the cron tick
   //   The cron already runs every 15 min. We could add a separate
@@ -266,21 +266,22 @@ export class PredictionsScheduler implements OnModuleInit {
   //   comparison) and returns immediately outside the window, so the
   //   cost of running the check on every tick is negligible.
   //
-  // Why the window is 8:30–9:00 IST (not just 8:30)
+  // Why the window is 8:30–9:30 IST (not just 8:30)
   //   If the NestJS server happens to be down at 8:30 (e.g., during a
   //   deploy), we still want to catch the danger window. Running the
-  //   check inside every tick from 8:30–9:00 means even if the 8:30
-  //   tick was missed, the 8:45 tick still catches it. The
-  //   idempotency check (Notification.personId = roundId) prevents
+  //   check inside every tick from 8:30–9:30 means even if the 8:30
+  //   tick was missed, the 8:45 / 9:00 / 9:15 ticks still catch it.
+  //   The idempotency check (Notification.personId = roundId) prevents
   //   double-sending if multiple ticks in the window fire.
   //
   // Idempotency
   //   Same pattern as the other prediction notifications: we check
   //   for an existing Notification row with eventType='prediction_v1_streak_in_danger'
   //   and personId=roundId before sending. So even if the 8:30, 8:45,
-  //   and 9:00 ticks all fire (the 9:00 tick is the reveal tick itself,
-  //   so this method bails early anyway since the round is no longer
-  //   'open'), we never send the danger push twice for the same round.
+  //   9:00, and 9:15 ticks all fire (the 9:30 tick is the reveal tick
+  //   itself, so this method bails early anyway since the round is no
+  //   longer 'open'), we never send the danger push twice for the
+  //   same round.
 
   private isInStreakDangerWindow(): boolean {
     return isInStreakDangerWindowAt(new Date());
@@ -349,8 +350,8 @@ export class PredictionsScheduler implements OnModuleInit {
           const streakCount = streak.current_streak;
           const title = `🔥 Your ${streakCount}-day streak is in danger!`;
           const body = streakCount >= 7
-            ? `Don't lose your ${streakCount}-day streak — submit your prediction before 9 PM IST!`
-            : `Submit your prediction before 9 PM IST to keep your ${streakCount}-day streak alive.`;
+            ? `Don't lose your ${streakCount}-day streak — submit your prediction before 9:30 PM IST!`
+            : `Submit your prediction before 9:30 PM IST to keep your ${streakCount}-day streak alive.`;
           const actionUrl = `/family/${round.family_id}`;
 
           await this.sendOnce({
@@ -546,8 +547,8 @@ export class PredictionsScheduler implements OnModuleInit {
 
     const title = 'A new prediction is live';
     const body = question
-      ? `${truncate(question.question_text, 90)} — guess before 9 PM IST`
-      : 'Today’s Prediction Battle is open — guess before 9 PM IST';
+      ? `${truncate(question.question_text, 90)} — guess before 9:30 PM IST`
+      : 'Today’s Prediction Battle is open — guess before 9:30 PM IST';
     const actionUrl = `/family/${round.family_id}`;
 
     for (const userId of familyMembers) {
@@ -759,9 +760,12 @@ export function truncate(s: string, max: number): string {
 
 /**
  * Returns true iff the given UTC Date falls inside the streak-in-
- * danger push window (8:30 PM IST to 9:00 PM IST). Exported for unit
+ * danger push window (8:30 PM IST to 9:30 PM IST). Exported for unit
  * testing — the scheduler's `isInStreakDangerWindow()` method just
  * delegates here with `new Date()`.
+ *
+ * Phase 3.17 — window extended from 8:30–9:00 PM IST to 8:30–9:30 PM
+ * IST to match the new 9:30 PM reveal time (was 9 PM).
  *
  * Implementation note: we compute IST by adding the fixed +5:30 offset
  * to the UTC time. This is correct because IST does NOT observe DST
@@ -776,8 +780,8 @@ export function isInStreakDangerWindowAt(now: Date): boolean {
   const istHour = istTime.getUTCHours();
   const istMinute = istTime.getUTCMinutes();
   const istMinuteOfDay = istHour * 60 + istMinute;
-  // Window: 8:30 PM IST = 20:30 = 1230. 9:00 PM IST = 21:00 = 1260.
-  return istMinuteOfDay >= 1230 && istMinuteOfDay < 1260;
+  // Window: 8:30 PM IST = 20:30 = 1230. 9:30 PM IST = 21:30 = 1290.
+  return istMinuteOfDay >= 1230 && istMinuteOfDay < 1290;
 }
 
 /**

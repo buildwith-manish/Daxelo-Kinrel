@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phase 3.21 — Prediction widget metadata. Defines the widget's
+     size (2x1 = minWidth 180dp, minHeight 60dp), preview image
+     (reuses the app icon for now), and update period (30 min —
+     matches the Dart-side periodic refresh). The Dart side also
+     triggers immediate updates on prediction state changes, so
+     this is the battery-friendly floor. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="60dp"
+    android:updatePeriodMillis="1800000"
+    android:previewImage="@mipmap/ic_launcher"
+    android:initialLayout="@layout/prediction_widget"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:previewLayout="@layout/prediction_widget" />

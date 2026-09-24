@@ -10,7 +10,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
-import '../../../core/services/supabase_service.dart';
+import '../../../family/providers/family_member_names_provider.dart';
 import 'pb_v1_history_provider.dart';
 import 'pb_v1_models.dart';
 import 'pb_v1_provider.dart';
@@ -25,11 +25,6 @@ class PBv1RevealScreen extends ConsumerStatefulWidget {
 }
 
 class _PBv1RevealScreenState extends ConsumerState<PBv1RevealScreen> {
-  // userId → display name. Filled once on screen open from the
-  // FamilyMember table joined with User. We store the full map in
-  // state so the rebuild on realtime update doesn't refetch.
-  Map<String, String> _userNames = const {};
-
   @override
   void initState() {
     super.initState();
@@ -40,7 +35,12 @@ class _PBv1RevealScreenState extends ConsumerState<PBv1RevealScreen> {
     Future.microtask(() {
       ref.read(pbV1Provider(widget.familyId).notifier).load();
       ref.read(pbV1Provider(widget.familyId).notifier).setActive(true);
-      _loadUserNames();
+      // Phase 3.20 — use the shared family-member-names provider
+      // (cache-first) instead of fetching names inline. This means
+      // the ranked-guess list renders with real names on cold open
+      // (from the LocalCacheService cache) instead of UUID prefixes
+      // for ~500ms while the lookup completes.
+      ref.read(familyMemberNamesProvider(widget.familyId).notifier).load();
     });
   }
 
@@ -51,37 +51,6 @@ class _PBv1RevealScreenState extends ConsumerState<PBv1RevealScreen> {
     // back to it.
     ref.read(pbV1Provider(widget.familyId).notifier).setActive(false);
     super.dispose();
-  }
-
-  Future<void> _loadUserNames() async {
-    final client = ref.read(supabaseProvider);
-    if (client == null) return;
-    try {
-      // Join FamilyMember → User to get a userId → name map for the
-      // family that this round belongs to. We use a single select with
-      // the nested User relation so it's one round-trip.
-      final rows = await client
-          .from('FamilyMember')
-          .select('userId, user:User(name)')
-          .eq('familyId', widget.familyId);
-      if (!mounted) return;
-      final map = <String, String>{};
-      for (final r in (rows as List)) {
-        final row = r as Map<String, dynamic>;
-        final uid = (row['userId'] ?? '') as String;
-        if (uid.isEmpty) continue;
-        final user = row['user'];
-        String name = uid.substring(0, 8); // fallback to UUID prefix
-        if (user is Map && user['name'] is String && (user['name'] as String).isNotEmpty) {
-          name = user['name'] as String;
-        }
-        map[uid] = name;
-      }
-      setState(() => _userNames = map);
-    } catch (e) {
-      // Best-effort — keep the UUID prefix fallback if this fails.
-      debugPrint('[PBv1] _loadUserNames: $e');
-    }
   }
 
   @override
@@ -112,7 +81,10 @@ class _PBv1RevealScreenState extends ConsumerState<PBv1RevealScreen> {
           ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
           : !state.revealed
               ? const Center(child: Text('Reveal has not happened yet', style: TextStyle(color: KinrelColors.textDim)))
-              : _RevealBody(state: state, userNames: _userNames),
+              : _RevealBody(
+                  state: state,
+                  userNames: ref.watch(familyMemberNamesProvider(widget.familyId)).names,
+                ),
     );
   }
 

@@ -64,6 +64,9 @@ import 'core/utils/app_time.dart';
 // first-frame jank on low-end Android when the card scrolls into view
 // for the first time.
 import 'core/utils/shader_warmup.dart';
+// Phase 3.21 — home-screen widget updater. Started on app resume +
+// on a 15-min timer so the widget countdown stays fresh.
+import 'features/prediction_battle_v1/pb_v1_prediction_widget_updater.dart';
 // Tier 1 #1 — central Realtime channel lifecycle manager.
 import 'core/network/realtime_channel_registry.dart';
 import 'features/games/shared/widgets/game_invite_listener.dart';
@@ -956,6 +959,15 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
         PaintingBinding.instance.imageCache.maximumSizeBytes = 100 * 1024 * 1024; // 100MB
         PaintingBinding.instance.imageCache.maximumSize = 1000; // 1000 images
       } catch (_) {}
+
+      // ── Phase 3.21 — Refresh the home-screen widget ────────────────
+      // On resume, refresh the prediction widget so the countdown
+      // picks up any time that elapsed while the app was backgrounded.
+      // Also starts the 15-min periodic timer (idempotent — cancels
+      // the old timer first).
+      try {
+        ref.read(predictionWidgetUpdaterProvider).startPeriodicRefresh();
+      } catch (_) {}
     } else if (state == AppLifecycleState.paused) {
       logActionBreadcrumb('app_background');
       sendUnsentReports();
@@ -1000,6 +1012,15 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
           PaintingBinding.instance.imageCache.maximumSize = 16; // 16 images
         } catch (_) {}
       });
+
+      // ── Phase 3.21 — Stop the periodic widget refresh ───────────────
+      // No need to keep refreshing the widget while the app is
+      // backgrounded — the native side has its own update interval
+      // (30 min) which keeps the countdown fresh enough. We'll
+      // restart the timer on resume.
+      try {
+        ref.read(predictionWidgetUpdaterProvider).stopPeriodicRefresh();
+      } catch (_) {}
     }
   }
 

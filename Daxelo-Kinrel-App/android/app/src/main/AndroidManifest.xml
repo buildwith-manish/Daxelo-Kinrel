@@ -90,6 +90,25 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Phase 3.21 — Prediction Battle home-screen widget.
+             The Dart side (pb_v1_prediction_widget_updater.dart)
+             writes the widget data to SharedPreferences via the
+             home_widget package; this receiver reads it and renders
+             the 2x1 widget card. The cycle-chip tap broadcasts
+             ACTION_CYCLE which the receiver handles to increment
+             the selected index. -->
+        <receiver
+            android:name=".PredictionWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.daxelo.kinrel.action.CYCLE_PREDICTION_WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/prediction_widget_info" />
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

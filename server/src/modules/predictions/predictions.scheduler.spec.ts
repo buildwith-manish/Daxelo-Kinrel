@@ -65,10 +65,12 @@ describe('predictions.scheduler pure helpers', () => {
   });
 
   describe('isInStreakDangerWindowAt', () => {
-    // The window is 8:30 PM IST to 9:00 PM IST (exclusive).
+    // The window is 8:30 PM IST to 9:30 PM IST (exclusive).
     // 8:30 PM IST = 15:00 UTC (since IST = UTC + 5:30, so UTC = IST - 5:30).
-    // 9:00 PM IST = 15:30 UTC.
-    // So the window in UTC is 15:00–15:30.
+    // 9:30 PM IST = 16:00 UTC.
+    // So the window in UTC is 15:00–16:00.
+    // Phase 3.17 — extended from 8:30–9:00 PM IST to 8:30–9:30 PM IST
+    // to match the new 9:30 PM reveal time (was 9 PM).
 
     it('returns true at 8:30 PM IST (15:00 UTC)', () => {
       // 15:00 UTC = 20:30 IST — exactly the start of the window
@@ -76,21 +78,28 @@ describe('predictions.scheduler pure helpers', () => {
       expect(isInStreakDangerWindowAt(dt)).toBe(true);
     });
 
-    it('returns true at 8:45 PM IST (15:15 UTC)', () => {
-      const dt = new Date('2026-09-23T15:15:00.000Z');
-      expect(isInStreakDangerWindowAt(dt)).toBe(true);
-    });
-
-    it('returns true at 8:59 PM IST (15:29 UTC)', () => {
-      // Just before 9:00 PM IST — still in window
-      const dt = new Date('2026-09-23T15:29:59.000Z');
-      expect(isInStreakDangerWindowAt(dt)).toBe(true);
-    });
-
-    it('returns false at 9:00 PM IST (15:30 UTC) — exclusive end', () => {
-      // 9:00 PM IST = 15:30 UTC. The window is [20:30, 21:00) IST,
-      // so 21:00 is NOT in window.
+    it('returns true at 9:00 PM IST (15:30 UTC)', () => {
+      // 9:00 PM IST is now INSIDE the window (was the end boundary
+      // before Phase 3.17 extended it to 9:30 PM).
       const dt = new Date('2026-09-23T15:30:00.000Z');
+      expect(isInStreakDangerWindowAt(dt)).toBe(true);
+    });
+
+    it('returns true at 9:15 PM IST (15:45 UTC)', () => {
+      const dt = new Date('2026-09-23T15:45:00.000Z');
+      expect(isInStreakDangerWindowAt(dt)).toBe(true);
+    });
+
+    it('returns true at 9:29 PM IST (15:59 UTC)', () => {
+      // Just before 9:30 PM IST — still in window
+      const dt = new Date('2026-09-23T15:59:59.000Z');
+      expect(isInStreakDangerWindowAt(dt)).toBe(true);
+    });
+
+    it('returns false at 9:30 PM IST (16:00 UTC) — exclusive end', () => {
+      // 9:30 PM IST = 16:00 UTC. The window is [20:30, 21:30) IST,
+      // so 21:30 is NOT in window.
+      const dt = new Date('2026-09-23T16:00:00.000Z');
       expect(isInStreakDangerWindowAt(dt)).toBe(false);
     });
 
