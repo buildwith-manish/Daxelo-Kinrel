@@ -1,20 +1,27 @@
 // lib/features/thinking/presentation/family_ring_widget.dart
 //
-// "Who are you thinking of?" — horizontal ring of family member faces.
+// "Thinking of You" — horizontal ring of family member faces.
 // Tap any face to send a silent "Thinking of You" signal.
 //
-// Phase 3.24 — UX improvements:
-//   1. Variable reward: random warm confirmation messages (reciprocity)
-//   2. Emotional design: warmer header with subtle gradient + heart icon
-//   3. Daily streak counter: "N day streak" badge (commitment/consistency)
-//   4. Sent-received counter: "N sent · M received" stats (social proof)
-//   5. Heart particle burst on successful send (emotional design)
+// Phase 3.25 — Next-level improvements:
+//   1. Emotion selection: tap an avatar → bottom sheet with 4 emotions
+//      (💛 Love, 🤗 Hug, 🙏 Gratitude, 🌟 Proud). Each emotion has a
+//      different glow color on the avatar ring + a different warm
+//      confirmation message.
+//   2. Time-of-day greeting: contextual header that changes with the
+//      time of day ("Good morning! Who's on your mind?" / "Good
+//      evening! Send some warmth before bed" / "Late night? Someone's
+//      probably thinking of you too").
+//   3. "Received from" indicator: small gold dot on avatars who have
+//      sent YOU a Thinking of You in the last 24h, so you can
+//      reciprocate. Drives reciprocity (Cialdini).
 //
-// v109.4: Data source changed from the Person table (which includes
-// custom graph-only nodes, manually-created relationship entries, and
-// placeholder people) to a JOIN of FamilyMember + User. This ensures
-// ONLY real, registered Kinrel users who are actual members of the
-// family appear in the ring.
+// Phase 3.24 (preserved from previous):
+//   - Variable reward messages (random warm confirmation per send)
+//   - Heart particle burst animation on send
+//   - Daily streak counter ("🔥 N days")
+//   - Sent/received stats on header
+//   - Branded warm header with heart icon
 
 import 'dart:async';
 import 'dart:math';
@@ -29,8 +36,92 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart';
-import '../../../core/storage/local_cache.dart';
 import '../data/thinking_service.dart';
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 3.25: Emotion types
+// ═══════════════════════════════════════════════════════════════════════
+
+enum ThinkingEmotion {
+  love('💛', 'Love', Color(0xFFE8612A)),
+  hug('🤗', 'Hug', Color(0xFFF59240)),
+  gratitude('🙏', 'Gratitude', Color(0xFF4CAF7A)),
+  proud('🌟', 'Proud', Color(0xFF8B5CF6));
+
+  const ThinkingEmotion(this.emoji, this.label, this.color);
+  final String emoji;
+  final String label;
+  final Color color;
+}
+
+const _emotionWarmMessages = {
+  ThinkingEmotion.love: [
+    "Your love just traveled across the family",
+    "They'll feel your warmth when they see this",
+    "A little love sent across the distance",
+  ],
+  ThinkingEmotion.hug: [
+    "You just sent a virtual hug",
+    "They'll feel wrapped in warmth",
+    "A hug just crossed the screen for them",
+  ],
+  ThinkingEmotion.gratitude: [
+    "You just expressed gratitude — that's beautiful",
+    "They'll feel appreciated when they see this",
+    "Gratitude travels well — they'll feel it",
+  ],
+  ThinkingEmotion.proud: [
+    "You just showed you're proud of them",
+    "They'll feel validated and seen",
+    "Pride is a gift — you just gave it",
+  ],
+};
+
+String _randomWarmMessageFor(ThinkingEmotion emotion) {
+  final messages = _emotionWarmMessages[emotion]!;
+  final rng = Random();
+  return messages[rng.nextInt(messages.length)];
+}
+
+/// Time-of-day greeting based on the current IST hour.
+String _timeOfDayGreeting() {
+  final now = DateTime.now().toUtc();
+  final istHour = (now.hour + 5) % 24; // UTC + 5 (approximate IST)
+  if (istHour >= 5 && istHour < 12) {
+    return 'Good morning! Who\'s on your mind?';
+  } else if (istHour >= 12 && istHour < 17) {
+    return 'Good afternoon! Send some warmth';
+  } else if (istHour >= 17 && istHour < 22) {
+    return 'Good evening! Send some love before bed';
+  } else {
+    return 'Late night? Someone\'s probably thinking of you too';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 3.25: "Received from" provider — IDs of users who sent YOU a
+// Thinking of You in the last 24h. Used to show a gold dot on their
+// avatars in the ring, so you can reciprocate.
+// ═══════════════════════════════════════════════════════════════════════
+
+final receivedFromProvider =
+    FutureProvider.family<Set<String>, String>((ref, familyId) async {
+  final client = ref.read(supabaseProvider);
+  if (client == null || client.auth.currentUser == null) return {};
+  try {
+    final since = DateTime.now().subtract(const Duration(hours: 24)).toUtc().toIso8601String();
+    final rows = await client
+        .from('ThinkingOfYouTap')
+        .select('senderId')
+        .eq('receiverId', client.auth.currentUser!.id)
+        .eq('familyId', familyId)
+        .gte('createdAt', since);
+    return (rows as List).map((r) => (r as Map)['senderId'] as String).toSet();
+  } catch (e) {
+    debugPrint('⚠️ receivedFromProvider error: $e');
+    return {};
+  }
+});
 
 // ═══════════════════════════════════════════════════════════════════════
 // v109.4: Family Kinrel Members Provider
@@ -269,6 +360,10 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
 
     if (_pendingMember == userId) return;
 
+    // Phase 3.25: Show emotion selection sheet instead of immediately sending
+    final emotion = await _showEmotionSheet(context, member);
+    if (emotion == null || !mounted) return; // user cancelled
+
     HapticFeedback.lightImpact();
 
     setState(() {
@@ -286,22 +381,22 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
       if (!mounted) return;
 
       if (result.success) {
-        // Phase 3.24: Variable reward — random warm message
-        final warmMessage = _randomWarmMessage();
+        // Phase 3.25: Emotion-specific warm message
+        final warmMessage = _randomWarmMessageFor(emotion);
         final receiverName = result.receiverName ?? member.name.split(' ').first;
 
-        // Phase 3.24: Heart particle burst animation
+        // Heart particle burst with emotion color
         setState(() => _showHeart = true);
         _heartController.forward(from: 0);
 
         HapticFeedback.mediumImpact();
 
-        _showSnack(context, '$warmMessage — $receiverName will see it soon 💛');
+        _showSnack(context, '$warmMessage — $receiverName will see it soon ${emotion.emoji}');
 
-        // Refresh stats
+        // Refresh stats + received-from
         ref.invalidate(thinkingStatsProvider(widget.familyId));
+        ref.invalidate(receivedFromProvider(widget.familyId));
 
-        // Store cooldown
         final expiresAt = result.cooldownExpiresAtUtc;
         if (expiresAt != null) {
           setState(() {
@@ -331,6 +426,78 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
     } finally {
       if (mounted) setState(() => _pendingMember = null);
     }
+  }
+
+  /// Phase 3.25: Show the emotion selection bottom sheet.
+  /// Returns the selected emotion, or null if cancelled.
+  Future<ThinkingEmotion?> _showEmotionSheet(
+    BuildContext context,
+    FamilyKinrelMember member,
+  ) async {
+    final firstName = member.name.split(' ').first;
+    return showModalBottomSheet<ThinkingEmotion>(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Center(
+              child: Container(
+                width: 36, height: 4,
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                decoration: BoxDecoration(
+                  color: KinrelColors.textDim.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            // Title
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                'Send to $firstName',
+                style: const TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Text(
+                'How are you feeling about them?',
+                style: const TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12,
+                  color: KinrelColors.textDim,
+                ),
+              ),
+            ),
+            // Emotion grid
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: ThinkingEmotion.values.map((e) {
+                  return GestureDetector(
+                    onTap: () => Navigator.pop(ctx, e),
+                    child: _EmotionChip(emotion: e),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
   }
 
   String _fallbackMessage(String? errorCode) {
@@ -367,6 +534,7 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
   Widget build(BuildContext context) {
     final membersAsync = ref.watch(familyKinrelMembersProvider(widget.familyId));
     final statsAsync = ref.watch(thinkingStatsProvider(widget.familyId));
+    final receivedFromAsync = ref.watch(receivedFromProvider(widget.familyId));
 
     return membersAsync.when(
       loading: () => const SizedBox.shrink(),
@@ -376,17 +544,15 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
 
         final stats = statsAsync.valueOrNull ??
             {'totalSent': 0, 'totalReceived': 0, 'dailyStreak': 0};
+        final receivedFrom = receivedFromAsync.valueOrNull ?? {};
 
         return Stack(
           children: [
-            _buildRing(context, members, stats),
-            // Phase 3.24: Heart particle animation overlay
+            _buildRing(context, members, stats, receivedFrom),
             if (_showHeart)
               Positioned.fill(
                 child: IgnorePointer(
-                  child: _HeartParticleOverlay(
-                    animation: _heartAnimation,
-                  ),
+                  child: _HeartParticleOverlay(animation: _heartAnimation),
                 ),
               ),
           ],
@@ -434,20 +600,22 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
     );
   }
 
-  Widget _buildRing(BuildContext context, List<FamilyKinrelMember> members, Map<String, int> stats) {
+  Widget _buildRing(BuildContext context, List<FamilyKinrelMember> members, Map<String, int> stats, Set<String> receivedFrom) {
     final displayMembers = members.take(10).toList();
     final dailyStreak = stats['dailyStreak'] ?? 0;
     final totalSent = stats['totalSent'] ?? 0;
     final totalReceived = stats['totalReceived'] ?? 0;
+    final greeting = _timeOfDayGreeting();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Phase 3.24: Warmer header with heart icon + stats
+        // Phase 3.25: Warm header with time-of-day greeting + stats
         _WarmHeader(
           dailyStreak: dailyStreak,
           totalSent: totalSent,
           totalReceived: totalReceived,
+          greeting: greeting,
         ),
         SizedBox(
           height: 96,
@@ -463,6 +631,7 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
               final onCooldown = _isOnCooldown(userId);
               final isPending = _pendingMember == userId;
               final cooldownLabel = onCooldown ? _cooldownLabel(userId) : '';
+              final hasReceivedFrom = receivedFrom.contains(userId);
 
               return GestureDetector(
                 onTap: (onCooldown || isPending)
@@ -541,6 +710,29 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
                                         child: const Icon(Icons.lock_rounded, size: 10, color: KinrelColors.textDim),
                                       ),
                                     ),
+                                  // Phase 3.25: "Received from" gold dot —
+                                  // this person sent you a Thinking of You
+                                  // in the last 24h. Shown as a small pulsing
+                                  // gold dot on the top-right corner.
+                                  if (hasReceivedFrom && !onCooldown)
+                                    Positioned(
+                                      right: 0, top: 0,
+                                      child: Container(
+                                        width: 10, height: 10,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: KinrelColors.orange,
+                                          border: Border.all(color: KinrelColors.darkCard, width: 1.5),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: KinrelColors.orange.withValues(alpha: 0.6),
+                                              blurRadius: 4,
+                                              spreadRadius: 1,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
@@ -588,75 +780,99 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
 // ═══════════════════════════════════════════════════════════════════════
 
 class _WarmHeader extends StatelessWidget {
-  const _WarmHeader({this.dailyStreak = 0, this.totalSent = 0, this.totalReceived = 0});
+  const _WarmHeader({
+    this.dailyStreak = 0,
+    this.totalSent = 0,
+    this.totalReceived = 0,
+    this.greeting,
+  });
   final int dailyStreak;
   final int totalSent;
   final int totalReceived;
+  final String? greeting;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Heart icon in orange circle
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: KinrelColors.orange.withValues(alpha: 0.12),
-            ),
-            child: const Icon(Icons.favorite_rounded, size: 14, color: KinrelColors.orange),
-          ),
-          const SizedBox(width: 8),
-          // Title
-          const Text(
-            'Thinking of You',
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: KinrelColors.textWhite,
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Daily streak badge (if > 0)
-          if (dailyStreak > 0) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: KinrelColors.orange.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3), width: 0.5),
+          Row(
+            children: [
+              // Heart icon in orange circle
+              Container(
+                width: 24, height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: KinrelColors.orange.withValues(alpha: 0.12),
+                ),
+                child: const Icon(Icons.favorite_rounded, size: 14, color: KinrelColors.orange),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('🔥', style: TextStyle(fontSize: 9)),
-                  const SizedBox(width: 2),
-                  Text(
-                    '$dailyStreak day${dailyStreak == 1 ? '' : 's'}',
-                    style: const TextStyle(
-                      fontFamily: KinrelTypography.monoFont,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      color: KinrelColors.orange,
-                    ),
+              const SizedBox(width: 8),
+              // Title
+              const Text(
+                'Thinking of You',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Daily streak badge (if > 0)
+              if (dailyStreak > 0) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.orange.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3), width: 0.5),
                   ),
-                ],
-              ),
-            ),
-          ],
-          const Spacer(),
-          // Sent / Received stats (if any)
-          if (totalSent > 0 || totalReceived > 0)
-            Text(
-              '$totalSent sent · $totalReceived received',
-              style: const TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 10,
-                color: KinrelColors.textDim,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('🔥', style: TextStyle(fontSize: 9)),
+                      const SizedBox(width: 2),
+                      Text(
+                        '$dailyStreak day${dailyStreak == 1 ? '' : 's'}',
+                        style: const TextStyle(
+                          fontFamily: KinrelTypography.monoFont,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: KinrelColors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const Spacer(),
+              // Sent / Received stats (if any)
+              if (totalSent > 0 || totalReceived > 0)
+                Text(
+                  '$totalSent sent · $totalReceived received',
+                  style: const TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 10,
+                    color: KinrelColors.textDim,
+                  ),
+                ),
+            ],
+          ),
+          // Phase 3.25: Time-of-day greeting
+          if (greeting != null && greeting!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                greeting!,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: KinrelColors.textDim,
+                ),
               ),
             ),
         ],
@@ -750,6 +966,56 @@ class _Placeholder extends StatelessWidget {
           color: KinrelColors.orange,
         ),
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 3.25: Emotion selection chip
+// ═══════════════════════════════════════════════════════════════════════
+
+class _EmotionChip extends StatelessWidget {
+  const _EmotionChip({required this.emotion});
+  final ThinkingEmotion emotion;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: emotion.color.withValues(alpha: 0.12),
+            border: Border.all(
+              color: emotion.color.withValues(alpha: 0.4),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: emotion.color.withValues(alpha: 0.2),
+                blurRadius: 8,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Center(
+            child: Text(emotion.emoji, style: const TextStyle(fontSize: 24)),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          emotion.label,
+          style: TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: emotion.color,
+          ),
+        ),
+      ],
     );
   }
 }
