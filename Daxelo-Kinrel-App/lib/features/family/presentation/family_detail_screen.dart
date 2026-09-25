@@ -10,6 +10,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
@@ -24,7 +25,6 @@ import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/networking/dio_client.dart';
 import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart';
-import '../../../core/storage/local_cache.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/member_list_skeleton.dart';
 import '../../../graph/widgets/family_graph_engine_view.dart';
@@ -4052,25 +4052,28 @@ class _DiscoveryGridState extends ConsumerState<_DiscoveryGrid> {
 
   Future<void> _loadRecent() async {
     try {
-      final cache = ref.read(localCacheProvider);
-      final recent = await cache.getPreference<String>(_kRecentCacheKey);
+      // SharedPreferences (NOT LocalCacheService) — the Drift-backed
+      // local cache is skipped entirely on web, which would silently
+      // drop the Recent label on every reload of the deployed web app.
+      final prefs = await SharedPreferences.getInstance();
+      final recent = prefs.getString(_kRecentCacheKey);
       if (mounted) {
         setState(() {
           _recentLabel = (recent == null || recent.isEmpty) ? null : recent;
         });
       }
     } catch (_) {
-      // Cache read is best-effort — no badge without stored state.
+      // Storage read is best-effort — no badge without stored state.
     }
   }
 
   Future<void> _recordRecent(String label) async {
     setState(() => _recentLabel = label);
     try {
-      final cache = ref.read(localCacheProvider);
-      await cache.setPreference(_kRecentCacheKey, label);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kRecentCacheKey, label);
     } catch (_) {
-      // Cache write is best-effort — the badge is ephemeral value.
+      // Cache write is best-effort — the in-session badge still shows.
     }
   }
 
