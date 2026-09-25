@@ -24,6 +24,7 @@ import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/networking/dio_client.dart';
 import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/storage/local_cache.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/member_list_skeleton.dart';
 import '../../../graph/widgets/family_graph_engine_view.dart';
@@ -40,6 +41,7 @@ import '../../prediction_battle_v1/pb_v1_fun_fact_card.dart';
 import '../../thinking/presentation/family_ring_widget.dart';
 import '../../games/services/game_asset_manager.dart';
 import '../../games/shared/icons/game_icons.dart';
+import '../../games/shared/widgets/active_games_provider.dart';
 import '../../presence/presentation/presence_widget.dart';
 import '../../pulse/providers/cross_feature_moments_provider.dart';
 import '../../shared_list/presentation/shared_list_screen.dart';
@@ -331,6 +333,24 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                     ),
                   ),
 
+                  // v5.119 step 2: Utility row (Invite / Settings / Leave)
+                  // migrated from FamilyHubScreen into the main scroll.
+                  // UX pass (Peak-End Rule): moved UP, off the bottom of
+                  // the page — utility actions must never be the last
+                  // thing a family member sees. The page now ends on the
+                  // warm "family strength" closer below.
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      UtilityRow(
+                        familyId: widget.familyId,
+                        onInvite: () => showAddMemberOptions(context, familyId: widget.familyId),
+                        onSettings: () => context.push('/family/${widget.familyId}/management'),
+                        onLeave: () => _showLeaveFamilyDialog(context),
+                      ),
+                      3,
+                    ),
+                  ),
+
                   // 4b. Cross-feature Moments — oral history, memory vault,
                   // quiz results surfaced as first-class pulse items.
                   SliverToBoxAdapter(
@@ -357,15 +377,16 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                     ),
                   ),
 
-                  // v5.119 step 2: Utility row (Invite / Settings / Leave)
-                  // migrated from FamilyHubScreen into the main scroll.
+                  // 6. UX pass (Peak-End Rule): the page ENDS on a warm,
+                  // belonging-focused closer — "Your family is N members
+                  // strong". People remember how an experience ends; end
+                  // on an emotional high note, not on housekeeping links.
                   SliverToBoxAdapter(
                     child: staggerFade(
-                      UtilityRow(
-                        familyId: widget.familyId,
-                        onInvite: () => showAddMemberOptions(context, familyId: widget.familyId),
-                        onSettings: () => context.push('/family/${widget.familyId}/management'),
-                        onLeave: () => _showLeaveFamilyDialog(context),
+                      _FamilyStrengthCloser(
+                        memberCount: detail.members
+                            .where((p) => p.deletedAt == null)
+                            .length,
                       ),
                       5,
                     ),
@@ -2608,40 +2629,106 @@ class _InviteCollaboratorCTA extends StatelessWidget {
   }
 }
 
+/// Warm end-of-page closer (Peak-End Rule).
+///
+/// The last element a family member sees when they finish scrolling is a
+/// belonging statement — "Your family is N members strong" — not utility
+/// links. People disproportionately remember how an experience ENDS, so
+/// the hub now closes on an emotional high note.
+class _FamilyStrengthCloser extends StatelessWidget {
+  const _FamilyStrengthCloser({required this.memberCount});
+  final int memberCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            KinrelColors.orange.withValues(alpha: 0.10),
+            KinrelColors.darkCard.withValues(alpha: 0.6),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: KinrelColors.orange.withValues(alpha: 0.22),
+          width: 0.8,
+        ),
+      ),
+      child: Column(
+        children: [
+          // 🧡 heart-in-circle emblem
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: KinrelColors.orange.withValues(alpha: 0.14),
+              border: Border.all(
+                color: KinrelColors.orange.withValues(alpha: 0.35),
+                width: 1.2,
+              ),
+            ),
+            child: const Icon(
+              Icons.favorite_rounded,
+              size: 22,
+              color: KinrelColors.orange,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '🧡 Your family is $memberCount member${memberCount == 1 ? '' : 's'} strong',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: KinrelColors.textWhite,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Every photo, story and game you share makes it stronger.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 12,
+              color: KinrelColors.textSilver,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Compact horizontal scrollable row of all games.
 /// Replaces the previous layout where each game was a full-width card.
+/// UX pass (Hick's Law): the flat 18-game scroll is now grouped into 3
+/// scannable categories — Quick Play / Classic Board / Family Fun — so
+/// the choice set is chunked and cognitively cheap to scan.
 class _GamesRow extends ConsumerWidget {
   const _GamesRow({required this.familyId});
   final String familyId;
 
-  static const List<_GameEntry> _games = [
+  // ── Hick's Law: 3 scannable category groups replace the flat 18-item
+  //    scroll. Each group carries a time-to-commit hint so users can
+  //    self-select by the time they have available.
+  static const List<_GameEntry> _quickPlayGames = [
     _GameEntry(
-      gameId: 'hot-seat',
-      name: 'Hot Seat',
-      icon: Icons.local_fire_department_outlined,
-      color: Color(0xFFF59E0B),
-      route: '/family/\$familyId/hot-seat',
-    ),
-    _GameEntry(
-      gameId: 'relation-riddles',
-      name: 'Riddles',
-      icon: Icons.extension_outlined,
+      gameId: 'tictactoe',
+      name: 'Tic-Tac-Toe',
+      icon: Icons.grid_3x3,
       color: Color(0xFF8B5CF6),
-      route: '/family/\$familyId/relation-riddles',
-    ),
-    _GameEntry(
-      gameId: 'ghost-painter',
-      name: 'Ghost Painter',
-      icon: Icons.brush_outlined,
-      color: Color(0xFFEC4899),
-      route: '/family/\$familyId/ghost-painter/draw',
-    ),
-    _GameEntry(
-      gameId: 'freeze-dash',
-      name: 'Freeze & Dash',
-      icon: Icons.directions_run_rounded,
-      color: Color(0xFF10B981),
-      route: '/family/\$familyId/freeze-dash/lobby',
+      route: '/family/\$familyId/tictactoe/lobby',
+      durationLabel: '~1 min',
+      complexity: 1,
     ),
     _GameEntry(
       gameId: 'sos',
@@ -2649,83 +2736,8 @@ class _GamesRow extends ConsumerWidget {
       icon: Icons.grid_on_rounded,
       color: Color(0xFFF59E0B),
       route: '/family/\$familyId/sos/lobby',
-    ),
-    _GameEntry(
-      gameId: 'antakshari',
-      name: 'Antakshari',
-      icon: Icons.music_note_rounded,
-      color: Color(0xFF8B5CF6),
-      route: '/family/\$familyId/antakshari/lobby',
-    ),
-    _GameEntry(
-      gameId: 'bingo',
-      name: 'Bingo',
-      icon: Icons.grid_view_rounded,
-      color: Color(0xFF06B6D4),
-      route: '/family/\$familyId/bingo/lobby',
-    ),
-    _GameEntry(
-      gameId: 'checkers',
-      name: 'Checkers',
-      icon: Icons.grid_on_outlined,
-      color: Color(0xFF6366F1),
-      route: '/family/\$familyId/checkers/lobby',
-    ),
-    _GameEntry(
-      gameId: 'ludo',
-      name: 'Ludo',
-      icon: Icons.casino_outlined,
-      color: Color(0xFFE11D48),
-      route: '/family/\$familyId/ludo/lobby',
-    ),
-    _GameEntry(
-      gameId: 'carrom',
-      name: 'Carrom',
-      icon: Icons.sports_esports_rounded,
-      color: Color(0xFFF59E0B),
-      route: '/family/\$familyId/carrom/lobby',
-    ),
-    _GameEntry(
-      gameId: 'chess',
-      name: 'Chess',
-      icon: Icons.castle_outlined,
-      color: Color(0xFF64748B),
-      route: '/family/\$familyId/chess/lobby',
-    ),
-    _GameEntry(
-      gameId: 'chitmatch',
-      name: 'TripleMatch',
-      icon: Icons.style_outlined,
-      color: Color(0xFFEC4899),
-      route: '/family/\$familyId/chitmatch/lobby',
-    ),
-    _GameEntry(
-      gameId: 'nameplace',
-      name: 'Name Place Animal',
-      icon: Icons.abc_rounded,
-      color: Color(0xFF10B981),
-      route: '/family/\$familyId/nameplace/lobby',
-    ),
-    _GameEntry(
-      gameId: 'tictactoe',
-      name: 'Tic-Tac-Toe',
-      icon: Icons.grid_3x3,
-      color: Color(0xFF8B5CF6),
-      route: '/family/\$familyId/tictactoe/lobby',
-    ),
-    _GameEntry(
-      gameId: 'truthordare',
-      name: 'Truth or Dare',
-      icon: Icons.rotate_right,
-      color: Color(0xFFEF4444),
-      route: '/family/\$familyId/truthordare/lobby',
-    ),
-    _GameEntry(
-      gameId: 'twotruths',
-      name: 'Two Truths',
-      icon: Icons.psychology,
-      color: Color(0xFFD946EF),
-      route: '/family/\$familyId/twotruths/lobby',
+      durationLabel: '~2 min',
+      complexity: 2,
     ),
     _GameEntry(
       gameId: 'dotsboxes',
@@ -2733,6 +2745,140 @@ class _GamesRow extends ConsumerWidget {
       icon: Icons.grid_on_rounded,
       color: Color(0xFF06B6D4),
       route: '/family/\$familyId/dotsboxes/lobby',
+      durationLabel: '~2 min',
+      complexity: 2,
+    ),
+    _GameEntry(
+      gameId: 'chitmatch',
+      name: 'TripleMatch',
+      icon: Icons.style_outlined,
+      color: Color(0xFFEC4899),
+      route: '/family/\$familyId/chitmatch/lobby',
+      durationLabel: '~2 min',
+      complexity: 2,
+    ),
+    _GameEntry(
+      gameId: 'relation-riddles',
+      name: 'Riddles',
+      icon: Icons.extension_outlined,
+      color: Color(0xFF8B5CF6),
+      route: '/family/\$familyId/relation-riddles',
+      durationLabel: '~2 min',
+      complexity: 1,
+    ),
+  ];
+
+  static const List<_GameEntry> _classicBoardGames = [
+    _GameEntry(
+      gameId: 'chess',
+      name: 'Chess',
+      icon: Icons.castle_outlined,
+      color: Color(0xFF64748B),
+      route: '/family/\$familyId/chess/lobby',
+      durationLabel: '~10 min',
+      complexity: 3,
+    ),
+    _GameEntry(
+      gameId: 'checkers',
+      name: 'Checkers',
+      icon: Icons.grid_on_outlined,
+      color: Color(0xFF6366F1),
+      route: '/family/\$familyId/checkers/lobby',
+      durationLabel: '~8 min',
+      complexity: 3,
+    ),
+    _GameEntry(
+      gameId: 'ludo',
+      name: 'Ludo',
+      icon: Icons.casino_outlined,
+      color: Color(0xFFE11D48),
+      route: '/family/\$familyId/ludo/lobby',
+      durationLabel: '~15 min',
+      complexity: 2,
+    ),
+    _GameEntry(
+      gameId: 'carrom',
+      name: 'Carrom',
+      icon: Icons.sports_esports_rounded,
+      color: Color(0xFFF59E0B),
+      route: '/family/\$familyId/carrom/lobby',
+      durationLabel: '~8 min',
+      complexity: 2,
+    ),
+    _GameEntry(
+      gameId: 'bingo',
+      name: 'Bingo',
+      icon: Icons.grid_view_rounded,
+      color: Color(0xFF06B6D4),
+      route: '/family/\$familyId/bingo/lobby',
+      durationLabel: '~6 min',
+      complexity: 1,
+    ),
+  ];
+
+  static const List<_GameEntry> _familyFunGames = [
+    _GameEntry(
+      gameId: 'ghost-painter',
+      name: 'Ghost Painter',
+      icon: Icons.brush_outlined,
+      color: Color(0xFFEC4899),
+      route: '/family/\$familyId/ghost-painter/draw',
+      durationLabel: '~5 min',
+      complexity: 2,
+    ),
+    _GameEntry(
+      gameId: 'antakshari',
+      name: 'Antakshari',
+      icon: Icons.music_note_rounded,
+      color: Color(0xFF8B5CF6),
+      route: '/family/\$familyId/antakshari/lobby',
+      durationLabel: '~5 min',
+      complexity: 2,
+    ),
+    _GameEntry(
+      gameId: 'truthordare',
+      name: 'Truth or Dare',
+      icon: Icons.rotate_right,
+      color: Color(0xFFEF4444),
+      route: '/family/\$familyId/truthordare/lobby',
+      durationLabel: '~5 min',
+      complexity: 1,
+    ),
+    _GameEntry(
+      gameId: 'twotruths',
+      name: 'Two Truths',
+      icon: Icons.psychology,
+      color: Color(0xFFD946EF),
+      route: '/family/\$familyId/twotruths/lobby',
+      durationLabel: '~5 min',
+      complexity: 1,
+    ),
+    _GameEntry(
+      gameId: 'nameplace',
+      name: 'Name Place Animal',
+      icon: Icons.abc_rounded,
+      color: Color(0xFF10B981),
+      route: '/family/\$familyId/nameplace/lobby',
+      durationLabel: '~5 min',
+      complexity: 2,
+    ),
+    _GameEntry(
+      gameId: 'freeze-dash',
+      name: 'Freeze & Dash',
+      icon: Icons.directions_run_rounded,
+      color: Color(0xFF10B981),
+      route: '/family/\$familyId/freeze-dash/lobby',
+      durationLabel: '~3 min',
+      complexity: 1,
+    ),
+    _GameEntry(
+      gameId: 'hot-seat',
+      name: 'Hot Seat',
+      icon: Icons.local_fire_department_outlined,
+      color: Color(0xFFF59E0B),
+      route: '/family/\$familyId/hot-seat',
+      durationLabel: '~5 min',
+      complexity: 1,
     ),
   ];
 
@@ -2799,23 +2945,137 @@ class _GamesRow extends ConsumerWidget {
             ],
           ),
         ),
-        SizedBox(
-          height: 100,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.sm),
-            itemCount: _games.length,
-            itemBuilder: (context, index) {
-              final game = _games[index];
-              return _CompactGameCard(
-                game: game,
-                familyId: familyId,
-                isDownloadGated: _downloadGatedGames.contains(game.gameId),
-              );
-            },
-          ),
+        // ── Hick's Law: 3 chunked groups, each with a time hint ──────
+        _GameGroupHeader(
+          emoji: '⚡',
+          label: 'Quick Play',
+          hint: 'under 2 min',
         ),
+        _GamesGroupScroll(
+          games: _quickPlayGames,
+          familyId: familyId,
+        ),
+        _GameGroupHeader(
+          emoji: '♟️',
+          label: 'Classic Board',
+          hint: '5+ min',
+        ),
+        _GamesGroupScroll(
+          games: _classicBoardGames,
+          familyId: familyId,
+        ),
+        _GameGroupHeader(
+          emoji: '🎉',
+          label: 'Family Fun',
+          hint: 'creative & party',
+        ),
+        _GamesGroupScroll(
+          games: _familyFunGames,
+          familyId: familyId,
+        ),
+        const SizedBox(height: 8),
       ],
+    );
+  }
+}
+
+/// Category header for a Hick's Law game group. The time hint lets users
+/// self-select by the time they actually have — the core of reducing
+/// choice overload.
+class _GameGroupHeader extends StatelessWidget {
+  const _GameGroupHeader({
+    required this.emoji,
+    required this.label,
+    required this.hint,
+  });
+
+  final String emoji;
+  final String label;
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        KinrelSpacing.base + 2, 6, KinrelSpacing.base, 4),
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 12)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.textWhite,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: KinrelColors.orange.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: KinrelColors.orange.withValues(alpha: 0.22),
+                width: 0.6,
+              ),
+            ),
+            child: Text(
+              hint,
+              style: const TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.orange,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One category's horizontal game scroll. Watches the shared active-games
+/// provider so every card can carry a Social Proof micro-label.
+class _GamesGroupScroll extends ConsumerWidget {
+  const _GamesGroupScroll({
+    required this.games,
+    required this.familyId,
+  });
+
+  final List<_GameEntry> games;
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Social Proof: live active-game counts per game type.
+    final activeAsync = ref.watch(familyActiveGamesProvider(familyId));
+    final activeGames = activeAsync.valueOrNull ?? const <ActiveGameInfo>[];
+    // Per gameType: active count + the single host name (when count == 1).
+    final activeByType = <String, List<ActiveGameInfo>>{};
+    for (final g in activeGames) {
+      activeByType.putIfAbsent(g.gameType, () => []).add(g);
+    }
+
+    return SizedBox(
+      height: 124,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.sm),
+        itemCount: games.length,
+        itemBuilder: (context, index) {
+          final game = games[index];
+          return _CompactGameCard(
+            game: game,
+            familyId: familyId,
+            isDownloadGated: _GamesRow._downloadGatedGames.contains(game.gameId),
+            activePeers: activeByType[game.gameId] ?? const [],
+          );
+        },
+      ),
     );
   }
 }
@@ -2827,12 +3087,22 @@ class _GameEntry {
     required this.icon,
     required this.color,
     required this.route,
+    this.durationLabel,
+    this.complexity,
   });
   final String gameId;
   final String name;
   final IconData icon;
   final Color color;
   final String route; // Contains $familyId placeholder
+
+  /// Flow Theory: how long a typical match takes ("~2 min"). Null hides
+  /// the label (defensive — every entry above sets one).
+  final String? durationLabel;
+
+  /// Flow Theory: 1–3 complexity dots. 1 = pick up instantly,
+  /// 3 = needs focus.
+  final int? complexity;
 }
 
 class _CompactGameCard extends ConsumerWidget {
@@ -2840,10 +3110,15 @@ class _CompactGameCard extends ConsumerWidget {
     required this.game,
     required this.familyId,
     required this.isDownloadGated,
+    this.activePeers = const [],
   });
   final _GameEntry game;
   final String familyId;
   final bool isDownloadGated;
+
+  /// Active games of this type right now — powers the Social Proof
+  /// micro-label ("👥 3 active" / "Rahul is playing").
+  final List<ActiveGameInfo> activePeers;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2852,6 +3127,15 @@ class _CompactGameCard extends ConsumerWidget {
         : null;
     final isDownloaded =
         !isDownloadGated || dlState?.status == GameDownloadStatus.downloaded;
+
+    // Social Proof copy: a named person beats a bare count, a count
+    // beats nothing.
+    final hasActive = activePeers.isNotEmpty;
+    final socialLabel = !hasActive
+        ? null
+        : activePeers.length == 1
+            ? '${activePeers.first.hostUserName.split(' ').first} is playing'
+            : '👥 ${activePeers.length} active';
 
     return GestureDetector(
       onTap: () {
@@ -2863,7 +3147,7 @@ class _CompactGameCard extends ConsumerWidget {
         }
       },
       child: Container(
-        width: 76,
+        width: 80,
         margin: const EdgeInsets.symmetric(horizontal: 4),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -2871,16 +3155,16 @@ class _CompactGameCard extends ConsumerWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: SizedBox(
-                width: 48,
-                height: 48,
+                width: 46,
+                height: 46,
                 child: GameIcon(
                   gameId: game.gameId,
-                  size: 48,
+                  size: 46,
                   color: isDownloaded ? null : KinrelColors.textDim,
                 ),
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 5),
             Text(
               game.name,
               maxLines: 1,
@@ -2894,6 +3178,64 @@ class _CompactGameCard extends ConsumerWidget {
                     : KinrelColors.textDim,
               ),
             ),
+            const SizedBox(height: 2),
+            // Flow Theory: duration + 1–3 complexity dots, so users can
+            // match a game to the time & focus they have.
+            if (game.durationLabel != null || game.complexity != null)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (game.durationLabel != null)
+                    Text(
+                      game.durationLabel!,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.monoFont,
+                        fontSize: 8.5,
+                        color: KinrelColors.textDim,
+                      ),
+                    ),
+                  if (game.durationLabel != null && game.complexity != null)
+                    const SizedBox(width: 4),
+                  if (game.complexity != null) ...[
+                    for (var i = 0; i < 3; i++)
+                      Container(
+                        width: 3.5,
+                        height: 3.5,
+                        margin: const EdgeInsets.symmetric(horizontal: 0.7),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: i < game.complexity!
+                              ? KinrelColors.amber
+                              : KinrelColors.amber.withValues(alpha: 0.2),
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+            // Social Proof micro-label (Cialdini): "Rahul is playing" /
+            // "👥 3 active" — others' activity makes joining feel alive.
+            if (socialLabel != null) ...[
+              const SizedBox(height: 3),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: KinrelColors.tealAccent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                constraints: const BoxConstraints(maxWidth: 76),
+                child: Text(
+                  socialLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w600,
+                    color: KinrelColors.tealAccent,
+                  ),
+                ),
+              ),
+            ],
             if (isDownloadGated && !isDownloaded)
               const Icon(
                 Icons.download_outlined,
@@ -3662,11 +4004,56 @@ class _SharedListTile extends StatelessWidget {
 // DISCOVERY GRID
 // Wires all orphan modules into the family hub. These screens already
 // work — this is purely nav wiring (Phase 15a).
+//
+// UX pass (Cognitive Load Theory): the most recently used tile now
+// carries a "Recent" badge + emphasized styling. Recognizing where you
+// were beats re-deciding where to go — prior context lowers the effort
+// of the next choice instead of presenting 6 equal options every time.
 // ═══════════════════════════════════════════════════════════════════════
 
-class _DiscoveryGrid extends StatelessWidget {
+class _DiscoveryGrid extends ConsumerStatefulWidget {
   const _DiscoveryGrid({required this.familyId});
   final String familyId;
+
+  @override
+  ConsumerState<_DiscoveryGrid> createState() => _DiscoveryGridState();
+}
+
+class _DiscoveryGridState extends ConsumerState<_DiscoveryGrid> {
+  /// label of the most recently used discovery tile (null = none used yet).
+  String? _recentLabel;
+
+  static const String _kRecentCacheKey = 'discovery_grid_recent';
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => _loadRecent());
+  }
+
+  Future<void> _loadRecent() async {
+    try {
+      final cache = ref.read(localCacheProvider);
+      final recent = await cache.getPreference<String>(_kRecentCacheKey);
+      if (mounted) {
+        setState(() {
+          _recentLabel = (recent == null || recent.isEmpty) ? null : recent;
+        });
+      }
+    } catch (_) {
+      // Cache read is best-effort — no badge without stored state.
+    }
+  }
+
+  Future<void> _recordRecent(String label) async {
+    setState(() => _recentLabel = label);
+    try {
+      final cache = ref.read(localCacheProvider);
+      await cache.setPreference(_kRecentCacheKey, label);
+    } catch (_) {
+      // Cache write is best-effort — the badge is ephemeral value.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3680,14 +4067,22 @@ class _DiscoveryGrid extends StatelessWidget {
         label: 'Quiz',
         subtitle: 'Family trivia & games',
         color: const Color(0xFF1E88E5),
-        onTap: () => context.push('/quiz?familyId=$familyId'),
+        isRecent: _recentLabel == 'Quiz',
+        onTap: () {
+          _recordRecent('Quiz');
+          context.push('/quiz?familyId=${widget.familyId}');
+        },
       ),
       _DiscoveryTile(
         icon: Icons.emoji_events_outlined,
         label: 'Achievements',
         subtitle: 'Streaks, badges, stats',
         color: const Color(0xFFF4511E),
-        onTap: () => context.push('/achievements'),
+        isRecent: _recentLabel == 'Achievements',
+        onTap: () {
+          _recordRecent('Achievements');
+          context.push('/achievements');
+        },
       ),
     ];
 
@@ -3697,14 +4092,22 @@ class _DiscoveryGrid extends StatelessWidget {
         label: 'Memories',
         subtitle: 'Photo vault & On This Day',
         color: const Color(0xFF00897B),
-        onTap: () => context.push('/memory-vault?familyId=$familyId'),
+        isRecent: _recentLabel == 'Memories',
+        onTap: () {
+          _recordRecent('Memories');
+          context.push('/memory-vault?familyId=${widget.familyId}');
+        },
       ),
       _DiscoveryTile(
         icon: Icons.mic_none,
         label: 'Oral History',
         subtitle: 'Record family stories',
         color: const Color(0xFFD81B60),
-        onTap: () => context.push('/oral-history?familyId=$familyId'),
+        isRecent: _recentLabel == 'Oral History',
+        onTap: () {
+          _recordRecent('Oral History');
+          context.push('/oral-history?familyId=${widget.familyId}');
+        },
       ),
     ];
 
@@ -3714,14 +4117,22 @@ class _DiscoveryGrid extends StatelessWidget {
         label: 'Family Intelligence',
         subtitle: 'Brief, quests, blessings', // v5.119 step 6: removed 'Pulse' (collision with FamilyPulseSection)
         color: const Color(0xFFC8853A),
-        onTap: () => context.push('/pulse'),
+        isRecent: _recentLabel == 'Family Intelligence',
+        onTap: () {
+          _recordRecent('Family Intelligence');
+          context.push('/pulse');
+        },
       ),
       _DiscoveryTile(
         icon: Icons.memory,
         label: 'Activity Feed', // v5.119 step 5: was 'Memories' (collision with photo vault)
         subtitle: 'Family activity feed',
         color: const Color(0xFF8E24AA),
-        onTap: () => context.push('/memories?familyId=$familyId'),
+        isRecent: _recentLabel == 'Activity Feed',
+        onTap: () {
+          _recordRecent('Activity Feed');
+          context.push('/memories?familyId=${widget.familyId}');
+        },
       ),
     ];
 
@@ -3764,6 +4175,7 @@ class _DiscoveryTile extends StatelessWidget {
     required this.subtitle,
     required this.color,
     required this.onTap,
+    this.isRecent = false,
   });
 
   final IconData icon;
@@ -3772,50 +4184,90 @@ class _DiscoveryTile extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
 
+  /// Cognitive Load: this tile was the user's most recent destination —
+  /// emphasized with a "Recent" badge + stronger visual weight.
+  final bool isRecent;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Material(
-      color: theme.colorScheme.surfaceContainerHighest,
+      color: isRecent
+          ? color.withValues(alpha: 0.10)
+          : theme.colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(10),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+          child: Stack(
             children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 20),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    // Recent tiles draw the eye: a larger icon chip.
+                    width: isRecent ? 42 : 36,
+                    height: isRecent ? 42 : 36,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                      border: isRecent
+                          ? Border.all(color: color.withValues(alpha: 0.45), width: 1.2)
+                          : null,
+                    ),
+                    child: Icon(icon,
+                        color: color, size: isRecent ? 24 : 20),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    label,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 9,
+                      color: theme.colorScheme.outline,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+              // "Recent" badge — anchored top-right.
+              if (isRecent)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                          color: color.withValues(alpha: 0.5), width: 0.6),
+                    ),
+                    child: Text(
+                      'Recent',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontSize: 8,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.4,
+                        color: color,
+                      ),
+                    ),
+                  ),
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontSize: 9,
-                  color: theme.colorScheme.outline,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
             ],
           ),
         ),

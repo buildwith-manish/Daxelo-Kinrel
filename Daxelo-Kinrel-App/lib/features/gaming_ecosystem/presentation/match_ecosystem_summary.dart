@@ -58,6 +58,14 @@ class MatchEcosystemSummary extends ConsumerWidget {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Variable Reward (Skinner): ~20% of completed matches
+                  // surface a surprise coin bonus. Unpredictable rewards
+                  // sustain engagement far longer than fixed ones.
+                  VariableRewardBanner(
+                    key: ValueKey('vr_$gameId'),
+                    gameId: gameId,
+                    familyId: familyId,
+                  ),
                   if (eco.hasRewards) _RewardsBanner(eco: eco),
                   if (eco.hasScores) _SuperlativesSection(eco: eco),
                   _SportsmanshipSection(
@@ -71,6 +79,154 @@ class MatchEcosystemSummary extends ConsumerWidget {
         orElse: () => const SizedBox.shrink(),
       ),
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Variable Reward banner (operant conditioning, variable-ratio)
+//
+// After a match ends, ~20% of the time the viewer receives a surprise
+// bonus of 1–5 coins. The roll is DETERMINISTIC per (gameId, viewer) via
+// a stable FNV-1a hash — so rebuilds/return visits never re-roll a
+// different outcome, and the award itself is idempotent server-side
+// (fn_award_coins with p_idempotency_key = gameId). Only shown for
+// real completed matches (eco != null) — never for cancelled rooms.
+// ═══════════════════════════════════════════════════════════════════
+
+class VariableRewardBanner extends ConsumerStatefulWidget {
+  const VariableRewardBanner({
+    super.key,
+    required this.gameId,
+    required this.familyId,
+  });
+
+  final String gameId;
+  final String familyId;
+
+  @override
+  ConsumerState<VariableRewardBanner> createState() =>
+      _VariableRewardBannerState();
+}
+
+class _VariableRewardBannerState extends ConsumerState<VariableRewardBanner> {
+  int? _amount;
+  bool _attempted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => _maybeAward());
+  }
+
+  /// FNV-1a — small, fast, and stable across sessions/platforms
+  /// (unlike String.hashCode, which is only stable per isolate).
+  static int _stableHash(String s) {
+    var h = 0x811c9dc5;
+    for (final c in s.codeUnits) {
+      h ^= c;
+      h = (h * 0x01000193) & 0x7fffffff;
+    }
+    return h;
+  }
+
+  Future<void> _maybeAward() async {
+    if (_attempted) return;
+    _attempted = true;
+
+    final client = ref.read(supabaseProvider);
+    final myId = client?.auth.currentUser?.id;
+    if (client == null || myId == null) return;
+
+    // Deterministic 20% roll per (game, viewer).
+    final roll = _stableHash('${widget.gameId}|$myId');
+    if (roll % 100 >= 20) return;
+
+    // Deterministic 1–5 coin amount.
+    final amount = (_stableHash('${widget.gameId}|$myId|amt') % 5) + 1;
+
+    try {
+      final resp = await client.rpc('fn_award_coins', params: {
+        'p_user_id': myId,
+        'p_family_id': widget.familyId,
+        'p_amount': amount,
+        'p_reason': 'match_bonus_variable',
+        'p_idempotency_key': widget.gameId,
+        'p_metadata': {'source': 'variable_reward_banner'},
+      }).timeout(const Duration(seconds: 10));
+      if (!mounted) return;
+      if (resp is Map && resp['ok'] == true) {
+        setState(() => _amount = amount);
+      }
+    } catch (_) {
+      // Award failed — show nothing rather than a false promise.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final amount = _amount;
+    if (amount == null) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2A1E06), Color(0xFF191218)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: KinrelColors.amber.withValues(alpha: 0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: KinrelColors.amber.withValues(alpha: 0.16),
+            blurRadius: 20,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Text('🎉', style: TextStyle(fontSize: 24)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Bonus! You earned $amount coin${amount == 1 ? '' : 's'}',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: KinrelColors.amber,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'A surprise thank-you for playing — added to your balance',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 11,
+                    color: KinrelColors.textSilver,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    )
+        .animate()
+        .fadeIn(duration: 450.ms, delay: 250.ms)
+        .scale(
+          begin: const Offset(0.92, 0.92),
+          end: const Offset(1, 1),
+          duration: 450.ms,
+          delay: 250.ms,
+          curve: Curves.easeOutBack,
+        );
   }
 }
 

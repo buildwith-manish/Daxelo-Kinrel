@@ -32,6 +32,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../family/presentation/add_member_options_sheet.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../../gaming_ecosystem/data/gaming_models.dart';
 import '../../gaming_ecosystem/data/gaming_providers.dart';
@@ -257,7 +258,17 @@ class _GamingDashboardBody extends ConsumerWidget {
           const SizedBox(height: 18),
 
           // ═══════════════════════════════════════════════════════════════
-          // ZONE 2b: QUICK PICKS — game discovery row
+          // ZONE 2b: INVITE FAMILY (Reciprocity)
+          // ═══════════════════════════════════════════════════════════════
+          // A prominent, one-tap "Invite family member" banner right below
+          // the people-first Play With row. Giving an invite FIRST (before
+          // asking for anything) triggers reciprocity — invited family
+          // members are far more likely to join and play.
+          _InviteFamilyBanner(familyId: familyId),
+          const SizedBox(height: 18),
+
+          // ═══════════════════════════════════════════════════════════════
+          // ZONE 2c: QUICK PICKS — game discovery row
           // ═══════════════════════════════════════════════════════════════
           // Curated horizontal-scroll row of games the family has played
           // most in the last 30 days, with a default backfill. Excludes
@@ -319,6 +330,120 @@ class _GamingDashboardBody extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Zone 2b helper: Invite Family banner (Reciprocity principle)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Prominent one-tap invite CTA. The whole banner opens the standard
+/// add-member flow (Find on Kinrel / Add manually), so inviting a family
+/// member to the Arena is a single tap from the games hub.
+class _InviteFamilyBanner extends StatelessWidget {
+  const _InviteFamilyBanner({required this.familyId});
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => showAddMemberOptions(context, familyId: familyId),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFE8612A), Color(0xFFF59240)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFE8612A).withValues(alpha: 0.35),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.18),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.35),
+                  width: 1.2,
+                ),
+              ),
+              child: const Icon(
+                Icons.card_giftcard_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Invite family member',
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  const Text(
+                    'The Arena is better with everyone — one tap to invite',
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 11.5,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.person_add_alt_1_rounded,
+                      size: 15, color: Color(0xFFE8612A)),
+                  SizedBox(width: 5),
+                  Text(
+                    'Invite',
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFE8612A),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

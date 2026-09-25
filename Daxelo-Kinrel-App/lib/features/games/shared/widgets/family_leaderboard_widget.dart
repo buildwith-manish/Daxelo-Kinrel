@@ -1,4 +1,3 @@
-import '../../../../core/widgets/person_avatar.dart';
 // lib/features/games/shared/widgets/family_leaderboard_widget.dart
 //
 // Shows per-family leaderboard for games. Watches fn_get_family_leaderboard
@@ -8,6 +7,13 @@ import '../../../../core/widgets/person_avatar.dart';
 //
 // Renders as a compact list of (rank, avatar, name, W/L/D, winRate) rows.
 // Used by the family detail screen's Leaderboard tab.
+//
+// UX pass — Loss Aversion (Kahneman & Tversky): ranks feel far more
+// urgent when a small gap is framed as something the viewer can LOSE.
+// When the player directly below is within 2 wins, the current user's
+// row shows "⚠ {name} is {N} wins behind you"; when the player above
+// is within 2 wins it shows "{N} wins to pass {name}". Both notices
+// appear only on the viewer's own row.
 //
 // Usage:
 //   FamilyLeaderboardWidget(familyId: familyId)  // overall
@@ -20,6 +26,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/widgets/person_avatar.dart';
 
 class FamilyLeaderboardWidget extends ConsumerStatefulWidget {
   const FamilyLeaderboardWidget({
@@ -151,10 +158,16 @@ class _FamilyLeaderboardWidgetState
 
     final medal = rank == 1 ? '🥇' : (rank == 2 ? '🥈' : (rank == 3 ? '🥉' : null));
 
+    // Loss Aversion: only the viewer's own row carries gap notices.
+    final notices = _lossAversionNotices(r, rank);
+
     return Padding(
       padding: const EdgeInsets.symmetric(
           horizontal: KinrelSpacing.md, vertical: 10),
       child: Row(
+        crossAxisAlignment: notices.isEmpty
+            ? CrossAxisAlignment.center
+            : CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 32,
@@ -215,6 +228,8 @@ class _FamilyLeaderboardWidgetState
                     color: KinrelColors.textDim,
                   ),
                 ),
+                // Loss Aversion notices — chaser below / catchable above.
+                ...notices,
               ],
             ),
           ),
@@ -236,6 +251,82 @@ class _FamilyLeaderboardWidgetState
                 color: winRate >= 0.5
                     ? const Color(0xFF22C55E)
                     : KinrelColors.textDim,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Loss Aversion helpers
+  // ─────────────────────────────────────────────────────────────────
+
+  /// Builds gap notices for the CURRENT USER's row only. Returns an
+  /// empty list for everyone else.
+  ///
+  /// Two framings, both loss-scented:
+  ///   • Chaser below within 2 wins  → "⚠ {name} is {N} wins behind you"
+  ///     (your rank is at risk — the strongest loss-aversion trigger)
+  ///   • Target above within 2 wins  → "{N} wins to pass {name}"
+  ///     (a rank you're about to slip away from NOT winning)
+  List<Widget> _lossAversionNotices(Map<String, dynamic> row, int rank) {
+    final client = ref.read(supabaseProvider);
+    final myId = client?.auth.currentUser?.id;
+    if (myId == null) return const [];
+    if ((row['userId'] ?? '') != myId) return const [];
+
+    final myWins = (row['wins'] ?? 0) as int;
+    final myIndex = rank - 1;
+    final notices = <Widget>[];
+
+    // Chaser directly below (only if that row is visible in _rows).
+    if (myIndex + 1 < _rows.length) {
+      final below = _rows[myIndex + 1];
+      final gap = myWins - ((below['wins'] ?? 0) as int);
+      if (gap >= 0 && gap <= 2) {
+        final belowName = (below['userName'] ?? 'Family member') as String;
+        final label = gap == 0
+            ? '⚠ $belowName is tied with you — play now to stay ahead'
+            : '⚠ $belowName is '
+                '${gap == 1 ? '1 win' : '$gap wins'} behind you';
+        notices.add(_gapNotice(label, KinrelColors.amber));
+      }
+    }
+
+    // Catchable target directly above.
+    if (myIndex - 1 >= 0) {
+      final above = _rows[myIndex - 1];
+      final gap = ((above['wins'] ?? 0) as int) - myWins;
+      if (gap >= 0 && gap <= 2) {
+        final aboveName = (above['userName'] ?? 'Family member') as String;
+        final label = gap == 0
+            ? 'Tied with $aboveName — one win takes the spot'
+            : 'Only ${gap == 1 ? '1 win' : '$gap wins'} to pass $aboveName';
+        notices.add(_gapNotice(label, KinrelColors.tealAccent));
+      }
+    }
+
+    return notices;
+  }
+
+  Widget _gapNotice(String label, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Row(
+        children: [
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: color,
+                height: 1.25,
               ),
             ),
           ),

@@ -168,6 +168,13 @@ class _PredictionBattleFunFactCardState extends ConsumerState<PredictionBattleFu
 // (where the user can see their own contributions to the pool).
 //
 // Hidden if the fetch fails or the pool is at 0 / goal is 0.
+//
+// UX pass — Endowed Progress Effect: when the pool is still empty, the
+// card no longer shows a demotivating "0 / 500" bar. Instead it shows
+// a "Starting bonus: +10 coins" head start — the bar is pre-filled
+// toward the goal so the family feels they have already begun. People
+// who feel they've made progress toward a goal are far more likely to
+// complete it.
 
 class FamilyCoinPoolCard extends ConsumerStatefulWidget {
   const FamilyCoinPoolCard({super.key, required this.familyId});
@@ -220,7 +227,11 @@ class _FamilyCoinPoolCardState extends ConsumerState<FamilyCoinPoolCard> {
     if (_loading || _totalEarned == null || _currentGoal == null || _currentGoal == 0) {
       return const SizedBox.shrink();
     }
-    final progress = (_totalEarned! / _currentGoal!).clamp(0.0, 1.0);
+    // Endowed Progress Effect: an empty pool starts the family at a
+    // visible +10-coin head start rather than a flat zero bar.
+    final isEndowed = _totalEarned! == 0;
+    final shownEarned = isEndowed ? 10 : _totalEarned!;
+    final progress = (shownEarned / _currentGoal!).clamp(0.0, 1.0);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       padding: const EdgeInsets.all(14),
@@ -234,14 +245,19 @@ class _FamilyCoinPoolCardState extends ConsumerState<FamilyCoinPoolCard> {
           ],
         ),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.25), width: 0.8),
+        border: Border.all(
+          color: isEndowed
+              ? KinrelColors.amber.withValues(alpha: 0.45)
+              : KinrelColors.orange.withValues(alpha: 0.25),
+          width: 0.8,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Text('🪙', style: TextStyle(fontSize: 14)),
+              Text(isEndowed ? '🎁' : '🪙', style: const TextStyle(fontSize: 14)),
               const SizedBox(width: 6),
               Text(
                 'FAMILY COIN POOL',
@@ -250,11 +266,11 @@ class _FamilyCoinPoolCardState extends ConsumerState<FamilyCoinPoolCard> {
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.6,
-                  color: KinrelColors.orange,
+                  color: isEndowed ? KinrelColors.amber : KinrelColors.orange,
                 ),
               ),
               const Spacer(),
-              if (_goalsHit! > 0)
+              if (!isEndowed && _goalsHit! > 0)
                 Text(
                   '${_goalsHit} goal${_goalsHit == 1 ? '' : 's'} hit 🎉',
                   style: TextStyle(
@@ -272,20 +288,54 @@ class _FamilyCoinPoolCardState extends ConsumerState<FamilyCoinPoolCard> {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 8,
-              backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
-              valueColor: const AlwaysStoppedAnimation<Color>(KinrelColors.orange),
+              backgroundColor: isEndowed
+                  ? KinrelColors.amber.withValues(alpha: 0.15)
+                  : KinrelColors.orange.withValues(alpha: 0.15),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                isEndowed ? KinrelColors.amber : KinrelColors.orange,
+              ),
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            '$_totalEarned / $_currentGoal coins · ${_goalsHit! > 0 ? "Next goal: ${_currentGoal! + 500}" : "Hit ${_currentGoal} to unlock a bonus"}',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: KinrelColors.textSilver,
+          if (isEndowed) ...[
+            // Endowed Progress: the family starts at +10 — the first game
+            // keeps the bar moving, it never has to start from zero.
+            Row(
+              children: [
+                const Icon(Icons.card_giftcard_rounded,
+                    size: 13, color: KinrelColors.amber),
+                const SizedBox(width: 4),
+                Text(
+                  'Starting bonus: +10 coins',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.amber,
+                  ),
+                ),
+              ],
             ),
-          ),
+            const SizedBox(height: 2),
+            Text(
+              "You're already on the board — your family's first games add to this head start.",
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.textSilver,
+              ),
+            ),
+          ] else
+            Text(
+              '$_totalEarned / $_currentGoal coins · ${_goalsHit! > 0 ? "Next goal: ${_currentGoal! + 500}" : "Hit ${_currentGoal} to unlock a bonus"}',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.textSilver,
+              ),
+            ),
         ],
       ),
     );
