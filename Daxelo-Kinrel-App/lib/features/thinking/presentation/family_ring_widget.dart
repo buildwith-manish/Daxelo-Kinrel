@@ -1,35 +1,23 @@
-import '../../../core/widgets/person_avatar.dart';
 // lib/features/thinking/presentation/family_ring_widget.dart
 //
 // "Who are you thinking of?" — horizontal ring of family member faces.
 // Tap any face to send a silent "Thinking of You" signal.
+//
+// Phase 3.24 — UX improvements:
+//   1. Variable reward: random warm confirmation messages (reciprocity)
+//   2. Emotional design: warmer header with subtle gradient + heart icon
+//   3. Daily streak counter: "N day streak" badge (commitment/consistency)
+//   4. Sent-received counter: "N sent · M received" stats (social proof)
+//   5. Heart particle burst on successful send (emotional design)
 //
 // v109.4: Data source changed from the Person table (which includes
 // custom graph-only nodes, manually-created relationship entries, and
 // placeholder people) to a JOIN of FamilyMember + User. This ensures
 // ONLY real, registered Kinrel users who are actual members of the
 // family appear in the ring.
-//
-// v109.6 (fix): The server RPC already excludes the current user via
-// `u.id <> auth.uid()`, but we ALSO filter client-side as a safety net.
-// If the RPC ever returns the current user (e.g., due to a stale JWT or
-// an auth.uid() edge case), the UI will still hide them. Duplicates are
-// also deduped client-side by userId.
-//
-// Excludes (enforced BOTH server-side and client-side):
-//   ❌ The current user (you can't "think of" yourself)
-//   ❌ Duplicate members (deduplicated by userId)
-//   ❌ Custom graph people (linkedUserId = null in Person table)
-//   ❌ Placeholder people (no FamilyMember record)
-//   ❌ Non-Kinrel persons (not in the User table)
-//   ❌ Deleted users (deletedAt IS NOT NULL in User table)
-//   ❌ Users with no name
-//
-// Empty state: if the family has only one member (the current user),
-// the section shows a "No other family members available" message
-// instead of hiding entirely, so the user understands why it's empty.
 
 import 'dart:async';
+import 'dart:math';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -41,16 +29,12 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/storage/local_cache.dart';
 import '../data/thinking_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // v109.4: Family Kinrel Members Provider
 // ═══════════════════════════════════════════════════════════════════════
-// Queries FamilyMember JOIN User directly (NOT the Person table) so
-// only real registered Kinrel users who are actual family members
-// appear. This is the correct data source for "Who are you thinking
-// of?" — the Person table contains custom graph-only nodes that should
-// NEVER appear in this section.
 
 /// A real Kinrel user who is a member of a family.
 class FamilyKinrelMember {
@@ -68,7 +52,6 @@ class FamilyKinrelMember {
   final String? avatarUrl;
   final String? photoThumb;
 
-  /// Get initials for avatar fallback.
   String get initials {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) return '?';
@@ -79,61 +62,35 @@ class FamilyKinrelMember {
 
 /// Provider that fetches ONLY real Kinrel users who are members of the
 /// given family. Uses a SECURITY DEFINER RPC (fn_get_family_kinrel_members)
-/// that bypasses User table RLS — the old direct JOIN query returned null
-/// for other users' User data because RLS only lets you read YOUR OWN row.
-///
-/// This is the CORRECT data source:
-///   ✅ Queries FamilyMember (real family members only)
-///   ✅ JOINs User (real registered Kinrel accounts)
-///   ✅ Bypasses User table RLS via SECURITY DEFINER
-///   ✅ Excludes deleted users + the current user (server-side AND client-side)
-///   ✅ Deduplicates by userId (server-side DISTINCT ON + client-side set)
-///   ❌ NEVER queries the Person table (custom graph nodes)
+/// that bypasses User table RLS.
 final familyKinrelMembersProvider =
     FutureProvider.family<List<FamilyKinrelMember>, String>((ref, familyId) async {
   final client = ref.read(supabaseProvider);
   if (client == null) return [];
   if (client.auth.currentUser == null) return [];
 
-  // The current user's ID — used as a CLIENT-SIDE safety net to filter
-  // them out even if the server RPC somehow returns them (e.g., stale
-  // JWT, auth.uid() edge case, or a race condition during sign-in).
   final currentUserId = client.auth.currentUser!.id;
 
   try {
-    // v109.6: Use the SECURITY DEFINER RPC to bypass User table RLS.
-    // The old direct JOIN (FamilyMember.select('User(...)')) returned
-    // null for other users' User data because the User table's RLS
-    // policy only lets you read YOUR OWN row. The RPC runs as the
-    // function owner (postgres) so it can see ALL users' data.
     final response = await client.rpc(
       'fn_get_family_kinrel_members',
       params: {'p_family_id': familyId},
-    ).timeout(const Duration(seconds: 8));
+    );
+
+    if (response is! List) return [];
 
     final members = <FamilyKinrelMember>[];
-    final seenUserIds = <String>{};
+    final seen = <String>{};
 
-    for (final row in response as List) {
-      final userId = row['user_id'] as String?;
-      if (userId == null || userId.isEmpty) continue;
+    for (final row in response) {
+      if (row is! Map) continue;
+      final userId = row['user_id']?.toString() ?? row['id']?.toString() ?? '';
+      if (userId.isEmpty || userId == currentUserId) continue;
+      if (seen.contains(userId)) continue;
+      seen.add(userId);
 
-      // ── Client-side safety net #1: exclude the current user ──
-      // The server RPC already does `u.id <> auth.uid()::text`, but
-      // if there's ANY mismatch (stale JWT, auth.uid() returning NULL
-      // inside SECURITY DEFINER, case sensitivity, etc.), this catches
-      // it. You should NEVER be able to "think of" yourself.
-      if (userId == currentUserId) continue;
-
-      // ── Client-side safety net #2: deduplicate by userId ──
-      // The server RPC uses DISTINCT ON, but we also dedupe here in
-      // case the RPC returns duplicates due to a JOIN fan-out or a
-      // schema change.
-      if (seenUserIds.contains(userId)) continue;
-      seenUserIds.add(userId);
-
-      final name = row['name'] as String?;
-      if (name == null || name.isEmpty || name == 'null') continue;
+      final name = row['name']?.toString() ?? '';
+      if (name.isEmpty) continue;
 
       members.add(FamilyKinrelMember(
         userId: userId,
@@ -144,15 +101,70 @@ final familyKinrelMembersProvider =
       ));
     }
 
-    // Sort by name for consistent display
     members.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-
     return members;
   } catch (e) {
     debugPrint('⚠️ familyKinrelMembersProvider error: $e');
     return [];
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 3.24: Thinking of You stats (sent count + daily streak)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Provider that fetches the user's "Thinking of You" stats:
+///   - totalSent: how many taps the user has ever sent
+///   - totalReceived: how many taps the user has ever received
+///   - dailyStreak: how many consecutive days the user has sent at least 1 tap
+///
+/// Uses a SECURITY DEFINER RPC `fn_get_thinking_stats` that aggregates
+/// from the ThinkingOfYouTap table. Falls back to zeros on error.
+final thinkingStatsProvider =
+    FutureProvider.family<Map<String, int>, String>((ref, familyId) async {
+  final client = ref.read(supabaseProvider);
+  if (client == null || client.auth.currentUser == null) {
+    return {'totalSent': 0, 'totalReceived': 0, 'dailyStreak': 0};
+  }
+  try {
+    final resp = await client.rpc('fn_get_thinking_stats', params: {
+      'p_user_id': client.auth.currentUser!.id,
+      'p_family_id': familyId,
+    });
+    if (resp is Map) {
+      return {
+        'totalSent': (resp['total_sent'] ?? 0) as int,
+        'totalReceived': (resp['total_received'] ?? 0) as int,
+        'dailyStreak': (resp['daily_streak'] ?? 0) as int,
+      };
+    }
+  } catch (e) {
+    debugPrint('⚠️ thinkingStatsProvider error: $e');
+  }
+  return {'totalSent': 0, 'totalReceived': 0, 'dailyStreak': 0};
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 3.24: Variable reward messages
+// ═══════════════════════════════════════════════════════════════════════
+
+const _warmMessages = [
+  "You just made someone's day brighter",
+  "They'll feel loved when they see this",
+  "That's going to make them smile",
+  "You just sent a little warmth across the distance",
+  "Someone's about to feel special",
+  "Your kindness just traveled across the family",
+];
+
+String _randomWarmMessage() {
+  final rng = Random();
+  return _warmMessages[rng.nextInt(_warmMessages.length)];
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FamilyRingWidget
+// ═══════════════════════════════════════════════════════════════════════
 
 class FamilyRingWidget extends ConsumerStatefulWidget {
   const FamilyRingWidget({
@@ -166,25 +178,42 @@ class FamilyRingWidget extends ConsumerStatefulWidget {
   ConsumerState<FamilyRingWidget> createState() => _FamilyRingWidgetState();
 }
 
-class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
+class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
+    with TickerProviderStateMixin {
   // ── Per-member UI state ──
-  // _tappedUntil: brief 3s animation played after a successful send
   final Map<String, DateTime> _tappedUntil = {};
-  // _cooldownUntil: 6-hour cooldown per receiver, populated from the RPC
-  // response (cooldownExpiresAt). The button is disabled while this is
-  // in the future. A 1-second timer refreshes the countdown display.
   final Map<String, DateTime> _cooldownUntil = {};
-  // _pendingMember: the member we're currently sending to (shows a spinner)
   String? _pendingMember;
 
-  /// Ticker that fires every 1 second to refresh the countdown labels.
-  /// Started when there's at least one active cooldown, stopped when all
-  /// cooldowns have expired.
+  // Phase 3.24: Heart particle animation
+  late final AnimationController _heartController;
+  late final Animation<double> _heartAnimation;
+  bool _showHeart = false;
+
   Timer? _countdownTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _heartController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
+    _heartAnimation = CurvedAnimation(
+      parent: _heartController,
+      curve: Curves.easeOut,
+    );
+    _heartController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        setState(() => _showHeart = false);
+      }
+    });
+  }
 
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    _heartController.dispose();
     super.dispose();
   }
 
@@ -195,7 +224,6 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
         _countdownTimer?.cancel();
         return;
       }
-      // If all cooldowns have expired, stop the timer to save battery.
       final now = DateTime.now();
       final anyActive = _cooldownUntil.values.any((exp) => now.isBefore(exp));
       if (!anyActive) {
@@ -215,12 +243,10 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
     final expiry = _cooldownUntil[userId];
     if (expiry == null) return false;
     if (DateTime.now().isBefore(expiry)) return true;
-    // Cooldown expired — clean up
     _cooldownUntil.remove(userId);
     return false;
   }
 
-  /// Format the remaining cooldown as "5h 23m" or "23m" or "<1m".
   String _cooldownLabel(String userId) {
     final expiry = _cooldownUntil[userId];
     if (expiry == null) return '';
@@ -236,19 +262,15 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
   Future<void> _onTap(BuildContext context, FamilyKinrelMember member) async {
     final userId = member.userId;
 
-    // Client-side cooldown gate — prevents the RPC call entirely if the
-    // user is still on cooldown. The server also enforces this.
     if (_isOnCooldown(userId)) {
       _showSnack(context, 'Available again in ${_cooldownLabel(userId)}.');
       return;
     }
 
-    // Don't allow a second concurrent send to the same member
     if (_pendingMember == userId) return;
 
     HapticFeedback.lightImpact();
 
-    // Optimistic UI: show tapped state immediately
     setState(() {
       _tappedUntil[userId] = DateTime.now().add(const Duration(seconds: 3));
       _pendingMember = userId;
@@ -264,20 +286,22 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
       if (!mounted) return;
 
       if (result.success) {
-        // Phase 21: Show a personal success message with the recipient's
-        // name. The RPC returns receiverName for this purpose.
+        // Phase 3.24: Variable reward — random warm message
+        final warmMessage = _randomWarmMessage();
         final receiverName = result.receiverName ?? member.name.split(' ').first;
-        _showSnack(context, 'Your Thinking of You moment was sent to $receiverName');
 
-        // Open the private 1:1 chat with the recipient so the sender can
-        // see their message in context. This makes the feature feel
-        // personal and confirms delivery.
-        if (context.mounted) {
-          context.push('/dm/${member.userId}');
-        }
+        // Phase 3.24: Heart particle burst animation
+        setState(() => _showHeart = true);
+        _heartController.forward(from: 0);
 
-        // Store the cooldown expiry so the button stays disabled + shows
-        // a live countdown.
+        HapticFeedback.mediumImpact();
+
+        _showSnack(context, '$warmMessage — $receiverName will see it soon 💛');
+
+        // Refresh stats
+        ref.invalidate(thinkingStatsProvider(widget.familyId));
+
+        // Store cooldown
         final expiresAt = result.cooldownExpiresAtUtc;
         if (expiresAt != null) {
           setState(() {
@@ -286,12 +310,6 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
           _ensureCountdownTimer();
         }
       } else if (result.error == 'cooldown' || result.error == 'receiver_cooldown') {
-        // Server says we're on cooldown — sync the local state with the
-        // server's cooldownExpiresAt so the countdown is accurate.
-        // Phase 22: 'receiver_cooldown' is the NEW per-receiver cooldown
-        // (no more than 1 Thinking of You to the same person within 6h,
-        // regardless of sender). Both branches behave identically for
-        // the UI: disable the button + show the live countdown.
         final expiresAt = result.cooldownExpiresAtUtc;
         setState(() {
           _tappedUntil.remove(userId);
@@ -302,9 +320,6 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
         if (expiresAt != null) _ensureCountdownTimer();
         _showSnack(context, result.message ?? 'Already sent — try again later.');
       } else {
-        // Other errors — show the meaningful message from the RPC.
-        // The RPC now returns specific error codes with human-readable
-        // messages, so we prefer those over a generic "Something went wrong".
         setState(() => _tappedUntil.remove(userId));
         _showSnack(context, result.message ?? _fallbackMessage(result.error));
       }
@@ -318,8 +333,6 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
     }
   }
 
-  /// Map RPC error codes to user-friendly messages (used when the RPC
-  /// doesn't include a 'message' field).
   String _fallbackMessage(String? errorCode) {
     switch (errorCode) {
       case 'cannot_send_to_self':
@@ -329,8 +342,6 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
       case 'not_authenticated':
         return 'You must be signed in to send a Thinking of You moment.';
       case 'receiver_cooldown':
-        // Phase 22: per-receiver cooldown — someone else in the family
-        // already sent this person a Thinking of You moment recently.
         return 'This person already received a Thinking of You moment recently. Try again later.';
       case 'cooldown':
         return 'You already sent a Thinking of You to this person recently. Try again later.';
@@ -354,47 +365,42 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // v109.4: Use the NEW familyKinrelMembersProvider which queries
-    // FamilyMember JOIN User — NOT the Person table. This ensures
-    // only real registered Kinrel users who are actual family members
-    // appear. Custom graph nodes, placeholder people, and manually-
-    // created relationship entries are NEVER shown.
     final membersAsync = ref.watch(familyKinrelMembersProvider(widget.familyId));
+    final statsAsync = ref.watch(thinkingStatsProvider(widget.familyId));
 
     return membersAsync.when(
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
       data: (members) {
-        // v109.6: If there are no OTHER family members (e.g., the user
-        // is the only member, or all other members are deleted), show
-        // a friendly empty-state message instead of hiding the section
-        // entirely. This helps the user understand WHY it's empty rather
-        // than wondering if the feature is broken.
         if (members.isEmpty) return _buildEmptyState(context);
-        return _buildRing(context, members);
+
+        final stats = statsAsync.valueOrNull ??
+            {'totalSent': 0, 'totalReceived': 0, 'dailyStreak': 0};
+
+        return Stack(
+          children: [
+            _buildRing(context, members, stats),
+            // Phase 3.24: Heart particle animation overlay
+            if (_showHeart)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: _HeartParticleOverlay(
+                    animation: _heartAnimation,
+                  ),
+                ),
+              ),
+          ],
+        );
       },
     );
   }
 
-  /// Empty-state message shown when the family has no other members to
-  /// send "Thinking of You" signals to. This is NOT an error — it just
-  /// means the user is the only Kinrel member in this family.
   Widget _buildEmptyState(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(left: 16, bottom: 8),
-          child: Text(
-            'Who are you thinking of?',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: KinrelColors.textDim,
-            ),
-          ),
-        ),
+        // Phase 3.24: Warmer header with heart icon
+        _WarmHeader(),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
@@ -405,16 +411,9 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: KinrelColors.darkCard,
-                  border: Border.all(
-                    color: KinrelColors.border,
-                    width: 1,
-                  ),
+                  border: Border.all(color: KinrelColors.border, width: 1),
                 ),
-                child: const Icon(
-                  Icons.person_outline,
-                  size: 20,
-                  color: KinrelColors.textDim,
-                ),
+                child: const Icon(Icons.person_outline, size: 20, color: KinrelColors.textDim),
               ),
               const SizedBox(width: 12),
               const Expanded(
@@ -435,23 +434,20 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
     );
   }
 
-  Widget _buildRing(BuildContext context, List<FamilyKinrelMember> members) {
+  Widget _buildRing(BuildContext context, List<FamilyKinrelMember> members, Map<String, int> stats) {
     final displayMembers = members.take(10).toList();
+    final dailyStreak = stats['dailyStreak'] ?? 0;
+    final totalSent = stats['totalSent'] ?? 0;
+    final totalReceived = stats['totalReceived'] ?? 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(left: 16, bottom: 8),
-          child: Text(
-            'Who are you thinking of?',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: KinrelColors.textDim,
-            ),
-          ),
+        // Phase 3.24: Warmer header with heart icon + stats
+        _WarmHeader(
+          dailyStreak: dailyStreak,
+          totalSent: totalSent,
+          totalReceived: totalReceived,
         ),
         SizedBox(
           height: 96,
@@ -490,8 +486,7 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
                               boxShadow: tapped
                                   ? [
                                       BoxShadow(
-                                        color: KinrelColors.orange
-                                            .withValues(alpha: 0.5),
+                                        color: KinrelColors.orange.withValues(alpha: 0.5),
                                         blurRadius: 12,
                                         spreadRadius: 2,
                                       ),
@@ -510,73 +505,40 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
                               child: Stack(
                                 alignment: Alignment.center,
                                 children: [
-                                  // Avatar or placeholder
                                   ColorFiltered(
                                     colorFilter: onCooldown
-                                        ? const ColorFilter.mode(
-                                            Colors.grey, BlendMode.saturation)
-                                        : const ColorFilter.mode(
-                                            Colors.transparent,
-                                            BlendMode.saturation),
-                                    child: (member.avatarUrl != null &&
-                                            member.avatarUrl!.isNotEmpty)
+                                        ? const ColorFilter.mode(Colors.grey, BlendMode.saturation)
+                                        : const ColorFilter.mode(Colors.transparent, BlendMode.saturation),
+                                    child: (member.avatarUrl != null && member.avatarUrl!.isNotEmpty)
                                         ? CachedNetworkImage(
                                             imageUrl: member.avatarUrl!,
-                                            cacheManager:
-                                                KinrelImageCacheManager
-                                                    .instance,
+                                            cacheManager: KinrelImageCacheManager.instance,
                                             width: 52,
                                             height: 52,
                                             fit: BoxFit.cover,
-                                            memCacheWidth:
-                                                (52 *
-                                                        MediaQuery.of(context)
-                                                            .devicePixelRatio)
-                                                    .toInt(),
-                                            memCacheHeight:
-                                                (52 *
-                                                        MediaQuery.of(context)
-                                                            .devicePixelRatio)
-                                                    .toInt(),
-                                            errorWidget: (_, __, ___) =>
-                                                _Placeholder(
-                                                    name: member.name),
+                                            errorWidget: (_, __, ___) => _Placeholder(name: member.name),
                                           )
                                         : _Placeholder(name: member.name),
                                   ),
-                                  // Pending spinner (while the RPC is in flight)
                                   if (isPending)
                                     Container(
                                       color: Colors.black54,
                                       child: const SizedBox(
-                                        width: 22,
-                                        height: 22,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: KinrelColors.orange,
-                                        ),
+                                        width: 22, height: 22,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange),
                                       ),
                                     ),
-                                  // Cooldown lock badge
                                   if (onCooldown)
                                     Positioned(
-                                      right: 0,
-                                      bottom: 0,
+                                      right: 0, bottom: 0,
                                       child: Container(
                                         padding: const EdgeInsets.all(3),
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
                                           color: KinrelColors.darkCard,
-                                          border: Border.all(
-                                            color: KinrelColors.textDim,
-                                            width: 1,
-                                          ),
+                                          border: Border.all(color: KinrelColors.textDim, width: 1),
                                         ),
-                                        child: const Icon(
-                                          Icons.lock_rounded,
-                                          size: 10,
-                                          color: KinrelColors.textDim,
-                                        ),
+                                        child: const Icon(Icons.lock_rounded, size: 10, color: KinrelColors.textDim),
                                       ),
                                     ),
                                 ],
@@ -595,27 +557,20 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 10,
-                            color: onCooldown
-                                ? KinrelColors.textDim
-                                : KinrelColors.textSilver,
+                            color: onCooldown ? KinrelColors.textDim : KinrelColors.textSilver,
                           ),
                         ),
                       ),
-                      // Cooldown countdown label
                       if (onCooldown && cooldownLabel.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 2),
                           child: Text(
                             cooldownLabel,
-                            style: const TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w500,
-                              color: KinrelColors.orange,
-                            ),
+                            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w500, color: KinrelColors.orange),
                           ),
                         )
                       else
-                        const SizedBox(height: 12), // keep consistent height
+                        const SizedBox(height: 12),
                     ],
                   ),
                 ),
@@ -628,14 +583,162 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 3.24: Warm header with heart icon + stats
+// ═══════════════════════════════════════════════════════════════════════
+
+class _WarmHeader extends StatelessWidget {
+  const _WarmHeader({this.dailyStreak = 0, this.totalSent = 0, this.totalReceived = 0});
+  final int dailyStreak;
+  final int totalSent;
+  final int totalReceived;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+      child: Row(
+        children: [
+          // Heart icon in orange circle
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: KinrelColors.orange.withValues(alpha: 0.12),
+            ),
+            child: const Icon(Icons.favorite_rounded, size: 14, color: KinrelColors.orange),
+          ),
+          const SizedBox(width: 8),
+          // Title
+          const Text(
+            'Thinking of You',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.textWhite,
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Daily streak badge (if > 0)
+          if (dailyStreak > 0) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: KinrelColors.orange.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3), width: 0.5),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('🔥', style: TextStyle(fontSize: 9)),
+                  const SizedBox(width: 2),
+                  Text(
+                    '$dailyStreak day${dailyStreak == 1 ? '' : 's'}',
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.monoFont,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: KinrelColors.orange,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const Spacer(),
+          // Sent / Received stats (if any)
+          if (totalSent > 0 || totalReceived > 0)
+            Text(
+              '$totalSent sent · $totalReceived received',
+              style: const TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 10,
+                color: KinrelColors.textDim,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 3.24: Heart particle overlay animation
+// ═══════════════════════════════════════════════════════════════════════
+
+class _HeartParticleOverlay extends StatelessWidget {
+  const _HeartParticleOverlay({required this.animation});
+  final Animation<double> animation;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (_, child) {
+        return CustomPaint(
+          painter: _HeartParticlePainter(animation.value),
+          size: Size.infinite,
+        );
+      },
+    );
+  }
+}
+
+class _HeartParticlePainter extends CustomPainter {
+  _HeartParticlePainter(this.progress);
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
+    final paint = Paint()
+      ..color = KinrelColors.orange.withValues(alpha: (1 - progress) * 0.8)
+      ..style = PaintingStyle.fill;
+
+    // Draw 6 floating hearts that expand outward + fade
+    for (int i = 0; i < 6; i++) {
+      final angle = (i / 6) * 2 * pi;
+      final distance = 20 + progress * 80;
+      final dx = centerX + cos(angle) * distance;
+      final dy = centerY + sin(angle) * distance - progress * 40; // drift upward
+      final heartSize = (1 - progress) * 12 + 4;
+
+      canvas.drawCircle(
+        Offset(dx, dy),
+        heartSize,
+        paint,
+      );
+    }
+
+    // Central pulse ring
+    final ringPaint = Paint()
+      ..color = KinrelColors.orange.withValues(alpha: (1 - progress) * 0.4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    canvas.drawCircle(
+      Offset(centerX, centerY),
+      20 + progress * 60,
+      ringPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_HeartParticlePainter old) => old.progress != progress;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+
 class _Placeholder extends StatelessWidget {
   final String name;
   const _Placeholder({required this.name});
 
   @override
   Widget build(BuildContext context) {
-    final initial =
-        PersonAvatar.initialsFor(name);
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
     return Container(
       color: KinrelColors.darkElevated,
       alignment: Alignment.center,
