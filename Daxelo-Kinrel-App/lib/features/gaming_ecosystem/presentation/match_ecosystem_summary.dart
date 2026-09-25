@@ -21,6 +21,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show SupabaseClient;
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -112,10 +113,22 @@ class _VariableRewardBannerState extends ConsumerState<VariableRewardBanner> {
   int? _amount;
   bool _attempted = false;
 
+  // Captured SYNCHRONOUSLY in initState — never read `ref` after an
+  // async gap. The results screen rebuilds rapidly when the room closes
+  // (game row hard-deleted → provider refresh), which can dispose this
+  // widget in the same frame our microtask was queued in; touching ref
+  // then throws "Cannot use ref after the widget was disposed" and
+  // silently kills the award. Client + user id are stable, so holding
+  // them is safe.
+  late final SupabaseClient? _client;
+  late final String? _myId;
+
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => _maybeAward());
+    _client = ref.read(supabaseProvider);
+    _myId = _client?.auth.currentUser?.id;
+    Future.microtask(_maybeAward);
   }
 
   /// FNV-1a — small, fast, and stable across sessions/platforms
@@ -133,8 +146,8 @@ class _VariableRewardBannerState extends ConsumerState<VariableRewardBanner> {
     if (_attempted) return;
     _attempted = true;
 
-    final client = ref.read(supabaseProvider);
-    final myId = client?.auth.currentUser?.id;
+    final client = _client;
+    final myId = _myId;
     if (client == null || myId == null) return;
 
     // Deterministic 20% roll per (game, viewer).
@@ -153,6 +166,8 @@ class _VariableRewardBannerState extends ConsumerState<VariableRewardBanner> {
         'p_idempotency_key': widget.gameId,
         'p_metadata': {'source': 'variable_reward_banner'},
       }).timeout(const Duration(seconds: 10));
+      // mounted guard — a disposed instance's award still lands in the
+      // ledger (the RPC is idempotent), it just can't paint the banner.
       if (!mounted) return;
       if (resp is Map && resp['ok'] == true) {
         setState(() => _amount = amount);
