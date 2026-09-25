@@ -12,6 +12,8 @@
 // On open: marks all taps as read (via fn_mark_taps_read) so the
 // badge count resets.
 
+import 'dart:math';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -129,7 +131,7 @@ class _EmptyInbox extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('🧡', style: TextStyle(fontSize: 48)),
+            const Icon(Icons.favorite_rounded, size: 48, color: KinrelColors.orange),
             const SizedBox(height: 16),
             const Text(
               'No Thinking of You moments yet',
@@ -225,9 +227,12 @@ class _TapCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      emotion.emoji,
-                      style: const TextStyle(fontSize: 16),
+                    // Phase 3.28: Custom painted icon instead of emoji
+                    SizedBox(
+                      width: 16, height: 16,
+                      child: CustomPaint(
+                        painter: _InboxReactionIcon(reaction: emotion, color: emotion.color),
+                      ),
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -307,4 +312,66 @@ class _InitialsAvatar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Phase 3.28 — Compact custom painted icon for the inbox (no emoji).
+class _InboxReactionIcon extends CustomPainter {
+  const _InboxReactionIcon({required this.reaction, required this.color});
+  final ThinkingEmotion reaction;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    final fillPaint = Paint()
+      ..color = color.withValues(alpha: 0.4)
+      ..style = PaintingStyle.fill;
+    final center = Offset(size.width / 2, size.height / 2);
+    final s = size.width * 0.4;
+    final pi2 = 2 * pi;
+
+    switch (reaction) {
+      case ThinkingEmotion.love:
+        canvas.drawCircle(center, s * 0.3, fillPaint);
+        canvas.drawCircle(center, s * 0.5, paint..strokeWidth = 1.2);
+      case ThinkingEmotion.hug:
+        final l = center + Offset(-s * 0.35, 0);
+        final r = center + Offset(s * 0.35, 0);
+        canvas.drawCircle(l, s * 0.15, fillPaint);
+        canvas.drawCircle(r, s * 0.15, fillPaint);
+        final path = Path();
+        path.moveTo(l.dx + s * 0.15, l.dy);
+        path.quadraticBezierTo(center.dx, center.dy - s * 0.4, r.dx - s * 0.15, r.dy);
+        canvas.drawPath(path, paint);
+      case ThinkingEmotion.gratitude:
+        canvas.drawCircle(center, s * 0.1, fillPaint);
+        for (int i = 0; i < 4; i++) {
+          final a = (i / 4) * pi2;
+          canvas.drawLine(
+            center + Offset(cos(a) * s * 0.2, sin(a) * s * 0.2),
+            center + Offset(cos(a) * s * 0.5, sin(a) * s * 0.5),
+            paint,
+          );
+        }
+      case ThinkingEmotion.proud:
+        final path = Path();
+        for (int i = 0; i < 12; i++) {
+          final a = (i / 12) * pi2 - pi / 2;
+          final r = i % 2 == 0 ? s * 0.5 : s * 0.2;
+          final p = center + Offset(cos(a) * r, sin(a) * r);
+          if (i == 0) path.moveTo(p.dx, p.dy); else path.lineTo(p.dx, p.dy);
+        }
+        path.close();
+        canvas.drawPath(path, fillPaint);
+        canvas.drawPath(path, paint..strokeWidth = 1.2);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _InboxReactionIcon old) =>
+      old.reaction != reaction || old.color != color;
 }

@@ -43,13 +43,12 @@ import '../data/thinking_service.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 enum ThinkingEmotion {
-  love('💛', 'Love', Color(0xFFE8612A)),
-  hug('🤗', 'Hug', Color(0xFFF59240)),
-  gratitude('🙏', 'Gratitude', Color(0xFF4CAF7A)),
-  proud('🌟', 'Proud', Color(0xFF8B5CF6));
+  love('Pulse', Color(0xFFE8612A)),
+  hug('Connect', Color(0xFFF59240)),
+  gratitude('Appreciate', Color(0xFF4CAF7A)),
+  proud('Achieve', Color(0xFF8B5CF6));
 
-  const ThinkingEmotion(this.emoji, this.label, this.color);
-  final String emoji;
+  const ThinkingEmotion(this.label, this.color);
   final String label;
   final Color color;
 }
@@ -83,7 +82,7 @@ String _randomWarmMessageFor(ThinkingEmotion emotion) {
   return messages[rng.nextInt(messages.length)];
 }
 
-/// Time-of-day greeting based on the current IST hour.
+/// Time-of-day greeting
 String _timeOfDayGreeting() {
   final now = DateTime.now().toUtc();
   final istHour = (now.hour + 5) % 24; // UTC + 5 (approximate IST)
@@ -374,6 +373,8 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
     return '<1m';
   }
 
+  /// Phase 3.28 — Single tap: instant send, no bottom sheet.
+  /// This is the default universal action. Feels immediate + effortless.
   Future<void> _onTap(BuildContext context, FamilyKinrelMember member) async {
     final userId = member.userId;
 
@@ -384,12 +385,9 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
 
     if (_pendingMember == userId) return;
 
-    // Phase 3.25: Show emotion selection sheet instead of immediately sending
-    final emotion = await _showEmotionSheet(context, member);
-    if (emotion == null || !mounted) return; // user cancelled
-
     HapticFeedback.lightImpact();
 
+    // Optimistic UI: show tapped state immediately
     setState(() {
       _tappedUntil[userId] = DateTime.now().add(const Duration(seconds: 3));
       _pendingMember = userId;
@@ -405,19 +403,18 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
       if (!mounted) return;
 
       if (result.success) {
-        // Phase 3.25: Emotion-specific warm message
-        final warmMessage = _randomWarmMessageFor(emotion);
         final receiverName = result.receiverName ?? member.name.split(' ').first;
 
-        // Heart particle burst with emotion color
+        // Heart particle burst
         setState(() => _showHeart = true);
         _heartController.forward(from: 0);
 
         HapticFeedback.mediumImpact();
 
-        _showSnack(context, '$warmMessage — $receiverName will see it soon ${emotion.emoji}');
+        // Subtle, clean confirmation — no emoji, no warmth variations
+        _showSnack(context, 'Thinking of You sent to $receiverName');
 
-        // Refresh stats + received-from
+        // Refresh providers
         ref.invalidate(thinkingStatsProvider(widget.familyId));
         ref.invalidate(receivedFromProvider(widget.familyId));
         ref.invalidate(unreadTapCountProvider(widget.familyId));
@@ -430,16 +427,8 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
           _ensureCountdownTimer();
         }
 
-        // Phase 3.27: Navigate to the personal chat (DM) with the
-        // recipient so the sender can see the Thinking of You message
-        // in context. This makes the feature feel personal — the user
-        // taps an avatar → picks an emotion → is taken to the 1:1
-        // chat where they can continue the conversation.
-        //
-        // Wait 1.5s so the heart particle animation + SnackBar are
-        // visible before navigating. The user sees the celebration,
-        // THEN lands in the chat.
-        Future.delayed(const Duration(milliseconds: 1500), () {
+        // Navigate to personal chat after 1.2s
+        Future.delayed(const Duration(milliseconds: 1200), () {
           if (mounted) {
             context.push('/dm/${member.userId}');
           }
@@ -468,9 +457,91 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
     }
   }
 
-  /// Phase 3.25: Show the emotion selection bottom sheet.
-  /// Returns the selected emotion, or null if cancelled.
-  Future<ThinkingEmotion?> _showEmotionSheet(
+  /// Phase 3.28 — Long press: open the advanced reaction sheet with
+  /// custom Daxelo-Kinrel branded icons (no emoji).
+  Future<void> _onLongPress(BuildContext context, FamilyKinrelMember member) async {
+    final userId = member.userId;
+
+    if (_isOnCooldown(userId)) {
+      _showSnack(context, 'Available again in ${_cooldownLabel(userId)}.');
+      return;
+    }
+
+    HapticFeedback.selectionClick();
+
+    final emotion = await _showReactionSheet(context, member);
+    if (emotion == null || !mounted) return;
+
+    // Now send with the selected emotion
+    HapticFeedback.lightImpact();
+
+    setState(() {
+      _tappedUntil[userId] = DateTime.now().add(const Duration(seconds: 3));
+      _pendingMember = userId;
+    });
+
+    try {
+      final service = ref.read(thinkingServiceProvider);
+      final result = await service.sendTap(
+        receiverId: userId,
+        familyId: widget.familyId,
+      );
+
+      if (!mounted) return;
+
+      if (result.success) {
+        final receiverName = result.receiverName ?? member.name.split(' ').first;
+
+        setState(() => _showHeart = true);
+        _heartController.forward(from: 0);
+
+        HapticFeedback.mediumImpact();
+
+        _showSnack(context, 'Thinking of You sent to $receiverName');
+
+        ref.invalidate(thinkingStatsProvider(widget.familyId));
+        ref.invalidate(receivedFromProvider(widget.familyId));
+        ref.invalidate(unreadTapCountProvider(widget.familyId));
+
+        final expiresAt = result.cooldownExpiresAtUtc;
+        if (expiresAt != null) {
+          setState(() {
+            _cooldownUntil[userId] = expiresAt.toLocal();
+          });
+          _ensureCountdownTimer();
+        }
+
+        Future.delayed(const Duration(milliseconds: 1200), () {
+          if (mounted) {
+            context.push('/dm/${member.userId}');
+          }
+        });
+      } else if (result.error == 'cooldown' || result.error == 'receiver_cooldown') {
+        final expiresAt = result.cooldownExpiresAtUtc;
+        setState(() {
+          _tappedUntil.remove(userId);
+          if (expiresAt != null) {
+            _cooldownUntil[userId] = expiresAt.toLocal();
+          }
+        });
+        if (expiresAt != null) _ensureCountdownTimer();
+        _showSnack(context, result.message ?? 'Already sent — try again later.');
+      } else {
+        setState(() => _tappedUntil.remove(userId));
+        _showSnack(context, result.message ?? _fallbackMessage(result.error));
+      }
+    } catch (e) {
+      setState(() => _tappedUntil.remove(userId));
+      if (mounted) {
+        _showSnack(context, 'Network error. Please check your connection and try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _pendingMember = null);
+    }
+  }
+
+  /// Phase 3.28 — Advanced reaction sheet with custom branded icons.
+  Future<ThinkingEmotion?> _showReactionSheet(
     BuildContext context,
     FamilyKinrelMember member,
   ) async {
@@ -511,16 +582,16 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
             ),
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
-              child: Text(
-                'How are you feeling about them?',
-                style: const TextStyle(
+              child: const Text(
+                'Choose a reaction',
+                style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim,
                 ),
               ),
             ),
-            // Emotion grid
+            // Custom branded icon row (no emoji)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
@@ -528,7 +599,7 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
                 children: ThinkingEmotion.values.map((e) {
                   return GestureDetector(
                     onTap: () => Navigator.pop(ctx, e),
-                    child: _EmotionChip(emotion: e),
+                    child: _BrandedReactionChip(reaction: e),
                   );
                 }).toList(),
               ),
@@ -687,6 +758,9 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
                 onTap: (onCooldown || isPending)
                     ? null
                     : () => _onTap(context, member),
+                onLongPress: (onCooldown || isPending)
+                    ? null
+                    : () => _onLongPress(context, member),
                 child: AnimatedScale(
                   scale: tapped ? 1.12 : 1.0,
                   duration: const Duration(milliseconds: 200),
@@ -1043,12 +1117,12 @@ class _Placeholder extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Phase 3.25: Emotion selection chip
+// Phase 3.28: Branded reaction chip with custom painted icons (no emoji)
 // ═══════════════════════════════════════════════════════════════════════
 
-class _EmotionChip extends StatelessWidget {
-  const _EmotionChip({required this.emotion});
-  final ThinkingEmotion emotion;
+class _BrandedReactionChip extends StatelessWidget {
+  const _BrandedReactionChip({required this.reaction});
+  final ThinkingEmotion reaction;
 
   @override
   Widget build(BuildContext context) {
@@ -1060,34 +1134,147 @@ class _EmotionChip extends StatelessWidget {
           height: 56,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: emotion.color.withValues(alpha: 0.12),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                reaction.color.withValues(alpha: 0.15),
+                reaction.color.withValues(alpha: 0.05),
+              ],
+            ),
             border: Border.all(
-              color: emotion.color.withValues(alpha: 0.4),
+              color: reaction.color.withValues(alpha: 0.4),
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: emotion.color.withValues(alpha: 0.2),
+                color: reaction.color.withValues(alpha: 0.2),
                 blurRadius: 8,
                 spreadRadius: 1,
               ),
             ],
           ),
-          child: Center(
-            child: Text(emotion.emoji, style: const TextStyle(fontSize: 24)),
+          child: CustomPaint(
+            painter: _ReactionIconPainter(
+              reaction: reaction,
+              color: reaction.color,
+            ),
           ),
         ),
         const SizedBox(height: 6),
         Text(
-          emotion.label,
+          reaction.label,
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: emotion.color,
+            color: reaction.color,
           ),
         ),
       ],
     );
   }
+}
+
+/// Custom painted icons for each reaction — replaces all emoji with
+/// Daxelo-Kinrel branded vector icons drawn via CustomPainter.
+class _ReactionIconPainter extends CustomPainter {
+  const _ReactionIconPainter({required this.reaction, required this.color});
+  final ThinkingEmotion reaction;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final fillPaint = Paint()
+      ..color = color.withValues(alpha: 0.3)
+      ..style = PaintingStyle.fill;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final s = size.width * 0.5;
+
+    switch (reaction) {
+      case ThinkingEmotion.love:
+        _drawPulse(canvas, center, s, paint, fillPaint);
+        break;
+      case ThinkingEmotion.hug:
+        _drawConnection(canvas, center, s, paint, fillPaint);
+        break;
+      case ThinkingEmotion.gratitude:
+        _drawAppreciation(canvas, center, s, paint, fillPaint);
+        break;
+      case ThinkingEmotion.proud:
+        _drawAchievement(canvas, center, s, paint, fillPaint);
+        break;
+    }
+  }
+
+  /// Glowing pulse — concentric circles radiating outward (like a heartbeat)
+  void _drawPulse(Canvas canvas, Offset center, double s, Paint paint, Paint fillPaint) {
+    // Center dot
+    canvas.drawCircle(center, s * 0.15, fillPaint);
+    // Inner ring
+    canvas.drawCircle(center, s * 0.35, paint..strokeWidth = 2);
+    // Outer ring (thinner)
+    canvas.drawCircle(center, s * 0.6, paint..strokeWidth = 1.2);
+  }
+
+  /// Connection — two nodes linked by a curved line
+  void _drawConnection(Canvas canvas, Offset center, double s, Paint paint, fillPaint) {
+    final left = Offset(center.dx - s * 0.4, center.dy + s * 0.1);
+    final right = Offset(center.dx + s * 0.4, center.dy + s * 0.1);
+    // Left node
+    canvas.drawCircle(left, s * 0.18, fillPaint);
+    canvas.drawCircle(left, s * 0.18, paint);
+    // Right node
+    canvas.drawCircle(right, s * 0.18, fillPaint);
+    canvas.drawCircle(right, s * 0.18, paint);
+    // Connecting arc
+    final path = Path();
+    path.moveTo(left.dx + s * 0.18, left.dy);
+    path.quadraticBezierTo(center.dx, center.dy - s * 0.5, right.dx - s * 0.18, right.dy);
+    canvas.drawPath(path, paint);
+  }
+
+  /// Appreciation — a hand-like shape (simplified as radiating lines from center)
+  void _drawAppreciation(Canvas canvas, Offset center, double s, Paint paint, fillPaint) {
+    // Center circle (small)
+    canvas.drawCircle(center, s * 0.12, fillPaint);
+    // 6 radiating lines (like a stylized sunburst = gratitude/appreciation)
+    for (int i = 0; i < 6; i++) {
+      final angle = (i / 6) * 2 * pi;
+      final start = center + Offset(cos(angle) * s * 0.2, sin(angle) * s * 0.2);
+      final end = center + Offset(cos(angle) * s * 0.55, sin(angle) * s * 0.55);
+      canvas.drawLine(start, end, paint..strokeWidth = 2);
+    }
+  }
+
+  /// Achievement — a star/medal shape (simplified as a hexagonal star)
+  void _drawAchievement(Canvas canvas, Offset center, double s, Paint paint, fillPaint) {
+    // Draw a 6-pointed star (two overlapping triangles)
+    final path = Path();
+    for (int i = 0; i < 12; i++) {
+      final angle = (i / 12) * 2 * pi - pi / 2;
+      final r = i % 2 == 0 ? s * 0.5 : s * 0.22;
+      final point = center + Offset(cos(angle) * r, sin(angle) * r);
+      if (i == 0) {
+        path.moveTo(point.dx, point.dy);
+      } else {
+        path.lineTo(point.dx, point.dy);
+      }
+    }
+    path.close();
+    canvas.drawPath(path, fillPaint);
+    canvas.drawPath(path, paint..strokeWidth = 1.8);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReactionIconPainter old) =>
+      old.reaction != reaction || old.color != color;
 }
