@@ -34,6 +34,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../family/presentation/add_member_options_sheet.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
+import '../../family/presentation/premium/family_hub_sections.dart';
 import '../../gaming_ecosystem/data/gaming_models.dart';
 import '../../gaming_ecosystem/data/gaming_providers.dart';
 import '../../gaming_ecosystem/presentation/widgets/gaming_kit.dart';
@@ -278,6 +279,23 @@ class _GamingDashboardBody extends ConsumerWidget {
 
           // "Browse all games →" link to the secondary All Games screen.
           _BrowseAllGamesLink(familyId: familyId),
+          const SizedBox(height: 18),
+
+          // ═══════════════════════════════════════════════════════════════
+          // ZONE 2d: GAMES SECTION — Play/Leaderboard toggle
+          // ═══════════════════════════════════════════════════════════════
+          // Moved here from the Family Space hub per user request. All
+          // game-related content (active games, categorized game catalog,
+          // leaderboard) now lives exclusively on this dedicated Games
+          // screen — not on the Family home page.
+          //   • ActiveGamesList — live rooms with Zeigarnik "Your turn"
+          //     pulse badge.
+          //   • Hick's-Law grouped games row (Quick Play / Classic Board /
+          //     Family Fun) with duration + complexity labels + social
+          //     proof micro-labels.
+          //   • Play/Leaders toggle — leaderboard with loss-aversion gap
+          //     notices.
+          GamesSection(familyId: familyId),
           const SizedBox(height: 18),
 
           // ═══════════════════════════════════════════════════════════════

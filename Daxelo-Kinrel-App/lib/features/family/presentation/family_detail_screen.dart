@@ -316,25 +316,6 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                     child: FamilyRingWidget(familyId: widget.familyId),
                   ),
 
-                  // 2c. GAMES — active games + grouped catalog + leaderboard
-                  // toggle (GamesSection from the premium hub sections).
-                  //
-                  // This is the family's game shelf inside Family Space:
-                  //   • ActiveGamesList — live rooms, with the Zeigarnik
-                  //     "Your turn" pulse badge on games awaiting the
-                  //     viewer's move.
-                  //   • The Hick's-Law grouped games row (Quick Play /
-                  //     Classic Board / Family Fun) with duration +
-                  //     complexity labels and social-proof micro-labels.
-                  //   • Play/Leaders toggle — the nested leaderboard with
-                  //     loss-aversion gap notices on the viewer's row.
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      GamesSection(familyId: widget.familyId),
-                      3,
-                    ),
-                  ),
-
                   const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
                   // 3. [NAV — now wired as Scaffold bottomNavigationBar]
