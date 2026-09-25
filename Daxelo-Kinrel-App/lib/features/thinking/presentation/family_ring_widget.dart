@@ -420,6 +420,7 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
         // Refresh stats + received-from
         ref.invalidate(thinkingStatsProvider(widget.familyId));
         ref.invalidate(receivedFromProvider(widget.familyId));
+        ref.invalidate(unreadTapCountProvider(widget.familyId));
 
         final expiresAt = result.cooldownExpiresAtUtc;
         if (expiresAt != null) {
@@ -428,6 +429,21 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
           });
           _ensureCountdownTimer();
         }
+
+        // Phase 3.27: Navigate to the personal chat (DM) with the
+        // recipient so the sender can see the Thinking of You message
+        // in context. This makes the feature feel personal — the user
+        // taps an avatar → picks an emotion → is taken to the 1:1
+        // chat where they can continue the conversation.
+        //
+        // Wait 1.5s so the heart particle animation + SnackBar are
+        // visible before navigating. The user sees the celebration,
+        // THEN lands in the chat.
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (mounted) {
+            context.push('/dm/${member.userId}');
+          }
+        });
       } else if (result.error == 'cooldown' || result.error == 'receiver_cooldown') {
         final expiresAt = result.cooldownExpiresAtUtc;
         setState(() {
