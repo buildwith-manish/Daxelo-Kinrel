@@ -92,6 +92,7 @@ import '../../features/prediction_battle_v1/pb_v1_coin_history_screen.dart';
 import '../../features/prediction_battle_v1/pb_v1_moments_screen.dart';
 // Phase 3.21 — Prediction Battle v1 widget settings screen.
 import '../../features/prediction_battle_v1/pb_v1_widget_settings_screen.dart';
+import '../../features/thinking/presentation/thinking_inbox_screen.dart';
 import '../../features/hot_seat/presentation/hot_seat_screen.dart';
 import '../../features/relation_riddles/presentation/relation_riddle_screen.dart';
 import '../../features/calendar/presentation/family_calendar_screen.dart'
@@ -1726,6 +1727,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: PBv1WidgetSettingsScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+
+      // ── Thinking of You Inbox ───────────────────────────────────
+      // Phase 3.26 — shows all received "Thinking of You" moments
+      // with sender avatar + emotion + timestamp. Marks as read on
+      // open so the badge count resets.
+      GoRoute(
+        path: '/family/:id/thinking-inbox',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: ThinkingInboxScreen(
             familyId: state.pathParameters['id']!,
           ),
         ),

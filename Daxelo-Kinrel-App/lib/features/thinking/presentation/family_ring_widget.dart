@@ -109,18 +109,42 @@ final receivedFromProvider =
   final client = ref.read(supabaseProvider);
   if (client == null || client.auth.currentUser == null) return {};
   try {
+    // Phase 3.26 fix: use the correct table name (thinking_of_you_taps,
+    // lowercase) and the correct column name (tappedAt, not createdAt).
     final since = DateTime.now().subtract(const Duration(hours: 24)).toUtc().toIso8601String();
     final rows = await client
-        .from('ThinkingOfYouTap')
+        .from('thinking_of_you_taps')
         .select('senderId')
         .eq('receiverId', client.auth.currentUser!.id)
         .eq('familyId', familyId)
-        .gte('createdAt', since);
+        .gte('tappedAt', since);
     return (rows as List).map((r) => (r as Map)['senderId'] as String).toSet();
   } catch (e) {
     debugPrint('⚠️ receivedFromProvider error: $e');
     return {};
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 3.26: Unread tap count provider (for the badge on the header)
+// ═══════════════════════════════════════════════════════════════════════
+
+final unreadTapCountProvider =
+    FutureProvider.family<int, String>((ref, familyId) async {
+  final client = ref.read(supabaseProvider);
+  if (client == null || client.auth.currentUser == null) return 0;
+  try {
+    final resp = await client.rpc('fn_get_unread_tap_count', params: {
+      'p_user_id': client.auth.currentUser!.id,
+      'p_family_id': familyId,
+    });
+    if (resp is Map && resp['ok'] == true) {
+      return (resp['unread_count'] ?? 0) as int;
+    }
+  } catch (e) {
+    debugPrint('⚠️ unreadTapCountProvider error: $e');
+  }
+  return 0;
 });
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -535,6 +559,7 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
     final membersAsync = ref.watch(familyKinrelMembersProvider(widget.familyId));
     final statsAsync = ref.watch(thinkingStatsProvider(widget.familyId));
     final receivedFromAsync = ref.watch(receivedFromProvider(widget.familyId));
+    final unreadCountAsync = ref.watch(unreadTapCountProvider(widget.familyId));
 
     return membersAsync.when(
       loading: () => const SizedBox.shrink(),
@@ -545,10 +570,11 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
         final stats = statsAsync.valueOrNull ??
             {'totalSent': 0, 'totalReceived': 0, 'dailyStreak': 0};
         final receivedFrom = receivedFromAsync.valueOrNull ?? {};
+        final unreadCount = unreadCountAsync.valueOrNull ?? 0;
 
         return Stack(
           children: [
-            _buildRing(context, members, stats, receivedFrom),
+            _buildRing(context, members, stats, receivedFrom, unreadCount),
             if (_showHeart)
               Positioned.fill(
                 child: IgnorePointer(
@@ -600,7 +626,7 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
     );
   }
 
-  Widget _buildRing(BuildContext context, List<FamilyKinrelMember> members, Map<String, int> stats, Set<String> receivedFrom) {
+  Widget _buildRing(BuildContext context, List<FamilyKinrelMember> members, Map<String, int> stats, Set<String> receivedFrom, int unreadCount) {
     final displayMembers = members.take(10).toList();
     final dailyStreak = stats['dailyStreak'] ?? 0;
     final totalSent = stats['totalSent'] ?? 0;
@@ -610,12 +636,20 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Phase 3.25: Warm header with time-of-day greeting + stats
-        _WarmHeader(
-          dailyStreak: dailyStreak,
-          totalSent: totalSent,
-          totalReceived: totalReceived,
-          greeting: greeting,
+        // Phase 3.26: Warm header with time-of-day greeting + stats + unread badge
+        // The header is tappable to open the Thinking of You inbox screen
+        // when there are unread received taps.
+        GestureDetector(
+          onTap: unreadCount > 0
+              ? () => context.push('/family/${widget.familyId}/thinking-inbox')
+              : null,
+          child: _WarmHeader(
+            dailyStreak: dailyStreak,
+            totalSent: totalSent,
+            totalReceived: totalReceived,
+            greeting: greeting,
+            unreadCount: unreadCount,
+          ),
         ),
         SizedBox(
           height: 96,
@@ -785,11 +819,13 @@ class _WarmHeader extends StatelessWidget {
     this.totalSent = 0,
     this.totalReceived = 0,
     this.greeting,
+    this.unreadCount = 0,
   });
   final int dailyStreak;
   final int totalSent;
   final int totalReceived;
   final String? greeting;
+  final int unreadCount;
 
   @override
   Widget build(BuildContext context) {
@@ -820,6 +856,26 @@ class _WarmHeader extends StatelessWidget {
                   color: KinrelColors.textWhite,
                 ),
               ),
+              // Phase 3.26: Unread badge — pulsing orange dot with count
+              if (unreadCount > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.orange,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$unreadCount new',
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.monoFont,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(width: 8),
               // Daily streak badge (if > 0)
               if (dailyStreak > 0) ...[
