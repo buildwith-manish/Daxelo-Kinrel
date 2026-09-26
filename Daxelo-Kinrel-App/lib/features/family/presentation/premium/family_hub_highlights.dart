@@ -34,6 +34,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_tokens.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/constants/brand_spacing.dart';
@@ -174,6 +175,24 @@ class _HighlightCircle extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 // QUICK ACTIONS ROW — WhatsApp/Telegram-style prominent pill actions
 // ═══════════════════════════════════════════════════════════════════════
+//
+// DEPRECATED in the duplicate-Family-Chat-removal pass. This 3-pill
+// row (Invite / Family Chat / Settings) was the prior middle action
+// row. Per the new IA brief:
+//   • Family Chat is removed entirely from this row — its only entry
+//     point on the space-detail screen is now the persistent bottom
+//     nav item.
+//   • Settings is moved to the AppBar as a low-emphasis icon-only
+//     button (consistent with the other AppBar action icons).
+//   • Invite is promoted to a standalone full-width prominent button
+//     (see InviteButton below) — the one visually-bold element in
+//     this section, per the "spend your boldness in one place"
+//     principle from the design-system pass.
+//
+// The class is kept here (not deleted) so any external references
+// continue to compile, but it is no longer instantiated by the
+// space-detail screen. Safe to delete once all references are
+// confirmed gone.
 
 /// A horizontally-distributed row of 3 prominent glassy pill actions,
 /// modeled on WhatsApp's chat header action row (call / video / menu)
@@ -181,15 +200,12 @@ class _HighlightCircle extends StatelessWidget {
 /// a 44px-tall glassy surface with an icon + label, distributed evenly
 /// across the row.
 ///
-/// This replaces the prior flat `UtilityRow` (muted text, hairline
-/// dividers, no icons) which read as "housekeeping" — appropriate for
-/// rarely-used settings but wrong for the primary actions a family
-/// member takes on every visit. Invite, Family Chat, and Settings are
-/// high-frequency, not housekeeping.
-///
-/// The destructive "Leave" action moves into the Settings screen — it
-/// never belonged at the top level of the Family home (one-tap access
-/// to leaving your family is a self-harm affordance).
+/// **Deprecated** — see the file-level comment above. The
+/// space-detail screen now uses [InviteButton] (standalone) +
+/// AppBar-resident Settings icon instead.
+@Deprecated('Use InviteButton (standalone) + AppBar Settings icon instead. '
+    'Family Chat is no longer in the middle action row — it lives only in '
+    'the persistent bottom nav.')
 class QuickActionsRow extends StatelessWidget {
   const QuickActionsRow({
     super.key,
@@ -238,6 +254,106 @@ class QuickActionsRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INVITE BUTTON — standalone prominent full-width action
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Replaces QuickActionsRow on the space-detail screen. Invite is the
+// one visually-bold element in the middle section — full-width, warm
+// orange→amber gradient, white text + icon, soft accent glow shadow.
+// Per the design-system pass "spend your boldness in one place"
+// principle, this is the ONLY prominent CTA on the screen above the
+// primary content feed.
+//
+// Family Chat was removed from this row — its only entry point on
+// this screen is the persistent bottom nav item. Settings was moved
+// to the AppBar as a low-emphasis icon-only button.
+
+/// A standalone full-width prominent "Invite" button for the
+/// space-detail screen.
+///
+/// Visual: 48px tall, full width (minus screen horizontal padding),
+/// warm orange→amber gradient background, white text + icon, soft
+/// accent glow shadow. The icon is `Icons.person_add_outlined` (the
+/// AppIcon.invite semantic from the design-tokens pass), the label
+/// is "Invite family member" (specific action language per the
+/// Phase 4 copy audit — not generic "Invite").
+///
+/// This is the ONLY prominent CTA on the space-detail screen above
+/// the primary content feed. Per the design-system pass "spend your
+/// boldness in one place" principle, no other element in this
+/// section competes for visual weight.
+class InviteButton extends StatelessWidget {
+  const InviteButton({
+    super.key,
+    required this.onTap,
+  });
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          width: double.infinity,
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.base),
+          decoration: BoxDecoration(
+            // Warm orange→amber gradient — the brandGradient from
+            // AppColor. Inline here so the widget stays self-contained
+            // without importing KinrelGradients just for one usage.
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFE8612A), Color(0xFFF59240)],
+            ),
+            borderRadius: BorderRadius.circular(AppRadius.cardStandard),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.18),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColor.orange.withValues(alpha: 0.28),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.person_add_outlined,
+                size: 20,
+                color: Colors.white,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              // Specific action language per the Phase 4 copy audit:
+              // "Invite family member" — not generic "Invite". The
+              // vocabulary matches the action the user is about to
+              // take (opening the add-member options sheet).
+              Text(
+                'Invite family member',
+                style: AppType.title.copyWith(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

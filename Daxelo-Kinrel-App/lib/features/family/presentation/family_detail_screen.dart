@@ -142,17 +142,23 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
         // profile hero IS the identity surface.
         title: const SizedBox.shrink(),
         actions: [
-          // ── AppBar slimmed from 4 actions to 2 in the top-class UX
-          // redesign. Family Chat + Settings now live in the new
-          // QuickActionsRow (the prominent WhatsApp-style pills
-          // directly under the Highlights row on the home scroll),
-          // so they no longer need to compete for AppBar real
-          // estate. Keeping just Kinrel (when enabled) and
-          // Governance here means the AppBar reads as "secondary
-          // power features" while the home scroll carries the
-          // primary actions — matches WhatsApp/Telegram/Instagram
-          // discipline where the AppBar never carries more than
-          // 2-3 actions and the most-used actions live in the body.
+          // ── AppBar actions — all icon-only, consistent sizing.
+          //
+          // Phase 1 (duplicate-space-home fix): slimmed from 4 to 2
+          // actions. Family Chat moved to the persistent bottom nav.
+          //
+          // Phase 2 (this pass): Settings moved INTO the AppBar (was
+          // previously in the now-deprecated QuickActionsRow middle
+          // action row). Family Chat is NOT here — its only entry
+          // point on this screen is the bottom nav item.
+          //
+          // The AppBar reads as "secondary power features" (Kinrel
+          // when enabled, Governance, Settings) — all low-emphasis
+          // icon-only. The primary action (Invite) lives in the body
+          // as a standalone prominent button below the Highlights
+          // row. This matches WhatsApp/Telegram/Instagram discipline
+          // where the AppBar carries icon-only actions and the
+          // primary CTA lives in the body.
 
           // Kinrel — Family Relationship Intelligence. Gated by
           // kEnableKinrel so it ships dark and can be flipped on per build.
@@ -180,6 +186,17 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
             onPressed: () {
               context.push('/family/${widget.familyId}/governance');
             },
+          ),
+          // ── Settings — moved here from the deprecated QuickActionsRow.
+          // Icon-only, consistent with the Kinrel + Governance icons
+          // above. Uses the existing _showFamilySettings handler (which
+          // opens a bottom sheet with family info, edit, share, leave
+          // actions — the same destination as before the move, so no
+          // broken route).
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
+            onPressed: () => _showFamilySettings(context),
           ),
         ],
       ),
@@ -289,30 +306,23 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
                   const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-                  // ── 3. QUICK ACTIONS ROW (WhatsApp/Telegram-style) ────
-                  // Replaces the flat muted UtilityRow. 3 prominent
-                  // glassy pills: Invite (emphasized — primary action),
-                  // Family Chat, Settings. The destructive "Leave"
-                  // action moves into the Settings screen (one-tap
-                  // access to leaving your family is a self-harm
-                  // affordance and never belonged at top level).
+                  // ── 3. INVITE — standalone prominent full-width button ──
+                  // Replaces the prior QuickActionsRow (Invite / Family
+                  // Chat / Settings 3-pill row). Per the new IA:
+                  //   • Family Chat removed entirely from the middle
+                  //     action row — its only entry point on this
+                  //     screen is the persistent bottom nav item.
+                  //   • Settings moved to the AppBar as an icon-only
+                  //     button (see AppBar actions above).
+                  //   • Invite promoted to a standalone full-width
+                  //     prominent button — the ONE visually-bold
+                  //     element in this section, per the design-system
+                  //     "spend your boldness in one place" principle.
                   SliverToBoxAdapter(
                     child: staggerFade(
-                      QuickActionsRow(
-                        familyId: widget.familyId,
-                        onInvite: () => showAddMemberOptions(
+                      InviteButton(
+                        onTap: () => showAddMemberOptions(
                             context, familyId: widget.familyId),
-                        onSettings: () =>
-                            context.push('/family/${widget.familyId}/management'),
-                        onFamilyChat: () {
-                          final detail = ref
-                              .read(familyDetailProvider(widget.familyId))
-                              .valueOrNull;
-                          final familyName = detail?.family.name ?? 'Family';
-                          context.push(
-                            '/family/${widget.familyId}/chat?name=${Uri.encodeComponent(familyName)}',
-                          );
-                        },
                       ),
                       1,
                     ),
