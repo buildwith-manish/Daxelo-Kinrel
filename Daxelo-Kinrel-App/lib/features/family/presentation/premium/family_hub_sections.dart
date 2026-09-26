@@ -277,15 +277,24 @@ class FamilyPulseSection extends ConsumerWidget {
           title: 'Family Pulse',
         ),
 
-        // ── Nudges (upcoming occasions + missing info) ────────────
-        if (hasNudges) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: FamilyHubSpace.md),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Upcoming occasions — flat rows, Level 0, hairline dividers.
+        // Phase 3.30: Polished card container for nudges + activity.
+        // Wraps both sections in a single card with consistent
+        // spacing instead of loose rows.
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: FamilyHubSpace.md),
+          decoration: BoxDecoration(
+            color: FamilyHubSurface.level1(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: FamilyHubSurface.hairline(context),
+              width: 0.5,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Nudges (upcoming occasions + missing info) ────────────
+              if (hasNudges) ...[
                 ...upcoming.map((occasion) => _PulseNudgeRow(
                       icon: occasion.type.toString().contains('birthday')
                           ? Icons.cake_outlined
@@ -319,43 +328,31 @@ class FamilyPulseSection extends ConsumerWidget {
                       ),
                     )),
               ],
-            ),
-          ),
-        ],
 
-        // ── Divider between nudges and activity ───────────────────
-        if (hasNudges && hasActivity) ...[
-          const SizedBox(height: FamilyHubSpace.sm),
-          Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: FamilyHubSpace.md),
-            child: Divider(
-                height: 1,
-                thickness: 1,
-                color: FamilyHubSurface.hairline(context)),
-          ),
-          const SizedBox(height: FamilyHubSpace.sm),
-        ],
+              // ── Divider between nudges and activity ───────────────────
+              if (hasNudges && hasActivity) ...[
+                Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    color: FamilyHubSurface.hairline(context)),
+              ],
 
-        // ── Activity log ──────────────────────────────────────────
-        if (hasActivity) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: FamilyHubSpace.md),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Recent',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: FamilyHubSurface.iconMuted,
-                    letterSpacing: 1.0,
+              // ── Activity log ──────────────────────────────────────────
+              if (hasActivity) ...[
+                Padding(
+                  padding: const EdgeInsets.only(
+                      left: FamilyHubSpace.sm, top: FamilyHubSpace.sm),
+                  child: Text(
+                    'Recent',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: FamilyHubSurface.iconMuted,
+                      letterSpacing: 0.8,
+                    ),
                   ),
                 ),
-                const SizedBox(height: FamilyHubSpace.xs),
                 ...recentActivities.map((activity) => _PulseActivityRow(
                       icon: activity.icon,
                       text: activity.text,
@@ -363,17 +360,21 @@ class FamilyPulseSection extends ConsumerWidget {
                     )),
                 if (activities.length > 4)
                   Padding(
-                    padding: const EdgeInsets.only(top: FamilyHubSpace.xs),
+                    padding: const EdgeInsets.only(
+                        left: FamilyHubSpace.sm,
+                        right: FamilyHubSpace.sm,
+                        bottom: FamilyHubSpace.sm,
+                        top: 4),
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: GestureDetector(
                         onTap: () => context.push('/family/$familyId/activity'),
                         child: Text(
-                          'View all activity',
+                          'View all',
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
                             color: FamilyHubSurface.accent,
                           ),
                         ),
@@ -381,9 +382,9 @@ class FamilyPulseSection extends ConsumerWidget {
                     ),
                   ),
               ],
-            ),
+            ],
           ),
-        ],
+        ),
       ],
     );
   }

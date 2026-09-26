@@ -35,6 +35,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../../family/presentation/add_member_options_sheet.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../../family/presentation/premium/family_hub_sections.dart';
+import '../../../core/family/family_provider.dart';
 import '../../gaming_ecosystem/data/gaming_models.dart';
 import '../../gaming_ecosystem/data/gaming_providers.dart';
 import '../../gaming_ecosystem/presentation/widgets/gaming_kit.dart';
@@ -44,7 +45,7 @@ import '../retention/live_presence_strip.dart';
 import 'widgets/family_streak_hero_card.dart';
 import 'widgets/family_moment_card.dart';
 import 'widgets/play_with_row.dart';
-import 'widgets/quick_picks_row.dart';
+// Phase 3.30 — QuickPicksRow removed (was duplicating games already in GamesSection).
 import 'widgets/not_yet_played_prompt.dart';
 
 class GamesHubScreen extends ConsumerStatefulWidget {
@@ -259,42 +260,23 @@ class _GamingDashboardBody extends ConsumerWidget {
           const SizedBox(height: 18),
 
           // ═══════════════════════════════════════════════════════════════
-          // ZONE 2b: INVITE FAMILY (Reciprocity)
+          // ZONE 2b: INVITE FAMILY — only shown when family has <2 members.
+          // Once members exist, the Arena uses them automatically.
           // ═══════════════════════════════════════════════════════════════
-          // A prominent, one-tap "Invite family member" banner right below
-          // the people-first Play With row. Giving an invite FIRST (before
-          // asking for anything) triggers reciprocity — invited family
-          // members are far more likely to join and play.
-          _InviteFamilyBanner(familyId: familyId),
+          _ConditionalInviteBanner(familyId: familyId),
           const SizedBox(height: 18),
 
           // ═══════════════════════════════════════════════════════════════
-          // ZONE 2c: QUICK PICKS — game discovery row
+          // ZONE 2c: GAMES SECTION — single source of truth for games.
+          // No Quick Picks row (was duplicating games already in
+          // GamesSection). No "Browse all games" link (was showing
+          // the same 31 games again in a different layout).
+          // GamesSection includes:
+          //   • ActiveGamesList (live rooms)
+          //   • Hick's-Law categorized game catalog (all 17 games,
+          //     grouped by Quick Play / Classic Board / Family Fun)
+          //   • Play/Leaders toggle
           // ═══════════════════════════════════════════════════════════════
-          // Curated horizontal-scroll row of games the family has played
-          // most in the last 30 days, with a default backfill. Excludes
-          // any game already suggested in the Play With row above.
-          QuickPicksRow(familyId: familyId),
-          const SizedBox(height: 8),
-
-          // "Browse all games →" link to the secondary All Games screen.
-          _BrowseAllGamesLink(familyId: familyId),
-          const SizedBox(height: 18),
-
-          // ═══════════════════════════════════════════════════════════════
-          // ZONE 2d: GAMES SECTION — Play/Leaderboard toggle
-          // ═══════════════════════════════════════════════════════════════
-          // Moved here from the Family Space hub per user request. All
-          // game-related content (active games, categorized game catalog,
-          // leaderboard) now lives exclusively on this dedicated Games
-          // screen — not on the Family home page.
-          //   • ActiveGamesList — live rooms with Zeigarnik "Your turn"
-          //     pulse badge.
-          //   • Hick's-Law grouped games row (Quick Play / Classic Board /
-          //     Family Fun) with duration + complexity labels + social
-          //     proof micro-labels.
-          //   • Play/Leaders toggle — leaderboard with loss-aversion gap
-          //     notices.
           GamesSection(familyId: familyId),
           const SizedBox(height: 18),
 
@@ -354,12 +336,38 @@ class _GamingDashboardBody extends ConsumerWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Zone 2b helper: Invite Family banner (Reciprocity principle)
+// Zone 2b helper: Conditional Invite Family banner
+// Only shown when the family has fewer than 2 members. Once members
+// exist, the Arena uses them automatically — no invite UI needed.
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Prominent one-tap invite CTA. The whole banner opens the standard
-/// add-member flow (Find on Kinrel / Add manually), so inviting a family
-/// member to the Arena is a single tap from the games hub.
+class _ConditionalInviteBanner extends ConsumerWidget {
+  const _ConditionalInviteBanner({required this.familyId});
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Check family member count — only show if < 2 members.
+    final detailAsync = ref.watch(familyDetailProvider(familyId));
+    return detailAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (detail) {
+        final activeMembers = detail.members
+            .where((m) => m.deletedAt == null)
+            .toList();
+        if (activeMembers.length >= 2) {
+          return const SizedBox.shrink();
+        }
+        // Show the invite banner only when family has < 2 members.
+        return _InviteFamilyBanner(familyId: familyId);
+      },
+    );
+  }
+}
+
+/// The actual invite banner widget. Only rendered by _ConditionalInviteBanner
+/// when the family has < 2 members.
 class _InviteFamilyBanner extends StatelessWidget {
   const _InviteFamilyBanner({required this.familyId});
   final String familyId;

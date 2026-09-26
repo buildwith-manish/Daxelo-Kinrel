@@ -368,11 +368,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                     ),
                   ),
 
-                  // 5. Discovery grid — wire all orphan modules into the hub.
-                  // These screens already work; this is purely nav wiring.
+                  // 5. Phase 3.30 — Quick Links row replaces the old
+                  //    Discovery grid. The grid's 3 groups with headers
+                  //    looked unprofessional. Instead, a clean horizontal
+                  //    strip of icon-chips for the 5 remaining items,
+                  //    matching the app's flat-row design language.
                   SliverToBoxAdapter(
                     child: staggerFade(
-                      _DiscoveryGrid(familyId: widget.familyId),
+                      _QuickLinksRow(familyId: widget.familyId),
                       4,
                     ),
                   ),
@@ -4011,305 +4014,101 @@ class _SharedListTile extends StatelessWidget {
 // of the next choice instead of presenting 6 equal options every time.
 // ═══════════════════════════════════════════════════════════════════════
 
-class _DiscoveryGrid extends ConsumerStatefulWidget {
-  const _DiscoveryGrid({required this.familyId});
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 3.30 — Quick Links row (replaces the old _DiscoveryGrid)
+// A clean horizontal strip of icon-chips for the 5 remaining
+// items: Achievements, Memories, Oral History, Family Intelligence,
+// Activity Feed. No grouped headers — just a flat row.
+// ═══════════════════════════════════════════════════════════════════════
+
+class _QuickLinksRow extends StatelessWidget {
+  const _QuickLinksRow({required this.familyId});
   final String familyId;
 
-  @override
-  ConsumerState<_DiscoveryGrid> createState() => _DiscoveryGridState();
-}
-
-class _DiscoveryGridState extends ConsumerState<_DiscoveryGrid> {
-  /// label of the most recently used discovery tile (null = none used yet).
-  String? _recentLabel;
-
-  static const String _kRecentCacheKey = 'discovery_grid_recent';
-
-  @override
-  void initState() {
-    super.initState();
-    Future.microtask(() => _loadRecent());
-  }
-
-  Future<void> _loadRecent() async {
-    try {
-      // SharedPreferences (NOT LocalCacheService) — the Drift-backed
-      // local cache is skipped entirely on web, which would silently
-      // drop the Recent label on every reload of the deployed web app.
-      final prefs = await SharedPreferences.getInstance();
-      final recent = prefs.getString(_kRecentCacheKey);
-      if (mounted) {
-        setState(() {
-          _recentLabel = (recent == null || recent.isEmpty) ? null : recent;
-        });
-      }
-    } catch (_) {
-      // Storage read is best-effort — no badge without stored state.
-    }
-  }
-
-  Future<void> _recordRecent(String label) async {
-    setState(() => _recentLabel = label);
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kRecentCacheKey, label);
-    } catch (_) {
-      // Cache write is best-effort — the in-session badge still shows.
-    }
-  }
+  static const _links = [
+    _QuickLink(icon: Icons.emoji_events_outlined, label: 'Achievements', color: Color(0xFFF4511E)),
+    _QuickLink(icon: Icons.photo_library_outlined, label: 'Memories', color: Color(0xFF00897B)),
+    _QuickLink(icon: Icons.mic_none, label: 'Oral History', color: Color(0xFFD81B60)),
+    _QuickLink(icon: Icons.auto_awesome, label: 'Pulse', color: Color(0xFFC8853A)),
+    _QuickLink(icon: Icons.memory, label: 'Activity', color: Color(0xFF8E24AA)),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    // v5.119 step 8: Grouped discovery tiles instead of flat 6-tile grid.
-    // Each sub-group gets its own header, matching the "Discover" style.
-    final playTiles = <_DiscoveryTile>[
-      _DiscoveryTile(
-        icon: Icons.emoji_events_outlined,
-        label: 'Achievements',
-        subtitle: 'Streaks, badges, stats',
-        color: const Color(0xFFF4511E),
-        isRecent: _recentLabel == 'Achievements',
-        onTap: () {
-          _recordRecent('Achievements');
-          context.push('/achievements');
-        },
-      ),
-    ];
-
-    final preserveTiles = <_DiscoveryTile>[
-      _DiscoveryTile(
-        icon: Icons.photo_library_outlined,
-        label: 'Memories',
-        subtitle: 'Photo vault & On This Day',
-        color: const Color(0xFF00897B),
-        isRecent: _recentLabel == 'Memories',
-        onTap: () {
-          _recordRecent('Memories');
-          context.push('/memory-vault?familyId=${widget.familyId}');
-        },
-      ),
-      _DiscoveryTile(
-        icon: Icons.mic_none,
-        label: 'Oral History',
-        subtitle: 'Record family stories',
-        color: const Color(0xFFD81B60),
-        isRecent: _recentLabel == 'Oral History',
-        onTap: () {
-          _recordRecent('Oral History');
-          context.push('/oral-history?familyId=${widget.familyId}');
-        },
-      ),
-    ];
-
-    final insightsTiles = <_DiscoveryTile>[
-      _DiscoveryTile(
-        icon: Icons.auto_awesome,
-        label: 'Family Intelligence',
-        subtitle: 'Brief, quests, blessings', // v5.119 step 6: removed 'Pulse' (collision with FamilyPulseSection)
-        color: const Color(0xFFC8853A),
-        isRecent: _recentLabel == 'Family Intelligence',
-        onTap: () {
-          _recordRecent('Family Intelligence');
-          context.push('/pulse');
-        },
-      ),
-      _DiscoveryTile(
-        icon: Icons.memory,
-        label: 'Activity Feed', // v5.119 step 5: was 'Memories' (collision with photo vault)
-        subtitle: 'Family activity feed',
-        color: const Color(0xFF8E24AA),
-        isRecent: _recentLabel == 'Activity Feed',
-        onTap: () {
-          _recordRecent('Activity Feed');
-          context.push('/memories?familyId=${widget.familyId}');
-        },
-      ),
-    ];
-
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Main header
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 8),
-            child: Text(
-              'Discover',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          // Play group
-          const _DiscoveryGroupHeader(label: 'Play'),
-          _DiscoveryRow(tiles: playTiles),
-          const SizedBox(height: 12),
-          // Preserve group
-          const _DiscoveryGroupHeader(label: 'Preserve'),
-          _DiscoveryRow(tiles: preserveTiles),
-          const SizedBox(height: 12),
-          // Insights group
-          const _DiscoveryGroupHeader(label: 'Insights'),
-          _DiscoveryRow(tiles: insightsTiles),
-        ],
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: _links.asMap().entries.map((entry) {
+            final i = entry.key;
+            final link = entry.value;
+            return Padding(
+              padding: EdgeInsets.only(right: i < _links.length - 1 ? 10 : 0),
+              child: _QuickLinkChip(link: link, familyId: familyId),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
 }
 
-class _DiscoveryTile extends StatelessWidget {
-  const _DiscoveryTile({
-    required this.icon,
-    required this.label,
-    required this.subtitle,
-    required this.color,
-    required this.onTap,
-    this.isRecent = false,
-  });
-
+class _QuickLink {
+  const _QuickLink({required this.icon, required this.label, required this.color});
   final IconData icon;
   final String label;
-  final String subtitle;
   final Color color;
-  final VoidCallback onTap;
+}
 
-  /// Cognitive Load: this tile was the user's most recent destination —
-  /// emphasized with a "Recent" badge + stronger visual weight.
-  final bool isRecent;
+class _QuickLinkChip extends StatelessWidget {
+  const _QuickLinkChip({required this.link, required this.familyId});
+  final _QuickLink link;
+  final String familyId;
+
+  String get _route {
+    switch (link.label) {
+      case 'Achievements': return '/achievements';
+      case 'Memories': return '/memory-vault?familyId=$familyId';
+      case 'Oral History': return '/oral-history?familyId=$familyId';
+      case 'Pulse': return '/pulse';
+      case 'Activity': return '/memories?familyId=$familyId';
+      default: return '/home';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: isRecent
-          ? color.withValues(alpha: 0.10)
-          : theme.colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Stack(
-            children: [
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    // Recent tiles draw the eye: a larger icon chip.
-                    width: isRecent ? 42 : 36,
-                    height: isRecent ? 42 : 36,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                      border: isRecent
-                          ? Border.all(color: color.withValues(alpha: 0.45), width: 1.2)
-                          : null,
-                    ),
-                    child: Icon(icon,
-                        color: color, size: isRecent ? 24 : 20),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    label,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontSize: 9,
-                      color: theme.colorScheme.outline,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+    return GestureDetector(
+      onTap: () => context.push(_route),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: KinrelColors.darkCard,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: link.color.withValues(alpha: 0.2), width: 0.8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(link.icon, size: 16, color: link.color),
+            const SizedBox(width: 6),
+            Text(
+              link.label,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.textSilver,
               ),
-              // "Recent" badge — anchored top-right.
-              if (isRecent)
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                          color: color.withValues(alpha: 0.5), width: 0.6),
-                    ),
-                    child: Text(
-                      'Recent',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontSize: 8,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.4,
-                        color: color,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
-
-// v5.119 step 8: Discovery group header + row helpers.
-
-/// A small section header for a discovery sub-group (Play / Preserve / Insights).
-class _DiscoveryGroupHeader extends StatelessWidget {
-  const _DiscoveryGroupHeader({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 6, top: 4),
-      child: Text(
-        label,
-        style: theme.textTheme.labelMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-          color: theme.textTheme.labelMedium?.color?.withValues(alpha: 0.7),
-        ),
-      ),
-    );
-  }
-}
-
-/// A horizontal scroll-free row of discovery tiles (2 per row).
-class _DiscoveryRow extends StatelessWidget {
-  const _DiscoveryRow({required this.tiles});
-  final List<_DiscoveryTile> tiles;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        for (int i = 0; i < tiles.length; i++) ...[
-          Expanded(child: tiles[i]),
-          if (i < tiles.length - 1) const SizedBox(width: 8),
-        ],
-      ],
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
 // v118 — Full-Screen Avatar Viewer with pinch-to-zoom
 // ═══════════════════════════════════════════════════════════════════════
 
