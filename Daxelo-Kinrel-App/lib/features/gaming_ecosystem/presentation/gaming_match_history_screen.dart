@@ -86,7 +86,7 @@ class GamingMatchHistoryScreen extends ConsumerWidget {
                       gameName: '',
                       gameIcon: '',
                       result: '',
-                      finishedAt: '',
+                      finishedAt: null,
                     ),
                     familyId: '',
                   ),

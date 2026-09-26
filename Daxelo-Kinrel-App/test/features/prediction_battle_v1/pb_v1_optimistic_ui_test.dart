@@ -94,6 +94,9 @@ void main() {
         () {
       // User had NO previous guess, the optimistic update added one,
       // the RPC failed → rollback should clear myGuess entirely.
+      // The provider uses `clearMyGuess: true` (NOT `myGuess: null`) to
+      // achieve this, because `copyWith(myGuess: null)` falls through
+      // to `this.myGuess` (the optimistic one) — see PBv1State.copyWith.
       final optimistic = PBv1State(
         round: round,
         myGuess: PBv1Guess(
@@ -105,11 +108,10 @@ void main() {
         isOptimisticGuess: true,
       );
 
-      // Simulate the failure path — provider restores previousGuess
-      // (which is null here) and clears flags.
-      final PBv1Guess? previousGuess = null;
+      // Simulate the failure path — provider calls
+      // copyWith(clearMyGuess: true) because previousGuess was null.
       final rolledBack = optimistic.copyWith(
-        myGuess: previousGuess,
+        clearMyGuess: true,
         isSubmitting: false,
         isOptimisticGuess: false,
         error: 'Failed to submit — tap to retry',
@@ -247,9 +249,10 @@ void main() {
       );
       expect(state.isSubmitting, isTrue);
 
-      // 2. RPC throws → rollback to no guess
+      // 2. RPC throws → rollback to no guess (clearMyGuess because
+      //    previousGuess was null)
       state = state.copyWith(
-        myGuess: null, // previousGuess was null
+        clearMyGuess: true,
         isSubmitting: false,
         isOptimisticGuess: false,
         error: 'Failed to submit — tap to retry',

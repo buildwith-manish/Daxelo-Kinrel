@@ -185,22 +185,45 @@ class PBv1Notifier extends StateNotifier<PBv1State> {
         return true;
       }
       // ── Server-declared failure: roll back ────────────────────
-      state = state.copyWith(
-        myGuess: previousGuess,
-        isSubmitting: false,
-        isOptimisticGuess: false,
-        error: 'Submission rejected',
-      );
+      // When previousGuess is null, passing `myGuess: null` falls
+      // through to `this.myGuess` (the optimistic value) — the
+      // rollback wouldn't actually clear the guess. Use clearMyGuess
+      // when there was no previous guess; otherwise restore it.
+      if (previousGuess == null) {
+        state = state.copyWith(
+          clearMyGuess: true,
+          isSubmitting: false,
+          isOptimisticGuess: false,
+          error: 'Submission rejected',
+        );
+      } else {
+        state = state.copyWith(
+          myGuess: previousGuess,
+          isSubmitting: false,
+          isOptimisticGuess: false,
+          error: 'Submission rejected',
+        );
+      }
       return false;
     } catch (e) {
       // ── Network/RPC failure: roll back ────────────────────────
+      // Same clearMyGuess vs restore distinction as above.
       debugPrint('[PBv1] submit error: $e');
-      state = state.copyWith(
-        myGuess: previousGuess,
-        isSubmitting: false,
-        isOptimisticGuess: false,
-        error: 'Failed to submit — tap to retry',
-      );
+      if (previousGuess == null) {
+        state = state.copyWith(
+          clearMyGuess: true,
+          isSubmitting: false,
+          isOptimisticGuess: false,
+          error: 'Failed to submit — tap to retry',
+        );
+      } else {
+        state = state.copyWith(
+          myGuess: previousGuess,
+          isSubmitting: false,
+          isOptimisticGuess: false,
+          error: 'Failed to submit — tap to retry',
+        );
+      }
       return false;
     }
   }
