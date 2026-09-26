@@ -896,8 +896,10 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
               // Coalesce: buffer the latest payload and flush on the
               // next event-loop turn. Multiple same-frame state broadcasts
               // collapse into one state emission + one rebuild.
+              // Note: Timer.run returns void — use Timer(Duration.zero,
+              // ...) which returns a Timer so we can cancel/track it.
               _pendingState = map;
-              _stateFlush ??= Timer.run(_flushState);
+              _stateFlush ??= Timer(Duration.zero, _flushState);
             } catch (e) {
               debugPrint(
                   '[StickmanHeist] onBroadcast(state) parse error: $e');

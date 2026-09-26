@@ -178,12 +178,16 @@ class _Avatar extends StatelessWidget {
       // perf pass — mention-picker avatars are 32×32 logical px.
       // Cap decode to 32 × dpr physical px and use disk-cached
       // provider so high-res uploads don't decode to full bitmaps.
+      // CachedNetworkImageProvider itself doesn't accept cacheWidth/
+      // cacheHeight (those are CachedNetworkImage widget params), so
+      // we wrap it with ResizeImage to cap the decoded resolution.
+      final cachePx = (32 * MediaQuery.devicePixelRatioOf(context)).round();
       return CircleAvatar(
         radius: 16,
-        backgroundImage: CachedNetworkImageProvider(
-          avatarUrl!,
-          cacheWidth: (32 * MediaQuery.devicePixelRatioOf(context)).round(),
-          cacheHeight: (32 * MediaQuery.devicePixelRatioOf(context)).round(),
+        backgroundImage: ResizeImage(
+          CachedNetworkImageProvider(avatarUrl!),
+          width: cachePx,
+          height: cachePx,
         ),
       );
     }

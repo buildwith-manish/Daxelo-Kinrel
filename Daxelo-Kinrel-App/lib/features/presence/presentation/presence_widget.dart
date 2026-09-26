@@ -83,12 +83,14 @@ class PresenceRow extends ConsumerWidget {
                                 // decodes to a 4MB bitmap just to render at
                                 // 24×24 — the highest decode-waste ratio in
                                 // the app. Cap to 24 × dpr physical px and
-                                // use disk-cached provider.
+                                // use disk-cached provider. ResizeImage
+                                // enforces the decode-size cap (the
+                                // provider itself doesn't accept it).
                                 backgroundImage: m.avatarUrl != null && m.avatarUrl!.isNotEmpty
-                                    ? CachedNetworkImageProvider(
-                                        m.avatarUrl!,
-                                        cacheWidth: (24 * MediaQuery.devicePixelRatioOf(context)).round(),
-                                        cacheHeight: (24 * MediaQuery.devicePixelRatioOf(context)).round(),
+                                    ? ResizeImage(
+                                        CachedNetworkImageProvider(m.avatarUrl!),
+                                        width: (24 * MediaQuery.devicePixelRatioOf(context)).round(),
+                                        height: (24 * MediaQuery.devicePixelRatioOf(context)).round(),
                                       )
                                     : null,
                                 child: (m.avatarUrl == null || m.avatarUrl!.isEmpty)

@@ -211,6 +211,7 @@ void main() {
     test('quick stats compute correctly', () {
       final h = PBv1History(
         streak: const PBv1Streak(currentStreak: 2, bestStreak: 5),
+        leaderboard: const [],
         rounds: [
           PBv1HistoryRound(
             roundId: 'r-1',
@@ -285,6 +286,7 @@ void main() {
     test('toJson round-trips through fromJson', () {
       final original = PBv1History(
         streak: const PBv1Streak(currentStreak: 5, bestStreak: 10),
+        leaderboard: const [],
         rounds: [
           PBv1HistoryRound(
             roundId: 'r-1',

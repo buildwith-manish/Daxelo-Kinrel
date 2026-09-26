@@ -1095,8 +1095,10 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
               // Coalesce: buffer the latest payload and flush on the
               // next event-loop turn. Multiple same-frame broadcasts
               // collapse into one state emission + one rebuild.
+              // Note: Timer.run returns void — use Timer(Duration.zero,
+              // ...) which returns a Timer so we can cancel/track it.
               _pendingRopeState = map;
-              _ropeStateFlush ??= Timer.run(_flushRopeState);
+              _ropeStateFlush ??= Timer(Duration.zero, _flushRopeState);
             } catch (e) {
               debugPrint('[TugOfWar] onBroadcast(rope_state) parse error: $e');
             }
