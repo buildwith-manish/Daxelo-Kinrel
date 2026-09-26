@@ -4066,17 +4066,6 @@ class _DiscoveryGridState extends ConsumerState<_DiscoveryGrid> {
     // Each sub-group gets its own header, matching the "Discover" style.
     final playTiles = <_DiscoveryTile>[
       _DiscoveryTile(
-        icon: Icons.quiz_outlined,
-        label: 'Quiz',
-        subtitle: 'Family trivia & games',
-        color: const Color(0xFF1E88E5),
-        isRecent: _recentLabel == 'Quiz',
-        onTap: () {
-          _recordRecent('Quiz');
-          context.push('/quiz?familyId=${widget.familyId}');
-        },
-      ),
-      _DiscoveryTile(
         icon: Icons.emoji_events_outlined,
         label: 'Achievements',
         subtitle: 'Streaks, badges, stats',

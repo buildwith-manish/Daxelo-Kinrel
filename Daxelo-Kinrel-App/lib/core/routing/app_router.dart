@@ -256,7 +256,7 @@ import '../../features/feed/presentation/post_create_screen.dart';
 import '../../features/profile/presentation/member_timeline_screen.dart';
 import '../../features/ai_chat/presentation/ai_chat_screen.dart';
 import '../../features/festival_cards/presentation/festival_cards_screen.dart';
-import '../../features/quiz/presentation/quiz_screen.dart';
+// Phase 3.29 — Quiz import removed per user request.
 import '../../features/referral/presentation/referral_screen.dart';
 import '../../features/search/presentation/search_screen.dart';
 import '../../features/kinship/presentation/kinship_detail_screen.dart';
@@ -2879,11 +2879,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── Growth & Engagement ─────────────────────────────────────
-      GoRoute(
-        path: '/quiz',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: QuizScreen()),
-      ),
+      // Phase 3.29 — Quiz route removed per user request.
       GoRoute(
         path: '/referral',
         pageBuilder: (context, state) =>
