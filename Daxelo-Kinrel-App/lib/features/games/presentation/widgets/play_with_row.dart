@@ -28,6 +28,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_tokens.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/services/supabase_service.dart';
@@ -278,16 +279,25 @@ class PlayWithCard extends StatelessWidget {
       onTap: () => _onTap(context),
       child: Container(
         width: cardWidth,
-        padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+        // DESIGN_TOKENS.md: PlayWithCard is now AppCard.standard —
+        // single canonical standard-card treatment (darkCard bg +
+        // hairline border + radius 14 + padding 14). The prior raw
+        // radius 16 + the inconsistent `Colors.white @ 0.06` border
+        // color are gone.
+        padding: AppPadding.card,
         decoration: BoxDecoration(
-          color: KinrelColors.darkCard,
-          borderRadius: BorderRadius.circular(16),
+          color: AppColor.card,
+          borderRadius: BorderRadius.circular(AppRadius.cardStandard),
           border: Border.all(
+            // The conditional accent border (online → teal, new → amber,
+            // default → hairline) stays — these are SEMANTIC accents
+            // (presence state, new-relationship state), not ad-hoc
+            // decoration. They use named AppColor tokens now.
             color: s.isOnline
                 ? KinrelColors.tealAccent.withValues(alpha: 0.35)
                 : (s.isNew
-                    ? KinrelColors.amber.withValues(alpha: 0.25)
-                    : Colors.white.withValues(alpha: 0.06)),
+                    ? AppColor.amber.withValues(alpha: 0.25)
+                    : AppColor.hairline(context)),
           ),
         ),
         child: Column(

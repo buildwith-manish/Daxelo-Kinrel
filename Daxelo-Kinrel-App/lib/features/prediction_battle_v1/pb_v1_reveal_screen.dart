@@ -172,7 +172,36 @@ class _RevealBody extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       children: [
         // Question
-        Text(question.questionText, style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
+        // DESIGN_TOKENS.md §6 — matching Hero tag for the PB card →
+        // reveal transition. The card's question text morphs into
+        // this position. The hero tag uses the round id so it
+        // matches the card on the Family Space.
+        Hero(
+          tag: 'pb_v1_card_${state.round?.id ?? ''}',
+          transitionOnUserGestures: true,
+          flightShuttleBuilder: (flightContext, animation, flightDirection,
+              fromHeroContext, toHeroContext) {
+            return Material(
+              type: MaterialType.transparency,
+              child: DefaultTextStyle.merge(
+                style: DefaultTextStyle.of(flightContext).style,
+                child: (flightDirection == HeroFlightDirection.push
+                        ? fromHeroContext.widget
+                        : toHeroContext.widget)
+                    as Widget,
+              ),
+            );
+          },
+          child: Material(
+            type: MaterialType.transparency,
+            child: Text(question.questionText,
+                style: const TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite)),
+          ),
+        ),
         const SizedBox(height: 8),
         // Correct answer
         Container(

@@ -27,6 +27,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+import '../../../core/constants/app_tokens.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/utils/app_time.dart';
@@ -280,23 +281,45 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
     final question = state.question!;
     final hasGuess = state.myGuess != null;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [const Color(0xFF241208), const Color(0xFF1A0E05), KinrelColors.darkCard],
-        ),
-        border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3), width: 1),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 6)),
-          BoxShadow(color: KinrelColors.orange.withValues(alpha: 0.15), blurRadius: 20, spreadRadius: 1),
-        ],
-      ),
+    // DESIGN_TOKENS.md §6 — Hero transition for PB card → reveal
+    // screen. The card morphs into the reveal screen's body when the
+    // user taps "See full reveal →". Uses AppMotion.transitionDuration
+    // (300ms) + AppMotion.transitionCurve (easeOut) per the motion
+    // conventions. The Hero tag is the round ID so multiple rounds
+    // don't collide.
+    //
+    // The card is wrapped in a Hero with a `material` flightShuttleBuilder
+    // so the gradient + border morph cleanly (the default Hero tween
+    // can't interpolate a BoxDecoration — the material shuttle keeps
+    // the card visually continuous during the transition).
+    return Hero(
+      tag: 'pb_v1_card_${round.id}',
+      transitionOnUserGestures: true,
+      flightShuttleBuilder: (flightContext, animation, flightDirection,
+          fromHeroContext, toHeroContext) {
+        return Material(
+          type: MaterialType.transparency,
+          child: DefaultTextStyle.merge(
+            style: DefaultTextStyle.of(flightContext).style,
+            child: (flightDirection == HeroFlightDirection.push
+                    ? fromHeroContext.widget
+                    : toHeroContext.widget)
+                as Widget,
+          ),
+        );
+      },
+      child: Container(
+      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.base),
+      // DESIGN_TOKENS.md: PredictionBattleV1Card is the hero of the
+      // Family Space — uses AppCard.hero (the single canonical hero
+      // treatment). The prior raw hex gradient stops
+      // (`0xFF241208` / `0xFF1A0E05`) + raw radius 20 + dual-shadow
+      // (one black + one orange) are gone. AppCard.hero derives its
+      // gradient from the accentColor (orange → amber) and uses a
+      // single accent-glow shadow at the canonical offset (0, 6).
+      decoration: AppCard.hero(accentColor: AppColor.orange),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppPadding.hero,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -409,7 +432,8 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
           ],
         ),
       ),
-    );
+    ),
+    ); // closes Container → Hero
   }
 
   String _formatRevealTime(DateTime utc) {
