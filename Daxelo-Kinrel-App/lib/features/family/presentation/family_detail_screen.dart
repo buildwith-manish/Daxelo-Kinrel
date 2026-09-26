@@ -2934,14 +2934,31 @@ class _GamesRow extends ConsumerWidget {
               ),
               const Spacer(),
               GestureDetector(
-                onTap: () => context.push('/games?familyId=$familyId'),
-                child: const Text(
-                  'See All',
-                  style: const TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 12,
-                    color: KinrelColors.orange,
-                    fontWeight: FontWeight.w600,
+                // "See All" opens the complete Games Catalog (AllGamesScreen)
+                // — the same destination as the "Browse all games" link in the
+                // Family Arena. Shows all 31 games grouped by category.
+                //
+                // Do NOT route to /games (GamesHubScreen / Family Arena) here:
+                // this _GamesRow is itself rendered INSIDE the Family Arena
+                // (via GamesSection → _PremiumGamesRow → premiumGamesRowBridge),
+                // so pushing /games would push the same route the user is
+                // already on and appear to do nothing.
+                onTap: () =>
+                    context.push('/family/$familyId/gaming/all-games'),
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  child: const Text(
+                    'See All',
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 12,
+                      color: KinrelColors.orange,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
