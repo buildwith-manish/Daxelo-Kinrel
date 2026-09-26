@@ -25,7 +25,13 @@ void main() {
         'HeroSection is the single identity header',
         (WidgetTester tester) async {
       // Render an AppBar with the same shape FamilyDetailScreen uses
-      // post-fix: back button + empty title + 2 action icons.
+      // post-fix: back button + empty title + 3 action icons (Kinrel
+      // gated to kEnableKinrel so omitted here, Governance, Settings).
+      //
+      // Phase 2 (this pass): Settings moved INTO the AppBar (was
+      // previously in the deprecated QuickActionsRow middle action
+      // row). The AppBar now has 3 icon-only actions: Kinrel (when
+      // enabled), Governance, Settings.
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -42,6 +48,10 @@ void main() {
                 ),
                 IconButton(
                   icon: Icon(Icons.gavel_outlined),
+                  onPressed: null,
+                ),
+                IconButton(
+                  icon: Icon(Icons.settings_outlined),
                   onPressed: null,
                 ),
               ],
@@ -74,10 +84,20 @@ void main() {
       expect(titleWidget.width, 0.0);
       expect(titleWidget.height, 0.0);
 
-      // The AppBar should still have its 2 action icons (Kinrel,
-      // Governance) — the slim AppBar design.
-      expect(find.byIcon(Icons.auto_awesome_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.gavel_outlined), findsOneWidget);
+      // The AppBar should have its 3 action icons (Kinrel, Governance,
+      // Settings) — all icon-only, consistent sizing. Settings was
+      // added in Phase 2 (this pass) — moved from the deprecated
+      // QuickActionsRow.
+      expect(find.byIcon(Icons.auto_awesome_outlined), findsOneWidget,
+          reason: 'Kinrel icon must be present (gated by kEnableKinrel '
+              'in production, but the AppBar structure reserves the slot).');
+      expect(find.byIcon(Icons.gavel_outlined), findsOneWidget,
+          reason: 'Governance icon must be present.');
+      expect(find.byIcon(Icons.settings_outlined), findsOneWidget,
+          reason: 'Settings icon must be present in the AppBar — it was '
+              'moved here from the deprecated QuickActionsRow middle '
+              'action row in Phase 2 of the duplicate-Family-Chat-removal '
+              'pass.');
 
       // Most importantly: NO Text widget in the AppBar slot should
       // render the family name. (We can't directly assert this since
