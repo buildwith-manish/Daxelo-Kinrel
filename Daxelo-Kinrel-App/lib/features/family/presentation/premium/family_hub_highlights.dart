@@ -61,16 +61,13 @@ class HighlightsRow extends StatelessWidget {
   final String familyId;
 
   static const _tiles = [
-    // Phase 1 (ux/family-space-refinement): Graph + Map merged into
-    // the shortcut row. They were previously flanking the identity
-    // circle in the HeroSection at 12% opacity (nearly invisible).
-    // Now they're first-class labeled tiles with the same icon +
-    // label treatment as the other 5. Order: Graph, Map first
-    // (core family-relationship features), then the content
-    // shortcuts. Row is horizontally scrollable if 7 items don't
-    // fit — see ListView.separated below.
-    _HighlightTile(icon: Icons.account_tree_outlined, label: 'Graph'),
-    _HighlightTile(icon: Icons.map_outlined,          label: 'Map'),
+    // Phase (graph-map-flanking-redesign): Graph + Map removed from
+    // the shortcut row and moved back to flanking positions beside the
+    // identity circle in the HeroSection — but with a fully redesigned
+    // treatment (full opacity, circular backdrop, labels, subtle pulse)
+    // so they read as clear, discoverable, tappable actions, not faint
+    // background decoration. See hero_section.dart for the new flanking
+    // treatment. The shortcut row returns to 5 items.
     _HighlightTile(icon: Icons.photo_library_outlined, label: 'Memories'),
     _HighlightTile(icon: Icons.mic_none_outlined,      label: 'Oral History'),
     _HighlightTile(icon: Icons.emoji_events_outlined,  label: 'Achievements'),
@@ -80,14 +77,12 @@ class HighlightsRow extends StatelessWidget {
 
   String _routeFor(String label) {
     switch (label) {
-      case 'Graph':        return '/family/$familyId/graph';
-      case 'Map':         return '/family/$familyId/map';
-      case 'Memories':    return '/memory-vault?familyId=$familyId';
-      case 'Oral History': return '/oral-history?familyId=$familyId';
-      case 'Achievements': return '/achievements';
-      case 'Lists':       return '/family/$familyId/lists';
-      case 'Activity':    return '/memories?familyId=$familyId';
-      default:            return '/home';
+      case 'Memories':      return '/memory-vault?familyId=$familyId';
+      case 'Oral History':  return '/oral-history?familyId=$familyId';
+      case 'Achievements':  return '/achievements';
+      case 'Lists':         return '/family/$familyId/lists';
+      case 'Activity':      return '/memories?familyId=$familyId';
+      default:              return '/home';
     }
   }
 

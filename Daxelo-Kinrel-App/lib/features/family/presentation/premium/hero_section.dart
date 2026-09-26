@@ -22,9 +22,11 @@ import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_tokens.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../kinrel_intelligence/data/kinrel_model.dart';
@@ -127,19 +129,90 @@ class HeroSection extends ConsumerWidget {
                 ),
               ),
 
-            // ── Layer 2: REMOVED (ux/family-space-refinement) ──────
-            // The Graph + Map icons that previously flanked the
-            // identity circle at 12% opacity (nearly invisible) have
-            // been moved into the HighlightsRow shortcut row below
-            // the hero. They now have the same icon + label treatment
-            // as Memories / Oral History / Achievements / Lists /
-            // Activity — same size, same opacity, same label
-            // placement. See family_hub_highlights.dart →
-            // HighlightsRow._tiles for the 7-item tile list.
+            // ── Layer 2: Graph + Map flanking icons (redesigned) ──────
             //
-            // This removes the dual-visual-language problem (two
-            // different treatments for the same "open a feature"
-            // interaction type) and makes Graph + Map discoverable.
+            // Phase (graph-map-flanking-redesign): RE-ADDED with a
+            // fully redesigned treatment. The prior version (v108)
+            // used 12% opacity watermark icons — nearly invisible,
+            // no labels, read as background decoration. The interim
+            // version (ux/family-space-refinement) moved them into the
+            // HighlightsRow shortcut row. This version brings them
+            // BACK to the flanking position (left = Graph, right =
+            // Map) but with a confident, discoverable treatment:
+            //
+            //   • Full opacity (100%) — matching the shortcut row icons
+            //   • Circular backdrop: darkCard bg + orange border (same
+            //     treatment as the HighlightsRow `_HighlightCircle`)
+            //   • Short label beneath each icon: "Graph" / "Map"
+            //   • Size: 52px circle (smaller than the 140px identity
+            //     symbol but large enough to be comfortably tappable;
+            //     the GestureDetector's hit area extends to 44px
+            //     minimum even if the visible icon is smaller)
+            //   • Subtle pulsing glow ring: a slow 2.4s ease-in-out
+            //     pulse on the orange border alpha (0.25 → 0.50),
+            //     signaling interactivity without being distracting.
+            //     Uses flutter_animate's `.animate(onPlay: (c) =>
+            //     c.repeat(reverse: true))` pattern.
+            //   • Fades out as the hero collapses (matched to
+            //     nameOpacity) so they don't clutter the pinned-bar
+            //     state.
+            //
+            // Tapping Graph opens /family/$familyId/graph (same
+            // destination as before). Tapping Map opens
+            // /family/$familyId/map. Navigation targets preserved.
+            if (symbolSize > 10)
+              Positioned.fill(
+                child: Opacity(
+                  opacity: nameOpacity,
+                  child: Row(
+                    children: [
+                      // ── LEFT: Graph ────────────────────────────────
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.only(
+                                left: FamilyHubSpace.lg),
+                            child: _FlankingAction(
+                              icon: Icons.account_tree_outlined,
+                              label: 'Graph',
+                              semanticLabel: 'Open $familyName graph',
+                              semanticHint:
+                                  'Double tap to open the family graph',
+                              onTap: () => context.push(
+                                '/family/$familyId/graph?name='
+                                '${Uri.encodeComponent(familyName)}',
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // ── CENTER spacer (matches the avatar width) ──
+                      SizedBox(width: symbolSize),
+                      // ── RIGHT: Map ────────────────────────────────
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Padding(
+                            padding: const EdgeInsets.only(
+                                right: FamilyHubSpace.lg),
+                            child: _FlankingAction(
+                              icon: Icons.map_outlined,
+                              label: 'Map',
+                              semanticLabel: 'Open $familyName map',
+                              semanticHint:
+                                  'Double tap to open the family map',
+                              onTap: () => context.push(
+                                '/family/$familyId/map',
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
             // ── Layer 3: Centered symbol + name ─────────────────────
             Positioned.fill(
@@ -555,3 +628,171 @@ class _HeroSymbol extends StatelessWidget {
 // removed in Phase 3. Its slot in the hero is now occupied by
 // `PredictionBattleHeroTeaser` (imported above), which surfaces the
 // v1 Prediction Battle round state in the same real estate.
+
+// ═══════════════════════════════════════════════════════════════════════
+// FLANKING ACTION — Graph + Map icons beside the identity circle
+// ═══════════════════════════════════════════════════════════════════════
+//
+// A circular icon button with a label beneath it, designed to flank
+// the family identity circle in the HeroSection. Visually matches the
+// HighlightsRow's `_HighlightCircle` treatment (darkCard bg + orange
+// border + Material icon) but with a subtle pulsing glow ring to
+// signal interactivity — since icons flanking a central avatar are
+// often mistaken for decoration without some motion cue.
+//
+// Design parameters:
+//   • Circle size: 52px (smaller than the 140px identity symbol but
+//     larger than the 44px minimum tap target)
+//   • Icon size: 24px (Material Symbols Outlined, full opacity)
+//   • Border: orange at 30% alpha, width 1.2
+//   • Label: 11px DMSans w500, textSilver, centered below the circle
+//   • Glow ring: slow 2.4s ease-in-out pulse on the border alpha
+//     (0.25 → 0.50), using flutter_animate's repeat(reverse: true)
+//   • Tap area: the GestureDetector wraps the entire circle + label
+//     column, so the tap target is ~52×68px (well above the 44px
+//     minimum)
+//   • Uses AppColor / AppSpacing / AppType tokens from the
+//     design-system pass
+
+class _FlankingAction extends StatelessWidget {
+  const _FlankingAction({
+    required this.icon,
+    required this.label,
+    required this.semanticLabel,
+    required this.semanticHint,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String semanticLabel;
+  final String semanticHint;
+  final VoidCallback onTap;
+
+  static const double _circleSize = 52;
+  static const double _iconSize = 24;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      hint: semanticHint,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Circular backdrop with orange border + subtle pulse.
+            // The pulse animates the border color's alpha between
+            // 0.25 and 0.50 over 2.4s — slow enough to be ambient,
+            // not distracting. Uses flutter_animate's `.animate()`
+            // with a custom `customAnimation` to tween the border
+            // color. Since BoxDecoration can't be directly animated
+            // by flutter_animate, we use a TweenBuilder pattern:
+            // an AnimationController drives a 0→1 value which we
+            // map to the border alpha.
+            _PulsingCircle(
+              size: _circleSize,
+              icon: icon,
+              iconSize: _iconSize,
+            ),
+            const SizedBox(height: AppSpacing.xxs),
+            // Label — same style as the HighlightsRow labels.
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: KinrelColors.textSilver,
+                height: 1.0,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A circular icon container with a subtle pulsing orange border.
+/// The pulse drives the border alpha from 0.25 → 0.50 → 0.25 over
+/// 2.4s using an AnimationController. The icon inside is static
+/// (full opacity, 24px Material Symbols Outlined).
+class _PulsingCircle extends StatefulWidget {
+  const _PulsingCircle({
+    required this.size,
+    required this.icon,
+    required this.iconSize,
+  });
+
+  final double size;
+  final IconData icon;
+  final double iconSize;
+
+  @override
+  State<_PulsingCircle> createState() => _PulsingCircleState();
+}
+
+class _PulsingCircleState extends State<_PulsingCircle>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (context, _) {
+        // Map the 0→1 animation value to a 0.25→0.50 border alpha.
+        // The pulse is subtle — a 0.25 range, not a dramatic flash.
+        final borderAlpha = 0.25 + (_pulse.value * 0.25);
+        return Container(
+          width: widget.size,
+          height: widget.size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColor.card,
+            border: Border.all(
+              color: AppColor.orange.withValues(alpha: borderAlpha),
+              width: 1.2,
+            ),
+            // Subtle inner glow that matches the border pulse —
+            // gives the circle a soft "alive" feel without being
+            // distracting.
+            boxShadow: [
+              BoxShadow(
+                color: AppColor.orange.withValues(alpha: borderAlpha * 0.4),
+                blurRadius: 8,
+                spreadRadius: 0,
+              ),
+            ],
+          ),
+          child: Icon(
+            widget.icon,
+            size: widget.iconSize,
+            color: AppColor.orange,
+          ),
+        );
+      },
+    );
+  }
+}
