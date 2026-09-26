@@ -34,11 +34,21 @@
 //   - Shadows: triple-layer (unchanged — deep float + tight edge + orange glow)
 //
 // Tabs (all family-scoped):
-//   0. Members   → /family/<id>/members
-//   1. Games     → /games?familyId=<id>
-//   2. Calendar  → /family/<id>/calendar
-//   3. Lists     → /family/<id>/lists
-//   4. Chat      → /family/<id>/chat
+//   Phase 2 (duplicate-space-home fix): reduced from 5 to 4 items per
+//   the user's IA brief. Lists was demoted out of the persistent
+//   bottom nav (occasional-use, not daily-use) and now lives ONLY in
+//   the HighlightsRow shortcut row on the Family Space home scroll
+//   (Memories · Oral History · Achievements · Lists · Activity).
+//
+// Final 4-tab order (per the brief):
+//   0. Games        → /games?familyId=<id>
+//   1. Family Chat  → /family/<id>/chat
+//   2. Members      → /family/<id>/members
+//   3. Calendar     → /family/<id>/calendar
+//
+// Lists is reachable from the Highlights row on the Family Space
+// home (Memories/Oral History/Achievements/Lists/Activity) which is
+// the canonical place for occasional-use features.
 //
 
 import 'dart:ui';
@@ -95,30 +105,29 @@ class FamilySpaceFloatingNav extends StatelessWidget {
   static const _indicatorLabelGap = 3.0;
 
   static const _tabs = [
-    _NavTab(
-      icon: Icons.people_outline_rounded,
-      activeIcon: Icons.people_rounded,
-      label: 'Members',
-    ),
+    // Phase 2 (duplicate-space-home fix): 4 tabs in this exact order
+    // per the user's IA brief — Games, Family Chat, Members, Calendar.
+    // Lists removed (demoted to the HighlightsRow shortcut row on the
+    // Family Space home scroll).
     _NavTab(
       icon: Icons.sports_esports_outlined,
       activeIcon: Icons.sports_esports_rounded,
       label: 'Games',
     ),
     _NavTab(
+      icon: Icons.chat_bubble_outline_rounded,
+      activeIcon: Icons.chat_rounded,
+      label: 'Family Chat', // disambiguate from global DM 'Chat'
+    ),
+    _NavTab(
+      icon: Icons.people_outline_rounded,
+      activeIcon: Icons.people_rounded,
+      label: 'Members',
+    ),
+    _NavTab(
       icon: Icons.calendar_today_outlined,
       activeIcon: Icons.calendar_month_rounded,
       label: 'Calendar',
-    ),
-    _NavTab(
-      icon: Icons.checklist_rounded,
-      activeIcon: Icons.checklist_rounded,
-      label: 'Lists',
-    ),
-    _NavTab(
-      icon: Icons.chat_bubble_outline_rounded,
-      activeIcon: Icons.chat_rounded,
-      label: 'Family Chat', // v5.119 step 7: disambiguate from global DM 'Chat'
     ),
   ];
 
@@ -206,15 +215,22 @@ class FamilySpaceFloatingNav extends StatelessWidget {
 
   int _currentIndex(String location) {
     // Family Overview screen (route: /family/<id> with no suffix) is NOT
-    // one of the 5 tabs — it's the landing screen that shows the hero,
-    // Truth Streak, and Pulse sections. Return -1 so NO tab is
-    // highlighted. This is safe: the widget already guards the active-
-    // state rendering with `if (currentIndex >= 0)` for the orange glow
-    // BoxShadow, and `_NavTabButton` computes `isSelected = index ==
-    // currentIndex` (which is `index == -1` → false for all 5 tabs), so
-    // no indicator pill renders either.
+    // one of the 4 tabs — it's the landing screen that shows the hero,
+    // Highlights row, Quick Actions row, Prediction Battle, and Family
+    // Pulse. Return -1 so NO tab is highlighted. This is safe: the
+    // widget already guards the active-state rendering with
+    // `if (currentIndex >= 0)` for the orange glow BoxShadow, and
+    // `_NavTabButton` computes `isSelected = index == currentIndex`
+    // (which is `index == -1` → false for all 4 tabs), so no indicator
+    // pill renders either.
+    //
+    // Phase 2 (duplicate-space-home fix): the tab indexes changed when
+    // Lists was removed. New indexes: 0=Games, 1=Family Chat,
+    // 2=Members, 3=Calendar. Lists is no longer in the bottom nav —
+    // it lives in the HighlightsRow shortcut row on the Family Space
+    // home scroll.
     if (location == '/family/$familyId') return -1;
-    if (location.contains('/members')) return 0;
+    // Index 0: Games (and all game sub-routes)
     if (location.contains('/games') ||
         location.contains('/ghost-painter') ||
         location.contains('/sos/') ||
@@ -225,19 +241,33 @@ class FamilySpaceFloatingNav extends StatelessWidget {
         location.contains('/carrom/') ||
         location.contains('/chess/') ||
         location.contains('/freeze-dash/')) {
-      return 1;
+      return 0;
     }
-    if (location.contains('/calendar')) return 2;
-    if (location.contains('/lists') || location.contains('/shared-list')) return 3;
-    if (location.contains('/chat')) return 4;
-    return 0;
+    // Index 1: Family Chat (group chat + chat list)
+    if (location.contains('/chat')) return 1;
+    // Index 2: Members
+    if (location.contains('/members')) return 2;
+    // Index 3: Calendar
+    if (location.contains('/calendar')) return 3;
+    // Lists is no longer a tab — if the user is on /lists or
+    // /shared-list (reachable via the Highlights row), no tab is
+    // highlighted. That's the correct behavior — Lists is occasional-
+    // use, not a daily-use destination that needs a persistent tab.
+    if (location.contains('/lists') || location.contains('/shared-list')) {
+      return -1;
+    }
+    // Default: no tab highlighted (covers /family/<id>/graph, /map,
+    // /management, /governance, /kinrel, etc. — all secondary
+    // destinations that aren't part of the 4-tab persistent nav).
+    return -1;
   }
 
   void _onTap(BuildContext context, int index) {
+    // Phase 2 (duplicate-space-home fix): 4-tab nav. Lists is no
+    // longer reachable from the bottom nav — it's in the Highlights
+    // row on the Family Space home scroll.
     switch (index) {
       case 0:
-        context.go('/family/$familyId/members');
-      case 1:
         // Family Arena (Games) is a CHILD section of Family Space — it
         // must preserve the parent on the navigation stack so the back
         // button returns to Family Space (not Home). Using push() keeps
@@ -246,16 +276,16 @@ class FamilySpaceFloatingNav extends StatelessWidget {
         // (Other tabs remain on go() because they are sibling tabs that
         //  share the FamilySpaceFloatingNav and should not stack.)
         context.push('/games?familyId=$familyId');
-      case 2:
-        context.go('/family/$familyId/calendar');
-      case 3:
-        context.go('/family/$familyId/lists');
-      case 4:
-        // v115: Chat tab now opens the Chat LIST screen (which shows
+      case 1:
+        // Family Chat tab opens the Chat LIST screen (which shows
         // group chat + DMs) instead of the group chat directly.
         // The group chat conversation is opened by tapping the Family
         // Group Chat row inside the list.
         context.go('/family/$familyId/chats');
+      case 2:
+        context.go('/family/$familyId/members');
+      case 3:
+        context.go('/family/$familyId/calendar');
     }
   }
 }
