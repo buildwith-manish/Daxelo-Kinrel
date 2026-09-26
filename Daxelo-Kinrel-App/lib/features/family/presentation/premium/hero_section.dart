@@ -127,86 +127,19 @@ class HeroSection extends ConsumerWidget {
                 ),
               ),
 
-            // ── Layer 2 (v108): Graph + Map shortcuts flanking the avatar ──
-            // Two large, faint, semi-transparent icons positioned on the
-            // left and right of the centered profile icon (the family
-            // initial / Kinrel symbol). Left = Graph, right = Map. They
-            // are subtle background design elements (not separate buttons
-            // or labels) that double as tap targets.
+            // ── Layer 2: REMOVED (ux/family-space-refinement) ──────
+            // The Graph + Map icons that previously flanked the
+            // identity circle at 12% opacity (nearly invisible) have
+            // been moved into the HighlightsRow shortcut row below
+            // the hero. They now have the same icon + label treatment
+            // as Memories / Oral History / Achievements / Lists /
+            // Activity — same size, same opacity, same label
+            // placement. See family_hub_highlights.dart →
+            // HighlightsRow._tiles for the 7-item tile list.
             //
-            // The whole-hero InkWell that previously opened the Graph is
-            // REMOVED — tapping the avatar/name no longer navigates. The
-            // two icons are the ONLY Graph/Map entry points in the hero.
-            //
-            // Icons fade out as the hero collapses (matched to nameOpacity)
-            // so they don't clutter the pinned-bar state.
-            if (symbolSize > 10)
-              Positioned.fill(
-                child: Opacity(
-                  opacity: nameOpacity,
-                  child: Row(
-                    children: [
-                      // ── LEFT: Graph ────────────────────────────────
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Padding(
-                            padding: const EdgeInsets.only(
-                                left: FamilyHubSpace.lg),
-                            child: Semantics(
-                              button: true,
-                              label: 'Open $familyName graph',
-                              hint: 'Double tap to open the family graph',
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () => context.push(
-                                  '/family/$familyId/graph?name='
-                                  '${Uri.encodeComponent(familyName)}',
-                                ),
-                                child: Icon(
-                                  Icons.account_tree_outlined,
-                                  size: 64,
-                                  color: KinrelColors.orange
-                                      .withValues(alpha: 0.12),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      // ── CENTER spacer (matches the avatar width) ──
-                      SizedBox(width: symbolSize),
-                      // ── RIGHT: Map ────────────────────────────────
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: Padding(
-                            padding: const EdgeInsets.only(
-                                right: FamilyHubSpace.lg),
-                            child: Semantics(
-                              button: true,
-                              label: 'Open $familyName map',
-                              hint: 'Double tap to open the family map',
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () => context.push(
-                                  '/family/$familyId/map',
-                                ),
-                                child: Icon(
-                                  Icons.map_outlined,
-                                  size: 64,
-                                  color: KinrelColors.orange
-                                      .withValues(alpha: 0.12),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            // This removes the dual-visual-language problem (two
+            // different treatments for the same "open a feature"
+            // interaction type) and makes Graph + Map discoverable.
 
             // ── Layer 3: Centered symbol + name ─────────────────────
             Positioned.fill(
@@ -267,7 +200,7 @@ class HeroSection extends ConsumerWidget {
                       child: Text(
                         '$memberCount ${memberCount == 1 ? "member" : "members"}'
                         '  ·  '
-                        '$relationshipCount ${relationshipCount == 1 ? "link" : "links"}',
+                        '$relationshipCount ${relationshipCount == 1 ? "relationship" : "relationships"}',
                         style: FamilyHubType.caption,
                       ),
                     ),
@@ -330,7 +263,7 @@ class HeroSection extends ConsumerWidget {
                             Text(
                               '$memberCount ${memberCount == 1 ? "member" : "members"}'
                               '  ·  '
-                              '$relationshipCount ${relationshipCount == 1 ? "link" : "links"}',
+                              '$relationshipCount ${relationshipCount == 1 ? "relationship" : "relationships"}',
                               style: FamilyHubType.captionMuted,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,

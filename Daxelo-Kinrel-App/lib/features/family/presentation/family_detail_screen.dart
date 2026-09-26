@@ -330,60 +330,68 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
                   const SliverToBoxAdapter(child: SizedBox(height: 18)),
 
-                  // ── 4. PREDICTION BATTLE — the "moment" ───────────────
-                  // Backend-scheduled numeric-estimation game. Stays
-                  // as-is — already the centerpiece and well-polished.
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      PredictionBattleV1Card(familyId: widget.familyId),
-                      2,
-                    ),
-                  ),
-
-                  // 4a. Family coin pool progress card.
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      FamilyCoinPoolCard(familyId: widget.familyId),
-                      2,
-                    ),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-                  // ── 4b. THINKING OF YOU RING ──────────────────────────
-                  // Wrapped in staggerFade (was the only mid-scroll
-                  // section not wrapped — broke the entry-animation
-                  // rhythm). Now matches every other section's fade-
-                  // slide cadence.
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      FamilyRingWidget(familyId: widget.familyId),
-                      3,
-                    ),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-                  // ── 5. FAMILY PULSE (nudges + activity) ───────────────
-                  // Stays as-is — already merged in family_hub_sections.dart.
+                  // ── 4. FAMILY PULSE (activity feed) ────────────────────
+                  // Phase 5 (ux/family-space-refinement): MOVED above the
+                  // primary content feed. The screen now reads top-to-
+                  // bottom as: identity (Hero) → shortcuts (Highlights) →
+                  // invite (InviteButton) → activity (Family Pulse) →
+                  // content feed (PB + CoinPool + Ring + Recent Moments).
+                  // This is the "who/what is this, then what's happening"
+                  // order — identity context before activity feed.
+                  //
+                  // The birthday "missing info" nags inside Family Pulse
+                  // are collapsed into a single prompt per Phase 4 — see
+                  // family_hub_sections.dart → FamilyPulseSection.build.
                   SliverToBoxAdapter(
                     child: staggerFade(
                       FamilyPulseSection(
                         detail: detail,
                         familyId: widget.familyId,
                       ),
+                      2,
+                    ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 18)),
+
+                  // ── 5. PREDICTION BATTLE — the "moment" (hero card) ──
+                  // Backend-scheduled numeric-estimation game. This is
+                  // the PRIMARY content feed element — uses AppCard.hero
+                  // treatment (gradient + accent border + glow shadow)
+                  // so it visually draws the eye first. The Family Coin
+                  // Pool below it is a slim status strip (Phase 3) so
+                  // the hierarchy reads: PB = hero, Coin Pool = ambient
+                  // status.
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      PredictionBattleV1Card(familyId: widget.familyId),
                       3,
                     ),
                   ),
 
+                  // 5a. Family coin pool — slim horizontal progress strip
+                  // (Phase 3: downgraded from full hero card to single-
+                  // row strip for clear visual hierarchy with PB above).
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      FamilyCoinPoolCard(familyId: widget.familyId),
+                      3,
+                    ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+                  // ── 5b. THINKING OF YOU RING ──────────────────────────
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      FamilyRingWidget(familyId: widget.familyId),
+                      4,
+                    ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
                   // ── 6. RECENT MOMENTS (unified) ───────────────────────
-                  // Replaces _CrossFeatureMomentsCard. Uses the Family
-                  // Hub palette (KinrelColors.darkCard) instead of the
-                  // M3 theme.colorScheme.surfaceContainerHighest that
-                  // the old card used. Single Material icon in the
-                  // header (Icons.history_rounded) instead of the ✨
-                  // emoji. Single-icon-language discipline across the
-                  // whole page.
                   SliverToBoxAdapter(
                     child: staggerFade(
                       _RecentMomentsSectionAdapter(familyId: widget.familyId),
@@ -392,12 +400,6 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   ),
 
                   // ── 7. FAMILY STRENGTH CLOSER (Peak-End Rule) ─────────
-                  // Stays as-is — warm end-note. The redesign removes
-                  // the prior _SharedListTile and _QuickLinksRow from
-                  // above it (folded into Highlights row + Recent
-                  // Moments), so the closer now lands as a clean
-                  // emotional close, not after two redundant house-
-                  // keeping rows.
                   SliverToBoxAdapter(
                     child: staggerFade(
                       _FamilyStrengthCloser(
@@ -409,20 +411,27 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                     ),
                   ),
 
-                  // Bottom padding: small breathing gap so the last
-                  // content row isn't flush against the Family Space
-                  // floating nav below it.
+                  // Bottom padding: sufficient spacing so the last card
+                  // (Family Coin Pool or Family Strength closer) always
+                  // renders fully above the persistent bottom nav.
                   //
-                  // The nav itself is now wired in as the Scaffold's
-                  // `bottomNavigationBar` (FamilySpaceFloatingNav), which
-                  // the Scaffold reserves space for automatically — so the
-                  // scroll content no longer needs a dock-height-sized
-                  // spacer. A modest fixed gap is enough; the nav's own
-                  // internal `_bottomMargin` (24px) + safe-area inset
-                  // handles the float distance from the screen edge.
+                  // Phase 2 (ux/family-space-refinement): the prior
+                  // padding was `MediaQuery.padding.bottom + 24` which
+                  // only accounted for the safe-area inset — NOT the
+                  // bottom nav's actual rendered height (~80px) or its
+                  // bottom margin (24px). This caused the Family Coin
+                  // Pool card's last line ("12/500 coins") to be
+                  // clipped behind the bottom nav on devices with
+                  // gesture navigation bars.
+                  //
+                  // Fix: bottom nav height (80) + nav bottom margin
+                  // (24) + safe-area inset + comfortable breathing
+                  // gap (16) = total bottom padding. This ensures the
+                  // last card always renders fully above the nav with
+                  // a comfortable margin, not flush against it.
                   SliverToBoxAdapter(
                     child: SizedBox(
-                      height: MediaQuery.of(context).padding.bottom + 24,
+                      height: 80 + 24 + MediaQuery.of(context).padding.bottom + 16,
                     ),
                   ),
                 ],

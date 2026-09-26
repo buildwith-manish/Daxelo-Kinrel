@@ -232,110 +232,78 @@ class _FamilyCoinPoolCardState extends ConsumerState<FamilyCoinPoolCard> {
     final isEndowed = _totalEarned! == 0;
     final shownEarned = isEndowed ? 10 : _totalEarned!;
     final progress = (shownEarned / _currentGoal!).clamp(0.0, 1.0);
+
+    // Phase 3 (ux/family-space-refinement): downgraded from a full
+    // AppCard.hero-style treatment (gradient + border + 14px padding
+    // + multi-line content) to a SLIM HORIZONTAL PROGRESS STRIP —
+    // a single-row card with icon + label + progress bar + count.
+    // This establishes clear visual hierarchy: Prediction Battle is
+    // the hero (full AppCard.hero treatment, draws the eye first),
+    // Family Coin Pool is secondary/ambient status (slim strip, reads
+    // as background information, not a competing call-to-action).
+    //
+    // The strip uses AppCard.compact styling (darkCard bg + hairline
+    // border + radius 12 + horizontal 12 / vertical 10 padding) but
+    // rendered as a single Row, not a Column — so it takes ~48px of
+    // vertical space instead of ~120px.
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            KinrelColors.orange.withValues(alpha: 0.08),
-            KinrelColors.darkCard,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(14),
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isEndowed
-              ? KinrelColors.amber.withValues(alpha: 0.45)
-              : KinrelColors.orange.withValues(alpha: 0.25),
+          color: KinrelColors.orange.withValues(alpha: 0.15),
           width: 0.8,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Text(isEndowed ? '🎁' : '🪙', style: const TextStyle(fontSize: 14)),
-              const SizedBox(width: 6),
-              Text(
-                'FAMILY COIN POOL',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.monoFont,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.6,
-                  color: isEndowed ? KinrelColors.amber : KinrelColors.orange,
-                ),
-              ),
-              const Spacer(),
-              if (!isEndowed && _goalsHit! > 0)
-                Text(
-                  '${_goalsHit} goal${_goalsHit == 1 ? '' : 's'} hit 🎉',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 10,
-                    color: KinrelColors.textDim,
-                  ),
-                ),
-            ],
+          // Icon — 🪙 or 🎁 (endowed). Small, 18px.
+          Text(
+            isEndowed ? '🎁' : '🪙',
+            style: const TextStyle(fontSize: 14),
           ),
-          const SizedBox(height: 8),
-          // Progress bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: isEndowed
-                  ? KinrelColors.amber.withValues(alpha: 0.15)
-                  : KinrelColors.orange.withValues(alpha: 0.15),
-              valueColor: AlwaysStoppedAnimation<Color>(
-                isEndowed ? KinrelColors.amber : KinrelColors.orange,
+          const SizedBox(width: 8),
+          // Label — "Coin Pool" (short, single line).
+          Text(
+            'Coin Pool',
+            style: TextStyle(
+              fontFamily: KinrelTypography.monoFont,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
+              color: isEndowed ? KinrelColors.amber : KinrelColors.orange,
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Progress bar — slim, takes remaining width.
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 6,
+                backgroundColor: isEndowed
+                    ? KinrelColors.amber.withValues(alpha: 0.12)
+                    : KinrelColors.orange.withValues(alpha: 0.12),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  isEndowed ? KinrelColors.amber : KinrelColors.orange,
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 6),
-          if (isEndowed) ...[
-            // Endowed Progress: the family starts at +10 — the first game
-            // keeps the bar moving, it never has to start from zero.
-            Row(
-              children: [
-                const Icon(Icons.card_giftcard_rounded,
-                    size: 13, color: KinrelColors.amber),
-                const SizedBox(width: 4),
-                Text(
-                  'Starting bonus: +10 coins',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: KinrelColors.amber,
-                  ),
-                ),
-              ],
+          const SizedBox(width: 10),
+          // Count — "12 / 500" (short, single line, right-aligned).
+          Text(
+            '$shownEarned / $_currentGoal',
+            style: TextStyle(
+              fontFamily: KinrelTypography.monoFont,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.textSilver,
             ),
-            const SizedBox(height: 2),
-            Text(
-              "You're already on the board — your family's first games add to this head start.",
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: KinrelColors.textSilver,
-              ),
-            ),
-          ] else
-            Text(
-              '$_totalEarned / $_currentGoal coins · ${_goalsHit! > 0 ? "Next goal: ${_currentGoal! + 500}" : "Hit ${_currentGoal} to unlock a bonus"}',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: KinrelColors.textSilver,
-              ),
-            ),
+          ),
         ],
       ),
     );
