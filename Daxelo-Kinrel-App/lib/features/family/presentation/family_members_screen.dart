@@ -516,12 +516,14 @@ class _MemberRow extends StatelessWidget {
                   // perf pass — family member avatars render at 44×44
                   // logical px. Cap decode to 44 × dpr physical px and
                   // use disk-cached provider so a 1024×1024 upload
-                  // doesn't decode to a 4MB bitmap per member.
+                  // doesn't decode to a 4MB bitmap per member. Wrap in
+                  // ResizeImage because CachedNetworkImageProvider
+                  // doesn't accept cacheWidth/cacheHeight directly.
                   backgroundImage: person.photoUrl != null
-                      ? CachedNetworkImageProvider(
-                          person.photoUrl!,
-                          cacheWidth: (44 * MediaQuery.devicePixelRatioOf(context)).round(),
-                          cacheHeight: (44 * MediaQuery.devicePixelRatioOf(context)).round(),
+                      ? ResizeImage(
+                          CachedNetworkImageProvider(person.photoUrl!),
+                          width: (44 * MediaQuery.devicePixelRatioOf(context)).round(),
+                          height: (44 * MediaQuery.devicePixelRatioOf(context)).round(),
                         )
                       : null,
                   child: person.photoUrl == null

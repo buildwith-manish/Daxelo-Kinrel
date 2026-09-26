@@ -46,6 +46,7 @@ import '../../presence/presentation/presence_widget.dart';
 import '../../pulse/providers/cross_feature_moments_provider.dart';
 import '../../shared_list/presentation/shared_list_screen.dart';
 import 'premium/family_hub_sections.dart';
+import 'premium/family_hub_highlights.dart';
 import 'premium/hero_section.dart';
 import 'widgets/image_crop_editor.dart';
 
@@ -146,6 +147,18 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           ),
         ),
         actions: [
+          // ── AppBar slimmed from 4 actions to 2 in the top-class UX
+          // redesign. Family Chat + Settings now live in the new
+          // QuickActionsRow (the prominent WhatsApp-style pills
+          // directly under the Highlights row on the home scroll),
+          // so they no longer need to compete for AppBar real
+          // estate. Keeping just Kinrel (when enabled) and
+          // Governance here means the AppBar reads as "secondary
+          // power features" while the home scroll carries the
+          // primary actions — matches WhatsApp/Telegram/Instagram
+          // discipline where the AppBar never carries more than
+          // 2-3 actions and the most-used actions live in the body.
+
           // Kinrel — Family Relationship Intelligence. Gated by
           // kEnableKinrel so it ships dark and can be flipped on per build.
           if (kEnableKinrel)
@@ -167,33 +180,11 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
             ),
           // Track C v2.0 — Kinrel Governance Engine (Constitution, Decisions, Timeline)
           IconButton(
-            icon: const Icon(Icons.gavel),
+            icon: const Icon(Icons.gavel_outlined),
             tooltip: 'Family Governance',
             onPressed: () {
               context.push('/family/${widget.familyId}/governance');
             },
-          ),
-          // Family chat — opens the real-time group chat for this family.
-          IconButton(
-            icon: const Icon(Icons.chat_bubble_outline),
-            tooltip: 'Family Chat',
-            onPressed: () {
-              final detail = ref
-                  .read(familyDetailProvider(widget.familyId))
-                  .valueOrNull;
-              final familyName = detail?.family.name ?? 'Family';
-              context.push(
-                '/family/${widget.familyId}/chat?name=${Uri.encodeComponent(familyName)}',
-              );
-            },
-          ),
-          // v109: Share icon REMOVED — the same functionality is
-          // available in the Settings menu (via _showFamilySettings),
-          // making this toolbar entry redundant.
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Settings',
-            onPressed: () => _showFamilySettings(context),
           ),
         ],
       ),
@@ -249,7 +240,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               CustomScrollView(
                 controller: _hubScrollController,
                 slivers: [
-                  // 1. Hero — parallax collapse driven by _heroScrollOffset.
+                  // ── 1. HERO (parallax collapse) ────────────────────────
+                  // Stays as-is — already polished. The redesign focuses
+                  // on the sections BELOW the hero, not the hero itself.
                   SliverToBoxAdapter(
                     child: staggerFade(
                       HeroSection(
@@ -274,7 +267,8 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
                   const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
-                  // 1b. Presence row — who's home / at work / DND
+                  // ── 1b. PRESENCE STRIP — who's home / at work / DND ──
+                  // WhatsApp-style "online now" strip, persistent under hero.
                   SliverToBoxAdapter(
                     child: staggerFade(
                       PresenceRow(familyId: widget.familyId),
@@ -282,25 +276,66 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                     ),
                   ),
 
-                  const SliverToBoxAdapter(child: SizedBox(height: 4)),
+                  const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
-                  // 2. Prediction Battle v1 — the "moment" (replaces Truth Streak
-                  //    and the now-removed v0 on-demand PredictionBattleCard).
-                  //    Backend-scheduled numeric-estimation game with
-                  //    reveal-at-9PM-IST enforcement.
+                  // ── 2. HIGHLIGHTS ROW (Instagram-style) ───────────────
+                  // Replaces the off-palette _QuickLinksRow chip strip
+                  // (which used 5 different hex colors not in the Kinrel
+                  // palette). Single-accent orange rings, circular
+                  // tiles, 5 quick-access destinations. Also folds in
+                  // the "Lists & Errands" tile (formerly _SharedListTile)
+                  // so it no longer needs its own separate section.
                   SliverToBoxAdapter(
                     child: staggerFade(
-                      PredictionBattleV1Card(familyId: widget.familyId),
+                      HighlightsRow(familyId: widget.familyId),
                       1,
                     ),
                   ),
 
-                  // 2a. Phase 3.15 — Family coin pool progress card.
-                  //     Shows the family's collective coin total vs.
-                  //     the next goal (500, then 1000, then 1500...).
-                  //     Drives collective engagement — family members
-                  //     see their contributions add up to a shared
-                  //     goal. Hidden if the pool fetch fails.
+                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+                  // ── 3. QUICK ACTIONS ROW (WhatsApp/Telegram-style) ────
+                  // Replaces the flat muted UtilityRow. 3 prominent
+                  // glassy pills: Invite (emphasized — primary action),
+                  // Family Chat, Settings. The destructive "Leave"
+                  // action moves into the Settings screen (one-tap
+                  // access to leaving your family is a self-harm
+                  // affordance and never belonged at top level).
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      QuickActionsRow(
+                        familyId: widget.familyId,
+                        onInvite: () => showAddMemberOptions(
+                            context, familyId: widget.familyId),
+                        onSettings: () =>
+                            context.push('/family/${widget.familyId}/management'),
+                        onFamilyChat: () {
+                          final detail = ref
+                              .read(familyDetailProvider(widget.familyId))
+                              .valueOrNull;
+                          final familyName = detail?.family.name ?? 'Family';
+                          context.push(
+                            '/family/${widget.familyId}/chat?name=${Uri.encodeComponent(familyName)}',
+                          );
+                        },
+                      ),
+                      1,
+                    ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 18)),
+
+                  // ── 4. PREDICTION BATTLE — the "moment" ───────────────
+                  // Backend-scheduled numeric-estimation game. Stays
+                  // as-is — already the centerpiece and well-polished.
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      PredictionBattleV1Card(familyId: widget.familyId),
+                      2,
+                    ),
+                  ),
+
+                  // 4a. Family coin pool progress card.
                   SliverToBoxAdapter(
                     child: staggerFade(
                       FamilyCoinPoolCard(familyId: widget.familyId),
@@ -310,80 +345,54 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
                   const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-                  // 2b. "Thinking of You" ring — additional engagement layer.
-                  // Does NOT replace Truth Streak. Sits below it.
+                  // ── 4b. THINKING OF YOU RING ──────────────────────────
+                  // Wrapped in staggerFade (was the only mid-scroll
+                  // section not wrapped — broke the entry-animation
+                  // rhythm). Now matches every other section's fade-
+                  // slide cadence.
                   SliverToBoxAdapter(
-                    child: FamilyRingWidget(familyId: widget.familyId),
+                    child: staggerFade(
+                      FamilyRingWidget(familyId: widget.familyId),
+                      3,
+                    ),
                   ),
 
                   const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-                  // 3. [NAV — now wired as Scaffold bottomNavigationBar]
-                  // The Family Space floating nav (FamilySpaceFloatingNav)
-                  // is set on the DKScaffold above, NOT in this Stack.
-
-                  // 4. Family Pulse — nudges + activity merged.
+                  // ── 5. FAMILY PULSE (nudges + activity) ───────────────
+                  // Stays as-is — already merged in family_hub_sections.dart.
                   SliverToBoxAdapter(
                     child: staggerFade(
                       FamilyPulseSection(
                         detail: detail,
                         familyId: widget.familyId,
                       ),
-                      2,
-                    ),
-                  ),
-
-                  // v5.119 step 2: Utility row (Invite / Settings / Leave)
-                  // migrated from FamilyHubScreen into the main scroll.
-                  // UX pass (Peak-End Rule): moved UP, off the bottom of
-                  // the page — utility actions must never be the last
-                  // thing a family member sees. The page now ends on the
-                  // warm "family strength" closer below.
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      UtilityRow(
-                        familyId: widget.familyId,
-                        onInvite: () => showAddMemberOptions(context, familyId: widget.familyId),
-                        onSettings: () => context.push('/family/${widget.familyId}/management'),
-                        onLeave: () => _showLeaveFamilyDialog(context),
-                      ),
                       3,
                     ),
                   ),
 
-                  // 4b. Cross-feature Moments — oral history, memory vault,
-                  // quiz results surfaced as first-class pulse items.
+                  // ── 6. RECENT MOMENTS (unified) ───────────────────────
+                  // Replaces _CrossFeatureMomentsCard. Uses the Family
+                  // Hub palette (KinrelColors.darkCard) instead of the
+                  // M3 theme.colorScheme.surfaceContainerHighest that
+                  // the old card used. Single Material icon in the
+                  // header (Icons.history_rounded) instead of the ✨
+                  // emoji. Single-icon-language discipline across the
+                  // whole page.
                   SliverToBoxAdapter(
                     child: staggerFade(
-                      _CrossFeatureMomentsCard(familyId: widget.familyId),
-                      3,
-                    ),
-                  ),
-
-                  // 4c. Shared Lists quick-access tile
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      _SharedListTile(familyId: widget.familyId),
-                      3,
-                    ),
-                  ),
-
-                  // 5. Phase 3.30 — Quick Links row replaces the old
-                  //    Discovery grid. The grid's 3 groups with headers
-                  //    looked unprofessional. Instead, a clean horizontal
-                  //    strip of icon-chips for the 5 remaining items,
-                  //    matching the app's flat-row design language.
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      _QuickLinksRow(familyId: widget.familyId),
+                      _RecentMomentsSectionAdapter(familyId: widget.familyId),
                       4,
                     ),
                   ),
 
-                  // 6. UX pass (Peak-End Rule): the page ENDS on a warm,
-                  // belonging-focused closer — "Your family is N members
-                  // strong". People remember how an experience ends; end
-                  // on an emotional high note, not on housekeeping links.
+                  // ── 7. FAMILY STRENGTH CLOSER (Peak-End Rule) ─────────
+                  // Stays as-is — warm end-note. The redesign removes
+                  // the prior _SharedListTile and _QuickLinksRow from
+                  // above it (folded into Highlights row + Recent
+                  // Moments), so the closer now lands as a clean
+                  // emotional close, not after two redundant house-
+                  // keeping rows.
                   SliverToBoxAdapter(
                     child: staggerFade(
                       _FamilyStrengthCloser(
@@ -3860,19 +3869,28 @@ class AddPersonSheetBridge {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// CROSS-FEATURE MOMENTS CARD
-// Surfaces oral_history clips, memory_vault items, and quiz results
-// as first-class items in the Family Pulse feed.
+// RECENT MOMENTS SECTION ADAPTER
+// Bridges crossFeatureMomentsProvider to the new RecentMomentsSection
+// widget (defined in premium/family_hub_highlights.dart). Maps each
+// CrossFeatureMoment to a CrossFeatureMomentLike (with a Material
+// icon instead of the prior emoji) and passes the list to the
+// palette-disciplined RecentMomentsSection widget.
+//
+// This replaces the prior _CrossFeatureMomentsCard which:
+//   - Used theme.colorScheme.surfaceContainerHighest (M3 palette, not
+//     the Family Hub palette)
+//   - Used ✨ emoji in the header (mixed icon language)
+//   - Used per-moment emojis (🎙️📸🧠 — also mixed icon language)
+// All three are gone now.
 // ═══════════════════════════════════════════════════════════════════════
 
-class _CrossFeatureMomentsCard extends ConsumerWidget {
-  const _CrossFeatureMomentsCard({required this.familyId});
+class _RecentMomentsSectionAdapter extends ConsumerWidget {
+  const _RecentMomentsSectionAdapter({required this.familyId});
   final String familyId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final momentsAsync = ref.watch(crossFeatureMomentsProvider(familyId));
-    final theme = Theme.of(context);
 
     return momentsAsync.when(
       loading: () => const SizedBox.shrink(),
@@ -3880,89 +3898,52 @@ class _CrossFeatureMomentsCard extends ConsumerWidget {
       data: (moments) {
         if (moments.isEmpty) return const SizedBox.shrink();
 
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Text('✨', style: TextStyle(fontSize: 14)),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Recent Moments',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ...moments.map(
-                (m) => Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(m.emoji, style: const TextStyle(fontSize: 14)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              m.title,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            if (m.subtitle != null)
-                              Text(
-                                m.subtitle!,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.outline,
-                                  fontSize: 11,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        _timeAgo(m.createdAt),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.outline,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+        // Map CrossFeatureMoment (provider model) to
+        // CrossFeatureMomentLike (render model). The render model
+        // uses a single Material icon per type instead of the prior
+        // per-moment emoji, enforcing single-icon-language discipline.
+        final likes = moments
+            .map((m) => CrossFeatureMomentLike(
+                  title: m.title,
+                  subtitle: m.subtitle,
+                  createdAt: m.createdAt,
+                  icon: _iconForType(m.type),
+                ))
+            .toList();
+
+        return RecentMomentsSection(
+          moments: likes,
+          onViewAll: () => context.push('/family/$familyId/gaming/activity'),
         );
       },
     );
   }
 
-  String _timeAgo(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inHours < 1) return '${diff.inMinutes}m';
-    if (diff.inHours < 24) return '${diff.inHours}h';
-    if (diff.inDays < 7) return '${diff.inDays}d';
-    return '${dt.day}/${dt.month}';
+  /// Single Material icon per moment type — replaces the prior emoji
+  /// set (🎙️ / 📸 / 🧠 / ✨). Each type now maps to one Material icon
+  /// from the same family used by the Highlights row + Quick Actions
+  /// row, so the page reads as a single icon language.
+  static IconData _iconForType(String type) {
+    switch (type) {
+      case 'oral_history':
+        return Icons.mic_none_rounded;
+      case 'memory_vault':
+        return Icons.photo_library_outlined;
+      case 'quiz_result':
+        return Icons.psychology_outlined;
+      default:
+        return Icons.history_rounded;
+    }
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 // SHARED LIST TILE — quick access to the errand board
+// (DEPRECATED — folded into the Highlights row as the "Lists" tile.
+// The class definition is kept here temporarily to avoid breaking any
+// direct references; the build method above no longer instantiates
+// it. Safe to delete in a follow-up cleanup once the Highlights row
+// is verified to cover all entry points.)
 // ═══════════════════════════════════════════════════════════════════════
 
 class _SharedListTile extends StatelessWidget {

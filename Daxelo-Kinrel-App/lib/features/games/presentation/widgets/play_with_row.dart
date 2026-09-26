@@ -397,11 +397,12 @@ class _Avatar extends StatelessWidget {
             // decode-size-capped) instead of plain NetworkImage. Avatar
             // is 44×44 logical px → cap decode to 44 × dpr physical px
             // so a 1024×1024 upload doesn't decode to a 4MB bitmap.
+            // ResizeImage wraps the provider to enforce the cap.
             foregroundImage: (avatarUrl != null && avatarUrl!.isNotEmpty)
-                ? CachedNetworkImageProvider(
-                    avatarUrl!,
-                    cacheWidth: (44 * MediaQuery.devicePixelRatioOf(context)).round(),
-                    cacheHeight: (44 * MediaQuery.devicePixelRatioOf(context)).round(),
+                ? ResizeImage(
+                    CachedNetworkImageProvider(avatarUrl!),
+                    width: (44 * MediaQuery.devicePixelRatioOf(context)).round(),
+                    height: (44 * MediaQuery.devicePixelRatioOf(context)).round(),
                   )
                 : null,
             child: Text(

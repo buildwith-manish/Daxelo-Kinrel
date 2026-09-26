@@ -171,7 +171,10 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
                               ),
                             ),
                             Text(
-                              '${balance.familyTreasury} coins combined',
+                              // familyTreasury is the family's collective
+                              // savings — NOT the user's personal balance,
+                              // so the optimistic delta doesn't apply.
+                              '${serverBalance.familyTreasury} coins combined',
                               style: const TextStyle(
                                 fontFamily: KinrelTypography.monoFont,
                                 fontSize: 12,
@@ -193,7 +196,9 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
                             ),
                           ),
                           Text(
-                            '🪙 ${balance.balance}',
+                            // Use the optimistic display balance so
+                            // redemptions are reflected immediately.
+                            '🪙 $displayBalance',
                             style: const TextStyle(
                               fontFamily: KinrelTypography.monoFont,
                               fontSize: 16,

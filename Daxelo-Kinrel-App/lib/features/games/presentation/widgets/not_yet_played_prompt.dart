@@ -163,11 +163,13 @@ class _Avatar extends StatelessWidget {
         radius: 16,
         backgroundColor: Colors.transparent,
         // perf pass — 32×32 logical px avatar. Cap decode to 32 × dpr.
+        // ResizeImage wraps the provider to enforce the cap (the
+        // provider itself doesn't accept cacheWidth/cacheHeight).
         foregroundImage: (avatarUrl != null && avatarUrl!.isNotEmpty)
-            ? CachedNetworkImageProvider(
-                avatarUrl!,
-                cacheWidth: (32 * MediaQuery.devicePixelRatioOf(context)).round(),
-                cacheHeight: (32 * MediaQuery.devicePixelRatioOf(context)).round(),
+            ? ResizeImage(
+                CachedNetworkImageProvider(avatarUrl!),
+                width: (32 * MediaQuery.devicePixelRatioOf(context)).round(),
+                height: (32 * MediaQuery.devicePixelRatioOf(context)).round(),
               )
             : null,
         child: Text(

@@ -278,8 +278,10 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
               // Coalesce: buffer the stroke and flush on the next
               // event-loop turn. Multiple same-frame stroke broadcasts
               // collapse into one state emission + one canvas repaint.
+              // Note: Timer.run returns void — use Timer(Duration.zero,
+              // ...) which returns a Timer so we can cancel/track it.
               _pendingStrokes.add(stroke);
-              _strokeFlush ??= Timer.run(_flushStrokes);
+              _strokeFlush ??= Timer(Duration.zero, _flushStrokes);
             }
           } catch (e) {
             debugPrint('[GhostPainter] onBroadcast(stroke) parse error: $e');
