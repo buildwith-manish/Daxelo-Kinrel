@@ -24,6 +24,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/constants/app_tokens.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/services/supabase_service.dart';
@@ -298,29 +299,29 @@ class _FamilyMomentCardState extends ConsumerState<FamilyMomentCard> {
     // Milestone moments get a slightly larger card treatment — they're
     // rarer and more significant. The spec says "warm gold icon, slightly
     // larger card treatment since these are rarer/more significant".
+    // DESIGN_TOKENS.md: FamilyMomentCard migrated to AppCard.
+    //   • Non-milestone → AppCard.standard (darkCard + hairline border
+    //     + radius 14, no shadow)
+    //   • Milestone     → AppCard.accented(accentColor: gold) (darkCard
+    //     + gold border at 35% width 1.5 + soft gold glow shadow)
+    // The prior raw radius 16/18 split + the inconsistent
+    // `Colors.white @ 0.05` border color are gone. Milestone cards
+    // now use the canonical AppCard.accented variant.
     final isMilestone = m.action == 'game_milestone_reached';
-    final cardBorder = isMilestone
-        ? KinrelColors.gold.withValues(alpha: 0.35)
-        : Colors.white.withValues(alpha: 0.05);
-    final cardBorderWidth = isMilestone ? 1.5 : 1.0;
+    final cardDecoration = isMilestone
+        ? AppCard.accented(accentColor: AppColor.gold)
+        : AppCard.standard;
+    // Milestone cards get a slightly larger top padding (16 vs 14) —
+    // matches the prior treatment and gives the gold border more
+    // visual presence above the content.
+    final cardPadding = isMilestone
+        ? const EdgeInsets.fromLTRB(14, 16, 14, 10)
+        : const EdgeInsets.fromLTRB(14, 14, 14, 10);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.fromLTRB(14, isMilestone ? 16 : 14, 14, 10),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(isMilestone ? 18 : 16),
-        border: Border.all(color: cardBorder, width: cardBorderWidth),
-        boxShadow: isMilestone
-            ? [
-                BoxShadow(
-                  color: KinrelColors.gold.withValues(alpha: 0.12),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ]
-            : null,
-      ),
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: cardPadding,
+      decoration: cardDecoration,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

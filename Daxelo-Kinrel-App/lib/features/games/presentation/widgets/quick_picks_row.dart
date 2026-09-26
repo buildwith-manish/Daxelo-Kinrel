@@ -22,6 +22,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_tokens.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/services/supabase_service.dart';
@@ -229,11 +230,16 @@ class QuickPickCard extends StatelessWidget {
       },
       child: Container(
         width: 132,
-        padding: const EdgeInsets.all(12),
+        // DESIGN_TOKENS.md: QuickPickCard now uses AppPadding.card +
+        // AppRadius.cardStandard + AppColor.hairline(context) — same
+        // standard-card treatment as PlayWithCard. The prior raw
+        // radius 16 + the inconsistent `Colors.white @ 0.06` border
+        // color are gone. Both card types now read as one card system.
+        padding: AppPadding.card,
         decoration: BoxDecoration(
-          color: KinrelColors.darkCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          color: AppColor.card,
+          borderRadius: BorderRadius.circular(AppRadius.cardStandard),
+          border: Border.all(color: AppColor.hairline(context)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

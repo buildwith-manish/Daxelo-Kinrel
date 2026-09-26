@@ -8,6 +8,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/app_tokens.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../shared/widgets/dk_components.dart';
@@ -140,19 +141,17 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
             child: Builder(builder: (context) {
               final rows = <Widget>[
                 // Family treasury summary
+                // DESIGN_TOKENS.md: migrated to AppCard.hero(accentColor:
+                // amber) — the single canonical hero treatment. The
+                // prior raw amber→darkCard gradient + raw radius 18 +
+                // raw amber border at 25% alpha are gone. Now reads as
+                // the same hero treatment as the PB card + the
+                // FamilyStreakHeroCard, just with amber accent (the
+                // Rewards Shop "primary accent" since it's the coin-
+                // themed screen).
                 Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        KinrelColors.amber.withValues(alpha: 0.12),
-                        KinrelColors.darkCard,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                        color: KinrelColors.amber.withValues(alpha: 0.25)),
-                  ),
+                  padding: AppPadding.hero,
+                  decoration: AppCard.hero(accentColor: AppColor.amber),
                   child: Row(
                     children: [
                       const Text('🏦', style: TextStyle(fontSize: 28)),
@@ -330,18 +329,19 @@ class _RewardCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canAfford = balance >= reward.cost;
+    // DESIGN_TOKENS.md: _RewardCard migrated to AppCard.standard.
+    //   • Unlocked → AppCard.accented(accentColor: success) — the
+    //     green success accent highlights "this is yours now"
+    //   • Locked   → AppCard.standard — hairline border, darkCard bg
+    // The prior raw radius 14 + raw `Colors.white @ 0.05` border +
+    // raw `KinrelColors.success @ 0.35` border are gone — these now
+    // come from the named AppCard variants.
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: reward.isUnlocked
-              ? KinrelColors.success.withValues(alpha: 0.35)
-              : Colors.white.withValues(alpha: 0.05),
-        ),
-      ),
+      margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+      padding: AppPadding.card,
+      decoration: reward.isUnlocked
+          ? AppCard.accented(accentColor: AppColor.success)
+          : AppCard.standard,
       child: Row(
         children: [
           Container(

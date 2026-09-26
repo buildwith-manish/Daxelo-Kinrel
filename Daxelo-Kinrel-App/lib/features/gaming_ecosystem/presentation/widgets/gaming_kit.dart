@@ -20,6 +20,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../../../../core/constants/app_tokens.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../games/shared/icons/kinrel_icons.dart';
@@ -597,25 +598,25 @@ class GamingRankRow extends StatelessWidget {
     // stale local cache or future API change can never leak another
     // member's streak on a shared surface.
     final showStreak = isMe && streak >= 2;
+    // DESIGN_TOKENS.md: GamingRankRow migrated to AppCard.
+    //   • highlight (isMe) → AppCard.activeMe() — orange tinted bg +
+    //     orange border at 60% alpha, the canonical "this is me"
+    //     treatment.
+    //   • non-highlight   → AppCard.compact — darkCard bg + hairline
+    //     border + radius 12 (the canonical list-row treatment).
+    // The prior raw radius 14 + raw `Colors.white @ 0.05` border +
+    // raw `KinrelColors.orange @ 0.6` border are gone — these come
+    // from the named AppCard variants now.
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: highlight ? KinrelColors.orange.withValues(alpha: 0.1) : KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: highlight
-              ? KinrelColors.orange.withValues(alpha: 0.6)
-              : Colors.white.withValues(alpha: 0.05),
-          width: highlight ? 1.5 : 1,
-        ),
-      ),
+      margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+      decoration: highlight ? AppCard.activeMe() : AppCard.compact,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.cardCompact),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: AppPadding.compactRow,
             child: Row(
               children: [
                 SizedBox(

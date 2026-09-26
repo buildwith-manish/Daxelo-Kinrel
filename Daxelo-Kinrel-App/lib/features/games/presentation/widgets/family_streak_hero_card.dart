@@ -25,6 +25,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/constants/app_tokens.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../gaming_ecosystem/data/gaming_models.dart';
@@ -170,28 +171,18 @@ class _HeroSurface extends StatelessWidget {
     final Color accentColor = streakDays >= 1
         ? (playedToday ? KinrelColors.amber : KinrelColors.orange)
         : KinrelColors.amber.withValues(alpha: 0.7);
-    final List<Color> gradientColors = playedToday
-        ? const [Color(0xFF2B1A0E), Color(0xFF1D1409)]
-        : const [Color(0xFF3B1D0A), Color(0xFF241207)];
+    // DESIGN_TOKENS.md migration: this card was the prior "Streak hero"
+    // treatment with raw hex gradient stops + radius 22 + a custom
+    // shadow. Consolidated to AppCard.hero — the single canonical hero
+    // treatment (gradient bg + accent border at 30% alpha + soft accent
+    // glow shadow + radius 18 + padding 16). The previous raw hex
+    // gradient stops (`0xFF2B1A0E` / `0xFF1D1409` / `0xFF3B1D0A` /
+    // `0xFF241207`) are gone — AppCard.hero derives its gradient from
+    // the accentColor so the whole page reads as one accent family.
 
     return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: gradientColors,
-        ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: accentColor.withValues(alpha: 0.45)),
-        boxShadow: [
-          BoxShadow(
-            color: accentColor.withValues(alpha: 0.20),
-            blurRadius: 28,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
+      padding: AppPadding.hero,
+      decoration: AppCard.hero(accentColor: accentColor),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -202,7 +193,7 @@ class _HeroSurface extends StatelessWidget {
                 playedToday: playedToday,
                 accent: accentColor,
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -210,24 +201,22 @@ class _HeroSurface extends StatelessWidget {
                   children: [
                     Text(
                       headline,
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
+                      style: AppType.title.copyWith(
+                        // Slightly larger + bolder than AppType.title's
+                        // default 16 / w700 — this is the hero headline.
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
-                        color: KinrelColors.textWhite,
                         height: 1.25,
                       ),
                     ),
                     if (subtext != null) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: AppSpacing.xxs),
                       Text(
                         subtext!,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
+                        style: AppType.caption.copyWith(
                           fontSize: 11.5,
-                          color: KinrelColors.textSilver,
                           height: 1.3,
                         ),
                       ),
@@ -240,10 +229,10 @@ class _HeroSurface extends StatelessWidget {
             ],
           ),
           if (streakDays >= 1 || matchesThisWeek > 0) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.sm),
             Wrap(
               spacing: 6,
-              runSpacing: 4,
+              runSpacing: AppSpacing.xxs,
               children: [
                 if (streakDays >= 1)
                   _HeroFactChip(
@@ -346,17 +335,21 @@ class _HeroFactChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xs, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(8),
+        // DESIGN_TOKENS.md: hairline border on dark surfaces uses
+        // AppColor.hairline — single source. The prior
+        // `Colors.white @ 0.06` is replaced.
+        color: AppColor.hairline(context),
+        borderRadius: BorderRadius.circular(AppRadius.xs),
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontFamily: KinrelTypography.monoFont,
+        style: AppType.micro.copyWith(
+          // micro default is 10/w700/ls 1.5 — slightly smaller + tighter
+          // tracking for fact chips.
           fontSize: 9.5,
-          fontWeight: FontWeight.w700,
           letterSpacing: 0.4,
           color: accent.withValues(alpha: 0.95),
         ),
