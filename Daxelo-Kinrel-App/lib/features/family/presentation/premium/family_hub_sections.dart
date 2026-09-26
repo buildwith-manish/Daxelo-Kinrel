@@ -283,7 +283,7 @@ class FamilyPulseSection extends ConsumerWidget {
         Container(
           margin: const EdgeInsets.symmetric(horizontal: FamilyHubSpace.md),
           decoration: BoxDecoration(
-            color: FamilyHubSurface.level1(context),
+            color: FamilyHubSurface.level1,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: FamilyHubSurface.hairline(context),
