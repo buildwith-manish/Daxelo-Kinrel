@@ -313,20 +313,39 @@ class FamilyPulseSection extends ConsumerWidget {
                           context.push('/family/$familyId/calendar'),
                     )),
 
-                // Missing info nudges — muted, collapsed.
-                ...missingDob.take(3).map((person) => _PulseNudgeRow(
-                      icon: Icons.info_outline,
-                      title: 'Add ${person.name}\'s birthday',
-                      subtitle: 'Missing info',
-                      trailing: null,
-                      isUrgent: false,
-                      isMuted: true,
-                      onTap: () => AddPersonSheetBridge.show(
-                        context,
-                        familyId: familyId,
-                        person: person,
-                      ),
-                    )),
+                // Missing info nudges — Phase 4 (ux/family-space-
+                // refinement): COLLAPSED from multiple individual rows
+                // ("Add Account 2's birthday — Missing info", "Add
+                // Account 1's birthday — Missing info", etc.) into ONE
+                // single prompt card: "🎂 Add birthdays to get
+                // reminders" with a subtext like "3 family members are
+                // missing birthdays". Tapping the prompt opens the
+                // first missing-birthday member's edit sheet (the user
+                // can then iterate through the remaining ones from
+                // there).
+                //
+                // This removes the repeated-nag/checklist pattern that
+                // read as a system shame-list rather than a warm
+                // invitation. The "Recent" activity rows below
+                // (relationship additions, member joins) stay as-is —
+                // those are genuine distinct activity log entries, not
+                // repeated nags.
+                if (missingDob.isNotEmpty)
+                  _PulseNudgeRow(
+                    icon: Icons.cake_outlined,
+                    title: 'Add birthdays to get reminders',
+                    subtitle: missingDob.length == 1
+                        ? '1 family member is missing a birthday'
+                        : '${missingDob.length} family members are missing birthdays',
+                    trailing: null,
+                    isUrgent: false,
+                    isMuted: true,
+                    onTap: () => AddPersonSheetBridge.show(
+                      context,
+                      familyId: familyId,
+                      person: missingDob.first,
+                    ),
+                  ),
               ],
 
               // ── Divider between nudges and activity ───────────────────
