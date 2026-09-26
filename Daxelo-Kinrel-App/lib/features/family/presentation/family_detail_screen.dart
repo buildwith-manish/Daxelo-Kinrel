@@ -4087,7 +4087,7 @@ class _QuickLinkChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: KinrelColors.darkCard,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: link.color.withValues(alpha: 0.2), width: 0.8),
+          border: Border.all(color: link.color.withOpacity(0.2), width: 0.8),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

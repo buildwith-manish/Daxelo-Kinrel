@@ -353,6 +353,7 @@ class _ConditionalInviteBanner extends ConsumerWidget {
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
       data: (detail) {
+        if (detail == null) return const SizedBox.shrink();
         final activeMembers = detail.members
             .where((m) => m.deletedAt == null)
             .toList();
