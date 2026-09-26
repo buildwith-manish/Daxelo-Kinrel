@@ -149,6 +149,21 @@ class PBv1Notifier extends StateNotifier<PBv1State> {
     final myId = _myId;
     final round = state.round;
     if (client == null || myId == null || round == null) return false;
+
+    // ── Optimistic update ───────────────────────────────────────────
+    // Show the guess locally IMMEDIATELY (before the RPC returns) so
+    // the user sees their submission reflected instantly. Mark it as
+    // optimistic so the UI can show a "sending" indicator alongside.
+    // The previous value (if any) is saved so we can roll back on
+    // failure without flicker.
+    final previousGuess = state.myGuess;
+    state = state.copyWith(
+      myGuess: PBv1Guess(userId: myId, guessValue: value, submittedAt: DateTime.now()),
+      isSubmitting: true,
+      isOptimisticGuess: true,
+      clearError: true,
+    );
+
     try {
       final resp = await client.rpc('fn_pb_v1_submit_guess', params: {
         'p_round_id': round.id,
@@ -156,17 +171,36 @@ class PBv1Notifier extends StateNotifier<PBv1State> {
         'p_guess_value': value,
       });
       if (resp is Map && resp['ok'] == true) {
+        // ── Success: reconcile ────────────────────────────────────
+        // The server may have normalized the submittedAt timestamp; we
+        // keep our optimistic guess (already showing the right value).
+        // Clear the optimistic + submitting flags.
         state = state.copyWith(
-          myGuess: PBv1Guess(userId: myId, guessValue: value, submittedAt: DateTime.now()),
+          isSubmitting: false,
+          isOptimisticGuess: false,
         );
         // Persist the guess to cache so it survives a cold restart
         // before the next refresh.
         await _writeCache();
         return true;
       }
+      // ── Server-declared failure: roll back ────────────────────
+      state = state.copyWith(
+        myGuess: previousGuess,
+        isSubmitting: false,
+        isOptimisticGuess: false,
+        error: 'Submission rejected',
+      );
       return false;
     } catch (e) {
+      // ── Network/RPC failure: roll back ────────────────────────
       debugPrint('[PBv1] submit error: $e');
+      state = state.copyWith(
+        myGuess: previousGuess,
+        isSubmitting: false,
+        isOptimisticGuess: false,
+        error: 'Failed to submit — tap to retry',
+      );
       return false;
     }
   }

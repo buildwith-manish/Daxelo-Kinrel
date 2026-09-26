@@ -243,153 +243,167 @@ class _GhostPainterDrawScreenState
   // ── Live drawing ─────────────────────────────────────────────────
 
   Widget _buildDrawCanvas(GhostPainterState state, GhostPainterRound round) {
-    final remaining = ref
-        .read(ghostPainterProvider(widget.familyId).notifier)
-        .remainingSeconds;
     final totalDuration = round.endsAt != null
         ? round.endsAt!.difference(round.startedAt).inSeconds
         : 90;
-    final progress = totalDuration > 0
-        ? (remaining / totalDuration).clamp(0.0, 1.0)
-        : 0.0;
 
     return Column(
       children: [
         // Top bar: glass prompt chip + countdown ring.
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              Expanded(
-                child: GhostGlassCard(
-                  accent: kGhostAccent,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.visibility_off_outlined,
-                        size: 17,
-                        color: kGhostAccent,
-                      ),
-                      const SizedBox(width: 10),
-                      Flexible(
-                        child: Text(
-                          'Draw: ${round.promptWord}',
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.displayFont,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: 0.3,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+        // Wrapped in RepaintBoundary so the per-second _CountdownRing
+        // tick (and the per-pan-update setState in the canvas below)
+        // does NOT re-rasterize the static prompt chip decoration.
+        RepaintBoundary(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GhostGlassCard(
+                    accent: kGhostAccent,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.visibility_off_outlined,
+                          size: 17,
+                          color: kGhostAccent,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 10),
+                        Flexible(
+                          child: Text(
+                            'Draw: ${round.promptWord}',
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.displayFont,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              letterSpacing: 0.3,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              _CountdownRing(remaining: remaining, progress: progress),
-            ],
+                const SizedBox(width: 12),
+                _CountdownRing(
+                  endsAt: round.endsAt ?? round.startedAt.add(Duration(seconds: totalDuration)),
+                  totalDurationSec: totalDuration,
+                ),
+              ],
+            ),
           ),
         ),
-        // Neon canvas.
+        // Neon canvas — isolated in RepaintBoundary so the heavy
+        // per-frame repaint (during active drawing) doesn't bleed into
+        // the top bar / Done button / guess feed layers.
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: GestureDetector(
-                onPanStart: (_) {
-                  _currentStroke.clear();
-                },
-                onPanUpdate: (details) {
-                  setState(() {
-                    _currentStroke.add(details.localPosition);
-                  });
-                },
-                onPanEnd: (_) {
-                  if (_currentStroke.isNotEmpty) {
-                    _allStrokes.add(List.from(_currentStroke));
-                    final points = _currentStroke
-                        .map((p) => OffsetPoint(x: p.dx, y: p.dy))
-                        .toList();
-                    ref
-                        .read(ghostPainterProvider(widget.familyId).notifier)
-                        .queueStroke(points, _strokeSequence++);
-                    GameMotionTokens.tap();
+          child: RepaintBoundary(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: GestureDetector(
+                  onPanStart: (_) {
                     _currentStroke.clear();
-                  }
-                },
-                child: GhostPainterCanvas(
-                  strokes: _allStrokes,
-                  currentStroke: _currentStroke,
+                  },
+                  onPanUpdate: (details) {
+                    setState(() {
+                      _currentStroke.add(details.localPosition);
+                    });
+                  },
+                  onPanEnd: (_) {
+                    if (_currentStroke.isNotEmpty) {
+                      _allStrokes.add(List.from(_currentStroke));
+                      final points = _currentStroke
+                          .map((p) => OffsetPoint(x: p.dx, y: p.dy))
+                          .toList();
+                      ref
+                          .read(ghostPainterProvider(widget.familyId).notifier)
+                          .queueStroke(points, _strokeSequence++);
+                      GameMotionTokens.tap();
+                      _currentStroke.clear();
+                    }
+                  },
+                  child: GhostPainterCanvas(
+                    strokes: _allStrokes,
+                    currentStroke: _currentStroke,
+                  ),
                 ),
               ),
             ),
           ),
         ),
         const SizedBox(height: 12),
-        // Gradient Done CTA.
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: SizedBox(
-            width: double.infinity,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFEC4899), Color(0xFFB14DB8)],
-                ),
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: kGhostAccent.withValues(alpha: 0.4),
-                    blurRadius: 18,
-                    offset: const Offset(0, 6),
+        // Gradient Done CTA — static decoration; wrap in RepaintBoundary
+        // so per-pan-update setStates in the canvas above don't repaint
+        // the gradient + shadow.
+        RepaintBoundary(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SizedBox(
+              width: double.infinity,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFEC4899), Color(0xFFB14DB8)],
                   ),
-                ],
-              ),
-              child: FilledButton.icon(
-                onPressed: _doneDrawing,
-                icon: const Icon(Icons.check_rounded),
-                label: Text(
-                  'I\'m Done Drawing',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: kGhostAccent.withValues(alpha: 0.4),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                child: FilledButton.icon(
+                  onPressed: _doneDrawing,
+                  icon: const Icon(Icons.check_rounded),
+                  label: Text(
+                    'I\'m Done Drawing',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
                 ),
               ),
             ),
           ),
         ),
-        // Live guess feed.
+        // Live guess feed — isolated so the per-pan-update setStates
+        // above don't repaint this row even though it shares the
+        // _buildDrawCanvas parent Column.
         if (state.guesses.isNotEmpty)
-          Container(
-            height: 52,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: state.guesses
-                  .map<GhostGuessBubble>(
-                    (g) => GhostGuessBubble(
-                      userName: g.userName,
-                      guessText: g.guessText,
-                      isCorrect: g.isCorrect,
-                    ),
-                  )
-                  .toList(),
+          RepaintBoundary(
+            child: Container(
+              height: 52,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: state.guesses
+                    .map<GhostGuessBubble>(
+                      (g) => GhostGuessBubble(
+                        userName: g.userName,
+                        guessText: g.guessText,
+                        isCorrect: g.isCorrect,
+                      ),
+                    )
+                    .toList(),
+              ),
             ),
           ),
         const SizedBox(height: 8),
@@ -675,13 +689,58 @@ class _GhostPainterDrawScreenState
 
 /// Glowing circular countdown ring with the number in the center —
 /// pulses red in the final ten seconds.
-class _CountdownRing extends StatelessWidget {
-  const _CountdownRing({required this.remaining, required this.progress});
-  final int remaining;
-  final double progress;
+class _CountdownRing extends StatefulWidget {
+  const _CountdownRing({required this.endsAt, required this.totalDurationSec});
+  final DateTime endsAt;
+  final int totalDurationSec;
+
+  @override
+  State<_CountdownRing> createState() => _CountdownRingState();
+}
+
+class _CountdownRingState extends State<_CountdownRing> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTick();
+  }
+
+  @override
+  void didUpdateWidget(_CountdownRing oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.endsAt != widget.endsAt) {
+      _startTick();
+    }
+  }
+
+  void _startTick() {
+    _tick?.cancel();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final now = DateTime.now();
+      if (!now.isBefore(widget.endsAt)) {
+        _tick?.cancel();
+      }
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final remainingSec = widget.endsAt.difference(now).inSeconds;
+    final remaining = remainingSec > 0 ? remainingSec : 0;
+    final progress = widget.totalDurationSec > 0
+        ? (remaining / widget.totalDurationSec).clamp(0.0, 1.0)
+        : 0.0;
     final urgent = remaining <= 10;
     final color = urgent ? const Color(0xFFFF5A5F) : kGhostAccent;
     return Container(

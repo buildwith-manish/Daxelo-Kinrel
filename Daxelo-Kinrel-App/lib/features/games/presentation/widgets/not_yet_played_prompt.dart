@@ -15,6 +15,7 @@
 // (which will pre-fill a Tic-Tac-Toe invite for that member — the
 // lightest game for a first interaction).
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
@@ -161,8 +162,13 @@ class _Avatar extends StatelessWidget {
       child: CircleAvatar(
         radius: 16,
         backgroundColor: Colors.transparent,
+        // perf pass — 32×32 logical px avatar. Cap decode to 32 × dpr.
         foregroundImage: (avatarUrl != null && avatarUrl!.isNotEmpty)
-            ? NetworkImage(avatarUrl!)
+            ? CachedNetworkImageProvider(
+                avatarUrl!,
+                cacheWidth: (32 * MediaQuery.devicePixelRatioOf(context)).round(),
+                cacheHeight: (32 * MediaQuery.devicePixelRatioOf(context)).round(),
+              )
             : null,
         child: Text(
           name.isEmpty ? '?' : name.substring(0, 1).toUpperCase(),

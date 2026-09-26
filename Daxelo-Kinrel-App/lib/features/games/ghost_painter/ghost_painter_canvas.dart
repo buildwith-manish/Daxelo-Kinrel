@@ -136,7 +136,21 @@ class _GhostCanvasPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _GhostCanvasPainter old) => true;
+  bool shouldRepaint(covariant _GhostCanvasPainter old) {
+    // Only repaint when the stroke data actually changes. The previous
+    // `=> true` made the canvas repaint on every parent setState
+    // (focus change, shake animation, countdown tick), even when the
+    // drawing was untouched — wasteful on a long 50-stroke drawing
+    // where every paint call is 100+ path draws.
+    //
+    // List<>.== in Dart is reference equality — fine here because the
+    // provider / draw state always allocates a new list on every
+    // mutation (`[...state.strokes, stroke]` and `List.from(_allStrokes)`),
+    // so identical contents produce identical references until a real
+    // mutation happens.
+    return !identical(strokes, old.strokes) ||
+        !identical(currentStroke, old.currentStroke);
+  }
 }
 
 /// Glassy rounded card used across the Ghost Painter screens.

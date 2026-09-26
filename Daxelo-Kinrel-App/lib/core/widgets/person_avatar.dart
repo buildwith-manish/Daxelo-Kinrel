@@ -94,6 +94,15 @@ class PersonAvatar extends StatelessWidget {
     Widget avatar;
 
     if (hasPhoto) {
+      // perf pass — cap the decode size to the on-screen diameter ×
+      // device pixel ratio. Without this, a 1024×1024 upload decodes
+      // to a full-resolution bitmap in memory even though we render
+      // at 40×40. For a family member roster of 20 people this is the
+      // difference between 80MB and 1.2MB of decoded-image memory.
+      // memCacheWidth/memCacheHeight are in physical pixels (already
+      // multiplied by dpr), which is what CachedNetworkImage expects.
+      final dpr = MediaQuery.devicePixelRatioOf(context);
+      final cachePx = (size * dpr).round();
       avatar = ClipOval(
         child: SizedBox(
           width: size,
@@ -101,6 +110,8 @@ class PersonAvatar extends StatelessWidget {
           child: CachedNetworkImage(
             imageUrl: photoUrl!,
             fit: BoxFit.cover,
+            memCacheWidth: cachePx,
+            memCacheHeight: cachePx,
             placeholder: (context, url) => _buildInitialCircle(bg, fg),
             errorWidget: (context, url, error) => _buildInitialCircle(bg, fg),
           ),

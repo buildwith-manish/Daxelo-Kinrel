@@ -23,6 +23,7 @@
 // chat_screen.dart small (import + wire-up only) and makes the mention
 // UI testable in isolation.
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../providers/chat_provider.dart';
@@ -174,9 +175,16 @@ class _Avatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (avatarUrl != null && avatarUrl!.isNotEmpty) {
+      // perf pass — mention-picker avatars are 32×32 logical px.
+      // Cap decode to 32 × dpr physical px and use disk-cached
+      // provider so high-res uploads don't decode to full bitmaps.
       return CircleAvatar(
         radius: 16,
-        backgroundImage: NetworkImage(avatarUrl!),
+        backgroundImage: CachedNetworkImageProvider(
+          avatarUrl!,
+          cacheWidth: (32 * MediaQuery.devicePixelRatioOf(context)).round(),
+          cacheHeight: (32 * MediaQuery.devicePixelRatioOf(context)).round(),
+        ),
       );
     }
     return CircleAvatar(

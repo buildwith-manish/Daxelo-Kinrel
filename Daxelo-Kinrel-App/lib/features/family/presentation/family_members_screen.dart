@@ -14,6 +14,7 @@
 //   3. Presence dot on each avatar (green = home, blue = work,
 //      red = dnd, gray = away) reusing familyPresenceProvider.
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -512,8 +513,16 @@ class _MemberRow extends StatelessWidget {
                   radius: 22,
                   backgroundColor: KinrelColors.orange
                       .withValues(alpha: 0.15),
+                  // perf pass — family member avatars render at 44×44
+                  // logical px. Cap decode to 44 × dpr physical px and
+                  // use disk-cached provider so a 1024×1024 upload
+                  // doesn't decode to a 4MB bitmap per member.
                   backgroundImage: person.photoUrl != null
-                      ? NetworkImage(person.photoUrl!)
+                      ? CachedNetworkImageProvider(
+                          person.photoUrl!,
+                          cacheWidth: (44 * MediaQuery.devicePixelRatioOf(context)).round(),
+                          cacheHeight: (44 * MediaQuery.devicePixelRatioOf(context)).round(),
+                        )
                       : null,
                   child: person.photoUrl == null
                       ? Text(

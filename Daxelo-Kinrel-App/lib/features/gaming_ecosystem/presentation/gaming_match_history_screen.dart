@@ -72,6 +72,24 @@ class GamingMatchHistoryScreen extends ConsumerWidget {
               : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
                   itemCount: matches.length,
+                  // perf pass — match-history tiles are near-fixed-height
+                  // (~92px: 46 icon + 14 padding + 10 margin + 3 text
+                  // lines). Use prototypeItem so Flutter can skip the
+                  // layout pass for off-screen items (it measures the
+                  // prototype once and reuses the extent). Chosen over
+                  // itemExtent so font-scale / text-overflow accessibility
+                  // settings still flow naturally.
+                  prototypeItem: const _MatchHistoryTile(
+                    match: MatchHistoryEntry(
+                      matchId: '',
+                      gameTable: '',
+                      gameName: '',
+                      gameIcon: '',
+                      result: '',
+                      finishedAt: '',
+                    ),
+                    familyId: '',
+                  ),
                   itemBuilder: (context, i) =>
                       _MatchHistoryTile(match: matches[i], familyId: familyId),
                 ),

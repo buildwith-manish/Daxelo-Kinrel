@@ -164,6 +164,14 @@ class _CreateContentSheetState extends ConsumerState<CreateContentSheet> {
     if (mounted) {
       setState(() => _submitting = false);
       if (success) {
+        // ── Success: invalidate the customContentProvider so the new
+        // content appears in the family content list immediately. The
+        // provider is autoDispose, so invalidating here triggers a
+        // re-fetch the next time any consumer reads it (and the user
+        // is about to navigate back to a screen that does).
+        ref.invalidate(customContentProvider(
+          (familyId: widget.familyId, gameType: widget.gameType),
+        ));
         Navigator.of(context).maybePop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

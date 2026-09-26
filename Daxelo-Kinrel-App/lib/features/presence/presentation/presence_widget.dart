@@ -3,6 +3,7 @@
 // Compact presence row for the family hub. Shows all family members'
 // current status as colored avatar dots. Tapping opens a status picker.
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../presence_provider.dart';
@@ -76,8 +77,19 @@ class PresenceRow extends ConsumerWidget {
                               CircleAvatar(
                                 radius: 12,
                                 backgroundColor: color.withOpacity(0.2),
+                                // perf pass — presence dots are the smallest
+                                // avatar in the app (24×24). Without
+                                // cacheWidth/cacheHeight, a 1024×1024 upload
+                                // decodes to a 4MB bitmap just to render at
+                                // 24×24 — the highest decode-waste ratio in
+                                // the app. Cap to 24 × dpr physical px and
+                                // use disk-cached provider.
                                 backgroundImage: m.avatarUrl != null && m.avatarUrl!.isNotEmpty
-                                    ? NetworkImage(m.avatarUrl!)
+                                    ? CachedNetworkImageProvider(
+                                        m.avatarUrl!,
+                                        cacheWidth: (24 * MediaQuery.devicePixelRatioOf(context)).round(),
+                                        cacheHeight: (24 * MediaQuery.devicePixelRatioOf(context)).round(),
+                                      )
                                     : null,
                                 child: (m.avatarUrl == null || m.avatarUrl!.isEmpty)
                                     ? Text(

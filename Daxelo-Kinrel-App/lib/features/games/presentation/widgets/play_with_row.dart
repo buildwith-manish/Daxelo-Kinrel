@@ -22,6 +22,7 @@
 //   online now > highest shared-games-count > never played together.
 //   This encourages completing the family, not just repeating the same pair.
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -392,8 +393,16 @@ class _Avatar extends StatelessWidget {
           child: CircleAvatar(
             radius: 22,
             backgroundColor: Colors.transparent,
+            // perf pass — use CachedNetworkImageProvider (disk-cached +
+            // decode-size-capped) instead of plain NetworkImage. Avatar
+            // is 44×44 logical px → cap decode to 44 × dpr physical px
+            // so a 1024×1024 upload doesn't decode to a 4MB bitmap.
             foregroundImage: (avatarUrl != null && avatarUrl!.isNotEmpty)
-                ? NetworkImage(avatarUrl!)
+                ? CachedNetworkImageProvider(
+                    avatarUrl!,
+                    cacheWidth: (44 * MediaQuery.devicePixelRatioOf(context)).round(),
+                    cacheHeight: (44 * MediaQuery.devicePixelRatioOf(context)).round(),
+                  )
                 : null,
             child: Text(
               name.isEmpty ? '?' : name.substring(0, 1).toUpperCase(),

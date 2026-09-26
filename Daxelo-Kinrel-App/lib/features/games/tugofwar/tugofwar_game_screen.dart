@@ -55,7 +55,6 @@ class TugOfWarGameScreen extends ConsumerStatefulWidget {
 class _TugOfWarGameScreenState extends ConsumerState<TugOfWarGameScreen>
     with SingleTickerProviderStateMixin {
   late final RopePhysicsController _rope;
-  Timer? _clockTimer;
   bool _pressed = false;
   Timer? _pressTimer;
 
@@ -73,14 +72,16 @@ class _TugOfWarGameScreenState extends ConsumerState<TugOfWarGameScreen>
           .read(tugOfWarProvider(widget.familyId).notifier)
           .loadGame(widget.gameId);
     });
-    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
+    // NOTE: the previous implementation ran a 1-second Timer.periodic
+    // that called setState(() {}) on the WHOLE _TugOfWarGameScreenState
+    // — rebuilding the entire play-view tree every second just to update
+    // the countdown text. The countdown now lives inside _TopBar itself
+    // (a StatefulWidget that owns its own 1s timer), so the screen-level
+    // timer is gone and only the timer chip rebuilds each second.
   }
 
   @override
   void dispose() {
-    _clockTimer?.cancel();
     _pressTimer?.cancel();
     _rope.stop();
     _rope.dispose();
@@ -171,26 +172,51 @@ class _TugOfWarGameScreenState extends ConsumerState<TugOfWarGameScreen>
           child: Padding(
             padding: const EdgeInsets.symmetric(
                 horizontal: KinrelSpacing.base, vertical: KinrelSpacing.sm),
-            child: _RopeArena(
-              controller: _rope,
-              teamAColor: TugTeamBoardColors.a,
-              teamBColor: TugTeamBoardColors.b,
-              wonSide: game.isCompleted
-                  ? (game.winningTeam == TugTeam.a ? TugSide.a : TugSide.b)
-                  : null,
+            child: RepaintBoundary(
+              // The rope arena runs its own 60fps AnimatedBuilder — give
+              // it its own compositing layer so the parent's 150ms
+              // rebuilds don't repaint the canvas unnecessarily.
+              child: _RopeArena(
+                controller: _rope,
+                teamAColor: TugTeamBoardColors.a,
+                teamBColor: TugTeamBoardColors.b,
+                wonSide: game.isCompleted
+                    ? (game.winningTeam == TugTeam.a ? TugSide.a : TugSide.b)
+                    : null,
+              ),
             ),
           ),
         );
 
-        final header = _TopBar(game: game, effectiveRope: state.effectiveRope);
-        final teams = _TeamsPanel(state: state, myUserId: myId);
-        final puller = _PullSection(
-          state: state,
-          myTeam: myTeam,
-          isSpectator: isSpectator,
-          familyId: widget.familyId,
-          pressed: _pressed,
-          onPull: () => _onPull(myTeam),
+        final header = RepaintBoundary(
+          // TopBar's only per-tick change is the gold lead-marker in
+          // _AdvantageMeter (animated via AnimatedPositioned — already
+          // isolated). The timer chip + room name + advantage track
+          // decoration are static; wrapping them in RepaintBoundary
+          // means the 150ms rope_state broadcast doesn't re-rasterize
+          // the static decoration, only the rope arena below.
+          child: _TopBar(game: game, effectiveRope: state.effectiveRope),
+        );
+        final teams = RepaintBoundary(
+          // Both _TeamCard widgets rebuild on join/leave (Postgres Changes)
+          // — which is rare — but on every 150ms rope_state tick the
+          // host mirrors new pullCounts into state.players. Wrapping the
+          // panel in RepaintBoundary lets the painter reuse the cached
+          // layer when only the per-player tap counts change.
+          child: _TeamsPanel(state: state, myUserId: myId),
+        );
+        final puller = RepaintBoundary(
+          // The PULL! button decoration is static; only the 'X taps' text
+          // and the pressed-scale change. Isolating the section keeps
+          // the heavy gradient + shadow decoration on its own layer.
+          child: _PullSection(
+            state: state,
+            myTeam: myTeam,
+            isSpectator: isSpectator,
+            familyId: widget.familyId,
+            pressed: _pressed,
+            onPull: () => _onPull(myTeam),
+          ),
         );
 
         if (landscape) {
@@ -203,7 +229,9 @@ class _TugOfWarGameScreenState extends ConsumerState<TugOfWarGameScreen>
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.all(KinrelSpacing.sm),
-                        child: _TeamsPanel(state: state, myUserId: myId),
+                        child: RepaintBoundary(
+                          child: _TeamsPanel(state: state, myUserId: myId),
+                        ),
                       ),
                     ),
                     Expanded(
@@ -214,15 +242,17 @@ class _TugOfWarGameScreenState extends ConsumerState<TugOfWarGameScreen>
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: KinrelSpacing.sm),
-                              child: _RopeArena(
-                                controller: _rope,
-                                teamAColor: TugTeamBoardColors.a,
-                                teamBColor: TugTeamBoardColors.b,
-                                wonSide: game.isCompleted
-                                    ? (game.winningTeam == TugTeam.a
-                                        ? TugSide.a
-                                        : TugSide.b)
-                                    : null,
+                              child: RepaintBoundary(
+                                child: _RopeArena(
+                                  controller: _rope,
+                                  teamAColor: TugTeamBoardColors.a,
+                                  teamBColor: TugTeamBoardColors.b,
+                                  wonSide: game.isCompleted
+                                      ? (game.winningTeam == TugTeam.a
+                                          ? TugSide.a
+                                          : TugSide.b)
+                                      : null,
+                                ),
                               ),
                             ),
                           ),
@@ -275,8 +305,6 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final remaining = game.secondsRemaining;
-
     return Container(
       padding: const EdgeInsets.fromLTRB(
           KinrelSpacing.base, KinrelSpacing.sm, KinrelSpacing.base, KinrelSpacing.sm),
@@ -284,44 +312,12 @@ class _TopBar extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: KinrelColors.darkCard,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: KinrelColors.border),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      game.hasTimer ? Icons.timer_outlined : Icons.all_inclusive,
-                      size: 14,
-                      color: game.isInProgress && remaining != null && remaining <= 10
-                          ? KinrelColors.error
-                          : KinrelColors.textDim,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      !game.isInProgress
-                          ? (game.hasTimer ? '${game.matchDurationSec}s' : '∞')
-                          : remaining == null
-                              ? 'Unlimited'
-                              : '${(remaining ~/ 60).toString().padLeft(2, '0')}:'
-                                  '${(remaining % 60).toString().padLeft(2, '0')}',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.monoFont,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: game.isInProgress && remaining != null && remaining <= 10
-                            ? KinrelColors.error
-                            : KinrelColors.textWhite,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              // Live countdown chip — owns its own 1s timer so only the
+              // timer text rebuilds each second, NOT the whole _TopBar /
+              // play-view tree. The previous screen-level Timer.periodic
+              // rebuilt the entire game screen every second just to
+              // refresh this one text widget.
+              _LiveTimerChip(game: game),
               const Spacer(),
               if (game.roomName?.isNotEmpty == true)
                 Flexible(
@@ -344,6 +340,95 @@ class _TopBar extends StatelessWidget {
           // play, falls back to game.ropePosition at match end).
           _AdvantageMeter(
             lead: effectiveRope.clamp(-1.0, 1.0),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Self-ticking countdown chip. Owns a 1s Timer.periodic so the per-
+/// second rebuild is scoped to just this widget (and its parent
+/// _TopBar via RepaintBoundary). Stops the timer when the match is
+/// no longer in progress (waiting / completed) to save battery.
+class _LiveTimerChip extends StatefulWidget {
+  const _LiveTimerChip({required this.game});
+  final TugOfWarGame game;
+
+  @override
+  State<_LiveTimerChip> createState() => _LiveTimerChipState();
+}
+
+class _LiveTimerChipState extends State<_LiveTimerChip> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _maybeStartTimer();
+  }
+
+  @override
+  void didUpdateWidget(_LiveTimerChip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Match transitioned (started or ended) — re-check whether we
+    // need the 1s tick running.
+    if (oldWidget.game.isInProgress != widget.game.isInProgress) {
+      _maybeStartTimer();
+    }
+  }
+
+  void _maybeStartTimer() {
+    _tick?.cancel();
+    _tick = null;
+    if (widget.game.isInProgress && widget.game.hasTimer) {
+      _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final game = widget.game;
+    final remaining = game.secondsRemaining;
+    final urgent = game.isInProgress && remaining != null && remaining <= 10;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: KinrelColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            game.hasTimer ? Icons.timer_outlined : Icons.all_inclusive,
+            size: 14,
+            color: urgent ? KinrelColors.error : KinrelColors.textDim,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            !game.isInProgress
+                ? (game.hasTimer ? '${game.matchDurationSec}s' : '∞')
+                : remaining == null
+                    ? 'Unlimited'
+                    : '${(remaining ~/ 60).toString().padLeft(2, '0')}:'
+                        '${(remaining % 60).toString().padLeft(2, '0')}',
+            style: TextStyle(
+              fontFamily: KinrelTypography.monoFont,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: urgent ? KinrelColors.error : KinrelColors.textWhite,
+            ),
           ),
         ],
       ),

@@ -180,6 +180,16 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
   /// Cleanup safety timer — end the room 30s after the match completes.
   Timer? _cleanupTimer;
 
+  // ── Receive-side throttle for state broadcasts ──────────────────
+  // Multiple state broadcasts arriving in the same frame are coalesced
+  // into a single state emission. The host sends at 10Hz (100ms) but
+  // network jitter can bunch them; without this throttle, two
+  // back-to-back state events would queue two full-screen rebuilds in
+  // the same frame — one wasted.
+  Map<String, dynamic>? _pendingState;
+  Timer? _stateFlush;
+  bool _disposed = false;
+
   /// Latest snapshot of all player inputs. Updated by the Broadcast
   /// `onBroadcast(event: 'input')` callback — no DB polling.
   final Map<String, StickmanHeistInputWire> _latestInputs = {};
@@ -741,6 +751,14 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
     _physics = StickmanHeistPhysicsEngine()..setup(board);
 
     // Physics + collision check at 60fps.
+    // State EMISSION is throttled to every other tick (~30fps) so the
+    // host's UI rebuilds at 30fps instead of 60fps — visually
+    // indistinguishable for the HUD/arena but halves the rebuild cost
+    // (the _TopHud + _ArenaView + _ControlsBar + _EventBanner subtree
+    // is heavy: BoxShadow + gradients + TextPainter calls per frame).
+    // The physics engine itself still steps at 60fps for accuracy;
+    // only the state.copyWith() + notifyListeners is throttled.
+    int _simTickNum = 0;
     _simTimer = Timer.periodic(
       const Duration(milliseconds: 16),
       (_) {
@@ -766,7 +784,16 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
         _physics!.checkCollisions();
         // Update local live state for the host's own rendering.
         final live = _physics!.readState();
-        state = state.copyWith(liveState: live);
+        // Throttle: emit state every other sim tick (~30fps). Phase
+        // transitions / completion always emit immediately regardless
+        // of tick parity so the post-match flow doesn't lag.
+        final shouldEmit = (_simTickNum & 1) == 0 ||
+            live.phase == StickmanHeistPhase.completed ||
+            live.phase != state.liveState?.phase;
+        if (shouldEmit) {
+          state = state.copyWith(liveState: live);
+        }
+        _simTickNum++;
         // If the sim says the match is over, stop the loops and let
         // the broadcast timer push the final state once (durably).
         if (live.phase == StickmanHeistPhase.completed) {
@@ -865,14 +892,12 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
             // render this. Host ignores — host owns the canonical state.
             if (_isHost) return;
             try {
-              final board = StickmanHeistBoardState.fromJson(
-                  Map<String, dynamic>.from(payload as Map));
-              if (board.phase == StickmanHeistPhase.completed &&
-                  state.liveState?.phase !=
-                      StickmanHeistPhase.completed) {
-                GameMotionTokens.celebrate();
-              }
-              state = state.copyWith(liveState: board);
+              final map = Map<String, dynamic>.from(payload as Map);
+              // Coalesce: buffer the latest payload and flush on the
+              // next event-loop turn. Multiple same-frame state broadcasts
+              // collapse into one state emission + one rebuild.
+              _pendingState = map;
+              _stateFlush ??= Timer.run(_flushState);
             } catch (e) {
               debugPrint(
                   '[StickmanHeist] onBroadcast(state) parse error: $e');
@@ -1063,11 +1088,34 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
     state = const StickmanHeistState_();
   }
 
+  /// Flush the latest buffered state payload as a single state
+  /// emission. Called via `Timer.run` from the state listener — by
+  /// the time this fires, any same-frame state broadcasts have
+  /// already been collapsed into the latest `_pendingState`.
+  void _flushState() {
+    _stateFlush = null;
+    final map = _pendingState;
+    _pendingState = null;
+    if (map == null || _disposed) return;
+    try {
+      final board = StickmanHeistBoardState.fromJson(map);
+      if (board.phase == StickmanHeistPhase.completed &&
+          state.liveState?.phase != StickmanHeistPhase.completed) {
+        GameMotionTokens.celebrate();
+      }
+      state = state.copyWith(liveState: board);
+    } catch (e) {
+      debugPrint('[StickmanHeist] _flushState parse error: $e');
+    }
+  }
+
   @override
   void dispose() {
+    _disposed = true;
     _cancelHostLoops();
     _inputBroadcastTimer?.cancel();
     _cleanupTimer?.cancel();
+    _stateFlush?.cancel();
     _physics?.dispose();
     _channel?.unsubscribe();
     _heartbeat?.stop();

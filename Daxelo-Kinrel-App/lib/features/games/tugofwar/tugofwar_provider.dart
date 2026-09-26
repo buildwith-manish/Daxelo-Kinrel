@@ -277,6 +277,18 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
   /// Cold-start retries (kept from the original — same purpose).
   int _loadRetries = 0;
 
+  // ── Receive-side throttle for rope_state broadcasts ───────────────
+  // Multiple rope_state broadcasts arriving in the same frame are
+  // coalesced into a single state emission. Without this, if the host
+  // (or the network) delivers two rope_state events back-to-back (e.g.
+  // during a network-jitter burst), the UI queues two rebuilds in the
+  // same frame — one of them is wasted work. We buffer the latest
+  // payload and flush it on the next event-loop turn via Timer.run, so
+  // any number of same-frame broadcasts collapse into one rebuild.
+  Map<String, dynamic>? _pendingRopeState;
+  Timer? _ropeStateFlush;
+  bool _disposed = false;
+
   /// True iff this client is the host of the current game. Set in
   /// `_applyGameRow` from `game.hostUserId == _myId`.
   bool get _isHost {
@@ -1080,38 +1092,11 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
             if (_isHost) return;
             try {
               final map = Map<String, dynamic>.from(payload as Map);
-              final rope = (map['rope'] as num?)?.toDouble() ?? 0.0;
-              final teamATaps = (map['teamATaps'] as num?)?.toInt() ?? 0;
-              final teamBTaps = (map['teamBTaps'] as num?)?.toInt() ?? 0;
-              final playersList = map['players'];
-              // Mirror per-player pullCounts into state.players so the
-              // team-stats / leaderboard UIs render live during play.
-              List<TugOfWarPlayer>? updatedPlayers;
-              if (playersList is List) {
-                final byId = <String, int>{};
-                for (final item in playersList) {
-                  if (item is Map) {
-                    final uid = item['userId'] as String?;
-                    final cnt = (item['pullCount'] as num?)?.toInt();
-                    if (uid != null && cnt != null) {
-                      byId[uid] = cnt;
-                    }
-                  }
-                }
-                if (byId.isNotEmpty) {
-                  updatedPlayers = state.players.map((p) {
-                    final live = byId[p.userId];
-                    if (live == null || live == p.pullCount) return p;
-                    return p.copyWith(pullCount: live);
-                  }).toList();
-                }
-              }
-              state = state.copyWith(
-                broadcastRope: rope.clamp(-1.0, 1.0),
-                broadcastTeamATaps: teamATaps,
-                broadcastTeamBTaps: teamBTaps,
-                players: updatedPlayers ?? state.players,
-              );
+              // Coalesce: buffer the latest payload and flush on the
+              // next event-loop turn. Multiple same-frame broadcasts
+              // collapse into one state emission + one rebuild.
+              _pendingRopeState = map;
+              _ropeStateFlush ??= Timer.run(_flushRopeState);
             } catch (e) {
               debugPrint('[TugOfWar] onBroadcast(rope_state) parse error: $e');
             }
@@ -1297,8 +1282,56 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
     state = const TugOfWarState();
   }
 
+  /// Flush the latest buffered rope_state payload as a single state
+  /// emission. Called via `Timer.run` from the rope_state listener —
+  /// by the time this fires, any same-frame broadcasts have already
+  /// been collapsed into the latest `_pendingRopeState`.
+  void _flushRopeState() {
+    _ropeStateFlush = null;
+    final map = _pendingRopeState;
+    _pendingRopeState = null;
+    if (map == null || _disposed) return;
+    try {
+      final rope = (map['rope'] as num?)?.toDouble() ?? 0.0;
+      final teamATaps = (map['teamATaps'] as num?)?.toInt() ?? 0;
+      final teamBTaps = (map['teamBTaps'] as num?)?.toInt() ?? 0;
+      final playersList = map['players'];
+      // Mirror per-player pullCounts into state.players so the
+      // team-stats / leaderboard UIs render live during play.
+      List<TugOfWarPlayer>? updatedPlayers;
+      if (playersList is List) {
+        final byId = <String, int>{};
+        for (final item in playersList) {
+          if (item is Map) {
+            final uid = item['userId'] as String?;
+            final cnt = (item['pullCount'] as num?)?.toInt();
+            if (uid != null && cnt != null) {
+              byId[uid] = cnt;
+            }
+          }
+        }
+        if (byId.isNotEmpty) {
+          updatedPlayers = state.players.map((p) {
+            final live = byId[p.userId];
+            if (live == null || live == p.pullCount) return p;
+            return p.copyWith(pullCount: live);
+          }).toList();
+        }
+      }
+      state = state.copyWith(
+        broadcastRope: rope.clamp(-1.0, 1.0),
+        broadcastTeamATaps: teamATaps,
+        broadcastTeamBTaps: teamBTaps,
+        players: updatedPlayers ?? state.players,
+      );
+    } catch (e) {
+      debugPrint('[TugOfWar] _flushRopeState parse error: $e');
+    }
+  }
+
   @override
   void dispose() {
+    _disposed = true;
     final gid = _gameId;
     if (gid != null) {
       final registry = _ref.read(realtimeChannelRegistryProvider);
@@ -1308,6 +1341,7 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
     _ropeBroadcastTimer.cancel();
     _watchdogTimer?.cancel();
     _cleanupTimer?.cancel();
+    _ropeStateFlush?.cancel();
     _channel?.unsubscribe();
     super.dispose();
   }

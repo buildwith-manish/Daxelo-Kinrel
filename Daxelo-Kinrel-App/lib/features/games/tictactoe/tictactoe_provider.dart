@@ -271,6 +271,13 @@ class TttNotifier extends StateNotifier<TttState> {
     // ── QA fix 2026-09-21: optimistic local board update so the tapped
     // cell is visibly taken immediately and a second tap fails the
     // validateMove check above even before the realtime echo lands.
+    //
+    // ── perf pass: save the original rounds list so we can roll back
+    // the optimistic board mutation if the server writes fail. Without
+    // rollback, the X/O stays on the local board and the user can keep
+    // tapping into a divergent local state (since the realtime echo
+    // never fires).
+    final originalRounds = state.rounds;
     {
       final optimisticRound = state.currentRound;
       if (optimisticRound != null) {
@@ -362,7 +369,20 @@ class TttNotifier extends StateNotifier<TttState> {
 
       state = state.copyWith(isSubmitting: false);
       return true;
-    } catch (e) { debugPrint('[TTT] placeMark error: $e'); state = state.copyWith(isSubmitting: false, error: '$e'); return false; }
+    } catch (e) {
+      // ── perf pass: roll back the optimistic board mutation so the
+      // tapped cell reverts to empty and the user can re-tap (or back
+      // out). Without this rollback the local board diverges from the
+      // server's authoritative state with no way to recover except
+      // leaving and rejoining the game.
+      debugPrint('[TTT] placeMark error: $e');
+      state = state.copyWith(
+        isSubmitting: false,
+        rounds: originalRounds,
+        error: 'Move failed — try again',
+      );
+      return false;
+    }
   }
 
   void leaveGame() { _channel?.unsubscribe(); _channel = null; _movesChannel?.unsubscribe(); _movesChannel = null; _heartbeat?.stop(); _heartbeat = null; _gameId = null; }

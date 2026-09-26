@@ -26,12 +26,23 @@ class RewardsShopScreen extends ConsumerStatefulWidget {
 
 class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
   String? _redeemingId;
+  /// Local optimistic adjustment to the displayed coin balance. Set
+  /// immediately to `-reward.cost` when the user taps Redeem, so the
+  /// balance display drops instantly without waiting for the RPC +
+  /// server re-fetch round-trip. Cleared to 0 on success (after which
+  /// `coinBalanceProvider` is invalidated and the authoritative value
+  /// takes over) or on failure (rolling the display back).
+  int _optimisticDelta = 0;
 
   @override
   Widget build(BuildContext context) {
     final rewardsAsync = ref.watch(rewardsProvider(widget.familyId));
     final balanceAsync = ref.watch(coinBalanceProvider(widget.familyId));
-    final balance = balanceAsync.asData?.value ?? const CoinBalance();
+    final serverBalance = balanceAsync.asData?.value ?? const CoinBalance();
+    // Apply optimistic delta so the displayed balance reflects any
+    // in-flight redemption instantly. Clamped at 0 so we never display
+    // a negative balance.
+    final displayBalance = (serverBalance.balance + _optimisticDelta).clamp(0, 1 << 30);
 
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
@@ -66,7 +77,7 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
                     const Text('🪙', style: TextStyle(fontSize: 14)),
                     const SizedBox(width: 4),
                     Text(
-                      '${balance.balance}',
+                      '$displayBalance',
                       style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 14,
@@ -205,7 +216,10 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
                 for (final reward in entry.value) {
                   rows.add(_RewardCard(
                     reward: reward,
-                    balance: balance.balance,
+                    // Pass the optimistic display balance so the
+                    // canAfford check disables the redeem button while
+                    // an in-flight redemption is consuming coins.
+                    balance: displayBalance,
                     isRedeeming: _redeemingId == reward.id,
                     onRedeem: () => _handleRedeem(reward),
                   ));
@@ -242,8 +256,13 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
 
   Future<void> _handleRedeem(UnlockableReward reward) async {
     if (reward.isUnlocked) return;
+    // ── Optimistic update ─────────────────────────────────────
+    // Drop the displayed balance by reward.cost immediately so the
+    // user sees the spend reflected without waiting for the RPC +
+    // server re-fetch round-trip. Mark the card as redeeming (spinner).
     setState(() {
       _redeemingId = reward.id;
+      _optimisticDelta = -reward.cost;
     });
     final success = await redeemReward(
       ref: ref,
@@ -251,10 +270,18 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
       rewardId: reward.id,
     );
     if (mounted) {
-      setState(() => _redeemingId = null);
       if (success) {
+        // ── Success: reconcile ────────────────────────────────
+        // Invalidate the coin balance provider so the authoritative
+        // server value re-fetches. Keep _optimisticDelta = -cost until
+        // the fresh coinBalanceProvider value arrives (which will
+        // already reflect the deduction), then clear it in a
+        // post-frame callback so the display cleanly transitions.
         ref.invalidate(rewardsProvider(widget.familyId));
         ref.invalidate(coinBalanceProvider(widget.familyId));
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _optimisticDelta = 0);
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('🎉 ${reward.name} unlocked!'),
@@ -263,6 +290,12 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
           ),
         );
       } else {
+        // ── Failure: roll back ────────────────────────────────
+        // Restore the optimistic delta to 0 so the displayed balance
+        // reverts to the server-confirmed value (no spend happened).
+        setState(() {
+          _optimisticDelta = 0;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Not enough coins — need ${reward.cost} 🪙'),
@@ -271,6 +304,7 @@ class _RewardsShopScreenState extends ConsumerState<RewardsShopScreen> {
           ),
         );
       }
+      setState(() => _redeemingId = null);
     }
   }
 }

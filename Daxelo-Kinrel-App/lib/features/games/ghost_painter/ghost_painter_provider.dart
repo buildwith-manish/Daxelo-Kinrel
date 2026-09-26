@@ -133,6 +133,18 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
   RealtimeChannel? _roundWatchChannel; // Watches for NEW rounds (when no active round)
   Timer? _countdownTimer;
 
+  // ── Receive-side throttle for stroke broadcasts ────────────────
+  // Multiple stroke broadcasts arriving in the same frame are
+  // coalesced into a single state emission. Without this, a drawer
+  // doing 5 quick onPanEnd strokes in 1 second triggers 5 separate
+  // state emissions on every receiver → 5 full canvas repaints of
+  // the entire stroke history. We buffer incoming strokes and flush
+  // them on the next event-loop turn via Timer.run, so any same-frame
+  // broadcasts collapse into one rebuild.
+  final List<GhostPainterStroke> _pendingStrokes = [];
+  Timer? _strokeFlush;
+  bool _disposed = false;
+
   /// Step 2 — broadcast-first stroke buffer. Drawer accumulates
   /// finished strokes here, broadcasts each immediately via
   /// `sendBroadcastMessage`, and persists them all at once when the
@@ -263,7 +275,11 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
             final map = Map<String, dynamic>.from(payload as Map);
             final stroke = _strokeFromBroadcast(map, roundId);
             if (stroke != null) {
-              state = state.copyWith(strokes: [...state.strokes, stroke]);
+              // Coalesce: buffer the stroke and flush on the next
+              // event-loop turn. Multiple same-frame stroke broadcasts
+              // collapse into one state emission + one canvas repaint.
+              _pendingStrokes.add(stroke);
+              _strokeFlush ??= Timer.run(_flushStrokes);
             }
           } catch (e) {
             debugPrint('[GhostPainter] onBroadcast(stroke) parse error: $e');
@@ -629,7 +645,14 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
       transitionToGuessing();
       return;
     }
-    // Tick every second to update the countdown UI
+    // Tick every second to check for time-expiry transition. The countdown
+    // UI itself is now driven by _CountdownRing's own internal Timer (no
+    // longer needs a state emission per second), so this timer's only job
+    // is to detect when the round ends and trigger transitionToGuessing.
+    // Previously this timer did `state = state.copyWith()` (empty copyWith)
+    // every second — that re-allocated state and rebuilt the entire draw
+    // screen Column 60+ times per match even though nothing meaningful
+    // changed. Now state stays still unless the round actually ends.
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       // The round may have moved on (completed via a correct guess, or
       // transitioned by another device) — the timer must respect that.
@@ -645,8 +668,7 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
         transitionToGuessing();
         return;
       }
-      // State update triggers rebuild — the draw screen reads the countdown
-      state = state.copyWith();
+      // No state emission here — _CountdownRing ticks itself.
     });
   }
 
@@ -675,8 +697,21 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
     } catch (_) {}
   }
 
+  /// Flush all buffered strokes as a single state emission. Called
+  /// via `Timer.run` from the stroke listener — by the time this
+  /// fires, any same-frame stroke broadcasts have already been
+  /// accumulated into `_pendingStrokes`.
+  void _flushStrokes() {
+    _strokeFlush = null;
+    if (_pendingStrokes.isEmpty || _disposed) return;
+    final batch = List<GhostPainterStroke>.from(_pendingStrokes);
+    _pendingStrokes.clear();
+    state = state.copyWith(strokes: [...state.strokes, ...batch]);
+  }
+
   @override
   void dispose() {
+    _disposed = true;
     final roundId = state.activeRound?.id;
     if (roundId != null) {
       final registry = _ref.read(realtimeChannelRegistryProvider);
@@ -685,6 +720,7 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
     _channel?.unsubscribe();
     _roundWatchChannel?.unsubscribe();
     _countdownTimer?.cancel();
+    _strokeFlush?.cancel();
     super.dispose();
   }
 }

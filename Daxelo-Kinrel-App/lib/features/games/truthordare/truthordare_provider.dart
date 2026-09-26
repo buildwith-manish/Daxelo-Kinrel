@@ -158,14 +158,48 @@ class TodNotifier extends StateNotifier<TodState> {
   Future<bool> submitPrompt(String text, String category) async {
     final client = _client; final myId = _myId;
     if (client == null || myId == null) return false;
-    state = state.copyWith(isSubmitting: true, clearError: true);
+    // ── Optimistic update ───────────────────────────────────────
+    // Append the new prompt to myPrompts IMMEDIATELY so it appears in
+    // the "MY SUBMISSIONS" list before the server confirms. Use a
+    // temporary id so we can reconcile after the insert returns.
+    final optimisticPrompt = TodPrompt(
+      id: 'pending_${DateTime.now().millisecondsSinceEpoch}',
+      familyId: familyId,
+      category: category,
+      promptText: text.trim(),
+      submittedById: myId,
+      submittedByName: _myName,
+      status: TodPromptStatus.pending,
+      flaggedByFilter: flagPrompt(text),
+      createdAt: DateTime.now(),
+    );
+    state = state.copyWith(
+      isSubmitting: true,
+      clearError: true,
+      myPrompts: [optimisticPrompt, ...state.myPrompts],
+    );
     try {
-      final flagged = flagPrompt(text);
-      await client.from('truthordare_prompts').insert({'familyId': familyId, 'category': category, 'promptText': text.trim(), 'submittedById': myId, 'submittedByName': _myName, 'status': 'pending', 'flaggedByFilter': flagged});
+      await client.from('truthordare_prompts').insert({'familyId': familyId, 'category': category, 'promptText': text.trim(), 'submittedById': myId, 'submittedByName': _myName, 'status': 'pending', 'flaggedByFilter': flagPrompt(text)});
+      // ── Success: reconcile ────────────────────────────────────
+      // Reload myPrompts + pendingPrompts so the optimistic row is
+      // replaced with the server-confirmed one (with real id + status).
       state = state.copyWith(isSubmitting: false);
+      await loadMyPrompts();
+      await _refreshPendingPrompts();
       GameMotionTokens.tap();
       return true;
-    } catch (e) { debugPrint('[Tod] submitPrompt error: $e'); state = state.copyWith(isSubmitting: false, error: '$e'); return false; }
+    } catch (e) {
+      // ── Failure: roll back ────────────────────────────────────
+      // Remove the optimistic row from myPrompts so it doesn't linger
+      // as a phantom submission.
+      debugPrint('[Tod] submitPrompt error: $e');
+      state = state.copyWith(
+        isSubmitting: false,
+        error: '$e',
+        myPrompts: state.myPrompts.where((p) => p.id != optimisticPrompt.id).toList(),
+      );
+      return false;
+    }
   }
 
   Future<void> reviewPrompt(String promptId, bool approve) async {

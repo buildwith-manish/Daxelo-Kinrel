@@ -353,23 +353,38 @@ class _MatchView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _TopHud(state: state, myUserId: myUserId),
+        // HUD layout (Container padding, BoxDecoration, Row structure) is
+        // static; only HP bar / ammo / timer / kills values change. Wrap
+        // in RepaintBoundary so the 60fps host physics tick (or 100ms
+        // non-host broadcast) doesn't re-rasterize the static decoration.
+        RepaintBoundary(
+          child: _TopHud(state: state, myUserId: myUserId),
+        ),
         Expanded(
           child: Stack(
             children: [
-              _ArenaView(state: state, myUserId: myUserId, pulse: pulse),
+              // Arena canvas — isolate so the 60fps CustomPaint doesn't
+              // bleed into the HUD / controls / event banner layers.
+              RepaintBoundary(
+                child: _ArenaView(state: state, myUserId: myUserId, pulse: pulse),
+              ),
               Positioned(
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: _ControlsBar(
-                  state: state,
-                  onMoveChanged: onMoveChanged,
-                  onAimChanged: onAimChanged,
-                  onShootPressed: onShootPressed,
-                  onShootReleased: onShootReleased,
-                  onReload: onReload,
-                  onSwapWeapon: onSwapWeapon,
+                child: RepaintBoundary(
+                  // Controls bar decoration (joystick base, shoot button
+                  // gradient, reload/swap button icons) is static; the
+                  // callbacks fire on user input, not state changes.
+                  child: _ControlsBar(
+                    state: state,
+                    onMoveChanged: onMoveChanged,
+                    onAimChanged: onAimChanged,
+                    onShootPressed: onShootPressed,
+                    onShootReleased: onShootReleased,
+                    onReload: onReload,
+                    onSwapWeapon: onSwapWeapon,
+                  ),
                 ),
               ),
               // Floating event banner (top-center)
@@ -378,16 +393,22 @@ class _MatchView extends StatelessWidget {
                   top: 8,
                   left: 0,
                   right: 0,
-                  child: _EventBanner(state: state),
+                  child: RepaintBoundary(
+                    // Banner only changes when events list changes — wrap
+                    // so the 100ms/16ms state ticks don't repaint it.
+                    child: _EventBanner(state: state),
+                  ),
                 ),
             ],
           ),
         ),
         if (state.amSpectator)
-          ReactionsBar(
-            gameTable: 'stickman_heist_games',
-            gameId: state.game?.id ?? '',
-            familyId: state.game?.familyId ?? '',
+          RepaintBoundary(
+            child: ReactionsBar(
+              gameTable: 'stickman_heist_games',
+              gameId: state.game?.id ?? '',
+              familyId: state.game?.familyId ?? '',
+            ),
           ),
       ],
     );

@@ -135,6 +135,10 @@ class PBv1State {
     this.winnerUserIds = const [],
     this.revealed = false,
     this.isLoading = false,
+    this.isSubmitting = false,
+    /// True while myGuess is showing an optimistic local value that the
+    /// server hasn't confirmed yet. Cleared on success or rollback.
+    this.isOptimisticGuess = false,
     this.error,
   });
 
@@ -145,6 +149,8 @@ class PBv1State {
   final List<String> winnerUserIds;
   final bool revealed;
   final bool isLoading;
+  final bool isSubmitting;
+  final bool isOptimisticGuess;
   final String? error;
 
   PBv1State copyWith({
@@ -155,16 +161,21 @@ class PBv1State {
     List<String>? winnerUserIds,
     bool? revealed,
     bool? isLoading,
+    bool? isSubmitting,
+    bool? isOptimisticGuess,
     bool clearError = false,
+    bool clearMyGuess = false,
     String? error,
   }) => PBv1State(
     round: round ?? this.round,
     question: question ?? this.question,
-    myGuess: myGuess ?? this.myGuess,
+    myGuess: clearMyGuess ? null : (myGuess ?? this.myGuess),
     allGuesses: allGuesses ?? this.allGuesses,
     winnerUserIds: winnerUserIds ?? this.winnerUserIds,
     revealed: revealed ?? this.revealed,
     isLoading: isLoading ?? this.isLoading,
+    isSubmitting: isSubmitting ?? this.isSubmitting,
+    isOptimisticGuess: isOptimisticGuess ?? this.isOptimisticGuess,
     error: clearError ? null : (error ?? this.error),
   );
 }

@@ -116,6 +116,12 @@ class _ThinkingInboxScreenState extends ConsumerState<ThinkingInboxScreen> {
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: _taps.length,
+                  // perf pass — _TapCard rows are near-fixed-height
+                  // (~80px: 48 avatar + 14×2 padding + 3 text lines).
+                  // prototypeItem lets Flutter skip the layout pass
+                  // for off-screen items. Chosen over itemExtent so
+                  // emotion-icon / name-length variation doesn't clip.
+                  prototypeItem: const _TapCard(tap: <String, dynamic>{}),
                   itemBuilder: (ctx, i) => _TapCard(tap: _taps[i]),
                 ),
     );
