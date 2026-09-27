@@ -33,6 +33,14 @@ import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
 // v5.15: kept for route compat but no longer called directly
 import 'add_member_options_sheet.dart';
+// Phase (invite-direct-find-on-kinrel): the space-detail Invite button
+// now navigates directly to KinrelUserSearchScreen (skipping the
+// two-option sheet). The sheet is still used by the Graph view's
+// "Add Member" button (with fromGraph: true) and by the Family Members
+// screen — those trigger points are unchanged.
+import 'kinrel_user_search_screen.dart';
+import 'add_member_source.dart' show KinrelUser;
+import 'relationship_quick_pick_sheet.dart' show RelationshipQuickPickSheet;
 
 import '../../../core/utils/smart_preloader.dart';
 import '../../../core/utils/share_helper.dart';
@@ -321,8 +329,47 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   SliverToBoxAdapter(
                     child: staggerFade(
                       InviteButton(
-                        onTap: () => showAddMemberOptions(
-                            context, familyId: widget.familyId),
+                        // Phase (invite-direct-find-on-kinrel): the
+                        // Invite button now navigates DIRECTLY to the
+                        // KinrelUserSearchScreen (Find on Kinrel flow),
+                        // skipping the two-option bottom sheet that was
+                        // previously shown (Add Manually / Find on
+                        // Kinrel). This removes one tap from the most
+                        // common invite path (finding an existing
+                        // Kinrel user).
+                        //
+                        // "Add Manually" is still available as its own
+                        // action inside the Graph view (the Graph
+                        // screen's "Add Member" button calls
+                        // showAddMemberOptions with fromGraph: true,
+                        // which shows the same two-option sheet —
+                        // unchanged). The Family Members screen also
+                        // still uses showAddMemberOptions — unchanged.
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => KinrelUserSearchScreen(
+                                familyId: widget.familyId,
+                                onUserSelected: (KinrelUser user) {
+                                  // Same flow as the sheet's
+                                  // _handleFindOnKinrel: the search
+                                  // screen already popped itself; now
+                                  // open the Relationship Quick-Pick
+                                  // bottom sheet directly (no
+                                  // AddPersonSheet — the user already
+                                  // exists on Kinrel).
+                                  RelationshipQuickPickSheet.show(
+                                    context,
+                                    familyId: widget.familyId,
+                                    selectedUser: user,
+                                    fromGraph: false,
+                                  );
+                                },
+                              ),
+                              fullscreenDialog: true,
+                            ),
+                          );
+                        },
                       ),
                       1,
                     ),
