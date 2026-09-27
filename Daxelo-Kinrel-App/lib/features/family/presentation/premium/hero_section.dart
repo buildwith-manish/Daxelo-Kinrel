@@ -128,115 +128,113 @@ class HeroSection extends ConsumerWidget {
                 ),
               ),
 
-            // ── Layer 2: Graph + Map flanking icons (minimal, high-opacity) ──
+            // ── Layer 2: Graph + Map flanking icons (inward, expanded tap) ──
             //
-            // Phase (graph-map-minimal-revert): reverted to the plain
-            // floating-icon-only layout (no circular backdrop, no
-            // border ring, no text label) — the same minimal style as
-            // the original v108 version — BUT with substantially
-            // higher icon opacity/contrast so the icons are clearly
-            // visible and readable as intentional elements.
+            // Phase (graph-map-position-tap):
+            //   • Icons moved inward (closer to the identity circle) —
+            //     reduced horizontal padding from lg(24) to md(16) and
+            //     centered the icon within its zone (Alignment.center
+            //     instead of centerLeft/centerRight) so it reads as a
+            //     deliberate grouping: circle + two flanking icons as
+            //     one visual unit.
+            //   • Expanded tap zones — the GestureDetector now fills the
+            //     ENTIRE left/right half of the hero (minus the center
+            //     identity circle area), not just the 44×44 icon area.
+            //     Tapping anywhere in the left zone → Graph; anywhere
+            //     in the right zone → Map. The identity circle's own
+            //     GestureDetector (Layer 3) is preserved — it gets its
+            //     own SizedBox(symbolSize) spacer in the center so its
+            //     tap behavior is NOT swallowed by the flanking zones.
+            //   • Graph icon redesigned from Icons.account_tree_outlined
+            //     (abstract interlocking squares) to Icons.hub_outlined
+            //     (nodes connected by thin lines — reads unambiguously
+            //     as a relationship/network graph at a glance).
+            //   • Map icon stays Icons.map_outlined (standard folded-map
+            //     silhouette — already recognizable).
+            //   • Both icons: same 48px size, same line weight, same
+            //     orange@0.45 alpha — matched set.
+            //   • Icons fade out as the hero collapses (matched to
+            //     nameOpacity).
             //
-            // Original v108: alpha 0.12 (12%) — nearly invisible, read
-            //   as decorative background texture.
-            // Interim redesign: full backdrop + label + pulse — too
-            //   heavy, competed with the identity circle.
-            // This version: alpha 0.45 (45%) — 3.75× the original
-            //   opacity. Icon shape and detail are immediately legible
-            //   at a glance, but still lighter-weight than the solid
-            //   shortcut row icons below (which are at 100% opacity).
-            //   Reads as "clearly visible" not "identical prominence."
-            //
-            // Tap target: the GestureDetector wraps a 44×44 SizedBox
-            // (minimum touch-target size per platform guidance), even
-            // though the visible icon is 64px. This ensures the icons
-            // stay easy to tap despite having no visible button boundary.
-            //
-            // Icons fade out as the hero collapses (matched to
-            // nameOpacity) so they don't clutter the pinned-bar state.
-            //
-            // Tapping Graph opens /family/$familyId/graph (same
-            // destination as before). Tapping Map opens
-            // /family/$familyId/map. Navigation targets preserved.
+            // Tapping Graph opens /family/$familyId/graph. Tapping Map
+            // opens /family/$familyId/map. Navigation preserved.
             if (symbolSize > 10)
               Positioned.fill(
                 child: Opacity(
                   opacity: nameOpacity,
                   child: Row(
                     children: [
-                      // ── LEFT: Graph ────────────────────────────────
+                      // ── LEFT ZONE: Graph (full left half, expanded tap) ──
+                      // The GestureDetector fills the entire Expanded
+                      // area — tapping ANYWHERE in the left half of the
+                      // hero (from the left screen edge up to the
+                      // identity circle's left boundary) opens Graph.
+                      // The icon is visually centered within this zone
+                      // (not pushed to the far left), so it sits closer
+                      // to the identity circle — reads as a grouping.
                       Expanded(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Padding(
-                            padding: const EdgeInsets.only(
-                                left: FamilyHubSpace.lg),
-                            child: Semantics(
-                              button: true,
-                              label: 'Open $familyName graph',
-                              hint: 'Double tap to open the family graph',
-                              child: SizedBox(
-                                // 44×44 minimum tap target — the
-                                // visible icon is 64px but the
-                                // SizedBox ensures the hit area
-                                // never drops below 44px even if
-                                // the icon is clipped by layout.
-                                width: 44,
-                                height: 44,
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTap: () => context.push(
-                                    '/family/$familyId/graph?name='
-                                    '${Uri.encodeComponent(familyName)}',
-                                  ),
-                                  child: Center(
-                                    child: Icon(
-                                      Icons.account_tree_outlined,
-                                      size: 64,
-                                      // 45% opacity — 3.75× the
-                                      // original 12%. Clearly visible
-                                      // at a glance, but lighter than
-                                      // the shortcut row's 100%.
-                                      color: AppColor.orange
-                                          .withValues(alpha: 0.45),
-                                    ),
-                                  ),
-                                ),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => context.push(
+                            '/family/$familyId/graph?name='
+                            '${Uri.encodeComponent(familyName)}',
+                          ),
+                          child: Semantics(
+                            button: true,
+                            label: 'Open $familyName graph',
+                            hint: 'Double tap to open the family graph',
+                            child: Container(
+                              // Full height + width of the Expanded zone.
+                              // The icon is centered within this
+                              // container — visually closer to the
+                              // identity circle than the old
+                              // centerLeft alignment.
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.only(
+                                  left: FamilyHubSpace.md),
+                              child: Icon(
+                                // Redesigned: hub_outlined (nodes +
+                                // connector lines) instead of
+                                // account_tree_outlined (abstract
+                                // interlocking squares). Reads
+                                // unambiguously as a relationship
+                                // network graph at a glance.
+                                Icons.hub_outlined,
+                                size: 48,
+                                color: AppColor.orange
+                                    .withValues(alpha: 0.45),
                               ),
                             ),
                           ),
                         ),
                       ),
                       // ── CENTER spacer (matches the avatar width) ──
+                      // This SizedBox is NOT wrapped in a GestureDetector
+                      // — it's a dead zone that prevents the left/right
+                      // Expanded GestureDetectors from overlapping the
+                      // identity circle's own tap area. The identity
+                      // circle's GestureDetector lives in Layer 3 below.
                       SizedBox(width: symbolSize),
-                      // ── RIGHT: Map ────────────────────────────────
+                      // ── RIGHT ZONE: Map (full right half, expanded tap) ──
                       Expanded(
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: Padding(
-                            padding: const EdgeInsets.only(
-                                right: FamilyHubSpace.lg),
-                            child: Semantics(
-                              button: true,
-                              label: 'Open $familyName map',
-                              hint: 'Double tap to open the family map',
-                              child: SizedBox(
-                                width: 44,
-                                height: 44,
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTap: () => context.push(
-                                    '/family/$familyId/map',
-                                  ),
-                                  child: Center(
-                                    child: Icon(
-                                      Icons.map_outlined,
-                                      size: 64,
-                                      color: AppColor.orange
-                                          .withValues(alpha: 0.45),
-                                    ),
-                                  ),
-                                ),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => context.push(
+                            '/family/$familyId/map',
+                          ),
+                          child: Semantics(
+                            button: true,
+                            label: 'Open $familyName map',
+                            hint: 'Double tap to open the family map',
+                            child: Container(
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.only(
+                                  right: FamilyHubSpace.md),
+                              child: Icon(
+                                Icons.map_outlined,
+                                size: 48,
+                                color: AppColor.orange
+                                    .withValues(alpha: 0.45),
                               ),
                             ),
                           ),
