@@ -377,17 +377,46 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
                   const SliverToBoxAdapter(child: SizedBox(height: 18)),
 
-                  // ── 4. FAMILY PULSE (activity feed) ────────────────────
-                  // Phase 5 (ux/family-space-refinement): MOVED above the
-                  // primary content feed. The screen now reads top-to-
-                  // bottom as: identity (Hero) → shortcuts (Highlights) →
-                  // invite (InviteButton) → activity (Family Pulse) →
-                  // content feed (PB + CoinPool + Ring + Recent Moments).
-                  // This is the "who/what is this, then what's happening"
-                  // order — identity context before activity feed.
+                  // ── 4. PREDICTION BATTLE — the "moment" (hero card) ──
+                  // Phase (reorder-pb-above-pulse): MOVED UP — now renders
+                  // immediately after the Invite button. Prioritizes time-
+                  // sensitive "come back today" content over static
+                  // reference/activity content. Family Pulse moves below
+                  // PB + CoinPool.
+                  //
+                  // Backend-scheduled numeric-estimation game. This is
+                  // the PRIMARY content feed element — uses AppCard.hero
+                  // treatment (gradient + accent border + glow shadow)
+                  // so it visually draws the eye first. The Family Coin
+                  // Pool below it is a slim status strip so the hierarchy
+                  // reads: PB = hero, Coin Pool = ambient status.
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      PredictionBattleV1Card(familyId: widget.familyId),
+                      2,
+                    ),
+                  ),
+
+                  // 4a. Family coin pool — slim horizontal progress strip
+                  // (moves up together with PB, maintaining their existing
+                  // relative order).
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      FamilyCoinPoolCard(familyId: widget.familyId),
+                      2,
+                    ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 18)),
+
+                  // ── 5. FAMILY PULSE (activity feed) ────────────────────
+                  // Phase (reorder-pb-above-pulse): MOVED DOWN — now renders
+                  // after Prediction Battle + Coin Pool. The screen reads:
+                  // identity → shortcuts → invite → Prediction Battle (time-
+                  // sensitive) → Coin Pool → Family Pulse (activity feed).
                   //
                   // The birthday "missing info" nags inside Family Pulse
-                  // are collapsed into a single prompt per Phase 4 — see
+                  // are collapsed into a single prompt — see
                   // family_hub_sections.dart → FamilyPulseSection.build.
                   SliverToBoxAdapter(
                     child: staggerFade(
@@ -395,33 +424,6 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                         detail: detail,
                         familyId: widget.familyId,
                       ),
-                      2,
-                    ),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 18)),
-
-                  // ── 5. PREDICTION BATTLE — the "moment" (hero card) ──
-                  // Backend-scheduled numeric-estimation game. This is
-                  // the PRIMARY content feed element — uses AppCard.hero
-                  // treatment (gradient + accent border + glow shadow)
-                  // so it visually draws the eye first. The Family Coin
-                  // Pool below it is a slim status strip (Phase 3) so
-                  // the hierarchy reads: PB = hero, Coin Pool = ambient
-                  // status.
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      PredictionBattleV1Card(familyId: widget.familyId),
-                      3,
-                    ),
-                  ),
-
-                  // 5a. Family coin pool — slim horizontal progress strip
-                  // (Phase 3: downgraded from full hero card to single-
-                  // row strip for clear visual hierarchy with PB above).
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      FamilyCoinPoolCard(familyId: widget.familyId),
                       3,
                     ),
                   ),
