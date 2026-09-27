@@ -377,12 +377,32 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
                   const SliverToBoxAdapter(child: SizedBox(height: 18)),
 
-                  // ── 4. PREDICTION BATTLE — the "moment" (hero card) ──
-                  // Phase (reorder-pb-above-pulse): MOVED UP — now renders
-                  // immediately after the Invite button. Prioritizes time-
-                  // sensitive "come back today" content over static
-                  // reference/activity content. Family Pulse moves below
-                  // PB + CoinPool.
+                  // ── 4. THINKING OF YOU RING ──────────────────────────
+                  // Phase (move-thinking-of-you): MOVED UP — now renders
+                  // immediately after the Invite button, above the
+                  // Prediction Battle card. Previously sat below Family
+                  // Pulse. The screen now reads: identity → shortcuts →
+                  // invite → Thinking of You → Prediction Battle → Coin
+                  // Pool → Family Pulse → Recent Moments → Closer.
+                  //
+                  // This is a pure reposition — the widget's internal
+                  // content, styling, and behavior (the time-of-day
+                  // greeting "Good afternoon! Send some warmth" +
+                  // tappable family member avatar) are unchanged.
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      FamilyRingWidget(familyId: widget.familyId),
+                      2,
+                    ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+                  // ── 5. PREDICTION BATTLE — the "moment" (hero card) ──
+                  // Phase (reorder-pb-above-pulse): renders after
+                  // Thinking of You. Prioritizes time-sensitive "come
+                  // back today" content over static reference/activity
+                  // content. Family Pulse moves below PB + CoinPool.
                   //
                   // Backend-scheduled numeric-estimation game. This is
                   // the PRIMARY content feed element — uses AppCard.hero
@@ -393,31 +413,28 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   SliverToBoxAdapter(
                     child: staggerFade(
                       PredictionBattleV1Card(familyId: widget.familyId),
-                      2,
+                      3,
                     ),
                   ),
 
-                  // 4a. Family coin pool — slim horizontal progress strip
+                  // 5a. Family coin pool — slim horizontal progress strip
                   // (moves up together with PB, maintaining their existing
                   // relative order).
                   SliverToBoxAdapter(
                     child: staggerFade(
                       FamilyCoinPoolCard(familyId: widget.familyId),
-                      2,
+                      3,
                     ),
                   ),
 
                   const SliverToBoxAdapter(child: SizedBox(height: 18)),
 
-                  // ── 5. FAMILY PULSE (activity feed) ────────────────────
-                  // Phase (reorder-pb-above-pulse): MOVED DOWN — now renders
-                  // after Prediction Battle + Coin Pool. The screen reads:
-                  // identity → shortcuts → invite → Prediction Battle (time-
-                  // sensitive) → Coin Pool → Family Pulse (activity feed).
-                  //
-                  // The birthday "missing info" nags inside Family Pulse
-                  // are collapsed into a single prompt — see
-                  // family_hub_sections.dart → FamilyPulseSection.build.
+                  // ── 6. FAMILY PULSE (activity feed) ────────────────────
+                  // Phase (reorder-pb-above-pulse + move-thinking-of-you):
+                  // renders after Prediction Battle + Coin Pool. Thinking
+                  // of You has been removed from this area — it now lives
+                  // above PB. Family Pulse's own content (birthday prompt,
+                  // Recent feed, View all link) stays exactly as-is.
                   SliverToBoxAdapter(
                     child: staggerFade(
                       FamilyPulseSection(
@@ -430,17 +447,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
                   const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-                  // ── 5b. THINKING OF YOU RING ──────────────────────────
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      FamilyRingWidget(familyId: widget.familyId),
-                      4,
-                    ),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-                  // ── 6. RECENT MOMENTS (unified) ───────────────────────
+                  // ── 7. RECENT MOMENTS (unified) ───────────────────────
                   SliverToBoxAdapter(
                     child: staggerFade(
                       _RecentMomentsSectionAdapter(familyId: widget.familyId),
@@ -448,7 +455,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                     ),
                   ),
 
-                  // ── 7. FAMILY STRENGTH CLOSER (Peak-End Rule) ─────────
+                  // ── 8. FAMILY STRENGTH CLOSER (Peak-End Rule) ─────────
                   SliverToBoxAdapter(
                     child: staggerFade(
                       _FamilyStrengthCloser(
