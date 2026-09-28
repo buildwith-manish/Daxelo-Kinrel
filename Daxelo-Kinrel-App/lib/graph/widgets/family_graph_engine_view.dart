@@ -468,6 +468,26 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   Map<String, int>? _cachedChildCountById;
   Map<String, String>? _cachedPersonNameById;
 
+  /// PERF v5.175 (60fps PAN/ZOOM): snaps a graph-space viewport to a
+  /// 250px grid. The edge painter's cull rect (quantized viewport +
+  /// 400px inflation) therefore only changes when the camera has panned
+  /// a full grid step, so the edge layer re-rasters ~5× less often
+  /// during a long pan (vs. re-rastering on every 50px culler-threshold
+  /// rebuild). The 400px painter inflation covers the worst-case
+  /// quantization error (±125px) plus the pan distance to the next
+  /// re-raster (≤250px), so no edge ever goes blank mid-pan.
+  static Rect _quantizeViewportForEdgeCulling(Rect vp) {
+    const q = 250.0;
+    double snap(double v) => (v / q).roundToDouble() * q;
+    final w = (vp.width / q).ceilToDouble() * q;
+    final h = (vp.height / q).ceilToDouble() * q;
+    return Rect.fromCenter(
+      center: Offset(snap(vp.center.dx), snap(vp.center.dy)),
+      width: max(w, q),
+      height: max(h, q),
+    );
+  }
+
   /// v5.143: Returns the full adjacency map (all edges), cached on
   /// identical(flat). Used by anchor-neighbor protection + density
   /// collapse computation which run BEFORE the FilteredGraph is built.

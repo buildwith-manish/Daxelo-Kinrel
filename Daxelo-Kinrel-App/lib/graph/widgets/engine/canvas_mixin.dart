@@ -1626,7 +1626,16 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     // computed ABOVE via _graphSpaceViewport() — the
                     // same rect the culler uses, so node widgets and
                     // edge strokes stay spatially consistent.
-                    graphViewport: vp,
+                    //
+                    // QUANTIZED: the viewport is snapped to a 250px
+                    // grid before being handed to the painter so the
+                    // edge layer only re-rasters when the view has
+                    // moved a full grid step (vs. every 50px culler
+                    // threshold). The painter's 400px cull inflation
+                    // absorbs the worst-case quantization error
+                    // (±125px) + the pan distance to the next re-raster
+                    // (≤250px) = 375px < 400px — no blank edges.
+                    graphViewport: _FamilyGraphEngineViewState._quantizeViewportForEdgeCulling(vp),
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
