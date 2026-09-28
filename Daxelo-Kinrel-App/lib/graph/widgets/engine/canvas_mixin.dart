@@ -792,6 +792,45 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           visible.add(anchorIdForVisible);
         }
 
+        // PERF v5.175 (60fps PAN/ZOOM): VIEWPORT-CULLED RENDER SET.
+        //
+        // v5.121 rendered ALL positioned nodes (the comment assumed the
+        // proximity filter kept the set at ~50 — but in the Show-All
+        // state the graph positions ALL 715 members, so every rebuild
+        // diffed and rebuilt 715 premium GraphNode widgets, ~95% of
+        // them entirely off-screen. Measured on the deployed build:
+        // 335–479ms main-thread blocks per culler-threshold rebuild,
+        // i.e. the "pan a little and it sticks" report).
+        //
+        // Fix: build node WIDGETS only for the culler's buffered
+        // visible set (`currentVisibleIds` = viewport + buffer, primed
+        // by the cull() call above). The buffer (90px at 715 members,
+        // 200px for small families) exceeds the 70px node half-width,
+        // so a node's body never pops in while still on-screen.
+        //
+        // The FULL `visible` set is still used for edge filtering,
+        // the lifeguard, branch bubbles and density collapse — edge
+        // behaviour is byte-for-byte unchanged (an edge to an
+        // off-screen node draws toward it and is clipped at the screen
+        // edge; there is no on-screen "empty point" because the
+        // endpoint is ≥ buffer-distance away).
+        //
+        // The anchor is force-included above (before the intersection
+        // it's re-added below), so the "You" node always renders.
+        final Set<String> renderVisible = _culler.currentVisibleIds.isEmpty
+            ? visible
+            : visible
+                .where((id) =>
+                    _culler.currentVisibleIds.contains(id) ||
+                    id == anchorIdForVisible)
+                .toSet();
+        if (anchorIdForVisible != null &&
+            visible.contains(anchorIdForVisible) &&
+            !renderVisible.contains(anchorIdForVisible)) {
+          renderVisible.add(anchorIdForVisible);
+        }
+        _perfLogger.count('renderVisible', renderVisible.length);
+
         // v5.143 (HIDDEN-NODE AUDIT): Build the FilteredGraph — a
         // precomputed, immutable view containing ONLY visible nodes +
         // edges. This is the SINGLE iteration of flat.relationships
@@ -1606,7 +1645,11 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 // lookup. Only computed when tap-highlight would be active
                 // (a node is selected, no focus, no search).
                 ..._buildNodeLayer(
-                    layout, effectivePositions, visible, personById, relationLabelById, relationCategoryById, customColorsByPersonId, viewerPersonId, flat,
+                    // PERF v5.175: the VIEWPORT-CULLED render set —
+                    // only nodes inside viewport+buffer become
+                    // GraphNode widgets (~25-50 at a time instead of
+                    // all 715 in the Show-All state).
+                    layout, effectivePositions, renderVisible, personById, relationLabelById, relationCategoryById, customColorsByPersonId, viewerPersonId, flat,
                     precomputedFirstDegreeIds: (selectedPerson != null &&
                             ref.read(graphFocusProvider).focusedPersonId == null &&
                             !ref.read(graphSearchProvider).isActive)

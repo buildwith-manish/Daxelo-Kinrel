@@ -16,6 +16,7 @@
 
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -319,16 +320,31 @@ class RadialLayout {
     // [BUG-TRACE-v2] Issue 2: collect per-node diagnostic data so we can
     // confirm whether the misclassification (child placed as spouse) is
     // happening in _computeDirection. The data is logged AFTER the loop.
-    final directionDiag = <String, Map<String, dynamic>>{};
+    //
+    // PERF v5.175 (60fps PAN/ZOOM): the diagnostic collection is now
+    // DEBUG-ONLY. It costs a nested O(P×E) scan (715 × 950 = ~680K
+    // iterations building per-edge maps with 10 fields) PLUS ~715
+    // debugPrint lines per layout pass. debugPrint is NOT stripped in
+    // release/profile — with a realtime-driven layout invalidation
+    // every second this was a 335–480ms main-thread block per pass
+    // (measured via PerformanceObserver longtask entries), the single
+    // biggest cause of the reported pan/zoom freezes. kDebugMode is a
+    // compile-time constant, so the whole block is dead-code-eliminated
+    // in release builds.
+    final bool collectDirectionDiag = kDebugMode;
+    final directionDiag =
+        collectDirectionDiag ? <String, Map<String, dynamic>>{} : null;
     for (final person in persons) {
       if (person.id == anchor.id) {
         signedGen[person.id] = 0;
-        directionDiag[person.id] = {
-          'hops': 0,
-          'direction': 'N/A (anchor)',
-          'signedGen': 0,
-          'edges': <Map<String, dynamic>>[],
-        };
+        if (collectDirectionDiag) {
+          directionDiag![person.id] = {
+            'hops': 0,
+            'direction': 'N/A (anchor)',
+            'signedGen': 0,
+            'edges': <Map<String, dynamic>>[],
+          };
+        }
         continue;
       }
       final hops = hopDistance[person.id];
@@ -339,12 +355,14 @@ class RadialLayout {
         // give them a dedicated full-circle spread.
         signedGen[person.id] = peripheralRing;
         unreachableIds.add(person.id);
-        directionDiag[person.id] = {
-          'hops': null,
-          'direction': 'unreachable',
-          'signedGen': peripheralRing,
-          'edges': <Map<String, dynamic>>[],
-        };
+        if (collectDirectionDiag) {
+          directionDiag![person.id] = {
+            'hops': null,
+            'direction': 'unreachable',
+            'signedGen': peripheralRing,
+            'edges': <Map<String, dynamic>>[],
+          };
+        }
         continue;
       }
       // Determine direction from the relationship connecting this
@@ -357,39 +375,41 @@ class RadialLayout {
       // returned. This is the smoking gun for the misclassification —
       // if labelAtoB is null or not in _parentKeys/_childKeys,
       // _computeDirection returns 0 (same-gen as spouse).
-      final personAnchorEdges = <Map<String, dynamic>>[];
-      for (final r in relationships) {
-        final isPersonToAnchor =
-            r.fromPersonId == person.id && r.toPersonId == anchor.id;
-        final isAnchorToPerson =
-            r.fromPersonId == anchor.id && r.toPersonId == person.id;
-        if (isPersonToAnchor || isAnchorToPerson) {
-          final key = (r.labelAtoB ?? r.relationshipKey).toLowerCase();
-          final inParentKeys = _parentKeys.contains(key);
-          final inChildKeys = _childKeys.contains(key);
-          final inSpouseKeys = _spouseKeys.contains(key);
-          final inSiblingKeys = _siblingKeys.contains(key);
-          personAnchorEdges.add({
-            'from': r.fromPersonId,
-            'to': r.toPersonId,
-            'relationshipKey': r.relationshipKey,
-            'labelAtoB': r.labelAtoB,
-            'normalizedKey': key,
-            'isPersonToAnchor': isPersonToAnchor,
-            'isAnchorToPerson': isAnchorToPerson,
-            'inParentKeys': inParentKeys,
-            'inChildKeys': inChildKeys,
-            'inSpouseKeys': inSpouseKeys,
-            'inSiblingKeys': inSiblingKeys,
-          });
+      if (collectDirectionDiag) {
+        final personAnchorEdges = <Map<String, dynamic>>[];
+        for (final r in relationships) {
+          final isPersonToAnchor =
+              r.fromPersonId == person.id && r.toPersonId == anchor.id;
+          final isAnchorToPerson =
+              r.fromPersonId == anchor.id && r.toPersonId == person.id;
+          if (isPersonToAnchor || isAnchorToPerson) {
+            final key = (r.labelAtoB ?? r.relationshipKey).toLowerCase();
+            final inParentKeys = _parentKeys.contains(key);
+            final inChildKeys = _childKeys.contains(key);
+            final inSpouseKeys = _spouseKeys.contains(key);
+            final inSiblingKeys = _siblingKeys.contains(key);
+            personAnchorEdges.add({
+              'from': r.fromPersonId,
+              'to': r.toPersonId,
+              'relationshipKey': r.relationshipKey,
+              'labelAtoB': r.labelAtoB,
+              'normalizedKey': key,
+              'isPersonToAnchor': isPersonToAnchor,
+              'isAnchorToPerson': isAnchorToPerson,
+              'inParentKeys': inParentKeys,
+              'inChildKeys': inChildKeys,
+              'inSpouseKeys': inSpouseKeys,
+              'inSiblingKeys': inSiblingKeys,
+            });
+          }
         }
+        directionDiag![person.id] = {
+          'hops': hops,
+          'direction': direction,
+          'signedGen': direction == -1 ? -hops : hops,
+          'edges': personAnchorEdges,
+        };
       }
-      directionDiag[person.id] = {
-        'hops': hops,
-        'direction': direction,
-        'signedGen': direction == -1 ? -hops : hops,
-        'edges': personAnchorEdges,
-      };
     }
 
     // [BUG-TRACE-v2] Issue 2: log the per-node direction diagnostics so
@@ -400,28 +420,31 @@ class RadialLayout {
     // an edge-direction bug (the edge is stored as person→anchor with
     // labelAtoB='son', which is interpreted as "anchor is person's son",
     // i.e. person is the parent of anchor, NOT the child of anchor).
-    debugPrint(
-        '[BUG-TRACE-v2] DIRECTION-DIAG anchor=${anchor.id} nodeCount=${persons.length} '
-        'preservePositions=$preservePositions');
-    for (final entry in directionDiag.entries) {
-      final id = entry.key;
-      final diag = entry.value;
-      final edges = diag['edges'] as List;
-      final edgesStr = edges.isEmpty
-          ? 'NONE (no direct edge to anchor — direction defaults to 0 = same-gen/spouse)'
-          : edges.map((e) {
-              final dir = (e['isAnchorToPerson'] as bool)
-                  ? 'anchor→person'
-                  : 'person→anchor';
-              return '$dir labelAtoB=${e['labelAtoB']} relationshipKey=${e['relationshipKey']} '
-                  'normalizedKey=${e['normalizedKey']} '
-                  'parentKeys=${e['inParentKeys']} childKeys=${e['inChildKeys']} '
-                  'spouseKeys=${e['inSpouseKeys']} siblingKeys=${e['inSiblingKeys']}';
-            }).join(' | ');
+    // PERF v5.175: debug-only (see the collectDirectionDiag note above).
+    if (collectDirectionDiag) {
       debugPrint(
-          '[BUG-TRACE-v2]   node=$id hops=${diag['hops']} '
-          'direction=${diag['direction']} signedGen=${diag['signedGen']} '
-          'edges=[$edgesStr]');
+          '[BUG-TRACE-v2] DIRECTION-DIAG anchor=${anchor.id} nodeCount=${persons.length} '
+          'preservePositions=$preservePositions');
+      for (final entry in directionDiag!.entries) {
+        final id = entry.key;
+        final diag = entry.value;
+        final edges = diag['edges'] as List;
+        final edgesStr = edges.isEmpty
+            ? 'NONE (no direct edge to anchor — direction defaults to 0 = same-gen/spouse)'
+            : edges.map((e) {
+                final dir = (e['isAnchorToPerson'] as bool)
+                    ? 'anchor→person'
+                    : 'person→anchor';
+                return '$dir labelAtoB=${e['labelAtoB']} relationshipKey=${e['relationshipKey']} '
+                    'normalizedKey=${e['normalizedKey']} '
+                    'parentKeys=${e['inParentKeys']} childKeys=${e['inChildKeys']} '
+                    'spouseKeys=${e['inSpouseKeys']} siblingKeys=${e['inSiblingKeys']}';
+              }).join(' | ');
+        debugPrint(
+            '[BUG-TRACE-v2]   node=$id hops=${diag['hops']} '
+            'direction=${diag['direction']} signedGen=${diag['signedGen']} '
+            'edges=[$edgesStr]');
+      }
     }
 
     final generationGroups = <int, List<GraphPerson>>{};

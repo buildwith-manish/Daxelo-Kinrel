@@ -2462,7 +2462,15 @@ final graphLayoutProvider =
   // intersections. Logs warnings when violations are found — the
   // caller can use the results to trigger a reroute or spacing
   // increase. This is a DIAGNOSTIC pass — it does NOT mutate the layout.
-  if (result.positions.isNotEmpty && visibleIds.isNotEmpty) {
+  //
+  // PERF v5.175 (60fps PAN/ZOOM): debug-only. Check 1 alone is O(n²)
+  // (260K comparisons at 722 nodes) and the whole pass is diagnostic
+  // — it only ever debugPrints. With the realtime-driven layout
+  // invalidations this ran in every release build. kDebugMode is a
+  // compile-time constant → dead-code-eliminated in release.
+  if (kDebugMode &&
+      result.positions.isNotEmpty &&
+      visibleIds.isNotEmpty) {
     // Build a simple ValidationEdge list from the proximity relationships.
     final validationEdges = <ValidationEdge>[
       for (final r in proximityRelationships)
