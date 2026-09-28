@@ -446,6 +446,28 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       _cachedFullAdjacency;
   FlatGraphResult? _cachedFullAdjacencyFlat;
 
+  // ── PERF v5.175 (60fps PAN/ZOOM): family-wide memoization ──────────
+  // These computations previously ran on EVERY canvas rebuild (each pan
+  // threshold crossing, each pinch commit, each selection change):
+  //   • buildFullAdjacency            → O(E) map-of-sets  (950 edges)
+  //   • allEdgesForCollapse record list→ O(E) allocations (950 records)
+  //   • personNameResolver closure    → O(P) LINEAR SCAN PER CALL inside
+  //                                      computeDensityCollapse (715
+  //                                      persons × N calls)
+  //   • _countChildrenOf              → O(N×E) per rebuild (715 × 950 ≈
+  //                                      680,000 iterations + set churn)
+  // All four are now memoized on the IDENTITY of the family-wide edge
+  // list, which only changes when graph data actually changes (member
+  // added/removed, realtime update, branch fetch). During pan/zoom the
+  // cached instances are reused — turning ~682,000 ops per rebuild into
+  // ~0.
+  List<dynamic>? _familyWideEdgesKey;
+  Map<String, Set<String>>? _cachedChildrenOfAdjacency;
+  List<({String fromId, String toId, String edgeId, String relationshipKey})>?
+      _cachedAllEdgesForCollapse;
+  Map<String, int>? _cachedChildCountById;
+  Map<String, String>? _cachedPersonNameById;
+
   /// v5.143: Returns the full adjacency map (all edges), cached on
   /// identical(flat). Used by anchor-neighbor protection + density
   /// collapse computation which run BEFORE the FilteredGraph is built.

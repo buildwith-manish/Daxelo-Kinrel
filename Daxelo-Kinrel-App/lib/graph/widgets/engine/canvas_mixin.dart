@@ -628,28 +628,67 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // type, ensuring ALL 714 members are reachable from the 45
         // positioned nodes.
         final edgesForChildrenOf = flat.allRelationships ?? flat.relationships;
-        final childrenOfAdj = BranchCollapseNotifier.buildFullAdjacency(
-          edgesForChildrenOf,
-        );
-        // Build person name resolver.
-        String personNameResolver(String pid) {
-          for (final p in flat.persons) {
-            if (p['id'] == pid) return (p['name'] as String?) ?? 'Unknown';
+        // PERF v5.175 (60fps PAN/ZOOM): All four family-wide O(E)/O(P)
+        // structures below are memoized on the identity of the edge list
+        // (see the state-field docs in family_graph_engine_view.dart).
+        // During pan/zoom rebuilds the cached instances are reused —
+        // previously this block alone cost ~2,900 allocations + the
+        // name resolver's O(P) scan per lookup.
+        if (!identical(_familyWideEdgesKey, edgesForChildrenOf) ||
+            _cachedChildrenOfAdjacency == null ||
+            _cachedAllEdgesForCollapse == null ||
+            _cachedChildCountById == null ||
+            _cachedPersonNameById == null) {
+          _familyWideEdgesKey = edgesForChildrenOf;
+          _cachedChildrenOfAdjacency =
+              BranchCollapseNotifier.buildFullAdjacency(edgesForChildrenOf);
+          _cachedAllEdgesForCollapse = <
+              ({String fromId, String toId, String edgeId, String relationshipKey})>[
+            for (final Map<String, dynamic> r in edgesForChildrenOf)
+              if (r['fromPersonId'] != null &&
+                  r['toPersonId'] != null &&
+                  r['id'] != null)
+                (
+                  fromId: r['fromPersonId'] as String,
+                  toId: r['toPersonId'] as String,
+                  edgeId: r['id'] as String,
+                  relationshipKey: (r['relationshipKey'] as String?) ?? '',
+                ),
+          ];
+          // Child-count map with the SAME semantics as
+          // _NodeBuilders._countChildrenOf (parent-type edges only,
+          // deduped by child id), precomputed ONCE instead of per node:
+          //   715 nodes × 950 edges ≈ 680,000 ops  →  950 ops.
+          final childSets = <String, Set<String>>{};
+          for (final Map<String, dynamic> r in edgesForChildrenOf) {
+            final label = (r['labelAtoB'] as String?) ??
+                (r['relationshipKey'] as String?) ??
+                '';
+            if (label != 'father' && label != 'mother' && label != 'parent') {
+              continue;
+            }
+            final to = r['toPersonId']?.toString();
+            final from = r['fromPersonId']?.toString();
+            if (to == null || from == null || from.isEmpty) continue;
+            childSets.putIfAbsent(to, () => <String>{}).add(from);
           }
-          return 'Unknown';
+          _cachedChildCountById = {
+            for (final e in childSets.entries) e.key: e.value.length,
+          };
+          // Name map — replaces the O(P)-per-call linear scan closure.
+          _cachedPersonNameById = <String, String>{
+            for (final p in flat.persons)
+              if (p['id'] != null)
+                (p['id'] as String): (p['name'] as String?) ?? 'Unknown',
+          };
         }
-        // Build allEdges for hidden edge computation.
-        // v5.154: Use allRelationships (full edge set) when available.
-        final allEdgesForCollapse = <({String fromId, String toId, String edgeId, String relationshipKey})>[
-          for (final Map<String, dynamic> r in edgesForChildrenOf)
-            if (r['fromPersonId'] != null && r['toPersonId'] != null && r['id'] != null)
-              (
-                fromId: r['fromPersonId'] as String,
-                toId: r['toPersonId'] as String,
-                edgeId: r['id'] as String,
-                relationshipKey: (r['relationshipKey'] as String?) ?? '',
-              ),
-        ];
+        final childrenOfAdj = _cachedChildrenOfAdjacency!;
+        // Person name resolver (O(1) map lookup — was a linear scan).
+        final personNameById = _cachedPersonNameById!;
+        String personNameResolver(String pid) =>
+            personNameById[pid] ?? 'Unknown';
+        // All edges for hidden edge computation (memoized record list).
+        final allEdgesForCollapse = _cachedAllEdgesForCollapse!;
         // Run density-driven collapse (the single authority — see the
         // stabilization comment above).
         // v5.106: Pass categoryOf so chip colors use dominant kinship category.
@@ -712,16 +751,22 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // v5.158 (VERIFICATION): Log branch bubble state for debugging —
         // bubbles must cover EVERY hidden member: visible + hidden should
         // equal the total node count in the full adjacency.
-        debugPrint('[v5.158] Branch bubbles: ${densityCollapseState.collapsedBranches.length} branches, '
-            '${densityHiddenIds.length} hidden members, '
-            'visible=${visiblePreCluster.length}, '
-            'totalReachable=${visiblePreCluster.length + densityHiddenIds.length}');
-        for (final b in densityCollapseState.collapsedBranches.take(5)) {
-          // v5.160: log BOTH counts — nextExpansionCount is what the chip
-          // shows, hiddenMemberIds.length is the full zone scope.
-          debugPrint('[v5.158]   bubble: chip=+${b.nextExpansionCount} '
-              '(total hidden=${b.hiddenMemberIds.length}) '
-              'at ${b.rootPersonName}');
+        // PERF v5.175: gated behind kDebugMode — this fired on EVERY
+        // canvas rebuild (each pan-threshold crossing) and console I/O
+        // is expensive on Flutter web (string interpolation + JS bridge
+        // per line, ~6 lines per rebuild).
+        if (kDebugMode) {
+          debugPrint('[v5.158] Branch bubbles: ${densityCollapseState.collapsedBranches.length} branches, '
+              '${densityHiddenIds.length} hidden members, '
+              'visible=${visiblePreCluster.length}, '
+              'totalReachable=${visiblePreCluster.length + densityHiddenIds.length}');
+          for (final b in densityCollapseState.collapsedBranches.take(5)) {
+            // v5.160: log BOTH counts — nextExpansionCount is what the chip
+            // shows, hiddenMemberIds.length is the full zone scope.
+            debugPrint('[v5.158]   bubble: chip=+${b.nextExpansionCount} '
+                '(total hidden=${b.hiddenMemberIds.length}) '
+                'at ${b.rootPersonName}');
+          }
         }
 
         // Apply clustering: remove hidden members from visible set.
@@ -929,8 +974,11 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           }
           // v5.69 (DATA CORRUPTION GUARD): Log a warning if the
           // relationshipKey is not one of the 4 fundamental edge types.
+          // PERF v5.175: gated behind kDebugMode — previously fired per
+          // offending edge on EVERY rebuild.
           final relKey = fr.relationshipKey;
-          if (relKey != 'parent' &&
+          if (kDebugMode &&
+              relKey != 'parent' &&
               relKey != 'spouse' &&
               relKey != 'adoptive_parent' &&
               relKey != 'step_parent' &&
@@ -1280,13 +1328,19 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // interaction_mixin.dart).
         _currentAnchorId = anchorId;
         _currentAnchorCenter = anchorCenterForEdges;
-        _currentPositionsWithOffset = {
+        // PERF v5.175 (60fps PAN/ZOOM): build the Y-offset positions
+        // map ONCE and share it between the hit-tester cache and the
+        // edge painter (both need the identical transformation —
+        // node-center Y offset applied to every entry). Previously
+        // TWO separate 715-entry maps were allocated per rebuild.
+        final positionsWithOffset = <String, Offset>{
           for (final entry in effectivePositions.entries)
             entry.key: Offset(
               entry.value.dx,
               entry.value.dy + _FamilyGraphEngineViewState._kCircleCenterYOffset,
             ),
         };
+        _currentPositionsWithOffset = positionsWithOffset;
 
         // v5.137: Cache the current collapsed branches so the parent-level
         // geometric hit-tester can intercept branch chip taps. On Flutter
@@ -1366,13 +1420,10 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     // center. The circle is at the TOP of the Column
                     // (72px diameter in a 120px tall box), so the visual
                     // circle center is 24px above the box center.
-                    positions: {
-                      for (final entry in effectivePositions.entries)
-                        entry.key: Offset(
-                          entry.value.dx,
-                          entry.value.dy + _FamilyGraphEngineViewState._kCircleCenterYOffset,
-                        ),
-                    },
+                    // PERF v5.175: reuse the shared positionsWithOffset
+                    // map built above (identical transformation) instead
+                    // of allocating a second 715-entry map per rebuild.
+                    positions: positionsWithOffset,
                     // v5.22 (PART 2): Personal RELATIVE edge midpoint
                     // bow offsets, keyed by relationshipId. The painter
                     // applies these to the bezier's middle control
@@ -1531,6 +1582,12 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     // PASS 3 (ridge), drawing only PASS 2 (body).
                     allowShadowPass: _perfProfile.allowEdgeShadowPass,
                     allowRidgePass: _perfProfile.allowEdgeRidgePass,
+                    // PERF v5.175 (60fps PAN/ZOOM): graph-space
+                    // viewport for painter-side edge culling. `vp` is
+                    // computed ABOVE via _graphSpaceViewport() — the
+                    // same rect the culler uses, so node widgets and
+                    // edge strokes stay spatially consistent.
+                    graphViewport: vp,
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
@@ -1554,7 +1611,10 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                             ref.read(graphFocusProvider).focusedPersonId == null &&
                             !ref.read(graphSearchProvider).isActive)
                         ? _filteredGraph.firstDegreeNeighborsOf(selectedPerson)
-                        : null),
+                        : null,
+                    // PERF v5.175: precomputed child counts — replaces the
+                    // O(N×E) _countChildrenOf scan inside _buildFullNode.
+                    childCountById: _cachedChildCountById),
                 // v102 (BUG-2 FIX) + v5.123 (Step 3): Collapsed-branch
                 // affordances — ALWAYS-visible "+N" chips.
                 // Render a chip near each collapsed branch root showing

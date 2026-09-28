@@ -154,8 +154,18 @@ class AppTime {
     if (!_initialized) await initialize();
     if (_serverSynced) return;
     try {
-      final uri = Uri.tryParse(supabaseUrl);
+      var uri = Uri.tryParse(supabaseUrl);
       if (uri == null) return;
+      // CORS FIX (web): the Supabase project ROOT returns 404 WITHOUT
+      // an Access-Control-Allow-Origin header, so the browser aborts
+      // the XHR before Dio ever sees a response ("XMLHttpRequest
+      // onError"). The /rest/v1/ endpoint, by contrast, always returns
+      // `access-control-allow-origin: *` (any status — even 401) and
+      // still carries the authoritative `Date` header we need. Point
+      // the HEAD probe at a CORS-enabled path.
+      if (uri.path.isEmpty || uri.path == '/') {
+        uri = uri.replace(path: '/rest/v1/');
+      }
       final dio = Dio(BaseOptions(
         connectTimeout: const Duration(seconds: 5),
         receiveTimeout: const Duration(seconds: 5),

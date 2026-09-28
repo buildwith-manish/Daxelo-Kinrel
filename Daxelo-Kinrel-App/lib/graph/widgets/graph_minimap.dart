@@ -127,13 +127,21 @@ class GraphMiniMap extends StatelessWidget {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(7),
-                child: CustomPaint(
-                  painter: _MiniMapPainter(
-                    positions: positions,
-                    anchorId: anchorId,
-                    camera: camera,
-                    viewportSize: viewportSize,
-                    nodeColors: nodeColors,
+                // PERF v5.175: RepaintBoundary so camera-tick repaints
+                // of the minimap's viewport rect never cascade into the
+                // parent canvas layers — and vice versa. Without it the
+                // AnimatedBuilder above rebuilds the Container/
+                // ClipRRect/CustomPaint subtree on EVERY camera frame,
+                // repainting shared ancestor layers too.
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    painter: _MiniMapPainter(
+                      positions: positions,
+                      anchorId: anchorId,
+                      camera: camera,
+                      viewportSize: viewportSize,
+                      nodeColors: nodeColors,
+                    ),
                   ),
                 ),
               ),
@@ -147,26 +155,13 @@ class GraphMiniMap extends StatelessWidget {
   void _handleTap(Offset localPos) {
     if (onTap == null) return;
     // Convert mini-map tap position → graph-space position.
-    final bounds = _computeBounds();
+    // PERF v5.175: delegates to the painter's shared cached bounds
+    // (O(1) after the first computation — see _MiniMapPainter).
+    final bounds = _MiniMapPainter._sharedBoundsFor(positions);
     if (bounds == null) return;
     final sx = (localPos.dx / width) * (bounds.maxX - bounds.minX) + bounds.minX;
     final sy = (localPos.dy / height) * (bounds.maxY - bounds.minY) + bounds.minY;
     onTap!(Offset(sx, sy));
-  }
-
-  _Bounds? _computeBounds() {
-    if (positions.isEmpty) return null;
-    double minX = double.infinity, minY = double.infinity;
-    double maxX = double.negativeInfinity, maxY = double.negativeInfinity;
-    for (final pos in positions.values) {
-      if (pos.dx < minX) minX = pos.dx;
-      if (pos.dy < minY) minY = pos.dy;
-      if (pos.dx > maxX) maxX = pos.dx;
-      if (pos.dy > maxY) maxY = pos.dy;
-    }
-    // Add padding so dots at the edge aren't clipped.
-    const pad = 20.0;
-    return _Bounds(minX - pad, minY - pad, maxX + pad, maxY + pad);
   }
 }
 
@@ -215,11 +210,21 @@ class _MiniMapPainter extends CustomPainter {
   static String? _cachedDotsAnchorId;
   static Size? _cachedDotsSize;
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (positions.isEmpty) return;
+  /// PERF v5.175: cached graph-space bounds, keyed on the SAME inputs
+  /// as the cached dot picture. Previously `paint` re-ran the O(N)
+  /// min/max scan over ALL positions on EVERY camera frame (715 nodes
+  /// × 60fps during pan). The bounds only change when positions change
+  /// — exactly when the dot picture is rebuilt — so they are computed
+  /// in the same `dotsDirty` block and replayed otherwise.
+  static _Bounds? _cachedBounds;
 
-    // Compute graph-space bounds.
+  /// PERF v5.175: O(1) bounds access for both [paint] and the
+  /// widget-side tap handler (which previously re-ran its own scan
+  /// per tap — cheap, but now shared for consistency).
+  _Bounds computeOrGetBounds() {
+    if (_cachedBounds != null && identical(_cachedDotsPositions, positions)) {
+      return _cachedBounds!;
+    }
     double minX = double.infinity, minY = double.infinity;
     double maxX = double.negativeInfinity, maxY = double.negativeInfinity;
     for (final pos in positions.values) {
@@ -229,9 +234,43 @@ class _MiniMapPainter extends CustomPainter {
       if (pos.dy > maxY) maxY = pos.dy;
     }
     const pad = 20.0;
-    minX -= pad; minY -= pad; maxX += pad; maxY += pad;
-    final graphW = (maxX - minX).abs();
-    final graphH = (maxY - minY).abs();
+    final b = _Bounds(minX - pad, minY - pad, maxX + pad, maxY + pad);
+    // NOTE: stored together with _cachedDotsPositions; when positions
+    // change, the dotsDirty block in paint() overwrites both.
+    _cachedBounds = b;
+    return b;
+  }
+
+  /// PERF v5.175: static access used by GraphMiniMap._handleTap so the
+  /// widget side shares the painter's cached bounds instead of running
+  /// its own O(N) scan. Returns null for an empty positions map.
+  static _Bounds? _sharedBoundsFor(Map<String, Offset> positions) {
+    if (positions.isEmpty) return null;
+    if (_cachedBounds != null && identical(_cachedDotsPositions, positions)) {
+      return _cachedBounds!;
+    }
+    double minX = double.infinity, minY = double.infinity;
+    double maxX = double.negativeInfinity, maxY = double.negativeInfinity;
+    for (final pos in positions.values) {
+      if (pos.dx < minX) minX = pos.dx;
+      if (pos.dy < minY) minY = pos.dy;
+      if (pos.dx > maxX) maxX = pos.dx;
+      if (pos.dy > maxY) maxY = pos.dy;
+    }
+    const pad = 20.0;
+    return _Bounds(minX - pad, minY - pad, maxX + pad, maxY + pad);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (positions.isEmpty) return;
+
+    // PERF v5.175: use the shared cached bounds (computed only when
+    // the dot picture is rebuilt — see the dotsDirty block below).
+    final bounds = computeOrGetBounds();
+    final minX = bounds.minX, minY = bounds.minY;
+    final graphW = (bounds.maxX - minX).abs();
+    final graphH = (bounds.maxY - minY).abs();
     if (graphW <= 0 || graphH <= 0) return;
 
     // Scale to fit mini-map.

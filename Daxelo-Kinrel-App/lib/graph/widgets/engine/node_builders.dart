@@ -27,6 +27,13 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
     /// When null, falls back to the old per-node loop (rare — only
     /// when _buildFullNode is called from a non-canvas context).
     Set<String>? precomputedFirstDegreeIds,
+    /// PERF v5.175 (60fps PAN/ZOOM): Pre-computed parent→child-count
+    /// map, built ONCE per family-data change in canvas_mixin and
+    /// keyed on the SAME semantics as [_countChildrenOf]. Replaces the
+    /// O(E) scan PER NODE (715 × 950 ≈ 680,000 ops per rebuild) with a
+    /// single O(1) map lookup. Null only in non-canvas call contexts,
+    /// which fall back to the legacy [_countChildrenOf].
+    Map<String, int>? childCountById,
   }) {
     // v2.2: If this node IS the viewer, show "You" as the relation label.
     final bool isViewer = viewerPersonId != null && id == viewerPersonId;
@@ -294,7 +301,15 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       // "to is from's parent" → from is a child of to. Dedupes by
       // child id (the DB stores both forward + inverse rows).
       // Gate is enforced inside GraphNode (childCount >= 2 && !isAnchor).
-      childCount: flat == null ? 0 : _countChildrenOf(id, flat),
+      //
+      // PERF v5.175: prefer the O(1) precomputed map (childCountById,
+      // built once per data change in canvas_mixin); the legacy O(E)
+      // per-node scan is only the fallback for non-canvas callers.
+      childCount: flat == null
+          ? 0
+          : (childCountById != null
+              ? (childCountById[id] ?? 0)
+              : _countChildrenOf(id, flat)),
       // v93 (ZOOM FIX) legacy fallback — still computed for the
       // camera-null case (e.g. tests). When [camera] is non-null this
       // flag is ignored by GraphNode.

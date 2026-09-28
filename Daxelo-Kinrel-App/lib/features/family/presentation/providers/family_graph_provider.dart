@@ -2211,12 +2211,18 @@ final graphLayoutProvider =
     // a sample of positions to confirm non-degeneracy reached this
     // point. If previousPositions is unexpectedly empty here, the
     // bug is upstream (snapshot restore didn't merge).
-    final prevSample = previousPositions.entries.take(3)
-        .map((e) => '${e.key}=${e.value}').join(', ');
-    debugPrint(
-        '[BUG-TRACE] OVERLAP-GUARD-ENTRY isBranchExpandFlow=$isBranchExpandFlow '
-        'previousPositionsCount=${previousPositions.length} '
-        'samplePrev=[$prevSample]');
+    //
+    // PERF v5.175: gated behind kDebugMode. debugPrint is NOT stripped
+    // in release/profile builds — the string interpolation executed on
+    // every layout pass even when nobody reads it.
+    if (kDebugMode) {
+      final prevSample = previousPositions.entries.take(3)
+          .map((e) => '${e.key}=${e.value}').join(', ');
+      debugPrint(
+          '[BUG-TRACE] OVERLAP-GUARD-ENTRY isBranchExpandFlow=$isBranchExpandFlow '
+          'previousPositionsCount=${previousPositions.length} '
+          'samplePrev=[$prevSample]');
+    }
     final entries = previousPositions.entries.toList();
     if (entries.length > 1) {
       final repaired = <String, Offset>{
@@ -2226,10 +2232,20 @@ final graphLayoutProvider =
       // [BUG-TRACE] Capture the specific overlapping pairs (idA, idB)
       // and their (x, y) coords so the user can confirm whether the
       // pair they're seeing on-screen is the one being detected here.
-      final overlapPairsLog = <String>[];
+      // PERF v5.175: only allocated/populated in debug builds — the
+      // string formatting was a significant cost at 715 nodes.
+      final overlapPairsLog = kDebugMode ? <String>[] : null;
 
-      // O(n²) pairwise check. For typical family graphs (≤ 50
-      // visible nodes) this is ≤ 1225 comparisons, negligible cost.
+      // PERF v5.175 (60fps PAN/ZOOM): note on the O(n²) scan below.
+      // A spatial-grid variant was evaluated (see
+      // scripts/overlap_equivalence_test.dart) but REJECTED: the
+      // guard's outcome depends on the exact (i<j) pair visit order
+      // (a +180px nudge can INDUCE a new overlap that a later pair
+      // visit must catch), and bucket-order processing misses some
+      // induced overlaps. The loop itself is pure arithmetic — 255K
+      // iterations ≈ 1-3ms at 715 nodes — acceptable for a pass that
+      // only runs on real layout invalidations. The expensive parts
+      // (per-pair string building + console I/O) are now debug-only.
       for (var i = 0; i < entries.length; i++) {
         for (var j = i + 1; j < entries.length; j++) {
           final idA = entries[i].key;
@@ -2243,9 +2259,11 @@ final graphLayoutProvider =
             // positions. This addresses the user's request: "If the
             // v5.211 guard fires, log the overlapping node ID pair
             // it detected."
-            overlapPairsLog.add('$idA@(${a.dx.toStringAsFixed(1)},'
-                '${a.dy.toStringAsFixed(1)})<=>$idB@(${b.dx.toStringAsFixed(1)},'
-                '${b.dy.toStringAsFixed(1)})');
+            if (overlapPairsLog != null) {
+              overlapPairsLog.add('$idA@(${a.dx.toStringAsFixed(1)},'
+                  '${a.dy.toStringAsFixed(1)})<=>$idB@(${b.dx.toStringAsFixed(1)},'
+                  '${b.dy.toStringAsFixed(1)})');
+            }
             // Nudge B by a small radial offset along X (180px, the
             // same minHorizontal used by the de-overlap pass). This
             // is a one-time correction — the node moves to a fresh
@@ -2258,9 +2276,11 @@ final graphLayoutProvider =
         }
       }
       // [BUG-TRACE] Always log the guard's verdict (fired or skipped).
-      debugPrint(
-          '[BUG-TRACE] OVERLAP-GUARD-VERDICT overlapCount=$overlapCount '
-          'pairs=${overlapPairsLog.isEmpty ? "NONE" : overlapPairsLog.join(" | ")}');
+      if (kDebugMode) {
+        debugPrint(
+            '[BUG-TRACE] OVERLAP-GUARD-VERDICT overlapCount=$overlapCount '
+            'pairs=${overlapPairsLog == null || overlapPairsLog.isEmpty ? "NONE" : overlapPairsLog.join(" | ")}');
+      }
 
       if (overlapCount > 0) {
         // Write the repaired map back to the cache so the NEXT
@@ -2297,12 +2317,16 @@ final graphLayoutProvider =
   // restore, the bug is in this function's wiring. If true but the
   // layout still overlaps, the bug is downstream in radial_layout.dart
   // (or the isolate serialization round-trip).
-  debugPrint(
-      '[BUG-TRACE] LAYOUT-CALL-ENTRY nodeCount=$nodeCount '
-      'preservePositions=$preservePositions '
-      'previousPositionsCount=${previousPositions?.length ?? 0} '
-      'willUseIsolate=${nodeCount > 15} '
-      'anchorPersonId=${centerPerson.id}');
+  // PERF v5.175: gated behind kDebugMode (release builds strip the
+  // entire block — debugPrint is not removed automatically).
+  if (kDebugMode) {
+    debugPrint(
+        '[BUG-TRACE] LAYOUT-CALL-ENTRY nodeCount=$nodeCount '
+        'preservePositions=$preservePositions '
+        'previousPositionsCount=${previousPositions?.length ?? 0} '
+        'willUseIsolate=${nodeCount > 15} '
+        'anchorPersonId=${centerPerson.id}');
+  }
 
   // v5.161 (MAX-EXPANDED-BRANCHES CAP): when too many branches are
   // expanded at once, auto-collapse the oldest. Watch the branch
@@ -2355,7 +2379,12 @@ final graphLayoutProvider =
   // This is the smoking gun for the user's reported bug — if pairs is
   // non-empty here, the layout engine is producing overlapping output
   // even after the v5.212 guard + radial de-overlap pass.
-  if (result.positions.length >= 2) {
+  //
+  // PERF v5.175: gated behind kDebugMode — this purely-diagnostic O(n²)
+  // scan (255K comparisons at 715 nodes) + string building ran in
+  // RELEASE builds on every layout pass. kDebugMode is a compile-time
+  // constant, so the whole block is dead-code-eliminated in release.
+  if (kDebugMode && result.positions.length >= 2) {
     final outEntries = result.positions.entries.toList();
     final overlappingOutputPairs = <String>[];
     for (var i = 0; i < outEntries.length; i++) {
@@ -2374,7 +2403,7 @@ final graphLayoutProvider =
         '[BUG-TRACE] LAYOUT-OUTPUT-CHECK resultPositionsCount=${result.positions.length} '
         'overlappingPairsInOutput=${overlappingOutputPairs.length} '
         'pairs=${overlappingOutputPairs.isEmpty ? "NONE — zero overlap confirmed" : overlappingOutputPairs.join(" | ")}');
-  } else {
+  } else if (kDebugMode) {
     debugPrint(
         '[BUG-TRACE] LAYOUT-OUTPUT-CHECK resultPositionsCount=${result.positions.length} (skipped pairwise check — fewer than 2 nodes)');
   }

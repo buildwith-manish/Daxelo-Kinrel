@@ -41,6 +41,11 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
     /// adjacency map). Passed through to _buildFullNode to avoid the
     /// per-node iteration of flat.relationships.
     Set<String>? precomputedFirstDegreeIds,
+    /// PERF v5.175 (60fps PAN/ZOOM): Pre-computed parent→child-count
+    /// map (built once per data change in canvas_mixin). Forwards to
+    /// _buildFullNode so the per-node O(E) _countChildrenOf scan is
+    /// skipped entirely (715 × 950 ≈ 680K ops per rebuild → 0).
+    Map<String, int>? childCountById,
   }) {
     final Lod lod = _lodFor(_camera.zoomLevel);
 
@@ -105,6 +110,8 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
         // The name remains visible. No additional wiring needed.
         // v5.143: Pass the pre-computed first-degree IDs so _buildFullNode
         // doesn't iterate flat.relationships per node.
+        // v5.175: Pass the precomputed child-count map (O(1) lookup
+        // instead of the O(E) per-node scan).
         node = _buildFullNode(
           id,
           p,
@@ -114,6 +121,7 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
           viewerPersonId,
           flat,
           precomputedFirstDegreeIds: precomputedFirstDegreeIds,
+          childCountById: childCountById,
         );
       } else {
         // Lod.chip — legacy fallback (shouldn't normally be reached

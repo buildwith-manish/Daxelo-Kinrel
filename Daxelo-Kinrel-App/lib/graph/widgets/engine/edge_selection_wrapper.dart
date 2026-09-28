@@ -71,6 +71,9 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
     // skips the corresponding pass entirely.
     this.allowShadowPass = true,
     this.allowRidgePass = true,
+    // PERF v5.175 (60fps PAN/ZOOM): graph-space viewport for
+    // painter-side edge culling — see EngineEdgePainter.graphViewport.
+    this.graphViewport,
   });
 
   final Map<String, Offset> positions;
@@ -186,6 +189,10 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
   /// straight through to EngineEdgePainter.
   final bool allowShadowPass;
   final bool allowRidgePass;
+
+  /// PERF v5.175 (60fps PAN/ZOOM): graph-space viewport rect for
+  /// painter-side edge culling — forwarded to EngineEdgePainter.
+  final Rect? graphViewport;
 
   @override
   ConsumerState<EdgeSelectionWrapper> createState() =>
@@ -471,6 +478,9 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
         // toggles to the painter.
         allowShadowPass: widget.allowShadowPass,
         allowRidgePass: widget.allowRidgePass,
+        // PERF v5.175 (60fps PAN/ZOOM): forward the graph-space
+        // viewport for painter-side edge culling.
+        graphViewport: widget.graphViewport,
       ),
       child: const SizedBox.expand(),
     );

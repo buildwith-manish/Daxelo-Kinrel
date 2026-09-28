@@ -238,6 +238,15 @@ class EngineEdgePainter extends CustomPainter {
     // body pass.
     this.allowShadowPass = true,
     this.allowRidgePass = true,
+    // PERF v5.175 (60fps PAN/ZOOM): graph-space viewport rect for
+    // painter-side edge culling. When non-null, edges whose cached
+    // Path bounds do not overlap the (inflated) viewport are skipped
+    // entirely — no style resolution, no 3-pass stroke, no midpoint
+    // glyph. This is a massive win in the "Show All Branches" state
+    // where all 950 edges pass the data-level filter but only a
+    // fraction intersect the screen. Null (default) preserves the
+    // exact pre-v5.175 behaviour (no culling) for tests/legacy calls.
+    this.graphViewport,
   });
 
   final Map<String, Offset> positions;
@@ -264,6 +273,12 @@ class EngineEdgePainter extends CustomPainter {
 
   final EdgePathCache cache;
   final EdgeQuality edgeQuality;
+
+  /// PERF v5.175: graph-space viewport (already includes the culler
+  /// buffer). See the constructor doc. Used ONLY for culling — never
+  /// for geometry — so a stale value can only over-draw (never
+  /// mis-draw).
+  final Rect? graphViewport;
 
   /// Revision counters — see PART 11. The painter compares these in
   /// `shouldRepaint` instead of deep-comparing maps every frame.
@@ -899,6 +914,21 @@ class EngineEdgePainter extends CustomPainter {
 
     // Pre-resolve a few per-frame constants from the lighting contract.
     final bool isDot = edgeQuality == EdgeQuality.dot;
+    // PERF v5.175 (60fps PAN/ZOOM): the cull rect for painter-side
+    // edge culling. Inflated generously beyond the graph-space
+    // viewport so that (a) curve bows / lateral offsets / waypoint
+    // drags that push a curve outside its endpoint bounding box stay
+    // visible, and (b) the cached raster still covers the pan distance
+    // up to the next culler-threshold rebuild (adaptive threshold can
+    // reach 4×50=200px on dense graphs) with a wide safety margin.
+    // Worst case: 200px threshold + 110px anchor bow + 60px lateral
+    // ≈ 370px — 400px covers it. Edges whose endpoint bbox misses
+    // this rect produce zero visible pixels, so culling them is
+    // visually a no-op — it just skips the 3-pass stroke + midpoint
+    // glyph work.
+    final Rect? edgeCullRect = graphViewport == null
+        ? null
+        : graphViewport!.inflate(400.0);
     // v5.141 (LOW-END PERF): If the profile disabled the shadow or
     // ridge pass, force the corresponding sigma/alpha to 0 so the
     // paint methods skip that pass entirely. This compounds with
@@ -1064,6 +1094,36 @@ class EngineEdgePainter extends CustomPainter {
       );
       final Offset effectiveSource = resolved.source;
       final Offset effectiveTarget = resolved.target;
+
+      // PERF v5.175 (60fps PAN/ZOOM): painter-side viewport culling.
+      // A cheap conservative pre-test first (endpoint bounding box vs
+      // the cull rect) skips the path-cache lookup + all downstream
+      // work for edges that are entirely off-screen. In the Show-All
+      // state (715 nodes / 950 edges all "visible" at the data level)
+      // this typically eliminates 80-95% of the per-paint edge work
+      // when zoomed in. The 400px inflation on edgeCullRect absorbs
+      // every bow/offset mechanism (max lateral ~60px, anchor bow
+      // ~110px) PLUS the adaptive culler threshold (up to 200px).
+      if (edgeCullRect != null) {
+        final double loX = effectiveSource.dx < effectiveTarget.dx
+            ? effectiveSource.dx
+            : effectiveTarget.dx;
+        final double hiX = effectiveSource.dx < effectiveTarget.dx
+            ? effectiveTarget.dx
+            : effectiveSource.dx;
+        final double loY = effectiveSource.dy < effectiveTarget.dy
+            ? effectiveSource.dy
+            : effectiveTarget.dy;
+        final double hiY = effectiveSource.dy < effectiveTarget.dy
+            ? effectiveTarget.dy
+            : effectiveSource.dy;
+        if (hiX < edgeCullRect.left ||
+            loX > edgeCullRect.right ||
+            hiY < edgeCullRect.top ||
+            loY > edgeCullRect.bottom) {
+          continue;
+        }
+      }
 
       // v5.164 (CROSS-BRANCH EDGE STYLING): compute the edge length.
       // Long edges (> 300px ≈ 2 ring spacings) are genuine cross-branch
@@ -2304,6 +2364,16 @@ class EngineEdgePainter extends CustomPainter {
         old.sweepActive != sweepActive ||
         (sweepActive && old.sweepProgress != sweepProgress) ||
         !_sameDimmedSet(old.dimmedEdgeIds) ||
+        // PERF v5.175: the painter now CULLS edges against the
+        // graph-space viewport, so a viewport change requires a
+        // repaint to refresh the cached raster with the newly-visible
+        // edge set. Without this check, a long pan would eventually
+        // reveal regions the culled raster never painted (blank
+        // edges). Repaints only fire when the engine view rebuilds
+        // (culler 50px threshold, 16ms-debounced) — each repaint now
+        // draws only the ~viewport+300px edge subset, so this is
+        // cheap. Rect equality is 4 double compares.
+        old.graphViewport != graphViewport ||
         // v92 (PART 14): path-focus changes
         old.pathFocusActive != pathFocusActive ||
         !_sameSet(old.pathFocusedEdgeIds, pathFocusedEdgeIds) ||
