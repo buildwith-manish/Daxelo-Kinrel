@@ -21,6 +21,8 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/services/haptic_service.dart';
+import '../../../core/services/smart_defaults_service.dart';
 import '../../../core/networking/dio_client.dart';
 import '../../../core/routing/app_router.dart';
 import '../../../core/extensions/context_extensions.dart';
@@ -48,6 +50,37 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   // the backend rejects the credentials with an identifier-specific
   // message (e.g., "Email not confirmed"). Cleared on next validate.
   String? _apiIdentifierError;
+
+  @override
+  void initState() {
+    super.initState();
+    // ── Smart Default: pre-fill last identifier ─────────────────────
+    // The Default Effect (cognitive bias): pre-filled fields are
+    // accepted ~80% of the time. Returning users can skip typing
+    // their username/email and just type the password. Saves ~3s
+    // per login and reduces friction on the most common flow
+    // (returning user, same device).
+    //
+    // SECURITY: We only store the IDENTIFIER (public handle), never
+    // the password. See SmartDefaultsService for the security model.
+    _loadSavedIdentifier();
+  }
+
+  Future<void> _loadSavedIdentifier() async {
+    final saved = await SmartDefaultsService.getLastIdentifier();
+    if (saved != null && saved.isNotEmpty && _identifierController.text.isEmpty) {
+      // Use a microtask to avoid setting state during build.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _identifierController.text = saved;
+          // Place cursor at the end so the user can edit if needed.
+          _identifierController.selection = TextSelection.fromPosition(
+            TextPosition(offset: saved.length),
+          );
+        }
+      });
+    }
+  }
 
   // ── Design tokens ────────────────────────────────────────────────
   static const _bgColor = Color(0xFF13141E);
@@ -202,6 +235,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           context.go('/create-username');
           markSignInSuccess();
         } else {
+          // ── Haptic: success pattern for Google sign-in too — keep
+          // the tactile language consistent regardless of method.
+          unawaited(HapticService.success());
           markSignInSuccess();
           try {
             context.go('/home');
@@ -212,6 +248,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       }
     } catch (e) {
       if (mounted) {
+        // ── Haptic: error on Google sign-in failure (cancelled flows
+        // don't reach here — they return early above).
+        unawaited(HapticService.error());
         final msg = _cleanErrorMessage(e.toString());
         // Don't show snackbar for user-initiated cancellation
         if (msg.isNotEmpty) {
@@ -227,10 +266,21 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   // ── Identifier Sign-In (email OR username) ──────────────────────
 
   Future<void> _signIn() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      // Form validation failed — warn the user with a soft haptic.
+      // Don't fire the full error pattern (that's reserved for hard
+      // failures). This is a gentle "hey, check the fields" nudge.
+      unawaited(HapticService.warning());
+      return;
+    }
 
     // Prevent double-tap
     if (_isLoading || _isGoogleLoading) return;
+    // ── Haptic: tap confirms the press registered BEFORE the network
+    // round-trip starts. This shrinks perceived latency — the user's
+    // brain registers "the app took my input" within ~10ms, while
+    // the network call takes 200-800ms.
+    unawaited(HapticService.tap());
     setState(() => _isLoading = true);
     FocusScope.of(context).unfocus();
 
@@ -317,6 +367,15 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           context.go('/create-username');
           markSignInSuccess();
         } else {
+          // ── Smart Default: record this identifier for next time ──
+          // Fire-and-forget; never block login on this.
+          unawaited(SmartDefaultsService.recordSuccessfulLogin(
+            identifier: _identifierController.text,
+          ));
+          // ── Haptic: success pattern fires AFTER navigation kicks off
+          // so the user feels the positive confirmation as they arrive
+          // on the home screen. Peak-End rule: end on a high note.
+          unawaited(HapticService.success());
           markSignInSuccess();
           try {
             context.go('/home');
@@ -328,6 +387,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     } on AuthException catch (e) {
       // Auth-specific errors (wrong password, email not confirmed, etc.)
       if (mounted) {
+        // ── Haptic: error pattern signals failure tactilely. Pair
+        // with the visible snackbar/error text — never fire without
+        // a visible cue (otherwise the user feels a buzz with no
+        // explanation, which is alarming).
+        unawaited(HapticService.error());
         final msg = _cleanErrorMessage(e.toString());
         if (msg.isNotEmpty) {
           // Identifier-specific errors (e.g., "Email not confirmed") are
@@ -346,6 +410,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       }
     } catch (e) {
       if (mounted) {
+        // ── Haptic: same error pattern for non-auth exceptions
+        // (network, timeout, unknown). Consistency is key — the
+        // user should learn one haptic language, not two.
+        unawaited(HapticService.error());
         final msg = _cleanErrorMessage(e.toString());
         if (msg.isNotEmpty) {
           final isIdentifierError = msg.toLowerCase().contains('email') &&
@@ -782,9 +850,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                             color: _hintColor,
                             size: 20,
                           ),
-                          onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
+                          // ── Haptic: selection click on visibility toggle.
+                          // A tiny "tick" confirms the toggle fired —
+                          // important here because the only visual change
+                          // is dots↔text, which is easy to miss on a glance.
+                          onPressed: () {
+                            unawaited(HapticService.selection());
+                            setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            );
+                          },
                         ),
                       ),
                       validator: (v) => requiredField(v, 'Password'),
