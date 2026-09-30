@@ -10,6 +10,8 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/services/haptic_service.dart';
+import '../../../core/services/celebration_service.dart';
 import '../../../core/routing/app_router.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/form_validators.dart';
@@ -257,8 +259,15 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   }
 
   Future<void> _signUp() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      // ── Haptic: warning on validation failure — softer than error,
+      // signals "check the fields".
+      unawaited(HapticService.warning());
+      return;
+    }
     if (!_agreedToTerms) {
+      // ── Haptic: warning on missing terms agreement.
+      unawaited(HapticService.warning());
       context.showSnackBar(
         'Please agree to the Terms of Service',
         isError: true,
@@ -268,6 +277,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
     // Prevent double-tap
     if (_isLoading || _isGoogleLoading) return;
+    // ── Haptic: tap confirms the press registered BEFORE the network
+    // round-trip. Shrinks perceived latency.
+    unawaited(HapticService.tap());
     setState(() => _isLoading = true);
 
     try {
@@ -284,6 +296,11 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       );
 
       if (!mounted) return;
+
+      // ── Haptic: success on account creation (before the email-confirmation
+      // branch, because both branches are "success" from the user's POV —
+      // they completed the form and the account was created).
+      unawaited(HapticService.success());
 
       // Check if email confirmation is required
       final user = response.user;
@@ -318,6 +335,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       }
     } catch (e) {
       if (mounted) {
+        // ── Haptic: error on sign-up failure (email taken, network, etc.)
+        unawaited(HapticService.error());
         final msg = _cleanErrorMessage(e.toString());
         if (msg.isNotEmpty) {
           // Check if it's a field-specific error

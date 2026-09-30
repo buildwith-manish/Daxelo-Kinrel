@@ -23,6 +23,8 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/services/haptic_service.dart';
+import '../../../core/services/celebration_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../features/kinrel_intelligence/providers/kinrel_provider.dart';
 import '../../../features/kinrel_intelligence/widgets/kinrel_symbol_widget.dart';
@@ -117,7 +119,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         // The audit identified the post-create FAB as a Critical
         // misdirection of the app's most prominent control away
         // from its core value proposition.
-        onPressed: () => _showQuickAddSheet(context, families),
+        onPressed: () {
+          // ── Haptic on FAB — primary CTA gets the standard tap haptic.
+          HapticService.tap();
+          _showQuickAddSheet(context, families);
+        },
         backgroundColor: _cOrange,
         elevation: 4,
         shape: const CircleBorder(),
@@ -758,7 +764,12 @@ class _HomeNotificationBell extends ConsumerWidget {
       hint: 'Double tap to view notifications',
       child: minimumTapTarget(
         child: GestureDetector(
-          onTap: () => context.push('/notifications'),
+          onTap: () {
+                // ── Haptic on notification bell — selection click for
+                // a navigation action (not a primary CTA).
+                HapticService.selection();
+                context.push('/notifications');
+              },
           child: Container(
             width: 36,
             height: 36,
@@ -863,7 +874,11 @@ class _FamilySwitcherRow extends StatelessWidget {
         itemBuilder: (context, index) {
           if (index == 0) {
             return _AddFamilyCircle(
-              onTap: () => context.push('/families/create'),
+              onTap: () {
+                // ── Haptic on Create Family — primary CTA.
+                HapticService.tap();
+                context.push('/families/create');
+              },
             );
           }
           final family = families[index - 1];
@@ -871,7 +886,12 @@ class _FamilySwitcherRow extends StatelessWidget {
           return _FamilySwitchAvatar(
             family: family,
             isActive: isActive,
-            onTap: () => context.push('/family/${family.id}'),
+            onTap: () {
+              // ── Haptic on family switcher avatar — selection click
+              // confirms the tap before the push animation starts.
+              HapticService.selection();
+              context.push('/family/${family.id}');
+            },
           );
         },
       ),
@@ -1088,7 +1108,11 @@ class _HeroFamilyCard extends ConsumerWidget {
         label: '${family.name} family card',
         hint: 'Double tap to open ${family.name} family details',
         child: GestureDetector(
-          onTap: () => context.push('/family/${family.id}'),
+          onTap: () {
+            // ── Haptic on hero family card — selection click.
+            HapticService.selection();
+            context.push('/family/${family.id}');
+          },
           child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
@@ -1315,17 +1339,29 @@ class _HeroFamilyCard extends ConsumerWidget {
                             _QuickActionChip(
                               icon: Icons.account_tree_outlined,
                               label: 'Graph',
-                              onTap: () => context.push('/family/${family.id}/graph'),
+                              onTap: () {
+                                // ── Haptic on Graph quick action.
+                                HapticService.tap();
+                                context.push('/family/${family.id}/graph');
+                              },
                             ),
                             _QuickActionChip(
                               icon: Icons.person_add_alt_1_rounded,
                               label: 'Add Member',
-                              onTap: () => context.push('/family/${family.id}/add-person'),
+                              onTap: () {
+                                // ── Haptic on Add Member — milestone-creating.
+                                HapticService.tap();
+                                context.push('/family/${family.id}/add-person');
+                              },
                             ),
                             _QuickActionChip(
                               icon: Icons.edit_note_rounded,
                               label: 'Wall',
-                              onTap: () => context.push('/post/create'),
+                              onTap: () {
+                                // ── Haptic on Wall quick action.
+                                HapticService.tap();
+                                context.push('/post/create');
+                              },
                             ),
                           ],
                         ),

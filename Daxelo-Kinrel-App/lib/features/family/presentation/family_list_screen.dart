@@ -14,6 +14,8 @@ import '../../../core/family/optimistic_actions.dart';
 import '../../../core/family/drift_stream_providers.dart';
 import '../../../core/family/pagination_provider.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/services/haptic_service.dart';
+import '../../../shared/widgets/kinrel_pull_to_refresh.dart';
 import '../../../core/widgets/cached_avatar.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/family_list_skeleton.dart';
@@ -76,7 +78,17 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
           onRetry: () => ref.invalidate(familyListProvider),
         ),
         data: (families) {
-          return CustomScrollView(
+          // ── Pull-to-refresh wrapper: haptic at threshold + on refresh. ──
+          // iOS users expect this gesture on every list. The haptic at
+          // the threshold lets them release without looking.
+          return KinrelPullToRefresh(
+            onRefresh: () async {
+              ref.invalidate(familyListProvider);
+              // Wait for the refresh to complete so the spinner stays
+              // visible until the data is ready.
+              await ref.read(familyListProvider.future);
+            },
+            child: CustomScrollView(
             controller: _scrollController,
             scrollCacheExtent: ScrollCacheExtent.pixels(500),
             physics: const BouncingScrollPhysics(),
@@ -142,7 +154,12 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
                         child: _FamilyCard(
                           family: family,
                           index: index,
-                          onTap: () => context.push('/family/${family.id}'),
+                          // ── Haptic on card tap — confirms the tap
+                          // registered before the push animation starts.
+                          onTap: () {
+                            HapticService.tap();
+                            context.push('/family/${family.id}');
+                          },
                         ),
                       );
                     }, childCount: families.length + 1),
@@ -151,7 +168,8 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
 
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
-          );
+          ),
+          ); // close CustomScrollView + KinrelPullToRefresh
         },
       ),
       floatingActionButton:
@@ -164,7 +182,13 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
                   color: DKColors.brandPurple.withValues(alpha: 0.1),
                 ),
                 child: IconButton(
-                  onPressed: () => context.push('/families/create'),
+                  // ── Haptic on Create Family FAB — primary CTA gets the
+                  // standard tap haptic. Celebrates the milestone after
+                  // creation completes (wired in the create flow).
+                  onPressed: () {
+                    HapticService.tap();
+                    context.push('/families/create');
+                  },
                   icon: Icon(Icons.add_rounded, size: 28),
                   color: DKColors.brandPurple,
                   tooltip: 'Create family',

@@ -5,6 +5,8 @@
 // This username is their primary public identity on Kinrel and the
 // main identifier used in Search.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +15,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/services/haptic_service.dart';
+import '../../../core/services/celebration_service.dart';
 import '../../username/providers/username_provider.dart';
 
 class CreateUsernameScreen extends ConsumerStatefulWidget {
@@ -71,10 +75,19 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
   Future<void> _submit() async {
     // Check availability at call time via ref.read (fresh read)
     final currentAvailability = ref.read(usernameProvider).availability;
-    if (!_isValid || currentAvailability != UsernameAvailability.available || _isSaving) {
+    if (!_isValid ||
+        currentAvailability != UsernameAvailability.available ||
+        _isSaving) {
+      // ── Haptic: warning if the user tries to submit an invalid
+      // username. Signals "check the field" without being as harsh
+      // as a full error.
+      unawaited(HapticService.warning());
       return;
     }
 
+    // ── Haptic: tap confirms the press registered before the network
+    // round-trip to save the username.
+    unawaited(HapticService.tap());
     setState(() => _isSaving = true);
 
     try {
@@ -99,6 +112,21 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
 
       if (!mounted) return;
 
+      // ── Haptic + Celebration: username creation is the final step
+      // of onboarding. This is the user's "I'm in" moment — fire the
+      // success haptic + celebrate the profileCompleted milestone.
+      // The celebration fires ONLY the first time (idempotent), so
+      // returning users don't see it again.
+      unawaited(HapticService.success());
+      unawaited(
+        CelebrationService.instance
+            .checkAndCelebrate(
+              context: context,
+              milestone: Milestone.profileCompleted,
+            )
+            .catchError((_) => false),
+      );
+
       // Phase 3.16 — Navigate to the Join-or-Create decision screen
       // instead of /home. The decision screen:
       //   - Auto-redirects to /home if the user already has a family
@@ -111,6 +139,8 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
       context.go('/join-or-create-family');
     } catch (e) {
       if (mounted) {
+        // ── Haptic: error on username save failure.
+        unawaited(HapticService.error());
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to save username: $e'),
