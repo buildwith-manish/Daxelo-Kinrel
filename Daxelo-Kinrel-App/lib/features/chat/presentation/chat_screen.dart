@@ -50,6 +50,8 @@ import '../../../l10n/app_localizations.dart';
 import '../../../core/utils/app_time.dart';
 import '../../../core/utils/web_keyboard_height.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/services/haptic_service.dart';
+import '../../../core/services/celebration_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/chat_enhancement_service.dart';
 import '../data/chat_lock_service.dart';
@@ -446,7 +448,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
+    // ── Haptic: tap confirms the send fired before the optimistic insert
+    // completes. This is the WhatsApp/iMessage pattern — the message
+    // appears instantly with a tiny tactile confirmation.
+    HapticService.tap();
+
     final chatState = ref.read(chatProvider(widget.familyId));
+    // ── Celebration: fire the firstMessage milestone on the user's very
+    // first chat send. Idempotent — only fires once per user, ever.
+    // This is the "social activation" moment: the user went from passive
+    // (browsing trees) to active (talking to family).
+    unawaited(
+      CelebrationService.instance
+          .checkAndCelebrate(
+            context: context,
+            milestone: Milestone.firstMessage,
+          )
+          .catchError((_) => false),
+    );
     // sendMessage() does an optimistic insert synchronously, then persists
     // to Supabase async. Fire-and-forget the Future — the UI already
     // updated and the realtime INSERT event will be de-duped by the

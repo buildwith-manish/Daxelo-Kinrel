@@ -25,6 +25,7 @@ import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/networking/dio_client.dart';
 import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/services/smart_defaults_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/member_list_skeleton.dart';
 import '../../../graph/widgets/family_graph_engine_view.dart';
@@ -76,6 +77,24 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
   void initState() {
     super.initState();
     _hubScrollController.addListener(_onHubScroll);
+    // ── Smart Default: record this as the last-viewed family so the
+    // next launch can offer "Continue with {family name}" or pre-select
+    // it. Fire-and-forget; never block the screen. The family name is
+    // fetched via a microtask so we don't read providers during build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      try {
+        final detail =
+            ref.read(familyDetailProvider(widget.familyId)).valueOrNull;
+        final familyName = detail?.family.name ?? 'Family';
+        unawaited(SmartDefaultsService.recordLastFamily(
+          familyId: widget.familyId,
+          familyName: familyName,
+        ));
+      } catch (_) {
+        // Best-effort — never block on this.
+      }
+    });
   }
 
   @override

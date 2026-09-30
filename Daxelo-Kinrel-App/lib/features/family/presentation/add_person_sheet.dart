@@ -22,6 +22,9 @@ import 'providers/graph_pending_invitations_provider.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 
 import '../../../core/services/supabase_service.dart';
+import '../../../core/services/haptic_service.dart';
+import '../../../core/services/celebration_service.dart';
+import '../../../core/services/smart_defaults_service.dart';
 import 'services/photo_picker_service.dart';
 import 'providers/family_graph_provider.dart'
     show FamilyGraphNotifier, familyGraphProvider, unlinkedPersonIdsProvider;
@@ -2173,6 +2176,48 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                     : '${result?.name ?? 'New member'} added. Tap "Link" on '
                       'the graph to connect them to a family member.'));
         context.showSnackBar(successMsg);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // CELEBRATION: fire the milestone celebration based on the new
+      // family member count. firstMemberAdded fires on the FIRST member
+      // (other than the anchor), fiveMembers at 5, tenMembers at 10.
+      // The celebration is idempotent — each milestone fires only once
+      // per user, ever. This is the "variable reward" that drives habit
+      // formation (Skinner).
+      // ═══════════════════════════════════════════════════════════════
+      if (!_isEditMode && result != null) {
+        try {
+          // Read the CURRENT member count (after the new member was added).
+          // We use the provider's cached value — it's been invalidated
+          // by the optimistic insert, so this read triggers a refresh,
+          // but for milestone-counting the stale value + 1 is accurate
+          // enough (the celebration fires on the threshold, not on an
+          // exact count).
+          final membersAsync =
+              ref.read(familyMembersProvider(widget.familyId));
+          final memberCount = (membersAsync.valueOrNull?.length ?? 1);
+          Milestone? milestone;
+          if (memberCount == 1) {
+            milestone = Milestone.firstMemberAdded;
+          } else if (memberCount == 5) {
+            milestone = Milestone.fiveMembers;
+          } else if (memberCount == 10) {
+            milestone = Milestone.tenMembers;
+          }
+          if (milestone != null) {
+            unawaited(
+              CelebrationService.instance
+                  .checkAndCelebrate(
+                    context: context,
+                    milestone: milestone,
+                  )
+                  .catchError((_) => false),
+            );
+          }
+        } catch (_) {
+          // Celebration is best-effort — never block the add flow.
+        }
       }
 
       // ═══════════════════════════════════════════════════════════════

@@ -15,6 +15,8 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/optimistic_actions.dart';
+import '../../../core/services/haptic_service.dart';
+import '../../../core/services/celebration_service.dart';
 import 'providers/family_graph_provider.dart' show familyGraphProvider;
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
@@ -300,6 +302,20 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
       ref.invalidate(familyGraphProvider(family.id));
 
       if (!mounted) return;
+
+      // ── Haptic + Celebration: family creation is the BIGGEST activation
+      // milestone. This is the moment a user goes from "trying the app"
+      // to "this is my family tree". Fire the success haptic + celebrate
+      // the familyCreated milestone (idempotent — fires once per user).
+      unawaited(HapticService.success());
+      unawaited(
+        CelebrationService.instance
+            .checkAndCelebrate(
+              context: context,
+              milestone: Milestone.familyCreated,
+            )
+            .catchError((_) => false),
+      );
 
       context.showSnackBar(
         'Family "${family.name}" created! You\'re the anchor!',

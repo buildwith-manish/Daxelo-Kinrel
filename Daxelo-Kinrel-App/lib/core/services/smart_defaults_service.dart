@@ -63,6 +63,11 @@ class SmartDefaultsService {
   static const _kLastIdentifier = 'sd_last_identifier';
   static const _kLastIdentifierMethod = 'sd_last_identifier_method';
   static const _kHasSeenOnboarding = 'sd_has_seen_onboarding_v1';
+  // v2 additions — last family + last home tab.
+  static const _kLastFamilyId = 'sd_last_family_id';
+  static const _kLastFamilyName = 'sd_last_family_name';
+  static const _kLastHomeTab = 'sd_last_home_tab';
+  static const _kLastLanguage = 'sd_last_language';
 
   /// Returns the last identifier (username or email) the user
   /// successfully logged in with, or null if first-time / cleared.
@@ -126,6 +131,117 @@ class SmartDefaultsService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_kHasSeenOnboarding, true);
+    } catch (_) {}
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // v2 — LAST FAMILY (Default Effect for the most common returning flow)
+  // ═══════════════════════════════════════════════════════════════════
+  // The most common returning-user flow is "open app → tap the family
+  // I was looking at last time". Pre-selecting that family saves one
+  // scroll + one tap on every launch. Multiplied across daily sessions,
+  // this compounds into minutes saved per user per month.
+
+  /// Returns the ID of the last family the user viewed, or null.
+  static Future<String?> getLastFamilyId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_kLastFamilyId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Returns the name of the last family (for display in "Continue
+  /// with {name}" prompts), or null.
+  static Future<String?> getLastFamilyName() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_kLastFamilyName);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Records the family the user just opened. Call from the family
+  /// detail / graph screen's initState.
+  static Future<void> recordLastFamily({
+    required String familyId,
+    required String familyName,
+  }) async {
+    if (familyId.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kLastFamilyId, familyId);
+      await prefs.setString(_kLastFamilyName, familyName);
+    } catch (_) {}
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // LAST HOME TAB (Default Effect for navigation)
+  // ═══════════════════════════════════════════════════════════════════
+  // Most users open the same tab every launch (e.g., a power user
+  // always goes to Family; a casual user always goes to Home).
+  // Pre-selecting the last tab saves one bottom-nav tap per launch.
+
+  /// Returns the index of the last home tab (0=Home, 1=Chat, etc.),
+  /// or null if not set.
+  static Future<int?> getLastHomeTab() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getInt(_kLastHomeTab);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Records the tab the user just selected.
+  static Future<void> recordLastHomeTab(int tabIndex) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_kLastHomeTab, tabIndex);
+    } catch (_) {}
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // LAST LANGUAGE (Default Effect for bilingual users)
+  // ═══════════════════════════════════════════════════════════════════
+  // Indian users are often bilingual (Hindi + English, Tamil + English,
+  // etc.). The kinship picker supports 7 languages. Most users pick
+  // the same language every time. Pre-selecting it saves a scroll +
+  // tap on every kinship lookup.
+
+  /// Returns the language code (e.g., 'hi', 'ta') the user last
+  /// selected in the kinship picker, or null.
+  static Future<String?> getLastLanguage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_kLastLanguage);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Records the language the user just selected.
+  static Future<void> recordLastLanguage(String languageCode) async {
+    if (languageCode.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kLastLanguage, languageCode);
+    } catch (_) {}
+  }
+
+  /// Clears ALL smart defaults. Call from Settings > Privacy > Reset.
+  static Future<void> clearAll() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kLastIdentifier);
+      await prefs.remove(_kLastIdentifierMethod);
+      await prefs.remove(_kLastFamilyId);
+      await prefs.remove(_kLastFamilyName);
+      await prefs.remove(_kLastHomeTab);
+      await prefs.remove(_kLastLanguage);
+      // Don't clear _kHasSeenOnboarding — that's a separate concern.
     } catch (_) {}
   }
 }

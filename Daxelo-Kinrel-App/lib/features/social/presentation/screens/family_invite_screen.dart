@@ -7,6 +7,8 @@ import 'package:share_plus/share_plus.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/config/env_config.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/services/haptic_service.dart';
+import '../../../../core/services/celebration_service.dart';
 import '../../../../data/repositories/search_repository.dart';
 import '../../../family/presentation/add_member_source.dart';
 import '../../../../core/family/optimistic_actions.dart' show createPersonOptimistic;
@@ -202,6 +204,18 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
       }
 
       if (mounted) {
+        // ── Haptic + Celebration: invite sent is a growth milestone —
+        // the user became a vector for app growth. Fire the success
+        // haptic + the firstInviteSent celebration (idempotent).
+        unawaited(HapticService.success());
+        unawaited(
+          CelebrationService.instance
+              .checkAndCelebrate(
+                context: context,
+                milestone: Milestone.firstInviteSent,
+              )
+              .catchError((_) => false),
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Invite sent to ${_selectedUser!.name}'),

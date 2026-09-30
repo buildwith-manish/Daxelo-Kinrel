@@ -27,6 +27,9 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/services/haptic_service.dart';
+import '../../../core/services/celebration_service.dart';
+import '../../../shared/widgets/kinrel_pull_to_refresh.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/viewer/viewer_provider.dart'
     show viewerPersonIdProvider, invalidateViewerCache; // v5.10
@@ -73,6 +76,28 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     // Load notifications on init
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(notificationsProvider.notifier).loadNotifications();
+      // ── Celebration: fire the firstNotification milestone if the user
+      // has at least one notification and this is their first visit to
+      // the notifications screen. Idempotent — fires once per user.
+      // This celebrates "you're now connected to your family's activity".
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (!mounted) return;
+        try {
+          final notifState = ref.read(notificationsProvider);
+          final hasNotifications =
+              notifState.notifications.isNotEmpty;
+          if (hasNotifications) {
+            unawaited(
+              CelebrationService.instance
+                  .checkAndCelebrate(
+                    context: context,
+                    milestone: Milestone.firstNotification,
+                  )
+                  .catchError((_) => false),
+            );
+          }
+        } catch (_) {}
+      });
     });
 
     // v109→v111: The 10-second refresh timer that used to live here was
@@ -163,9 +188,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
           // ── Notification List / Empty State ─────────────────────
           Expanded(
             child: filtered.isEmpty
-                ? RefreshIndicator(
-                    color: KinrelColors.orange,
-                    backgroundColor: KinrelColors.darkCard,
+                ? KinrelPullToRefresh(
                     onRefresh: () => ref
                         .read(notificationsProvider.notifier)
                         .loadNotifications(),
@@ -331,9 +354,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
   // ── Notification List ───────────────────────────────────────────
 
   Widget _buildNotificationList(List<NotificationModel> notifications) {
-    return RefreshIndicator(
-      color: KinrelColors.orange,
-      backgroundColor: KinrelColors.darkCard,
+    return KinrelPullToRefresh(
       onRefresh: () =>
           ref.read(notificationsProvider.notifier).loadNotifications(),
       child: ListView.builder(
@@ -1131,6 +1152,10 @@ class _NotificationItem extends ConsumerWidget {
   //   - everything else → mark as read only
 
   void _handleTap(BuildContext context, WidgetRef ref) {
+    // ── Haptic: selection click confirms the tap before the navigation
+    // fires. Notifications are a navigation action, so selection (not
+    // tap) is the right haptic.
+    HapticService.selection();
     // Mark as read on tap (best-effort)
     if (!notification.isRead) {
       onMarkRead();

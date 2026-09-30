@@ -206,8 +206,30 @@ enum Milestone {
   /// First chat message sent.
   firstMessage('💬', 'First Message!', 'The conversation begins.'),
 
+  /// First chat reply received — the loop is closed.
+  firstReply('📩', 'You Got a Reply!', 'The conversation continues.'),
+
   /// Completed profile (avatar + name + username).
-  profileCompleted('⭐', 'Profile Complete!', 'You\'re all set up.');
+  profileCompleted('⭐', 'Profile Complete!', 'You\'re all set up.'),
+
+  /// First notification received — the user is now connected to the
+  /// live activity of their family.
+  firstNotification('🔔', 'You\'re In!', 'Your family is reaching out.'),
+
+  /// First story posted — the user is now a creator, not just a consumer.
+  firstStory('📷', 'Story Shared!', 'A moment captured for the family.'),
+
+  /// First graph explore — the user is now exploring their tree.
+  firstGraphExplore('🌳', 'Tree Explored!', 'You\'re mapping your roots.'),
+
+  /// First game played — the user discovered the social/play layer.
+  firstGamePlayed('🎮', 'Game On!', 'Family fun unlocked.'),
+
+  /// 7-day streak — the user has formed a habit.
+  sevenDayStreak('🔥', '7-Day Streak!', 'You\'re building a habit.'),
+
+  /// 30-day streak — the user is a power user.
+  thirtyDayStreak('🏆', '30-Day Streak!', 'You\'re a Kinrel legend.');
 
   const Milestone(this.emoji, this.title, this.subtitle);
 
