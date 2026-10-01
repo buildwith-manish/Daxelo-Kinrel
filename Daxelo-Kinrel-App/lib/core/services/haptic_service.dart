@@ -120,7 +120,7 @@ class HapticService {
   static Future<void> success() async {
     if (!isSupported) return;
     try {
-      await HapticFeedback.notificationSuccess();
+      await HapticFeedback.successNotification();
     } catch (_) {}
   }
 
@@ -131,7 +131,7 @@ class HapticService {
   static Future<void> warning() async {
     if (!isSupported) return;
     try {
-      await HapticFeedback.notificationWarning();
+      await HapticFeedback.warningNotification();
     } catch (_) {}
   }
 
@@ -145,7 +145,7 @@ class HapticService {
   static Future<void> error() async {
     if (!isSupported) return;
     try {
-      await HapticFeedback.notificationError();
+      await HapticFeedback.errorNotification();
     } catch (_) {}
   }
 

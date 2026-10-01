@@ -48,6 +48,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
+import '../../core/constants/brand_spacing.dart' show KinrelSpacing, KinrelRadius;
 import '../../core/services/haptic_service.dart';
 import '../../core/services/premium_service.dart';
 import 'bounce_button.dart';

@@ -20,7 +20,10 @@ const int _maxRetries = 5;
 /// `IsarDatabase.isInitialized` guard prevents the "IsarDatabase not
 /// initialized" error that was previously logged on every web launch.
 class OfflineQueueManager {
-  final Ref _ref;
+  // Accept either Ref (riverpod) or WidgetRef (flutter_riverpod) — both
+  // expose .read() which is all we use. Using dynamic avoids the type
+  // mismatch that blocks dart2js web compilation.
+  final dynamic _ref;
 
   OfflineQueueManager(this._ref);
 
