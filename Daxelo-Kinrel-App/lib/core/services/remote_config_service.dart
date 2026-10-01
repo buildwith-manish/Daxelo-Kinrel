@@ -87,6 +87,15 @@ class RemoteConfigService {
     'show_referral_on_profile': true,
     'retention_nudge_day': 3,
     'max_free_members': 15,
+    // Tier 4 (monetization): free-tier family limit. 1 family is enough
+    // to activate; a 2nd family is the natural upsell moment.
+    'max_free_families': 1,
+    // Tier 4: premium-only feature flags. These gate features that are
+    // available ONLY to premium users (soft paywall — free users see
+    // them but can't tap them without upgrading).
+    'premium_feature_export': true,
+    'premium_feature_ai_kinship': true,
+    'premium_feature_insights': true,
   };
 
   // ── Typed Getters ────────────────────────────────────────────────
@@ -126,6 +135,29 @@ class RemoteConfigService {
   /// Maximum number of free members before requiring premium.
   int get maxFreeMembers =>
       _getInt('max_free_members');
+
+  /// Maximum number of free families before requiring premium.
+  /// Defaults to 1 — one family is enough to activate; a 2nd is the
+  /// natural upsell moment.
+  int get maxFreeFamilies =>
+      _getInt('max_free_families');
+
+  /// ── Premium feature flags ────────────────────────────────────────
+  /// These gate features that are ONLY available to premium users.
+  /// The UI shows them (soft paywall) but free users can't tap them
+  /// without upgrading.
+
+  /// Whether GEDCOM export is a premium-only feature.
+  bool get premiumFeatureExport =>
+      _getBool('premium_feature_export');
+
+  /// Whether AI kinship discovery is a premium-only feature.
+  bool get premiumFeatureAiKinship =>
+      _getBool('premium_feature_ai_kinship');
+
+  /// Whether the family insights dashboard is a premium-only feature.
+  bool get premiumFeatureInsights =>
+      _getBool('premium_feature_insights');
 
   // ── Internal Helpers ─────────────────────────────────────────────
 

@@ -94,6 +94,57 @@ class PremiumService {
     return currentMemberCount < maxFreeMembers;
   }
 
+  /// Check if the user can add another family based on their
+  /// current family count and the RemoteConfig maxFreeFamilies limit.
+  ///
+  /// Premium users always return true. Free users are limited to
+  /// `maxFreeFamilies` (default 1) — one family is enough to activate;
+  /// a 2nd is the natural upsell moment.
+  static Future<bool> canAddFamily(int currentFamilyCount) async {
+    final premium = await isPremiumActive();
+    if (premium) return true;
+
+    final maxFreeFamilies = RemoteConfigService.instance.maxFreeFamilies;
+    return currentFamilyCount < maxFreeFamilies;
+  }
+
+  // ── Feature Gates (Tier 4 soft paywall) ───────────────────────────
+  //
+  // Each method returns true if the user can access the feature.
+  // Premium users always get true. Free users get true only if the
+  // feature is NOT premium-gated (checked via RemoteConfig flags).
+  //
+  // The UI uses these to decide: show the feature, or show a "Premium"
+  // badge + route to the paywall when tapped.
+
+  /// Whether the user can access GEDCOM export.
+  static Future<bool> canExport() async {
+    final premium = await isPremiumActive();
+    if (premium) return true;
+    // If the feature flag is OFF, the feature is free for everyone.
+    return !RemoteConfigService.instance.premiumFeatureExport;
+  }
+
+  /// Whether the user can access AI kinship discovery.
+  static Future<bool> canUseAiKinship() async {
+    final premium = await isPremiumActive();
+    if (premium) return true;
+    return !RemoteConfigService.instance.premiumFeatureAiKinship;
+  }
+
+  /// Whether the user can access the family insights dashboard.
+  static Future<bool> canViewInsights() async {
+    final premium = await isPremiumActive();
+    if (premium) return true;
+    return !RemoteConfigService.instance.premiumFeatureInsights;
+  }
+
+  /// The free-tier member limit (for display in the paywall).
+  static int get maxFreeMembers => RemoteConfigService.instance.maxFreeMembers;
+
+  /// The free-tier family limit (for display in the paywall).
+  static int get maxFreeFamilies => RemoteConfigService.instance.maxFreeFamilies;
+
   // ── Backend Sync ────────────────────────────────────────────────
 
   /// Fetch premium status from the backend and update local cache.

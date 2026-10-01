@@ -17,6 +17,9 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/optimistic_actions.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/services/celebration_service.dart';
+import '../../../core/services/premium_service.dart';
+import '../../../core/family/family_provider.dart' show familyListProvider;
+import '../../../shared/widgets/paywall_sheet.dart';
 import 'providers/family_graph_provider.dart' show familyGraphProvider;
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
@@ -269,6 +272,27 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   /// person creation, no duplicate prevention logic needed.
   Future<void> _submit() async {
     if (!_canProceedStep1) return;
+
+    // ── Soft paywall: check free-tier family limit before creating.
+    // Free users are limited to maxFreeFamilies (default 1). If they've
+    // hit the limit, show the paywall instead of creating. Premium users
+    // always pass.
+    try {
+      final families = ref.read(familyListProvider).valueOrNull ?? [];
+      final canAdd = await PremiumService.canAddFamily(families.length);
+      if (!canAdd && mounted) {
+        PaywallSheet.show(
+          context: context,
+          trigger: PaywallTrigger.familyLimit,
+          currentCount: families.length,
+          maxFree: PremiumService.maxFreeFamilies,
+        );
+        return;
+      }
+    } catch (_) {
+      // If the premium check fails, proceed — never block creation on
+      // an error in the paywall logic.
+    }
 
     setState(() => _isSubmitting = true);
 

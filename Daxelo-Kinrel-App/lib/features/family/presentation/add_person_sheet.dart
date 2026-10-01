@@ -25,8 +25,11 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/services/celebration_service.dart';
 import '../../../core/services/smart_defaults_service.dart';
+import '../../../core/services/premium_service.dart';
 import '../../../core/database/sync/offline_queue.dart';
 import '../../../core/database/sync/connectivity_service.dart';
+import '../../../core/family/family_provider.dart' show familyMembersProvider;
+import '../../../shared/widgets/paywall_sheet.dart';
 import 'services/photo_picker_service.dart';
 import 'providers/family_graph_provider.dart'
     show FamilyGraphNotifier, familyGraphProvider, unlinkedPersonIdsProvider;
@@ -1396,6 +1399,31 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     // prevents duplicate member creation from rapid retries.
     if (_isSubmitting) return;
     if (_nameController.text.trim().isEmpty) return;
+
+    // ── Soft paywall: check free-tier member limit before adding.
+    // Free users are limited to maxFreeMembers (default 15). If they've
+    // hit the limit, show the paywall instead of adding. Premium users
+    // always pass. This is the natural upsell moment — right when the
+    // user is trying to add their 16th family member.
+    if (!_isEditMode) {
+      try {
+        final membersAsync = ref.read(familyMembersProvider(widget.familyId));
+        final currentCount = membersAsync.valueOrNull?.length ?? 0;
+        final canAdd = await PremiumService.canAddMember(currentCount);
+        if (!canAdd && mounted) {
+          PaywallSheet.show(
+            context: context,
+            trigger: PaywallTrigger.memberLimit,
+            currentCount: currentCount,
+            maxFree: PremiumService.maxFreeMembers,
+          );
+          return;
+        }
+      } catch (_) {
+        // If the premium check fails, proceed — never block the add on
+        // an error in the paywall logic.
+      }
+    }
 
     // v5.205: Set _isSubmitting = true IMMEDIATELY (before any async
     // work) so the button is disabled on the very next frame, not

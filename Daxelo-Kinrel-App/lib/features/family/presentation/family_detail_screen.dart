@@ -29,6 +29,7 @@ import '../../../core/services/smart_defaults_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/member_list_skeleton.dart';
 import '../../../graph/widgets/family_graph_engine_view.dart';
+import 'widgets/family_insights_dashboard.dart';
 import 'family_space_floating_nav.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
@@ -327,6 +328,20 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   SliverToBoxAdapter(
                     child: staggerFade(
                       HighlightsRow(familyId: widget.familyId),
+                      1,
+                    ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+                  // ── 2b. FAMILY INSIGHTS DASHBOARD (Tier 4) ──────────────
+                  // Pride-worthy stats: generations, members, relationships,
+                  // age range, completeness bar. Shareable as a PNG.
+                  // Gated behind premium — free users see a blurred
+                  // preview with a "Premium" badge.
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      FamilyInsightsDashboard(familyDetail: detail),
                       1,
                     ),
                   ),
