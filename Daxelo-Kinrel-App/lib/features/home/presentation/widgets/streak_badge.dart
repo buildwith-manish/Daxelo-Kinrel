@@ -41,6 +41,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/services/streak_service.dart';
 import '../../../../core/services/haptic_service.dart';
+import '../../../../core/utils/motion_preference.dart';
 
 /// A compact streak counter badge for the home screen header.
 ///
@@ -155,7 +156,9 @@ class _StreakBadgeState extends State<StreakBadge> {
 
     // Milestone streaks get a subtle pulse to draw the eye.
     // The pulse is 5% scale, 1200ms, easeInOut — gentle, not annoying.
-    if (isMilestone) {
+    // ── Reduce Motion: skip the pulse entirely. A static badge is
+    // still informative; the pulse is decorative.
+    if (isMilestone && MotionPreference.shouldShowDecorativeAnimation(context)) {
       badge = badge
           .animate(onPlay: (c) => c.repeat(reverse: true))
           .scale(

@@ -54,6 +54,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/brand_colors.dart';
 import '../constants/brand_typography.dart';
+import '../utils/motion_preference.dart';
 import 'haptic_service.dart';
 
 /// Wraps a widget and shows a contextual tooltip the first time the
@@ -233,25 +234,35 @@ class _CoachmarkOverlay extends StatelessWidget {
         // ── Highlighted target (cut-out effect) ─────────────────────
         // We draw a transparent container at the target's position
         // with a border so it stands out against the dimmed background.
+        // ── Reduce Motion: skip the fade+scale entrance animation. The
+        // highlight appears instantly — still functional, just no
+        // decorative motion that could trigger vestibular issues.
         Positioned(
           left: targetRect.left - 4,
           top: targetRect.top - 4,
           width: targetRect.width + 8,
           height: targetRect.height + 8,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: KinrelColors.orange, width: 2),
-            ),
-          ),
-        )
-            .animate()
-            .fadeIn(duration: 200.ms)
-            .scale(
-              begin: const Offset(0.95, 0.95),
-              end: const Offset(1, 1),
-              duration: 200.ms,
-            ),
+          child: MotionPreference.isReducedMotion(context)
+              ? Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: KinrelColors.orange, width: 2),
+                  ),
+                )
+              : Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: KinrelColors.orange, width: 2),
+                  ),
+                )
+                  .animate()
+                  .fadeIn(duration: 200.ms)
+                  .scale(
+                    begin: const Offset(0.95, 0.95),
+                    end: const Offset(1, 1),
+                    duration: 200.ms,
+                  ),
+        ),
         // ── Tooltip ──────────────────────────────────────────────────
         Positioned(
           left: 16,
@@ -261,6 +272,7 @@ class _CoachmarkOverlay extends StatelessWidget {
             title: title,
             body: body,
             onDismiss: onDismiss,
+            reduceMotion: MotionPreference.isReducedMotion(context),
           ),
         ),
       ],
@@ -278,15 +290,17 @@ class _Tooltip extends StatelessWidget {
     required this.title,
     required this.body,
     required this.onDismiss,
+    this.reduceMotion = false,
   });
 
   final String title;
   final String body;
   final VoidCallback onDismiss;
+  final bool reduceMotion;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    final tooltip = GestureDetector(
       onTap: onDismiss,
       behavior: HitTestBehavior.opaque,
       child: Container(
@@ -355,7 +369,13 @@ class _Tooltip extends StatelessWidget {
           ],
         ),
       ),
-    )
+    );
+
+    // ── Reduce Motion: return the tooltip without the fade+slide
+    // entrance animation. The tooltip appears instantly — still
+    // functional, just no decorative motion.
+    if (reduceMotion) return tooltip;
+    return tooltip
         .animate()
         .fadeIn(duration: 250.ms, delay: 100.ms)
         .slideY(

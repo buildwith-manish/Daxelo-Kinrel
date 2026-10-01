@@ -18,6 +18,7 @@
 // )
 // ```
 
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app_theme.dart';
@@ -33,7 +34,35 @@ final localeProvider = StateProvider<Locale?>((ref) => null);
 
 /// Font scale factor applied on top of base text sizes.
 /// 1.0 = default, 1.15 = large, 1.3 = extra-large.
+///
+/// v3 (Tier 3 accessibility): This provider now defaults to the SYSTEM
+/// text scale (MediaQuery.textScaler) instead of a hardcoded 1.0. This
+/// means users who have "Large text" enabled in their OS settings will
+/// see larger text in the app automatically — critical for older users
+/// (the core Indian-family-app demographic).
+///
+/// Grandparent Mode overrides this with an even larger scale (1.3).
+/// Users can also override it manually from Settings > Accessibility.
 final fontScaleProvider = StateProvider<double>((ref) => 1.0);
+
+/// Returns the effective font scale, respecting:
+///   1. The user's in-app override (fontScaleProvider) if set
+///   2. The system text scale (from MediaQuery)
+///   3. Grandparent Mode (forces 1.3 minimum)
+///
+/// Use this in MediaQuery overrides to ensure text scales correctly
+/// across the app. Call from a widget that has BuildContext (reads
+/// MediaQuery).
+double effectiveFontScale(BuildContext context, WidgetRef ref, {bool grandparentMode = false}) {
+  final inAppScale = ref.watch(fontScaleProvider);
+  final systemScale = MediaQuery.textScalerOf(context).scale(1.0);
+  // Grandparent Mode forces a minimum 1.3× scale for readability.
+  if (grandparentMode) return math.max(1.3, inAppScale);
+  // If the user set an in-app override, use it.
+  if (inAppScale != 1.0) return inAppScale;
+  // Otherwise, respect the system text scale.
+  return systemScale;
+}
 
 /// High-contrast mode toggle for accessibility.
 /// When true, increases contrast ratios across the theme.

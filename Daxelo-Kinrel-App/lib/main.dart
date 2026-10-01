@@ -1165,7 +1165,18 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
           color: scaffoldBg,
           child: MediaQuery(
             data: MediaQuery.of(context).copyWith(
-              textScaler: TextScaler.linear(ref.watch(fontScaleProvider)),
+              // ── Tier 3 accessibility: respect the SYSTEM text scale ──
+              // Previously this was TextScaler.linear(ref.watch(fontScaleProvider))
+              // which defaulted to 1.0 — ignoring the user's OS text-size
+              // setting entirely. Now we use effectiveFontScale() which:
+              //   1. Uses the in-app override if the user set one
+              //   2. Falls back to the system text scale (MediaQuery)
+              //   3. Honors Grandparent Mode (1.3× minimum)
+              // This is critical for older Indian users who set their
+              // phone to large text — they couldn't read the app before.
+              textScaler: TextScaler.linear(
+                effectiveFontScale(context, ref),
+              ),
             ),
             // v109.8: Use Expanded+Column pattern inside a SafeArea-like
             // structure. The Column + Expanded ensures the child fills

@@ -57,6 +57,7 @@ import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../core/constants/brand_colors.dart';
+import '../../core/utils/motion_preference.dart';
 
 /// The base shimmer wrapper used by all skeleton widgets.
 /// Configured once here so the shimmer direction, period, and colors
@@ -75,6 +76,13 @@ class _KinrelShimmer extends StatelessWidget {
         isDark ? const Color(0xFF2A2D3F) : const Color(0xFFE8E8ED);
     final highlightColor =
         isDark ? const Color(0xFF3A3D52) : const Color(0xFFF5F5FA);
+
+    // ── Reduce Motion: skip the shimmer animation. A static gray box
+    // still communicates "loading" without the moving gradient sweep.
+    // Shimmer triggers vestibular issues for motion-sensitive users.
+    if (MotionPreference.isReducedMotion(context)) {
+      return ColoredBox(color: baseColor, child: child);
+    }
 
     return Shimmer.fromColors(
       baseColor: baseColor,

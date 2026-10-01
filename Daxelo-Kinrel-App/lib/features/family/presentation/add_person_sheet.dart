@@ -25,6 +25,8 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/services/celebration_service.dart';
 import '../../../core/services/smart_defaults_service.dart';
+import '../../../core/database/sync/offline_queue.dart';
+import '../../../core/database/sync/connectivity_service.dart';
 import 'services/photo_picker_service.dart';
 import 'providers/family_graph_provider.dart'
     show FamilyGraphNotifier, familyGraphProvider, unlinkedPersonIdsProvider;
@@ -2241,6 +2243,58 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       if (mounted) {
         // CRITICAL ANR FIX: Single setState for error state
         setState(() => _isSubmitting = false);
+
+        // ── Offline-first: if this is a network error, enqueue the
+        // operation for later sync instead of just failing. The user
+        // sees a "saved offline — will sync when you're back online"
+        // message instead of "Failed to add person". This is the
+        // WhatsApp outbox pattern — critical in low-connectivity
+        // Indian tier-2/3 cities.
+        final errorStr = e.toString();
+        final isNetworkError = errorStr.contains('SocketException') ||
+            errorStr.contains('Failed host lookup') ||
+            errorStr.contains('Connection refused') ||
+            errorStr.contains('Network is unreachable') ||
+            errorStr.contains('Connection timed out') ||
+            errorStr.contains('TimeoutException') ||
+            errorStr.contains('timed out') ||
+            errorStr.contains('Connection reset');
+
+        if (isNetworkError && !_isEditMode) {
+          // Enqueue for later sync. The OfflineQueueManager will retry
+          // when connectivity is restored.
+          try {
+            await OfflineQueueManager(ref).enqueue(
+              operationType: 'add_person',
+              collection: 'Person',
+              payload: {
+                'familyId': widget.familyId,
+                'name': _nameController.text.trim(),
+                'gender': _selectedGender,
+                'dateOfBirth': _dobController.text.trim().isEmpty
+                    ? null
+                    : _dobController.text.trim(),
+                'relationshipKey': _selectedRelationshipKey,
+                'source': widget.source.name,
+              },
+              priority: 1,
+            );
+            // Fire a warning haptic + show an offline-saved message.
+            unawaited(HapticService.warning());
+            context.showSnackBar(
+              'Saved offline. We\'ll add ${_nameController.text.trim()} to '
+              'the family when you\'re back online.',
+            );
+            // Close the sheet — the user's input is preserved in the
+            // queue and will sync automatically.
+            if (mounted) Navigator.of(context).pop();
+            return;
+          } catch (_) {
+            // If enqueueing fails, fall through to the normal error
+            // handling below.
+          }
+        }
+
         final fieldErrors = mapApiError(e);
         if (fieldErrors != null) {
           final formError = fieldErrors['form'];

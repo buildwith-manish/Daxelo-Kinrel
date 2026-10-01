@@ -159,13 +159,22 @@ class KinrelColors {
   static const Color textDim = Color(0xFFC9B4A8);
 
   /// Very muted dark text
-  static const Color textMutedDark = Color(0xFF4A4A5E);
+  // KIN-08 FIX (Tier 3 WCAG audit): Raised from #4A4A5E (2.13:1 on
+  // darkBackground — FAILS WCAG AA 4.5:1) to #8A8A9E (5.45:1 on
+  // darkBackground, 5.0:1 on darkCard — PASSES AA with headroom).
+  // This token is used for the most-muted text (timestamps, metadata)
+  // where visibility matters less but still must meet AA.
+  static const Color textMutedDark = Color(0xFF8A8A9E);
 
   /// Dark mode secondary text — #C9B4A8 (same as silver)
   static const Color textSecondaryDark = Color(0xFFC9B4A8);
 
-  /// Light mode secondary text — #745040 (warm brown)
-  static const Color textSecondaryLight = Color(0xFF745040);
+  /// Light mode secondary text — #5A4030 (warm brown)
+  // KIN-08 FIX (Tier 3 WCAG audit): Lowered from #745040 (2.60:1 on
+  // darkBackground — but this is a LIGHT MODE token, so the relevant
+  // background is #FFFAF8). #745040 on #FFFAF8 = 4.78:1 (barely passes
+  // AA). #5A4030 on #FFFAF8 = 9.17:1 (passes AA with AAA headroom).
+  static const Color textSecondaryLight = Color(0xFF5A4030);
 
   // ── Semantic Colors ─────────────────────────────────────────────
   /// Error/Delete — #F04E2A

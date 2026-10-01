@@ -42,6 +42,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../utils/motion_preference.dart';
+
 /// The duration used for pushed-route transitions (fade + slide).
 ///
 /// 220ms sits in the "premium but fast" band:
@@ -93,6 +95,18 @@ CustomTransitionPage<void> premiumPage({
     transitionDuration: _kPremiumDuration,
     reverseTransitionDuration: _kPremiumDuration,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      // ── Reduce Motion: skip the slide entirely, keep a 150ms fade
+      // (fade is essential — it communicates "a new screen appeared").
+      // Slide triggers vestibular issues for motion-sensitive users.
+      if (MotionPreference.isReducedMotion(context)) {
+        return FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOut,
+          ),
+          child: child,
+        );
+      }
       // Drive both the incoming and outgoing screens from the primary
       // animation. The outgoing screen (secondaryAnimation) gets a
       // slight fade-out so the handoff feels continuous rather than
