@@ -32,6 +32,7 @@ import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../shared/widgets/kinrel_empty_state.dart';
 import 'widgets/continue_with_family_card.dart';
+import 'widgets/streak_badge.dart';
 import '../../family/presentation/join_family_screen.dart';
 import '../../feed/presentation/widgets/feed_post_card.dart';
 import '../../feed/providers/feed_provider.dart';
@@ -753,6 +754,11 @@ class _StickyHeader extends StatelessWidget {
             ),
           ),
           ),
+          // ── Streak badge: "🔥 N days". Hidden for new users (streak < 1).
+          // This is the #1 retention lever — the user opens the app daily
+          // to "not lose their streak" (Loss Aversion).
+          const StreakBadge(),
+          const SizedBox(width: 8),
           // v138: Replaced the circular user-avatar icon with a single
           // notification bell. The bell is now part of the Home header
           // itself (naturally Home-only — no floating overlay needed).

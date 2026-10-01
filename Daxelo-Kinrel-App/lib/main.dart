@@ -33,6 +33,9 @@ import 'core/services/deep_link_service.dart';
 import 'core/services/push_notification_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'core/services/supabase_service.dart';
+import 'core/services/retention_service.dart';
+import 'core/services/streak_service.dart';
+import 'core/services/smart_notification_timing_service.dart';
 import 'core/storage/local_cache.dart';
 import 'core/storage/secure_storage.dart';
 import 'core/theme/theme_provider.dart';
@@ -463,6 +466,18 @@ Future<void> _initializeServices() async {
   // The splash screen checks this and navigates accordingly.
   _appInitComplete = true;
   _initCompleter?.complete();
+
+  // ── Streak + Retention tracking (fire-and-forget) ──────────────────
+  // Record this app open for the daily streak counter (visible on the
+  // home screen as "🔥 N days") and for retention analytics. Never
+  // blocks startup — these are best-effort SharedPreferences writes.
+  // Also record the open HOUR for smart notification timing — so
+  // future notifications land when the user is most likely to engage.
+  try {
+    unawaited(RetentionService.recordAppOpen());
+    unawaited(StreakService.recordAppOpen());
+    unawaited(SmartNotificationTimingService.recordAppOpenHour());
+  } catch (_) {}
 }
 
 /// Global flag + completer to track initialization state

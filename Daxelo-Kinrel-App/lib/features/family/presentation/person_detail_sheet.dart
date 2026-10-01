@@ -16,6 +16,7 @@ import '../../../core/family/optimistic_actions.dart';
 import '../../../core/kinship/kinship_service.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/services/celebration_service.dart';
+import 'widgets/kinship_share_card.dart';
 import 'add_person_sheet.dart';
 import 'path_finder_screen.dart';
 import '../../../core/services/image_cache_manager.dart';
@@ -81,6 +82,11 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
   // but these flags avoid the SharedPreferences read on every build
   // after the first fire.
   bool _hasCheckedRelationshipCelebration = false;
+
+  // ── Share card key ──────────────────────────────────────────────────
+  // Used by KinshipShareCard.captureAndShare to find the RepaintBoundary
+  // and capture it as a PNG. Only the path stat card is shareable.
+  final GlobalKey _shareCardKey = GlobalKey();
 
   @override
   void initState() {
@@ -549,6 +555,17 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
               icon: Icons.route_outlined,
               isWide: true,
             ),
+            SizedBox(width: 8),
+            // ── Share button: lets the user share this kinship discovery ──
+            // as a beautiful PNG card to WhatsApp/Instagram. This is the
+            // viral growth lever — every share is a free acquisition.
+            // Tapping fires a tap haptic + opens the native share sheet.
+            _ShareKinshipButton(
+              shareCardKey: _shareCardKey,
+              kinshipTerm: kinshipPath.split(' → ').last,
+              relationshipPath: kinshipPath,
+              familyName: person.name,
+            ),
           ],
           SizedBox(width: 8),
           _StatCard(
@@ -558,6 +575,17 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
           ),
         ],
       ),
+      // ── Offscreen share card: rendered at zero opacity/size so the
+      // RepaintBoundary is in the tree and can be captured by
+      // KinshipShareCard.captureAndShare when the share button is tapped.
+      // This is the same pattern used by KinrelShareCard.
+      if (kinshipPath != null)
+        buildOffscreenShareCard(
+          key: _shareCardKey,
+          kinshipTerm: kinshipPath.split(' → ').last,
+          relationshipPath: kinshipPath,
+          familyName: person.name,
+        ),
     );
   }
 
@@ -1351,6 +1379,76 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
 // ═══════════════════════════════════════════════════════════════════
 
 /// Horizontal stat card — #191B2C background, 12px radius.
+/// A small share button that appears next to the kinship path stat card.
+///
+/// Renders an offscreen [KinshipShareCard] (so it can be captured as a
+/// PNG) and a visible share icon button. Tapping captures the card and
+/// opens the native share sheet.
+class _ShareKinshipButton extends StatelessWidget {
+  const _ShareKinshipButton({
+    required this.shareCardKey,
+    required this.kinshipTerm,
+    required this.relationshipPath,
+    required this.familyName,
+  });
+
+  final GlobalKey shareCardKey;
+  final String kinshipTerm;
+  final String relationshipPath;
+  final String familyName;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        HapticService.tap();
+        KinshipShareCard.captureAndShare(shareCardKey);
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: KinrelColors.orange.withValues(alpha: 0.12),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          Icons.ios_share_rounded,
+          color: KinrelColors.orange,
+          size: 20,
+        ),
+      ),
+    );
+  }
+}
+
+/// Offscreen share card renderer. Place this at the bottom of the sheet's
+/// widget tree (with 0 opacity + 0 size) so it's captureable but not
+/// visible. The RepaintBoundary inside it is what gets captured.
+///
+/// NOTE: In a future iteration, this can be promoted to a visible
+/// preview if we want to show the card in the sheet before sharing.
+Widget buildOffscreenShareCard({
+  required GlobalKey key,
+  required String kinshipTerm,
+  required String relationshipPath,
+  required String familyName,
+}) {
+  return Opacity(
+    opacity: 0,
+    child: SizedBox(
+      width: 0,
+      height: 0,
+      child: KinshipShareCard(
+        boundaryKey: key,
+        kinshipTerm: kinshipTerm,
+        relationshipPath: relationshipPath,
+        familyName: familyName,
+      ),
+    ),
+  );
+}
+
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.value,

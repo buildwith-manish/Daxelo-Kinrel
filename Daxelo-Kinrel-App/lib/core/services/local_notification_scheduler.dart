@@ -18,6 +18,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
+import 'smart_notification_timing_service.dart';
 
 // Step 5 — shared timezone-aware time utility. The Truth Streak daily
 // reminder must fire at 8 PM IST (the SHARED family-wide deadline
@@ -119,12 +120,19 @@ class LocalNotificationScheduler {
         thisYearBirthday = DateTime(now.year + 1, dob.month, dob.day);
       }
 
-      // Schedule 1 day before at 9:00 AM
+      // ── Smart timing: use the user's most-active hour instead of a
+      // hardcoded 9 AM. If the user historically opens the app at 8 PM,
+      // the birthday reminder lands at 8 PM — when they're most likely
+      // to see + act on it. Falls back to 9 AM for new users (< 5 opens).
+      final optimalHour =
+          await SmartNotificationTimingService.getOptimalNotificationHour();
+
+      // Schedule 1 day before at the user's optimal hour.
       final reminderDate = DateTime(
         thisYearBirthday.year,
         thisYearBirthday.month,
         thisYearBirthday.day - 1,
-        9,
+        optimalHour,
         0,
       );
 
@@ -184,12 +192,17 @@ class LocalNotificationScheduler {
         thisYearAnniversary = DateTime(now.year + 1, annDate.month, annDate.day);
       }
 
-      // Schedule 1 day before at 9:00 AM
+      // ── Smart timing: same as birthday reminders — use the user's
+      // optimal hour instead of a hardcoded 9 AM.
+      final optimalHour =
+          await SmartNotificationTimingService.getOptimalNotificationHour();
+
+      // Schedule 1 day before at the user's optimal hour.
       final reminderDate = DateTime(
         thisYearAnniversary.year,
         thisYearAnniversary.month,
         thisYearAnniversary.day - 1,
-        9,
+        optimalHour,
         0,
       );
 
