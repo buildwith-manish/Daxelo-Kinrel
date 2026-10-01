@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/supabase_service.dart';
+import '../../../core/services/haptic_service.dart';
 import '../../../core/family/family_provider.dart';
 
 // ── Table name constants ──────────────────────────────────────────
@@ -381,12 +382,23 @@ class FeedNotifier extends StateNotifier<FeedState> {
             .eq('id', postId),
         operationName: 'Add reaction',
       );
+      // ── Haptic: success — the reaction was persisted. Paired with
+      // the tap haptic on the card, this gives a two-stage confirmation:
+      // tap (instant) → success (after server confirms). The gap is
+      // usually <300ms so the user perceives them as one positive
+      // gesture. (Peak-End rule: end on a high note.)
+      unawaited(HapticService.success());
     } catch (e) {
       debugPrint('⚠️ Add reaction error: $e');
       // Revert on error
       final revertedPosts = List<FamilyPost>.from(state.posts);
       revertedPosts[postIndex] = post;
       state = state.copyWith(posts: revertedPosts);
+      // ── Haptic: error — the reaction failed to persist. The user
+      // sees the count revert + feels the error pattern. This is the
+      // Loss Aversion principle in action — the rollback makes the
+      // failure feel real, so the user understands they need to retry.
+      unawaited(HapticService.error());
     }
   }
 

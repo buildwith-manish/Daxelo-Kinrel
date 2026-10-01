@@ -30,6 +30,8 @@ import '../../../features/kinrel_intelligence/providers/kinrel_provider.dart';
 import '../../../features/kinrel_intelligence/widgets/kinrel_symbol_widget.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../../shared/widgets/kinrel_empty_state.dart';
+import 'widgets/continue_with_family_card.dart';
 import '../../family/presentation/join_family_screen.dart';
 import '../../feed/presentation/widgets/feed_post_card.dart';
 import '../../feed/providers/feed_provider.dart';
@@ -206,13 +208,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           const SizedBox(height: 24),
           _StickyHeader(user: user),
           const SizedBox(height: 48),
-          DKEmptyState(
+          // ── Migrated to KinrelEmptyState ──
+          // Adds BounceButton + haptic + teaching subtitle. The secondary
+          // CTA ('Join by Code') replaces the separate TextButton below.
+          KinrelEmptyState(
             icon: Icons.family_restroom_outlined,
             title: 'No Families Yet',
             subtitle:
                 'Create your first family to start building your kinship graph',
             actionLabel: 'Create Family',
             onAction: () => context.push('/families/create'),
+            secondaryLabel: 'Join by Code',
+            onSecondary: () => _showJoinFamilyDialog(context),
           ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0),
           SizedBox(height: 16),
           semanticLink(
@@ -269,6 +276,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     .animate()
                     .fadeIn(duration: 350.ms, delay: 50.ms)
                     .slideX(begin: -0.05, end: 0),
+
+                SizedBox(height: 12),
+
+                // ── Continue with {Family} card ──────────────────────────
+                // Returning-user shortcut. Reads SmartDefaultsService to
+                // show the last-viewed family. Hidden on first launch
+                // (no saved family) and when the saved family no longer
+                // exists. This is the WhatsApp/Telegram "open to last
+                // chat" pattern.
+                ContinueWithFamilyCard(families: families),
 
                 SizedBox(height: 20),
 

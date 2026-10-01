@@ -13,6 +13,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/services/image_cache_manager.dart';
+import '../../../../core/services/haptic_service.dart';
 import '../../providers/feed_provider.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────
@@ -404,6 +405,14 @@ class _FeedReactionRowState extends State<_FeedReactionRow> {
                   padding: const EdgeInsets.only(right: 12),
                   child: GestureDetector(
                     onTap: () {
+                      // ── Haptic: tap confirms the reaction registered
+                      // BEFORE the provider's optimistic update
+                      // completes. The local _localReactions state
+                      // updates in the same frame (instant visual),
+                      // and the haptic reinforces it tactilely. This
+                      // is the Instagram/WhatsApp pattern — the heart
+                      // fills + you feel it in <16ms.
+                      HapticService.tap();
                       setState(() {
                         _localReactions[emoji] = !(_localReactions[emoji] ?? false);
                       });

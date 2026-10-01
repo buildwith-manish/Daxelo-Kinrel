@@ -16,6 +16,8 @@ import '../../../core/family/pagination_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../shared/widgets/kinrel_pull_to_refresh.dart';
+import '../../../shared/widgets/kinrel_empty_state.dart';
+import '../../../shared/widgets/kinrel_skeleton.dart';
 import '../../../core/widgets/cached_avatar.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/family_list_skeleton.dart';
@@ -113,13 +115,20 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
               // Family cards or empty state
               if (families.isEmpty)
                 SliverToBoxAdapter(
-                  child: DKEmptyState(
+                  // ── Migrated to KinrelEmptyState ──
+                  // KinrelEmptyState adds: BounceButton (iOS scale-on-press),
+                  // haptic on tap, teaching subtitle, and a secondary CTA
+                  // option. The DKEmptyState was functional but didn't have
+                  // the tactile/teaching layer that drives activation.
+                  child: KinrelEmptyState(
                     icon: Icons.family_restroom_rounded,
                     title: 'No Families Yet',
                     subtitle:
                         'Create your first family tree to start exploring relationships and kinship terms.',
                     actionLabel: 'Create Family',
                     onAction: () => context.push('/families/create'),
+                    secondaryLabel: 'Join by Code',
+                    onSecondary: () => _showJoinFamilyDialog(context),
                   ),
                 )
               else
@@ -129,21 +138,23 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
                   ),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate((context, index) {
-                      // Last item: loading indicator for pagination
+                      // Last item: skeleton loading for pagination
                       if (index == families.length) {
                         final pagState = ref.watch(paginatedFamilyProvider);
                         if (pagState.isLoadingMore) {
+                          // ── Migrated from CircularProgressIndicator to
+                          // KinrelSkeletonCardRow ──
+                          // A skeleton matches the shape of the real
+                          // card that's about to load, which reduces
+                          // perceived wait (Status Quo Bias) and
+                          // eliminates layout shift when the data
+                          // arrives.
                           return const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: Center(
-                              child: SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: KinrelSpacing.base,
+                              vertical: 8,
                             ),
+                            child: KinrelSkeletonCardRow(),
                           );
                         }
                         return const SizedBox.shrink();

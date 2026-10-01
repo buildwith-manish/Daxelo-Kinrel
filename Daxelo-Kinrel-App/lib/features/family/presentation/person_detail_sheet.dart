@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -13,6 +14,8 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
 import '../../../core/kinship/kinship_service.dart';
+import '../../../core/services/haptic_service.dart';
+import '../../../core/services/celebration_service.dart';
 import 'add_person_sheet.dart';
 import 'path_finder_screen.dart';
 import '../../../core/services/image_cache_manager.dart';
@@ -71,6 +74,13 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   static const _tabLabels = ['Info', 'Relations', 'Timeline', 'Notes'];
+
+  // ── Celebration flags ──────────────────────────────────────────────
+  // These prevent re-firing the celebration on every rebuild. The
+  // CelebrationService is already idempotent (fires once per user),
+  // but these flags avoid the SharedPreferences read on every build
+  // after the first fire.
+  bool _hasCheckedRelationshipCelebration = false;
 
   @override
   void initState() {
@@ -147,7 +157,38 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
     }
 
     if (path.isEmpty) return null;
-    return path.take(3).join(' → ');
+    final result = path.take(3).join(' → ');
+
+    // ── Celebration: fire the firstRelationship + firstKinshipTerm
+    // milestones the FIRST time the user sees a kinship path. This is
+    // the core value-prop "aha" moment — "oh, THAT's how I'm related".
+    // Idempotent: fires once per user, ever. The flag avoids
+    // re-checking SharedPreferences on every rebuild.
+    if (!_hasCheckedRelationshipCelebration && result.isNotEmpty) {
+      _hasCheckedRelationshipCelebration = true;
+      unawaited(
+        CelebrationService.instance
+            .checkAndCelebrate(
+              context: context,
+              milestone: Milestone.firstRelationship,
+            )
+            .catchError((_) => false),
+      );
+      // firstKinshipTerm fires alongside — they're the same moment,
+      // but the distinction lets us celebrate them separately in
+      // analytics later (relationship = the path, kinship term = a
+      // specific Indian-language term discovered).
+      unawaited(
+        CelebrationService.instance
+            .checkAndCelebrate(
+              context: context,
+              milestone: Milestone.firstKinshipTerm,
+            )
+            .catchError((_) => false),
+      );
+    }
+
+    return result;
   }
 
   /// Count direct connections for this person.
