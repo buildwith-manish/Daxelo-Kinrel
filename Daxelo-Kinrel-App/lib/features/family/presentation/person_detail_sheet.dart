@@ -531,11 +531,14 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
     final generation = person.generationIndex;
     final kinshipPath = _getKinshipPath();
 
-    return SizedBox(
-      height: 72,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 72,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
           _StatCard(
             value: '$connections',
             label: 'Connections',
@@ -573,19 +576,21 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
             label: 'Gender',
             icon: Icons.wc,
           ),
-        ],
-      ),
-      // ── Offscreen share card: rendered at zero opacity/size so the
-      // RepaintBoundary is in the tree and can be captured by
-      // KinshipShareCard.captureAndShare when the share button is tapped.
-      // This is the same pattern used by KinrelShareCard.
-      if (kinshipPath != null)
-        buildOffscreenShareCard(
-          key: _shareCardKey,
-          kinshipTerm: kinshipPath.split(' → ').last,
-          relationshipPath: kinshipPath,
-          familyName: person.name,
+            ],
+          ),
         ),
+        // ── Offscreen share card: rendered at zero opacity/size so the
+        // RepaintBoundary is in the tree and can be captured by
+        // KinshipShareCard.captureAndShare when the share button is tapped.
+        // This is the same pattern used by KinrelShareCard.
+        if (kinshipPath != null)
+          buildOffscreenShareCard(
+            key: _shareCardKey,
+            kinshipTerm: kinshipPath.split(' → ').last,
+            relationshipPath: kinshipPath,
+            familyName: person.name,
+          ),
+      ],
     );
   }
 
