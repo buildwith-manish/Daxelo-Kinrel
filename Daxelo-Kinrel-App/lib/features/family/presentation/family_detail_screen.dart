@@ -48,7 +48,9 @@ import '../../pulse/providers/cross_feature_moments_provider.dart';
 import 'premium/family_hub_sections.dart';
 import 'premium/family_hub_highlights.dart';
 import 'premium/hero_section.dart';
+import 'providers/family_engagement_state_provider.dart';
 import 'widgets/image_crop_editor.dart';
+import 'widgets/mini_family_graph_preview.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
   FamilyDetailScreen({super.key, required this.familyId});
@@ -250,29 +252,46 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           }
 
           // ════════════════════════════════════════════════════════════
-          // PREMIUM FAMILY SPACE — exactly 5 sections (4 scroll + 1 dock)
+          // PREMIUM FAMILY SPACE — DYNAMIC, FAMILY-STATE-AWARE ORDERING
           //
-          // 1. Hero (Kinrel symbol + family name + member/link caption)
-          // 2. Truth Streak (the one "moment" — terracotta gradient)
-          // 3. [FIXED DOCK] Quick-jump navigation row (Members, Games,
-          //    Calendar, Memories, Chat — pinned to bottom, always visible)
-          // 4. Family Pulse (nudges + activity merged, one empty state)
-          // 5. Utility row (Invite, Settings, Leave — muted, secondary)
+          // Phase (family-state-aware-home-screen): the content section
+          // order is no longer hardcoded. It is derived from the
+          // family's engagement state (newSmall / establishedLowActivity
+          // / establishedActive) via [familyEngagementStateProvider] +
+          // [sectionOrderFor]. The state is computed from data already
+          // being fetched for other parts of this screen (member count,
+          // relationship timestamps, Prediction Battle history, active
+          // games, cross-feature moments) — no new expensive query.
           //
-          // The quick-jump row is a FIXED bottom dock — it doesn't
-          // scroll with the content. It stays pinned above the safe
-          // area at all times. The scroll content has extra bottom
-          // padding so nothing is hidden behind the dock.
+          // INVARIANTS enforced by [sectionOrderFor]:
+          //   • Invite is always within the first 1–2 sections.
+          //   • Premium Insights is always LAST (after every free-value
+          //     section, including the new mini graph preview).
+          //   • The first content section matches the design brief:
+          //     - newSmall                → Invite
+          //     - establishedLowActivity  → Family Pulse
+          //     - establishedActive       → Prediction Battle
+          //
+          // The compact header (HeroSection with compact: true) trims
+          // ~124px of vertical real estate so an additional content
+          // card fits above the fold on a standard phone viewport.
           // ════════════════════════════════════════════════════════════
+          final engagementState =
+              ref.watch(familyEngagementStateProvider(widget.familyId));
+          final sectionOrder = sectionOrderFor(engagementState);
+
           return Stack(
             children: [
-              // ── Scrollable content (4 sections + utility) ──────────
+              // ── Scrollable content (compact hero + dynamic sections) ──
               CustomScrollView(
                 controller: _hubScrollController,
                 slivers: [
-                  // ── 1. HERO (parallax collapse) ────────────────────────
-                  // Stays as-is — already polished. The redesign focuses
-                  // on the sections BELOW the hero, not the hero itself.
+                  // ── 1. COMPACT HERO (parallax collapse) ─────────────────
+                  // Phase (family-state-aware-home-screen): compact: true
+                  // reduces the expanded hero from 280→156px and the
+                  // avatar/symbol from 140→72px. Graph + Map flanking
+                  // icons are retained at their established position +
+                  // style (only the surrounding header's height changes).
                   SliverToBoxAdapter(
                     child: staggerFade(
                       HeroSection(
@@ -290,6 +309,8 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                         avatarUrl: avatarUrl,
                         onAvatarTap: () => _onAvatarInteraction(),
                         onAvatarLongPress: () => _onAvatarInteraction(),
+                        // Compact header mode — see HeroSection docs.
+                        compact: true,
                       ),
                       0,
                     ),
@@ -308,13 +329,10 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
                   const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
-                  // ── 2. HIGHLIGHTS ROW (Instagram-style) ───────────────
-                  // Replaces the off-palette _QuickLinksRow chip strip
-                  // (which used 5 different hex colors not in the Kinrel
-                  // palette). Single-accent orange rings, circular
-                  // tiles, 5 quick-access destinations. Also folds in
-                  // the "Lists & Errands" tile (formerly _SharedListTile)
-                  // so it no longer needs its own separate section.
+                  // ── 1c. HIGHLIGHTS ROW (Instagram-style) ───────────────
+                  // Shortcut row — reordered by usage tier (Memories +
+                  // Activity first) per the family-state-aware-home-screen
+                  // brief. Single horizontal scroll, no visible divider.
                   SliverToBoxAdapter(
                     child: staggerFade(
                       HighlightsRow(familyId: widget.familyId),
@@ -324,162 +342,28 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
                   const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-                  // ── 2b. FAMILY INSIGHTS DASHBOARD (Tier 4) ──────────────
-                  // Pride-worthy stats: generations, members, relationships,
-                  // age range, completeness bar. Shareable as a PNG.
-                  // Gated behind premium — free users see a blurred
-                  // preview with a "Premium" badge.
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      FamilyInsightsDashboard(familyDetail: detail),
-                      1,
-                    ),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-                  // ── 3. INVITE — standalone prominent full-width button ──
-                  // Replaces the prior QuickActionsRow (Invite / Family
-                  // Chat / Settings 3-pill row). Per the new IA:
-                  //   • Family Chat removed entirely from the middle
-                  //     action row — its only entry point on this
-                  //     screen is the persistent bottom nav item.
-                  //   • Settings moved to the AppBar as an icon-only
-                  //     button (see AppBar actions above).
-                  //   • Invite promoted to a standalone full-width
-                  //     prominent button — the ONE visually-bold
-                  //     element in this section, per the design-system
-                  //     "spend your boldness in one place" principle.
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      InviteButton(
-                        // Phase (invite-direct-find-on-kinrel): the
-                        // Invite button now navigates DIRECTLY to the
-                        // KinrelUserSearchScreen (Find on Kinrel flow),
-                        // skipping the two-option bottom sheet that was
-                        // previously shown (Add Manually / Find on
-                        // Kinrel). This removes one tap from the most
-                        // common invite path (finding an existing
-                        // Kinrel user).
-                        //
-                        // "Add Manually" is still available as its own
-                        // action inside the Graph view (the Graph
-                        // screen's "Add Member" button calls
-                        // showAddMemberOptions with fromGraph: true,
-                        // which shows the same two-option sheet —
-                        // unchanged). The Family Members screen also
-                        // still uses showAddMemberOptions — unchanged.
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => KinrelUserSearchScreen(
-                                familyId: widget.familyId,
-                                onUserSelected: (KinrelUser user) {
-                                  // Same flow as the sheet's
-                                  // _handleFindOnKinrel: the search
-                                  // screen already popped itself; now
-                                  // open the Relationship Quick-Pick
-                                  // bottom sheet directly (no
-                                  // AddPersonSheet — the user already
-                                  // exists on Kinrel).
-                                  RelationshipQuickPickSheet.show(
-                                    context,
-                                    familyId: widget.familyId,
-                                    selectedUser: user,
-                                    fromGraph: false,
-                                  );
-                                },
-                              ),
-                              fullscreenDialog: true,
-                            ),
-                          );
-                        },
-                      ),
-                      1,
-                    ),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 18)),
-
-                  // ── 4. THINKING OF YOU RING ──────────────────────────
-                  // Phase (move-thinking-of-you): MOVED UP — now renders
-                  // immediately after the Invite button, above the
-                  // Prediction Battle card. Previously sat below Family
-                  // Pulse. The screen now reads: identity → shortcuts →
-                  // invite → Thinking of You → Prediction Battle → Coin
-                  // Pool → Family Pulse → Recent Moments → Closer.
+                  // ── 2. DYNAMIC CONTENT SECTIONS ─────────────────────────
+                  // The order of invite / thinking-of-you / prediction
+                  // battle / coin pool / family pulse / recent moments /
+                  // mini graph preview is driven by [sectionOrder].
                   //
-                  // This is a pure reposition — the widget's internal
-                  // content, styling, and behavior (the time-of-day
-                  // greeting "Good afternoon! Send some warmth" +
-                  // tappable family member avatar) are unchanged.
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      FamilyRingWidget(familyId: widget.familyId),
-                      2,
-                    ),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-                  // ── 5. PREDICTION BATTLE — the "moment" (hero card) ──
-                  // Phase (reorder-pb-above-pulse): renders after
-                  // Thinking of You. Prioritizes time-sensitive "come
-                  // back today" content over static reference/activity
-                  // content. Family Pulse moves below PB + CoinPool.
+                  // Premium Insights is ALWAYS last (after every
+                  // free-value section) — relocated from its prior early
+                  // position that interrupted the path to Invite /
+                  // Prediction / Pulse.
                   //
-                  // Backend-scheduled numeric-estimation game. This is
-                  // the PRIMARY content feed element — uses AppCard.hero
-                  // treatment (gradient + accent border + glow shadow)
-                  // so it visually draws the eye first. The Family Coin
-                  // Pool below it is a slim status strip so the hierarchy
-                  // reads: PB = hero, Coin Pool = ambient status.
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      PredictionBattleV1Card(familyId: widget.familyId),
-                      3,
-                    ),
-                  ),
-
-                  // 5a. Family coin pool — slim horizontal progress strip
-                  // (moves up together with PB, maintaining their existing
-                  // relative order).
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      FamilyCoinPoolCard(familyId: widget.familyId),
-                      3,
-                    ),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 18)),
-
-                  // ── 6. FAMILY PULSE (activity feed) ────────────────────
-                  // Phase (reorder-pb-above-pulse + move-thinking-of-you):
-                  // renders after Prediction Battle + Coin Pool. Thinking
-                  // of You has been removed from this area — it now lives
-                  // above PB. Family Pulse's own content (birthday prompt,
-                  // Recent feed, View all link) stays exactly as-is.
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      FamilyPulseSection(
+                  // _buildSection returns a List<Widget> per enum value
+                  // (the section card + its trailing spacer), so we use
+                  // expand (not map) to flatten into the sliver list.
+                  ...sectionOrder.expand((section) => _buildSection(
+                        section: section,
                         detail: detail,
-                        familyId: widget.familyId,
-                      ),
-                      3,
-                    ),
-                  ),
+                        context: context,
+                      )),
 
-                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-                  // ── 7. RECENT MOMENTS (unified) ───────────────────────
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      _RecentMomentsSectionAdapter(familyId: widget.familyId),
-                      4,
-                    ),
-                  ),
-
-                  // ── 8. FAMILY STRENGTH CLOSER (Peak-End Rule) ─────────
+                  // ── 3. FAMILY STRENGTH CLOSER (Peak-End Rule) ─────────
+                  // Always last (after Premium Insights) — the warm
+                  // emotional close.
                   SliverToBoxAdapter(
                     child: staggerFade(
                       _FamilyStrengthCloser(
@@ -492,23 +376,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   ),
 
                   // Bottom padding: sufficient spacing so the last card
-                  // (Family Coin Pool or Family Strength closer) always
-                  // renders fully above the persistent bottom nav.
-                  //
-                  // Phase 2 (ux/family-space-refinement): the prior
-                  // padding was `MediaQuery.padding.bottom + 24` which
-                  // only accounted for the safe-area inset — NOT the
-                  // bottom nav's actual rendered height (~80px) or its
-                  // bottom margin (24px). This caused the Family Coin
-                  // Pool card's last line ("12/500 coins") to be
-                  // clipped behind the bottom nav on devices with
-                  // gesture navigation bars.
-                  //
-                  // Fix: bottom nav height (80) + nav bottom margin
-                  // (24) + safe-area inset + comfortable breathing
-                  // gap (16) = total bottom padding. This ensures the
-                  // last card always renders fully above the nav with
-                  // a comfortable margin, not flush against it.
+                  // always renders fully above the persistent bottom nav.
                   SliverToBoxAdapter(
                     child: SizedBox(
                       height: 80 + 24 + MediaQuery.of(context).padding.bottom + 16,
@@ -523,6 +391,155 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
       ),
     ),
     );
+  }
+
+  /// Builds a single content section sliver for the given [FamilySection]
+  /// enum value. This is the mapping from the abstract section enum
+  /// (driven by [sectionOrderFor]) to the actual widget. The order in
+  /// which these are added to the sliver list is determined by the
+  /// engagement state, NOT by this method.
+  ///
+  /// Each section is wrapped in:
+  ///   • staggerFade (entry animation)
+  ///   • a SliverToBoxAdapter
+  ///   • a SizedBox spacer below (16–18px depending on the section)
+  List<Widget> _buildSection({
+    required FamilySection section,
+    required FamilyDetail detail,
+    required BuildContext context,
+  }) {
+    switch (section) {
+      case FamilySection.invite:
+        return [
+          SliverToBoxAdapter(
+            child: staggerFade(
+              InviteButton(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => KinrelUserSearchScreen(
+                        familyId: widget.familyId,
+                        onUserSelected: (KinrelUser user) {
+                          RelationshipQuickPickSheet.show(
+                            context,
+                            familyId: widget.familyId,
+                            selectedUser: user,
+                            fromGraph: false,
+                          );
+                        },
+                      ),
+                      fullscreenDialog: true,
+                    ),
+                  );
+                },
+              ),
+              1,
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 18)),
+        ];
+
+      case FamilySection.thinkingOfYou:
+        return [
+          SliverToBoxAdapter(
+            child: staggerFade(
+              FamilyRingWidget(familyId: widget.familyId),
+              2,
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+        ];
+
+      case FamilySection.predictionBattle:
+        return [
+          SliverToBoxAdapter(
+            child: staggerFade(
+              PredictionBattleV1Card(familyId: widget.familyId),
+              3,
+            ),
+          ),
+          // Family coin pool — slim horizontal progress strip. Moves
+          // together with PB to maintain their existing relative order.
+          SliverToBoxAdapter(
+            child: staggerFade(
+              FamilyCoinPoolCard(familyId: widget.familyId),
+              3,
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 18)),
+        ];
+
+      case FamilySection.coinPool:
+        // CoinPool is rendered alongside PredictionBattle (above) —
+        // when the ordering function lists it as a separate section,
+        // we emit just the slim strip. This branch is hit only if the
+        // ordering function ever splits them (currently it always
+        // pairs them via the predictionBattle case).
+        return [
+          SliverToBoxAdapter(
+            child: staggerFade(
+              FamilyCoinPoolCard(familyId: widget.familyId),
+              3,
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 18)),
+        ];
+
+      case FamilySection.familyPulse:
+        return [
+          SliverToBoxAdapter(
+            child: staggerFade(
+              FamilyPulseSection(
+                detail: detail,
+                familyId: widget.familyId,
+              ),
+              3,
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+        ];
+
+      case FamilySection.recentMoments:
+        return [
+          SliverToBoxAdapter(
+            child: staggerFade(
+              _RecentMomentsSectionAdapter(familyId: widget.familyId),
+              4,
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+        ];
+
+      case FamilySection.miniGraphPreview:
+        return [
+          SliverToBoxAdapter(
+            child: staggerFade(
+              MiniFamilyGraphPreview(
+                familyId: widget.familyId,
+                familyName: detail.family.name,
+              ),
+              4,
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+        ];
+
+      case FamilySection.premiumInsights:
+        // Phase (family-state-aware-home-screen): relocated from its
+        // prior early position (interrupting the path to Invite /
+        // Prediction / Pulse) to the LAST free-value section before
+        // the Family Strength closer. The existing blurred-preview
+        // teaser treatment is preserved — only the position changes.
+        return [
+          SliverToBoxAdapter(
+            child: staggerFade(
+              FamilyInsightsDashboard(familyDetail: detail),
+              4,
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+        ];
+    }
   }
 
   void _shareFamily(BuildContext context) {

@@ -2,6 +2,11 @@
 //
 // Extracted from FamilyDetailScreen's _ActivityTab — full-screen
 // activity feed showing relationships created and members added.
+//
+// Phase (family-state-aware-home-screen): rows now use the shared
+// PersonAvatar widget + bold-name + action + relative-timestamp
+// pattern, matching the home-screen Family Pulse preview so the two
+// surfaces read as one consistent activity feed.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +15,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/widgets/person_avatar.dart';
 import '../../../shared/widgets/dk_components.dart';
 import 'package:go_router/go_router.dart';
 
@@ -63,8 +69,10 @@ class FamilyActivityScreen extends ConsumerWidget {
                 .firstOrNull;
             activities.add(_ActivityItem(
               type: _ActivityType.link,
-              description:
-                  '${fromPerson?.name ?? "Someone"} added ${toPerson?.name ?? "a family member"} as ${rel.relationshipKey.replaceAll("_", " ")}',
+              actorName: fromPerson?.name ?? 'Someone',
+              actorPhotoUrl: fromPerson?.photoUrl,
+              action: 'added ${toPerson?.name ?? "a family member"} as '
+                  '${rel.relationshipKey.replaceAll("_", " ")}',
               timestamp: rel.createdAt,
             ));
           }
@@ -72,7 +80,9 @@ class FamilyActivityScreen extends ConsumerWidget {
           for (final member in detail.members) {
             activities.add(_ActivityItem(
               type: _ActivityType.memberAdded,
-              description: '${member.name} joined the family',
+              actorName: member.name,
+              actorPhotoUrl: member.photoUrl,
+              action: 'joined the family',
               timestamp: member.createdAt,
             ));
           }
@@ -107,49 +117,58 @@ class FamilyActivityScreen extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: activity.type == _ActivityType.link
-                            ? KinrelColors.orange
-                                .withValues(alpha: 0.15)
-                            : KinrelColors.purple
-                                .withValues(alpha: 0.15),
-                      ),
-                      child: Icon(
-                        activity.type == _ActivityType.link
-                            ? Icons.link_rounded
-                            : Icons.person_add_alt_1_rounded,
-                        color: activity.type == _ActivityType.link
-                            ? KinrelColors.orange
-                            : KinrelColors.purple,
-                        size: 18,
-                      ),
+                    // Phase (family-state-aware-home-screen): avatar
+                    // replaces the prior colored icon container, matching
+                    // the home-screen Family Pulse preview's scannable
+                    // avatar + bold-name + action + timestamp pattern.
+                    PersonAvatar(
+                      name: activity.actorName,
+                      photoUrl: activity.actorPhotoUrl,
+                      size: 36,
+                      borderColor: activity.type == _ActivityType.link
+                          ? KinrelColors.orange.withValues(alpha: 0.35)
+                          : KinrelColors.purple.withValues(alpha: 0.35),
+                      borderWidth: 1,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            activity.description,
-                            style: const TextStyle(
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 14,
-                              color: KinrelColors.textWhite,
+                          RichText(
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            text: TextSpan(
+                              style: const TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 14,
+                                color: KinrelColors.textSilver,
+                                height: 1.3,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: activity.actorName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: KinrelColors.textWhite,
+                                  ),
+                                ),
+                                const TextSpan(text: ' '),
+                                TextSpan(text: activity.action),
+                              ],
                             ),
                           ),
-                          if (activity.timestamp != null)
+                          if (activity.timestamp != null) ...[
+                            const SizedBox(height: 2),
                             Text(
                               _formatTime(activity.timestamp!),
                               style: const TextStyle(
-                                fontFamily: KinrelTypography.bodyFont,
+                                fontFamily: KinrelTypography.monoFont,
                                 fontSize: 11,
                                 color: KinrelColors.textDim,
                               ),
                             ),
+                          ],
                         ],
                       ),
                     ),
@@ -179,10 +198,14 @@ enum _ActivityType { link, memberAdded }
 class _ActivityItem {
   const _ActivityItem({
     required this.type,
-    required this.description,
+    required this.actorName,
+    required this.actorPhotoUrl,
+    required this.action,
     this.timestamp,
   });
   final _ActivityType type;
-  final String description;
+  final String actorName;
+  final String? actorPhotoUrl;
+  final String action;
   final DateTime? timestamp;
 }

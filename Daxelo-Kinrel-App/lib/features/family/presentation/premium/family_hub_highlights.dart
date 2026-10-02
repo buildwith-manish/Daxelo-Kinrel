@@ -60,19 +60,29 @@ class HighlightsRow extends StatelessWidget {
 
   final String familyId;
 
+  // ── Phase (family-state-aware-home-screen): shortcut ordering ──
+  // Reordered so the two most-likely-to-be-used tiles render FIRST in
+  // the horizontal scroll: Memories and Activity. Per the review's
+  // reasoning, these see more regular use than Oral History /
+  // Achievements / Lists for most families.
+  //
+  // Hierarchy is achieved purely through ordering within the existing
+  // single horizontal scroll row — no visible "Highlights" / "More"
+  // section label or divider, so it doesn't read as "these are the
+  // lesser features".
+  //
+  // ⚠️ PLACEHOLDER HEURISTIC — NOT A PERMANENT RANKING.
+  // This ordering is an initial assumption based on a one-off design
+  // review. If/when real usage analytics become available later, this
+  // ordering should be revisited to reflect actual behavior rather
+  // than this guess. Replace this comment + the order below with a
+  // data-driven sort once analytics are wired.
   static const _tiles = [
-    // Phase (graph-map-flanking-redesign): Graph + Map removed from
-    // the shortcut row and moved back to flanking positions beside the
-    // identity circle in the HeroSection — but with a fully redesigned
-    // treatment (full opacity, circular backdrop, labels, subtle pulse)
-    // so they read as clear, discoverable, tappable actions, not faint
-    // background decoration. See hero_section.dart for the new flanking
-    // treatment. The shortcut row returns to 5 items.
     _HighlightTile(icon: Icons.photo_library_outlined, label: 'Memories'),
+    _HighlightTile(icon: Icons.history_rounded,        label: 'Activity'),
     _HighlightTile(icon: Icons.mic_none_outlined,      label: 'Oral History'),
     _HighlightTile(icon: Icons.emoji_events_outlined,  label: 'Achievements'),
     _HighlightTile(icon: Icons.checklist_rounded,      label: 'Lists'),
-    _HighlightTile(icon: Icons.history_rounded,        label: 'Activity'),
   ];
 
   String _routeFor(String label) {
