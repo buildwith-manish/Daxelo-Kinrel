@@ -198,6 +198,14 @@ import 'engine/node_mini_painter.dart' show NodeMiniPainter;
 import 'engine/node_micro_painter.dart' show NodeMicroPainter;
 import 'engine/engine_edge_painter.dart' show EngineEdgePainter;
 import 'engine/edge_selection_wrapper.dart' show EdgeSelectionWrapper;
+// EDGE-ANCHOR FIX (PART 4): public helpers for the per-node visual
+// circle center Y offset computation. Used by node_layer.dart to
+// offset the Positioned box so the visual circle center IS at the
+// layout position — making edges (which anchor at the layout
+// position) automatically align with the visual circle center at
+// ALL zoom levels.
+import '../rendering/visual_circle_center.dart'
+    show visualCircleCenterYOffset, isImmediateFamilyCategory;
 // v5.132 (System B REMOVAL): BranchAffordanceChip (the legacy per-node
 // "+N" chip) was deleted with _withBranchAffordance — the ONLY branch
 // chips now render via _buildCollapsedBranchChips in

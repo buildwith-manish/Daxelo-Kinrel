@@ -152,10 +152,36 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
       // shifted position. With 100 visible nodes and ~5 entering/leaving
       // per pan step, this previously caused 25 controller-pair churns
       // per 50px of panning. The key makes the diff identity-stable.
+      //
+      // EDGE-ANCHOR FIX (PART 4): offset the Positioned box DOWN so the
+      // visual circle center IS at the layout position `pos`. This makes
+      // edges (which anchor at the layout position = box center per the
+      // Positioned math) automatically align with the visual circle
+      // center at ALL zoom levels.
+      //
+      // The visual circle is at the TOP of the Column (with name + label
+      // below it), so its center is offset ABOVE the box center. The
+      // offset varies by node type (different diameters + extraPad):
+      //   standard: -22, anchor: -9, immediate family: -17.68
+      // By moving the box DOWN by |offset|, the visual circle center
+      // lands at `pos.dy` (the layout position = edge endpoint).
+      //
+      // Formula: top = pos.dy - boxHeight/2 - visualCircleCenterYOffset
+      // Since the offset is NEGATIVE, subtracting it ADDS the absolute
+      // value, moving the box DOWN.
+      final bool isAnchorNode = viewerPersonId != null && id == viewerPersonId;
+      final bool isImmediateFamilyNode =
+          isImmediateFamilyCategory(relationCategoryById[id]);
+      final double circleOffset = visualCircleCenterYOffset(
+        isAnchor: isAnchorNode,
+        isImmediateFamily: isImmediateFamilyNode,
+      );
       widgets.add(Positioned(
         key: ValueKey<String>('node-$id'),
         left: pos.dx - _FamilyGraphEngineViewState._kNodeSize.width / 2,
-        top: pos.dy - _FamilyGraphEngineViewState._kNodeSize.height / 2,
+        top: pos.dy -
+            _FamilyGraphEngineViewState._kNodeSize.height / 2 -
+            circleOffset,
         width: _FamilyGraphEngineViewState._kNodeSize.width,
         height: _FamilyGraphEngineViewState._kNodeSize.height,
         child: Opacity(
