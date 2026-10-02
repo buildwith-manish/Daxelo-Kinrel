@@ -1148,11 +1148,33 @@ class EngineEdgePainter extends CustomPainter {
       // nodes were small, and made edges appear disconnected during
       // pan/zoom when the inset didn't match the rendered node size.
       //
-      // Now: use effectiveSource and effectiveTarget directly — they
-      // ARE the node centers (with _kCircleCenterYOffset applied). The
-      // bezier path goes center-to-center, and the node layer covers the
-      // center portion, creating a clean "line emerges from behind the
-      // node" appearance.
+      // EDGE-ANCHOR FIX (this commit): effectiveSource and
+      // effectiveTarget are the node BOX CENTERS (the layout position
+      // `pos`, which IS the box center per the Positioned math in
+      // node_layer.dart: `left: pos.dx - _kNodeSize.width/2,
+      // top: pos.dy - _kNodeSize.height/2` → `pos` IS the box center).
+      //
+      // The previous code applied a hardcoded
+      // `_kCircleCenterYOffset = -28px` to every position — derived
+      // assuming a 72px visual circle in a 140×176 box. That assumption
+      // broke for the enlarged "You"/anchor node (90px circle,
+      // extraPad 20) and for immediate-family nodes (80.64px circle,
+      // extraPad 12), where the visual circle center is at a DIFFERENT
+      // offset from the box center. The hardcoded offset caused the
+      // anchor node's multiple edges to converge ~19px BELOW the
+      // actual visual circle center — the asymmetric "edges don't
+      // radiate from a single central point" appearance the user
+      // reported.
+      //
+      // Per the user's spec, the edge vector is now mathematically
+      // defined as `sourceCenter → targetCenter` where
+      // `sourceCenter = Offset(source.x + source.width/2,
+      // source.y + source.height/2)`. Since the layout `pos` IS the
+      // box center, the bezier path goes box-center to box-center, and
+      // the node widget (drawn on top) covers the center portion. This
+      // behavior is consistent across every node size, zoom level,
+      // connection angle, and relationship type — no hardcoded anchor
+      // offsets, no fixed edge attachment points.
       final Offset shortenedSource = effectiveSource;
       final Offset shortenedTarget = effectiveTarget;
       // v64 (BUG-2 FIX): Pass the lateral offset so parallel edges

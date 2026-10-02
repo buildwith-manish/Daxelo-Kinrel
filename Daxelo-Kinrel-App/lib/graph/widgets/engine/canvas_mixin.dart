@@ -1274,19 +1274,25 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // the relationship data, use the custom line color instead.
         final String? anchorId = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
         // v5.125 (Step 6): the anchor's center in the EDGE PAINTER's
-        // coordinate space (positions + the visual-circle Y offset —
-        // the same transform the `positions` map passed to
-        // EdgeSelectionWrapper applies). This drives the
-        // bow-around-the-anchor routing for ring-spanning chords and
-        // the sector fan-out for anchor-incident edges — geometry
-        // only, no colour changes.
+        // coordinate space. This drives the bow-around-the-anchor routing
+        // for ring-spanning chords and the sector fan-out for
+        // anchor-incident edges — geometry only, no colour changes.
+        //
+        // EDGE-ANCHOR FIX (this commit): the anchor center now uses the
+        // RAW layout position — which IS the node's box center (per the
+        // Positioned math: `left: pos.dx - _kNodeSize.width/2,
+        // top: pos.dy - _kNodeSize.height/2` — so `pos` IS the box center).
+        // The previous code applied a hardcoded `_kCircleCenterYOffset`
+        // (-28px) that was computed assuming a 72px circle in a 140×176
+        // box. That assumption breaks for the enlarged "You"/anchor node
+        // (90px circle, 20px extraPad) and for immediate-family nodes
+        // (80.64px circle) — causing edges to converge at a point that
+        // was NOT the actual visual center for these node sizes.
+        // Edges now anchor at the box center (the user's literal spec:
+        // `source.x + source.width/2, source.y + source.height/2`).
         final Offset? anchorCenterForEdges =
             (anchorId != null && effectivePositions.containsKey(anchorId))
-                ? Offset(
-                    effectivePositions[anchorId]!.dx,
-                    effectivePositions[anchorId]!.dy +
-                        _FamilyGraphEngineViewState._kCircleCenterYOffset,
-                  )
+                ? effectivePositions[anchorId]!
                 : null;
         final edgeCategories = <String, KinshipEdgeCategory>{};
         final edgeCustomColors = <String, Map<String, dynamic>>{};
@@ -1366,17 +1372,37 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // interaction_mixin.dart).
         _currentAnchorId = anchorId;
         _currentAnchorCenter = anchorCenterForEdges;
-        // PERF v5.175 (60fps PAN/ZOOM): build the Y-offset positions
+        // PERF v5.175 (60fps PAN/ZOOM): build the positions
         // map ONCE and share it between the hit-tester cache and the
-        // edge painter (both need the identical transformation —
-        // node-center Y offset applied to every entry). Previously
-        // TWO separate 715-entry maps were allocated per rebuild.
+        // edge painter (both need the identical transformation).
+        // Previously TWO separate 715-entry maps were allocated per rebuild.
+        //
+        // EDGE-ANCHOR FIX (this commit): the positions map passed to the
+        // edge painter is now the RAW layout positions — which ARE the
+        // node box centers (per the Positioned math in node_layer.dart:
+        // `left: pos.dx - _kNodeSize.width/2, top: pos.dy - _kNodeSize.height/2`
+        // — so `pos` IS the box center). The previous code added a
+        // hardcoded `_kCircleCenterYOffset` (-28px) to every entry,
+        // which was derived assuming a 72px-diameter visual circle. That
+        // assumption broke for the enlarged "You"/anchor node (90px
+        // circle, extraPad 20) and for immediate-family nodes (80.64px
+        // circle, extraPad 12), where the visual circle center is at a
+        // DIFFERENT offset from the box center. The hardcoded -28 caused
+        // edges on the "You" node to converge ~19px below the actual
+        // visual circle center — the asymmetric "edges don't radiate
+        // from a single central point" the user reported.
+        //
+        // The user's spec anchors edges at the box center
+        // (`source.x + source.width/2, source.y + source.height/2`).
+        // The layout position `pos` IS the box center, so we use it
+        // directly. The node widget is drawn ON TOP of the edge layer
+        // (see the Stack order in canvas_mixin), so the center connection
+        // point is naturally hidden beneath the node widget's content.
+        // This makes edge geometry consistent across every node size,
+        // zoom level, and connection angle.
         final positionsWithOffset = <String, Offset>{
           for (final entry in effectivePositions.entries)
-            entry.key: Offset(
-              entry.value.dx,
-              entry.value.dy + _FamilyGraphEngineViewState._kCircleCenterYOffset,
-            ),
+            entry.key: entry.value,
         };
         _currentPositionsWithOffset = positionsWithOffset;
 

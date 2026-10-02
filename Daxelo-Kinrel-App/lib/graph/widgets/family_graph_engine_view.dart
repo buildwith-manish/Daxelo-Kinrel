@@ -308,6 +308,27 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // But the Padding(24) shifts everything down by 24, so the actual
   // visual center is at 36 + 24 = 60 from box top.
   // Box center = 88. Offset = 60 - 88 = -28.
+  //
+  // EDGE-ANCHOR FIX (this commit): This constant is NO LONGER applied
+  // to edge endpoint geometry. Edge anchoring now uses the box center
+  // (the raw layout position `pos`) directly — see the EDGE-ANCHOR FIX
+  // comment block in canvas_mixin.dart and engine_edge_painter.dart
+  // for the full reasoning.
+  //
+  // The previous -28px application broke for the enlarged "You"/anchor
+  // node (90px circle, extraPad 20) and for immediate-family nodes
+  // (80.64px circle, extraPad 12), where the visual circle center is
+  // at a DIFFERENT offset from the box center. The hardcoded offset
+  // caused the anchor node's multiple edges to converge ~19px BELOW
+  // the actual visual circle center — the asymmetric "edges don't
+  // radiate from a single central point" appearance the user reported.
+  //
+  // The constant is KEPT for the camera-focus code path in
+  // interaction_mixin.dart (_maybeFocusCameraOnNode), which is part
+  // of zoom/pan behavior and was explicitly excluded from the fix
+  // scope per the user's instructions ("Do not modify zoom behavior").
+  // The camera-focus use is a UX heuristic ("is this node already
+  // comfortably visible?") and does not affect edge geometry.
   static const double _kCircleCenterYOffset = -28.0;
 
   /// Zoom thresholds for LOD tiers.
@@ -1303,10 +1324,13 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // via the _currentPositionsWithOffset cache (which is updated
     // every build).
     //
-    // _currentPositionsWithOffset is keyed by personId and includes
-    // the visual-circle Y offset. For the lerp we want the raw graph
-    // positions (without the Y offset), so we strip the offset back
-    // out: rawY = withOffsetY - _kCircleCenterYOffset.
+    // EDGE-ANCHOR FIX (this commit): _currentPositionsWithOffset is
+    // now the RAW layout positions (the box centers) — no Y offset is
+    // applied anymore. So we capture them as-is for the lerp. (The
+    // pre-fix code stripped a hardcoded `_kCircleCenterYOffset` here
+    // to recover the raw positions from the offset-applied cache —
+    // that strip step is now a no-op because the cache IS the raw
+    // positions.)
     //
     // If _currentPositionsWithOffset is empty (very first frame,
     // nothing rendered yet), there's nothing to animate from — skip
@@ -1319,13 +1343,10 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       _animatingReset = false;
       return;
     }
-    final preResetPositions = <String, Offset>{};
-    for (final entry in _currentPositionsWithOffset.entries) {
-      preResetPositions[entry.key] = Offset(
-        entry.value.dx,
-        entry.value.dy - _kCircleCenterYOffset,
-      );
-    }
+    final preResetPositions = <String, Offset>{
+      for (final entry in _currentPositionsWithOffset.entries)
+        entry.key: entry.value,
+    };
     // Also capture the current edge waypoints (saved + live). The
     // canvas_mixin stores these in effectiveEdgeWaypoints which is a
     // LOCAL in the build method — we don't have a cached field. So

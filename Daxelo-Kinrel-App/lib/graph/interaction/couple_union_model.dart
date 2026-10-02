@@ -270,12 +270,21 @@ bool isUnionEntity(String personId) {
 /// [positionOf] is a lookup callback that returns the raw layout
 /// position of a person ID (or null if unknown). Both call sites use
 /// the SAME coordinate space (the painter's `positions` map and the
-/// hit-tester's `_currentPositionsWithOffset` map are both populated
-/// with the visual-circle Y offset applied — see
-/// `_kCircleCenterYOffset` in `family_graph_engine_view.dart`). This
-/// is critical: if the two maps ever drift into different coordinate
-/// spaces, the union midpoints computed from each will silently
-/// differ and the parity bug returns.
+/// hit-tester's `_currentPositionsWithOffset` map). This is critical:
+/// if the two maps ever drift into different coordinate spaces, the
+/// union midpoints computed from each will silently differ and the
+/// parity bug returns.
+///
+/// EDGE-ANCHOR FIX (this commit): both maps are now populated with
+/// the RAW layout positions (which ARE the node box centers, per
+/// the Positioned math in node_layer.dart: `left: pos.dx -
+/// _kNodeSize.width/2, top: pos.dy - _kNodeSize.height/2`). The
+/// previous code applied a hardcoded `_kCircleCenterYOffset = -28px`
+/// to every entry — derived assuming a 72px visual circle in a
+/// 140×176 box, which broke for the enlarged "You"/anchor node and
+/// for immediate-family nodes. Edges now anchor at the box center
+/// (the user's literal spec: `source.x + source.width/2,
+/// source.y + source.height/2`).
 ///
 /// Returns a record `({Offset source, Offset target})` of the
 /// effective endpoints to use for curve construction / hit-testing.
