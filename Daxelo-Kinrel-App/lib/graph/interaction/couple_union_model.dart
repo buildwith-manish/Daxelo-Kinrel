@@ -243,48 +243,57 @@ bool isUnionEntity(String personId) {
   return personId.startsWith('union_');
 }
 
-/// Resolves the effective source/target points for an edge, applying
-/// the couple-union redirect (Phase 6) if applicable.
+/// Resolves the effective source/target points for an edge.
 ///
 /// This is the SINGLE source of truth for edge endpoint geometry. It is
 /// called by BOTH:
 ///   • the edge painter (for the actual rendered bezier curve), and
 ///   • the tap hit-tester (for tap-target midpoint computation).
 ///
-/// These two call sites MUST NEVER diverge — that was the original
-/// Phase 6 hit-test-parity bug (the painter redirected the parent→child
-/// edge to start at the union midpoint, but the hit-tester still used
-/// the parent's raw node position, so tapping the rendered line near
-/// the union glyph silently missed). If you need this logic anywhere
-/// else, call this function; do not reimplement it.
+/// These two call sites MUST NEVER diverge. If you need edge endpoint
+/// geometry anywhere else, call this function; do not reimplement it.
 ///
-/// Redirect rules:
-///   • If [sourceId] is a partner in a union and [targetId] is a child
-///     attached to that union → the effective SOURCE becomes
-///     `unionMidpoint(partnerA, partnerB)`. The target is unchanged.
-///   • Symmetrically, if [sourceId] is a union child and [targetId] is
-///     a partner in that union → the effective TARGET becomes the
-///     union midpoint. The source is unchanged.
-///   • Otherwise → both endpoints are returned unchanged.
+/// EDGE-ANCHOR FIX (this commit): this function is now a NO-OP for the
+/// couple-union redirect. It returns the raw source/target unchanged
+/// for EVERY edge — parent→child, child→parent, spouse, sibling, etc.
 ///
-/// [positionOf] is a lookup callback that returns the raw layout
-/// position of a person ID (or null if unknown). Both call sites use
-/// the SAME coordinate space (the painter's `positions` map and the
-/// hit-tester's `_currentPositionsWithOffset` map). This is critical:
-/// if the two maps ever drift into different coordinate spaces, the
-/// union midpoints computed from each will silently differ and the
-/// parity bug returns.
+/// The user's spec is explicit: "Every edge in the graph must follow
+/// the exact same geometric rule: sourceNode.center → targetNode.center.
+/// This rule must apply to ALL nodes — Anchor, Selected, Unselected,
+/// Parent, Child, Sibling, Spouse, Highlighted 'You' node. No
+/// special-case anchoring logic should exist for specific node types
+/// unless absolutely necessary."
 ///
-/// EDGE-ANCHOR FIX (this commit): both maps are now populated with
-/// the RAW layout positions (which ARE the node box centers, per
-/// the Positioned math in node_layer.dart: `left: pos.dx -
-/// _kNodeSize.width/2, top: pos.dy - _kNodeSize.height/2`). The
-/// previous code applied a hardcoded `_kCircleCenterYOffset = -28px`
-/// to every entry — derived assuming a 72px visual circle in a
-/// 140×176 box, which broke for the enlarged "You"/anchor node and
-/// for immediate-family nodes. Edges now anchor at the box center
-/// (the user's literal spec: `source.x + source.width/2,
-/// source.y + source.height/2`).
+/// The previous (Phase 6) implementation redirected parent→child
+/// edges (where the parent was a partner in a confirmed couple union
+/// and the child was attached to that union) to start at the
+/// `unionMidpoint(partnerA, partnerB)` instead of the parent's node
+/// center. Symmetrically for child→parent edges. This was a
+/// special-case anchoring logic for parent/spouse/child nodes that
+/// violated the user's spec — multiple edges from the same parent
+/// node did NOT converge at the parent's center, they converged at
+/// the union midpoint (an "offset position" between the two parents).
+/// The user reported this as "non-anchor nodes still appear to have
+/// edges attaching from offset positions, perimeter points, or
+/// node-edge locations rather than behaving as true center-to-center
+/// connections."
+///
+/// The redirect was a deliberate visual feature for showing family
+/// structure (children visually descending from the couple's union,
+/// not from one parent's center). Removing it changes the visual
+/// representation to the more standard "each parent has their own edge
+/// to the child" convention — which is what the user's spec requires.
+/// The underlying family-structure DATA (which edges exist, which
+/// unions are derived) is unchanged; only the edge endpoint geometry
+/// changes.
+///
+/// The `coupleUnions` and `positionOf` parameters are KEPT in the
+/// signature for API compatibility — existing call sites in
+/// `engine_edge_painter.dart` and `interaction_mixin.dart` continue
+/// to compile and call this function without changes. The function
+/// body simply ignores them and returns the raw source/target. This
+/// keeps the painter and hit-tester in sync (the original purpose
+/// of the shared helper) — both use the raw box-center endpoints.
 ///
 /// Returns a record `({Offset source, Offset target})` of the
 /// effective endpoints to use for curve construction / hit-testing.
@@ -296,28 +305,12 @@ bool isUnionEntity(String personId) {
   required List<CoupleUnion> coupleUnions,
   required Offset? Function(String personId) positionOf,
 }) {
-  for (final union in coupleUnions) {
-    if (union.hasPartner(sourceId) && union.hasChild(targetId)) {
-      final a = positionOf(union.partnerAId);
-      final b = positionOf(union.partnerBId);
-      if (a != null && b != null) {
-        return (source: unionMidpoint(a, b), target: rawTarget);
-      }
-      // Union matches but partner positions unavailable — fall through
-      // to the default return. (We `break` rather than `continue`
-      // because at most one union can match a given (parent, child)
-      // pair: a child is attached to a union only when BOTH partners
-      // are confirmed parents, so the union is unique.)
-      break;
-    }
-    if (union.hasChild(sourceId) && union.hasPartner(targetId)) {
-      final a = positionOf(union.partnerAId);
-      final b = positionOf(union.partnerBId);
-      if (a != null && b != null) {
-        return (source: rawSource, target: unionMidpoint(a, b));
-      }
-      break;
-    }
-  }
+  // EDGE-ANCHOR FIX (this commit): NO redirect. Every edge anchors at
+  // the box center of its source and target nodes — no special-case
+  // routing for parent→child edges through the union midpoint. The
+  // coupleUnions, positionOf, sourceId, and targetId parameters are
+  // accepted for API compatibility (the painter and hit-tester call
+  // sites pass them) but intentionally not consulted — see the doc
+  // comment above for the reasoning.
   return (source: rawSource, target: rawTarget);
 }

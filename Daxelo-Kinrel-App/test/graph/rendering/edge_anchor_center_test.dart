@@ -56,6 +56,9 @@ import 'package:kinrel/graph/widgets/engine/engine_edge_painter.dart';
 import 'package:kinrel/graph/engine/edge_dedup.dart' show DedupedEdge;
 import 'package:kinrel/graph/data/graph_data_models.dart'
     show GraphEdgeData;
+import 'package:kinrel/graph/interaction/couple_union_model.dart'
+    show CoupleUnion, deriveCoupleUnions, resolveEffectiveEdgeEndpoints,
+        unionMidpoint;
 
 /// Mirror of the constant in family_graph_engine_view.dart. Kept here
 /// as a TEST CONSTANT so these tests don't depend on private state.
@@ -640,6 +643,175 @@ void main() {
               'purely perpendicular; endpoints remain box centers)',
         );
       }
+    });
+  });
+
+  group('EDGE-ANCHOR FIX — parent→child through confirmed couple union '
+      '(NO redirect)', () {
+    // EDGE-ANCHOR FIX (this commit) removed the couple-union redirect
+    // from resolveEffectiveEdgeEndpoints. Pre-fix, a parent→child edge
+    // where the parent was a partner in a confirmed couple union AND
+    // the child was attached to that union had its source redirected
+    // from the parent's box center to the union midpoint (an "offset
+    // position" between the two parents). This violated the user's
+    // spec ("sourceNode.center → targetNode.center for ALL nodes
+    // including parent/child") and was the root cause of the
+    // "non-anchor nodes still appear to have edges attaching from
+    // offset positions" observation.
+    //
+    // After the fix, parent→child edges anchor at the parent's box
+    // center — same as every other edge type. These tests verify the
+    // new behavior at the public API level.
+
+    test('resolveEffectiveEdgeEndpoints returns raw source/target for '
+        'parent→child edge through a confirmed couple union', () {
+      // Import the production helper to verify its no-redirect behavior.
+      // ignore: unused_import
+      // (already imported above for the anchor bow tests)
+      final edgeTuples = <({
+        String fromId,
+        String toId,
+        String edgeId,
+        String relationshipKey,
+        String? labelAtoB
+      })>[
+        (
+          fromId: 'A',
+          toId: 'B',
+          edgeId: 'eAB',
+          relationshipKey: 'wife',
+          labelAtoB: null,
+        ),
+        (
+          fromId: 'C',
+          toId: 'A',
+          edgeId: 'eCA',
+          relationshipKey: 'father',
+          labelAtoB: null,
+        ),
+        (
+          fromId: 'C',
+          toId: 'B',
+          edgeId: 'eCB',
+          relationshipKey: 'mother',
+          labelAtoB: null,
+        ),
+      ];
+      final unions = deriveCoupleUnions(edgeTuples);
+      expect(unions.length, 1);
+      expect(unions.first.childIds, contains('C'),
+          reason: 'Sanity: C IS attached to the union (would have '
+              'triggered the redirect pre-fix)');
+
+      // Positions matching the union_edge_routing_test fixtures:
+      // A at (0, 0), B at (100, 0), C at (50, 200).
+      final positions = <String, Offset>{
+        'A': const Offset(0, 0),
+        'B': const Offset(100, 0),
+        'C': const Offset(50, 200),
+      };
+
+      final rawSource = positions['A']!;
+      final rawTarget = positions['C']!;
+
+      final resolved = resolveEffectiveEdgeEndpoints(
+        sourceId: 'A',
+        targetId: 'C',
+        rawSource: rawSource,
+        rawTarget: rawTarget,
+        coupleUnions: unions,
+        positionOf: (id) => positions[id],
+      );
+
+      // EDGE-ANCHOR FIX: NO redirect. Source MUST be A's raw box
+      // center, NOT the union midpoint (50, 0).
+      expect(resolved.source, rawSource,
+          reason: 'EDGE-ANCHOR FIX: parent→child edge source must be '
+              'A\'s box center (0, 0), NOT the union midpoint (50, 0). '
+              'The user spec requires sourceNode.center → '
+              'targetNode.center for ALL nodes including parent/child.');
+      expect(resolved.target, rawTarget,
+          reason: 'EDGE-ANCHOR FIX: parent→child edge target must be '
+              'the child\'s box center, unchanged.');
+      // Explicit guard against the OLD redirect behavior.
+      final unionMid = unionMidpoint(positions['A']!, positions['B']!);
+      expect(resolved.source, isNot(unionMid),
+          reason: 'EDGE-ANCHOR FIX regression guard: source must NOT be '
+              'the union midpoint. If this fails, the couple-union '
+              'redirect has been reintroduced.');
+    });
+
+    test('multiple parent→child edges from the same parent converge at '
+        'the parent\'s box center (spokes-on-a-clock-face, even through '
+        'multiple unions)', () {
+      // Remarriage scenario:
+      //   A — B (union 1), A — C (union 2)
+      //   D is shared child of A+B → attached to union 1
+      //   E is shared child of A+C → attached to union 2
+      //
+      // PRE-FIX: A→D anchored at A-B midpoint (50, 0); A→E anchored at
+      //          A-C midpoint (100, 0) — DIFFERENT points (not
+      //          converged at A's center).
+      // POST-FIX: BOTH anchor at A's box center (0, 0) — the
+      //          spokes-on-a-clock-face requirement.
+      final edgeTuples = <({
+        String fromId,
+        String toId,
+        String edgeId,
+        String relationshipKey,
+        String? labelAtoB
+      })>[
+        (fromId: 'A', toId: 'B', edgeId: 'eAB', relationshipKey: 'wife', labelAtoB: null),
+        (fromId: 'A', toId: 'C', edgeId: 'eAC2', relationshipKey: 'wife', labelAtoB: null),
+        (fromId: 'D', toId: 'A', edgeId: 'eAD', relationshipKey: 'father', labelAtoB: null),
+        (fromId: 'D', toId: 'B', edgeId: 'eBD', relationshipKey: 'mother', labelAtoB: null),
+        (fromId: 'E', toId: 'A', edgeId: 'eAE', relationshipKey: 'father', labelAtoB: null),
+        (fromId: 'E', toId: 'C', edgeId: 'eCE', relationshipKey: 'mother', labelAtoB: null),
+      ];
+      final unions = deriveCoupleUnions(edgeTuples);
+      expect(unions.length, 2);
+
+      final positions = <String, Offset>{
+        'A': const Offset(0, 0),
+        'B': const Offset(100, 0),
+        'C': const Offset(200, 0),
+        'D': const Offset(50, 200),
+        'E': const Offset(150, 200),
+      };
+
+      final dResolved = resolveEffectiveEdgeEndpoints(
+        sourceId: 'A',
+        targetId: 'D',
+        rawSource: positions['A']!,
+        rawTarget: positions['D']!,
+        coupleUnions: unions,
+        positionOf: (id) => positions[id],
+      );
+      final eResolved = resolveEffectiveEdgeEndpoints(
+        sourceId: 'A',
+        targetId: 'E',
+        rawSource: positions['A']!,
+        rawTarget: positions['E']!,
+        coupleUnions: unions,
+        positionOf: (id) => positions[id],
+      );
+
+      // BOTH edges converge at A's box center (0, 0). Pre-fix they
+      // converged at DIFFERENT union midpoints (50, 0) and (100, 0).
+      expect(dResolved.source, positions['A']!,
+          reason: 'EDGE-ANCHOR FIX: A→D source must be A\'s box center');
+      expect(eResolved.source, positions['A']!,
+          reason: 'EDGE-ANCHOR FIX: A→E source must be A\'s box center');
+      expect(dResolved.source, eResolved.source,
+          reason: 'EDGE-ANCHOR FIX: A→D and A→E must converge at the '
+              'SAME source center (A\'s box center) — the spokes-on-a-'
+              'clock-face requirement. Pre-fix they converged at '
+              'different union midpoints.');
+      // Both must NOT be at the union midpoints.
+      expect(dResolved.source, isNot(unionMidpoint(positions['A']!, positions['B']!)),
+          reason: 'A→D source must NOT be the A-B union midpoint');
+      expect(eResolved.source, isNot(unionMidpoint(positions['A']!, positions['C']!)),
+          reason: 'A→E source must NOT be the A-C union midpoint');
     });
   });
 }

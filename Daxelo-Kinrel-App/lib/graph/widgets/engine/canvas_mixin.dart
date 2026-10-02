@@ -1512,10 +1512,21 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     edges: edges,
                     edgeCategories: edgeCategories,
                     edgeCustomColors: edgeCustomColors,
-                    // Phase 6: Pass the couple unions derived above so the
-                    // painter can apply the SAME union-redirect the
-                    // hit-tester applies. This is the painter's ONLY
-                    // source of union truth — it never recomputes.
+                    // Phase 6: Pass the couple unions derived above so
+                    // the painter and the hit-tester share the same
+                    // union data. EDGE-ANCHOR FIX (this commit):
+                    // resolveEffectiveEdgeEndpoints is now a no-op —
+                    // the couple-union redirect has been removed per
+                    // the user's spec ("sourceNode.center →
+                    // targetNode.center for ALL nodes including
+                    // parent/spouse/child"). The coupleUnions list is
+                    // still passed for API compatibility and is still
+                    // used by deriveCoupleUnions for the spouse edge's
+                    // heart marker (the heart is computed via
+                    // computeVisualMidpoint, which uses the bezier's
+                    // t=0.5 — the curve goes from one spouse's center
+                    // to the other's, so the heart lands at the linear
+                    // midpoint of the two spouse centers).
                     coupleUnions: coupleUnions,
                     cache: _edgePathCache,
                     // v91 (PART 10): LOD-aware edge quality.

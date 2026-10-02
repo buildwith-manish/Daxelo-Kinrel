@@ -168,16 +168,33 @@ void main() {
   }
 
   // ─────────────────────────────────────────────────────────────────────
-  // TEST 1: Redirect-point assertion (both directions)
+  // TEST 1: No-redirect assertion (EDGE-ANCHOR FIX)
+  //
+  // EDGE-ANCHOR FIX: the couple-union redirect has been REMOVED. The
+  // previous tests asserted that parent→child edges redirected to the
+  // union midpoint. The user's spec is explicit:
+  //   "Every edge in the graph must follow the exact same geometric
+  //    rule: sourceNode.center → targetNode.center. This rule must
+  //    apply to ALL nodes — Anchor, Selected, Unselected, Parent,
+  //    Child, Sibling, Spouse, Highlighted 'You' node."
+  //
+  // The redirect violated this for parent→child edges (they anchored
+  // at the union midpoint, not the parent's center). After the fix,
+  // these tests now assert the NEW behavior: NO redirect, every edge
+  // anchors at its source's box center.
   // ─────────────────────────────────────────────────────────────────────
-  group('TEST 1 — Redirect-point assertion', () {
-    test('parent→child edge redirects source to union midpoint', () {
+  group('TEST 1 — No-redirect assertion (EDGE-ANCHOR FIX)', () {
+    test('parent→child edge anchors at parent center (NO redirect)', () {
       // Family: A and B are spouses; C is their confirmed child.
       // Canonical convention (v5.174): from=X, to=Y, key='K' → "Y is X's K"
       //   A→B 'wife'   → "B is A's wife"   (spouse pair)
       //   C→A 'father' → "A is C's father" (A is C's parent)
       //   C→B 'mother' → "B is C's mother" (B is C's parent)
       // C is a confirmed child of BOTH A and B → attached to the union.
+      //
+      // PRE-FIX: A→C edge source was redirected to the union midpoint.
+      // POST-FIX (EDGE-ANCHOR FIX): A→C edge source remains A's raw
+      // position (the box center) — NO redirect.
       final edges = buildEdges([
         ['A', 'B', 'eAB', 'wife'], // canonical: "B is A's wife"
         ['C', 'A', 'eAC', 'father'], // canonical: "A is C's father"
@@ -205,22 +222,25 @@ void main() {
         positionOf: (id) => positions[id],
       );
 
-      final expectedMid = unionMidpoint(positions['A']!, positions['B']!);
-
-      // The source MUST be the union midpoint, not A's raw position.
-      expect(resolved.source, expectedMid,
-          reason: 'parent→child edge: source must be union midpoint');
-      expect(resolved.source, isNot(rawSource),
-          reason: 'parent→child edge: source must NOT be the parent\'s '
-              'raw position — that is the bug');
+      // EDGE-ANCHOR FIX: source MUST be A's raw position (the box
+      // center), NOT the union midpoint.
+      expect(resolved.source, rawSource,
+          reason: 'EDGE-ANCHOR FIX: parent→child edge source must be '
+              'the parent\'s box center, NOT the union midpoint. The '
+              'user spec requires sourceNode.center → targetNode.center '
+              'for ALL nodes including parent/child.');
+      expect(resolved.source, isNot(unionMidpoint(positions['A']!, positions['B']!)),
+          reason: 'EDGE-ANCHOR FIX: parent→child edge source must NOT be '
+              'the union midpoint — that was the special-case anchoring '
+              'logic the user reported as "offset positions".');
       // Target unchanged.
       expect(resolved.target, rawTarget,
           reason: 'parent→child edge: target must remain the child');
     });
 
-    test('child→parent edge redirects target to union midpoint', () {
+    test('child→parent edge anchors at parent center (NO redirect, symmetric)', () {
       // Same family structure, but test the REVERSED edge direction:
-      // C → A (child→parent). The redirect must apply symmetrically.
+      // C → A (child→parent). The no-redirect must apply symmetrically.
       final edges = buildEdges([
         ['A', 'B', 'eAB', 'wife'], // canonical: "B is A's wife"
         ['C', 'A', 'eAC', 'father'], // canonical: "A is C's father"
@@ -245,17 +265,17 @@ void main() {
         positionOf: (id) => positions[id],
       );
 
-      final expectedMid = unionMidpoint(positions['A']!, positions['B']!);
-
       // Source unchanged.
       expect(resolved.source, rawSource,
           reason: 'child→parent edge: source must remain the child');
-      // The target MUST be the union midpoint, not A's raw position.
-      expect(resolved.target, expectedMid,
-          reason: 'child→parent edge: target must be union midpoint');
-      expect(resolved.target, isNot(rawTarget),
-          reason: 'child→parent edge: target must NOT be the parent\'s '
-              'raw position — that is the bug');
+      // EDGE-ANCHOR FIX: target MUST be A's raw position (the box
+      // center), NOT the union midpoint.
+      expect(resolved.target, rawTarget,
+          reason: 'EDGE-ANCHOR FIX: child→parent edge target must be '
+              'the parent\'s box center, NOT the union midpoint.');
+      expect(resolved.target, isNot(unionMidpoint(positions['A']!, positions['B']!)),
+          reason: 'EDGE-ANCHOR FIX: child→parent edge target must NOT be '
+              'the union midpoint.');
     });
   });
 
@@ -334,17 +354,23 @@ void main() {
   });
 
   // ─────────────────────────────────────────────────────────────────────
-  // TEST 3: Remarriage — each child anchors to the CORRECT union
+  // TEST 3: Remarriage — each child anchors at the parent's center
+  // (EDGE-ANCHOR FIX: no union redirect).
   // ─────────────────────────────────────────────────────────────────────
-  group('TEST 3 — Remarriage', () {
-    test('each child\'s edge anchors to the correct union midpoint', () {
-      // Remarriage: A — B (union 1, midpoint at (50, 0)),
-      //             A — C (union 2, midpoint at (150, 0)).
+  group('TEST 3 — Remarriage (EDGE-ANCHOR FIX: no redirect)', () {
+    test('each child\'s edge anchors at the parent\'s box center', () {
+      // Remarriage: A — B (union 1), A — C (union 2).
       // Canonical (v5.174): from=X, to=Y, key='K' → "Y is X's K".
-      //   D→A 'father' : "A is D's father" — D is a child of BOTH
-      //   D→B 'mother' : "B is D's mother" — A and B → union 1.
-      //   E→A 'father' : "A is E's father" — E is a child of BOTH
-      //   E→C 'mother' : "C is E's mother" — A and C → union 2.
+      //   D→A 'father' : "A is D's father" — D is a child of BOTH A and B.
+      //   D→B 'mother' : "B is D's mother" — D attached to union 1.
+      //   E→A 'father' : "A is E's father" — E is a child of BOTH A and C.
+      //   E→C 'mother' : "C is E's mother" — E attached to union 2.
+      //
+      // PRE-FIX: A→D edge anchored at A-B midpoint (50, 0);
+      //         A→E edge anchored at A-C midpoint (150, 0).
+      // POST-FIX (EDGE-ANCHOR FIX): BOTH edges anchor at A's box center
+      //         (100, 0) — the SAME point — per the user's spec
+      //         "sourceNode.center → targetNode.center for ALL nodes".
       final edges = buildEdges([
         ['A', 'B', 'eAB', 'wife'],
         ['A', 'C', 'eAC2', 'wife'],
@@ -367,7 +393,9 @@ void main() {
       final abMid = unionMidpoint(positions['A']!, positions['B']!);
       final acMid = unionMidpoint(positions['A']!, positions['C']!);
 
-      // D's parent→child edge (A→D) must anchor to the A-B union midpoint.
+      // D's parent→child edge (A→D): EDGE-ANCHOR FIX — must anchor at
+      // A's box center (100, 0), NOT at the A-B union midpoint (50, 0)
+      // and NOT at the A-C union midpoint (150, 0).
       final dResolved = resolveEffectiveEdgeEndpoints(
         sourceId: 'A',
         targetId: 'D',
@@ -376,13 +404,18 @@ void main() {
         coupleUnions: unions,
         positionOf: (id) => positions[id],
       );
-      expect(dResolved.source, abMid,
-          reason: 'D is a child of union A-B → source must be A-B midpoint');
+      expect(dResolved.source, positions['A']!,
+          reason: 'EDGE-ANCHOR FIX: D\'s edge source must be A\'s box '
+              'center, NOT a union midpoint');
+      expect(dResolved.source, isNot(abMid),
+          reason: 'EDGE-ANCHOR FIX: D\'s edge source must NOT be the '
+              'A-B union midpoint');
       expect(dResolved.source, isNot(acMid),
-          reason: 'D must NOT anchor to the A-C union midpoint (the other '
-              'union) — that would be the remarriage bug');
+          reason: 'EDGE-ANCHOR FIX: D\'s edge source must NOT be the '
+              'A-C union midpoint either');
 
-      // E's parent→child edge (A→E) must anchor to the A-C union midpoint.
+      // E's parent→child edge (A→E): EDGE-ANCHOR FIX — must anchor at
+      // A's box center (100, 0), the SAME point as D's edge.
       final eResolved = resolveEffectiveEdgeEndpoints(
         sourceId: 'A',
         targetId: 'E',
@@ -391,19 +424,33 @@ void main() {
         coupleUnions: unions,
         positionOf: (id) => positions[id],
       );
-      expect(eResolved.source, acMid,
-          reason: 'E is a child of union A-C → source must be A-C midpoint');
+      expect(eResolved.source, positions['A']!,
+          reason: 'EDGE-ANCHOR FIX: E\'s edge source must be A\'s box '
+              'center, NOT a union midpoint');
       expect(eResolved.source, isNot(abMid),
-          reason: 'E must NOT anchor to the A-B union midpoint (the other '
-              'union) — that would be the remarriage bug');
+          reason: 'EDGE-ANCHOR FIX: E\'s edge source must NOT be the '
+              'A-B union midpoint');
+      expect(eResolved.source, isNot(acMid),
+          reason: 'EDGE-ANCHOR FIX: E\'s edge source must NOT be the '
+              'A-C union midpoint either');
+
+      // SPOKES-ON-A-CLOCK-FACE: D's edge and E's edge both anchor at
+      // the SAME source center (A's box center). This is the user's
+      // "all outgoing edges converge at the same center point"
+      // requirement.
+      expect(dResolved.source, eResolved.source,
+          reason: 'EDGE-ANCHOR FIX: multiple outgoing edges from the '
+              'same parent (A→D and A→E) must converge at A\'s box '
+              'center — the spokes-on-a-clock-face requirement');
     });
   });
 
   // ─────────────────────────────────────────────────────────────────────
-  // TEST 4: Half-sibling — non-shared child NOT redirected
+  // TEST 4: Half-sibling — EDGE-ANCHOR FIX: BOTH edges anchor at A's
+  // center (no redirect for either).
   // ─────────────────────────────────────────────────────────────────────
-  group('TEST 4 — Half-sibling', () {
-    test('shared child\'s sibling (NOT in same union) is NOT redirected', () {
+  group('TEST 4 — Half-sibling (EDGE-ANCHOR FIX: no redirect for any)', () {
+    test('shared child\'s sibling (NOT in same union) anchors at parent center too', () {
       // A — wife — B (union 1)
       // D is a child of BOTH A and B → child of union 1 (shared).
       // F has only ONE known parent (A) → NOT in any union.
@@ -412,7 +459,9 @@ void main() {
       // D→B 'mother' ("B is D's mother"), F→A 'father' ("A is F's
       // father" — F's only known parent).
       //
-      // The redirect for A→D must NOT bleed into A→F.
+      // EDGE-ANCHOR FIX: BOTH A→D AND A→F anchor at A's box center
+      // (no redirect for either). The user's spec:
+      //   "All outgoing edges converge at the same center point."
       final edges = buildEdges([
         ['A', 'B', 'eAB', 'wife'],
         ['D', 'A', 'eAD', 'father'], // canonical: "A is D's father"
@@ -432,7 +481,8 @@ void main() {
         'F': const Offset(150, 200),
       };
 
-      // A→D redirects (D is in union).
+      // A→D: EDGE-ANCHOR FIX — anchors at A's box center, NOT the union
+      // midpoint.
       final dResolved = resolveEffectiveEdgeEndpoints(
         sourceId: 'A',
         targetId: 'D',
@@ -441,11 +491,11 @@ void main() {
         coupleUnions: unions,
         positionOf: (id) => positions[id],
       );
-      final abMid = unionMidpoint(positions['A']!, positions['B']!);
-      expect(dResolved.source, abMid,
-          reason: 'D is shared → A→D source must be union midpoint');
+      expect(dResolved.source, positions['A']!,
+          reason: 'EDGE-ANCHOR FIX: A→D (shared child) source must be '
+              'A\'s box center, NOT the union midpoint');
 
-      // A→F does NOT redirect (F is not in union).
+      // A→F: EDGE-ANCHOR FIX — also anchors at A's box center.
       final fResolved = resolveEffectiveEdgeEndpoints(
         sourceId: 'A',
         targetId: 'F',
@@ -455,9 +505,19 @@ void main() {
         positionOf: (id) => positions[id],
       );
       expect(fResolved.source, positions['A']!,
-          reason: 'F is NOT shared → A→F source must remain A\'s raw '
-              'position. The redirect for D must NOT bleed into F.');
+          reason: 'EDGE-ANCHOR FIX: A→F (half-sibling) source must be '
+              'A\'s box center');
       expect(fResolved.target, positions['F']!);
+
+      // SPOKES-ON-A-CLOCK-FACE: A→D and A→F converge at the SAME source
+      // center (A's box center). Pre-fix, only A→F did; A→D redirected
+      // to the union midpoint (offset position). Post-fix, both anchor
+      // at A's center — the user's spec.
+      expect(dResolved.source, fResolved.source,
+          reason: 'EDGE-ANCHOR FIX: A→D and A→F must converge at the '
+              'SAME source center (A\'s box center) — the spokes-on-a-'
+              'clock-face requirement. Pre-fix, A→D redirected to the '
+              'union midpoint, breaking this convergence.');
     });
   });
 
@@ -577,197 +637,163 @@ void main() {
   });
 
   // ─────────────────────────────────────────────────────────────────────
-  // TEST 6: Regression guard — tap at the OLD midpoint fails
+  // TEST 6: EDGE-ANCHOR FIX regression guard — NO redirect happens.
+  //
+  // The previous TEST 6 verified the difference between redirect and
+  // no-redirect (i.e., it verified the redirect WAS active). After the
+  // EDGE-ANCHOR FIX, the redirect has been removed entirely, so the
+  // previous TEST 6 is obsolete.
+  //
+  // This new TEST 6 verifies the NEW behavior: NO redirect happens for
+  // ANY edge — including the parent→child edges through confirmed
+  // couple unions that previously triggered the redirect. If a future
+  // change reintroduces the couple-union redirect, this test will
+  // fail because `resolveEffectiveEdgeEndpoints` would return a
+  // different result than the raw source/target.
   // ─────────────────────────────────────────────────────────────────────
-  group('TEST 6 — Regression guard (OLD midpoint)', () {
+  group('TEST 6 — EDGE-ANCHOR FIX regression guard (NO redirect)', () {
     test(
-        'the OLD broken hit-test (no redirect) does NOT return the correct '
-        'edge when tapping the rendered midpoint',
+        'resolveEffectiveEdgeEndpoints returns raw source/target unchanged '
+        'for parent→child edge through a confirmed couple union',
         () {
-      // This test explicitly proves the bug this fix closes. We simulate
-      // the OLD hit-test logic (raw s/t, no redirect) and show it
-      // returns a DIFFERENT edge (or null) when the user taps at the
-      // rendered curve's midpoint. If a future change silently
-      // reintroduces the drift — e.g. by inlining a second copy of the
-      // redirect logic in either the painter or the hit-tester — this
-      // test will catch it because the OLD and NEW midpoints diverge
-      // precisely when the redirect is active.
+      // The same family structure that USED to trigger the redirect:
+      // A — wife — B (spouse pair, confirmed union)
+      // C is the shared child of BOTH A and B → attached to the union.
+      // Pre-fix, A→C edge source was redirected to unionMidpoint(A, B).
+      // Post-fix (EDGE-ANCHOR FIX), A→C edge source must remain A's raw
+      // position.
       final edgeTuples = buildEdges([
         ['A', 'B', 'eAB', 'wife'], // canonical: "B is A's wife"
         ['C', 'A', 'eAC', 'father'], // canonical: "A is C's father"
         ['C', 'B', 'eBC', 'mother'], // canonical: "B is C's mother"
       ]);
       final unions = deriveCoupleUnions(edgeTuples);
+      expect(unions.length, 1);
+      expect(unions.first.childIds, contains('C'),
+          reason: 'Sanity: C IS attached to the union (the redirect '
+              'would have applied pre-fix)');
+
       final positions = <String, Offset>{
         'A': const Offset(0, 0),
         'B': const Offset(100, 0),
         'C': const Offset(50, 200),
       };
-      final edges = <_TestEdge>[
-        const _TestEdge('eAC', 'A', 'C'),
-        const _TestEdge('eBC', 'B', 'C'),
-        const _TestEdge('eAB', 'A', 'B'),
-      ];
 
-      // The RENDERED midpoint of A→C — between union midpoint and C.
+      final rawSource = positions['A']!;
+      final rawTarget = positions['C']!;
+
       final resolved = resolveEffectiveEdgeEndpoints(
         sourceId: 'A',
         targetId: 'C',
-        rawSource: positions['A']!,
-        rawTarget: positions['C']!,
+        rawSource: rawSource,
+        rawTarget: rawTarget,
         coupleUnions: unions,
         positionOf: (id) => positions[id],
       );
-      final renderedMid = Offset(
-        (resolved.source.dx + resolved.target.dx) / 2,
-        (resolved.source.dy + resolved.target.dy) / 2,
-      );
 
-      // The OLD (broken) midpoint of A→C — between A's raw position and C.
-      final oldMid = Offset(
-        (positions['A']!.dx + positions['C']!.dx) / 2,
-        (positions['A']!.dy + positions['C']!.dy) / 2,
-      );
-
-      // Sanity: the two midpoints must actually differ. If they were
-      // equal, the bug wouldn't manifest and this test would be vacuous.
-      expect(renderedMid, isNot(equals(oldMid)),
-          reason: 'Sanity check: the rendered (redirected) midpoint and '
-              'the OLD (pre-redirect) midpoint must be different points. '
-              'If they were the same, the bug would not be observable '
-              'and the regression guard would be meaningless.');
-
-      // THE REGRESSION GUARD: simulate the OLD broken hit-tester (no
-      // redirect) tapping at the RENDERED midpoint. It must NOT return
-      // 'eAC' — because the OLD hit-tester is looking for a tap at
-      // `oldMid`, not at `renderedMid`.
-      //
-      // We use a small hit radius so the test is sensitive to the
-      // difference between the two midpoints.
-      final tightRadius = (renderedMid - oldMid).distance * 0.4;
-      expect(tightRadius, greaterThan(1.0),
-          reason: 'Tight radius must be large enough to be meaningful');
-
-      final brokenHitId = simulateBrokenHitTest(
-        renderedMid,
-        edges: edges,
-        positions: positions,
-        hitRadius: tightRadius,
-      );
-
-      expect(brokenHitId, isNot('eAC'),
-          reason: 'REGRESSION GUARD: the OLD broken hit-tester (no '
-              'redirect) must NOT return the correct edge when the user '
-              'taps at the rendered curve\'s midpoint. If it did, the '
-              'bug would not be observable. This test proves the fix '
-              'was necessary: before the fix, the hit-tester could not '
-              'reliably return \'eAC\' for a tap on the A→C rendered '
-              'curve.');
-
-      // And the NEW (fixed) hit-tester DOES return 'eAC' at the same
-      // tap position with the same radius. This is the positive
-      // counterpart that proves the fix works.
-      final fixedHitId = simulateHitTest(
-        renderedMid,
-        edges: edges,
-        positions: positions,
-        coupleUnions: unions,
-        hitRadius: tightRadius,
-      );
-
-      expect(fixedHitId, 'eAC',
-          reason: 'Positive counterpart: the fixed hit-tester DOES '
-              'return the correct edge at the rendered midpoint with '
-              'the same radius. The fix works.');
+      // EDGE-ANCHOR FIX regression guard: source and target MUST be the
+      // raw values. If a future change reintroduces the couple-union
+      // redirect, `resolved.source` would become unionMidpoint(A, B)
+      // = (50, 0), and this assertion would fail.
+      expect(resolved.source, rawSource,
+          reason: 'EDGE-ANCHOR FIX regression guard: source must be the '
+              'raw box center, NOT the union midpoint. If this fails, '
+              'the couple-union redirect has been reintroduced.');
+      expect(resolved.target, rawTarget,
+          reason: 'EDGE-ANCHOR FIX regression guard: target must be the '
+              'raw box center, unchanged.');
+      expect(resolved.source, isNot(unionMidpoint(positions['A']!, positions['B']!)),
+          reason: 'EDGE-ANCHOR FIX regression guard: source must NOT be '
+              'the union midpoint. If this fails, the couple-union '
+              'redirect has been reintroduced.');
     });
 
     test(
-        'the OLD broken hit-tester returns \'eAC\' at the OLD midpoint — '
-        'proving the OLD and NEW midpoints are genuinely different',
+        'multiple parent→child edges from the same parent converge at the '
+        'parent\'s box center (spokes-on-a-clock-face)',
         () {
-      // This is the inverse counterpart of the test above: at the OLD
-      // midpoint, the OLD broken hit-tester DOES return 'eAC'. This
-      // proves the two midpoints are genuinely different points and
-      // the bug isn't an artifact of the test setup.
+      // The user's spec: "All outgoing edges converge at the same center
+      // point." This test verifies that multiple parent→child edges
+      // from the same parent (in different unions, in this case) ALL
+      // anchor at the parent's box center — NOT at the various union
+      // midpoints.
+      //
+      // Family: A — B (union 1), A — C (union 2, remarriage)
+      //         D is shared child of A+B → union 1
+      //         E is shared child of A+C → union 2
+      // Pre-fix: A→D anchored at A-B midpoint, A→E anchored at A-C
+      // midpoint — DIFFERENT points (not converged).
+      // Post-fix: BOTH anchor at A's box center — converged.
       final edgeTuples = buildEdges([
-        ['A', 'B', 'eAB', 'wife'], // canonical: "B is A's wife"
-        ['C', 'A', 'eAC', 'father'], // canonical: "A is C's father"
-        ['C', 'B', 'eBC', 'mother'], // canonical: "B is C's mother"
+        ['A', 'B', 'eAB', 'wife'],
+        ['A', 'C', 'eAC2', 'wife'],
+        ['D', 'A', 'eAD', 'father'],
+        ['D', 'B', 'eBD', 'mother'],
+        ['E', 'A', 'eAE', 'father'],
+        ['E', 'C', 'eCE', 'mother'],
       ]);
       final unions = deriveCoupleUnions(edgeTuples);
-      final positions = <String, Offset>{
-        'A': const Offset(0, 0),
-        'B': const Offset(100, 0),
-        'C': const Offset(50, 200),
-      };
-      final edges = <_TestEdge>[
-        const _TestEdge('eAC', 'A', 'C'),
-        const _TestEdge('eBC', 'B', 'C'),
-        const _TestEdge('eAB', 'A', 'B'),
-      ];
+      expect(unions.length, 2);
 
-      final resolved = resolveEffectiveEdgeEndpoints(
+      final positions = <String, Offset>{
+        'A': const Offset(100, 0),
+        'B': const Offset(0, 0),
+        'C': const Offset(200, 0),
+        'D': const Offset(50, 200),
+        'E': const Offset(200, 200),
+      };
+
+      final dResolved = resolveEffectiveEdgeEndpoints(
         sourceId: 'A',
-        targetId: 'C',
+        targetId: 'D',
         rawSource: positions['A']!,
-        rawTarget: positions['C']!,
+        rawTarget: positions['D']!,
         coupleUnions: unions,
         positionOf: (id) => positions[id],
       );
-      final renderedMid = Offset(
-        (resolved.source.dx + resolved.target.dx) / 2,
-        (resolved.source.dy + resolved.target.dy) / 2,
-      );
-      final oldMid = Offset(
-        (positions['A']!.dx + positions['C']!.dx) / 2,
-        (positions['A']!.dy + positions['C']!.dy) / 2,
-      );
-
-      final tightRadius = (renderedMid - oldMid).distance * 0.4;
-
-      // At the OLD midpoint, the OLD broken hit-tester returns 'eAC'.
-      final brokenAtOld = simulateBrokenHitTest(
-        oldMid,
-        edges: edges,
-        positions: positions,
-        hitRadius: tightRadius,
-      );
-      expect(brokenAtOld, 'eAC',
-          reason: 'The OLD hit-tester DID return \'eAC\' at the OLD '
-              'midpoint — so the bug was not that \'eAC\' was never '
-              'hittable, but that the user\'s tap (at the RENDERED '
-              'midpoint) was at the wrong place for the OLD hit-tester.');
-
-      // And the NEW hit-tester does NOT return 'eAC' at the OLD
-      // midpoint with the same radius — proving the NEW hit-tester is
-      // genuinely looking at a different point.
-      final fixedAtOld = simulateHitTest(
-        oldMid,
-        edges: edges,
-        positions: positions,
+      final eResolved = resolveEffectiveEdgeEndpoints(
+        sourceId: 'A',
+        targetId: 'E',
+        rawSource: positions['A']!,
+        rawTarget: positions['E']!,
         coupleUnions: unions,
-        hitRadius: tightRadius,
+        positionOf: (id) => positions[id],
       );
-      expect(fixedAtOld, isNot('eAC'),
-          reason: 'The NEW hit-tester does NOT return \'eAC\' at the '
-              'OLD midpoint — proving it is genuinely looking at the '
-              'redirected midpoint, not the raw one.');
+
+      // BOTH edges converge at A's box center — the user's spec.
+      expect(dResolved.source, positions['A']!);
+      expect(eResolved.source, positions['A']!);
+      expect(dResolved.source, eResolved.source,
+          reason: 'EDGE-ANCHOR FIX regression guard: multiple outgoing '
+              'edges from the same parent must converge at the parent\'s '
+              'box center — the spokes-on-a-clock-face requirement. If '
+              'this fails, special-case anchoring logic has been '
+              'reintroduced (e.g., per-union midpoint redirects).');
     });
   });
 
   // ─────────────────────────────────────────────────────────────────────
   // BONUS: End-to-end consistency — painter and hit-tester use the SAME
   // helper, so the rendered curve and the tap target can NEVER diverge.
+  //
+  // EDGE-ANCHOR FIX: the test now verifies parity for an edge that USED
+  // to be union-redirected (parent→child through a confirmed couple
+  // union). Post-fix, both painter and hit-tester compute the raw
+  // midpoint (no redirect), so they're trivially in sync. The test
+  // still catches the original sin: a future refactor that introduces a
+  // second copy of edge-endpoint logic in either the painter or the
+  // hit-tester (rather than calling this shared helper) will fail
+  // here immediately.
   // ─────────────────────────────────────────────────────────────────────
   group('Painter ↔ Hit-tester contract', () {
     test(
         'the midpoint used by the painter equals the midpoint used by the '
-        'hit-tester for a union-redirected edge',
+        'hit-tester for an edge that USED to be union-redirected',
         () {
       // This is the structural guarantee: because both sites call the
       // SAME resolveEffectiveEdgeEndpoints function, the midpoint they
       // each compute must be IDENTICAL. This test exists so that a
-      // future refactor that introduces a second copy of the redirect
+      // future refactor that introduces a second copy of the endpoint
       // logic (the original sin) will fail here immediately, before
       // tests 5 and 6 even run.
       final edgeTuples = buildEdges([
@@ -816,6 +842,19 @@ void main() {
               'must compute the same midpoint because they call the same '
               'function. If this fails, someone has reintroduced the '
               'two-implementation drift.');
+
+      // EDGE-ANCHOR FIX: the shared midpoint MUST be the raw midpoint
+      // (between A and C), NOT the union midpoint. This guards against
+      // a future change that reintroduces the couple-union redirect in
+      // this shared helper.
+      final rawMid = Offset(
+        (positions['A']!.dx + positions['C']!.dx) / 2,
+        (positions['A']!.dy + positions['C']!.dy) / 2,
+      );
+      expect(painterMid, rawMid,
+          reason: 'EDGE-ANCHOR FIX: the painter-hit-tester shared '
+              'midpoint must be the raw box-center midpoint, NOT the '
+              'union midpoint.');
     });
   });
 }

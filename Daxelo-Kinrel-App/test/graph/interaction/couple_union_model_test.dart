@@ -282,45 +282,68 @@ void main() {
   });
 
   // ═══════════════════════════════════════════════════════════════════════
-  // v100 (Phase 6 structural fix): Edge routing through union midpoint
+  // EDGE-ANCHOR FIX — Edge routing NO LONGER redirects through union
+  // midpoint (replaces the previous v100 Phase 6 routing tests).
   // ═══════════════════════════════════════════════════════════════════════
   //
-  // These tests verify the VISUAL ROUTING logic: when a parent→child
-  // edge's parent is a partner in a union that the child belongs to,
-  // the edge's effective source position should be the union midpoint,
-  // not the parent's own position.
+  // The previous v100 tests verified that parent→child edges through
+  // confirmed couple unions were redirected to the union midpoint.
+  // The EDGE-ANCHOR FIX removed this redirect — every edge now anchors
+  // at its source node's box center, per the user's spec:
   //
-  // We test the routing DECISION (which position is used as the source)
-  // by simulating the exact loop the painter uses — we don't need to
-  // instantiate the painter itself.
+  //   "Every edge in the graph must follow the exact same geometric
+  //    rule: sourceNode.center → targetNode.center. This rule must
+  //    apply to ALL nodes — Anchor, Selected, Unselected, Parent,
+  //    Child, Sibling, Spouse, Highlighted 'You' node. No
+  //    special-case anchoring logic should exist for specific node
+  //    types unless absolutely necessary."
+  //
+  // These tests verify the NEW behavior: resolveEffectiveEdgeEndpoints
+  // returns the raw source/target unchanged — even for parent→child
+  // edges through confirmed couple unions (which USED to be
+  // redirected). The data-structure tests above (deriveCoupleUnions
+  // attaching children to unions) are unchanged — only the EDGE
+  // GEOMETRY (which position is used as the source) has changed.
 
-  group('v100 Phase 6 — Edge routing through union midpoint', () {
-    /// Simulates the painter's per-edge routing decision.
-    /// Returns the effective source position for the edge.
+  group('EDGE-ANCHOR FIX — Edge routing NO redirect (replaces v100)', () {
+    /// Verifies the EDGE-ANCHOR FIX contract: resolveEffectiveEdgeEndpoints
+    /// returns the raw source position unchanged — no redirect to the
+    /// union midpoint for parent→child edges through confirmed couple
+    /// unions.
     Offset computeEffectiveSource({
       required String sourceId,
       required String targetId,
       required Map<String, Offset> positions,
       required List<CoupleUnion> unions,
     }) {
-      Offset effectiveSourcePos = positions[sourceId]!;
-      for (final union in unions) {
-        if (union.hasPartner(sourceId) && union.hasChild(targetId)) {
-          final partnerAPos = positions[union.partnerAId];
-          final partnerBPos = positions[union.partnerBId];
-          if (partnerAPos != null && partnerBPos != null) {
-            effectiveSourcePos = unionMidpoint(partnerAPos, partnerBPos);
-          }
-          break;
-        }
-      }
-      return effectiveSourcePos;
+      // EDGE-ANCHOR FIX: this now calls the PRODUCTION helper instead
+      // of a local simulation. The production helper is a no-op for
+      // the redirect — it returns the raw source/target unchanged.
+      // This means these tests directly verify production behavior
+      // (not a simulation), so they will fail if a future change
+      // reintroduces the redirect.
+      final rawSource = positions[sourceId]!;
+      final rawTarget = positions[targetId]!;
+      final resolved = resolveEffectiveEdgeEndpoints(
+        sourceId: sourceId,
+        targetId: targetId,
+        rawSource: rawSource,
+        rawTarget: rawTarget,
+        coupleUnions: unions,
+        positionOf: (id) => positions[id],
+      );
+      return resolved.source;
     }
 
-    test('shared child: both parent→child edges anchor at union midpoint', () {
+    test('EDGE-ANCHOR FIX: shared child — both parent→child edges anchor at the PARENT\'s box center (NO redirect)', () {
       // A and B are spouses; C is their confirmed child.
       // Canonical (v5.174): C→A 'father' ("A is C's father"),
       // C→B 'mother' ("B is C's mother").
+      //
+      // PRE-FIX: A→C and B→C both started at the union midpoint (50, 0).
+      // POST-FIX (EDGE-ANCHOR FIX): A→C starts at A's box center (0, 0);
+      // B→C starts at B's box center (100, 0). Each parent has its own edge
+      // to the child — the user's spec.
       final edges = buildEdges([
         ['C', 'A', 'e1', 'father'], // canonical: "A is C's father"
         ['C', 'B', 'e2', 'mother'], // canonical: "B is C's mother"
@@ -336,31 +359,31 @@ void main() {
         'C': const Offset(50, 200),
       };
 
-      // Edge A→C: A is a partner, C is a child of the union → source
-      // should be the union midpoint (50, 0), NOT A's position (0, 0).
+      // Edge A→C: EDGE-ANCHOR FIX — source must be A's box center
+      // (0, 0), NOT the union midpoint (50, 0).
       final sourceForAC = computeEffectiveSource(
         sourceId: 'A',
         targetId: 'C',
         positions: positions,
         unions: unions,
       );
-      expect(sourceForAC.dx, 50.0,
-          reason: 'Edge A→C should start at union midpoint X (50), not A (0)');
+      expect(sourceForAC.dx, 0.0,
+          reason: 'EDGE-ANCHOR FIX: Edge A→C must start at A\'s box center X (0), not union midpoint (50)');
       expect(sourceForAC.dy, 0.0,
-          reason: 'Edge A→C should start at union midpoint Y (0)');
+          reason: 'EDGE-ANCHOR FIX: Edge A→C must start at A\'s box center Y (0)');
 
-      // Edge B→C: B is a partner, C is a child of the union → source
-      // should also be the union midpoint (50, 0), NOT B's position (100, 0).
+      // Edge B→C: EDGE-ANCHOR FIX — source must be B's box center
+      // (100, 0), NOT the union midpoint (50, 0).
       final sourceForBC = computeEffectiveSource(
         sourceId: 'B',
         targetId: 'C',
         positions: positions,
         unions: unions,
       );
-      expect(sourceForBC.dx, 50.0,
-          reason: 'Edge B→C should start at union midpoint X (50), not B (100)');
+      expect(sourceForBC.dx, 100.0,
+          reason: 'EDGE-ANCHOR FIX: Edge B→C must start at B\'s box center X (100), not union midpoint (50)');
       expect(sourceForBC.dy, 0.0,
-          reason: 'Edge B→C should start at union midpoint Y (0)');
+          reason: 'EDGE-ANCHOR FIX: Edge B→C must start at B\'s box center Y (0)');
     });
 
     test('single-parent child (no union): edge anchors at parent position', () {
@@ -388,11 +411,16 @@ void main() {
       expect(sourceForAC.dy, 0.0);
     });
 
-    test('remarriage: each child anchors to the CORRECT union', () {
+    test('EDGE-ANCHOR FIX: remarriage — each child\'s edge anchors at A\'s box center (NO per-union redirect)', () {
       // A — wife — B (union 1), A — wife — C (union 2, remarriage)
       // D is a child of A+B (both parents confirmed)
       // E is a child of A+C (both parents confirmed)
       // Canonical (v5.174): from=X, to=Y, key='K' → "Y is X's K".
+      //
+      // PRE-FIX: A→D started at A-B midpoint (50, 0); A→E started at
+      // A-C midpoint (100, 0) — DIFFERENT points (not converged).
+      // POST-FIX (EDGE-ANCHOR FIX): BOTH start at A's box center
+      // (0, 0) — the spokes-on-a-clock-face requirement.
       final edges = buildEdges([
         ['A', 'B', 'e1', 'wife'],
         ['A', 'C', 'e2', 'wife'],
@@ -412,36 +440,44 @@ void main() {
         'E': const Offset(150, 200),
       };
 
-      // Edge A→D: A is partner in union A-B, D is child of A-B →
-      // source = midpoint of A-B = (50, 0).
+      // Edge A→D: EDGE-ANCHOR FIX — source = A's box center (0, 0),
+      // NOT the A-B union midpoint (50, 0).
       final sourceForAD = computeEffectiveSource(
         sourceId: 'A',
         targetId: 'D',
         positions: positions,
         unions: unions,
       );
-      expect(sourceForAD.dx, 50.0,
-          reason: 'D is child of union A-B, so edge A→D starts at A-B midpoint (50)');
+      expect(sourceForAD.dx, 0.0,
+          reason: 'EDGE-ANCHOR FIX: A→D source must be A\'s box center (0), not A-B midpoint (50)');
 
-      // Edge A→E: A is partner in union A-C, E is child of A-C →
-      // source = midpoint of A-C = (100, 0), NOT A-B midpoint (50).
+      // Edge A→E: EDGE-ANCHOR FIX — source = A's box center (0, 0),
+      // the SAME as A→D — NOT the A-C union midpoint (100, 0).
       final sourceForAE = computeEffectiveSource(
         sourceId: 'A',
         targetId: 'E',
         positions: positions,
         unions: unions,
       );
-      expect(sourceForAE.dx, 100.0,
-          reason: 'E is child of union A-C, so edge A→E starts at A-C midpoint (100), not A-B (50)');
+      expect(sourceForAE.dx, 0.0,
+          reason: 'EDGE-ANCHOR FIX: A→E source must be A\'s box center (0), not A-C midpoint (100)');
+
+      // SPOKES-ON-A-CLOCK-FACE: A→D and A→E converge at A's box center.
+      expect(sourceForAD, sourceForAE,
+          reason: 'EDGE-ANCHOR FIX: multiple outgoing edges from A must converge at A\'s box center');
     });
 
-    test('half-sibling: shared-parent child does not redirect non-shared child', () {
+    test('EDGE-ANCHOR FIX: half-sibling — BOTH edges anchor at A\'s box center (NO redirect for either)', () {
       // A — wife — B (union)
       // C is the shared child of A+B (both parents confirmed)
       // D is a child of A only (NOT B's child — half-sibling)
       // Canonical (v5.174): C→A 'father' ("A is C's father"),
       // C→B 'mother' ("B is C's mother"), D→A 'father' ("A is D's
       // father" — D's only known parent).
+      //
+      // PRE-FIX: A→C redirected to union midpoint (50, 0); A→D stayed
+      // at A's box center (0, 0) — DIFFERENT points (not converged).
+      // POST-FIX (EDGE-ANCHOR FIX): BOTH anchor at A's box center (0, 0).
       final edges = buildEdges([
         ['A', 'B', 'e1', 'wife'],
         ['C', 'A', 'e2', 'father'], // canonical: "A is C's father"
@@ -462,17 +498,19 @@ void main() {
         'D': const Offset(0, 300),
       };
 
-      // Edge A→C: C IS a child of the union → source = midpoint (50, 0).
+      // Edge A→C: EDGE-ANCHOR FIX — source = A's box center (0, 0),
+      // NOT the union midpoint (50, 0).
       final sourceForAC = computeEffectiveSource(
         sourceId: 'A',
         targetId: 'C',
         positions: positions,
         unions: unions,
       );
-      expect(sourceForAC.dx, 50.0,
-          reason: 'C is a union child → redirect to midpoint');
+      expect(sourceForAC.dx, 0.0,
+          reason: 'EDGE-ANCHOR FIX: A→C source must be A\'s box center (0), not union midpoint (50)');
 
-      // Edge A→D: D is NOT a child of the union → source = A (0, 0).
+      // Edge A→D: EDGE-ANCHOR FIX — source = A's box center (0, 0),
+      // the SAME as A→C.
       final sourceForAD = computeEffectiveSource(
         sourceId: 'A',
         targetId: 'D',
@@ -480,14 +518,19 @@ void main() {
         unions: unions,
       );
       expect(sourceForAD.dx, 0.0,
-          reason: 'D is NOT a union child → edge stays at parent A (0)');
+          reason: 'EDGE-ANCHOR FIX: A→D source must be A\'s box center (0)');
+
+      // SPOKES-ON-A-CLOCK-FACE: A→C and A→D converge at A's box center.
+      expect(sourceForAC, sourceForAD,
+          reason: 'EDGE-ANCHOR FIX: A→C and A→D must converge at A\'s box center');
     });
 
-    test('edge ID, category, custom colors unaffected by routing change', () {
-      // The routing change only affects WHERE the bezier starts —
-      // the edge's ID, relationshipKey, category, and custom colors
-      // are all keyed by edge ID, which does NOT change.
-      // This test verifies the edge data is unchanged.
+    test('EDGE-ANCHOR FIX: edge ID, category, custom colors unaffected by routing removal', () {
+      // The EDGE-ANCHOR FIX removed the couple-union redirect from
+      // resolveEffectiveEdgeEndpoints. The redirect only affected WHERE
+      // the bezier started — the edge's ID, relationshipKey, category,
+      // and custom colors are all keyed by edge ID, which does NOT
+      // change. This test verifies the edge DATA is unchanged.
       final edges = buildEdges([
         ['A', 'B', 'e1', 'wife'],
         ['C', 'A', 'e2', 'father'], // canonical: "A is C's father"
@@ -501,8 +544,7 @@ void main() {
       // The child edge IDs are the ORIGINAL parent→child edge IDs.
       // No synthetic union→child edge ID was created.
       expect(unions.first.childIds, contains('C'));
-      // 'C' is a person ID, not an edge ID — the routing change uses
-      // the child's PERSON ID to look up the union, not a new edge ID.
+      // 'C' is a person ID, not an edge ID.
     });
   });
 }

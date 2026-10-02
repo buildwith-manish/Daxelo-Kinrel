@@ -1645,10 +1645,20 @@ class EngineEdgePainter extends CustomPainter {
     // non-spouse edges, the existing dot bead (rendered by
     // _paintMidpoint with midpointSymbol == dot) is unchanged.
     //
-    // Note: the couple-union ROUTING logic (parent→child edges
-    // redirecting through the union midpoint) is unchanged — only the
-    // visual glyph is removed. resolveEffectiveEdgeEndpoints continues
-    // to handle the routing in both the painter and the hit-tester.
+    // EDGE-ANCHOR FIX (this commit): the couple-union ROUTING logic
+    // (parent→child edges redirecting through the union midpoint via
+    // resolveEffectiveEdgeEndpoints) has been REMOVED. The user's spec
+    // requires every edge to anchor at sourceNode.center →
+    // targetNode.center, including parent/spouse/child nodes. The
+    // previous redirect made parent→child edges anchor at the union
+    // midpoint (an "offset position" between the two parents),
+    // violating this spec. resolveEffectiveEdgeEndpoints is now a
+    // no-op — both the painter and the hit-tester use the raw
+    // box-center endpoints. The spouse edge's heart marker is
+    // unchanged (it's computed via computeVisualMidpoint, which uses
+    // the bezier's t=0.5 — the curve still goes from one spouse's
+    // center to the other's, so the heart lands at the linear midpoint
+    // of the two spouse centers, exactly as before).
   }
 
   // ── Physical paint helpers ───────────────────────────────────────────
@@ -2333,9 +2343,17 @@ class EngineEdgePainter extends CustomPainter {
   // control point. For non-spouse edges, the existing dot bead (from
   // _paintMidpoint with midpointSymbol == dot) is unchanged.
   //
-  // The couple-union ROUTING logic (parent→child edges redirecting
-  // through the union midpoint via resolveEffectiveEdgeEndpoints) is
-  // UNCHANGED — only the visual glyph is removed.
+  // EDGE-ANCHOR FIX (this commit): the couple-union ROUTING logic
+  // (parent→child edges redirecting through the union midpoint via
+  // resolveEffectiveEdgeEndpoints) has been REMOVED. The user's spec
+  // requires every edge to anchor at sourceNode.center →
+  // targetNode.center for ALL nodes including parent/spouse/child.
+  // The previous redirect made parent→child edges anchor at the union
+  // midpoint (an "offset position" between the two parents), violating
+  // the spec — non-anchor nodes had edges that did not converge at
+  // the parent's center. resolveEffectiveEdgeEndpoints is now a no-op;
+  // the painter and the hit-tester both use the raw box-center
+  // endpoints.
 
   @override
   bool shouldRepaint(covariant EngineEdgePainter old) {
