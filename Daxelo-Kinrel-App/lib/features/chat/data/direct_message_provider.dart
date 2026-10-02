@@ -391,10 +391,10 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
 // Provider
 // ═══════════════════════════════════════════════════════════════════════
 
-final directChatProvider = StateNotifierProvider.family<
+final directChatProvider = StateNotifierProvider.autoDispose.family<
     DirectChatNotifier, DirectChatState, String>((ref, otherUserId) {
   return DirectChatNotifier(otherUserId: otherUserId, ref: ref);
-}).autoDispose;
+});
 
 // ═══════════════════════════════════════════════════════════════════════
 // Task 4 — Send a game invite as a DIRECT MESSAGE (Specific Members)

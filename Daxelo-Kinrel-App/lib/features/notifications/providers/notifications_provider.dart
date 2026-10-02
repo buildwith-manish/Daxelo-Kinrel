@@ -465,17 +465,18 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
     try {
       final userId = client.auth.currentUser!.id;
       // The notifications list is sorted newest-first. The oldest
-      // loaded notification is the LAST element. Use its createdAt
-      // as the cursor for fetching older notifications.
+      // loaded notification is the LAST element. Use its time (ISO
+      // string from the backend) as the cursor for fetching older
+      // notifications.
       final oldestNotification = state.notifications.last;
-      final cursor = oldestNotification.createdAt;
+      final cursor = oldestNotification.time;
 
       final response = await client
           .from('Notification')
           .select()
           .eq('userId', userId)
-          .order('createdAt', ascending: false)
           .lt('createdAt', cursor)
+          .order('createdAt', ascending: false)
           .limit(_notificationsPageSize)
           .timeout(const Duration(seconds: 10));
 

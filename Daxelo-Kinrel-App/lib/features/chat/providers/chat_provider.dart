@@ -1023,17 +1023,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     try {
       // The messages list is sorted newest-first (UI uses reverse: true).
-      // The oldest loaded message is the LAST element. Use its createdAt
+      // The oldest loaded message is the LAST element. Use its timestamp
       // as the cursor for fetching older messages.
       final oldestMessage = state.messages.last;
-      final cursor = oldestMessage.createdAt;
+      final cursor = oldestMessage.timestamp;
 
       final olderResponse = await client
           .from('ChatMessage')
           .select()
           .eq('familyId', familyId)
-          .order('createdAt', ascending: false)
           .lt('createdAt', cursor.toIso8601String())
+          .order('createdAt', ascending: false)
           .limit(_olderMessagesPageSize)
           .timeout(const Duration(seconds: 15));
 
@@ -1045,7 +1045,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
       // Reverse to match the newest-first ordering, then prepend to
       // the existing messages (older messages go at the end of the list).
-      olderMessages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      olderMessages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
       if (mounted) {
         final allMessages = [...state.messages, ...olderMessages];
@@ -2456,9 +2456,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
 /// the chat screen is no longer watched, preventing channel accumulation
 /// across navigation.
 final chatProvider =
-    StateNotifierProvider.family<ChatNotifier, ChatState, String>(
+    StateNotifierProvider.autoDispose.family<ChatNotifier, ChatState, String>(
       (ref, familyId) => ChatNotifier(familyId: familyId, ref: ref),
-    ).autoDispose;
+    );
 
 /// Convenience: online member count for a family chat.
 /// Uses Provider.select so widgets watching this ONLY rebuild when

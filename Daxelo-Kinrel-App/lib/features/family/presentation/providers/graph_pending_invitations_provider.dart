@@ -175,7 +175,7 @@ class InvitationResult {
 
 /// AsyncNotifier that fetches + caches pending graph invitations for a family.
 class GraphPendingInvitationsNotifier
-    extends FamilyAsyncNotifier<List<GraphPendingInvitation>, String> {
+    extends AutoDisposeFamilyAsyncNotifier<List<GraphPendingInvitation>, String> {
   Timer? _debounceTimer;
 
   @override
@@ -438,10 +438,10 @@ class GraphPendingInvitationsNotifier
 /// autoDispose: tears down the pending-invitations realtime channel when
 /// the graph screen is no longer watched, preventing per-family channel
 /// accumulation.
-final graphPendingInvitationsProvider = AsyncNotifierProvider.family<
+final graphPendingInvitationsProvider = AsyncNotifierProvider.autoDispose.family<
     GraphPendingInvitationsNotifier, List<GraphPendingInvitation>, String>(
   GraphPendingInvitationsNotifier.new,
-).autoDispose;
+);
 
 /// Convenience provider — returns the count of pending invitations.
 final pendingGraphInvitationCountProvider =

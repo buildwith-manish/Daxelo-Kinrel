@@ -343,17 +343,14 @@ class FeedNotifier extends StateNotifier<FeedState> {
         return;
       }
 
-      var query = client
-          .from(_kFamilyPostTable)
-          .select('*, Family(name, username), Person(name, username)')
-          .inFilter('familyId', familyIds)
-          .order('createdAt', ascending: false);
-
-      // Apply the cursor filter — fetch posts OLDER than the cursor.
-      query = query.lt('createdAt', cursor.toIso8601String());
-
       final response = await withRetry(
-        () => query.limit(_pageSize),
+        () => client
+            .from(_kFamilyPostTable)
+            .select('*, Family(name, username), Person(name, username)')
+            .inFilter('familyId', familyIds)
+            .lt('createdAt', cursor.toIso8601String())
+            .order('createdAt', ascending: false)
+            .limit(_pageSize),
         operationName: 'Load more home feed',
       );
 

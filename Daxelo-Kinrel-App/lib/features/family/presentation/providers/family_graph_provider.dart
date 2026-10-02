@@ -2776,7 +2776,7 @@ final highlightedGenerationProvider = StateProvider<int?>((ref) => null);
 /// autoDispose: tears down the realtime channel when the graph screen
 /// is no longer watched, preventing per-family channel accumulation.
 final graphRealtimeProvider =
-    Provider.family<void, String>((ref, familyId) {
+    Provider.autoDispose.family<void, String>((ref, familyId) {
   final client = ref.read(supabaseProvider);
   if (client == null) return;
 
@@ -2932,7 +2932,7 @@ final graphRealtimeProvider =
     _debounceTimer?.cancel();
     client.removeChannel(channel);
   });
-}).autoDispose;
+});
 
 // ═══════════════════════════════════════════════════════════════════════
 // 7. GRAPH DRIFT STREAM PROVIDER — Reactive local DB watcher
