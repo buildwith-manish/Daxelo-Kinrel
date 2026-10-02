@@ -59,6 +59,13 @@ import 'package:kinrel/graph/data/graph_data_models.dart'
 import 'package:kinrel/graph/interaction/couple_union_model.dart'
     show CoupleUnion, deriveCoupleUnions, resolveEffectiveEdgeEndpoints,
         unionMidpoint;
+import 'package:kinrel/graph/rendering/visual_circle_center.dart'
+    show visualCircleCenterYOffset, isImmediateFamilyCategory,
+        kBaseCircleDiameter, kAnchorDiameterMultiplier,
+        kImmediateFamilyDiameterMultiplier, kStandardExtraPad,
+        kAnchorExtraPad, kNodePadding;
+import 'package:kinrel/core/kinship/kinship_edge_style.dart'
+    show KinshipEdgeCategory;
 
 /// Mirror of the constant in family_graph_engine_view.dart. Kept here
 /// as a TEST CONSTANT so these tests don't depend on private state.
@@ -812,6 +819,161 @@ void main() {
           reason: 'A→D source must NOT be the A-B union midpoint');
       expect(eResolved.source, isNot(unionMidpoint(positions['A']!, positions['C']!)),
           reason: 'A→E source must NOT be the A-C union midpoint');
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // EDGE-ANCHOR FIX (PART 3 — zoom-aware visual circle center)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // The user reported that edges look correctly centered when zoomed
+  // OUT but become visibly offset when zoomed IN. The root cause:
+  // the GraphNode widget's visual circle is at the TOP of its Column
+  // (with name + relation label below it), so the visual circle's
+  // CENTER is offset from the Positioned BOX center. The offset varies
+  // by node type (different diameters + extraPad):
+  //   standard (72px circle, 12px extraPad):       offset = -22
+  //   "You"/anchor (90px circle, 20px extraPad):   offset = -9
+  //   immediate family (80.64px circle, 12px):     offset = -17.68
+  //
+  // These tests verify the public helpers in
+  // lib/graph/rendering/visual_circle_center.dart compute the correct
+  // per-node offset, so that canvas_mixin can apply the offset to
+  // the edge painter's positions map (anchoring edges at the visual
+  // circle center when the GraphNode widget is rendered at
+  // FULL/COMPACT LOD).
+
+  group('EDGE-ANCHOR FIX (PART 3) — per-node visual circle center '
+      'offset', () {
+    test('standard node offset = -22 (72px circle, 12px extraPad)', () {
+      // Standard node: not anchor, not immediate family.
+      // effectiveDiameter = 72 (base)
+      // extraPad = 12 (standard)
+      // offset = -24 (padding) + (72 + 12) / 2 = -24 + 42 = -22
+      final offset = visualCircleCenterYOffset(
+        isAnchor: false,
+        isImmediateFamily: false,
+      );
+      expect(offset, -22.0,
+          reason: 'Standard node visual circle center Y offset must be '
+              '-22 (72px circle, 12px extraPad). At zoom-IN, this is '
+              'the offset that was causing edges to appear off from '
+              'the visual circle center.');
+    });
+
+    test('anchor ("You") node offset = -9 (90px circle, 20px extraPad)', () {
+      // Anchor node: isAnchor = true.
+      // effectiveDiameter = 72 * 1.25 = 90
+      // extraPad = 20 (anchor)
+      // offset = -24 (padding) + (90 + 20) / 2 = -24 + 55 = -9
+      final offset = visualCircleCenterYOffset(
+        isAnchor: true,
+        isImmediateFamily: false, // ignored when isAnchor = true
+      );
+      expect(offset, -9.0,
+          reason: 'Anchor ("You") node visual circle center Y offset '
+              'must be -9 (90px circle = 72 * 1.25, 20px extraPad). '
+              'The anchor node is 25% larger than standard.');
+    });
+
+    test('immediate family node offset = -17.68 (80.64px circle, '
+        '12px extraPad)', () {
+      // Immediate family node: not anchor, isImmediateFamily = true.
+      // effectiveDiameter = 72 * 1.12 = 80.64
+      // extraPad = 12 (standard)
+      // offset = -24 (padding) + (80.64 + 12) / 2 = -24 + 46.32 = -17.68
+      final offset = visualCircleCenterYOffset(
+        isAnchor: false,
+        isImmediateFamily: true,
+      );
+      // Use closeTo because 80.64 / 2 = 40.32 has floating-point
+      // representation, but the result should be within 0.01 of -17.68.
+      expect(offset, closeTo(-17.68, 0.01),
+          reason: 'Immediate family node visual circle center Y offset '
+              'must be ≈ -17.68 (80.64px circle = 72 * 1.12, 12px '
+              'extraPad). Immediate family nodes are 12% larger than '
+              'standard.');
+    });
+
+    test('offsets are DIFFERENT per node type (no hardcoded uniform '
+        'offset)', () {
+      // The pre-PART-3 fix used a uniform hardcoded -28 offset for
+      // every node. The PART 3 fix computes the correct per-node
+      // offset. Verify the offsets are DIFFERENT for each node type.
+      final standard = visualCircleCenterYOffset(
+        isAnchor: false,
+        isImmediateFamily: false,
+      );
+      final anchor = visualCircleCenterYOffset(
+        isAnchor: true,
+        isImmediateFamily: false,
+      );
+      final immediateFamily = visualCircleCenterYOffset(
+        isAnchor: false,
+        isImmediateFamily: true,
+      );
+
+      // Standard and anchor must differ.
+      expect((standard - anchor).abs(), greaterThan(0.5),
+          reason: 'Standard and anchor offsets must differ (different '
+              'circle diameters + extraPad)');
+      // Standard and immediate family must differ.
+      expect((standard - immediateFamily).abs(), greaterThan(0.5),
+          reason: 'Standard and immediate family offsets must differ');
+      // Anchor and immediate family must differ.
+      expect((anchor - immediateFamily).abs(), greaterThan(0.5),
+          reason: 'Anchor and immediate family offsets must differ');
+
+      // None of them should be the old hardcoded -28.
+      expect(standard, isNot(-28.0),
+          reason: 'Standard offset must NOT be the old hardcoded -28');
+      expect(anchor, isNot(-28.0),
+          reason: 'Anchor offset must NOT be the old hardcoded -28');
+      expect(immediateFamily, isNot(-28.0),
+          reason: 'Immediate family offset must NOT be the old '
+              'hardcoded -28');
+    });
+
+    test('isImmediateFamilyCategory matches GraphNode._isImmediateFamilyCategory', () {
+      // The helper must match the GraphNode widget's category check
+      // (graph_node.dart line 578-584). Parent/child/spouse/sibling
+      // are immediate family; everything else is not.
+      expect(isImmediateFamilyCategory(KinshipEdgeCategory.parent), isTrue);
+      expect(isImmediateFamilyCategory(KinshipEdgeCategory.child), isTrue);
+      expect(isImmediateFamilyCategory(KinshipEdgeCategory.spouse), isTrue);
+      expect(isImmediateFamilyCategory(KinshipEdgeCategory.sibling), isTrue);
+
+      // Non-immediate-family categories.
+      expect(isImmediateFamilyCategory(KinshipEdgeCategory.self), isFalse);
+      expect(isImmediateFamilyCategory(KinshipEdgeCategory.grandparent), isFalse);
+      expect(isImmediateFamilyCategory(null), isFalse,
+          reason: 'Null category (unknown relationship) is NOT immediate '
+              'family — falls back to standard offset');
+    });
+
+    test('constants match GraphNode widget layout', () {
+      // The constants in visual_circle_center.dart must match the
+      // GraphNode widget's actual rendered values. If GraphNode's
+      // _buildCircleNode changes (e.g., different diameter multiplier
+      // or extraPad), these constants must be updated to match —
+      // otherwise the edge anchor offset would be wrong.
+      expect(kBaseCircleDiameter, 72.0,
+          reason: 'GraphNode.nodeSize default is 72.0');
+      expect(kAnchorDiameterMultiplier, 1.25,
+          reason: 'GraphNode._buildCircleNode line 1077: '
+              '(diameter * 1.25) for isAnchor');
+      expect(kImmediateFamilyDiameterMultiplier, 1.12,
+          reason: 'GraphNode._buildCircleNode line 1079: '
+              '(diameter * 1.12) for isImmediateFamily');
+      expect(kStandardExtraPad, 12.0,
+          reason: 'GraphNode._buildCircleNode line 1111: '
+              'widget.isAnchor ? 20.0 : 12.0');
+      expect(kAnchorExtraPad, 20.0,
+          reason: 'GraphNode._buildCircleNode line 1111: '
+              'widget.isAnchor ? 20.0 : 12.0');
+      expect(kNodePadding, 24.0,
+          reason: 'node_layer.dart line 164-165: '
+              'Padding(padding: const EdgeInsets.all(24.0))');
     });
   });
 }

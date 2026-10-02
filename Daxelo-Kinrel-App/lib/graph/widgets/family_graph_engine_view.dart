@@ -198,6 +198,13 @@ import 'engine/node_mini_painter.dart' show NodeMiniPainter;
 import 'engine/node_micro_painter.dart' show NodeMicroPainter;
 import 'engine/engine_edge_painter.dart' show EngineEdgePainter;
 import 'engine/edge_selection_wrapper.dart' show EdgeSelectionWrapper;
+// EDGE-ANCHOR FIX (PART 3): public helpers for the per-node visual
+// circle center Y offset computation. Used by canvas_mixin to apply
+// the correct offset to the edge painter's positions map based on
+// each node's actual rendered diameter (which varies by node type:
+// standard / "You" anchor / immediate family).
+import '../rendering/visual_circle_center.dart'
+    show visualCircleCenterYOffset, isImmediateFamilyCategory;
 // v5.132 (System B REMOVAL): BranchAffordanceChip (the legacy per-node
 // "+N" chip) was deleted with _withBranchAffordance — the ONLY branch
 // chips now render via _buildCollapsedBranchChips in
@@ -330,6 +337,43 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // The camera-focus use is a UX heuristic ("is this node already
   // comfortably visible?") and does not affect edge geometry.
   static const double _kCircleCenterYOffset = -28.0;
+
+  // ── EDGE-ANCHOR FIX (PART 3 — zoom-aware visual circle center) ──────
+  //
+  // The user reported that edges look correctly centered when zoomed
+  // OUT but become visibly offset when zoomed IN. The root cause:
+  // the GraphNode widget's visual circle is at the TOP of its Column
+  // (with name + relation label below it), so the visual circle's
+  // CENTER is offset from the Positioned BOX center. The previous
+  // fix (commits bb77b058 + 33808dcf) anchored edges at the BOX
+  // center — which is consistent but doesn't match the visual circle
+  // center. At zoom-OUT, the offset is small in screen pixels
+  // (barely noticeable). At zoom-IN, the offset is amplified
+  // (very noticeable).
+  //
+  // The per-node visual circle center Y offset is computed by the
+  // PUBLIC helpers in lib/graph/rendering/visual_circle_center.dart
+  // (visualCircleCenterYOffset + isImmediateFamilyCategory). Those
+  // helpers mirror the GraphNode widget's actual rendered diameter
+  // and extraPad (see graph_node.dart _buildCircleNode lines
+  // 1076-1111). They are PUBLIC so tests can verify the offset math
+  // without accessing this private state class.
+  //
+  // Layout (per GraphNode._buildCircleNode + _buildNodeContent):
+  //   Positioned box: _kNodeSize (140 × 176), centered at `pos`
+  //   Padding(24): inner area = 92 × 128, top at `pos.dy - 64`
+  //   Column (top-aligned): top at `pos.dy - 64`
+  //   SizedBox (circle layer): height = effectiveDiameter + extraPad
+  //   Pseudo3DNodePainter draws circle of `effectiveDiameter` CENTERED
+  //   in the SizedBox → visual circle center = SizedBox center
+  //
+  // Visual circle center Y = pos.dy - 64 + (effectiveDiameter + extraPad) / 2
+  // Offset from box center (pos.dy) = -64 + (effectiveDiameter + extraPad) / 2
+  //
+  // Computed values:
+  //   standard (72px circle, 12px extraPad):       offset = -22.0
+  //   "You"/anchor (90px circle, 20px extraPad):   offset = -9.0
+  //   immediate family (80.64px circle, 12px):     offset = -17.68
 
   /// Zoom thresholds for LOD tiers.
   //
@@ -567,6 +611,18 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   List<DedupedEdge> _currentEdges = const [];
   Map<String, Offset> _currentPositionsWithOffset = const {};
   Map<String, Map<String, dynamic>> _currentEdgeCustomColors = const {};
+
+  // EDGE-ANCHOR FIX (PART 3 — zoom-aware visual circle center):
+  // Cache the RAW effective positions (the box centers, WITHOUT the
+  // per-node visual circle center Y offset) so the reset animation
+  // can lerp from the raw positions to the new auto-layout positions
+  // without a Y drift. _currentPositionsWithOffset (above) now
+  // contains the VISUAL CIRCLE CENTER positions (with offset) at
+  // FULL/COMPACT LOD — using it for the reset lerp would cause a
+  // 22px Y drift during the animation. _currentRawEffectivePositions
+  // is the raw box-center positions, which is what the reset lerp
+  // needs.
+  Map<String, Offset> _currentRawEffectivePositions = const {};
 
   // v5.137: Cache the current collapsed branches so the canvas tap
   // handler can do geometric hit-testing on branch chips. On Flutter
@@ -1320,23 +1376,25 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   void _onResetTrigger() {
     if (!mounted) return;
     // Capture the current effective positions. These are the values
-    // the canvas_mixin computed on the LAST build — accessible here
-    // via the _currentPositionsWithOffset cache (which is updated
-    // every build).
+    // the canvas_mixin computed on the LAST build.
     //
-    // EDGE-ANCHOR FIX (this commit): _currentPositionsWithOffset is
-    // now the RAW layout positions (the box centers) — no Y offset is
-    // applied anymore. So we capture them as-is for the lerp. (The
-    // pre-fix code stripped a hardcoded `_kCircleCenterYOffset` here
-    // to recover the raw positions from the offset-applied cache —
-    // that strip step is now a no-op because the cache IS the raw
-    // positions.)
+    // EDGE-ANCHOR FIX (PART 3 — zoom-aware visual circle center):
+    // We use _currentRawEffectivePositions (the RAW box-center
+    // positions, WITHOUT the per-node visual circle center Y offset)
+    // — NOT _currentPositionsWithOffset (which now contains the
+    // VISUAL CIRCLE CENTER positions at FULL/COMPACT LOD). The reset
+    // lerp goes from _preResetPositions to the new auto-layout
+    // positions (raw box centers). If we used _currentPositionsWithOffset,
+    // the lerp would drift by the per-node Y offset (~22px for
+    // standard, ~9px for anchor, ~17.68px for immediate family)
+    // during the 350ms animation — the nodes would visibly slide
+    // vertically before settling.
     //
-    // If _currentPositionsWithOffset is empty (very first frame,
+    // If _currentRawEffectivePositions is empty (very first frame,
     // nothing rendered yet), there's nothing to animate from — skip
     // the animation entirely and let the provider invalidation snap
     // to the new state.
-    if (_currentPositionsWithOffset.isEmpty) {
+    if (_currentRawEffectivePositions.isEmpty) {
       // Nothing to lerp from — snap to pure auto-layout.
       _preResetPositions = null;
       _preResetEdgeWaypoints = null;
@@ -1344,7 +1402,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       return;
     }
     final preResetPositions = <String, Offset>{
-      for (final entry in _currentPositionsWithOffset.entries)
+      for (final entry in _currentRawEffectivePositions.entries)
         entry.key: entry.value,
     };
     // Also capture the current edge waypoints (saved + live). The

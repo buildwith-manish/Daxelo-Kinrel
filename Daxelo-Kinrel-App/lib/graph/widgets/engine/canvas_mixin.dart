@@ -1273,27 +1273,49 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // v83: Also check customColors — if an edge has customColors in
         // the relationship data, use the custom line color instead.
         final String? anchorId = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
+        // EDGE-ANCHOR FIX (PART 3 — zoom-aware visual circle center):
+        // compute the current LOD tier so we can apply the per-node
+        // visual circle center Y offset ONLY when the GraphNode widget
+        // is actually rendered (FULL / COMPACT LOD). At DOT/MINI/MICRO
+        // LOD, the dot painters draw at the box center (no visual
+        // circle offset to worry about), so we use the raw layout
+        // position.
+        //
+        // This conditional application avoids the "edges slightly off
+        // from dots" regression at zoom-OUT while fixing the "edges
+        // off from visual circles" bug at zoom-IN. The transition
+        // happens at the same LOD threshold where the node
+        // representation itself changes (GraphNode widget ↔ dot
+        // painter), so the user doesn't perceive a discrete "jump".
+        final Lod currentLod = _lodFor(_camera.zoomLevel);
+        final bool applyVisualCircleOffset =
+            currentLod == Lod.full || currentLod == Lod.compact;
+
         // v5.125 (Step 6): the anchor's center in the EDGE PAINTER's
         // coordinate space. This drives the bow-around-the-anchor routing
         // for ring-spanning chords and the sector fan-out for
         // anchor-incident edges — geometry only, no colour changes.
         //
-        // EDGE-ANCHOR FIX (this commit): the anchor center now uses the
-        // RAW layout position — which IS the node's box center (per the
-        // Positioned math: `left: pos.dx - _kNodeSize.width/2,
-        // top: pos.dy - _kNodeSize.height/2` — so `pos` IS the box center).
-        // The previous code applied a hardcoded `_kCircleCenterYOffset`
-        // (-28px) that was computed assuming a 72px circle in a 140×176
-        // box. That assumption breaks for the enlarged "You"/anchor node
-        // (90px circle, 20px extraPad) and for immediate-family nodes
-        // (80.64px circle) — causing edges to converge at a point that
-        // was NOT the actual visual center for these node sizes.
-        // Edges now anchor at the box center (the user's literal spec:
-        // `source.x + source.width/2, source.y + source.height/2`).
-        final Offset? anchorCenterForEdges =
-            (anchorId != null && effectivePositions.containsKey(anchorId))
-                ? effectivePositions[anchorId]!
-                : null;
+        // EDGE-ANCHOR FIX (PART 3): the anchor center now uses the
+        // per-node visual circle center Y offset when the GraphNode
+        // widget is rendered (FULL/COMPACT LOD). The anchor node has a
+        // 90px circle (25% larger than standard 72px) with 20px
+        // extraPad, so its visual circle center is at offset -9 from
+        // the box center. At DOT/MINI/MICRO LOD, the dot is drawn at
+        // the box center (no offset).
+        final Offset? anchorCenterForEdges = (anchorId != null &&
+                effectivePositions.containsKey(anchorId))
+            ? (applyVisualCircleOffset
+                ? Offset(
+                    effectivePositions[anchorId]!.dx,
+                    effectivePositions[anchorId]!.dy +
+                        visualCircleCenterYOffset(
+                          isAnchor: true,
+                          isImmediateFamily: false,
+                        ),
+                  )
+                : effectivePositions[anchorId]!)
+            : null;
         final edgeCategories = <String, KinshipEdgeCategory>{};
         final edgeCustomColors = <String, Map<String, dynamic>>{};
         // v5.150: Resolve a kinship category for EVERY edge, not just
@@ -1377,34 +1399,86 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // edge painter (both need the identical transformation).
         // Previously TWO separate 715-entry maps were allocated per rebuild.
         //
-        // EDGE-ANCHOR FIX (this commit): the positions map passed to the
-        // edge painter is now the RAW layout positions — which ARE the
-        // node box centers (per the Positioned math in node_layer.dart:
-        // `left: pos.dx - _kNodeSize.width/2, top: pos.dy - _kNodeSize.height/2`
-        // — so `pos` IS the box center). The previous code added a
-        // hardcoded `_kCircleCenterYOffset` (-28px) to every entry,
-        // which was derived assuming a 72px-diameter visual circle. That
-        // assumption broke for the enlarged "You"/anchor node (90px
-        // circle, extraPad 20) and for immediate-family nodes (80.64px
-        // circle, extraPad 12), where the visual circle center is at a
-        // DIFFERENT offset from the box center. The hardcoded -28 caused
-        // edges on the "You" node to converge ~19px below the actual
-        // visual circle center — the asymmetric "edges don't radiate
-        // from a single central point" the user reported.
+        // EDGE-ANCHOR FIX (PART 3 — zoom-aware visual circle center):
+        // The user reported that edges look correctly centered when
+        // zoomed OUT but become visibly offset when zoomed IN. The root
+        // cause is that the GraphNode widget's visual circle is at the
+        // TOP of its Column (with name + relation label below it), so
+        // the visual circle's CENTER is offset from the Positioned BOX
+        // center. The offset varies by node type (different diameters
+        // + extraPad):
+        //   standard (72px circle, 12px extraPad):       offset = -22
+        //   "You"/anchor (90px circle, 20px extraPad):   offset = -9
+        //   immediate family (80.64px circle, 12px):     offset = -17.68
         //
-        // The user's spec anchors edges at the box center
-        // (`source.x + source.width/2, source.y + source.height/2`).
-        // The layout position `pos` IS the box center, so we use it
-        // directly. The node widget is drawn ON TOP of the edge layer
-        // (see the Stack order in canvas_mixin), so the center connection
-        // point is naturally hidden beneath the node widget's content.
-        // This makes edge geometry consistent across every node size,
-        // zoom level, and connection angle.
-        final positionsWithOffset = <String, Offset>{
-          for (final entry in effectivePositions.entries)
-            entry.key: entry.value,
-        };
+        // At zoom-OUT, the offset is small in screen pixels (barely
+        // noticeable). At zoom-IN, the offset is amplified (very
+        // noticeable) — exactly the user's observation:
+        //   "Zoom Out: Edge radius ≈ Visual radius → Looks correct
+        //    Zoom In:   Edge radius ≠ Visual radius → Looks offset"
+        //
+        // The fix: when the GraphNode widget is rendered (FULL/COMPACT
+        // LOD), apply the per-node visual circle center Y offset to
+        // each position in the map. The offset is computed from the
+        // node's actual rendered diameter (which varies by node type:
+        // anchor / immediate family / standard) — NOT a hardcoded
+        // constant. At DOT/MINI/MICRO LOD, the dot painters draw at
+        // the box center (no visual circle offset), so we use the raw
+        // layout position.
+        //
+        // This conditional application avoids the "edges slightly off
+        // from dots" regression at zoom-OUT while fixing the "edges
+        // off from visual circles" bug at zoom-IN. The transition
+        // happens at the same LOD threshold where the node
+        // representation itself changes (GraphNode widget ↔ dot
+        // painter), so the user doesn't perceive a discrete "jump".
+        //
+        // The node widget is drawn ON TOP of the edge layer (see the
+        // Stack order in canvas_mixin), so the center connection point
+        // is naturally hidden beneath the node widget's visual circle.
+        // This makes edge geometry match the visual circle center at
+        // every zoom level, node type, and connection angle.
+        final Map<String, Offset> positionsWithOffset;
+        if (applyVisualCircleOffset) {
+          // FULL/COMPACT LOD: apply the per-node visual circle center
+          // Y offset based on the node's category (anchor / immediate
+          // family / standard). The offset is computed by the PUBLIC
+          // helper visualCircleCenterYOffset (in
+          // lib/graph/rendering/visual_circle_center.dart), which
+          // mirrors the GraphNode widget's actual rendered diameter
+          // and extraPad (see graph_node.dart _buildCircleNode lines
+          // 1076-1111).
+          positionsWithOffset = <String, Offset>{
+            for (final entry in effectivePositions.entries)
+              entry.key: Offset(
+                entry.value.dx,
+                entry.value.dy +
+                    visualCircleCenterYOffset(
+                      isAnchor: entry.key == anchorId,
+                      isImmediateFamily: isImmediateFamilyCategory(
+                          relationCategoryById[entry.key]),
+                    ),
+              ),
+          };
+        } else {
+          // DOT/MINI/MICRO LOD: the dot painters draw at the box
+          // center (no visual circle offset). Use the raw layout
+          // positions directly.
+          positionsWithOffset = <String, Offset>{
+            for (final entry in effectivePositions.entries)
+              entry.key: entry.value,
+          };
+        }
         _currentPositionsWithOffset = positionsWithOffset;
+        // EDGE-ANCHOR FIX (PART 3): cache the RAW effective positions
+        // (without the visual circle center Y offset) for the reset
+        // animation. The reset lerp goes from _preResetPositions to
+        // the new auto-layout positions (raw box centers). If we used
+        // _currentPositionsWithOffset (which now contains the visual
+        // circle center positions at FULL/COMPACT LOD), the lerp would
+        // drift by the per-node Y offset (~22px for standard, ~9px
+        // for anchor, ~17.68px for immediate family).
+        _currentRawEffectivePositions = effectivePositions;
 
         // v5.137: Cache the current collapsed branches so the parent-level
         // geometric hit-tester can intercept branch chip taps. On Flutter
