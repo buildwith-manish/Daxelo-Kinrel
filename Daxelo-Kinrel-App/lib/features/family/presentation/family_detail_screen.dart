@@ -253,23 +253,30 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           // ════════════════════════════════════════════════════════════
           // PREMIUM FAMILY SPACE — FIXED LAYOUT ORDER
           //
-          // Layout-restoration brief: the content section order is FIXED.
-          // Prediction Battle is ALWAYS the first content card below the
-          // header — it is the most engaging and interactive feature and
-          // earns top placement consistently.
+          // Content-hierarchy refinement: the content section order is
+          // FIXED. The flow is engagement → emotion → updates → premium
+          // → remaining, so the user experiences:
+          //   1. Prediction Battle (drives interaction)
+          //   2. Thinking of You (reinforces family connection)
+          //   3. Family Pulse (provides updates and activity history)
+          //   4. Premium Insights (paywall — after free-value content)
+          //   5. Remaining content (Invite, Recent Moments)
           //
-          // The full order is:
-          //   1. Family Header (restored full size — not compact)
+          // The full screen order is:
+          //   1. Family Header (full size — not compact)
           //   2. Highlights Row (shortcuts)
           //   3. Prediction Battle (includes its own Coin Pool)
-          //   4. Family Pulse (recent activity)
-          //   5. Premium Insights (paywall — after free-value content)
-          //   6. Remaining content (Invite, Thinking of You, Recent Moments)
-          //   7. Family Strength Closer
+          //   4. Thinking of You (moved up — directly below PB)
+          //   5. Family Pulse (recent activity)
+          //   6. Premium Insights (paywall — after free-value content)
+          //   7. Remaining content (Invite, Recent Moments)
+          //   8. Family Strength Closer
           //
           // Changes from the prior dynamic-ordering pass:
           //   • Header restored to full prominence (compact mode removed)
           //   • Prediction Battle always first (no longer state-dependent)
+          //   • Thinking of You moved to position 2 (above Family Pulse)
+          //     for better emotional + engagement cadence
           //   • Duplicate standalone Coin Pool section removed (kept only
           //     the one that belongs to the Prediction Battle card)
           //   • Standalone Family Graph preview card removed (Graph is

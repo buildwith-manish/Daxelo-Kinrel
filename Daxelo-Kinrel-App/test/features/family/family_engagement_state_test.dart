@@ -102,9 +102,10 @@ void main() {
     });
   });
 
-  group('sectionOrderFor — FIXED order (layout-restoration brief)', () {
+  group('sectionOrderFor — FIXED order (content-hierarchy refinement)', () {
     // The order is now FIXED — the same for all engagement states.
-    // Prediction Battle is always the first content card.
+    // Flow: PB (engagement) → Thinking of You (emotion) → Pulse (updates)
+    // → Premium Insights → remaining.
     for (final state in FamilyEngagementState.values) {
       test('${state.name}: Prediction Battle is the FIRST content section',
           () {
@@ -115,25 +116,44 @@ void main() {
                 'State $state produced order: $order');
       });
 
-      test('${state.name}: Family Pulse comes after Prediction Battle', () {
+      test(
+          '${state.name}: Thinking of You is directly below Prediction Battle '
+          '(position 2, above Family Pulse)', () {
         final order = sectionOrderFor(state);
         final pbIdx = order.indexOf(FamilySection.predictionBattle);
+        final toyIdx = order.indexOf(FamilySection.thinkingOfYou);
         final pulseIdx = order.indexOf(FamilySection.familyPulse);
-        expect(pulseIdx, greaterThan(pbIdx),
-            reason: 'Family Pulse must come after Prediction Battle. '
+
+        expect(toyIdx, pbIdx + 1,
+            reason: 'Thinking of You must be DIRECTLY below Prediction '
+                'Battle (position 2). State $state produced order: $order');
+        expect(toyIdx, lessThan(pulseIdx),
+            reason: 'Thinking of You must come ABOVE Family Pulse. '
+                'State $state produced order: $order');
+      });
+
+      test('${state.name}: Family Pulse comes after Thinking of You', () {
+        final order = sectionOrderFor(state);
+        final toyIdx = order.indexOf(FamilySection.thinkingOfYou);
+        final pulseIdx = order.indexOf(FamilySection.familyPulse);
+        expect(pulseIdx, greaterThan(toyIdx),
+            reason: 'Family Pulse must come after Thinking of You. '
                 'State $state produced order: $order');
       });
 
       test(
-          '${state.name}: Premium Insights comes after Prediction Battle '
-          'and Family Pulse', () {
+          '${state.name}: Premium Insights comes after Prediction Battle, '
+          'Thinking of You, and Family Pulse', () {
         final order = sectionOrderFor(state);
         final premiumIdx = order.indexOf(FamilySection.premiumInsights);
         final pbIdx = order.indexOf(FamilySection.predictionBattle);
+        final toyIdx = order.indexOf(FamilySection.thinkingOfYou);
         final pulseIdx = order.indexOf(FamilySection.familyPulse);
 
         expect(premiumIdx, greaterThan(pbIdx),
             reason: 'Premium Insights must come after Prediction Battle.');
+        expect(premiumIdx, greaterThan(toyIdx),
+            reason: 'Premium Insights must come after Thinking of You.');
         expect(premiumIdx, greaterThan(pulseIdx),
             reason: 'Premium Insights must come after Family Pulse.');
       });
@@ -184,13 +204,15 @@ void main() {
 
       test('${state.name}: order is identical across all states (fixed)', () {
         // The order is fixed — all states produce the same order.
+        // Content-hierarchy refinement: PB → Thinking of You → Pulse
+        // → Premium Insights → Invite → Recent Moments.
         final order = sectionOrderFor(state);
         const expectedOrder = [
           FamilySection.predictionBattle,
+          FamilySection.thinkingOfYou,
           FamilySection.familyPulse,
           FamilySection.premiumInsights,
           FamilySection.invite,
-          FamilySection.thinkingOfYou,
           FamilySection.recentMoments,
         ];
         expect(order, orderedEquals(expectedOrder),

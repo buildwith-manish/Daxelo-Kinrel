@@ -199,28 +199,36 @@ final familyEngagementStateProvider =
 /// content order — the screen maps each enum value to its widget and
 /// renders them in this order.
 ///
-/// FIXED ORDER (per the layout-restoration brief):
-/// The order is no longer dynamic. Prediction Battle is ALWAYS the
-/// first content card below the header — it is the most engaging and
-/// interactive feature and earns top placement consistently. The
-/// full order is:
+/// FIXED ORDER (per the content-hierarchy refinement):
+/// The order is no longer dynamic. The full order is:
 ///
-///   1. Prediction Battle (first content card, includes its own Coin
-///      Pool progress strip)
-///   2. Family Pulse (recent activity + nudges)
-///   3. Premium Insights (paywall — after all free-value content)
-///   4. Invite (remaining content)
-///   5. Thinking of You (remaining content)
-///   6. Recent Moments (remaining content)
+///   1. Prediction Battle — drives interaction (first content card,
+///      includes its own Coin Pool progress strip)
+///   2. Thinking of You — reinforces family connection (emotional
+///      warmth immediately after the engaging PB card)
+///   3. Family Pulse — provides updates and activity history
+///   4. Premium Insights — paywall, after all free-value content
+///   5. Invite — remaining content
+///   6. Recent Moments — remaining content
+///
+/// The flow is: PB (engagement) → Thinking of You (emotion) → Pulse
+/// (updates) → Insights (premium) → remaining. This creates a better
+/// emotional + engagement cadence than the prior PB → Pulse → Insights
+/// ordering: the warm "Thinking of You" gesture sits between the
+/// high-energy PB card and the informational Pulse feed, so the user
+/// experiences interaction → connection → updates rather than
+/// interaction → updates → connection.
 ///
 /// INVARIANTS enforced by this function:
 ///   1. Prediction Battle is ALWAYS first — the most engaging feature
 ///      earns top placement regardless of family state.
-///   2. Premium Insights renders AFTER Family Pulse (free-value
+///   2. Thinking of You is ALWAYS second — directly below PB, above
+///      Family Pulse.
+///   3. Premium Insights renders AFTER Family Pulse (free-value
 ///      content comes before the paywall).
-///   3. No standalone Coin Pool section (the Coin Pool is part of the
+///   4. No standalone Coin Pool section (the Coin Pool is part of the
 ///      Prediction Battle card).
-///   4. No standalone Family Graph preview card (the Graph is
+///   5. No standalone Family Graph preview card (the Graph is
 ///      accessible from the hero's flanking Graph icon).
 ///
 /// The [state] parameter is accepted for API continuity but does not
@@ -231,10 +239,10 @@ List<FamilySection> sectionOrderFor(FamilyEngagementState state) {
   // Fixed order — the same for all engagement states.
   return const [
     FamilySection.predictionBattle,
+    FamilySection.thinkingOfYou,
     FamilySection.familyPulse,
     FamilySection.premiumInsights,
     FamilySection.invite,
-    FamilySection.thinkingOfYou,
     FamilySection.recentMoments,
   ];
 }
