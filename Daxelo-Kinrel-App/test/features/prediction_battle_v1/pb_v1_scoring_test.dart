@@ -82,7 +82,7 @@ void main() {
 
   group('PBv1Question toJson/fromJson round-trip', () {
     test('preserves all fields', () {
-      final q = PBv1Question(
+      final q = const PBv1Question(
         id: 'pq-001',
         questionText: 'How many?',
         correctAnswer: 42,
@@ -107,7 +107,7 @@ void main() {
     });
 
     test('preserves nullable bounds as null', () {
-      final q = PBv1Question(
+      final q = const PBv1Question(
         id: 'pq-002',
         questionText: '?',
         correctAnswer: 0,

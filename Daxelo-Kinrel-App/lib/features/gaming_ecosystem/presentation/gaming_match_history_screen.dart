@@ -31,7 +31,7 @@ class GamingMatchHistoryScreen extends ConsumerWidget {
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.canPop() ? context.pop() : context.go('/home')),
-        title: Text('Match History',
+        title: const Text('Match History',
             style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontWeight: FontWeight.w700)),
@@ -42,7 +42,7 @@ class GamingMatchHistoryScreen extends ConsumerWidget {
       body: historyAsync.when(
         loading: () => const Center(
             child: CircularProgressIndicator(color: KinrelColors.orange)),
-        error: (e, _) => Center(
+        error: (e, _) => const Center(
           child: GamingEmptyCard(
             emoji: '🔌',
             title: 'Couldn\'t load your match history',
@@ -149,7 +149,7 @@ class _MatchHistoryTile extends StatelessWidget {
                         match.gameName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -184,7 +184,7 @@ class _MatchHistoryTile extends StatelessWidget {
                   _opponentsLabel(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     color: KinrelColors.textSilver,
@@ -193,7 +193,7 @@ class _MatchHistoryTile extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   _metaLine(),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 10,
                     color: KinrelColors.textDim,

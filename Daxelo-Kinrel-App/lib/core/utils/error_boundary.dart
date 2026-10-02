@@ -93,10 +93,10 @@ extension ErrorBoundaryExtension on Widget {
     bool isNetworkError = false,
   }) {
     return ErrorBoundary(
-      child: this,
       fallback: fallback,
       message: message,
       isNetworkError: isNetworkError,
+      child: this,
     );
   }
 }

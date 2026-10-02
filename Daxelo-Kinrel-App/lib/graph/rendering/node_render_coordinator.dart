@@ -109,17 +109,15 @@ class KeyStrategy {
 /// coordinator.addListener(rebuildCallback);
 /// ```
 class NodeRenderCoordinator extends ChangeNotifier {
-  /// Creates a coordinator bound to the given [viewportCuller].
+  /// Creates a coordinator bound to the given [_viewportCuller].
   ///
-  /// [persons] is the full set of person nodes in the graph.
-  /// [policy] controls boundary granularity (default: per-node).
+  /// [_persons] is the full set of person nodes in the graph.
+  /// [_policy] controls boundary granularity (default: per-node).
   NodeRenderCoordinator({
-    required ViewportCuller viewportCuller,
-    required List<GraphPerson> persons,
-    RepaintBoundaryPolicy policy = RepaintBoundaryPolicy.perNode,
-  })  : _viewportCuller = viewportCuller,
-        _persons = persons,
-        _policy = policy {
+    required this._viewportCuller,
+    required this._persons,
+    this._policy = RepaintBoundaryPolicy.perNode,
+  }) {
     _viewportCuller.addListener(_onViewportChanged);
   }
 

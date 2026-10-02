@@ -50,7 +50,7 @@ void main() {
     });
 
     /// Small fixture: anchor + 2 parents + spouse + 1 child.
-    ({List<GraphPerson> persons, List<GraphRelationship> rels}) _smallFamily() {
+    ({List<GraphPerson> persons, List<GraphRelationship> rels}) smallFamily() {
       final persons = [
         _person('anchor', gen: 0, isAnchor: true),
         _person('father', gen: -1),
@@ -68,7 +68,7 @@ void main() {
     }
 
     test('layout output is deterministic across repeated runs', () {
-      final fam = _smallFamily();
+      final fam = smallFamily();
 
       final r1 = layout.compute(
         persons: fam.persons,
@@ -89,7 +89,7 @@ void main() {
     });
 
     test('no two nodes end up at the exact same coordinates', () {
-      final fam = _smallFamily();
+      final fam = smallFamily();
       final result = layout.compute(
         persons: fam.persons,
         relationships: fam.rels,
@@ -128,7 +128,7 @@ void main() {
     });
 
     test('child is placed below its parent (Y increases)', () {
-      final fam = _smallFamily();
+      final fam = smallFamily();
       final result = layout.compute(
         persons: fam.persons,
         relationships: fam.rels,
@@ -142,7 +142,7 @@ void main() {
     });
 
     test('parents are placed above the anchor (Y decreases)', () {
-      final fam = _smallFamily();
+      final fam = smallFamily();
       final result = layout.compute(
         persons: fam.persons,
         relationships: fam.rels,
@@ -156,7 +156,7 @@ void main() {
     });
 
     test('every input person receives a position', () {
-      final fam = _smallFamily();
+      final fam = smallFamily();
       final result = layout.compute(
         persons: fam.persons,
         relationships: fam.rels,

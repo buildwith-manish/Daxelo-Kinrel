@@ -35,6 +35,19 @@ import '../../graph/interaction/couple_union_model.dart' show deriveCoupleUnions
 /// now share this one definition, eliminating the cross-module type mismatch
 /// that caused the Stack Overflow at runtime.
 class GraphPerson {
+
+  const GraphPerson({
+    required this.id,
+    required this.name,
+    this.gender,
+    this.generationIndex = 0,
+    this.isAnchor = false,
+    this.photoUrl,
+    this.isDeceased = false,
+    this.relationship,
+    this.deletedAt,
+    this.birthDate,
+  });
   final String id;
   final String name;
   final String? gender;
@@ -56,19 +69,6 @@ class GraphPerson {
   /// The Graph (Radial) engine ignores this field — sibling ordering
   /// is irrelevant for the ego-centric ring layout.
   final DateTime? birthDate;
-
-  const GraphPerson({
-    required this.id,
-    required this.name,
-    this.gender,
-    this.generationIndex = 0,
-    this.isAnchor = false,
-    this.photoUrl,
-    this.isDeceased = false,
-    this.relationship,
-    this.deletedAt,
-    this.birthDate,
-  });
 }
 
 /// A directed relationship edge in the graph layout input.
@@ -76,13 +76,6 @@ class GraphPerson {
 /// [relationshipKey] describes toPerson's relationship to fromPerson.
 /// e.g. from=A, to=B, key="father" → B is the father of A.
 class GraphRelationship {
-  final String id;
-  final String fromPersonId;
-  final String toPersonId;
-  final String relationshipKey;
-  /// v5.99: The specific label (e.g. 'father', 'brother', 'wife') used
-  /// for generation lookup. Falls back to [relationshipKey] if not set.
-  final String? labelAtoB;
 
   const GraphRelationship({
     required this.id,
@@ -91,10 +84,27 @@ class GraphRelationship {
     required this.relationshipKey,
     this.labelAtoB,
   });
+  final String id;
+  final String fromPersonId;
+  final String toPersonId;
+  final String relationshipKey;
+  /// v5.99: The specific label (e.g. 'father', 'brother', 'wife') used
+  /// for generation lookup. Falls back to [relationshipKey] if not set.
+  final String? labelAtoB;
 }
 
 /// The computed layout result: positions, canvas dimensions, and ring metadata.
 class GraphLayoutResult {
+
+  const GraphLayoutResult({
+    required this.positions,
+    required this.canvasWidth,
+    required this.canvasHeight,
+    this.ringRadii = const {},
+    this.ringAngleOffsets = const {},
+    this.coupleUnions = const [],
+    this.generations = const {},
+  });
   final Map<String, Offset> positions;
   final double canvasWidth;
   final double canvasHeight;
@@ -117,20 +127,17 @@ class GraphLayoutResult {
   /// Used by the stats panel to show the correct GENS count (based on
   /// the layout's own BFS, not the stale API generationIndex).
   final Map<String, int> generations;
-
-  const GraphLayoutResult({
-    required this.positions,
-    required this.canvasWidth,
-    required this.canvasHeight,
-    this.ringRadii = const {},
-    this.ringAngleOffsets = const {},
-    this.coupleUnions = const [],
-    this.generations = const {},
-  });
 }
 
 /// Cubic Bezier edge data for drawing curved parent-child connections.
 class BezierEdge {
+
+  const BezierEdge({
+    required this.start,
+    required this.controlPoint1,
+    required this.controlPoint2,
+    required this.end,
+  });
   /// Start point (bottom-center of parent node).
   final Offset start;
 
@@ -142,13 +149,6 @@ class BezierEdge {
 
   /// End point (top-center of child node).
   final Offset end;
-
-  const BezierEdge({
-    required this.start,
-    required this.controlPoint1,
-    required this.controlPoint2,
-    required this.end,
-  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -455,7 +455,7 @@ class GraphLayoutService {
 
     // ── Step 5: Assign initial radial positions ──────────────────────
     final positions = <String, Offset>{};
-    final center = Offset(0.0, 0.0); // will translate later
+    final center = const Offset(0.0, 0.0); // will translate later
 
     // Place anchor at center
     positions[anchor] = center;
@@ -723,7 +723,7 @@ class GraphLayoutService {
       // the largest absolute offset. This ensures that if both a
       // forward edge (offset -1) and a mis-keyed inverse edge (offset 0)
       // exist for the same pair, the forward edge wins.
-      final pairKey = '${fromId}|$toId';
+      final pairKey = '$fromId|$toId';
       final existing = bestOffset[pairKey];
       if (existing != null) {
         if (fromToTo.abs() <= existing.abs()) {
@@ -750,7 +750,7 @@ class GraphLayoutService {
       final offset = entry.value;
       // Reverse: to → from with −offset
       // Only add if not already present (avoid duplicates from forward).
-      final hasReverse = bestOffset.containsKey('${toId}|$fromId');
+      final hasReverse = bestOffset.containsKey('$toId|$fromId');
       if (!hasReverse) {
         adjacency[toId]!.add((fromId, -offset));
       }
@@ -848,7 +848,7 @@ class GraphLayoutService {
 
     // Place anchor spouse at horizontal offset from anchor
     if (anchorSpouseId != null) {
-      positions[anchorSpouseId] = Offset(spouseOffset, 0.0);
+      positions[anchorSpouseId] = const Offset(spouseOffset, 0.0);
     }
 
     // Place siblings on the anchor ring at baseRadius, fanned around
@@ -1638,8 +1638,8 @@ class GraphLayoutService {
 
 /// Entry for the BFS queue during generation assignment.
 class _BFSEntry {
-  final String personId;
-  final int generation;
 
   const _BFSEntry(this.personId, this.generation);
+  final String personId;
+  final int generation;
 }

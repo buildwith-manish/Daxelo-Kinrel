@@ -45,6 +45,35 @@ class FamilyMoment {
     this.myReactions = const [],
   });
 
+  factory FamilyMoment.fromJson(Map<String, dynamic> json) {
+    final rawCounts = json['reactionCounts'];
+    final Map<String, int> counts = {};
+    if (rawCounts is Map) {
+      rawCounts.forEach((k, v) {
+        counts[k.toString()] = v is num ? v.toInt() : 0;
+      });
+    }
+    final rawMine = json['myReactions'];
+    final List<String> mine = (rawMine is List)
+        ? rawMine.map((e) => e.toString()).toList(growable: false)
+        : const [];
+    return FamilyMoment(
+      id: (json['id'] as String?) ?? '',
+      action: (json['action'] as String?) ?? '',
+      description: (json['description'] as String?) ?? '',
+      createdAt: json['createdAt'] == null
+          ? null
+          : DateTime.tryParse(json['createdAt'].toString()),
+      actorUserId: json['actorUserId'] as String?,
+      actorName: json['actorName'] as String?,
+      metadata: json['metadata'] is Map
+          ? Map<String, dynamic>.from(json['metadata'] as Map)
+          : const {},
+      reactionCounts: counts,
+      myReactions: mine,
+    );
+  }
+
   final String id;
   final String action;
   final String description;
@@ -115,35 +144,6 @@ class FamilyMoment {
     }
     // Fallback: hide the result detail, show a generic participation line.
     return 'Family played together';
-  }
-
-  factory FamilyMoment.fromJson(Map<String, dynamic> json) {
-    final rawCounts = json['reactionCounts'];
-    final Map<String, int> counts = {};
-    if (rawCounts is Map) {
-      rawCounts.forEach((k, v) {
-        counts[k.toString()] = v is num ? v.toInt() : 0;
-      });
-    }
-    final rawMine = json['myReactions'];
-    final List<String> mine = (rawMine is List)
-        ? rawMine.map((e) => e.toString()).toList(growable: false)
-        : const [];
-    return FamilyMoment(
-      id: (json['id'] as String?) ?? '',
-      action: (json['action'] as String?) ?? '',
-      description: (json['description'] as String?) ?? '',
-      createdAt: json['createdAt'] == null
-          ? null
-          : DateTime.tryParse(json['createdAt'].toString()),
-      actorUserId: json['actorUserId'] as String?,
-      actorName: json['actorName'] as String?,
-      metadata: json['metadata'] is Map
-          ? Map<String, dynamic>.from(json['metadata'] as Map)
-          : const {},
-      reactionCounts: counts,
-      myReactions: mine,
-    );
   }
 }
 
@@ -353,7 +353,7 @@ class _FamilyMomentCardState extends ConsumerState<FamilyMomentCard> {
                     if (_shouldShowInlineTimestamp(m.createdAt))
                       Text(
                         _timeAgoShort(m.createdAt),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 10,
                           color: KinrelColors.textDim,
@@ -736,7 +736,7 @@ class MomentDateGroupWidget extends StatelessWidget {
           padding: const EdgeInsets.only(top: 8, bottom: 8),
           child: Text(
             group.headerLabel,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 12,
               fontWeight: FontWeight.w800,

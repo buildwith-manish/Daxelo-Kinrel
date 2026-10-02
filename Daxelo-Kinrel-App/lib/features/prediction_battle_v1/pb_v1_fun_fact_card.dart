@@ -130,7 +130,7 @@ class _PredictionBattleFunFactCardState extends ConsumerState<PredictionBattleFu
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'DID YOU KNOW?',
                   style: TextStyle(
                     fontFamily: KinrelTypography.monoFont,
@@ -143,7 +143,7 @@ class _PredictionBattleFunFactCardState extends ConsumerState<PredictionBattleFu
                 const SizedBox(height: 4),
                 Text(
                   _factText!,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     color: KinrelColors.textSilver,
@@ -297,7 +297,7 @@ class _FamilyCoinPoolCardState extends ConsumerState<FamilyCoinPoolCard> {
           // Count — "12 / 500" (short, single line, right-aligned).
           Text(
             '$shownEarned / $_currentGoal',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 11,
               fontWeight: FontWeight.w700,

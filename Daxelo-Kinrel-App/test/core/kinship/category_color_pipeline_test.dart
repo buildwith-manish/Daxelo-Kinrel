@@ -72,23 +72,23 @@ void main() {
       // Simulate the 9-member Sharma family — every node must get a
       // non-grey category that produces its distinct spec color.
       final cases = <_SharmaCase>[
-        _SharmaCase(name: 'T1 (self)', path: ['self'], gender: null,
+        const _SharmaCase(name: 'T1 (self)', path: ['self'], gender: null,
             expectedCategory: KinshipEdgeCategory.self),
-        _SharmaCase(name: 'DU (father)', path: ['father'], gender: 'male',
+        const _SharmaCase(name: 'DU (father)', path: ['father'], gender: 'male',
             expectedCategory: KinshipEdgeCategory.parent),
-        _SharmaCase(name: 'HD (mother)', path: ['mother'], gender: 'female',
+        const _SharmaCase(name: 'HD (mother)', path: ['mother'], gender: 'female',
             expectedCategory: KinshipEdgeCategory.parent),
-        _SharmaCase(name: 'HS (brother)', path: ['sibling'], gender: 'male',
+        const _SharmaCase(name: 'HS (brother)', path: ['sibling'], gender: 'male',
             expectedCategory: KinshipEdgeCategory.sibling),
-        _SharmaCase(name: 'DO (sister)', path: ['sibling'], gender: 'female',
+        const _SharmaCase(name: 'DO (sister)', path: ['sibling'], gender: 'female',
             expectedCategory: KinshipEdgeCategory.sibling),
-        _SharmaCase(name: 'MA (grandfather)', path: ['father', 'father'], gender: 'male',
+        const _SharmaCase(name: 'MA (grandfather)', path: ['father', 'father'], gender: 'male',
             expectedCategory: KinshipEdgeCategory.grandparent),
-        _SharmaCase(name: 'D2 (uncle)', path: ['father', 'sibling'], gender: 'male',
+        const _SharmaCase(name: 'D2 (uncle)', path: ['father', 'sibling'], gender: 'male',
             expectedCategory: KinshipEdgeCategory.auntUncle),
-        _SharmaCase(name: 'T3 (cousin)', path: ['father', 'sibling', 'child'], gender: 'male',
+        const _SharmaCase(name: 'T3 (cousin)', path: ['father', 'sibling', 'child'], gender: 'male',
             expectedCategory: KinshipEdgeCategory.cousin),
-        _SharmaCase(name: 'T2 (nephew)', path: ['sibling', 'child'], gender: 'male',
+        const _SharmaCase(name: 'T2 (nephew)', path: ['sibling', 'child'], gender: 'male',
             expectedCategory: KinshipEdgeCategory.auntUncle),
       ];
 
@@ -123,32 +123,32 @@ void main() {
       // 'brother' must produce the sibling category (purple), NOT be
       // overwritten by BFS or re-classified lossily to grey.
       final directEdgeCases = <_DirectEdgeCase>[
-        _DirectEdgeCase(storedKey: 'father', gender: 'male',
+        const _DirectEdgeCase(storedKey: 'father', gender: 'male',
             expectedCategory: KinshipEdgeCategory.parent, expectedColor: KinrelColors.nodeParent),
-        _DirectEdgeCase(storedKey: 'mother', gender: 'female',
+        const _DirectEdgeCase(storedKey: 'mother', gender: 'female',
             expectedCategory: KinshipEdgeCategory.parent, expectedColor: KinrelColors.nodeParent),
-        _DirectEdgeCase(storedKey: 'brother', gender: 'male',
+        const _DirectEdgeCase(storedKey: 'brother', gender: 'male',
             expectedCategory: KinshipEdgeCategory.sibling, expectedColor: KinrelColors.nodeSibling),
-        _DirectEdgeCase(storedKey: 'sister', gender: 'female',
+        const _DirectEdgeCase(storedKey: 'sister', gender: 'female',
             expectedCategory: KinshipEdgeCategory.sibling, expectedColor: KinrelColors.nodeSibling),
-        _DirectEdgeCase(storedKey: 'son', gender: 'male',
+        const _DirectEdgeCase(storedKey: 'son', gender: 'male',
             expectedCategory: KinshipEdgeCategory.child, expectedColor: KinrelColors.nodeChild),
-        _DirectEdgeCase(storedKey: 'daughter', gender: 'female',
+        const _DirectEdgeCase(storedKey: 'daughter', gender: 'female',
             expectedCategory: KinshipEdgeCategory.child, expectedColor: KinrelColors.nodeChild),
-        _DirectEdgeCase(storedKey: 'husband', gender: 'male',
+        const _DirectEdgeCase(storedKey: 'husband', gender: 'male',
             expectedCategory: KinshipEdgeCategory.spouse, expectedColor: KinrelColors.nodeSpouse),
-        _DirectEdgeCase(storedKey: 'wife', gender: 'female',
+        const _DirectEdgeCase(storedKey: 'wife', gender: 'female',
             expectedCategory: KinshipEdgeCategory.spouse, expectedColor: KinrelColors.nodeSpouse),
-        _DirectEdgeCase(storedKey: 'grandfather', gender: 'male',
+        const _DirectEdgeCase(storedKey: 'grandfather', gender: 'male',
             expectedCategory: KinshipEdgeCategory.grandparent, expectedColor: KinrelColors.nodeGrandparent),
-        _DirectEdgeCase(storedKey: 'uncle', gender: 'male',
+        const _DirectEdgeCase(storedKey: 'uncle', gender: 'male',
             expectedCategory: KinshipEdgeCategory.auntUncle, expectedColor: KinrelColors.nodeAuntUncle),
-        _DirectEdgeCase(storedKey: 'cousin', gender: 'male',
+        const _DirectEdgeCase(storedKey: 'cousin', gender: 'male',
             expectedCategory: KinshipEdgeCategory.cousin, expectedColor: KinrelColors.nodeCousin),
-        _DirectEdgeCase(storedKey: 'father_in_law', gender: 'male',
+        const _DirectEdgeCase(storedKey: 'father_in_law', gender: 'male',
             expectedCategory: KinshipEdgeCategory.inLaw, expectedColor: KinrelColors.nodeInLaw),
         // v69 stopgap: great_grandfather must NOT be grey
-        _DirectEdgeCase(storedKey: 'great_grandfather', gender: 'male',
+        const _DirectEdgeCase(storedKey: 'great_grandfather', gender: 'male',
             expectedCategory: KinshipEdgeCategory.grandparent, expectedColor: KinrelColors.nodeGrandparent),
       ];
 
@@ -191,27 +191,27 @@ void main() {
 }
 
 class _SharmaCase {
-  final String name;
-  final List<String> path;
-  final String? gender;
-  final KinshipEdgeCategory expectedCategory;
   const _SharmaCase({
     required this.name,
     required this.path,
     required this.gender,
     required this.expectedCategory,
   });
+  final String name;
+  final List<String> path;
+  final String? gender;
+  final KinshipEdgeCategory expectedCategory;
 }
 
 class _DirectEdgeCase {
-  final String storedKey;
-  final String gender;
-  final KinshipEdgeCategory expectedCategory;
-  final Color expectedColor;
   const _DirectEdgeCase({
     required this.storedKey,
     required this.gender,
     required this.expectedCategory,
     required this.expectedColor,
   });
+  final String storedKey;
+  final String gender;
+  final KinshipEdgeCategory expectedCategory;
+  final Color expectedColor;
 }

@@ -64,17 +64,6 @@ class AshtaChammaPlayer {
     this.leftAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final DateTime joinedAt;
-  final int turnOrder;
-  final bool isReady;
-  final DateTime? leftAt;
-
-  bool get isActive => leftAt == null;
-
   factory AshtaChammaPlayer.fromJson(Map<String, dynamic> json) {
     return AshtaChammaPlayer(
       id: (json['id'] ?? '') as String,
@@ -89,6 +78,17 @@ class AshtaChammaPlayer {
           : null,
     );
   }
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final DateTime joinedAt;
+  final int turnOrder;
+  final bool isReady;
+  final DateTime? leftAt;
+
+  bool get isActive => leftAt == null;
 }
 
 /// Final ranking entry (computed server-side at completion).
@@ -102,13 +102,6 @@ class AshtaChammaPlacement {
     required this.turnDurationMs,
   });
 
-  final String userId;
-  final String userName;
-  final int place;
-  final int piecesHome;
-  final int captures;
-  final int turnDurationMs;
-
   factory AshtaChammaPlacement.fromJson(Map<String, dynamic> json) {
     return AshtaChammaPlacement(
       userId: (json['userId'] ?? '') as String,
@@ -119,6 +112,13 @@ class AshtaChammaPlacement {
       turnDurationMs: (json['turnDurationMs'] ?? 0) as int,
     );
   }
+
+  final String userId;
+  final String userName;
+  final int place;
+  final int piecesHome;
+  final int captures;
+  final int turnDurationMs;
 
   String get medal {
     switch (place) {
@@ -161,57 +161,6 @@ class AshtaChammaGame {
     this.completedAt,
     this.spectatorsEnabled = true,
   });
-
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final AshtaChammaStatus status;
-  final int maxPlayers;
-  final DateTime createdAt;
-  final String? roomName;
-  final List<String> playerOrder;
-  final String? currentPlayerId;
-  final int currentTurnIndex;
-  final DateTime? turnEndsAt;
-  final AshtaChammaPhase phase;
-  final int lastDiceValue;
-
-  /// The full serializable game state (pieces, current player, move
-  /// history). Stored as JSONB on the game row. See AshtaChammaGameState
-  /// in the engine file.
-  final AshtaChammaGameState? boardState;
-
-  final int consecutiveSixes;
-  final Map<String, int> scores;
-  final List<AshtaChammaPlacement> placements;
-  final List<String> winnerUserIds;
-  final String? endReason;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final bool spectatorsEnabled;
-
-  bool get isWaiting => status == AshtaChammaStatus.waiting;
-  bool get isInProgress => status == AshtaChammaStatus.inProgress;
-  bool get isCompleted => status == AshtaChammaStatus.completed;
-
-  /// Seconds left in the current turn (null when not running).
-  int? get turnSecondsRemaining {
-    if (!isInProgress || turnEndsAt == null) return null;
-    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
-    return left < 0 ? 0 : left;
-  }
-
-  String get endReasonLabel {
-    switch (endReason) {
-      case 'all_home':
-        return 'All pieces reached home!';
-      case 'walkover':
-        return 'The others left — last player standing';
-      default:
-        return 'Game complete';
-    }
-  }
 
   factory AshtaChammaGame.fromJson(Map<String, dynamic> json) {
     final order = <String>[];
@@ -282,5 +231,56 @@ class AshtaChammaGame {
           : null,
       spectatorsEnabled: (json['spectatorsEnabled'] ?? true) as bool,
     );
+  }
+
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final AshtaChammaStatus status;
+  final int maxPlayers;
+  final DateTime createdAt;
+  final String? roomName;
+  final List<String> playerOrder;
+  final String? currentPlayerId;
+  final int currentTurnIndex;
+  final DateTime? turnEndsAt;
+  final AshtaChammaPhase phase;
+  final int lastDiceValue;
+
+  /// The full serializable game state (pieces, current player, move
+  /// history). Stored as JSONB on the game row. See AshtaChammaGameState
+  /// in the engine file.
+  final AshtaChammaGameState? boardState;
+
+  final int consecutiveSixes;
+  final Map<String, int> scores;
+  final List<AshtaChammaPlacement> placements;
+  final List<String> winnerUserIds;
+  final String? endReason;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final bool spectatorsEnabled;
+
+  bool get isWaiting => status == AshtaChammaStatus.waiting;
+  bool get isInProgress => status == AshtaChammaStatus.inProgress;
+  bool get isCompleted => status == AshtaChammaStatus.completed;
+
+  /// Seconds left in the current turn (null when not running).
+  int? get turnSecondsRemaining {
+    if (!isInProgress || turnEndsAt == null) return null;
+    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
+    return left < 0 ? 0 : left;
+  }
+
+  String get endReasonLabel {
+    switch (endReason) {
+      case 'all_home':
+        return 'All pieces reached home!';
+      case 'walkover':
+        return 'The others left — last player standing';
+      default:
+        return 'Game complete';
+    }
   }
 }

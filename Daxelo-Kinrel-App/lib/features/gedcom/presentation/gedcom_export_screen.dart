@@ -152,7 +152,7 @@ class _GedcomExportScreenState extends ConsumerState<GedcomExportScreen> {
             ),
             child: Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.privacy_tip_outlined,
                   color: KinrelColors.orange,
                   size: 20,

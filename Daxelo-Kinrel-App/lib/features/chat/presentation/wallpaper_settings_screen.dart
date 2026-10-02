@@ -51,7 +51,7 @@ class WallpaperSettingsScreen extends ConsumerWidget {
             }
           },
         ),
-        title: Text(
+        title: const Text(
           'Chat Wallpaper',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -69,7 +69,7 @@ class WallpaperSettingsScreen extends ConsumerWidget {
                 horizontal: KinrelSpacing.base),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(KinrelRadius.card),
-              child: Container(
+              child: SizedBox(
                 width: double.infinity,
                 height: 200,
                 child: defaultPath != null
@@ -80,8 +80,8 @@ class WallpaperSettingsScreen extends ConsumerWidget {
             ),
           ),
           // Centred label over the preview
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
             child: Center(
               child: Text(
                 'Default Wallpaper',
@@ -100,11 +100,11 @@ class WallpaperSettingsScreen extends ConsumerWidget {
           _buildSectionHeader('Default'),
           _buildSectionCard([
             ListTile(
-              leading: Icon(
+              leading: const Icon(
                 Icons.photo_library_rounded,
                 color: KinrelColors.orange,
               ),
-              title: Text(
+              title: const Text(
                 'Choose from Gallery',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -129,14 +129,14 @@ class WallpaperSettingsScreen extends ConsumerWidget {
               },
             ),
             if (defaultPath != null) ...[
-              Divider(
+              const Divider(
                   color: KinrelColors.border, height: 1, indent: 56),
               ListTile(
-                leading: Icon(
+                leading: const Icon(
                   Icons.delete_outline_rounded,
                   color: Colors.redAccent,
                 ),
-                title: Text(
+                title: const Text(
                   'Remove Default Wallpaper',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -165,8 +165,8 @@ class WallpaperSettingsScreen extends ConsumerWidget {
           // ── Section: Per-Chat Wallpapers ─────────────────────────
           _buildSectionHeader('Per-Chat Wallpapers'),
           if (perChatEntries.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(KinrelSpacing.xl),
+            const Padding(
+              padding: EdgeInsets.all(KinrelSpacing.xl),
               child: Center(
                 child: Text(
                   'No per-chat wallpapers set',
@@ -192,14 +192,14 @@ class WallpaperSettingsScreen extends ConsumerWidget {
                         width: 48,
                         height: 48,
                         color: KinrelColors.darkElevated,
-                        child: Icon(Icons.broken_image,
+                        child: const Icon(Icons.broken_image,
                             color: KinrelColors.textDim, size: 20),
                       ),
                     ),
                   ),
                   title: Text(
                     entry.key,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       color: KinrelColors.textWhite,
@@ -208,7 +208,7 @@ class WallpaperSettingsScreen extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   trailing: IconButton(
-                    icon: Icon(
+                    icon: const Icon(
                       Icons.delete_outline,
                       color: Colors.redAccent,
                       size: 22,
@@ -307,7 +307,7 @@ class WallpaperSettingsScreen extends ConsumerWidget {
       ),
       child: Text(
         title,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 13,
           fontWeight: FontWeight.w600,

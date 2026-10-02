@@ -194,11 +194,6 @@ class FamilyPresenceMember {
     this.lastSeenAt,
   });
 
-  final String userId;
-  final String userName;
-  final bool isOnline;
-  final DateTime? lastSeenAt;
-
   factory FamilyPresenceMember.fromJson(Map<String, dynamic> json) {
     return FamilyPresenceMember(
       userId: (json['userId'] ?? '') as String,
@@ -209,6 +204,11 @@ class FamilyPresenceMember {
           : null,
     );
   }
+
+  final String userId;
+  final String userName;
+  final bool isOnline;
+  final DateTime? lastSeenAt;
 }
 
 final livePresenceProvider = FutureProvider.autoDispose

@@ -117,7 +117,7 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
             }
           },
         ),
-        title: Text(
+        title: const Text(
           'Freeze & Dash',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -174,7 +174,7 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
                           ),
                           child: Text(
                             'Starting in ${state.countdownSeconds}…',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.displayFont,
                               fontSize: 28,
                               fontWeight: FontWeight.w700,
@@ -227,7 +227,7 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
               const SizedBox(height: KinrelSpacing.sm),
               Text(
                 code,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 36,
                   fontWeight: FontWeight.w800,
@@ -253,7 +253,7 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
         // Players
         Text(
           'Players (${state.players.length}/20)',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 13,
             fontWeight: FontWeight.w600,
@@ -298,7 +298,7 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
                         p.userId == myId
                             ? '${p.userName} (You)'
                             : p.userName,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -318,7 +318,7 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
                           borderRadius:
                               BorderRadius.circular(KinrelRadius.xs),
                         ),
-                        child: Text(
+                        child: const Text(
                           'HOST',
                           style: TextStyle(
                             fontFamily: KinrelTypography.monoFont,
@@ -355,7 +355,7 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
               borderRadius: BorderRadius.circular(KinrelRadius.lg),
               border: Border.all(color: KinrelColors.border),
             ),
-            child: Row(
+            child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 SizedBox(
@@ -366,7 +366,7 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
                     color: KinrelColors.orange,
                   ),
                 ),
-                const SizedBox(width: KinrelSpacing.sm),
+                SizedBox(width: KinrelSpacing.sm),
                 Text(
                   'Waiting for host to start the game…',
                   style: TextStyle(
@@ -783,10 +783,10 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
             ),
             boxShadow: isGreen
                 ? [
-                    BoxShadow(
+                    const BoxShadow(
                       color: KinrelColors.orangeGlowIntense,
                       blurRadius: 20,
-                      offset: const Offset(0, 4),
+                      offset: Offset(0, 4),
                     ),
                   ]
                 : null,

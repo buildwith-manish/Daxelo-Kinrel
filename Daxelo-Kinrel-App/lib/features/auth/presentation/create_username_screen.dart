@@ -164,7 +164,7 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
-        title: Text(
+        title: const Text(
           'Choose Your Username',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -194,7 +194,7 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
               ),
 
               // ── Explanation ──
-              Text(
+              const Text(
                 'Your username is your unique identity on Kinrel.',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -205,7 +205,7 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 6),
-              Text(
+              const Text(
                 'Family members can find and connect with you by searching for your @username.',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -225,7 +225,7 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
                 textInputAction: TextInputAction.done,
                 textCapitalization: TextCapitalization.none,
                 keyboardType: TextInputType.text,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -233,7 +233,7 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
                 ),
                 decoration: InputDecoration(
                   prefixText: '@ ',
-                  prefixStyle: TextStyle(
+                  prefixStyle: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -292,7 +292,7 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'USERNAME RULES',
                       style: TextStyle(
                         fontFamily: KinrelTypography.monoFont,
@@ -333,7 +333,7 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
                           child: CircularProgressIndicator(
                               strokeWidth: 2, color: Colors.white),
                         )
-                      : Text(
+                      : const Text(
                           'Continue',
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
@@ -347,7 +347,7 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
               const SizedBox(height: 12),
 
               // ── Can't skip ──
-              Text(
+              const Text(
                 'You must choose a username to continue.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -389,7 +389,7 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
       return const SizedBox.shrink();
     }
     if (availability == UsernameAvailability.checking) {
-      return Text(
+      return const Text(
         'Checking availability…',
         style: TextStyle(
           fontFamily: KinrelTypography.bodyFont,
@@ -412,7 +412,7 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
     if (availability == UsernameAvailability.taken) {
       return Text(
         '✗ @${_controller.text.toLowerCase()} is already taken',
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 12,
           fontWeight: FontWeight.w600,
@@ -424,7 +424,7 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
       final error = UsernameValidator.validate(_controller.text);
       return Text(
         error ?? '',
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 12,
           color: KinrelColors.error,
@@ -439,12 +439,12 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
       padding: const EdgeInsets.only(top: 4),
       child: Row(
         children: [
-          Icon(Icons.check, size: 14, color: KinrelColors.textDim),
+          const Icon(Icons.check, size: 14, color: KinrelColors.textDim),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textDim,

@@ -94,7 +94,7 @@ void main() {
       // We skip "self" (generation 0, no edge needed).
       var tested = 0;
       var skipped = 0;
-      var mismatches = <String>[];
+      final mismatches = <String>[];
 
       for (final rel in kinship.getAllRelationships()) {
         final key = rel.relationshipKey;

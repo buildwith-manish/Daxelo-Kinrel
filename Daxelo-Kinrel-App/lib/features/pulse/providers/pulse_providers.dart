@@ -21,10 +21,7 @@ final todayBriefProvider = FutureProvider<DailyBrief?>((ref) async {
   final client = ref.read(pulseApiClientProvider);
   try {
     var brief = await client.getTodayBrief();
-    if (brief == null) {
-      // Lazy generation — generate on first open of the day
-      brief = await client.generateTodayBrief();
-    }
+    brief ??= await client.generateTodayBrief();
     // Mark as viewed
     await client.markBriefViewed(brief.id);
     return brief;

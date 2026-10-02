@@ -34,11 +34,6 @@ class EmptyStateNudge {
     required this.suggestions,
   });
 
-  final String familyName;
-  final int memberCount;
-  final List<UpcomingEvent> upcomingEvents;
-  final List<String> suggestions;
-
   factory EmptyStateNudge.fromJson(Map<String, dynamic> json) {
     return EmptyStateNudge(
       familyName: json['familyName'] as String? ?? 'your family',
@@ -51,6 +46,11 @@ class EmptyStateNudge {
           .toList(),
     );
   }
+
+  final String familyName;
+  final int memberCount;
+  final List<UpcomingEvent> upcomingEvents;
+  final List<String> suggestions;
 }
 
 class UpcomingEvent {
@@ -61,11 +61,6 @@ class UpcomingEvent {
     required this.daysUntil,
   });
 
-  final String personId;
-  final String name;
-  final String eventType; // 'birthday' | 'anniversary'
-  final int daysUntil;
-
   factory UpcomingEvent.fromJson(Map<String, dynamic> json) {
     return UpcomingEvent(
       personId: json['personId'] as String? ?? '',
@@ -74,6 +69,11 @@ class UpcomingEvent {
       daysUntil: json['daysUntil'] as int? ?? 0,
     );
   }
+
+  final String personId;
+  final String name;
+  final String eventType; // 'birthday' | 'anniversary'
+  final int daysUntil;
 
   /// Human-readable label for the chip: "Mama ji's birthday in 3 days"
   /// or "Mama ji's birthday is today!" when daysUntil == 0.
@@ -184,7 +184,7 @@ class EmptyChatState extends ConsumerWidget {
                   ),
                 ],
               ),
-              child: Center(
+              child: const Center(
                 child: Text(
                   '👋',
                   style: TextStyle(
@@ -199,7 +199,7 @@ class EmptyChatState extends ConsumerWidget {
             // ── Greeting headline ───────────────────────────────────────
             Text(
               l10n?.chatEmptyStateTitle ?? 'Start the conversation',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -279,7 +279,7 @@ class _EventChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
+          const Text(
             '🎂',
             style: TextStyle(fontSize: 12, decoration: TextDecoration.none),
           ),
@@ -288,7 +288,7 @@ class _EventChip extends StatelessWidget {
             child: Text(
               // Feature 7: locale-aware event label
               event.labelLocalized(S.of(context)),
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11.5,
                 fontWeight: FontWeight.w500,
@@ -331,7 +331,7 @@ class _SuggestionChip extends StatelessWidget {
           ),
           child: Text(
             text,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12.5,
               fontWeight: FontWeight.w500,

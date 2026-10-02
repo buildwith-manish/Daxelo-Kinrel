@@ -285,12 +285,12 @@ void main() {
   group('v5.159 — rich bubble fields', () {
     test('hasNestedDescendants: depth ≥ 2 → tree glyph; depth 1 → flat',
         () {
-      final nested = CollapsedBranch(
+      final nested = const CollapsedBranch(
         id: 'b1',
         rootPersonId: 'root',
         rootPersonName: 'Root',
-        hiddenMemberIds: const {'a', 'a1'},
-        hiddenEdgeIds: const {},
+        hiddenMemberIds: {'a', 'a1'},
+        hiddenEdgeIds: {},
         visibleMemberCount: 1,
         hiddenGenerationDepth: 2,
         branchLabel: 'Root branch',
@@ -300,12 +300,12 @@ void main() {
           reason: 'Depth 2 means deeper levels hide behind further '
               'bubbles — tree glyph');
 
-      final flat = CollapsedBranch(
+      final flat = const CollapsedBranch(
         id: 'b2',
         rootPersonId: 'root2',
         rootPersonName: 'Root2',
-        hiddenMemberIds: const {'x', 'y', 'z'},
-        hiddenEdgeIds: const {},
+        hiddenMemberIds: {'x', 'y', 'z'},
+        hiddenEdgeIds: {},
         visibleMemberCount: 1,
         hiddenGenerationDepth: 1,
         branchLabel: 'Root2 branch',

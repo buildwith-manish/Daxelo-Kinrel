@@ -18,22 +18,6 @@ import '../data/graph_data_models.dart' show GraphEdgeData;
 /// the relationship-label resolver without making them all part of the
 /// same library.
 class GraphPersonData {
-  final String id;
-  final String name;
-  final String? gender;
-  final int generationIndex;
-  final bool isAnchor;
-  final String? photoUrl;
-  final bool isDeceased;
-  final String? relationshipKey;
-  final int disclosureLevel;
-  final String? dateOfBirth;
-  /// v5.175: linked auth user ID (null for unclaimed Person nodes).
-  /// Used by the "Message" quick-action to route to `/dm/$linkedUserId`.
-  final String? linkedUserId;
-  /// v5.175: whether this person's profile has been claimed (linkedUserId != null).
-  /// Used by the verified badge on the node.
-  final bool isVerified;
 
   const GraphPersonData({
     required this.id,
@@ -54,6 +38,22 @@ class GraphPersonData {
         id: '',
         name: '',
       );
+  final String id;
+  final String name;
+  final String? gender;
+  final int generationIndex;
+  final bool isAnchor;
+  final String? photoUrl;
+  final bool isDeceased;
+  final String? relationshipKey;
+  final int disclosureLevel;
+  final String? dateOfBirth;
+  /// v5.175: linked auth user ID (null for unclaimed Person nodes).
+  /// Used by the "Message" quick-action to route to `/dm/$linkedUserId`.
+  final String? linkedUserId;
+  /// v5.175: whether this person's profile has been claimed (linkedUserId != null).
+  /// Used by the verified badge on the node.
+  final bool isVerified;
 }
 
 /// Static helper that resolves relationship labels and inverse keys.

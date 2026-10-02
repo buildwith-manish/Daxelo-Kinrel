@@ -78,7 +78,7 @@ class _CarromCardState extends ConsumerState<CarromCard> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
+                    const Expanded(
                       child: Text(
                         'Carrom',
                         style: TextStyle(
@@ -93,7 +93,7 @@ class _CarromCardState extends ConsumerState<CarromCard> {
                 ),
                 const SizedBox(height: 10),
                 if (dlState.status != GameDownloadStatus.downloaded)
-                  Text(
+                  const Text(
                     'Download in Games hub to play',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -102,7 +102,7 @@ class _CarromCardState extends ConsumerState<CarromCard> {
                     ),
                   )
                 else
-                  Text(
+                  const Text(
                     'Flick the striker — pot your coins before your opponent!',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,

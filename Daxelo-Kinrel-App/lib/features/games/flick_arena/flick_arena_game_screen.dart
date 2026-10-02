@@ -171,7 +171,7 @@ class _FlickArenaGameScreenState extends ConsumerState<FlickArenaGameScreen>
           backgroundColor: KinrelColors.darkCard,
           foregroundColor: KinrelColors.textWhite,
         ),
-        body: Center(
+        body: const Center(
           child: GamingEmptyCard(
             emoji: '🎯',
             title: 'Game not found',
@@ -190,7 +190,7 @@ class _FlickArenaGameScreenState extends ConsumerState<FlickArenaGameScreen>
           game.roomName?.isNotEmpty == true
               ? game.roomName!
               : 'Flick Arena',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
             color: KinrelColors.textWhite,
@@ -303,7 +303,7 @@ class _MatchTypeChip extends StatelessWidget {
         game.matchType == FlickArenaMatchType.soloDuel
             ? '1v1 · 3'
             : '2v2 · 5',
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.monoFont,
           fontSize: 11,
           fontWeight: FontWeight.w700,
@@ -426,7 +426,7 @@ class _TopHud extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: KinrelColors.darkCard,
         border: Border(
           bottom: BorderSide(color: KinrelColors.border),
@@ -528,7 +528,7 @@ class _TeamScoreBadge extends StatelessWidget {
         ),
         Text(
           '/$goalsToWin',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.monoFont,
             fontSize: 12,
             fontWeight: FontWeight.w700,
@@ -796,10 +796,10 @@ class _ArenaPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     // ── Arena background (dark with subtle vignette) ──────────────
     final bgPaint = Paint()
-      ..shader = LinearGradient(
+      ..shader = const LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: const [
+        colors: [
           Color(0xFF0F1424),
           Color(0xFF16182B),
         ],
@@ -897,7 +897,7 @@ class _ArenaPainter extends CustomPainter {
       // Disc body — gradient fill.
       final discPaint = Paint()
         ..shader = RadialGradient(
-          center: Alignment(-0.4, -0.4),
+          center: const Alignment(-0.4, -0.4),
           colors: [
             discColor.withValues(alpha: 0.95),
             discColor.withValues(alpha: 0.65),
@@ -964,9 +964,9 @@ class _ArenaPainter extends CustomPainter {
 
     // Ball body — bright white with subtle gradient.
     final ballPaint = Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(-0.4, -0.4),
-        colors: const [
+      ..shader = const RadialGradient(
+        center: Alignment(-0.4, -0.4),
+        colors: [
           Color(0xFFFFFFFF),
           Color(0xFFCBD5E1),
         ],
@@ -1144,7 +1144,7 @@ class _AimStatusBar extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: KinrelColors.darkCard,
         border: Border(
           top: BorderSide(color: KinrelColors.border),
@@ -1237,7 +1237,7 @@ class _ResultsView extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   '$winnerLabel wins!',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
@@ -1247,7 +1247,7 @@ class _ResultsView extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   'Final score: ${game.teamOneScore} — ${game.teamTwoScore}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     color: KinrelColors.textSilver,
@@ -1259,7 +1259,7 @@ class _ResultsView extends StatelessWidget {
           const SizedBox(height: 18),
 
           // ── Match stats summary ─────────────────────────────────
-          GamingSectionHeader(
+          const GamingSectionHeader(
               title: 'Match Summary', icon: Icons.insights_outlined),
           _StatRow(
               label: 'Final score',
@@ -1354,7 +1354,7 @@ class _StatRow extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim,
@@ -1363,7 +1363,7 @@ class _StatRow extends StatelessWidget {
             ),
             Text(
               value,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,

@@ -153,7 +153,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
               const SizedBox(height: 14),
               Text(
                 is2FAEnabled ? '2FA is Enabled' : '2FA is Disabled',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
@@ -166,7 +166,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                     ? 'Your account is protected with two-factor authentication'
                     : 'Add an extra layer of security to your account',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   color: _textSecondary,
@@ -273,7 +273,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
           child: Center(
             child: Text(
               number,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -299,7 +299,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
               const SizedBox(height: 2),
               Text(
                 description,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   color: _textDim,
@@ -339,7 +339,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
           const SizedBox(height: 4),
           Text(
             answer,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               color: _textDim,
@@ -362,10 +362,10 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
         // ── Back button ────────────────────────────────────────
         GestureDetector(
           onTap: () => setState(() => _currentStep = _TwoFAFlowStep.idle),
-          child: Row(
+          child: const Row(
             children: [
               Icon(Icons.arrow_back_ios_new, color: _orange, size: 16),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text(
                 'Back',
                 style: TextStyle(
@@ -474,7 +474,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
         const SizedBox(width: 10),
         Text(
           text,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 14,
             color: _textSecondary,
@@ -495,10 +495,10 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
         // ── Back button ────────────────────────────────────────
         GestureDetector(
           onTap: () => setState(() => _currentStep = _TwoFAFlowStep.setupInfo),
-          child: Row(
+          child: const Row(
             children: [
               Icon(Icons.arrow_back_ios_new, color: _orange, size: 16),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text(
                 'Back',
                 style: TextStyle(
@@ -538,7 +538,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                 ),
               ),
               const SizedBox(height: 6),
-              Text(
+              const Text(
                 'Open your authenticator app and scan the code below',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -590,7 +590,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                     Expanded(
                       child: Text(
                         _setupResponse?.secret ?? '',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -607,7 +607,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                         );
                         context.showSnackBar('Secret key copied');
                       },
-                      child: Icon(Icons.copy_rounded, color: _orange, size: 20),
+                      child: const Icon(Icons.copy_rounded, color: _orange, size: 20),
                     ),
                   ],
                 ),
@@ -647,7 +647,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.qr_code_2_rounded, size: 100, color: _bg),
+        const Icon(Icons.qr_code_2_rounded, size: 100, color: _bg),
         const SizedBox(height: 4),
         Text(
           'QR Code',
@@ -695,10 +695,10 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
             _currentStep = _TwoFAFlowStep.qrCode;
             _stepError = null;
           }),
-          child: Row(
+          child: const Row(
             children: [
               Icon(Icons.arrow_back_ios_new, color: _orange, size: 16),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text(
                 'Back',
                 style: TextStyle(
@@ -748,7 +748,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                 ),
               ),
               const SizedBox(height: 6),
-              Text(
+              const Text(
                 'Enter the 6-digit code from your authenticator app',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -768,7 +768,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                 textCapitalization: TextCapitalization.none,
                 textAlign: TextAlign.center,
                 maxLength: 6,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
@@ -813,7 +813,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                 const SizedBox(height: 12),
                 Text(
                   _stepError!,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     color: KinrelColors.error,
@@ -903,11 +903,11 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
         const SizedBox(height: 24),
 
         // ── Backup Codes Header ────────────────────────────────
-        Row(
+        const Row(
           children: [
             Icon(Icons.key_outlined, color: _orange, size: 20),
-            const SizedBox(width: 8),
-            const Expanded(
+            SizedBox(width: 8),
+            Expanded(
               child: Text(
                 'Backup Codes',
                 style: TextStyle(
@@ -921,7 +921,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
           ],
         ),
         const SizedBox(height: 6),
-        Text(
+        const Text(
           'Save these codes in a safe place. Each code can only be used once '
           'to sign in if you lose access to your authenticator.',
           style: TextStyle(
@@ -963,7 +963,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                 child: Center(
                   child: Text(
                     code,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -1183,15 +1183,15 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
             borderRadius: BorderRadius.circular(KinrelRadius.dialog),
             side: const BorderSide(color: _borderSubtle),
           ),
-          title: Row(
+          title: const Row(
             children: [
               Icon(
                 Icons.warning_amber_rounded,
                 color: KinrelColors.warning,
                 size: 24,
               ),
-              const SizedBox(width: 10),
-              const Text(
+              SizedBox(width: 10),
+              Text(
                 'Disable 2FA?',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
@@ -1217,7 +1217,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text(
+              const Text(
                 'Enter your password to confirm:',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,

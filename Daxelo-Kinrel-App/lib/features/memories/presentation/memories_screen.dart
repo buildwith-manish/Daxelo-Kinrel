@@ -60,7 +60,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
       body: Stack(
         children: [
           CustomScrollView(
-            scrollCacheExtent: ScrollCacheExtent.pixels(500),
+            scrollCacheExtent: const ScrollCacheExtent.pixels(500),
             physics: const BouncingScrollPhysics(),
             slivers: [
               // ── Header ────────────────────────────────────────────
@@ -100,7 +100,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
 
   Widget _buildHeader() {
     return Padding(
-      padding: EdgeInsets.fromLTRB(
+      padding: const EdgeInsets.fromLTRB(
         KinrelSpacing.base,
         KinrelSpacing.xl,
         KinrelSpacing.base,
@@ -121,7 +121,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
               size: 22,
             ),
           ),
-          SizedBox(width: KinrelSpacing.md),
+          const SizedBox(width: KinrelSpacing.md),
           Expanded(
             child: Text(
               'Memories & Timeline',
@@ -149,10 +149,10 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
                   gradient: KinrelGradients.igniteGradient,
                   borderRadius: BorderRadius.circular(KinrelRadius.full),
                   boxShadow: [
-                    BoxShadow(
+                    const BoxShadow(
                       color: KinrelColors.orangeGlow,
                       blurRadius: 8,
-                      offset: const Offset(0, 2),
+                      offset: Offset(0, 2),
                     ),
                   ],
                 ),
@@ -191,7 +191,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(
+          padding: const EdgeInsets.fromLTRB(
             KinrelSpacing.base,
             KinrelSpacing.md,
             KinrelSpacing.base,
@@ -234,7 +234,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
           height: 180,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+            padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
             itemCount: memories.length,
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
@@ -242,7 +242,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
             },
           ),
         ),
-        SizedBox(height: KinrelSpacing.md),
+        const SizedBox(height: KinrelSpacing.md),
       ],
     );
   }
@@ -253,7 +253,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
 
   Widget _buildFilterChips(MemoriesState state) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(
+      padding: const EdgeInsets.fromLTRB(
         KinrelSpacing.base,
         KinrelSpacing.sm,
         KinrelSpacing.base,
@@ -312,7 +312,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.close_rounded,
                         size: 14,
                         color: KinrelColors.orange,
@@ -642,7 +642,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
     return SliverList(
       delegate: SliverChildBuilderWithFooter(
         childCount: events.length,
-        footer: SizedBox(height: 100), // Space for FAB
+        footer: const SizedBox(height: 100), // Space for FAB
         builder: (context, index) {
           final event = events[index];
           final isFirst = index == 0;
@@ -729,10 +729,10 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
           borderRadius: BorderRadius.circular(KinrelRadius.full),
           gradient: KinrelGradients.igniteGradient,
           boxShadow: [
-            BoxShadow(
+            const BoxShadow(
               color: KinrelColors.orangeGlowIntense,
               blurRadius: 16,
-              offset: const Offset(0, 4),
+              offset: Offset(0, 4),
             ),
           ],
         ),
@@ -830,7 +830,7 @@ class _OnThisDayCard extends StatelessWidget {
                     top: Radius.circular(KinrelRadius.lg),
                   ),
                 ),
-                child: Center(
+                child: const Center(
                   child: Icon(
                     Icons.photo_camera_rounded,
                     size: 32,
@@ -1098,10 +1098,10 @@ class _TimelineEventCard extends StatelessWidget {
                     : null,
                 boxShadow: event.isPinned
                     ? [
-                        BoxShadow(
+                        const BoxShadow(
                           color: KinrelColors.orangeGlowSubtle,
                           blurRadius: 12,
-                          offset: const Offset(0, 2),
+                          offset: Offset(0, 2),
                         ),
                       ]
                     : null,
@@ -1144,7 +1144,7 @@ class _TimelineEventCard extends StatelessWidget {
                       // Pin icon
                       if (event.isPinned) ...[
                         const SizedBox(width: 6),
-                        Icon(
+                        const Icon(
                           Icons.push_pin_rounded,
                           size: 14,
                           color: KinrelColors.orange,
@@ -1187,7 +1187,7 @@ class _TimelineEventCard extends StatelessWidget {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.location_on_rounded,
                           size: 13,
                           color: KinrelColors.textDim,
@@ -1227,7 +1227,7 @@ class _TimelineEventCard extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.image_rounded,
                               size: 20,
                               color: KinrelColors.textDim,
@@ -1617,7 +1617,7 @@ class _AddMemorySheetState extends ConsumerState<_AddMemorySheet> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(KinrelRadius.md),
-          borderSide: BorderSide(color: KinrelColors.orange, width: 1.5),
+          borderSide: const BorderSide(color: KinrelColors.orange, width: 1.5),
         ),
       ),
     );

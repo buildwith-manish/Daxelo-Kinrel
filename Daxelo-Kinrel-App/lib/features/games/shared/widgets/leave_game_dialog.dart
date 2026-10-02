@@ -118,7 +118,7 @@ class _LeaveGameDialogContent extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
@@ -132,7 +132,7 @@ class _LeaveGameDialogContent extends StatelessWidget {
             // Message
             Text(
               message,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 color: KinrelColors.textDim,

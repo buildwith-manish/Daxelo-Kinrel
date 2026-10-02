@@ -136,7 +136,7 @@ class MemberProfileSheet extends ConsumerWidget {
                                   placeholder: (_, __) => Center(
                                     child: Text(
                                       _initials(name),
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         fontFamily:
                                             KinrelTypography.displayFont,
                                         fontSize: 28,
@@ -148,7 +148,7 @@ class MemberProfileSheet extends ConsumerWidget {
                                   errorWidget: (_, __, ___) => Center(
                                     child: Text(
                                       _initials(name),
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         fontFamily:
                                             KinrelTypography.displayFont,
                                         fontSize: 28,
@@ -161,7 +161,7 @@ class MemberProfileSheet extends ConsumerWidget {
                               : Center(
                                   child: Text(
                                     _initials(name),
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       fontFamily: KinrelTypography.displayFont,
                                       fontSize: 28,
                                       fontWeight: FontWeight.w700,
@@ -175,7 +175,7 @@ class MemberProfileSheet extends ConsumerWidget {
                       // Name
                       Text(
                         name,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
@@ -188,7 +188,7 @@ class MemberProfileSheet extends ConsumerWidget {
                         const SizedBox(height: 4),
                         Text(
                           relationLabel!,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 13,
                             color: KinrelColors.orange,

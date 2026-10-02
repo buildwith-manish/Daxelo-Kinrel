@@ -78,7 +78,7 @@ class _MindMatchCardState extends ConsumerState<MindMatchCard> {
                     children: [
                       Row(
                         children: [
-                          Expanded(
+                          const Expanded(
                             child: Text(
                               'Mind Match',
                               style: TextStyle(
@@ -98,7 +98,7 @@ class _MindMatchCardState extends ConsumerState<MindMatchCard> {
                               border: Border.all(
                                   color: accent.withValues(alpha: 0.4)),
                             ),
-                            child: Text(
+                            child: const Text(
                               '2–8',
                               style: TextStyle(
                                 fontFamily: KinrelTypography.monoFont,
@@ -111,7 +111,7 @@ class _MindMatchCardState extends ConsumerState<MindMatchCard> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      const Text(
                         'Social party · Think like everyone else',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
@@ -132,7 +132,7 @@ class _MindMatchCardState extends ConsumerState<MindMatchCard> {
                           ),
                         )
                       else
-                        Text(
+                        const Text(
                           'Match answers with family — most popular wins. Perfect matches = big bonuses!',
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
@@ -208,9 +208,9 @@ class _MindMatchMotifPainter extends CustomPainter {
       rightCenter,
       bubbleRadius,
       Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(-0.4, -0.4),
-          colors: const [
+        ..shader = const RadialGradient(
+          center: Alignment(-0.4, -0.4),
+          colors: [
             Color(0xFFFCD34D),
             Color(0xFFB45309),
           ],

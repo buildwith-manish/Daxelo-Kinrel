@@ -185,7 +185,7 @@ class _PersonClaimScreenState extends ConsumerState<PersonClaimScreen> {
           icon: const Icon(Icons.close),
           onPressed: () => GoRouter.of(context).go('/home'),
         ),
-        title: Text(
+        title: const Text(
           'Confirm Your Spot',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -221,7 +221,7 @@ class _PersonClaimScreenState extends ConsumerState<PersonClaimScreen> {
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: KinrelColors.textDim,
@@ -267,7 +267,7 @@ class _PersonClaimScreenState extends ConsumerState<PersonClaimScreen> {
         Text(
           '$inviterName added you to the $familyName family tree on Kinrel! 🧡',
           textAlign: TextAlign.center,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -280,7 +280,7 @@ class _PersonClaimScreenState extends ConsumerState<PersonClaimScreen> {
           'You\'ve been added as "$personName". Confirm to link your Kinrel '
           'account to this spot in the family tree.',
           textAlign: TextAlign.center,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             color: KinrelColors.textDim,
@@ -327,7 +327,7 @@ class _PersonClaimScreenState extends ConsumerState<PersonClaimScreen> {
         // Decline
         TextButton(
           onPressed: () => GoRouter.of(context).go('/home'),
-          child: Text(
+          child: const Text(
             'Not now',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -337,7 +337,7 @@ class _PersonClaimScreenState extends ConsumerState<PersonClaimScreen> {
         ),
 
         const SizedBox(height: KinrelSpacing.xl),
-        Text(
+        const Text(
           'By confirming, you link your Kinrel account to this person in the '
           'family tree. Your family will be able to see your profile and '
           'connect with you.',
@@ -363,7 +363,7 @@ class _PersonClaimScreenState extends ConsumerState<PersonClaimScreen> {
             width: 80,
             child: Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
                 color: KinrelColors.textDim,
@@ -373,7 +373,7 @@ class _PersonClaimScreenState extends ConsumerState<PersonClaimScreen> {
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,

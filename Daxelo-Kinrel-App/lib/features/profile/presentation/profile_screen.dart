@@ -36,6 +36,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/services/analytics_service.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../../shared/widgets/kinrel_skeleton.dart';
 import '../data/profile_provider.dart';
 import '../../../core/utils/share_helper.dart';
 import '../../../core/family/family_provider.dart';
@@ -380,18 +381,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     ),
                     _divider(),
                     ListTile(
-                      leading: Icon(
+                      leading: const Icon(
                         Icons.celebration_outlined,
                         color: KinrelColors.orange,
                       ),
-                      title: Text(
+                      title: const Text(
                         'Occasion Reminders',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           color: KinrelColors.textWhite,
                         ),
                       ),
-                      subtitle: Text(
+                      subtitle: const Text(
                         'Birthdays & anniversaries',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
@@ -399,7 +400,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           fontSize: 12,
                         ),
                       ),
-                      trailing: Icon(
+                      trailing: const Icon(
                         Icons.chevron_right,
                         color: KinrelColors.textDim,
                       ),
@@ -774,7 +775,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                         child: Container(
                           color: KinrelColors.darkElevated,
                           child: _isUploadingAvatar
-                              ? Center(
+                              ? const Center(
                                   child: SizedBox(
                                     width: 32,
                                     height: 32,
@@ -1037,7 +1038,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 ],
               ),
             ),
-            SizedBox(width: KinrelSpacing.xl),
+            const SizedBox(width: KinrelSpacing.xl),
             // Following
             GestureDetector(
               onTap: () => context.push('/followers/following'),
@@ -1078,7 +1079,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 height: 14,
                 child: LinearProgressIndicator(
                   backgroundColor: _borderSubtle,
-                  valueColor: AlwaysStoppedAnimation<Color>(_orange),
+                  valueColor: const AlwaysStoppedAnimation<Color>(_orange),
                 ),
               ),
               const SizedBox(height: 2),
@@ -1092,7 +1093,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               ),
             ],
           ),
-          SizedBox(width: KinrelSpacing.xl),
+          const SizedBox(width: KinrelSpacing.xl),
           Column(
             children: [
               SizedBox(
@@ -1100,7 +1101,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 height: 14,
                 child: LinearProgressIndicator(
                   backgroundColor: _borderSubtle,
-                  valueColor: AlwaysStoppedAnimation<Color>(_orange),
+                  valueColor: const AlwaysStoppedAnimation<Color>(_orange),
                 ),
               ),
               const SizedBox(height: 2),
@@ -1302,7 +1303,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                             ],
                           ),
                         ),
-                        Icon(
+                        const Icon(
                           Icons.chevron_right_rounded,
                           color: _orange,
                           size: 28,
@@ -1397,8 +1398,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         );
       },
       loading: () => _buildSectionCard([
-        Padding(
-          padding: const EdgeInsets.all(20),
+        const Padding(
+          padding: EdgeInsets.all(20),
           child: Center(
             child: SizedBox(
               width: 20,
@@ -1603,7 +1604,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                         ),
                       ),
                       trailing: isSelected
-                          ? Icon(Icons.check, color: _orange, size: 20)
+                          ? const Icon(Icons.check, color: _orange, size: 20)
                           : null,
                       onTap: () {
                         Navigator.of(ctx).pop();
@@ -1951,7 +1952,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   ),
                 ),
                 trailing: isSelected
-                    ? Icon(Icons.check, color: _orange, size: 20)
+                    ? const Icon(Icons.check, color: _orange, size: 20)
                     : null,
                 onTap: () async {
                   Navigator.of(ctx).pop();
@@ -2052,7 +2053,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   ),
                 ),
                 trailing: isSelected
-                    ? Icon(Icons.check, color: _orange, size: 20)
+                    ? const Icon(Icons.check, color: _orange, size: 20)
                     : null,
                 onTap: () async {
                   Navigator.of(ctx).pop();
@@ -2135,9 +2136,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               ),
               const SizedBox(height: 20),
               if (_dataExportRequested)
-                Center(
+                const Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.all(12),
                     child: Text(
                       'Request pending — you\'ll be notified when ready',
                       style: TextStyle(
@@ -2575,7 +2576,7 @@ class _StatCard extends StatelessWidget {
                 ),
               )
             else
-              DKLoadingShimmer(width: 48, height: 22, radius: 4),
+              const KinrelSkeletonBox(width: 48, height: 22, radius: 4),
             const SizedBox(height: 2),
             Text(
               label,
@@ -3063,7 +3064,7 @@ class _FamilyIdRow extends StatelessWidget {
                 color: _orange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.family_restroom_rounded,
                 size: 18,
                 color: _orange,
@@ -3091,7 +3092,7 @@ class _FamilyIdRow extends StatelessWidget {
                   if (hasKinId)
                     Text(
                       kinFamilyId!,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,

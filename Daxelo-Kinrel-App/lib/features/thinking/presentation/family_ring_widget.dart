@@ -55,14 +55,14 @@ enum ThinkingEmotion {
 
 const _emotionWarmMessages = {
   ThinkingEmotion.love: [
-    "Your love just traveled across the family",
+    'Your love just traveled across the family',
     "They'll feel your warmth when they see this",
-    "A little love sent across the distance",
+    'A little love sent across the distance',
   ],
   ThinkingEmotion.hug: [
-    "You just sent a virtual hug",
+    'You just sent a virtual hug',
     "They'll feel wrapped in warmth",
-    "A hug just crossed the screen for them",
+    'A hug just crossed the screen for them',
   ],
   ThinkingEmotion.gratitude: [
     "You just expressed gratitude — that's beautiful",
@@ -72,7 +72,7 @@ const _emotionWarmMessages = {
   ThinkingEmotion.proud: [
     "You just showed you're proud of them",
     "They'll feel validated and seen",
-    "Pride is a gift — you just gave it",
+    'Pride is a gift — you just gave it',
   ],
 };
 
@@ -266,9 +266,9 @@ const _warmMessages = [
   "You just made someone's day brighter",
   "They'll feel loved when they see this",
   "That's going to make them smile",
-  "You just sent a little warmth across the distance",
+  'You just sent a little warmth across the distance',
   "Someone's about to feel special",
-  "Your kindness just traveled across the family",
+  'Your kindness just traveled across the family',
 ];
 
 String _randomWarmMessage() {
@@ -580,9 +580,9 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: const Text(
+            const Padding(
+              padding: EdgeInsets.only(bottom: 16),
+              child: Text(
                 'Choose a reaction',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -679,7 +679,7 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Phase 3.24: Warmer header with heart icon
-        _WarmHeader(),
+        const _WarmHeader(),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
@@ -1013,7 +1013,7 @@ class _WarmHeader extends StatelessWidget {
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 greeting!,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
@@ -1095,8 +1095,8 @@ class _HeartParticlePainter extends CustomPainter {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _Placeholder extends StatelessWidget {
-  final String name;
   const _Placeholder({required this.name});
+  final String name;
 
   @override
   Widget build(BuildContext context) {

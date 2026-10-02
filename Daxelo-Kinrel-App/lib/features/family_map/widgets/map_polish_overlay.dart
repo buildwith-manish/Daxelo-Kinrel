@@ -135,8 +135,8 @@ class _KinrelPolishPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          Colors.black.withOpacity(atmosphericPerspectiveOpacity),
-          Colors.black.withOpacity(atmosphericPerspectiveOpacity * 0.5),
+          Colors.black.withValues(alpha: atmosphericPerspectiveOpacity),
+          Colors.black.withValues(alpha: atmosphericPerspectiveOpacity * 0.5),
           Colors.transparent,
         ],
         stops: const [0.0, 0.5, 1.0],
@@ -149,8 +149,8 @@ class _KinrelPolishPainter extends CustomPainter {
       canvas.drawRect(
         rect,
         Paint()
-          ..color = MapVisualConstants.ambientWarmthColor.withOpacity(
-            ambientOpacity,
+          ..color = MapVisualConstants.ambientWarmthColor.withValues(
+            alpha: ambientOpacity,
           )
           ..blendMode = BlendMode.overlay,
       );
@@ -162,10 +162,10 @@ class _KinrelPolishPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          MapVisualConstants.fogColor.withOpacity(fogOpacity),
+          MapVisualConstants.fogColor.withValues(alpha: fogOpacity),
           Colors.transparent,
-          MapVisualConstants.fogColor.withOpacity(
-            fogOpacity * MapVisualConstants.fogBottomStopMultiplier,
+          MapVisualConstants.fogColor.withValues(
+            alpha: fogOpacity * MapVisualConstants.fogBottomStopMultiplier,
           ),
         ],
         stops: const [0.0, 0.4, 1.0],
@@ -180,10 +180,10 @@ class _KinrelPolishPainter extends CustomPainter {
         radius: 1.0,
         colors: [
           Colors.transparent,
-          Colors.black.withOpacity(
-            vignetteOpacity * MapVisualConstants.vignetteMidpointMultiplier,
+          Colors.black.withValues(
+            alpha: vignetteOpacity * MapVisualConstants.vignetteMidpointMultiplier,
           ),
-          Colors.black.withOpacity(vignetteOpacity),
+          Colors.black.withValues(alpha: vignetteOpacity),
         ],
         stops: const [0.55, 0.85, 1.0],
       );

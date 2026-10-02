@@ -623,7 +623,7 @@ class _MatchStartCountdownState extends State<_MatchStartCountdown>
               child: Text(
                 '$_count',
                 key: ValueKey(_count),
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 32,
                   fontWeight: FontWeight.w800,
@@ -724,7 +724,7 @@ class _RoomHeaderCard extends StatelessWidget {
                   children: [
                     Text(
                       config.bannerTitle,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
@@ -735,7 +735,7 @@ class _RoomHeaderCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       config.bannerSubtitle,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
                         color: KinrelColors.textDim,
@@ -760,11 +760,11 @@ class _RoomHeaderCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.tag, size: 14, color: KinrelColors.orange),
+                const Icon(Icons.tag, size: 14, color: KinrelColors.orange),
                 const SizedBox(width: 4),
                 Text(
                   config.derivedRoomCode,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 12,
                     color: KinrelColors.textWhite,
@@ -782,12 +782,12 @@ class _RoomHeaderCard extends StatelessWidget {
                 const SizedBox(width: KinrelSpacing.sm),
                 _dot(),
                 const SizedBox(width: KinrelSpacing.sm),
-                Icon(Icons.people_outline,
+                const Icon(Icons.people_outline,
                     size: 14, color: KinrelColors.textDim),
                 const SizedBox(width: 4),
                 Text(
                   '${config.players.length}/${config.maxPlayers}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,
                     color: KinrelColors.textDim,
@@ -810,7 +810,7 @@ class _RoomHeaderCard extends StatelessWidget {
                   ),
                 ] else if (config.status ==
                     TemporaryLobbyStatus.starting) ...[
-                  Text(
+                  const Text(
                     'Match starting…',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -821,7 +821,7 @@ class _RoomHeaderCard extends StatelessWidget {
                     ),
                   ),
                 ] else ...[
-                  Text(
+                  const Text(
                     'Game finished',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -1035,7 +1035,7 @@ class _PlayerRosterPanelState extends State<_PlayerRosterPanel> {
                 KinrelSpacing.md, KinrelSpacing.md, KinrelSpacing.sm),
             child: Row(
               children: [
-                Text(
+                const Text(
                   'Players',
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
@@ -1056,7 +1056,7 @@ class _PlayerRosterPanelState extends State<_PlayerRosterPanel> {
                     ),
                     child: Text(
                       'You\'re #${myIndex + 1}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -1068,7 +1068,7 @@ class _PlayerRosterPanelState extends State<_PlayerRosterPanel> {
                 const Spacer(),
                 Text(
                   '${players.length}/${config.maxPlayers}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -1195,7 +1195,7 @@ class _PlayerSlotTile extends StatelessWidget {
                       color: KinrelColors.orange,
                       borderRadius: BorderRadius.circular(KinrelRadius.xs),
                     ),
-                    child: Text(
+                    child: const Text(
                       'YOU',
                       style: TextStyle(
                         fontFamily: KinrelTypography.monoFont,
@@ -1216,7 +1216,7 @@ class _PlayerSlotTile extends StatelessWidget {
                       color: KinrelColors.orange.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(KinrelRadius.xs),
                     ),
-                    child: Text(
+                    child: const Text(
                       'HOST',
                       style: TextStyle(
                         fontFamily: KinrelTypography.monoFont,
@@ -1362,7 +1362,7 @@ class _ReadyToggleState extends State<_ReadyToggle> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Couldn\'t update ready state — try again'),
             backgroundColor: KinrelColors.error,
           ),
@@ -1415,7 +1415,7 @@ class _StartMatchButtonState extends State<_StartMatchButton> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Couldn\'t start the match — try again'),
             backgroundColor: KinrelColors.error,
           ),
@@ -1640,7 +1640,7 @@ class _CloseRoomButtonState extends State<_CloseRoomButton> {
                 const Icon(Icons.warning_amber_rounded,
                     color: KinrelColors.error, size: 18),
               const SizedBox(width: KinrelSpacing.sm),
-              Flexible(
+              const Flexible(
                 child: Text(
                   'Close Room',
                   maxLines: 1,

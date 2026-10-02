@@ -91,10 +91,10 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [
-                  const KinrelIcon(KinrelIconData.sparkle,
+                const Row(children: [
+                  KinrelIcon(KinrelIconData.sparkle,
                   size: 18, color: KinrelColors.amber),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(
                     'FAMILY MOMENTS',
                     style: TextStyle(
@@ -107,7 +107,7 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
                   ),
                 ]),
                 const SizedBox(height: 4),
-                Text(
+                const Text(
                   'That was a game to remember!',
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
@@ -186,7 +186,7 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     final game = state.game;
 
-    if (game == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, body: const Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
+    if (game == null) return const DKScaffold(backgroundColor: KinrelColors.darkSurface, body: Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
 
     final isMySpin = game.currentSpinnerId == myId;
     final round = state.currentRound;
@@ -202,7 +202,7 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
           icon: const Icon(Icons.close_rounded),
           onPressed: () => _onClosePressed(),
         ),
-        title: Text('Round ${game.roundNumber}', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: Text('Round ${game.roundNumber}', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),
       body: SafeArea(child: Column(children: [
@@ -325,7 +325,7 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
               glow: isSelected,
               child: Text(
                 PersonAvatar.initialsFor(p.userName),
-                style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
+                style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
               ),
             ),
           ]),
@@ -380,13 +380,13 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
   }
 
   Widget _actionArea(TodState state, TodGame game, bool isMySpin, TodRound? round, bool iAmSelected, bool showChoice, bool showPrompt, bool showCompleted, String? myId) {
-    if (state.isSpinning) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange)), const SizedBox(height: 8), Text('Spinning...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim))]));
+    if (state.isSpinning) return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange)), SizedBox(height: 8), Text('Spinning...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim))]));
 
     if (showCompleted) {
       return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(Icons.check_circle, size: 40, color: KinrelColors.success),
+        const Icon(Icons.check_circle, size: 40, color: KinrelColors.success),
         const SizedBox(height: 8),
-        Text('${round?.selectedPlayerName} completed!', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
+        Text('${round?.selectedPlayerName} completed!', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
         const SizedBox(height: 16),
         DKButton(label: 'Next Round', variant: DKButtonVariant.gradient, onPressed: () => ref.read(todProvider(widget.familyId).notifier).completeRound()),
       ]));
@@ -405,8 +405,8 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
 
     if (showChoice) {
       return Padding(padding: const EdgeInsets.all(16), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Text('${round!.selectedPlayerName}', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 20, fontWeight: FontWeight.w800, color: KinrelColors.textWhite)),
-        Text('Choose Truth or Dare', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)),
+        Text('${round!.selectedPlayerName}', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 20, fontWeight: FontWeight.w800, color: KinrelColors.textWhite)),
+        const Text('Choose Truth or Dare', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)),
         const SizedBox(height: 20),
         if (iAmSelected) Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
           _choiceButton('Truth', KinrelColors.tealAccent, Icons.help_outline, () => ref.read(todProvider(widget.familyId).notifier).chooseTruthOrDare('truth')),
@@ -419,12 +419,12 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
     // Default: spin button
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       if (isMySpin) ...[
-        GameTurnPill(label: 'Your turn to spin!', color: KinrelColors.orange, active: true, icon: Icons.replay_rounded),
+        const GameTurnPill(label: 'Your turn to spin!', color: KinrelColors.orange, active: true, icon: Icons.replay_rounded),
         const SizedBox(height: 16),
         DKButton(label: 'Spin the Bottle!', variant: DKButtonVariant.gradient, icon: Icons.refresh, onPressed: _spin),
       ] else ...[
-        GameTurnPill(label: 'Waiting for spinner…', color: KinrelColors.orange, active: false,
-          trailing: const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange))),
+        const GameTurnPill(label: 'Waiting for spinner…', color: KinrelColors.orange, active: false,
+          trailing: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange))),
       ],
     ]));
   }
@@ -458,7 +458,7 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
                 child: Text(round.choice!.toUpperCase(), style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: accent))),
             ]),
             const SizedBox(height: 14),
-            Text(round.promptText ?? '', textAlign: TextAlign.center, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 16, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+            Text(round.promptText ?? '', textAlign: TextAlign.center, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 16, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
           ])),
         ]),
       ),

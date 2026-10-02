@@ -92,7 +92,9 @@ void main() {
       for (final cat in KinshipEdgeCategory.values) {
         if (cat == KinshipEdgeCategory.self ||
             cat == KinshipEdgeCategory.spouse ||
-            cat == KinshipEdgeCategory.indirect) continue;
+            cat == KinshipEdgeCategory.indirect) {
+          continue;
+        }
         final style = KinshipEdgeStyleResolver.styleForCategory(cat);
         expect(style.midpointSymbol, KinshipMidpointSymbol.dot);
         expect(style.midpointColor, style.color);

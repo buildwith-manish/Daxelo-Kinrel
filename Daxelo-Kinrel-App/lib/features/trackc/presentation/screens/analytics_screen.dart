@@ -85,7 +85,7 @@ class TrackcAnalyticsScreen extends ConsumerWidget {
               if (anomalies.isNotEmpty) ...[
                 for (final a in anomalies)
                   Card(
-                    color: _anomalyColor(a['severity'] as String? ?? 'low').withOpacity(0.1),
+                    color: _anomalyColor(a['severity'] as String? ?? 'low').withValues(alpha: 0.1),
                     margin: const EdgeInsets.only(bottom: 8),
                     child: ListTile(
                       leading: Icon(Icons.warning,

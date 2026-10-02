@@ -107,7 +107,7 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
           // confirmation dialog first.
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
-        title: Text(
+        title: const Text(
           'Chess',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -272,7 +272,7 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
                 color: KinrelColors.error,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
+              child: const Text(
                 'CHECK!',
                 style: TextStyle(
                   fontFamily: KinrelTypography.monoFont,
@@ -338,7 +338,7 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 10,
             color: KinrelColors.textDim,
@@ -348,7 +348,7 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
         SizedBox(
           height: 20,
           child: pieces.isEmpty
-              ? Text(
+              ? const Text(
                   '—',
                   style: TextStyle(
                     fontSize: 14,
@@ -703,7 +703,7 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'MOVES',
             style: TextStyle(
               fontFamily: KinrelTypography.monoFont,
@@ -720,7 +720,7 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
             children: recentMoves.map((m) {
               return Text(
                 '${m.moveNumber}. ${m.notation}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 11,
                   color: KinrelColors.textWhite,
@@ -747,7 +747,7 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
       backgroundColor: isWinner ? null : KinrelColors.darkSurface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text('Results',
+        title: const Text('Results',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
@@ -788,7 +788,7 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
                               ? 'Stalemate — Draw!'
                               : 'Draw!')
                         : (isWinner ? 'Checkmate — You Won!' : 'Checkmate!'),
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 28,
                       fontWeight: FontWeight.w800,
@@ -800,7 +800,7 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
                     const SizedBox(height: 4),
                     Text(
                       isWinner ? '$winnerName (You)' : winnerName,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 22,
                         fontWeight: FontWeight.w600,

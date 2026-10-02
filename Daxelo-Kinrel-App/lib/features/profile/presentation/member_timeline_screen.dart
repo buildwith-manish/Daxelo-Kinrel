@@ -17,6 +17,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../../shared/widgets/kinrel_skeleton.dart';
 import '../../family/providers/member_detail_provider.dart';
 import '../providers/member_timeline_provider.dart';
 
@@ -57,12 +58,12 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
         elevation: 0,
         leading: IconButton(
           icon: Container(
-            padding: EdgeInsets.all(8),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: _cCard.withValues(alpha: 0.7),
               shape: BoxShape.circle,
             ),
-            child: Icon(
+            child: const Icon(
               Icons.arrow_back_ios_new,
               size: 16,
               color: _cTextPrimary,
@@ -71,7 +72,7 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
         title: detailAsync.when(
-          loading: () => Text(
+          loading: () => const Text(
             'Life Timeline',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -80,10 +81,10 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
               color: _cTextPrimary,
             ),
           ),
-          error: (_, __) => Text('Life Timeline'),
+          error: (_, __) => const Text('Life Timeline'),
           data: (detail) => Text(
             '${detail.name} \u2014 Life Timeline',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 18,
               fontWeight: FontWeight.w700,
@@ -180,7 +181,7 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
                 onPressed: _showAddMilestoneSheet,
                 backgroundColor: Colors.transparent,
                 elevation: 0,
-                child: Icon(Icons.add, size: 28, color: Colors.white),
+                child: const Icon(Icons.add, size: 28, color: Colors.white),
               ),
             )
           : null,
@@ -201,13 +202,13 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
           Container(
             width: 80,
             height: 80,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               shape: BoxShape.circle,
               gradient: KinrelGradients.igniteGradient,
             ),
             child: Container(
-              margin: EdgeInsets.all(3),
-              decoration: BoxDecoration(
+              margin: const EdgeInsets.all(3),
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
                 color: _cCard,
               ),
@@ -219,7 +220,7 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
                       .take(2)
                       .map((w) => w[0].toUpperCase())
                       .join(),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 28,
                     fontWeight: FontWeight.w700,
@@ -238,7 +239,7 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
               children: [
                 Text(
                   detail.name,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
@@ -258,7 +259,7 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
                     ),
                     child: Text(
                       'Your ${detail.kinshipNameToUser}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -270,7 +271,7 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
                 if (detail.age != null)
                   Text(
                     '${detail.age} years old',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: _cTextDim,
@@ -293,9 +294,9 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
       child: Column(
         children: List.generate(
           4,
-          (_) => Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: DKLoadingShimmer(
+          (_) => const Padding(
+            padding: EdgeInsets.only(bottom: 16),
+            child: KinrelSkeletonBox(
               width: double.infinity,
               height: 100,
               radius: 14,
@@ -365,7 +366,7 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
                   const SizedBox(height: 20),
 
                   // Title
-                  Text(
+                  const Text(
                     'Add Milestone',
                     style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
@@ -379,14 +380,14 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
                   // Title input
                   TextField(
                     controller: titleController,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       color: _cTextPrimary,
                     ),
                     decoration: InputDecoration(
                       hintText: 'Milestone title',
-                      hintStyle: TextStyle(color: _cTextDim),
+                      hintStyle: const TextStyle(color: _cTextDim),
                       filled: true,
                       fillColor: _cElevated,
                       border: OutlineInputBorder(
@@ -408,7 +409,7 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
                         builder: (context, child) {
                           return Theme(
                             data: ThemeData.dark().copyWith(
-                              colorScheme: ColorScheme.dark(
+                              colorScheme: const ColorScheme.dark(
                                 primary: _cOrange,
                                 surface: _cCard,
                               ),
@@ -432,14 +433,14 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.calendar_today_outlined,
+                          const Icon(Icons.calendar_today_outlined,
                               size: 18, color: _cOrange),
                           const SizedBox(width: 10),
                           Text(
                             selectedDate != null
                                 ? '${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}'
                                 : 'Select date',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 14,
                               color: _cTextPrimary,
@@ -455,14 +456,14 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
                   TextField(
                     controller: descController,
                     maxLines: 3,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       color: _cTextPrimary,
                     ),
                     decoration: InputDecoration(
                       hintText: 'Description (optional)',
-                      hintStyle: TextStyle(color: _cTextDim),
+                      hintStyle: const TextStyle(color: _cTextDim),
                       filled: true,
                       fillColor: _cElevated,
                       border: OutlineInputBorder(
@@ -595,7 +596,7 @@ class _TimelineItemCard extends StatelessWidget {
                           child: Container(
                             width: 6,
                             height: 6,
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               shape: BoxShape.circle,
                               color: _cBg,
                             ),
@@ -654,7 +655,7 @@ class _TimelineItemCard extends StatelessWidget {
                             children: [
                               Text(
                                 item.type.emoji,
-                                style: TextStyle(fontSize: 12),
+                                style: const TextStyle(fontSize: 12),
                               ),
                               const SizedBox(width: 4),
                               Text(
@@ -674,7 +675,7 @@ class _TimelineItemCard extends StatelessWidget {
                         // Year label
                         Text(
                           '${item.date.year}',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.monoFont,
                             fontSize: 11,
                             color: _cTextDim,
@@ -688,7 +689,7 @@ class _TimelineItemCard extends StatelessWidget {
                     // Title
                     Text(
                       item.title,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -702,7 +703,7 @@ class _TimelineItemCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         item.subtitle!,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 13,
                           color: _cTextSecondary,

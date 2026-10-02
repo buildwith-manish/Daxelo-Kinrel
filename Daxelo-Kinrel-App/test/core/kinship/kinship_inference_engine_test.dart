@@ -9,14 +9,14 @@ import 'package:kinrel/core/kinship/kinship_inference_engine.dart';
 void main() {
   group('KinshipInferenceEngine — v5.1 Smart Inference', () {
     test('TEST 1: Older female → mother', () {
-      final personA = Person(
+      final personA = const Person(
         id: 'A',
         familyId: 'fam',
         name: 'Manish',
         gender: 'male',
         birthYear: 1990,
       );
-      final personB = Person(
+      final personB = const Person(
         id: 'B',
         familyId: 'fam',
         name: 'Sushma',
@@ -37,14 +37,14 @@ void main() {
     });
 
     test('TEST 2: Older male → father', () {
-      final personA = Person(
+      final personA = const Person(
         id: 'A',
         familyId: 'fam',
         name: 'Manish',
         gender: 'male',
         birthYear: 1990,
       );
-      final personB = Person(
+      final personB = const Person(
         id: 'B',
         familyId: 'fam',
         name: 'Rajesh',
@@ -63,14 +63,14 @@ void main() {
     });
 
     test('TEST 3: Younger female → daughter', () {
-      final personA = Person(
+      final personA = const Person(
         id: 'A',
         familyId: 'fam',
         name: 'Manish',
         gender: 'male',
         birthYear: 1980,
       );
-      final personB = Person(
+      final personB = const Person(
         id: 'B',
         familyId: 'fam',
         name: 'Priya',
@@ -89,14 +89,14 @@ void main() {
     });
 
     test('TEST 4: Younger male → son', () {
-      final personA = Person(
+      final personA = const Person(
         id: 'A',
         familyId: 'fam',
         name: 'Manish',
         gender: 'male',
         birthYear: 1980,
       );
-      final personB = Person(
+      final personB = const Person(
         id: 'B',
         familyId: 'fam',
         name: 'Arjun',
@@ -115,14 +115,14 @@ void main() {
     });
 
     test('TEST 5: Similar-age opposite gender, no spouse → wife', () {
-      final personA = Person(
+      final personA = const Person(
         id: 'A',
         familyId: 'fam',
         name: 'Manish',
         gender: 'male',
         birthYear: 1990,
       );
-      final personB = Person(
+      final personB = const Person(
         id: 'B',
         familyId: 'fam',
         name: 'Yakshiii',
@@ -142,14 +142,14 @@ void main() {
     });
 
     test('TEST 6: Similar-age same gender → brother', () {
-      final personA = Person(
+      final personA = const Person(
         id: 'A',
         familyId: 'fam',
         name: 'Manish',
         gender: 'male',
         birthYear: 1990,
       );
-      final personB = Person(
+      final personB = const Person(
         id: 'B',
         familyId: 'fam',
         name: 'Yakshiii',
@@ -168,13 +168,13 @@ void main() {
     });
 
     test('TEST 7: Always returns at least 4 candidates (fallback chain)', () {
-      final personA = Person(
+      final personA = const Person(
         id: 'A',
         familyId: 'fam',
         name: 'A',
         gender: 'male',
       );
-      final personB = Person(
+      final personB = const Person(
         id: 'B',
         familyId: 'fam',
         name: 'B',
@@ -200,14 +200,14 @@ void main() {
     });
 
     test('TEST 8: Candidates are sorted by confidence (highest first)', () {
-      final personA = Person(
+      final personA = const Person(
         id: 'A',
         familyId: 'fam',
         name: 'Manish',
         gender: 'male',
         birthYear: 1990,
       );
-      final personB = Person(
+      final personB = const Person(
         id: 'B',
         familyId: 'fam',
         name: 'Sushma',
@@ -229,14 +229,14 @@ void main() {
     });
 
     test('TEST 9: Existing spouse reduces spouse inference confidence', () {
-      final personA = Person(
+      final personA = const Person(
         id: 'A',
         familyId: 'fam',
         name: 'Manish',
         gender: 'male',
         birthYear: 1990,
       );
-      final personB = Person(
+      final personB = const Person(
         id: 'B',
         familyId: 'fam',
         name: 'Priya',
@@ -246,7 +246,7 @@ void main() {
 
       // A already has a spouse
       final existingRels = [
-        FamilyRelationship(
+        const FamilyRelationship(
           id: 'r1',
           familyId: 'fam',
           fromPersonId: 'A',
@@ -283,13 +283,13 @@ void main() {
     });
 
     test('TEST 11: No birth year + opposite gender + no spouse → spouse', () {
-      final personA = Person(
+      final personA = const Person(
         id: 'A',
         familyId: 'fam',
         name: 'Manish',
         gender: 'male',
       );
-      final personB = Person(
+      final personB = const Person(
         id: 'B',
         familyId: 'fam',
         name: 'Priya',
@@ -307,13 +307,13 @@ void main() {
     });
 
     test('TEST 12: No birth year + same gender → sibling', () {
-      final personA = Person(
+      final personA = const Person(
         id: 'A',
         familyId: 'fam',
         name: 'Manish',
         gender: 'male',
       );
-      final personB = Person(
+      final personB = const Person(
         id: 'B',
         familyId: 'fam',
         name: 'Arjun',

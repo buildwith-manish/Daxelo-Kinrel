@@ -158,6 +158,43 @@ class FamilyPlace {
     this.updatedAt,
   });
 
+  factory FamilyPlace.fromJson(Map<String, dynamic> json) {
+    return FamilyPlace(
+      id: json['id'] as String,
+      familyId:
+          json['familyId'] as String? ?? json['family_id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      placeType: PlaceType.fromWireName(
+        json['placeType'] as String? ?? json['place_type'] as String?,
+      ),
+      lat: (json['lat'] as num?)?.toDouble() ?? 0.0,
+      lng: (json['lng'] as num?)?.toDouble() ?? 0.0,
+      address: json['address'] as String?,
+      personId: json['personId'] as String? ?? json['person_id'] as String?,
+      description: json['description'] as String?,
+      validFrom: json['validFrom'] != null
+          ? DateTime.tryParse(json['validFrom'].toString())
+          : (json['valid_from'] != null
+                ? DateTime.tryParse(json['valid_from'].toString())
+                : null),
+      validTo: json['validTo'] != null
+          ? DateTime.tryParse(json['validTo'].toString())
+          : (json['valid_to'] != null
+                ? DateTime.tryParse(json['valid_to'].toString())
+                : null),
+      memoryCount:
+          (json['memoryCount'] as num?)?.toInt() ??
+          (json['memory_count'] as num?)?.toInt() ??
+          0,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : null,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'].toString())
+          : null,
+    );
+  }
+
   /// Cuid from the database.
   final String id;
 
@@ -244,43 +281,6 @@ class FamilyPlace {
       memoryCount: memoryCount ?? this.memoryCount,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
-    );
-  }
-
-  factory FamilyPlace.fromJson(Map<String, dynamic> json) {
-    return FamilyPlace(
-      id: json['id'] as String,
-      familyId:
-          json['familyId'] as String? ?? json['family_id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      placeType: PlaceType.fromWireName(
-        json['placeType'] as String? ?? json['place_type'] as String?,
-      ),
-      lat: (json['lat'] as num?)?.toDouble() ?? 0.0,
-      lng: (json['lng'] as num?)?.toDouble() ?? 0.0,
-      address: json['address'] as String?,
-      personId: json['personId'] as String? ?? json['person_id'] as String?,
-      description: json['description'] as String?,
-      validFrom: json['validFrom'] != null
-          ? DateTime.tryParse(json['validFrom'].toString())
-          : (json['valid_from'] != null
-                ? DateTime.tryParse(json['valid_from'].toString())
-                : null),
-      validTo: json['validTo'] != null
-          ? DateTime.tryParse(json['validTo'].toString())
-          : (json['valid_to'] != null
-                ? DateTime.tryParse(json['valid_to'].toString())
-                : null),
-      memoryCount:
-          (json['memoryCount'] as num?)?.toInt() ??
-          (json['memory_count'] as num?)?.toInt() ??
-          0,
-      createdAt: json['createdAt'] != null
-          ? DateTime.tryParse(json['createdAt'].toString())
-          : null,
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.tryParse(json['updatedAt'].toString())
-          : null,
     );
   }
 

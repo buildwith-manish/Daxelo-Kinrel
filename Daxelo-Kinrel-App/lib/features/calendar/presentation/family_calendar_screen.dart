@@ -87,7 +87,7 @@ class _FamilyCalendarScreenState extends ConsumerState<FamilyCalendarScreen>
             context.go('/family/${widget.familyId}');
           }
         }),
-        title: Text('Family Calendar', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600)),
+        title: const Text('Family Calendar', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600)),
         backgroundColor: KinrelColors.darkCard,
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
@@ -111,13 +111,13 @@ class _FamilyCalendarScreenState extends ConsumerState<FamilyCalendarScreen>
           indicatorColor: KinrelColors.orange,
           labelColor: KinrelColors.orange,
           unselectedLabelColor: KinrelColors.textDim,
-          labelStyle: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600),
+          labelStyle: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600),
           tabs: const [Tab(text: 'Month'), Tab(text: 'Week'), Tab(text: 'Agenda')],
         ),
       ),
       bottomNavigationBar: FamilySpaceFloatingNav(familyId: widget.familyId),
       body: calState.isLoading && allEvents.isEmpty
-          ? Center(child: CircularProgressIndicator(color: KinrelColors.orange))
+          ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
           : TabBarView(
               controller: _tabController,
               children: [
@@ -165,14 +165,14 @@ class _MonthView extends StatelessWidget {
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(children: [
-          IconButton(icon: Icon(Icons.chevron_left, color: KinrelColors.textSilver), onPressed: () => onPageChanged(DateTime(focusedMonth.year, focusedMonth.month - 1, 1))),
-          Expanded(child: Center(child: Text(monthLabel, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
+          IconButton(icon: const Icon(Icons.chevron_left, color: KinrelColors.textSilver), onPressed: () => onPageChanged(DateTime(focusedMonth.year, focusedMonth.month - 1, 1))),
+          Expanded(child: Center(child: Text(monthLabel, style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
           ),
-          IconButton(icon: Icon(Icons.chevron_right, color: KinrelColors.textSilver), onPressed: () => onPageChanged(DateTime(focusedMonth.year, focusedMonth.month + 1, 1))),
+          IconButton(icon: const Icon(Icons.chevron_right, color: KinrelColors.textSilver), onPressed: () => onPageChanged(DateTime(focusedMonth.year, focusedMonth.month + 1, 1))),
         ]),
       ),
       // Weekday headers
-      Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Row(children: ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => Expanded(child: Center(child: Text(d, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: KinrelColors.textDim))))).toList())),
+      Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Row(children: ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => Expanded(child: Center(child: Text(d, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: KinrelColors.textDim))))).toList())),
       // Calendar grid
       Expanded(child: GridView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -264,9 +264,9 @@ class _WeekView extends StatelessWidget {
 
     return Column(children: [
       Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(children: [
-        IconButton(icon: Icon(Icons.chevron_left, color: KinrelColors.textSilver), onPressed: () => onPageChanged(focusedWeek.subtract(const Duration(days: 7)))),
-        Expanded(child: Center(child: Text(weekLabel, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)))),
-        IconButton(icon: Icon(Icons.chevron_right, color: KinrelColors.textSilver), onPressed: () => onPageChanged(focusedWeek.add(const Duration(days: 7)))),
+        IconButton(icon: const Icon(Icons.chevron_left, color: KinrelColors.textSilver), onPressed: () => onPageChanged(focusedWeek.subtract(const Duration(days: 7)))),
+        Expanded(child: Center(child: Text(weekLabel, style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)))),
+        IconButton(icon: const Icon(Icons.chevron_right, color: KinrelColors.textSilver), onPressed: () => onPageChanged(focusedWeek.add(const Duration(days: 7)))),
       ])),
       Expanded(child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -277,7 +277,7 @@ class _WeekView extends StatelessWidget {
           final dayEvents = events.where((e) => e.eventDate.year == date.year && e.eventDate.month == date.month && e.eventDate.day == date.day).toList();
           return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             SizedBox(width: 40, child: Column(children: [
-              Text(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][index], style: TextStyle(fontSize: 10, color: KinrelColors.textDim, fontWeight: FontWeight.w500)),
+              Text(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][index], style: const TextStyle(fontSize: 10, color: KinrelColors.textDim, fontWeight: FontWeight.w500)),
               const SizedBox(height: 2),
               Text('${date.day}', style: TextStyle(fontSize: 18, fontWeight: isToday ? FontWeight.w800 : FontWeight.w600, color: isToday ? KinrelColors.orange : KinrelColors.textWhite)),
             ])),
@@ -336,21 +336,21 @@ class _AgendaView extends StatelessWidget {
         Center(child: Column(children: [
           Icon(Icons.calendar_month_outlined, size: 56, color: KinrelColors.textDim.withValues(alpha: 0.5)),
           const SizedBox(height: 16),
-          Text('No Events Yet', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+          const Text('No Events Yet', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
           const SizedBox(height: 8),
-          Text('Add birthdays, anniversaries, and family events\nto see them here.', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim), textAlign: TextAlign.center),
+          const Text('Add birthdays, anniversaries, and family events\nto see them here.', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim), textAlign: TextAlign.center),
           const SizedBox(height: 20),
-          FilledButton.icon(onPressed: () => context.push('/family/$familyId/calendar/new'), icon: Icon(Icons.add), label: Text('Add Event'), style: FilledButton.styleFrom(backgroundColor: KinrelColors.orange, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12))),
+          FilledButton.icon(onPressed: () => context.push('/family/$familyId/calendar/new'), icon: const Icon(Icons.add), label: const Text('Add Event'), style: FilledButton.styleFrom(backgroundColor: KinrelColors.orange, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12))),
         ])),
       ] else ...[
         if (upcoming.isNotEmpty) ...[
-          Text('Upcoming', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
+          const Text('Upcoming', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
           const SizedBox(height: 12),
           ...upcoming.map((e) => _EventFullCard(event: e, familyId: familyId)),
         ],
         if (past.isNotEmpty) ...[
           const SizedBox(height: 20),
-          Text('Past Events', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textDim)),
+          const Text('Past Events', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textDim)),
           const SizedBox(height: 12),
           ...past.take(10).map((e) => _EventFullCard(event: e, familyId: familyId, isPast: true)),
         ],
@@ -375,9 +375,9 @@ class _EventMiniCard extends StatelessWidget {
       child: Container(margin: const EdgeInsets.only(bottom: 4), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(color: Color(event.category.colorValue).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
         child: Row(children: [
-          Text(event.category.icon, style: TextStyle(fontSize: 14)),
+          Text(event.category.icon, style: const TextStyle(fontSize: 14)),
           const SizedBox(width: 6),
-          Expanded(child: Text(event.title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: KinrelColors.textWhite), maxLines: 1, overflow: TextOverflow.ellipsis)),
+          Expanded(child: Text(event.title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: KinrelColors.textWhite), maxLines: 1, overflow: TextOverflow.ellipsis)),
         ])),
     );
   }
@@ -400,13 +400,13 @@ class _EventFullCard extends StatelessWidget {
         child: Row(children: [
           // Date block
           Container(width: 48, height: 48, decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.15)),
-            child: Center(child: Text(event.category.icon, style: TextStyle(fontSize: 22)))),
+            child: Center(child: Text(event.category.icon, style: const TextStyle(fontSize: 22)))),
           const SizedBox(width: 14),
           // Title + countdown
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(event.title, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 15, fontWeight: FontWeight.w600, color: isPast ? KinrelColors.textDim : KinrelColors.textWhite)),
             const SizedBox(height: 2),
-            Text('${event.eventDate.month}/${event.eventDate.day}/${event.eventDate.year}', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
+            Text('${event.eventDate.month}/${event.eventDate.day}/${event.eventDate.year}', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
           ])),
           // Countdown badge
           if (!isPast)

@@ -161,7 +161,7 @@ void main() {
   group('P10.1 MapVisualConstants — hex strings stay in sync', () {
     // Helper: convert a Color to the '#RRGGBB' format used by the JSON.
     String colorToHex(Color c) =>
-        '#${c.value.toRadixString(16).toUpperCase().padLeft(8, '0').substring(2)}';
+        '#${c.toARGB32().toRadixString(16).toUpperCase().padLeft(8, '0').substring(2)}';
 
     test('background hex matches Color', () {
       expect(

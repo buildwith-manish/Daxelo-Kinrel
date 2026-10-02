@@ -49,7 +49,7 @@ class MemoryDetailScreen extends ConsumerWidget {
 
             // Details section
             Padding(
-              padding: EdgeInsets.all(KinrelSpacing.base),
+              padding: const EdgeInsets.all(KinrelSpacing.base),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -57,12 +57,12 @@ class MemoryDetailScreen extends ConsumerWidget {
                   if (memory.caption != null &&
                       memory.caption!.isNotEmpty) ...[
                     _buildCaption(),
-                    SizedBox(height: KinrelSpacing.md),
+                    const SizedBox(height: KinrelSpacing.md),
                   ],
 
                   // Date + Uploader
                   _buildMetaInfo(),
-                  SizedBox(height: KinrelSpacing.lg),
+                  const SizedBox(height: KinrelSpacing.lg),
 
                   // Tagged members
                   _buildTaggedMembers(ref),
@@ -136,7 +136,7 @@ class MemoryDetailScreen extends ConsumerWidget {
           placeholder: (context, url) => Container(
             height: MediaQuery.of(context).size.height * 0.55,
             color: KinrelColors.darkCard,
-            child: Center(
+            child: const Center(
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 valueColor:
@@ -167,7 +167,7 @@ class MemoryDetailScreen extends ConsumerWidget {
   Widget _buildCaption() {
     return Text(
       memory.caption!,
-      style: TextStyle(
+      style: const TextStyle(
         fontFamily: KinrelTypography.bodyFont,
         fontSize: 17,
         fontWeight: FontWeight.w500,
@@ -197,7 +197,7 @@ class MemoryDetailScreen extends ConsumerWidget {
           // Date row
           Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.calendar_today_rounded,
                 size: 16,
                 color: KinrelColors.orange,
@@ -289,7 +289,7 @@ class MemoryDetailScreen extends ConsumerWidget {
       children: [
         Row(
           children: [
-            Icon(
+            const Icon(
               Icons.people_rounded,
               size: 16,
               color: KinrelColors.orange,

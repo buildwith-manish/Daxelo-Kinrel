@@ -548,7 +548,7 @@ final _demoInviteLinks = <InviteLink>[
 ];
 
 final _demoKinshipCards = <KinshipShareCard>[
-  KinshipShareCard(
+  const KinshipShareCard(
     id: 'kc-001',
     personName: 'Rajesh Chacha',
     kinshipTermRegional: 'चाचा',
@@ -558,7 +558,7 @@ final _demoKinshipCards = <KinshipShareCard>[
     languageScript: 'हिंदी',
     generationNumber: 1,
   ),
-  KinshipShareCard(
+  const KinshipShareCard(
     id: 'kc-002',
     personName: 'Neeta Bhabhi',
     kinshipTermRegional: 'भाभी',
@@ -568,7 +568,7 @@ final _demoKinshipCards = <KinshipShareCard>[
     languageScript: 'हिंदी',
     generationNumber: 0,
   ),
-  KinshipShareCard(
+  const KinshipShareCard(
     id: 'kc-003',
     personName: 'Dadi Kamla',
     kinshipTermRegional: 'दादी',
@@ -578,7 +578,7 @@ final _demoKinshipCards = <KinshipShareCard>[
     languageScript: 'हिंदी',
     generationNumber: 2,
   ),
-  KinshipShareCard(
+  const KinshipShareCard(
     id: 'kc-004',
     personName: 'Meera Mausi',
     kinshipTermRegional: 'मौसी',
@@ -588,7 +588,7 @@ final _demoKinshipCards = <KinshipShareCard>[
     languageScript: 'हिंदी',
     generationNumber: 1,
   ),
-  KinshipShareCard(
+  const KinshipShareCard(
     id: 'kc-005',
     personName: 'Ramesh Mama',
     kinshipTermRegional: 'मामा',
@@ -598,7 +598,7 @@ final _demoKinshipCards = <KinshipShareCard>[
     languageScript: 'हिंदी',
     generationNumber: 1,
   ),
-  KinshipShareCard(
+  const KinshipShareCard(
     id: 'kc-006',
     personName: 'Priya Nanad',
     kinshipTermRegional: 'ननद',

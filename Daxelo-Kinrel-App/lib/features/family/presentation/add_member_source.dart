@@ -42,6 +42,20 @@ class KinrelUser {
     this.gender,
   });
 
+  /// Parse from the Supabase RPC response row.
+  factory KinrelUser.fromJson(Map<String, dynamic> json) {
+    return KinrelUser(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? 'Unknown',
+      username: json['username'] as String?,
+      email: json['email'] as String?,
+      avatarUrl: json['avatarUrl'] as String?,
+      photoThumb: json['photoThumb'] as String?,
+      bio: json['bio'] as String?,
+      gender: json['gender'] as String?,
+    );
+  }
+
   /// The user's ID (matches auth.users.id, stored as text in the User table).
   final String id;
 
@@ -65,20 +79,6 @@ class KinrelUser {
 
   /// Gender ('male', 'female', 'other').
   final String? gender;
-
-  /// Parse from the Supabase RPC response row.
-  factory KinrelUser.fromJson(Map<String, dynamic> json) {
-    return KinrelUser(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? 'Unknown',
-      username: json['username'] as String?,
-      email: json['email'] as String?,
-      avatarUrl: json['avatarUrl'] as String?,
-      photoThumb: json['photoThumb'] as String?,
-      bio: json['bio'] as String?,
-      gender: json['gender'] as String?,
-    );
-  }
 
   /// Generate a stable 5-digit display ID from the user's ID.
   /// e.g. "KIN-00234" — used for display in search results.

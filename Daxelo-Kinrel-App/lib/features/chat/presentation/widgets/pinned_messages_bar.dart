@@ -32,12 +32,6 @@ class PinnedMessage {
     required this.pinnedAt,
   });
 
-  final String id;
-  final String content;
-  final String senderName;
-  final String? pinnedBy;
-  final DateTime? pinnedAt;
-
   factory PinnedMessage.fromJson(Map<String, dynamic> json) {
     return PinnedMessage(
       id: json['id'] as String? ?? '',
@@ -49,6 +43,12 @@ class PinnedMessage {
           : null,
     );
   }
+
+  final String id;
+  final String content;
+  final String senderName;
+  final String? pinnedBy;
+  final DateTime? pinnedAt;
 }
 
 /// Riverpod provider that fetches pinned messages from the backend.
@@ -151,7 +151,7 @@ class _PinnedMessagesBarState extends ConsumerState<PinnedMessagesBar> {
         ),
         child: Row(
           children: [
-            Icon(
+            const Icon(
               Icons.push_pin,
               size: 14,
               color: KinrelColors.ember,
@@ -175,7 +175,7 @@ class _PinnedMessagesBarState extends ConsumerState<PinnedMessagesBar> {
                   const SizedBox(height: 2),
                   Text(
                     '${msg.senderName}: ${msg.content}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.textSilver,
@@ -208,7 +208,7 @@ class _PinnedMessagesBarState extends ConsumerState<PinnedMessagesBar> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: KinrelColors.darkCard,
-        title: Text(
+        title: const Text(
           'Unpin message?',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -220,19 +220,19 @@ class _PinnedMessagesBarState extends ConsumerState<PinnedMessagesBar> {
           msg.content,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: KinrelColors.textSilver, fontSize: 13),
+          style: const TextStyle(color: KinrelColors.textSilver, fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: KinrelColors.textSilver)),
+            child: const Text('Cancel', style: TextStyle(color: KinrelColors.textSilver)),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               widget.onUnpin(msg.id);
             },
-            child: Text('Unpin', style: TextStyle(color: KinrelColors.ember)),
+            child: const Text('Unpin', style: TextStyle(color: KinrelColors.ember)),
           ),
         ],
       ),

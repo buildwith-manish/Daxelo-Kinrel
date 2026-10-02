@@ -74,16 +74,16 @@ enum SyncEventType {
 }
 
 /// Event emitted by the sync engine for UI notifications.
-class SyncEvent {
-  final SyncEventType type;
-  final String? message;
-  final double? progress; // 0.0 – 1.0
+class SyncEvent { // 0.0 – 1.0
 
   const SyncEvent({
     required this.type,
     this.message,
     this.progress,
   });
+  final SyncEventType type;
+  final String? message;
+  final double? progress;
 
   @override
   String toString() =>
@@ -96,6 +96,15 @@ class SyncEvent {
 
 /// Result of a full or delta sync operation.
 class SyncResult {
+
+  const SyncResult({
+    this.pulled = 0,
+    this.pushed = 0,
+    this.conflicts = 0,
+    this.errors = 0,
+    this.errorMessages = const [],
+    this.duration = Duration.zero,
+  });
   /// Number of records pulled from the server.
   final int pulled;
 
@@ -113,15 +122,6 @@ class SyncResult {
 
   /// Wall-clock duration of the sync operation.
   final Duration duration;
-
-  const SyncResult({
-    this.pulled = 0,
-    this.pushed = 0,
-    this.conflicts = 0,
-    this.errors = 0,
-    this.errorMessages = const [],
-    this.duration = Duration.zero,
-  });
 
   /// An empty result indicating no work was needed.
   static const empty = SyncResult();
@@ -155,6 +155,13 @@ class SyncResult {
 
 /// Result of pushing pending operations to the server.
 class PushResult {
+
+  const PushResult({
+    this.succeeded = 0,
+    this.failed = 0,
+    this.conflicts = 0,
+    this.errorMessages = const [],
+  });
   /// Number of operations that succeeded.
   final int succeeded;
 
@@ -166,13 +173,6 @@ class PushResult {
 
   /// Human-readable error messages.
   final List<String> errorMessages;
-
-  const PushResult({
-    this.succeeded = 0,
-    this.failed = 0,
-    this.conflicts = 0,
-    this.errorMessages = const [],
-  });
 
   bool get isSuccessful => failed == 0 && conflicts == 0;
 
@@ -209,14 +209,6 @@ const Map<String, ConflictResolutionStrategy> _defaultConflictStrategies = {
 
 /// A log entry recording a detected conflict and how it was resolved.
 class ConflictLogEntry {
-  final String id;
-  final String entityType;
-  final String entityId;
-  final String conflictType;
-  final String localValue;
-  final String serverValue;
-  final String resolution;
-  final DateTime resolvedAt;
 
   const ConflictLogEntry({
     required this.id,
@@ -229,17 +221,6 @@ class ConflictLogEntry {
     required this.resolvedAt,
   });
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'entityType': entityType,
-        'entityId': entityId,
-        'conflictType': conflictType,
-        'localValue': localValue,
-        'serverValue': serverValue,
-        'resolution': resolution,
-        'resolvedAt': resolvedAt.toIso8601String(),
-      };
-
   factory ConflictLogEntry.fromJson(Map<String, dynamic> json) =>
       ConflictLogEntry(
         id: json['id'] as String,
@@ -251,10 +232,35 @@ class ConflictLogEntry {
         resolution: json['resolution'] as String,
         resolvedAt: DateTime.parse(json['resolvedAt'] as String),
       );
+  final String id;
+  final String entityType;
+  final String entityId;
+  final String conflictType;
+  final String localValue;
+  final String serverValue;
+  final String resolution;
+  final DateTime resolvedAt;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'entityType': entityType,
+        'entityId': entityId,
+        'conflictType': conflictType,
+        'localValue': localValue,
+        'serverValue': serverValue,
+        'resolution': resolution,
+        'resolvedAt': resolvedAt.toIso8601String(),
+      };
 }
 
 /// The outcome of resolving a conflict.
 class ConflictResolution {
+
+  const ConflictResolution({
+    required this.strategy,
+    required this.resolvedData,
+    required this.description,
+  });
   /// The strategy that was applied.
   final ConflictResolutionStrategy strategy;
 
@@ -263,12 +269,6 @@ class ConflictResolution {
 
   /// Human-readable description of what was resolved.
   final String description;
-
-  const ConflictResolution({
-    required this.strategy,
-    required this.resolvedData,
-    required this.description,
-  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -277,6 +277,15 @@ class ConflictResolution {
 
 /// Current status of the sync engine, exposed to the UI layer.
 class SyncStatus {
+
+  const SyncStatus({
+    this.isSyncing = false,
+    this.lastSyncAt,
+    this.lastSuccessfulSyncAt,
+    this.pendingOperations = 0,
+    this.lastError,
+    this.currentPhase,
+  });
   /// Whether a sync operation is currently in progress.
   final bool isSyncing;
 
@@ -294,15 +303,6 @@ class SyncStatus {
 
   /// The current sync phase, if syncing.
   final SyncEventType? currentPhase;
-
-  const SyncStatus({
-    this.isSyncing = false,
-    this.lastSyncAt,
-    this.lastSuccessfulSyncAt,
-    this.pendingOperations = 0,
-    this.lastError,
-    this.currentPhase,
-  });
 
   SyncStatus copyWith({
     bool? isSyncing,
@@ -406,7 +406,7 @@ class SyncEngine {
 
   /// Configurable conflict resolution strategy per entity type.
   /// Overrides can be set at runtime via [setConflictStrategy].
-  Map<String, ConflictResolutionStrategy> _conflictStrategies = {
+  final Map<String, ConflictResolutionStrategy> _conflictStrategies = {
     ..._defaultConflictStrategies,
   };
 
@@ -2171,8 +2171,8 @@ class SyncEngine {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _MergeResult {
-  final bool hadConflict;
   const _MergeResult({required this.hadConflict});
+  final bool hadConflict;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

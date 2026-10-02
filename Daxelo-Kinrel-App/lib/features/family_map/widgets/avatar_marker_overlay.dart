@@ -86,8 +86,8 @@ class AvatarMarkerWidget extends StatelessWidget {
         boxShadow: [
           // Soft glow halo.
           BoxShadow(
-            color: KinrelColors.orange.withOpacity(
-              selected
+            color: KinrelColors.orange.withValues(
+              alpha: selected
                   ? MapVisualConstants.markerGlowAlphaSelected
                   : MapVisualConstants.markerGlowAlphaNormal,
             ),
@@ -96,11 +96,11 @@ class AvatarMarkerWidget extends StatelessWidget {
           ),
           // Drop shadow for depth.
           BoxShadow(
-            color: Colors.black.withOpacity(
-              MapVisualConstants.markerShadowOpacity,
+            color: Colors.black.withValues(
+              alpha: MapVisualConstants.markerShadowOpacity,
             ),
             blurRadius: 4,
-            offset: Offset(0, MapVisualConstants.markerShadowOffset),
+            offset: const Offset(0, MapVisualConstants.markerShadowOffset),
           ),
         ],
       ),
@@ -112,8 +112,8 @@ class AvatarMarkerWidget extends StatelessWidget {
               .animate(onPlay: (c) => c.repeat())
               .shimmer(
                 duration: MapVisualConstants.livePulseCycle,
-                color: MapVisualConstants.livePulseRingColor.withOpacity(
-                  MapVisualConstants.livePulseShimmerOpacity,
+                color: MapVisualConstants.livePulseRingColor.withValues(
+                  alpha: MapVisualConstants.livePulseShimmerOpacity,
                 ),
               )
         : core;
@@ -476,8 +476,8 @@ class _SpotlightConePainter extends CustomPainter {
       center: Alignment.center,
       radius: 1.0,
       colors: [
-        const ui.Color(0xFFE8B941).withOpacity(0.35), // Kinrel gold
-        const ui.Color(0xFFE8612A).withOpacity(0.15), // Kinrel orange
+        const ui.Color(0xFFE8B941).withValues(alpha: 0.35), // Kinrel gold
+        const ui.Color(0xFFE8612A).withValues(alpha: 0.15), // Kinrel orange
         const ui.Color(0x00E8612A), // transparent
       ],
       stops: const [0.0, 0.5, 1.0],
@@ -498,7 +498,7 @@ class _SpotlightConePainter extends CustomPainter {
       center.dy + math.sin(headingRad - math.pi / 2) * coneRadius,
     );
     final beamPaint = ui.Paint()
-      ..color = const ui.Color(0xFFE8B941).withOpacity(0.25)
+      ..color = const ui.Color(0xFFE8B941).withValues(alpha: 0.25)
       ..strokeWidth = 1.5
       ..blendMode = ui.BlendMode.screen;
     canvas.drawLine(center, beamEnd, beamPaint);

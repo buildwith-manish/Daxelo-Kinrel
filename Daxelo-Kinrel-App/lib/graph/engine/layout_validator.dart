@@ -27,6 +27,16 @@ import 'package:flutter/foundation.dart' show debugPrint;
 
 /// Result of a layout validation pass.
 class LayoutValidationResult {
+
+  const LayoutValidationResult({
+    required this.isValid,
+    this.overlapCount = 0,
+    this.disconnectedNodeIds = const [],
+    this.hiddenEndpointCount = 0,
+    this.generationViolationCount = 0,
+    this.edgeNodeIntersectionCount = 0,
+    this.warningMessage,
+  });
   /// True when all checks pass — the layout is valid.
   final bool isValid;
 
@@ -47,16 +57,6 @@ class LayoutValidationResult {
 
   /// Human-readable warning message (null when valid).
   final String? warningMessage;
-
-  const LayoutValidationResult({
-    required this.isValid,
-    this.overlapCount = 0,
-    this.disconnectedNodeIds = const [],
-    this.hiddenEndpointCount = 0,
-    this.generationViolationCount = 0,
-    this.edgeNodeIntersectionCount = 0,
-    this.warningMessage,
-  });
 
   @override
   String toString() =>

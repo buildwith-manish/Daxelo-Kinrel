@@ -58,6 +58,30 @@ class InviteRecord {
     this.respondedAt,
   });
 
+  factory InviteRecord.fromJson(Map<String, dynamic> json) {
+    return InviteRecord(
+      userId: (json['userId'] ?? '') as String,
+      name: (json['name'] ?? 'Family member') as String,
+      username: json['username'] as String?,
+      avatarUrl: json['avatarUrl'] as String?,
+      photoThumb: json['photoThumb'] as String?,
+      status: InviteMemberStatus.values.firstWhere(
+        (s) => s.name == (json['status'] as String? ?? 'pending'),
+        orElse: () => InviteMemberStatus.pending,
+      ),
+      sentAt: json['sentAt'] is String
+          ? (DateTime.tryParse(json['sentAt'] as String) ?? DateTime.now())
+          : (json['sentAt'] is int
+              ? DateTime.fromMillisecondsSinceEpoch(json['sentAt'] as int)
+              : DateTime.now()),
+      respondedAt: json['respondedAt'] is String
+          ? DateTime.tryParse(json['respondedAt'] as String)
+          : (json['respondedAt'] is int
+              ? DateTime.fromMillisecondsSinceEpoch(json['respondedAt'] as int)
+              : null),
+    );
+  }
+
   final String userId;
   final String name;
   final String? username;
@@ -84,30 +108,6 @@ class InviteRecord {
       status: status ?? this.status,
       sentAt: sentAt,
       respondedAt: respondedAt ?? this.respondedAt,
-    );
-  }
-
-  factory InviteRecord.fromJson(Map<String, dynamic> json) {
-    return InviteRecord(
-      userId: (json['userId'] ?? '') as String,
-      name: (json['name'] ?? 'Family member') as String,
-      username: json['username'] as String?,
-      avatarUrl: json['avatarUrl'] as String?,
-      photoThumb: json['photoThumb'] as String?,
-      status: InviteMemberStatus.values.firstWhere(
-        (s) => s.name == (json['status'] as String? ?? 'pending'),
-        orElse: () => InviteMemberStatus.pending,
-      ),
-      sentAt: json['sentAt'] is String
-          ? (DateTime.tryParse(json['sentAt'] as String) ?? DateTime.now())
-          : (json['sentAt'] is int
-              ? DateTime.fromMillisecondsSinceEpoch(json['sentAt'] as int)
-              : DateTime.now()),
-      respondedAt: json['respondedAt'] is String
-          ? DateTime.tryParse(json['respondedAt'] as String)
-          : (json['respondedAt'] is int
-              ? DateTime.fromMillisecondsSinceEpoch(json['respondedAt'] as int)
-              : null),
     );
   }
 

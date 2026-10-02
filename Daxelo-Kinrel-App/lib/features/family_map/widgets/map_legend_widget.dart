@@ -106,7 +106,7 @@ class _MapLegendWidgetState extends State<MapLegendWidget> {
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),
-            BoxShadow(
+            const BoxShadow(
               color: KinrelColors.orangeGlowSubtle,
               blurRadius: 14,
               spreadRadius: 0,
@@ -125,7 +125,7 @@ class _MapLegendWidgetState extends State<MapLegendWidget> {
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () => setState(() => _expanded = !_expanded),
-                  borderRadius: BorderRadius.only(
+                  borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(
                       MapVisualConstants.legendPanelRadius,
                     ),
@@ -161,7 +161,7 @@ class _MapLegendWidgetState extends State<MapLegendWidget> {
                         AnimatedRotation(
                           duration: MapVisualConstants.legendExpandDuration,
                           turns: _expanded ? 0.5 : 0.0,
-                          child: Icon(
+                          child: const Icon(
                             Icons.keyboard_arrow_up_rounded,
                             color: KinrelColors.textSilver,
                             size: 22,
@@ -269,14 +269,14 @@ class _MapLegendWidgetState extends State<MapLegendWidget> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: EdgeInsets.all(KinrelSpacing.xl),
+              padding: const EdgeInsets.all(KinrelSpacing.xl),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     width: 40,
                     height: 4,
-                    margin: EdgeInsets.only(bottom: KinrelSpacing.lg),
+                    margin: const EdgeInsets.only(bottom: KinrelSpacing.lg),
                     decoration: BoxDecoration(
                       color: KinrelColors.darkElevated,
                       borderRadius: BorderRadius.circular(2),
@@ -284,17 +284,17 @@ class _MapLegendWidgetState extends State<MapLegendWidget> {
                   ),
                   Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.location_off_rounded,
                         size: 20,
                         color: KinrelColors.textDim,
                       ),
-                      SizedBox(width: KinrelSpacing.sm),
+                      const SizedBox(width: KinrelSpacing.sm),
                       Expanded(
                         child: Text(
                           l10n?.familyMapUnpinnedCount(result.unpinnedCount) ??
                               '${result.unpinnedCount} member${result.unpinnedCount == 1 ? '' : 's'} without map pin',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.displayFont,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -304,11 +304,11 @@ class _MapLegendWidgetState extends State<MapLegendWidget> {
                       ),
                     ],
                   ),
-                  SizedBox(height: KinrelSpacing.sm),
+                  const SizedBox(height: KinrelSpacing.sm),
                   Text(
                     l10n?.familyMapAddCityPrompt ??
                         'Add a city to these members to see them on the map.',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
                       color: KinrelColors.textSilver,
@@ -323,21 +323,21 @@ class _MapLegendWidgetState extends State<MapLegendWidget> {
               ),
               child: ListView.separated(
                 shrinkWrap: true,
-                padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.xl),
+                padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.xl),
                 physics: const AlwaysScrollableScrollPhysics(),
                 itemCount: result.unpinnedMembers.length,
                 separatorBuilder: (_, __) =>
-                    Divider(color: KinrelColors.darkElevated, height: 1),
+                    const Divider(color: KinrelColors.darkElevated, height: 1),
                 itemBuilder: (context, index) {
                   final member = result.unpinnedMembers[index];
                   return ListTile(
-                    contentPadding: EdgeInsets.symmetric(
+                    contentPadding: const EdgeInsets.symmetric(
                       vertical: KinrelSpacing.xs,
                     ),
                     leading: Container(
                       width: 36,
                       height: 36,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         shape: BoxShape.circle,
                         color: KinrelColors.darkElevated,
                       ),
@@ -352,7 +352,7 @@ class _MapLegendWidgetState extends State<MapLegendWidget> {
                           : Center(
                               child: Text(
                                 initials(member.name),
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: KinrelTypography.displayFont,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
@@ -364,7 +364,7 @@ class _MapLegendWidgetState extends State<MapLegendWidget> {
                     ),
                     title: Text(
                       member.name,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -376,13 +376,13 @@ class _MapLegendWidgetState extends State<MapLegendWidget> {
                           ? (l10n?.familyMapNoCitySet ?? 'No city set')
                           : (l10n?.familyMapCityNotFound(member.city) ??
                               '${member.city} (not found)'),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
                         color: KinrelColors.textDim,
                       ),
                     ),
-                    trailing: Icon(
+                    trailing: const Icon(
                       Icons.chevron_right_rounded,
                       size: 20,
                       color: KinrelColors.textDim,
@@ -395,7 +395,7 @@ class _MapLegendWidgetState extends State<MapLegendWidget> {
                 },
               ),
             ),
-            SizedBox(height: KinrelSpacing.xl),
+            const SizedBox(height: KinrelSpacing.xl),
           ],
         ),
       ),
@@ -440,7 +440,7 @@ class _QuickStat extends StatelessWidget {
           children: [
             Text(
               '$count',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -450,7 +450,7 @@ class _QuickStat extends StatelessWidget {
             ),
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 10,
                 color: KinrelColors.textDim,
@@ -472,7 +472,7 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       title.toUpperCase(),
-      style: TextStyle(
+      style: const TextStyle(
         fontFamily: KinrelTypography.bodyFont,
         fontSize: 10,
         fontWeight: FontWeight.w700,
@@ -535,7 +535,7 @@ class _StatusTierLegend extends StatelessWidget {
               const SizedBox(width: 5),
               Text(
                 t.label,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -545,7 +545,7 @@ class _StatusTierLegend extends StatelessWidget {
               const SizedBox(width: 3),
               Text(
                 '· ${t.description}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 10,
                   color: KinrelColors.textDim,
@@ -593,7 +593,7 @@ class _CategorySwatch extends StatelessWidget {
               placeType.semanticLabel,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 10.5,
                 fontWeight: FontWeight.w500,
@@ -698,7 +698,7 @@ class _UnpinnedRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(
+            const Icon(
               Icons.location_off_rounded,
               size: 14,
               color: KinrelColors.textDim,
@@ -707,7 +707,7 @@ class _UnpinnedRow extends StatelessWidget {
             Expanded(
               child: Text(
                 l10n?.familyMapNotPinned(count) ?? '$count not pinned',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textSilver,
@@ -715,7 +715,7 @@ class _UnpinnedRow extends StatelessWidget {
                 ),
               ),
             ),
-            Icon(
+            const Icon(
               Icons.chevron_right_rounded,
               size: 16,
               color: KinrelColors.textDim,

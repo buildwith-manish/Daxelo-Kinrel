@@ -184,15 +184,6 @@ class Person {
     this.linkedUserId,
   });
 
-  /// The Kinrel user ID linked to this Person, if any.
-  /// Non-null means this Person was added via "Find on Kinrel" or has
-  /// been claimed by a real Kinrel user. Null means this is a manually-
-  /// added placeholder node that only exists in the family tree.
-  final String? linkedUserId;
-
-  /// Whether this Person is linked to a real Kinrel user account.
-  bool get isLinkedToKinrelUser => linkedUserId != null && linkedUserId!.isNotEmpty;
-
   factory Person.fromJson(Map<String, dynamic> json) {
     return Person(
       id: json['id']?.toString() ?? '',
@@ -220,6 +211,15 @@ class Person {
       anniversaryDate: json['anniversaryDate']?.toString(),
     );
   }
+
+  /// The Kinrel user ID linked to this Person, if any.
+  /// Non-null means this Person was added via "Find on Kinrel" or has
+  /// been claimed by a real Kinrel user. Null means this is a manually-
+  /// added placeholder node that only exists in the family tree.
+  final String? linkedUserId;
+
+  /// Whether this Person is linked to a real Kinrel user account.
+  bool get isLinkedToKinrelUser => linkedUserId != null && linkedUserId!.isNotEmpty;
 
   final String id;
   final String familyId;
@@ -4394,7 +4394,9 @@ String _mapToFundamentalDbType(String label) {
   final k = label.toLowerCase().trim();
   if (k == 'husband' || k == 'wife' || k == 'spouse') return 'spouse';
   if (k == 'step_father' || k == 'step_mother' ||
-      k == 'stepfather' || k == 'stepmother') return 'step_parent';
+      k == 'stepfather' || k == 'stepmother') {
+    return 'step_parent';
+  }
   if (k == 'adoptive_father' || k == 'adoptive_mother') return 'adoptive_parent';
   return 'parent';
 }

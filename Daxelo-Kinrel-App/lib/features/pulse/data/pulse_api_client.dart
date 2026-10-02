@@ -28,8 +28,8 @@ final pulseApiClientProvider = Provider<PulseApiClient>((ref) {
 });
 
 class PulseApiClient {
-  final Dio _dio;
   PulseApiClient(this._dio);
+  final Dio _dio;
 
   // ────────────────────────────────────────────────────────────────────────
   // PULSE — Daily Brief

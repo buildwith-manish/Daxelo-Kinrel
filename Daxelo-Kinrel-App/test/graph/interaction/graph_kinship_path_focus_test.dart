@@ -74,8 +74,8 @@ void main() {
 
     test('returns null when no path exists between viewer and target', () {
       final persons = [
-        GraphPerson(id: 'a', name: 'A'),
-        GraphPerson(id: 'b', name: 'B'),
+        const GraphPerson(id: 'a', name: 'A'),
+        const GraphPerson(id: 'b', name: 'B'),
       ];
       // No relationship edges → no path.
       final result = notifier.resolve(
@@ -99,15 +99,15 @@ void main() {
 
     test('returns ordered person IDs [viewer, target]', () {
       final persons = [
-        GraphPerson(id: 'viewer', name: 'Viewer'),
-        GraphPerson(id: 'father', name: 'Father', gender: 'male'),
+        const GraphPerson(id: 'viewer', name: 'Viewer'),
+        const GraphPerson(id: 'father', name: 'Father', gender: 'male'),
       ];
       final relationships = [
         (fromId: 'viewer', toId: 'father', type: 'father'),
       ];
       // Build deduped edges so the notifier can map hops to edge IDs.
       final rawEdges = [
-        GraphEdgeData(
+        const GraphEdgeData(
             id: 'edge-1',
             sourceId: 'viewer',
             targetId: 'father',
@@ -122,7 +122,7 @@ void main() {
         persons: persons,
         relationships: relationships,
         graphRevision: 1,
-        classification: StructuralClassification(
+        classification: const StructuralClassification(
           category: KinshipEdgeCategory.parent,
           label: 'Father',
           key: 'father',
@@ -149,14 +149,14 @@ void main() {
 
     test('cache hit returns the same focus without re-resolving', () {
       final persons = [
-        GraphPerson(id: 'viewer', name: 'Viewer'),
-        GraphPerson(id: 'target', name: 'Target'),
+        const GraphPerson(id: 'viewer', name: 'Viewer'),
+        const GraphPerson(id: 'target', name: 'Target'),
       ];
       final relationships = [
         (fromId: 'viewer', toId: 'target', type: 'father'),
       ];
       final edges = EdgeDeduplicator.deduplicate([
-        GraphEdgeData(
+        const GraphEdgeData(
             id: 'edge-1',
             sourceId: 'viewer',
             targetId: 'target',
@@ -188,21 +188,21 @@ void main() {
 
     test('cache invalidates when targetPersonId changes', () {
       final persons = [
-        GraphPerson(id: 'viewer', name: 'Viewer'),
-        GraphPerson(id: 'target-a', name: 'A'),
-        GraphPerson(id: 'target-b', name: 'B'),
+        const GraphPerson(id: 'viewer', name: 'Viewer'),
+        const GraphPerson(id: 'target-a', name: 'A'),
+        const GraphPerson(id: 'target-b', name: 'B'),
       ];
       final relationships = [
         (fromId: 'viewer', toId: 'target-a', type: 'father'),
         (fromId: 'viewer', toId: 'target-b', type: 'sister'),
       ];
       final edges = EdgeDeduplicator.deduplicate([
-        GraphEdgeData(
+        const GraphEdgeData(
             id: 'edge-a',
             sourceId: 'viewer',
             targetId: 'target-a',
             relationshipKey: 'father'),
-        GraphEdgeData(
+        const GraphEdgeData(
             id: 'edge-b',
             sourceId: 'viewer',
             targetId: 'target-b',
@@ -233,14 +233,14 @@ void main() {
 
     test('cache invalidates when graphRevision changes', () {
       final persons = [
-        GraphPerson(id: 'viewer', name: 'Viewer'),
-        GraphPerson(id: 'target', name: 'Target'),
+        const GraphPerson(id: 'viewer', name: 'Viewer'),
+        const GraphPerson(id: 'target', name: 'Target'),
       ];
       final relationships = [
         (fromId: 'viewer', toId: 'target', type: 'father'),
       ];
       final edges = EdgeDeduplicator.deduplicate([
-        GraphEdgeData(
+        const GraphEdgeData(
             id: 'edge-1',
             sourceId: 'viewer',
             targetId: 'target',
@@ -274,14 +274,14 @@ void main() {
     test('clear() resets the state to empty', () {
       final notifier = GraphPathFocusNotifier();
       final persons = [
-        GraphPerson(id: 'viewer', name: 'Viewer'),
-        GraphPerson(id: 'target', name: 'Target'),
+        const GraphPerson(id: 'viewer', name: 'Viewer'),
+        const GraphPerson(id: 'target', name: 'Target'),
       ];
       final relationships = [
         (fromId: 'viewer', toId: 'target', type: 'father'),
       ];
       final edges = EdgeDeduplicator.deduplicate([
-        GraphEdgeData(
+        const GraphEdgeData(
             id: 'edge-1',
             sourceId: 'viewer',
             targetId: 'target',
@@ -312,14 +312,14 @@ void main() {
       // A custom "best_friend" relationship with a heart midpoint.
       final notifier = GraphPathFocusNotifier();
       final persons = [
-        GraphPerson(id: 'viewer', name: 'Viewer'),
-        GraphPerson(id: 'friend', name: 'Friend'),
+        const GraphPerson(id: 'viewer', name: 'Viewer'),
+        const GraphPerson(id: 'friend', name: 'Friend'),
       ];
       final relationships = [
         (fromId: 'viewer', toId: 'friend', type: 'best_friend'),
       ];
       final edges = EdgeDeduplicator.deduplicate([
-        GraphEdgeData(
+        const GraphEdgeData(
             id: 'edge-1',
             sourceId: 'viewer',
             targetId: 'friend',
@@ -335,7 +335,7 @@ void main() {
         graphRevision: 1,
         // The classifier returns whatever key best matches — NOT
         // 'spouse' just because the visual midpoint is a heart.
-        classification: StructuralClassification(
+        classification: const StructuralClassification(
           category: KinshipEdgeCategory.extended,
           label: 'Best Friend',
           key: 'best_friend',

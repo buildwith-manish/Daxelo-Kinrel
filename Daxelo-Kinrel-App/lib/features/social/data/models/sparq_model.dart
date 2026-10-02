@@ -2,30 +2,6 @@ import 'package:flutter/material.dart';
 
 // SparqModel — ephemeral 24-hour content (IMAGE, VIDEO, TEXT, VOICE)
 class SparqModel {
-  final String id;
-  final String userId;
-  final String type; // IMAGE, VIDEO, TEXT, VOICE
-  final String? mediaUrl;
-  final String? thumbnailUrl;
-  final String? text;
-  final String? backgroundColor;
-  final int? duration; // seconds, for VIDEO and VOICE
-  final String audience; // PUBLIC, FAMILY_ONLY
-  final DateTime expiresAt;
-  final DateTime createdAt;
-  final int viewCount;
-
-  // ── New Sparq Enhancement Fields ──────────────────────────────────
-  final String mood; // happy/hype/love/sad/celebrate/angry
-  final String intensity; // calm/warm/fire
-  final bool allowChain;
-  final bool allowReplies;
-  final bool isTimeCapsule;
-  final DateTime? revealAt;
-  final bool isRevealed;
-  final String? parentSparqId;
-  final int? chainOrder;
-  final int echoCount;
 
   const SparqModel({
     required this.id,
@@ -84,6 +60,30 @@ class SparqModel {
       echoCount: json['echoCount'] as int? ?? 0,
     );
   }
+  final String id;
+  final String userId;
+  final String type; // IMAGE, VIDEO, TEXT, VOICE
+  final String? mediaUrl;
+  final String? thumbnailUrl;
+  final String? text;
+  final String? backgroundColor;
+  final int? duration; // seconds, for VIDEO and VOICE
+  final String audience; // PUBLIC, FAMILY_ONLY
+  final DateTime expiresAt;
+  final DateTime createdAt;
+  final int viewCount;
+
+  // ── New Sparq Enhancement Fields ──────────────────────────────────
+  final String mood; // happy/hype/love/sad/celebrate/angry
+  final String intensity; // calm/warm/fire
+  final bool allowChain;
+  final bool allowReplies;
+  final bool isTimeCapsule;
+  final DateTime? revealAt;
+  final bool isRevealed;
+  final String? parentSparqId;
+  final int? chainOrder;
+  final int echoCount;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -177,12 +177,7 @@ class SparqModel {
 }
 
 /// Groups Sparqs by user for the feed display
-class UserSparqGroup {
-  final String userId;
-  final String userName;
-  final String? userAvatarUrl;
-  final List<SparqModel> sparqs;
-  final bool allSeen; // true = grey ring, false = orange ring
+class UserSparqGroup { // true = grey ring, false = orange ring
 
   const UserSparqGroup({
     required this.userId,
@@ -225,6 +220,11 @@ class UserSparqGroup {
       allSeen: json['allSeen'] as bool? ?? false,
     );
   }
+  final String userId;
+  final String userName;
+  final String? userAvatarUrl;
+  final List<SparqModel> sparqs;
+  final bool allSeen;
 
   Map<String, dynamic> toJson() => {
     'userId': userId,

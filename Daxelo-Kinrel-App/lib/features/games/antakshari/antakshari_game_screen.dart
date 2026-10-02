@@ -122,7 +122,7 @@ class _AntakshariGameScreenState
             }
           },
         ),
-        title: Text(
+        title: const Text(
           'Antakshari',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -183,7 +183,7 @@ class _AntakshariGameScreenState
               const SizedBox(height: KinrelSpacing.sm),
               Text(
                 code,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 36,
                   fontWeight: FontWeight.w800,
@@ -197,7 +197,7 @@ class _AntakshariGameScreenState
         const SizedBox(height: KinrelSpacing.lg),
         Text(
           'Players (${state.players.length}/${game.maxPlayers})',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 13,
             fontWeight: FontWeight.w600,
@@ -271,7 +271,7 @@ class _AntakshariGameScreenState
                       state.isMyTurn(myId)
                           ? 'Your turn!'
                           : '${currentPlayer.userName} is singing…',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 16,
                         color: KinrelColors.textWhite,
@@ -344,7 +344,7 @@ class _AntakshariGameScreenState
         const SizedBox(height: 2),
         Text(
           value,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.monoFont,
             fontSize: 14,
             fontWeight: FontWeight.w700,
@@ -353,7 +353,7 @@ class _AntakshariGameScreenState
         ),
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 9,
             color: KinrelColors.textDim,
@@ -375,7 +375,7 @@ class _AntakshariGameScreenState
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 14,
             color: KinrelColors.textDim,
@@ -537,7 +537,7 @@ class _AntakshariGameScreenState
       padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.xl),
       child: Column(
         children: [
-          Text(
+          const Text(
             'Type the letter your song ended on:',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -556,7 +556,7 @@ class _AntakshariGameScreenState
                   textAlign: TextAlign.center,
                   maxLength: 1,
                   textCapitalization: TextCapitalization.characters,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 32,
                     fontWeight: FontWeight.w800,
@@ -565,17 +565,17 @@ class _AntakshariGameScreenState
                   decoration: InputDecoration(
                     counterText: '',
                     hintText: '?',
-                    hintStyle: TextStyle(color: KinrelColors.textDim),
+                    hintStyle: const TextStyle(color: KinrelColors.textDim),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(KinrelRadius.lg),
-                      borderSide: BorderSide(
+                      borderSide: const BorderSide(
                         color: KinrelColors.orange,
                         width: 2,
                       ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(KinrelRadius.lg),
-                      borderSide: BorderSide(
+                      borderSide: const BorderSide(
                         color: KinrelColors.orange,
                         width: 3,
                       ),
@@ -628,9 +628,9 @@ class _AntakshariGameScreenState
   Widget _waitingForChallenges(int challengeCount) {
     return Column(
       children: [
-        Icon(Icons.hourglass_top, color: KinrelColors.warning, size: 32),
+        const Icon(Icons.hourglass_top, color: KinrelColors.warning, size: 32),
         const SizedBox(height: KinrelSpacing.sm),
-        Text(
+        const Text(
           'Waiting for challenges…',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -667,7 +667,7 @@ class _AntakshariGameScreenState
         DKButton(
           label: hasChallenged
               ? 'Challenged ✓'
-              : 'Challenge! (${challengeCount}/3)',
+              : 'Challenge! ($challengeCount/3)',
           variant: hasChallenged
               ? DKButtonVariant.secondary
               : DKButtonVariant.primary,
@@ -701,7 +701,7 @@ class _AntakshariGameScreenState
         .firstOrNull;
     return Column(
       children: [
-        SizedBox(
+        const SizedBox(
           width: 24,
           height: 24,
           child: CircularProgressIndicator(
@@ -712,7 +712,7 @@ class _AntakshariGameScreenState
         const SizedBox(height: KinrelSpacing.sm),
         Text(
           '${currentPlayer?.userName ?? 'Player'} is singing…',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 14,
             color: KinrelColors.textDim,
@@ -730,7 +730,7 @@ class _AntakshariGameScreenState
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
         border: Border.all(color: KinrelColors.border),
       ),
-      child: Row(
+      child: const Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SizedBox(
@@ -741,7 +741,7 @@ class _AntakshariGameScreenState
               color: KinrelColors.orange,
             ),
           ),
-          const SizedBox(width: KinrelSpacing.sm),
+          SizedBox(width: KinrelSpacing.sm),
           Text(
             'Waiting for host to start the game…',
             style: TextStyle(
@@ -793,7 +793,7 @@ class _AntakshariGameScreenState
                     child: Text(
                       'Players: ${active.length} active'
                       '${eliminated.isNotEmpty ? ', ${eliminated.length} eliminated' : ''}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
                         color: KinrelColors.textWhite,
@@ -839,8 +839,8 @@ class _AntakshariGameScreenState
                         isCurrentTurn: p.userId == currentTurnPlayerId,
                       )),
                   if (eliminated.isNotEmpty) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
                         horizontal: KinrelSpacing.md,
                         vertical: 4,
                       ),
@@ -962,7 +962,7 @@ class _AntakshariGameScreenState
                 color: KinrelColors.orange,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
+              child: const Text(
                 'SINGING',
                 style: TextStyle(
                   fontFamily: KinrelTypography.monoFont,
@@ -975,7 +975,7 @@ class _AntakshariGameScreenState
           ],
           if (p.userId == hostUserId) ...[
             const SizedBox(width: 4),
-            Text(
+            const Text(
               '👑',
               style: TextStyle(fontSize: 12),
             ),
@@ -1002,7 +1002,7 @@ class _AntakshariGameScreenState
       backgroundColor: isMyWin ? null : KinrelColors.darkSurface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text(
+        title: const Text(
           'Results',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -1032,7 +1032,7 @@ class _AntakshariGameScreenState
           const SizedBox(height: KinrelSpacing.xl),
           // Turn history (last 5 turns)
           if (state.turns.isNotEmpty) ...[
-            Text(
+            const Text(
               'Recent Turns',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -1133,7 +1133,7 @@ class _AntakshariGameScreenState
           isMyWin
               ? (isTie ? 'Joint Winners!' : 'You Won!')
               : (isTie ? 'Joint Winners!' : 'Winner!'),
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 28,
             fontWeight: FontWeight.w800,
@@ -1158,7 +1158,7 @@ class _AntakshariGameScreenState
             ),
             child: Text(
               name,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
@@ -1204,7 +1204,7 @@ class _AntakshariGameScreenState
           Expanded(
             child: Text(
               turn.playerName,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textWhite,
@@ -1214,7 +1214,7 @@ class _AntakshariGameScreenState
           ),
           Text(
             '${turn.letterStartedWith} → ${turn.letterEndedWith ?? '?'}',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 13,
               fontWeight: FontWeight.w700,

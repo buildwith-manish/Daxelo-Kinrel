@@ -183,7 +183,7 @@ class _RelationshipInfoContent extends ConsumerStatefulWidget {
 
 class _RelationshipInfoContentState
     extends ConsumerState<_RelationshipInfoContent> {
-  bool _isMutating = false;
+  final bool _isMutating = false;
 
   @override
   Widget build(BuildContext context) {
@@ -359,7 +359,7 @@ class _RelationshipInfoContentState
               ListTile(
                 leading: const Icon(Icons.swap_horiz_rounded,
                     color: KinrelColors.tealAccent),
-                title: Text(
+                title: const Text(
                   'Change relationship',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -383,7 +383,7 @@ class _RelationshipInfoContentState
               // Remove relationship
               ListTile(
                 leading: const Icon(Icons.link_off_rounded, color: Colors.red),
-                title: Text(
+                title: const Text(
                   'Remove relationship',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -523,7 +523,7 @@ class _RelationshipInfoContentState
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: KinrelColors.darkCard,
-        title: Text(
+        title: const Text(
           'Change relationship?',
           style: TextStyle(
             color: KinrelColors.textWhite,
@@ -536,7 +536,7 @@ class _RelationshipInfoContentState
           "$sourceName's relationship to $targetName will change from "
           '$oldLabelFormatted to $newLabelFormatted. '
           'This removes the old relationship.',
-          style: TextStyle(
+          style: const TextStyle(
             color: KinrelColors.textDim,
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 14,
@@ -545,7 +545,7 @@ class _RelationshipInfoContentState
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(
+            child: const Text(
               'Cancel',
               style: TextStyle(
                 color: KinrelColors.textDim,
@@ -556,7 +556,7 @@ class _RelationshipInfoContentState
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
+            child: const Text(
               'Change',
               style: TextStyle(
                 color: KinrelColors.tealAccent,
@@ -1394,8 +1394,8 @@ class _OrderedPathChip extends StatelessWidget {
       );
       if (!isLast) {
         children.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4),
             child: Icon(
               Icons.chevron_right_rounded,
               color: _PathFocusSection._textSilver,
@@ -1436,7 +1436,7 @@ class _FocusPathButton extends StatelessWidget {
               color: _PathFocusSection._orange.withValues(alpha: 0.5),
             ),
           ),
-          child: Row(
+          child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
@@ -1444,7 +1444,7 @@ class _FocusPathButton extends StatelessWidget {
                 color: _PathFocusSection._orange,
                 size: 16,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(
                 'Focus Path',
                 style: TextStyle(

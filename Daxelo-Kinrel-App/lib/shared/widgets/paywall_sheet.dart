@@ -177,7 +177,7 @@ class PaywallSheet extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
@@ -187,7 +187,7 @@ class PaywallSheet extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   color: KinrelColors.textSilver,
@@ -253,7 +253,7 @@ class PaywallSheet extends StatelessWidget {
                   children: [
                     Text(
                       b.$2,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -262,7 +262,7 @@ class PaywallSheet extends StatelessWidget {
                     ),
                     Text(
                       b.$3,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
                         color: KinrelColors.textSilver,
@@ -271,7 +271,7 @@ class PaywallSheet extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(
+              const Icon(
                 Icons.check_circle_rounded,
                 color: KinrelColors.orange,
                 size: 18,
@@ -333,7 +333,7 @@ class PaywallSheet extends StatelessWidget {
           HapticService.selection();
           Navigator.of(context).pop();
         },
-        child: Text(
+        child: const Text(
           'Maybe later',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,

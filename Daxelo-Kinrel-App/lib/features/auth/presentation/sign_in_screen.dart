@@ -526,7 +526,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }) {
     return InputDecoration(
       hintText: hintText,
-      hintStyle: TextStyle(
+      hintStyle: const TextStyle(
         color: _hintColor,
         fontFamily: KinrelTypography.bodyFont,
         fontSize: 14,
@@ -558,7 +558,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: _errorColor, width: 1.5),
       ),
-      errorStyle: TextStyle(
+      errorStyle: const TextStyle(
         color: _errorColor,
         fontFamily: KinrelTypography.bodyFont,
         fontSize: 12,
@@ -588,7 +588,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          title: Text(
+          title: const Text(
             'Reset Password',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -600,7 +600,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
+              const Text(
                 'Enter your email or username and we\'ll send a reset link to your account email.',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -614,10 +614,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 keyboardType: TextInputType.emailAddress,
                 textCapitalization: TextCapitalization.none,
                 autocorrect: false,
-                style: TextStyle(color: KinrelColors.textWhite),
+                style: const TextStyle(color: KinrelColors.textWhite),
                 decoration: InputDecoration(
                   hintText: 'Email or username',
-                  hintStyle: TextStyle(color: KinrelColors.textDim),
+                  hintStyle: const TextStyle(color: KinrelColors.textDim),
                   filled: true,
                   fillColor: KinrelColors.darkSurface,
                   border: OutlineInputBorder(
@@ -631,7 +631,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: Text('Cancel',
+              child: const Text('Cancel',
                   style: TextStyle(color: KinrelColors.textDim)),
             ),
             ElevatedButton(
@@ -701,7 +701,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         if (ctx.mounted) {
                           setState(() => isSending = false);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
+                            const SnackBar(
                               content: Text(
                                   'Could not send reset link. Please try again later.'),
                               backgroundColor: KinrelColors.error,
@@ -738,7 +738,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
+              padding: const EdgeInsets.symmetric(
                 horizontal: KinrelSpacing.xl,
                 vertical: KinrelSpacing.lg,
               ),
@@ -775,7 +775,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text(
+                        const Text(
                           'Welcome back',
                           textAlign: TextAlign.center,
                           style: TextStyle(
@@ -802,7 +802,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       textCapitalization: TextCapitalization.none,
                       autocorrect: false,
                       cursorColor: _focusBorder,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: _primaryText,
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 14,
@@ -834,7 +834,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       textInputAction: TextInputAction.done,
                       textCapitalization: TextCapitalization.none,
                       cursorColor: _focusBorder,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: _primaryText,
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 14,
@@ -881,7 +881,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
-                        child: Text(
+                        child: const Text(
                           'Forgot Password?',
                           style: TextStyle(
                             color: KinrelColors.orange,
@@ -939,7 +939,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                               ? Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    SizedBox(
+                                    const SizedBox(
                                       height: 22,
                                       width: 22,
                                       child: CircularProgressIndicator(
@@ -959,7 +959,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                     ),
                                   ],
                                 )
-                              : Text(
+                              : const Text(
                                   'Sign In',
                                   style: TextStyle(
                                     fontFamily: KinrelTypography.displayFont,
@@ -982,8 +982,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                             color: const Color(0xFF2A2A3D),
                           ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
                           child: Text(
                             'or continue with',
                             style: TextStyle(
@@ -1023,7 +1023,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
+                        const Text(
                           "Don't have an account? ",
                           style: TextStyle(
                             color: _secondaryText,
@@ -1038,7 +1038,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                             minimumSize: Size.zero,
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
-                          child: Text(
+                          child: const Text(
                             'Sign Up',
                             style: TextStyle(
                               color: KinrelColors.orange,

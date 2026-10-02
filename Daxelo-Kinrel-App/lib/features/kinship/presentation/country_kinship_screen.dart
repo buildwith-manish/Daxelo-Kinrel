@@ -12,6 +12,7 @@ import '../../../core/kinship/country_kinship_provider.dart';
 import '../../../core/kinship/global_kinship_models.dart';
 import '../../../core/kinship/global_kinship_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../../shared/widgets/kinrel_skeleton.dart';
 
 /// Country Kinship Detail Screen — Shows kinship terms for a specific country
 ///
@@ -121,14 +122,14 @@ class _CountryKinshipDetailScreenState
           labelColor: DKColors.brandOrange,
           unselectedLabelColor: DKColors.textSecondary(context),
           indicatorColor: DKColors.brandOrange,
-          labelStyle: TextStyle(
+          labelStyle: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontWeight: FontWeight.w600,
             fontSize: 14,
           ),
           tabs: [
-            Tab(text: 'Languages'),
-            Tab(text: 'Kinship Terms'),
+            const Tab(text: 'Languages'),
+            const Tab(text: 'Kinship Terms'),
           ],
         ),
       ),
@@ -445,7 +446,7 @@ class _CultureLanguageCard extends StatelessWidget {
                             color: KinrelColors.success.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(3),
                           ),
-                          child: Text(
+                          child: const Text(
                             'LIVE',
                             style: TextStyle(
                               fontFamily: KinrelTypography.monoFont,
@@ -524,7 +525,7 @@ class _CultureLanguageCard extends StatelessWidget {
                   color: DKColors.brandGold.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text(
+                child: const Text(
                   'Soon',
                   style: TextStyle(
                     fontFamily: KinrelTypography.monoFont,
@@ -727,9 +728,9 @@ class _KinshipTermList extends ConsumerWidget {
         padding: const EdgeInsets.all(KinrelSpacing.base),
         children: List.generate(
           8,
-          (_) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: DKLoadingShimmer(
+          (_) => const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: KinrelSkeletonBox(
               width: double.infinity,
               height: 72,
               radius: KinrelRadius.card,
@@ -779,7 +780,7 @@ class _KinshipTermCard extends StatelessWidget {
                     ),
                     child: Text(
                       term.relationshipKey.replaceAll('_', ' ').toUpperCase(),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 9,
                         color: DKColors.brandPurple,
@@ -800,7 +801,7 @@ class _KinshipTermCard extends StatelessWidget {
                       ),
                       child: Text(
                         term.relationType,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 9,
                           color: DKColors.brandGold,
@@ -833,7 +834,7 @@ class _KinshipTermCard extends StatelessWidget {
                     Flexible(
                       child: Text(
                         primary.native,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 18,
                           color: DKColors.brandPurple,
                           fontWeight: FontWeight.w500,

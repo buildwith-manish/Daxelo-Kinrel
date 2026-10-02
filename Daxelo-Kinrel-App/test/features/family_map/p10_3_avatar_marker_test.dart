@@ -199,7 +199,7 @@ void main() {
         lng: 73.85,
       );
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: Center(
               child: AvatarMarkerWidget(

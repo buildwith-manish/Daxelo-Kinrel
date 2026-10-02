@@ -51,7 +51,7 @@ class _JoinFamilyPreviewScreenState extends ConsumerState<JoinFamilyPreviewScree
       setState(() => _isJoining = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Joined family!'), backgroundColor: KinrelColors.success),
+          const SnackBar(content: Text('Joined family!'), backgroundColor: KinrelColors.success),
         );
         context.go('/families');
       }
@@ -74,10 +74,10 @@ class _JoinFamilyPreviewScreenState extends ConsumerState<JoinFamilyPreviewScree
       backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(
         backgroundColor: KinrelColors.darkBackground,
-        title: Text('Join Family', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+        title: const Text('Join Family', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: KinrelColors.orange))
+          ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
           : _error != null
               ? _buildErrorState()
               : _preview != null
@@ -94,16 +94,16 @@ class _JoinFamilyPreviewScreenState extends ConsumerState<JoinFamilyPreviewScree
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.link_off, size: 64, color: KinrelColors.error),
-            SizedBox(height: 16),
-            Text('Invalid Link', style: TextStyle(color: KinrelColors.textWhite, fontSize: 20, fontWeight: FontWeight.w600)),
-            SizedBox(height: 8),
-            Text('This invite link is not valid', style: TextStyle(color: KinrelColors.textSilver)),
-            SizedBox(height: 24),
+            const Icon(Icons.link_off, size: 64, color: KinrelColors.error),
+            const SizedBox(height: 16),
+            const Text('Invalid Link', style: TextStyle(color: KinrelColors.textWhite, fontSize: 20, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            const Text('This invite link is not valid', style: TextStyle(color: KinrelColors.textSilver)),
+            const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () => context.go('/home'),
               style: ElevatedButton.styleFrom(backgroundColor: KinrelColors.orange),
-              child: Text('Go Home'),
+              child: const Text('Go Home'),
             ),
           ],
         ),
@@ -115,16 +115,16 @@ class _JoinFamilyPreviewScreenState extends ConsumerState<JoinFamilyPreviewScree
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.timer_off, size: 64, color: KinrelColors.warning),
-            SizedBox(height: 16),
-            Text('Link Expired', style: TextStyle(color: KinrelColors.textWhite, fontSize: 20, fontWeight: FontWeight.w600)),
-            SizedBox(height: 8),
-            Text('This invite link has expired', style: TextStyle(color: KinrelColors.textSilver)),
-            SizedBox(height: 24),
+            const Icon(Icons.timer_off, size: 64, color: KinrelColors.warning),
+            const SizedBox(height: 16),
+            const Text('Link Expired', style: TextStyle(color: KinrelColors.textWhite, fontSize: 20, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            const Text('This invite link has expired', style: TextStyle(color: KinrelColors.textSilver)),
+            const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () => context.go('/home'),
               style: ElevatedButton.styleFrom(backgroundColor: KinrelColors.orange),
-              child: Text('Go Home'),
+              child: const Text('Go Home'),
             ),
           ],
         ),
@@ -133,35 +133,35 @@ class _JoinFamilyPreviewScreenState extends ConsumerState<JoinFamilyPreviewScree
 
     return Center(
       child: Padding(
-        padding: EdgeInsets.all(32),
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
               width: 80, height: 80,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: KinrelColors.elevation1,
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.family_restroom, size: 40, color: KinrelColors.orange),
+              child: const Icon(Icons.family_restroom, size: 40, color: KinrelColors.orange),
             ),
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
             Text(
               preview.familyName,
-              style: TextStyle(color: KinrelColors.textWhite, fontSize: 24, fontWeight: FontWeight.w700, fontFamily: 'Outfit'),
+              style: const TextStyle(color: KinrelColors.textWhite, fontSize: 24, fontWeight: FontWeight.w700, fontFamily: 'Outfit'),
               textAlign: TextAlign.center,
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               'Owned by ${preview.ownerName}',
-              style: TextStyle(color: KinrelColors.textSilver, fontSize: 14),
+              style: const TextStyle(color: KinrelColors.textSilver, fontSize: 14),
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               '${preview.memberCount} member${preview.memberCount != 1 ? 's' : ''}',
-              style: TextStyle(color: KinrelColors.textDim, fontSize: 13),
+              style: const TextStyle(color: KinrelColors.textDim, fontSize: 13),
             ),
-            SizedBox(height: 40),
+            const SizedBox(height: 40),
             SizedBox(
               width: double.infinity,
               height: 52,
@@ -173,8 +173,8 @@ class _JoinFamilyPreviewScreenState extends ConsumerState<JoinFamilyPreviewScree
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
                 ),
                 child: _isJoining
-                    ? CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                    : Text('Join Family', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, fontFamily: 'Outfit')),
+                    ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                    : const Text('Join Family', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, fontFamily: 'Outfit')),
               ),
             ),
           ],
@@ -188,14 +188,14 @@ class _JoinFamilyPreviewScreenState extends ConsumerState<JoinFamilyPreviewScree
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 64, color: KinrelColors.error),
-          SizedBox(height: 16),
-          Text(_error ?? 'Something went wrong', style: TextStyle(color: KinrelColors.textWhite, fontSize: 16)),
-          SizedBox(height: 24),
+          const Icon(Icons.error_outline, size: 64, color: KinrelColors.error),
+          const SizedBox(height: 16),
+          Text(_error ?? 'Something went wrong', style: const TextStyle(color: KinrelColors.textWhite, fontSize: 16)),
+          const SizedBox(height: 24),
           ElevatedButton(
             onPressed: _loadPreview,
             style: ElevatedButton.styleFrom(backgroundColor: KinrelColors.orange),
-            child: Text('Retry'),
+            child: const Text('Retry'),
           ),
         ],
       ),

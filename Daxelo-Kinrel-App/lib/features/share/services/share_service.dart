@@ -28,22 +28,6 @@ class ShareableLinkModel {
     required this.createdAt,
   });
 
-  final String id;
-  final String token;
-  final String cardType;
-  final String? familyId;
-  final String? personId;
-  final String title;
-  final String? description;
-  final String deepLinkUrl;
-  final int viewCount;
-  final int shareCount;
-  final DateTime? expiresAt;
-  final DateTime createdAt;
-
-  bool get isExpired =>
-      expiresAt != null && expiresAt!.isBefore(DateTime.now());
-
   factory ShareableLinkModel.fromJson(Map<String, dynamic> json) {
     return ShareableLinkModel(
       id: json['id'] as String,
@@ -62,6 +46,22 @@ class ShareableLinkModel {
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
   }
+
+  final String id;
+  final String token;
+  final String cardType;
+  final String? familyId;
+  final String? personId;
+  final String title;
+  final String? description;
+  final String deepLinkUrl;
+  final int viewCount;
+  final int shareCount;
+  final DateTime? expiresAt;
+  final DateTime createdAt;
+
+  bool get isExpired =>
+      expiresAt != null && expiresAt!.isBefore(DateTime.now());
 }
 
 class SharedCardModel {
@@ -79,19 +79,6 @@ class SharedCardModel {
     this.expiresAt,
     required this.createdAt,
   });
-
-  final String id;
-  final String token;
-  final String cardType;
-  final String title;
-  final String? description;
-  final String deepLinkUrl;
-  final int viewCount;
-  final int shareCount;
-  final Map<String, dynamic>? family;
-  final Map<String, dynamic>? person;
-  final DateTime? expiresAt;
-  final DateTime createdAt;
 
   factory SharedCardModel.fromJson(Map<String, dynamic> json) {
     return SharedCardModel(
@@ -111,6 +98,19 @@ class SharedCardModel {
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
   }
+
+  final String id;
+  final String token;
+  final String cardType;
+  final String title;
+  final String? description;
+  final String deepLinkUrl;
+  final int viewCount;
+  final int shareCount;
+  final Map<String, dynamic>? family;
+  final Map<String, dynamic>? person;
+  final DateTime? expiresAt;
+  final DateTime createdAt;
 }
 
 class ShareStatsModel {
@@ -124,15 +124,6 @@ class ShareStatsModel {
     this.expiresAt,
     required this.createdAt,
   });
-
-  final String id;
-  final String token;
-  final String cardType;
-  final String title;
-  final int viewCount;
-  final int shareCount;
-  final DateTime? expiresAt;
-  final DateTime createdAt;
 
   factory ShareStatsModel.fromJson(Map<String, dynamic> json) {
     return ShareStatsModel(
@@ -148,6 +139,15 @@ class ShareStatsModel {
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
   }
+
+  final String id;
+  final String token;
+  final String cardType;
+  final String title;
+  final int viewCount;
+  final int shareCount;
+  final DateTime? expiresAt;
+  final DateTime createdAt;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

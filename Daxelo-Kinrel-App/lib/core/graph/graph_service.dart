@@ -48,6 +48,15 @@ class PathStep {
     required this.direction,
   });
 
+  factory PathStep.fromJson(Map<String, dynamic> json) {
+    return PathStep(
+      personId: json['personId'] as String? ?? '',
+      personName: json['personName'] as String? ?? '',
+      type: json['type'] as String? ?? '',
+      direction: json['direction'] as String? ?? '',
+    );
+  }
+
   final String personId;
   final String personName;
   final String type;
@@ -59,15 +68,6 @@ class PathStep {
         'type': type,
         'direction': direction,
       };
-
-  factory PathStep.fromJson(Map<String, dynamic> json) {
-    return PathStep(
-      personId: json['personId'] as String? ?? '',
-      personName: json['personName'] as String? ?? '',
-      type: json['type'] as String? ?? '',
-      direction: json['direction'] as String? ?? '',
-    );
-  }
 }
 
 /// Result of a path search

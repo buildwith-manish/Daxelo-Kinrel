@@ -118,7 +118,7 @@ class _Connect4LobbyScreenState extends ConsumerState<Connect4LobbyScreen> {
                 state.game?.roomName?.isNotEmpty == true
                     ? state.game!.roomName!
                     : 'Connect 4',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontWeight: FontWeight.w600,
                   color: KinrelColors.textWhite,
@@ -197,7 +197,7 @@ class _Connect4LobbyScreenState extends ConsumerState<Connect4LobbyScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            const Text(
               'Share this code',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -209,7 +209,7 @@ class _Connect4LobbyScreenState extends ConsumerState<Connect4LobbyScreen> {
             const SizedBox(height: KinrelSpacing.md),
             Text(
               code,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 40,
                 fontWeight: FontWeight.w700,
@@ -218,7 +218,7 @@ class _Connect4LobbyScreenState extends ConsumerState<Connect4LobbyScreen> {
               ),
             ),
             const SizedBox(height: KinrelSpacing.md),
-            Text(
+            const Text(
               'Invite 1 family member. First to connect 4 wins!',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -304,7 +304,7 @@ class _Connect4LobbyScreenState extends ConsumerState<Connect4LobbyScreen> {
     return TextField(
       controller: _roomNameController,
       maxLength: 24,
-      style: TextStyle(
+      style: const TextStyle(
         fontFamily: KinrelTypography.bodyFont,
         fontSize: 14,
         color: KinrelColors.textWhite,
@@ -323,7 +323,7 @@ class _Connect4LobbyScreenState extends ConsumerState<Connect4LobbyScreen> {
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(KinrelRadius.md),
-          borderSide: BorderSide(color: KinrelColors.border),
+          borderSide: const BorderSide(color: KinrelColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(KinrelRadius.md),

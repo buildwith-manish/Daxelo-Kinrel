@@ -179,12 +179,12 @@ void main() {
     'CachedAvatar with cameoFallback and no imageUrl renders CameoAvatar',
     (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: CachedAvatar(
               imageUrl: null,
               radius: 40,
-              cameoFallback: const CameoFallbackConfig(
+              cameoFallback: CameoFallbackConfig(
                 personName: 'Aaji',
                 ageBand: CameoAgeBand.elder,
                 skinToneIndex: 7,
@@ -205,7 +205,7 @@ void main() {
     '(no regression)',
     (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(body: CachedAvatar(imageUrl: null, radius: 24)),
         ),
       );
@@ -220,12 +220,12 @@ void main() {
   testWidgets('CachedAvatar with imageUrl does NOT route to CameoAvatar '
       '(no regression)', (WidgetTester tester) async {
     await tester.pumpWidget(
-      MaterialApp(
+      const MaterialApp(
         home: Scaffold(
           body: CachedAvatar(
             imageUrl: 'https://example.com/photo.jpg',
             radius: 24,
-            cameoFallback: const CameoFallbackConfig(
+            cameoFallback: CameoFallbackConfig(
               personName: 'Aaji',
               ageBand: CameoAgeBand.elder,
               skinToneIndex: 7,
@@ -244,13 +244,13 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
+      const MaterialApp(
         home: Scaffold(
           body: InitialsAvatar(
             imageUrl: null,
             initials: 'AK',
             radius: 28,
-            cameoFallback: const CameoFallbackConfig(
+            cameoFallback: CameoFallbackConfig(
               personName: 'Aaji',
               ageBand: CameoAgeBand.elder,
               skinToneIndex: 7,

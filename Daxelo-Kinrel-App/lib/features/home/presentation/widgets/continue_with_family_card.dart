@@ -176,7 +176,7 @@ class _ContinueWithFamilyCardState extends State<ContinueWithFamilyCard> {
                   children: [
                     Text(
                       'Continue with ${_lastFamilyName ?? "Family"}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -186,7 +186,7 @@ class _ContinueWithFamilyCardState extends State<ContinueWithFamilyCard> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    Text(
+                    const Text(
                       'You were here last time',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -198,7 +198,7 @@ class _ContinueWithFamilyCardState extends State<ContinueWithFamilyCard> {
                 ),
               ),
               // ── Arrow ───────────────────────────────────────────────
-              Icon(
+              const Icon(
                 Icons.arrow_forward_rounded,
                 color: KinrelColors.orange,
                 size: 20,

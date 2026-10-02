@@ -121,26 +121,6 @@ class AntakshariGame {
     required this.createdAt,
   });
 
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final AntakshariStatus status;
-  final AntakshariGameMode gameMode;
-  final String? currentTurnPlayerId;
-  final String? currentRequiredLetter;
-  final int turnTimerSeconds;
-  final DateTime? turnStartedAt;
-  final int maxPlayers;
-  final int? roundLimit;
-  final int currentTurnNumber;
-  final int currentRound;
-  final List<String>? winnerUserIds;
-  final List<String>? winnerNames;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final DateTime createdAt;
-
   factory AntakshariGame.fromJson(Map<String, dynamic> json) => AntakshariGame(
     id: json['id'] ?? '',
     familyId: json['familyId'] ?? '',
@@ -174,6 +154,26 @@ class AntakshariGame {
         DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
   );
 
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final AntakshariStatus status;
+  final AntakshariGameMode gameMode;
+  final String? currentTurnPlayerId;
+  final String? currentRequiredLetter;
+  final int turnTimerSeconds;
+  final DateTime? turnStartedAt;
+  final int maxPlayers;
+  final int? roundLimit;
+  final int currentTurnNumber;
+  final int currentRound;
+  final List<String>? winnerUserIds;
+  final List<String>? winnerNames;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final DateTime createdAt;
+
   bool get isWaiting => status == AntakshariStatus.waiting;
   bool get isInProgress => status == AntakshariStatus.inProgress;
   bool get isCompleted => status == AntakshariStatus.completed;
@@ -193,18 +193,6 @@ class AntakshariPlayer {
     this.readyAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final int turnOrder;
-  final bool isEliminated;
-  final DateTime? eliminatedAt;
-  final DateTime joinedAt;
-  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
-  final bool isReady;
-  final DateTime? readyAt;
-
   factory AntakshariPlayer.fromJson(Map<String, dynamic> json) =>
       AntakshariPlayer(
         id: json['id'] ?? '',
@@ -223,6 +211,18 @@ class AntakshariPlayer {
             ? DateTime.tryParse(json['readyAt'])
             : null,
       );
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final int turnOrder;
+  final bool isEliminated;
+  final DateTime? eliminatedAt;
+  final DateTime joinedAt;
+  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
+  final bool isReady;
+  final DateTime? readyAt;
 }
 
 class AntakshariTurn {
@@ -239,18 +239,6 @@ class AntakshariTurn {
     this.challengeWindowEndsAt,
     required this.createdAt,
   });
-
-  final String id;
-  final String gameId;
-  final String playerId;
-  final String playerName;
-  final String letterStartedWith;
-  final String? letterEndedWith;
-  final int turnNumber;
-  final bool wasChallenged;
-  final AntakshariChallengeResult challengeResult;
-  final DateTime? challengeWindowEndsAt;
-  final DateTime createdAt;
 
   factory AntakshariTurn.fromJson(Map<String, dynamic> json) =>
       AntakshariTurn(
@@ -270,6 +258,18 @@ class AntakshariTurn {
         createdAt:
             DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
       );
+
+  final String id;
+  final String gameId;
+  final String playerId;
+  final String playerName;
+  final String letterStartedWith;
+  final String? letterEndedWith;
+  final int turnNumber;
+  final bool wasChallenged;
+  final AntakshariChallengeResult challengeResult;
+  final DateTime? challengeWindowEndsAt;
+  final DateTime createdAt;
 }
 
 class AntakshariChallenge {
@@ -281,12 +281,6 @@ class AntakshariChallenge {
     required this.createdAt,
   });
 
-  final String id;
-  final String turnId;
-  final String challengerId;
-  final String challengerName;
-  final DateTime createdAt;
-
   factory AntakshariChallenge.fromJson(Map<String, dynamic> json) =>
       AntakshariChallenge(
         id: json['id'] ?? '',
@@ -296,4 +290,10 @@ class AntakshariChallenge {
         createdAt:
             DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
       );
+
+  final String id;
+  final String turnId;
+  final String challengerId;
+  final String challengerName;
+  final DateTime createdAt;
 }

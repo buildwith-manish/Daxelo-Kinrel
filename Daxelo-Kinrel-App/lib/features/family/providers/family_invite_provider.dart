@@ -421,7 +421,7 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
       // 3. Build the personalized share text using the relationship label.
       final possessive = _possessive(inviterName);
       final text = StringBuffer()
-        ..writeln('$inviterName added you as ${possessive} $relationshipLabel on the $actualFamilyName family tree on Kinrel! 🧡')
+        ..writeln('$inviterName added you as $possessive $relationshipLabel on the $actualFamilyName family tree on Kinrel! 🧡')
         ..writeln()
         ..writeln('Tap to confirm your spot:')
         ..writeln('🔗 $url')
@@ -454,7 +454,7 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
 
   /// Build the possessive form of a name: "Manish" → "Manish's", "Ross" → "Ross's".
   String _possessive(String name) {
-    if (name.isEmpty) return "their";
+    if (name.isEmpty) return 'their';
     final last = name.toLowerCase().characters.last;
     if (last == 's') {
       return "$name'";

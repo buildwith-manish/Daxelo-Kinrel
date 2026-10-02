@@ -16,13 +16,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/supabase_service.dart';
 
 class CrossFeatureMoment {
-  final String id;
-  final String type; // 'oral_history', 'memory_vault', 'quiz_result'
-  final String title;
-  final String? subtitle;
-  final String? actorName;
-  final DateTime createdAt;
-  final String? deepLink;
 
   CrossFeatureMoment({
     required this.id,
@@ -33,6 +26,13 @@ class CrossFeatureMoment {
     required this.createdAt,
     this.deepLink,
   });
+  final String id;
+  final String type; // 'oral_history', 'memory_vault', 'quiz_result'
+  final String title;
+  final String? subtitle;
+  final String? actorName;
+  final DateTime createdAt;
+  final String? deepLink;
 
   String get emoji => switch (type) {
     'oral_history' => '🎙️',

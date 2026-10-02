@@ -9,6 +9,9 @@ import 'app_database.dart';
 /// Database initialization and management service.
 /// Provides a singleton AppDatabase instance (migrated from Isar to Drift).
 class IsarDatabase {
+
+  /// Prevent instantiation
+  IsarDatabase._();
   static AppDatabase? _instance;
 
   /// Get the AppDatabase instance. Throws if not initialized.
@@ -95,9 +98,6 @@ class IsarDatabase {
     if (_instance == null) return {};
     return _instance!.getStats();
   }
-
-  /// Prevent instantiation
-  IsarDatabase._();
 }
 
 /// Riverpod provider for the AppDatabase instance.

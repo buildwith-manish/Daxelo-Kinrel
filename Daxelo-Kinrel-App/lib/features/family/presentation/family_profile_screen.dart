@@ -86,7 +86,7 @@ class FamilyProfileScreen extends ConsumerWidget {
             }
           },
         ),
-        title: Text(
+        title: const Text(
           'Family Profile',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -138,9 +138,9 @@ class FamilyProfileScreen extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline, size: 48, color: KinrelColors.error),
+            const Icon(Icons.error_outline, size: 48, color: KinrelColors.error),
             const SizedBox(height: 12),
-            Text(
+            const Text(
               'Could not load family profile',
               style: TextStyle(
                 color: KinrelColors.textWhite,
@@ -152,7 +152,7 @@ class FamilyProfileScreen extends ConsumerWidget {
             Text(
               error?.toString() ?? 'Unknown error',
               textAlign: TextAlign.center,
-              style: TextStyle(color: KinrelColors.textDim, fontSize: 13),
+              style: const TextStyle(color: KinrelColors.textDim, fontSize: 13),
             ),
           ],
         ),
@@ -184,7 +184,7 @@ class FamilyProfileScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
                 family.description!,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: KinrelColors.textSilver,
@@ -272,7 +272,7 @@ class FamilyProfileScreen extends ConsumerWidget {
           Text(
             family.name,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 24,
               fontWeight: FontWeight.w800,
@@ -309,7 +309,7 @@ class FamilyProfileScreen extends ConsumerWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.group_rounded,
+                const Icon(Icons.group_rounded,
                     size: 13, color: KinrelColors.ember),
                 const SizedBox(width: 6),
                 Text(
@@ -338,14 +338,14 @@ class FamilyProfileScreen extends ConsumerWidget {
             ? parts[0][0].toUpperCase()
             : '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         shape: BoxShape.circle,
         gradient: KinrelGradients.igniteGradient,
       ),
       child: Center(
         child: Text(
           initials,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 36,
             fontWeight: FontWeight.w800,
             color: KinrelColors.textWhite,
@@ -413,7 +413,7 @@ class FamilyProfileScreen extends ConsumerWidget {
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -423,7 +423,7 @@ class FamilyProfileScreen extends ConsumerWidget {
             const SizedBox(height: 2),
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 9.5,
                 color: KinrelColors.textDim,
@@ -455,7 +455,7 @@ class FamilyProfileScreen extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
           child: Text(
             title.toUpperCase(),
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 10,
               fontWeight: FontWeight.w600,
@@ -517,7 +517,7 @@ class FamilyProfileScreen extends ConsumerWidget {
               backgroundColor: KinrelColors.ember.withValues(alpha: 0.18),
               child: Text(
                 initials,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
                   color: KinrelColors.ember,
@@ -527,7 +527,7 @@ class FamilyProfileScreen extends ConsumerWidget {
             const SizedBox(width: 6),
             Text(
               name,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -543,7 +543,7 @@ class FamilyProfileScreen extends ConsumerWidget {
               ),
               child: Text(
                 m.displayRole,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 8.5,
                   fontWeight: FontWeight.w600,
@@ -644,7 +644,7 @@ class FamilyProfileScreen extends ConsumerWidget {
                           m.user!.avatarUrl!.isEmpty
                       ? Text(
                           initials,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             color: KinrelColors.ember,
@@ -691,7 +691,7 @@ class FamilyProfileScreen extends ConsumerWidget {
                 children: [
                   Text(
                     isSelf ? '$name (You)' : name,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -706,7 +706,7 @@ class FamilyProfileScreen extends ConsumerWidget {
                       m.user!.username!.isNotEmpty)
                     Text(
                       '@${m.user!.username}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
                         color: KinrelColors.textDim,
@@ -754,7 +754,7 @@ class FamilyProfileScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Icon(Icons.chevron_right,
+            const Icon(Icons.chevron_right,
                 size: 18, color: KinrelColors.textDim),
           ],
         ),
@@ -785,14 +785,14 @@ class FamilyProfileScreen extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.qr_code_rounded,
+                    const Icon(Icons.qr_code_rounded,
                         size: 18, color: KinrelColors.ember),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          const Text(
                             'Family Code',
                             style: TextStyle(
                               fontFamily: KinrelTypography.monoFont,
@@ -805,7 +805,7 @@ class FamilyProfileScreen extends ConsumerWidget {
                           const SizedBox(height: 2),
                           Text(
                             family.familyCode!,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.monoFont,
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
@@ -901,7 +901,7 @@ class FamilyProfileScreen extends ConsumerWidget {
             const SizedBox(height: 4),
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -934,11 +934,11 @@ class FamilyProfileScreen extends ConsumerWidget {
                 width: 0.6,
               ),
             ),
-            child: Row(
+            child: const Row(
               children: [
                 Icon(Icons.tune_rounded,
                     size: 18, color: KinrelColors.ember),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Family settings & management',
@@ -973,12 +973,12 @@ class FamilyProfileScreen extends ConsumerWidget {
             gradient: KinrelGradients.igniteGradient,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Row(
+          child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.space_dashboard_rounded,
                   size: 18, color: KinrelColors.textWhite),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(
                 'Open Family Space',
                 style: TextStyle(
@@ -1014,8 +1014,8 @@ class FamilyProfileScreen extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: Icon(Icons.group_rounded, color: KinrelColors.ember),
-              title: Text('View all members',
+              leading: const Icon(Icons.group_rounded, color: KinrelColors.ember),
+              title: const Text('View all members',
                   style: TextStyle(color: KinrelColors.textWhite)),
               onTap: () {
                 Navigator.pop(ctx);
@@ -1023,9 +1023,9 @@ class FamilyProfileScreen extends ConsumerWidget {
               },
             ),
             ListTile(
-              leading: Icon(Icons.account_tree_rounded,
+              leading: const Icon(Icons.account_tree_rounded,
                   color: KinrelColors.ember),
-              title: Text('Family tree',
+              title: const Text('Family tree',
                   style: TextStyle(color: KinrelColors.textWhite)),
               onTap: () {
                 Navigator.pop(ctx);
@@ -1033,8 +1033,8 @@ class FamilyProfileScreen extends ConsumerWidget {
               },
             ),
             ListTile(
-              leading: Icon(Icons.timeline_rounded, color: KinrelColors.ember),
-              title: Text('Family activity',
+              leading: const Icon(Icons.timeline_rounded, color: KinrelColors.ember),
+              title: const Text('Family activity',
                   style: TextStyle(color: KinrelColors.textWhite)),
               onTap: () {
                 Navigator.pop(ctx);
@@ -1043,8 +1043,8 @@ class FamilyProfileScreen extends ConsumerWidget {
             ),
             if (isCurrentUserAdmin)
               ListTile(
-                leading: Icon(Icons.tune_rounded, color: KinrelColors.ember),
-                title: Text('Settings',
+                leading: const Icon(Icons.tune_rounded, color: KinrelColors.ember),
+                title: const Text('Settings',
                     style: TextStyle(color: KinrelColors.textWhite)),
                 onTap: () {
                   Navigator.pop(ctx);

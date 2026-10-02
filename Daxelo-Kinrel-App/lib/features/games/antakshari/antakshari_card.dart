@@ -78,7 +78,7 @@ class _AntakshariCardState extends ConsumerState<AntakshariCard> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
+                    const Expanded(
                       child: Text(
                         'Antakshari',
                         style: TextStyle(
@@ -93,7 +93,7 @@ class _AntakshariCardState extends ConsumerState<AntakshariCard> {
                 ),
                 const SizedBox(height: 10),
                 if (dlState.status != GameDownloadStatus.downloaded)
-                  Text(
+                  const Text(
                     'Download in Games hub to play',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -102,7 +102,7 @@ class _AntakshariCardState extends ConsumerState<AntakshariCard> {
                     ),
                   )
                 else
-                  Text(
+                  const Text(
                     'Sing the letter chain — 2-20 players, challenge mechanic',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,

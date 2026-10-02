@@ -91,6 +91,17 @@ extension EngineTierLabel on EngineTier {
 
 /// Threshold configuration for tier switching.
 class TierThresholds {
+
+  const TierThresholds({
+    this.forceMax = 300,
+    this.hybridMax = 1000,
+    this.radialMax = 3000,
+    this.hierarchicalMax = 5000,
+    this.maxTickDurationMs = 4.0,
+    this.maxFrameDurationMs = 16.67,
+    this.debounceMs = 2000,
+    this.crossfadeMs = 500,
+  });
   final int forceMax;
   final int hybridMax;
   final int radialMax;
@@ -107,17 +118,6 @@ class TierThresholds {
 
   /// Crossfade animation duration (ms).
   final int crossfadeMs;
-
-  const TierThresholds({
-    this.forceMax = 300,
-    this.hybridMax = 1000,
-    this.radialMax = 3000,
-    this.hierarchicalMax = 5000,
-    this.maxTickDurationMs = 4.0,
-    this.maxFrameDurationMs = 16.67,
-    this.debounceMs = 2000,
-    this.crossfadeMs = 500,
-  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -126,6 +126,20 @@ class TierThresholds {
 
 /// Immutable state snapshot for the fallback manager.
 class FallbackState {
+
+  const FallbackState({
+    this.currentTier = EngineTier.force,
+    this.recommendedTier = EngineTier.force,
+    this.nodeCount = 0,
+    this.switchPending = false,
+    this.userOverride = false,
+    this.lastTickDurationMs = 0.0,
+    this.lastFrameDurationMs = 0.0,
+    this.notificationMessage,
+    this.crossfadeProgress = 1.0,
+    this.oldPositions,
+    this.newPositions,
+  });
   /// Currently active engine tier.
   final EngineTier currentTier;
 
@@ -158,20 +172,6 @@ class FallbackState {
 
   /// New positions after the switch.
   final Map<String, Offset>? newPositions;
-
-  const FallbackState({
-    this.currentTier = EngineTier.force,
-    this.recommendedTier = EngineTier.force,
-    this.nodeCount = 0,
-    this.switchPending = false,
-    this.userOverride = false,
-    this.lastTickDurationMs = 0.0,
-    this.lastFrameDurationMs = 0.0,
-    this.notificationMessage,
-    this.crossfadeProgress = 1.0,
-    this.oldPositions,
-    this.newPositions,
-  });
 
   FallbackState copyWith({
     EngineTier? currentTier,
@@ -229,6 +229,11 @@ class FallbackState {
 /// ref.read(fallbackManagerProvider.notifier).setUserOverride(EngineTier.radial);
 /// ```
 class FallbackManager extends StateNotifier<FallbackState> {
+
+  FallbackManager({
+    TierThresholds? thresholds,
+  })  : _thresholds = thresholds ?? const TierThresholds(),
+        super(const FallbackState());
   final TierThresholds _thresholds;
   Timer? _debounceTimer;
   Timer? _crossfadeTimer;
@@ -239,11 +244,6 @@ class FallbackManager extends StateNotifier<FallbackState> {
 
   /// Maximum performance samples to keep.
   static const int _maxHistorySize = 60;
-
-  FallbackManager({
-    TierThresholds? thresholds,
-  })  : _thresholds = thresholds ?? const TierThresholds(),
-        super(const FallbackState());
 
   // ── Public API ────────────────────────────────────────────────────
 

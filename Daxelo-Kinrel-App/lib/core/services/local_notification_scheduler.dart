@@ -27,7 +27,6 @@ import 'smart_notification_timing_service.dart';
 // reset, defeating the purpose. AppTime.nextIstInstantUtc returns
 // the next 8 PM IST as a UTC instant; the OS handles the conversion
 // to the device's local timezone.
-import '../utils/app_time.dart';
 import 'retention_service.dart';
 import 'crashlytics_service.dart';
 
@@ -363,7 +362,7 @@ class LocalNotificationScheduler {
     required bool isRepeating,
     DateTimeComponents? repeatPattern,
   }) async {
-    final androidDetails = AndroidNotificationDetails(
+    final androidDetails = const AndroidNotificationDetails(
       _channelId,
       _channelName,
       channelDescription: _channelDescription,
@@ -496,7 +495,7 @@ class LocalNotificationScheduler {
       if (!_initialized) return;
     }
 
-    final androidDetails = AndroidNotificationDetails(
+    final androidDetails = const AndroidNotificationDetails(
       _channelId,
       _channelName,
       channelDescription: _channelDescription,

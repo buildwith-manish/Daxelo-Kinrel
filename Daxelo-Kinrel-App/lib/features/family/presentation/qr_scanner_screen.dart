@@ -37,7 +37,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           icon: const Icon(Icons.arrow_back, color: KinrelColors.textWhite),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
-        title: Text(
+        title: const Text(
           'Scan QR Code',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -94,7 +94,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           ),
 
           // Instructions
-          Positioned(
+          const Positioned(
             bottom: 60,
             left: 0,
             right: 0,

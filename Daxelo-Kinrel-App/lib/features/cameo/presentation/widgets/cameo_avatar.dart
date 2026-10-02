@@ -180,7 +180,7 @@ class _CameoAvatarState extends State<CameoAvatar>
   bool _saccading = false;
   Timer? _blinkTimer;
   Timer? _saccadeTimer;
-  bool _hasErrored = false;
+  final bool _hasErrored = false;
 
   @override
   void initState() {
@@ -488,7 +488,7 @@ class _MonogramPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     // Vignette backdrop.
     final bgPaint = Paint()
-      ..shader = RadialGradient(
+      ..shader = const RadialGradient(
         colors: CameoColorPalette.vignetteGradient,
       ).createShader(Offset.zero & size);
     canvas.drawRect(Offset.zero & size, bgPaint);

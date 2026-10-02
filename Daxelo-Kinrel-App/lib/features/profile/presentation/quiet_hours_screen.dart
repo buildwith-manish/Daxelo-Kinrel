@@ -362,7 +362,7 @@ class _QuietHoursScreenState extends ConsumerState<QuietHoursScreen> {
                       children: [
                         Container(width: 1.5, height: 24, color: _borderSubtle),
                         const SizedBox(width: 12),
-                        Icon(Icons.arrow_downward, color: _textDim, size: 16),
+                        const Icon(Icons.arrow_downward, color: _textDim, size: 16),
                       ],
                     ),
                   ),
@@ -389,14 +389,14 @@ class _QuietHoursScreenState extends ConsumerState<QuietHoursScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: _orange.withValues(alpha: 0.2)),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
                     Icon(
                       Icons.notifications_off_outlined,
                       color: _orange,
                       size: 20,
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'Notifications will be silenced during these hours',
@@ -421,14 +421,14 @@ class _QuietHoursScreenState extends ConsumerState<QuietHoursScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: _borderSubtle),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
                     Icon(
                       Icons.notifications_active_outlined,
                       color: _textDim,
                       size: 20,
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'Enable quiet hours to silence notifications during a specific time range',
@@ -514,11 +514,11 @@ class _QuietHoursScreenState extends ConsumerState<QuietHoursScreen> {
                         ),
                       ),
                       const SizedBox(width: 14),
-                      Expanded(
+                      const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Smart notification timing',
                               style: TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
@@ -527,13 +527,13 @@ class _QuietHoursScreenState extends ConsumerState<QuietHoursScreen> {
                                 color: _textPrimary,
                               ),
                             ),
-                            const SizedBox(height: 2),
+                            SizedBox(height: 2),
                             Text(
                               'When on, Kinrel learns when you are most likely '
                               'to engage and schedules non-urgent notifications '
                               'accordingly. When off, notifications use the time '
                               'you set above.',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: _textDim,
                                 fontSize: 12,
                                 height: 1.4,
@@ -551,7 +551,7 @@ class _QuietHoursScreenState extends ConsumerState<QuietHoursScreen> {
                         child: Switch(
                           value: _smartTimingOptIn,
                           onChanged: _smartTimingLoading ? null : _toggleSmartTiming,
-                          activeColor: _orange,
+                          activeThumbColor: _orange,
                         ),
                       ),
                     ],

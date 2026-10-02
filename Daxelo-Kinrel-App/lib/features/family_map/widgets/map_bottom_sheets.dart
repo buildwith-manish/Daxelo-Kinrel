@@ -62,7 +62,7 @@ class MapBottomSheets {
       ),
       builder: (context) => SafeArea(
         child: Padding(
-          padding: EdgeInsets.all(KinrelSpacing.xl),
+          padding: const EdgeInsets.all(KinrelSpacing.xl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -70,7 +70,7 @@ class MapBottomSheets {
               Container(
                 width: 40,
                 height: 4,
-                margin: EdgeInsets.only(bottom: KinrelSpacing.lg),
+                margin: const EdgeInsets.only(bottom: KinrelSpacing.lg),
                 decoration: BoxDecoration(
                   color: KinrelColors.darkElevated,
                   borderRadius: BorderRadius.circular(2),
@@ -110,7 +110,7 @@ class MapBottomSheets {
                           child: Center(
                             child: Text(
                               initials(pin.name),
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.displayFont,
                                 fontSize: 28,
                                 fontWeight: FontWeight.w700,
@@ -123,12 +123,12 @@ class MapBottomSheets {
                 ),
               ),
 
-              SizedBox(height: KinrelSpacing.md),
+              const SizedBox(height: KinrelSpacing.md),
 
               // Name
               Text(
                 pin.name,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -138,22 +138,22 @@ class MapBottomSheets {
                 textAlign: TextAlign.center,
               ),
 
-              SizedBox(height: KinrelSpacing.xs),
+              const SizedBox(height: KinrelSpacing.xs),
 
               // City with pin icon
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.location_on_rounded,
                     size: 16,
                     color: KinrelColors.amber,
                   ),
-                  SizedBox(width: KinrelSpacing.xs),
+                  const SizedBox(width: KinrelSpacing.xs),
                   Flexible(
                     child: Text(
                       pin.city,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
@@ -166,7 +166,7 @@ class MapBottomSheets {
                 ],
               ),
 
-              SizedBox(height: KinrelSpacing.xl),
+              const SizedBox(height: KinrelSpacing.xl),
 
               // View Profile button
               SizedBox(
@@ -183,7 +183,7 @@ class MapBottomSheets {
                 ),
               ),
 
-              SizedBox(height: KinrelSpacing.sm),
+              const SizedBox(height: KinrelSpacing.sm),
             ],
           ),
         ),
@@ -254,7 +254,7 @@ class MapBottomSheets {
       ),
       builder: (context) => SafeArea(
         child: Padding(
-          padding: EdgeInsets.all(KinrelSpacing.xl),
+          padding: const EdgeInsets.all(KinrelSpacing.xl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -262,7 +262,7 @@ class MapBottomSheets {
               Container(
                 width: 40,
                 height: 4,
-                margin: EdgeInsets.only(bottom: KinrelSpacing.lg),
+                margin: const EdgeInsets.only(bottom: KinrelSpacing.lg),
                 decoration: BoxDecoration(
                   color: KinrelColors.darkElevated,
                   borderRadius: BorderRadius.circular(2),
@@ -296,7 +296,7 @@ class MapBottomSheets {
                               child: Center(
                                 child: Text(
                                   initials(edge.pinA.name),
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontFamily: KinrelTypography.displayFont,
                                     fontSize: 17,
                                     fontWeight: FontWeight.w700,
@@ -327,7 +327,7 @@ class MapBottomSheets {
                           ),
                         ),
                         // Heart icon at center
-                        Icon(
+                        const Icon(
                           Icons.favorite_rounded,
                           size: 14,
                           color: KinrelColors.amber,
@@ -358,7 +358,7 @@ class MapBottomSheets {
                               child: Center(
                                 child: Text(
                                   initials(edge.pinB.name),
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontFamily: KinrelTypography.displayFont,
                                     fontSize: 17,
                                     fontWeight: FontWeight.w700,
@@ -373,7 +373,7 @@ class MapBottomSheets {
                 ],
               ),
 
-              SizedBox(height: KinrelSpacing.md),
+              const SizedBox(height: KinrelSpacing.md),
 
               // Names row
               Row(
@@ -382,7 +382,7 @@ class MapBottomSheets {
                   Flexible(
                     child: Text(
                       edge.pinA.name,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -392,7 +392,7 @@ class MapBottomSheets {
                       textAlign: TextAlign.end,
                     ),
                   ),
-                  Padding(
+                  const Padding(
                     padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.sm),
                     child: Text(
                       '&',
@@ -407,7 +407,7 @@ class MapBottomSheets {
                   Flexible(
                     child: Text(
                       edge.pinB.name,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -420,11 +420,11 @@ class MapBottomSheets {
                 ],
               ),
 
-              SizedBox(height: KinrelSpacing.sm),
+              const SizedBox(height: KinrelSpacing.sm),
 
               // Kinship label pill
               Container(
-                padding: EdgeInsets.symmetric(
+                padding: const EdgeInsets.symmetric(
                   horizontal: KinrelSpacing.base,
                   vertical: 6,
                 ),
@@ -437,7 +437,7 @@ class MapBottomSheets {
                 ),
                 child: Text(
                   kinshipLabel,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
@@ -447,7 +447,7 @@ class MapBottomSheets {
                 ),
               ),
 
-              SizedBox(height: KinrelSpacing.xl),
+              const SizedBox(height: KinrelSpacing.xl),
 
               // View Profile buttons
               Row(
@@ -468,7 +468,7 @@ class MapBottomSheets {
                       },
                     ),
                   ),
-                  SizedBox(width: KinrelSpacing.sm),
+                  const SizedBox(width: KinrelSpacing.sm),
                   Expanded(
                     child: DKButton(
                       label:
@@ -488,7 +488,7 @@ class MapBottomSheets {
                 ],
               ),
 
-              SizedBox(height: KinrelSpacing.sm),
+              const SizedBox(height: KinrelSpacing.sm),
             ],
           ),
         ),
@@ -549,7 +549,7 @@ class MapBottomSheets {
               Text(
                 l10n?.familyMapHouseholdMembers(household.size) ??
                     'Household — ${household.size} members',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -564,16 +564,16 @@ class MapBottomSheets {
                     backgroundColor: KinrelColors.darkElevated,
                     child: Text(
                       initials(pin.name),
-                      style: TextStyle(color: KinrelColors.orange),
+                      style: const TextStyle(color: KinrelColors.orange),
                     ),
                   ),
                   title: Text(
                     pin.name,
-                    style: TextStyle(color: KinrelColors.textWhite),
+                    style: const TextStyle(color: KinrelColors.textWhite),
                   ),
                   subtitle: Text(
                     pin.city,
-                    style: TextStyle(color: KinrelColors.textSilver),
+                    style: const TextStyle(color: KinrelColors.textSilver),
                   ),
                   onTap: () {
                     Navigator.of(context).pop();
@@ -608,7 +608,7 @@ class MapBottomSheets {
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: EdgeInsets.all(KinrelSpacing.xl),
+              padding: const EdgeInsets.all(KinrelSpacing.xl),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -616,7 +616,7 @@ class MapBottomSheets {
                   Container(
                     width: 40,
                     height: 4,
-                    margin: EdgeInsets.only(bottom: KinrelSpacing.lg),
+                    margin: const EdgeInsets.only(bottom: KinrelSpacing.lg),
                     decoration: BoxDecoration(
                       color: KinrelColors.darkElevated,
                       borderRadius: BorderRadius.circular(2),
@@ -626,17 +626,17 @@ class MapBottomSheets {
                   // Title
                   Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.location_off_rounded,
                         size: 20,
                         color: KinrelColors.textDim,
                       ),
-                      SizedBox(width: KinrelSpacing.sm),
+                      const SizedBox(width: KinrelSpacing.sm),
                       Expanded(
                         child: Text(
                           l10n?.familyMapUnpinnedCount(result.unpinnedCount) ??
                               '${result.unpinnedCount} member${result.unpinnedCount == 1 ? '' : 's'} without map pin',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.displayFont,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -647,12 +647,12 @@ class MapBottomSheets {
                     ],
                   ),
 
-                  SizedBox(height: KinrelSpacing.sm),
+                  const SizedBox(height: KinrelSpacing.sm),
 
                   Text(
                     l10n?.familyMapAddCityPrompt ??
                         'Add a city to these members to see them on the map.',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
                       color: KinrelColors.textSilver,
@@ -669,15 +669,15 @@ class MapBottomSheets {
               ),
               child: ListView.separated(
                 shrinkWrap: true,
-                padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.xl),
+                padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.xl),
                 physics: const AlwaysScrollableScrollPhysics(),
                 itemCount: result.unpinnedMembers.length,
                 separatorBuilder: (_, __) =>
-                    Divider(color: KinrelColors.darkElevated, height: 1),
+                    const Divider(color: KinrelColors.darkElevated, height: 1),
                 itemBuilder: (context, index) {
                   final member = result.unpinnedMembers[index];
                   return ListTile(
-                    contentPadding: EdgeInsets.symmetric(
+                    contentPadding: const EdgeInsets.symmetric(
                       vertical: KinrelSpacing.xs,
                     ),
                     leading: Container(
@@ -702,7 +702,7 @@ class MapBottomSheets {
                           : Center(
                               child: Text(
                                 initials(member.name),
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: KinrelTypography.displayFont,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
@@ -714,7 +714,7 @@ class MapBottomSheets {
                     ),
                     title: Text(
                       member.name,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -726,13 +726,13 @@ class MapBottomSheets {
                           ? (l10n?.familyMapNoCitySet ?? 'No city set')
                           : (l10n?.familyMapCityNotFound(member.city) ??
                                 '${member.city} (not found)'),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
                         color: KinrelColors.textDim,
                       ),
                     ),
-                    trailing: Icon(
+                    trailing: const Icon(
                       Icons.chevron_right_rounded,
                       size: 20,
                       color: KinrelColors.textDim,
@@ -746,7 +746,7 @@ class MapBottomSheets {
               ),
             ),
 
-            SizedBox(height: KinrelSpacing.xl),
+            const SizedBox(height: KinrelSpacing.xl),
           ],
         ),
       ),

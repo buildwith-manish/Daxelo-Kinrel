@@ -141,7 +141,7 @@ class _EngagementDashboardState extends ConsumerState<EngagementDashboard> {
           onRefresh: _loadStats,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.symmetric(
+            padding: const EdgeInsets.symmetric(
               horizontal: KinrelSpacing.base,
               vertical: KinrelSpacing.sm,
             ),
@@ -299,7 +299,7 @@ class _EngagementDashboardState extends ConsumerState<EngagementDashboard> {
       _InfoRow('Referral Code', _referralCode ?? 'N/A'),
       _InfoRow('Isar DB', isarReady ? 'Initialized' : 'Not ready'),
       _InfoRow('Remote Config', rcInitialized ? 'Initialized' : 'Using defaults'),
-      _InfoRow('Notifications Scheduled', 'Retention active'),
+      const _InfoRow('Notifications Scheduled', 'Retention active'),
     ];
 
     return Container(

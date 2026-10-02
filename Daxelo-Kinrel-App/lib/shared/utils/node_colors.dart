@@ -71,6 +71,13 @@ enum RelationshipType {
 /// * [glow]       — A medium-opacity color used for the outer glow / halo
 ///                   effect that pulses on the selected or hovered node.
 class NodeColorSet {
+
+  /// Creates a const [NodeColorSet].
+  const NodeColorSet({
+    required this.ring,
+    required this.background,
+    required this.glow,
+  });
   /// Full-opacity border ring color.
   final Color ring;
 
@@ -79,13 +86,6 @@ class NodeColorSet {
 
   /// Medium-opacity outer glow / halo color.
   final Color glow;
-
-  /// Creates a const [NodeColorSet].
-  const NodeColorSet({
-    required this.ring,
-    required this.background,
-    required this.glow,
-  });
 }
 
 // ── Color Lookup ────────────────────────────────────────────────────────────

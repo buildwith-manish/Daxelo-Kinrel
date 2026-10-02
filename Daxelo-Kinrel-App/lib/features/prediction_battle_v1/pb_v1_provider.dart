@@ -372,6 +372,19 @@ class _CachedRound {
     required this.cachedAt,
   });
 
+  factory _CachedRound.fromJson(Map<String, dynamic> json) => _CachedRound(
+    round: json['round'] is Map ? PBv1Round.fromJson(Map<String, dynamic>.from(json['round'] as Map)) : null,
+    question: json['question'] is Map ? PBv1Question.fromJson(Map<String, dynamic>.from(json['question'] as Map)) : null,
+    myGuess: json['myGuess'] is Map ? PBv1Guess.fromJson(Map<String, dynamic>.from(json['myGuess'] as Map)) : null,
+    revealed: (json['revealed'] ?? false) as bool,
+    allGuesses: (json['allGuesses'] as List? ?? const [])
+        .whereType<Map>()
+        .map((g) => PBv1Guess.fromJson(Map<String, dynamic>.from(g)))
+        .toList(),
+    winnerUserIds: (json['winnerUserIds'] as List? ?? const []).whereType<String>().toList(),
+    cachedAt: (json['cachedAt'] ?? '') as String,
+  );
+
   final PBv1Round? round;
   final PBv1Question? question;
   final PBv1Guess? myGuess;
@@ -389,19 +402,6 @@ class _CachedRound {
     'winnerUserIds': winnerUserIds,
     'cachedAt': cachedAt,
   };
-
-  factory _CachedRound.fromJson(Map<String, dynamic> json) => _CachedRound(
-    round: json['round'] is Map ? PBv1Round.fromJson(Map<String, dynamic>.from(json['round'] as Map)) : null,
-    question: json['question'] is Map ? PBv1Question.fromJson(Map<String, dynamic>.from(json['question'] as Map)) : null,
-    myGuess: json['myGuess'] is Map ? PBv1Guess.fromJson(Map<String, dynamic>.from(json['myGuess'] as Map)) : null,
-    revealed: (json['revealed'] ?? false) as bool,
-    allGuesses: (json['allGuesses'] as List? ?? const [])
-        .whereType<Map>()
-        .map((g) => PBv1Guess.fromJson(Map<String, dynamic>.from(g)))
-        .toList(),
-    winnerUserIds: (json['winnerUserIds'] as List? ?? const []).whereType<String>().toList(),
-    cachedAt: (json['cachedAt'] ?? '') as String,
-  );
 }
 
 final pbV1Provider = StateNotifierProvider.autoDispose.family<PBv1Notifier, PBv1State, String>(

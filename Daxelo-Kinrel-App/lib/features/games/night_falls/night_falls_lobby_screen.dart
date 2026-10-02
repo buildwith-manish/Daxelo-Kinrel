@@ -175,7 +175,7 @@ class _NightFallsLobbyScreenState extends ConsumerState<NightFallsLobbyScreen> {
                 state.game?.roomName?.isNotEmpty == true
                     ? state.game!.roomName!
                     : 'Night Falls',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontWeight: FontWeight.w600,
                   color: KinrelColors.textWhite,
@@ -244,7 +244,7 @@ class _NightFallsLobbyScreenState extends ConsumerState<NightFallsLobbyScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Share this code',
+            const Text('Share this code',
                 style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 18,
@@ -252,7 +252,7 @@ class _NightFallsLobbyScreenState extends ConsumerState<NightFallsLobbyScreen> {
                     color: KinrelColors.textWhite)),
             const SizedBox(height: KinrelSpacing.md),
             Text(code,
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 40,
                     fontWeight: FontWeight.w700,
@@ -262,7 +262,7 @@ class _NightFallsLobbyScreenState extends ConsumerState<NightFallsLobbyScreen> {
             Text(
               'Up to ${_maxPlayers - 1} family members. Survive the night!',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim),
@@ -289,7 +289,7 @@ class _NightFallsLobbyScreenState extends ConsumerState<NightFallsLobbyScreen> {
       title: 'Night Falls',
       tagline: 'Classic Werewolf — survive the night, find the wolves',
       facts: [
-        LobbyFact(icon: Icons.groups_2_outlined, label: '5–12 players'),
+        const LobbyFact(icon: Icons.groups_2_outlined, label: '5–12 players'),
         LobbyFact(
             icon: Icons.nights_stay_outlined,
             label: '${dist[NightFallsRole.werewolf]} wolves'),
@@ -303,7 +303,7 @@ class _NightFallsLobbyScreenState extends ConsumerState<NightFallsLobbyScreen> {
             child: TextField(
               controller: _roomNameController,
               maxLength: 24,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: KinrelColors.textWhite),
@@ -320,7 +320,7 @@ class _NightFallsLobbyScreenState extends ConsumerState<NightFallsLobbyScreen> {
                     horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  borderSide: BorderSide(color: KinrelColors.border),
+                  borderSide: const BorderSide(color: KinrelColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
@@ -372,7 +372,7 @@ class _NightFallsLobbyScreenState extends ConsumerState<NightFallsLobbyScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('ROLE DISTRIBUTION ($_maxPlayers players)',
-                    style: TextStyle(
+                    style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -395,12 +395,12 @@ class _NightFallsLobbyScreenState extends ConsumerState<NightFallsLobbyScreen> {
         ],
       ),
       rules: [
-        LobbyRule('Each player is secretly assigned a role: Werewolf, Seer, Doctor, Hunter, or Villager.'),
-        LobbyRule('🌙 Night: Werewolves choose a victim. The Seer investigates one player. The Doctor protects one player.'),
-        LobbyRule('☀️ Day: The village learns who died (if anyone) and debates who the wolves might be.'),
-        LobbyRule('🗳️ Vote: Everyone votes to eliminate one suspect. The eliminated player\'s role is revealed.'),
-        LobbyRule('🎯 Hunter: If voted out, the Hunter takes one player down with them.'),
-        LobbyRule('🐺 Werewolves win if they equal or outnumber the villagers. 🏘️ Village wins if all werewolves are eliminated.'),
+        const LobbyRule('Each player is secretly assigned a role: Werewolf, Seer, Doctor, Hunter, or Villager.'),
+        const LobbyRule('🌙 Night: Werewolves choose a victim. The Seer investigates one player. The Doctor protects one player.'),
+        const LobbyRule('☀️ Day: The village learns who died (if anyone) and debates who the wolves might be.'),
+        const LobbyRule('🗳️ Vote: Everyone votes to eliminate one suspect. The eliminated player\'s role is revealed.'),
+        const LobbyRule('🎯 Hunter: If voted out, the Hunter takes one player down with them.'),
+        const LobbyRule('🐺 Werewolves win if they equal or outnumber the villagers. 🏘️ Village wins if all werewolves are eliminated.'),
       ],
       rulesFootnote:
           '2 wolves for 5–8 players · 3 wolves for 9–12 players. Spectators can cheer with emoji reactions!',
@@ -492,7 +492,7 @@ class _RoleChip extends StatelessWidget {
           Text(role.glyph, style: const TextStyle(fontSize: 14)),
           const SizedBox(width: 6),
           Text(role.label,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,

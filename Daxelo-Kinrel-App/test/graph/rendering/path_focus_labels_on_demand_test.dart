@@ -73,19 +73,19 @@ void main() {
     'uncle': const Offset(100, 200),
   };
   final edges = <DedupedEdge>[
-    DedupedEdge(
+    const DedupedEdge(
       edge: GraphEdgeData(
           id: 'e1', sourceId: 'viewer', targetId: 'parent', relationshipKey: 'father'),
       lateralOffset: 0.0,
       parallelCount: 1,
     ),
-    DedupedEdge(
+    const DedupedEdge(
       edge: GraphEdgeData(
           id: 'e2', sourceId: 'parent', targetId: 'grandparent', relationshipKey: 'father'),
       lateralOffset: 0.0,
       parallelCount: 1,
     ),
-    DedupedEdge(
+    const DedupedEdge(
       edge: GraphEdgeData(
           id: 'e3', sourceId: 'grandparent', targetId: 'uncle', relationshipKey: 'father'),
       lateralOffset: 0.0,
@@ -185,7 +185,7 @@ void main() {
       // Add an extra edge that is NOT in the path focus.
       final extraEdges = <DedupedEdge>[
         ...edges,
-        DedupedEdge(
+        const DedupedEdge(
           edge: GraphEdgeData(
               id: 'e4',
               sourceId: 'uncle',

@@ -62,6 +62,30 @@ class GraphPerformanceProfile {
     this.maxConcurrentAvatarRequests,
   });
 
+  // ── Factory ─────────────────────────────────────────────────────
+
+  /// Builds a profile for the current device using [DeviceTierCache].
+  /// Call this ONCE at graph screen mount and pass the result down.
+  /// Falls back to mid-range if the device tier hasn't been
+  /// initialized yet (e.g. web before first frame).
+  factory GraphPerformanceProfile.forCurrentDevice() {
+    return GraphPerformanceProfile._forTier(
+      DeviceTierCache.instance.tier,
+    );
+  }
+
+  /// Internal constructor that maps a [DeviceTier] to a profile.
+  factory GraphPerformanceProfile._forTier(DeviceTier tier) {
+    switch (tier) {
+      case DeviceTier.high:
+        return GraphPerformanceProfile._highEnd;
+      case DeviceTier.mid:
+        return GraphPerformanceProfile._midRange;
+      case DeviceTier.low:
+        return GraphPerformanceProfile._lowEnd;
+    }
+  }
+
   /// The device tier this profile was built for.
   final DeviceTier deviceTier;
 
@@ -188,30 +212,6 @@ class GraphPerformanceProfile {
 
   /// True when this profile is for a high-end device.
   bool get isHighEnd => deviceTier == DeviceTier.high;
-
-  // ── Factory ─────────────────────────────────────────────────────
-
-  /// Builds a profile for the current device using [DeviceTierCache].
-  /// Call this ONCE at graph screen mount and pass the result down.
-  /// Falls back to mid-range if the device tier hasn't been
-  /// initialized yet (e.g. web before first frame).
-  factory GraphPerformanceProfile.forCurrentDevice() {
-    return GraphPerformanceProfile._forTier(
-      DeviceTierCache.instance.tier,
-    );
-  }
-
-  /// Internal constructor that maps a [DeviceTier] to a profile.
-  factory GraphPerformanceProfile._forTier(DeviceTier tier) {
-    switch (tier) {
-      case DeviceTier.high:
-        return GraphPerformanceProfile._highEnd;
-      case DeviceTier.mid:
-        return GraphPerformanceProfile._midRange;
-      case DeviceTier.low:
-        return GraphPerformanceProfile._lowEnd;
-    }
-  }
 
   // ── Pre-built profiles ──────────────────────────────────────────
 

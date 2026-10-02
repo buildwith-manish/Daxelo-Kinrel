@@ -13,14 +13,6 @@ class GhostPainterRound {
     required this.startedAt,
     this.endsAt,
   });
-  final String id;
-  final String familyId;
-  final String drawerPersonId;
-  final String drawerPersonName;
-  final String promptWord;
-  final String status; // drawing | guessing | completed
-  final DateTime startedAt;
-  final DateTime? endsAt;
 
   factory GhostPainterRound.fromJson(Map<String, dynamic> json) => GhostPainterRound(
     id: json['id'] ?? '',
@@ -32,6 +24,14 @@ class GhostPainterRound {
     startedAt: DateTime.tryParse(json['startedAt'] ?? '') ?? DateTime.now(),
     endsAt: json['endsAt'] != null ? DateTime.tryParse(json['endsAt']) : null,
   );
+  final String id;
+  final String familyId;
+  final String drawerPersonId;
+  final String drawerPersonName;
+  final String promptWord;
+  final String status; // drawing | guessing | completed
+  final DateTime startedAt;
+  final DateTime? endsAt;
 
   bool get isActive => status == 'drawing' || status == 'guessing';
   bool get isCompleted => status == 'completed';
@@ -44,10 +44,6 @@ class GhostPainterStroke {
     required this.points,
     required this.sequenceOrder,
   });
-  final String id;
-  final String roundId;
-  final List<OffsetPoint> points;
-  final int sequenceOrder;
 
   factory GhostPainterStroke.fromJson(Map<String, dynamic> json) {
     // The strokeData column is jsonb, but older clients wrote the
@@ -71,15 +67,19 @@ class GhostPainterStroke {
       sequenceOrder: json['sequenceOrder'] ?? 0,
     );
   }
+  final String id;
+  final String roundId;
+  final List<OffsetPoint> points;
+  final int sequenceOrder;
 }
 
 class OffsetPoint {
   const OffsetPoint({required this.x, required this.y});
-  final double x;
-  final double y;
 
   factory OffsetPoint.fromJson(Map<String, dynamic> json) =>
       OffsetPoint(x: (json['x'] as num?)?.toDouble() ?? 0, y: (json['y'] as num?)?.toDouble() ?? 0);
+  final double x;
+  final double y;
 
   Map<String, dynamic> toJson() => {'x': x, 'y': y};
 }
@@ -94,13 +94,6 @@ class GhostPainterGuess {
     required this.isCorrect,
     required this.guessedAt,
   });
-  final String id;
-  final String roundId;
-  final String userId;
-  final String userName;
-  final String guessText;
-  final bool isCorrect;
-  final DateTime guessedAt;
 
   factory GhostPainterGuess.fromJson(Map<String, dynamic> json) => GhostPainterGuess(
     id: json['id'] ?? '',
@@ -111,6 +104,13 @@ class GhostPainterGuess {
     isCorrect: json['isCorrect'] ?? false,
     guessedAt: DateTime.tryParse(json['guessedAt'] ?? '') ?? DateTime.now(),
   );
+  final String id;
+  final String roundId;
+  final String userId;
+  final String userName;
+  final String guessText;
+  final bool isCorrect;
+  final DateTime guessedAt;
 }
 
 /// V1 hardcoded prompt words — family-friendly, drawable.

@@ -78,7 +78,7 @@ class _ChessCardState extends ConsumerState<ChessCard> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
+                    const Expanded(
                       child: Text(
                         'Chess',
                         style: TextStyle(
@@ -93,7 +93,7 @@ class _ChessCardState extends ConsumerState<ChessCard> {
                 ),
                 const SizedBox(height: 10),
                 if (dlState.status != GameDownloadStatus.downloaded)
-                  Text(
+                  const Text(
                     'Download in Games hub to play',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -102,7 +102,7 @@ class _ChessCardState extends ConsumerState<ChessCard> {
                     ),
                   )
                 else
-                  Text(
+                  const Text(
                     'Challenge a family member — checkmate to win!',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,

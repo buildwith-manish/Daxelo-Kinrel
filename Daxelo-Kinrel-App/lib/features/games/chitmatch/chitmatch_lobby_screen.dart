@@ -91,11 +91,11 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Share this code', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+            const Text('Share this code', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
             const SizedBox(height: KinrelSpacing.md),
-            Text(code, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 40, fontWeight: FontWeight.w700, color: KinrelColors.orange, letterSpacing: 6)),
+            Text(code, style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 40, fontWeight: FontWeight.w700, color: KinrelColors.orange, letterSpacing: 6)),
             const SizedBox(height: KinrelSpacing.md),
-            Text('${_playerCount - 1} family members can join (4-${_playerCount} total).', textAlign: TextAlign.center, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
+            Text('${_playerCount - 1} family members can join (4-$_playerCount total).', textAlign: TextAlign.center, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
             const SizedBox(height: KinrelSpacing.lg),
             DKButton(label: 'Done', variant: DKButtonVariant.primary, fullWidth: true, onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
           ],
@@ -150,7 +150,7 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
         title: hasGame
-            ? Text('TripleMatch', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))
+            ? const Text('TripleMatch', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))
             : null,
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [
@@ -321,30 +321,30 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
     return ListView(
       padding: const EdgeInsets.all(KinrelSpacing.base),
       children: [
-        Text('Submit Your Word', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
+        const Text('Submit Your Word', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
         const SizedBox(height: 4),
-        Text('Choose an animal or object name. 3 chits with this word will be created and shuffled into the game.', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
+        const Text('Choose an animal or object name. 3 chits with this word will be created and shuffled into the game.', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
         const SizedBox(height: KinrelSpacing.lg),
         if (_wordSubmitted || state.myWord != null)
           Container(
             padding: const EdgeInsets.all(KinrelSpacing.lg),
             decoration: BoxDecoration(color: KinrelColors.success.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(KinrelRadius.lg), border: Border.all(color: KinrelColors.success, width: 1)),
             child: Row(children: [
-              Icon(Icons.check_circle, color: KinrelColors.success, size: 24),
+              const Icon(Icons.check_circle, color: KinrelColors.success, size: 24),
               const SizedBox(width: KinrelSpacing.sm),
-              Expanded(child: Text('Your word: "${state.myWord ?? _wordController.text}"', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textWhite, fontWeight: FontWeight.w600))),
+              Expanded(child: Text('Your word: "${state.myWord ?? _wordController.text}"', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textWhite, fontWeight: FontWeight.w600))),
             ]),
           )
         else ...[
           TextField(
             controller: _wordController,
-            style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 16, color: KinrelColors.textWhite),
+            style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 16, color: KinrelColors.textWhite),
             decoration: InputDecoration(
               hintText: 'e.g. Elephant, Tiger, Rocket...',
-              hintStyle: TextStyle(color: KinrelColors.textDim),
+              hintStyle: const TextStyle(color: KinrelColors.textDim),
               filled: true, fillColor: KinrelColors.darkCard,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(KinrelRadius.lg), borderSide: BorderSide(color: KinrelColors.border)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(KinrelRadius.lg), borderSide: BorderSide(color: KinrelColors.orange, width: 2)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(KinrelRadius.lg), borderSide: const BorderSide(color: KinrelColors.border)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(KinrelRadius.lg), borderSide: const BorderSide(color: KinrelColors.orange, width: 2)),
             ),
             onSubmitted: (_) => _submitWord(),
           ),
@@ -353,7 +353,7 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
         ],
         const SizedBox(height: KinrelSpacing.xl),
         // Show how many players have submitted
-        Text('WORD SUBMISSIONS', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.2)),
+        const Text('WORD SUBMISSIONS', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.2)),
         const SizedBox(height: KinrelSpacing.sm),
         ...state.players.map((p) {
           final submitted = p.submittedWord != null && p.submittedWord!.isNotEmpty;
@@ -364,7 +364,7 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
             child: Row(children: [
               DKAvatar(initials: PersonAvatar.initialsFor(p.userName)),
               const SizedBox(width: KinrelSpacing.md),
-              Expanded(child: Text(p.userId == _myId(state) ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textWhite))),
+              Expanded(child: Text(p.userId == _myId(state) ? '${p.userName} (You)' : p.userName, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textWhite))),
               Icon(submitted ? Icons.check_circle : Icons.hourglass_empty, size: 16, color: submitted ? KinrelColors.success : KinrelColors.textDim),
             ]),
           );
@@ -373,7 +373,7 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
         if (isHost && allWordsSubmitted)
           DKButton(label: 'Deal Chits & Start!', variant: DKButtonVariant.gradient, fullWidth: true, isLoading: state.isResolving, onPressed: _dealAndStart)
         else if (isHost)
-          Text('Waiting for all players to submit words...', textAlign: TextAlign.center, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim))
+          const Text('Waiting for all players to submit words...', textAlign: TextAlign.center, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim))
         else
           _waitingIndicator(),
       ],
@@ -383,9 +383,9 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
   String? _myId(ChitmatchState state) => ref.read(supabaseProvider)?.auth.currentUser?.id;
 
   Widget _waitingIndicator() => Container(padding: const EdgeInsets.all(KinrelSpacing.lg), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(KinrelRadius.lg), border: Border.all(color: KinrelColors.border)),
-    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+    child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
       SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange)),
-      const SizedBox(width: KinrelSpacing.sm),
+      SizedBox(width: KinrelSpacing.sm),
       Text('Waiting for host...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
     ]),
   );

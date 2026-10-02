@@ -9,6 +9,7 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/kinship/global_kinship_models.dart';
 import '../../../core/kinship/global_kinship_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../../shared/widgets/kinrel_skeleton.dart';
 
 /// Cross-Cultural Comparison Screen
 ///
@@ -113,9 +114,9 @@ class _CrossCulturalComparisonScreenState
                           padding: const EdgeInsets.all(KinrelSpacing.base),
                           children: List.generate(
                             6,
-                            (_) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: DKLoadingShimmer(
+                            (_) => const Padding(
+                              padding: EdgeInsets.only(bottom: 8),
+                              child: KinrelSkeletonBox(
                                 width: double.infinity,
                                 height: 90,
                                 radius: KinrelRadius.card,
@@ -151,7 +152,7 @@ class _CrossCulturalComparisonScreenState
             onTap: () => setState(() => _showKeyPicker = !_showKeyPicker),
             child: Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.compare_arrows_rounded,
                   size: 20,
                   color: DKColors.brandPurple,

@@ -64,6 +64,22 @@ class CodeCluesPlayerWire {
     this.leftAt,
   });
 
+  factory CodeCluesPlayerWire.fromJson(Map<String, dynamic> json) =>
+      CodeCluesPlayerWire(
+        id: (json['id'] ?? '') as String,
+        gameId: (json['gameId'] ?? '') as String,
+        userId: (json['userId'] ?? '') as String,
+        userName: (json['userName'] ?? 'Player') as String,
+        team: (json['team'] as num?)?.toInt() ?? 1,
+        isSpymaster: (json['isSpymaster'] as bool?) ?? false,
+        isReady: (json['isReady'] as bool?) ?? false,
+        joinedAt:
+            DateTime.tryParse(json['joinedAt'] ?? '') ?? DateTime.now(),
+        leftAt: json['leftAt'] != null
+            ? DateTime.tryParse(json['leftAt'] as String)
+            : null,
+      );
+
   final String id;
   final String gameId;
   final String userId;
@@ -95,22 +111,6 @@ class CodeCluesPlayerWire {
         joinedAt: joinedAt,
         leftAt: leftAt ?? this.leftAt,
       );
-
-  factory CodeCluesPlayerWire.fromJson(Map<String, dynamic> json) =>
-      CodeCluesPlayerWire(
-        id: (json['id'] ?? '') as String,
-        gameId: (json['gameId'] ?? '') as String,
-        userId: (json['userId'] ?? '') as String,
-        userName: (json['userName'] ?? 'Player') as String,
-        team: (json['team'] as num?)?.toInt() ?? 1,
-        isSpymaster: (json['isSpymaster'] as bool?) ?? false,
-        isReady: (json['isReady'] as bool?) ?? false,
-        joinedAt:
-            DateTime.tryParse(json['joinedAt'] ?? '') ?? DateTime.now(),
-        leftAt: json['leftAt'] != null
-            ? DateTime.tryParse(json['leftAt'] as String)
-            : null,
-      );
 }
 
 class CodeCluesGame {
@@ -136,37 +136,6 @@ class CodeCluesGame {
     this.clueSeconds = kCodeCluesDefaultClueSeconds,
     this.guessSeconds = kCodeCluesDefaultGuessSeconds,
   });
-
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final CodeCluesStatus status;
-  final int maxPlayers;
-  final DateTime createdAt;
-  final String? roomName;
-  final List<String> playerOrder;
-  final int currentTurnTeam;
-  final DateTime? turnEndsAt;
-  final CodeCluesBoardState? boardState;
-  final List<String> winnerUserIds;
-  final int? winningTeam;
-  final String? endReason;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final bool spectatorsEnabled;
-  final int clueSeconds;
-  final int guessSeconds;
-
-  bool get isWaiting => status == CodeCluesStatus.waiting;
-  bool get isInProgress => status == CodeCluesStatus.inProgress;
-  bool get isCompleted => status == CodeCluesStatus.completed;
-
-  int? get turnSecondsRemaining {
-    if (!isInProgress || turnEndsAt == null) return null;
-    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
-    return left < 0 ? 0 : left;
-  }
 
   factory CodeCluesGame.fromJson(Map<String, dynamic> json) {
     final order = <String>[];
@@ -218,5 +187,36 @@ class CodeCluesGame {
       guessSeconds: (json['guessSeconds'] as num?)?.toInt() ??
           kCodeCluesDefaultGuessSeconds,
     );
+  }
+
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final CodeCluesStatus status;
+  final int maxPlayers;
+  final DateTime createdAt;
+  final String? roomName;
+  final List<String> playerOrder;
+  final int currentTurnTeam;
+  final DateTime? turnEndsAt;
+  final CodeCluesBoardState? boardState;
+  final List<String> winnerUserIds;
+  final int? winningTeam;
+  final String? endReason;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final bool spectatorsEnabled;
+  final int clueSeconds;
+  final int guessSeconds;
+
+  bool get isWaiting => status == CodeCluesStatus.waiting;
+  bool get isInProgress => status == CodeCluesStatus.inProgress;
+  bool get isCompleted => status == CodeCluesStatus.completed;
+
+  int? get turnSecondsRemaining {
+    if (!isInProgress || turnEndsAt == null) return null;
+    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
+    return left < 0 ? 0 : left;
   }
 }

@@ -146,7 +146,7 @@ class _SecretHeistGameScreenState
           backgroundColor: KinrelColors.darkCard,
           foregroundColor: KinrelColors.textWhite,
         ),
-        body: Center(
+        body: const Center(
           child: GamingEmptyCard(
             emoji: '💰',
             title: 'Game not found',
@@ -180,7 +180,7 @@ class _SecretHeistGameScreenState
             icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
         title: Text(
           game.roomName?.isNotEmpty == true ? game.roomName! : 'Secret Heist',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
             color: KinrelColors.textWhite,
@@ -267,7 +267,7 @@ class _RoundInfo extends StatelessWidget {
       ),
       child: Text(
         'R$round/${game.totalRounds}',
-        style: TextStyle(
+        style: const TextStyle(
             fontFamily: KinrelTypography.monoFont,
             fontSize: 11,
             fontWeight: FontWeight.w700,
@@ -402,7 +402,7 @@ class _TopHud extends StatelessWidget {
         seconds <= 5 ? KinrelColors.error : KinrelColors.textWhite;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: KinrelColors.darkCard,
         border: Border(bottom: BorderSide(color: KinrelColors.border)),
       ),
@@ -413,7 +413,7 @@ class _TopHud extends StatelessWidget {
               children: [
                 Text(
                   'Round ${board.currentRoundNumber}/${board.totalRounds}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
@@ -429,7 +429,7 @@ class _TopHud extends StatelessWidget {
                       color: KinrelColors.error.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text('CHAOS',
+                    child: const Text('CHAOS',
                         style: TextStyle(
                             fontFamily: KinrelTypography.monoFont,
                             fontSize: 9,
@@ -493,7 +493,7 @@ class _VaultCard extends StatelessWidget {
               const Icon(Icons.account_balance_rounded,
                   size: 24, color: KinrelColors.brightGold),
               const SizedBox(width: 8),
-              Text('The Vault',
+              const Text('The Vault',
                   style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 14,
@@ -525,14 +525,14 @@ class _VaultCard extends StatelessWidget {
           Row(
             children: [
               Text('$vaultPct% remaining',
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
                       color: KinrelColors.textDim)),
               const Spacer(),
               Text(
                   '${board.vaultSize - board.vaultCoins} stolen',
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -583,7 +583,7 @@ class _ChoosingPhaseBanner extends StatelessWidget {
               allLocked
                   ? 'All players locked — resolving...'
                   : '$lockedCount / $playerCount players locked in',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -646,13 +646,13 @@ class _ActionSelectionCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('Your Coins: ',
+              const Text('Your Coins: ',
                   style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
                       color: KinrelColors.textDim)),
               Text('$coins',
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -660,7 +660,7 @@ class _ActionSelectionCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Text('Choose your action:',
+          const Text('Choose your action:',
               style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 14,
@@ -683,7 +683,7 @@ class _ActionSelectionCard extends StatelessWidget {
           if (selectedAction != null && selectedAction!.requiresAmount) ...[
             const SizedBox(height: 14),
             Text('Amount: $selectedAmount coins',
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -774,7 +774,7 @@ class _ActionChip extends StatelessWidget {
                       color: KinrelColors.error.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(3),
                     ),
-                    child: Text('CHAOS',
+                    child: const Text('CHAOS',
                         style: TextStyle(
                             fontFamily: KinrelTypography.monoFont,
                             fontSize: 8,
@@ -788,7 +788,7 @@ class _ActionChip extends StatelessWidget {
               action.description,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 10,
                   color: KinrelColors.textDim,
@@ -873,7 +873,7 @@ class _SubmittedCard extends StatelessWidget {
                     color: Color(action.accentArgb))),
             if (action.requiresAmount && myAction != null)
               Text('${myAction!.amount} coins',
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 12,
                       color: KinrelColors.textDim)),
@@ -881,7 +881,7 @@ class _SubmittedCard extends StatelessWidget {
           ],
           const Icon(Icons.lock_outline, color: KinrelColors.success, size: 24),
           const SizedBox(height: 6),
-          Text('Action locked in!',
+          const Text('Action locked in!',
               style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 15,
@@ -890,7 +890,7 @@ class _SubmittedCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
               'Waiting for other players... ($lockedCount/$playerCount locked)',
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim)),
@@ -912,7 +912,7 @@ class _SuspicionBoard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GamingSectionHeader(title: 'Players', icon: Icons.groups_2_outlined),
+        const GamingSectionHeader(title: 'Players', icon: Icons.groups_2_outlined),
         for (final p in sorted)
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
@@ -960,7 +960,7 @@ class _PlayerRow extends StatelessWidget {
                                 : KinrelColors.textWhite)),
                     if (isMe) ...[
                       const SizedBox(width: 6),
-                      Text('YOU',
+                      const Text('YOU',
                           style: TextStyle(
                               fontFamily: KinrelTypography.monoFont,
                               fontSize: 9,
@@ -973,7 +973,7 @@ class _PlayerRow extends StatelessWidget {
                 // Suspicion meter
                 Row(
                   children: [
-                    Text('Suspicion:',
+                    const Text('Suspicion:',
                         style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 10,
@@ -1001,7 +1001,7 @@ class _PlayerRow extends StatelessWidget {
             ),
           ),
           Text('${player.coins}',
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
@@ -1045,7 +1045,7 @@ class _RevealView extends StatelessWidget {
                   size: 22, color: KinrelColors.brightGold),
               const SizedBox(width: 8),
               Text('Round ${round.roundNumber} Results',
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -1115,7 +1115,7 @@ class _RevealView extends StatelessWidget {
           const SizedBox(height: 14),
           // Revealed actions (anonymous — only the action + outcome, not who)
           if (round.revealedActions.isNotEmpty) ...[
-            Text('Revealed Actions',
+            const Text('Revealed Actions',
                 style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 13,
@@ -1171,7 +1171,7 @@ class _MetricChip extends StatelessWidget {
                   color: color)),
           const SizedBox(height: 2),
           Text(label,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 9,
                   color: KinrelColors.textDim)),
@@ -1242,7 +1242,7 @@ class _RevealedActionRow extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(playerName,
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -1250,7 +1250,7 @@ class _RevealedActionRow extends StatelessWidget {
           ),
           if (action.amount != null && action.amount! > 0)
             Text('${action.amount}',
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 11,
                     color: KinrelColors.textDim)),
@@ -1326,14 +1326,14 @@ class _ResultsView extends StatelessWidget {
                   winnerName.isNotEmpty
                       ? '$winnerName wins!'
                       : 'Match Complete',
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
                       color: KinrelColors.brightGold),
                 ),
                 const SizedBox(height: 4),
-                Text('Most coins collected wins!',
+                const Text('Most coins collected wins!',
                     style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
@@ -1343,7 +1343,7 @@ class _ResultsView extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           if (board != null) ...[
-            GamingSectionHeader(
+            const GamingSectionHeader(
                 title: 'Final Standings', icon: Icons.leaderboard_outlined),
             for (final p in board.players
                 .toList()
@@ -1366,14 +1366,14 @@ class _ResultsView extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(p.name,
-                            style: TextStyle(
+                            style: const TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
                                 color: KinrelColors.textWhite)),
                       ),
                       Text('${p.coins} coins',
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontFamily: KinrelTypography.monoFont,
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
@@ -1384,7 +1384,7 @@ class _ResultsView extends StatelessWidget {
               ),
             const SizedBox(height: 18),
             // Match stats
-            GamingSectionHeader(
+            const GamingSectionHeader(
                 title: 'Match Stats', icon: Icons.insights_outlined),
             _StatRow(
                 label: 'Total stolen from vault',
@@ -1468,13 +1468,13 @@ class _StatRow extends StatelessWidget {
           children: [
             Expanded(
               child: Text(label,
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.textDim)),
             ),
             Text(value,
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,

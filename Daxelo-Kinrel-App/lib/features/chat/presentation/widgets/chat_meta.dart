@@ -190,8 +190,8 @@ class SendButton extends StatelessWidget {
           shape: BoxShape.circle,
           gradient: isActive
               ? KinrelGradients.igniteGradient
-              : LinearGradient(
-                  colors: [const Color(0xFF202338), const Color(0xFF202338)],
+              : const LinearGradient(
+                  colors: [Color(0xFF202338), Color(0xFF202338)],
                 ),
           boxShadow: isActive
               ? [
@@ -277,7 +277,7 @@ class AttachmentButton extends StatelessWidget {
             width: 0.75,
           ),
         ),
-        child: Icon(
+        child: const Icon(
           Icons.attach_file_rounded,
           size: 21,
           color: KinrelColors.textSilver,
@@ -308,7 +308,7 @@ class MicButton extends StatelessWidget {
           shape: BoxShape.circle,
           color: Colors.white.withValues(alpha: 0.06),
         ),
-        child: Icon(
+        child: const Icon(
           Icons.mic_rounded,
           size: 19,
           color: KinrelColors.textSilver,
@@ -384,7 +384,7 @@ class StickerPackButton extends StatelessWidget {
             width: 0.75,
           ),
         ),
-        child: Icon(
+        child: const Icon(
           Icons.emoji_emotions_outlined,
           size: 21,
           color: KinrelColors.textSilver,
@@ -418,7 +418,7 @@ class PollButton extends StatelessWidget {
             width: 0.75,
           ),
         ),
-        child: Icon(
+        child: const Icon(
           Icons.poll_rounded,
           size: 21,
           color: KinrelColors.textSilver,
@@ -512,7 +512,7 @@ class ReactionOverlay extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: Stack(
         children: [
-          SizedBox.expand(),
+          const SizedBox.expand(),
           Positioned(
             left: 0,
             right: 0,
@@ -550,9 +550,9 @@ class ReactionOverlay extends StatelessWidget {
                             width: 42,
                             height: 42,
                             margin: const EdgeInsets.symmetric(horizontal: 2),
-                            decoration: BoxDecoration(shape: BoxShape.circle),
+                            decoration: const BoxDecoration(shape: BoxShape.circle),
                             child: Center(
-                              child: Text(emoji, style: TextStyle(fontSize: 24)),
+                              child: Text(emoji, style: const TextStyle(fontSize: 24)),
                             ),
                           ),
                         );
@@ -564,11 +564,11 @@ class ReactionOverlay extends StatelessWidget {
                             width: 42,
                             height: 42,
                             margin: const EdgeInsets.symmetric(horizontal: 2),
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               shape: BoxShape.circle,
                               color: KinrelColors.darkElevated,
                             ),
-                            child: Center(
+                            child: const Center(
                               child: Icon(
                                 Icons.add,
                                 color: KinrelColors.textSilver,
@@ -655,7 +655,7 @@ class SwipeToReply extends StatelessWidget {
             shape: BoxShape.circle,
             color: KinrelColors.ember.withValues(alpha: 0.15),
           ),
-          child: Icon(
+          child: const Icon(
             Icons.reply_rounded,
             size: 22,
             color: KinrelColors.ember,

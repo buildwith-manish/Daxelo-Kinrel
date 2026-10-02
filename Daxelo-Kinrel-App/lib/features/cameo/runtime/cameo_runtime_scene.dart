@@ -45,7 +45,7 @@ enum CameoSceneState {
 /// One scene = one character in one surface (Studio, Profile, etc.).
 /// For family compositions (2+ characters), multiple scenes are created.
 class CameoRuntimeScene {
-  CameoRuntimeScene({required CameoRenderer renderer}) : _renderer = renderer;
+  CameoRuntimeScene({required this._renderer});
 
   final CameoRenderer _renderer;
   CameoAnimationController? _animationController;

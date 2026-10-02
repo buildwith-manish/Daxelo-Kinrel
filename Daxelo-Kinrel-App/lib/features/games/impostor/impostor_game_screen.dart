@@ -53,7 +53,11 @@ class _ImpostorGameScreenState extends ConsumerState<ImpostorGameScreen> {
     final shouldLeave = await LeaveGameDialog.show(context, isHost: state.game?.hostUserId == myId && state.game?.isWaiting == true, gameName: 'Who\'s the Impostor?');
     if (shouldLeave == true) {
       await ref.read(impostorProvider(widget.familyId).notifier).leaveGame();
-      if (mounted) { if (context.canPop()) context.pop(); else context.go('/family/${widget.familyId}'); }
+      if (mounted) { if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/family/${widget.familyId}');
+      } }
     }
   }
 
@@ -62,13 +66,17 @@ class _ImpostorGameScreenState extends ConsumerState<ImpostorGameScreen> {
     final game = state.game;
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     if (state.isLoading && game == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave), title: const Text('Who\'s the Impostor?'), backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite), body: const Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
-    if (game == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.go('/family/${widget.familyId}')), title: const Text('Who\'s the Impostor?'), backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite), body: Center(child: GamingEmptyCard(emoji: '🕵️', title: 'Game not found', message: 'This game may have ended or been cancelled.')));
+    if (game == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.go('/family/${widget.familyId}')), title: const Text('Who\'s the Impostor?'), backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite), body: const Center(child: GamingEmptyCard(emoji: '🕵️', title: 'Game not found', message: 'This game may have ended or been cancelled.')));
     return DKScaffold(backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
-        title: Text(game.roomName?.isNotEmpty == true ? game.roomName! : 'Who\'s the Impostor?', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: Text(game.roomName?.isNotEmpty == true ? game.roomName! : 'Who\'s the Impostor?', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [if (game.isInProgress) Padding(padding: const EdgeInsets.only(right: 14), child: Center(child: _RoundIndicator(game: game))), if (game.hostUserId == ref.read(supabaseProvider)?.auth.currentUser?.id && game.isInProgress) IconButton(tooltip: 'Leave game', icon: const Icon(Icons.logout, size: 20), onPressed: _confirmLeave)]),
-      body: game.isCompleted ? _ResultsView(game: game, familyId: widget.familyId, players: state.players, isHost: game.hostUserId == myId, onRematch: () => ref.read(impostorProvider(widget.familyId).notifier).rematch(), onExit: () { if (context.canPop()) context.pop(); else context.go('/family/${widget.familyId}'); })
+      body: game.isCompleted ? _ResultsView(game: game, familyId: widget.familyId, players: state.players, isHost: game.hostUserId == myId, onRematch: () => ref.read(impostorProvider(widget.familyId).notifier).rematch(), onExit: () { if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/family/${widget.familyId}');
+      } })
         : _GameView(state: state, familyId: widget.familyId, onSubmitClue: (clue) => ref.read(impostorProvider(widget.familyId).notifier).submitClue(clue), onSubmitVote: (idx) => ref.read(impostorProvider(widget.familyId).notifier).submitVote(idx), onAdvance: () => ref.read(impostorProvider(widget.familyId).notifier).advancePhase()));
   }
 }
@@ -79,7 +87,7 @@ class _RoundIndicator extends StatelessWidget {
     final board = game.boardState;
     final current = board?.currentRoundNumber ?? 1;
     return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: KinrelColors.purple.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
-      child: Text('R$current/${game.totalRounds}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.purple)));
+      child: Text('R$current/${game.totalRounds}', style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.purple)));
   }
 }
 
@@ -136,7 +144,7 @@ class _PhaseBanner extends StatelessWidget {
       child: Row(children: [
         Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color, blurRadius: 6)])),
         const SizedBox(width: 10),
-        Expanded(child: Text(phaseLabel, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
+        Expanded(child: Text(phaseLabel, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
       ]));
   }
 }
@@ -152,23 +160,25 @@ class _RoleRevealCardState extends State<_RoleRevealCard> {
   @override Widget build(BuildContext context) {
     if (widget.myPlayerIndex < 0) return const SizedBox.shrink();
     final isImpostor = widget.myPlayerIndex == widget.round.impostorIndex;
-    if (!_revealed) return GestureDetector(onTap: () => setState(() => _revealed = true),
+    if (!_revealed) {
+      return GestureDetector(onTap: () => setState(() => _revealed = true),
       child: Container(padding: const EdgeInsets.all(28), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(20), border: Border.all(color: KinrelColors.purple.withValues(alpha: 0.3))),
-        child: Column(children: [
-          const Text('🎭', style: TextStyle(fontSize: 48)),
-          const SizedBox(height: 12),
+        child: const Column(children: [
+          Text('🎭', style: TextStyle(fontSize: 48)),
+          SizedBox(height: 12),
           Text('Tap to reveal your role', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text('Make sure no one else is looking!', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
         ])));
+    }
     return Container(padding: const EdgeInsets.all(28), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(20), border: Border.all(color: isImpostor ? KinrelColors.error.withValues(alpha: 0.4) : KinrelColors.success.withValues(alpha: 0.4))),
       child: Column(children: [
         Text(isImpostor ? '🕵️' : '🛡️', style: const TextStyle(fontSize: 48)),
         const SizedBox(height: 12),
         Text(isImpostor ? 'You are the IMPOSTOR!' : 'You are CREW', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w800, color: isImpostor ? KinrelColors.error : KinrelColors.success)),
         const SizedBox(height: 8),
-        if (isImpostor) Text('You don\'t know the secret word. Blend in with a convincing clue!', textAlign: TextAlign.center, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textSilver))
-        else Text('Secret Word: ${widget.round.word}', textAlign: TextAlign.center, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 22, fontWeight: FontWeight.w800, color: KinrelColors.brightGold)),
+        if (isImpostor) const Text('You don\'t know the secret word. Blend in with a convincing clue!', textAlign: TextAlign.center, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textSilver))
+        else Text('Secret Word: ${widget.round.word}', textAlign: TextAlign.center, style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 22, fontWeight: FontWeight.w800, color: KinrelColors.brightGold)),
         const SizedBox(height: 16),
         DKButton(label: 'Got it!', variant: DKButtonVariant.primary, fullWidth: true, onPressed: widget.onReady),
       ]));
@@ -193,14 +203,14 @@ class _CluePhaseViewState extends ConsumerState<_CluePhaseView> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       // Submitted clues
       if (round.clues.isNotEmpty) ...[
-        GamingSectionHeader(title: 'Clues So Far', icon: Icons.chat_bubble_outline),
+        const GamingSectionHeader(title: 'Clues So Far', icon: Icons.chat_bubble_outline),
         for (final clue in round.clues) Padding(padding: const EdgeInsets.only(bottom: 6),
           child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12)),
             child: Row(children: [
               Container(width: 28, height: 28, decoration: BoxDecoration(shape: BoxShape.circle, color: KinrelColors.orange.withValues(alpha: 0.2)),
-                child: Center(child: Text(_playerAtBoardIndex(widget.players, widget.game.playerOrder, clue.playerIndex).userName.isNotEmpty ? _playerAtBoardIndex(widget.players, widget.game.playerOrder, clue.playerIndex).userName[0].toUpperCase() : '?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.orange)))),
+                child: Center(child: Text(_playerAtBoardIndex(widget.players, widget.game.playerOrder, clue.playerIndex).userName.isNotEmpty ? _playerAtBoardIndex(widget.players, widget.game.playerOrder, clue.playerIndex).userName[0].toUpperCase() : '?', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.orange)))),
               const SizedBox(width: 8),
-              Expanded(child: Text(clue.text, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
+              Expanded(child: Text(clue.text, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
             ]))),
         const SizedBox(height: 12),
       ],
@@ -208,20 +218,20 @@ class _CluePhaseViewState extends ConsumerState<_CluePhaseView> {
       if (widget.isMyTurn && !_submitted) ...[
         Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: KinrelColors.orange.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(16), border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3))),
           child: Column(children: [
-            Text('Your turn — give a one-word clue!', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.orange)),
+            const Text('Your turn — give a one-word clue!', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.orange)),
             const SizedBox(height: 10),
-            TextField(controller: _controller, maxLength: 50, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 16, color: KinrelColors.textWhite),
+            TextField(controller: _controller, maxLength: 50, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 16, color: KinrelColors.textWhite),
               decoration: InputDecoration(counterText: '', hintText: 'One word...', filled: true, fillColor: KinrelColors.darkCard,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: KinrelColors.border)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: KinrelColors.border)),
                 focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: KinrelColors.orange, width: 1.4)))),
             const SizedBox(height: 10),
             DKButton(label: 'Submit Clue', variant: DKButtonVariant.primary, fullWidth: true, onPressed: () { if (_controller.text.trim().isNotEmpty) { widget.onSubmitClue(_controller.text); setState(() => _submitted = true); } }),
           ])),
       ] else if (!_submitted) ...[
-        Center(child: Padding(padding: const EdgeInsets.all(20), child: Text('Waiting for ${_playerAtBoardIndex(widget.players, widget.game.playerOrder, round.currentCluePlayerIndex).userName}...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)))),
+        Center(child: Padding(padding: const EdgeInsets.all(20), child: Text('Waiting for ${_playerAtBoardIndex(widget.players, widget.game.playerOrder, round.currentCluePlayerIndex).userName}...', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)))),
       ] else ...[
-        Center(child: Padding(padding: const EdgeInsets.all(20), child: Text('Clue submitted! Waiting for others...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)))),
+        const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('Clue submitted! Waiting for others...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)))),
       ],
     ]);
   }
@@ -257,9 +267,9 @@ class _VotingPhaseViewState extends ConsumerState<_VotingPhaseView> {
               child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: _selectedTarget == entry.key ? KinrelColors.error.withValues(alpha: 0.12) : KinrelColors.darkCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: _selectedTarget == entry.key ? KinrelColors.error.withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.05))),
                 child: Row(children: [
                   Container(width: 32, height: 32, decoration: BoxDecoration(shape: BoxShape.circle, color: KinrelColors.orange.withValues(alpha: 0.2)),
-                    child: Center(child: Text(entry.value.userName.isNotEmpty ? entry.value.userName[0].toUpperCase() : '?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: KinrelColors.orange)))),
+                    child: Center(child: Text(entry.value.userName.isNotEmpty ? entry.value.userName[0].toUpperCase() : '?', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: KinrelColors.orange)))),
                   const SizedBox(width: 10),
-                  Expanded(child: Text(entry.value.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
+                  Expanded(child: Text(entry.value.userName, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
                   if (_selectedTarget == entry.key) const Icon(Icons.check_circle, color: KinrelColors.error, size: 20),
                 ])))),
         const SizedBox(height: 12),
@@ -268,7 +278,7 @@ class _VotingPhaseViewState extends ConsumerState<_VotingPhaseView> {
         Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
           const Text('🗳️', style: TextStyle(fontSize: 40)),
           const SizedBox(height: 8),
-          Text('Vote submitted! Waiting for ${widget.game.playerOrder.length - round.votes.length} more...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)),
+          Text('Vote submitted! Waiting for ${widget.game.playerOrder.length - round.votes.length} more...', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)),
         ]))),
       ],
     ]);
@@ -299,27 +309,27 @@ class _RoundResultView extends StatelessWidget {
           Text(winnerLabel, textAlign: TextAlign.center, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w800, color: winnerColor)),
           const SizedBox(height: 12),
           Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), decoration: BoxDecoration(color: KinrelColors.brightGold.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
-            child: Text('Secret Word: ${round.word}', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w800, color: KinrelColors.brightGold))),
+            child: Text('Secret Word: ${round.word}', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w800, color: KinrelColors.brightGold))),
           const SizedBox(height: 8),
-          Text('Impostor was: ${_playerAtBoardIndex(players, playerOrder, round.impostorIndex).userName}', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textSilver)),
+          Text('Impostor was: ${_playerAtBoardIndex(players, playerOrder, round.impostorIndex).userName}', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textSilver)),
         ])),
       const SizedBox(height: 16),
       // Vote distribution
-      GamingSectionHeader(title: 'Vote Distribution', icon: Icons.bar_chart_outlined),
+      const GamingSectionHeader(title: 'Vote Distribution', icon: Icons.bar_chart_outlined),
       for (final entry in voteCounts.entries.toList()..sort((a, b) => b.value.compareTo(a.value)))
         Padding(padding: const EdgeInsets.only(bottom: 4),
           child: Row(children: [
-            Expanded(child: Text(_playerAtBoardIndex(players, playerOrder, entry.key).userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
+            Expanded(child: Text(_playerAtBoardIndex(players, playerOrder, entry.key).userName, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
             Text('${entry.value} ${entry.value == 1 ? "vote" : "votes"}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: entry.key == round.impostorIndex ? KinrelColors.error : KinrelColors.textDim)),
           ])),
       const SizedBox(height: 16),
       // Scores
-      GamingSectionHeader(title: 'Scores', icon: Icons.leaderboard_outlined),
+      const GamingSectionHeader(title: 'Scores', icon: Icons.leaderboard_outlined),
       for (final entry in scores.entries.toList()..sort((a, b) => b.value.compareTo(a.value)))
         Padding(padding: const EdgeInsets.only(bottom: 4),
           child: Row(children: [
-            Expanded(child: Text(_playerAtBoardIndex(players, playerOrder, entry.key).userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
-            Text('${entry.value} pts', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.orange)),
+            Expanded(child: Text(_playerAtBoardIndex(players, playerOrder, entry.key).userName, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
+            Text('${entry.value} pts', style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.orange)),
           ])),
       const SizedBox(height: 20),
       DKButton(label: isLastRound ? 'See Final Results' : 'Next Round →', variant: DKButtonVariant.primary, fullWidth: true, onPressed: onNext),
@@ -341,19 +351,19 @@ class _ResultsView extends StatelessWidget {
           child: Column(children: [
             const KinrelIcon(KinrelIconData.trophy, size: 40, color: KinrelColors.brightGold),
             const SizedBox(height: 8),
-            Text(winnerName.isNotEmpty ? '$winnerName wins!' : 'Match Complete', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 20, fontWeight: FontWeight.w800, color: KinrelColors.brightGold)),
+            Text(winnerName.isNotEmpty ? '$winnerName wins!' : 'Match Complete', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 20, fontWeight: FontWeight.w800, color: KinrelColors.brightGold)),
           ])),
         const SizedBox(height: 18),
         if (board != null) ...[
-          GamingSectionHeader(title: 'Final Scores', icon: Icons.leaderboard_outlined),
+          const GamingSectionHeader(title: 'Final Scores', icon: Icons.leaderboard_outlined),
           for (final entry in board.scores.entries.toList()..sort((a, b) => b.value.compareTo(a.value)))
             Padding(padding: const EdgeInsets.only(bottom: 6),
               child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(14)),
                 child: Row(children: [
                   Text(entry.value == board.scores.values.reduce(math.max) ? '🥇' : '🏅', style: const TextStyle(fontSize: 18)),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(_playerAtBoardIndex(players, game.playerOrder, entry.key).userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
-                  Text('${entry.value} pts', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 14, fontWeight: FontWeight.w800, color: KinrelColors.orange)),
+                  Expanded(child: Text(_playerAtBoardIndex(players, game.playerOrder, entry.key).userName, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
+                  Text('${entry.value} pts', style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 14, fontWeight: FontWeight.w800, color: KinrelColors.orange)),
                 ]))),
           const SizedBox(height: 18),
         ],

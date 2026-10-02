@@ -137,13 +137,13 @@ class _MessageInfoSheetState extends ConsumerState<MessageInfoSheet>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.error_outline,
+                const Icon(Icons.error_outline,
                     size: 40, color: KinrelColors.error),
                 const SizedBox(height: 10),
                 Text(
                   _error!,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: KinrelColors.textDim, fontSize: 13),
+                  style: const TextStyle(color: KinrelColors.textDim, fontSize: 13),
                 ),
               ],
             ),
@@ -170,13 +170,13 @@ class _MessageInfoSheetState extends ConsumerState<MessageInfoSheet>
           ),
         ),
         // Title
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
           child: Row(
             children: [
               Icon(Icons.info_outline_rounded,
                   size: 20, color: KinrelColors.ember),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Text(
                 'Message info',
                 style: TextStyle(
@@ -196,12 +196,12 @@ class _MessageInfoSheetState extends ConsumerState<MessageInfoSheet>
           unselectedLabelColor: KinrelColors.textDim,
           indicatorColor: KinrelColors.ember,
           indicatorSize: TabBarIndicatorSize.label,
-          labelStyle: TextStyle(
+          labelStyle: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
-          unselectedLabelStyle: TextStyle(
+          unselectedLabelStyle: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: FontWeight.w500,
@@ -245,7 +245,7 @@ class _MessageInfoSheetState extends ConsumerState<MessageInfoSheet>
                 kind == 'delivered'
                     ? 'No one to deliver to yet'
                     : 'Not read by anyone yet',
-                style: TextStyle(color: KinrelColors.textDim, fontSize: 13),
+                style: const TextStyle(color: KinrelColors.textDim, fontSize: 13),
               ),
             ],
           ),
@@ -285,7 +285,7 @@ class _MessageInfoSheetState extends ConsumerState<MessageInfoSheet>
             child: avatarUrl == null || avatarUrl.isEmpty
                 ? Text(
                     _initials(name),
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: KinrelColors.ember,
@@ -303,7 +303,7 @@ class _MessageInfoSheetState extends ConsumerState<MessageInfoSheet>
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -313,7 +313,7 @@ class _MessageInfoSheetState extends ConsumerState<MessageInfoSheet>
                 if (readAtDt != null)
                   Text(
                     _formatReadAt(readAtDt),
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 11,
                       color: KinrelColors.textDim,

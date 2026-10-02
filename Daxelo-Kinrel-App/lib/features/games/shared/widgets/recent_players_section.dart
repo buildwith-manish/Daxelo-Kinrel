@@ -167,10 +167,10 @@ class _RecentPlayersSectionState extends ConsumerState<RecentPlayersSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.history, color: KinrelColors.orange, size: 14),
-              const SizedBox(width: 6),
+              Icon(Icons.history, color: KinrelColors.orange, size: 14),
+              SizedBox(width: 6),
               Text(
                 'RECENTLY PLAYED WITH',
                 style: TextStyle(
@@ -239,7 +239,7 @@ class _RecentPlayersSectionState extends ConsumerState<RecentPlayersSection> {
             child: Center(
               child: Text(
                 u.initials,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
@@ -254,7 +254,7 @@ class _RecentPlayersSectionState extends ConsumerState<RecentPlayersSection> {
               u.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,

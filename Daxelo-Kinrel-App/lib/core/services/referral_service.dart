@@ -22,7 +22,7 @@ class ReferralService {
   /// and caches the result. Returns a generated fallback if the backend
   /// is unreachable (NestJS currently rejects Supabase JWTs).
   static Future<String> getCode(Dio dio) async {
-    final storage = FlutterSecureStorage();
+    final storage = const FlutterSecureStorage();
 
     // Try cache first
     final cached = await storage.read(key: _codeKey);
@@ -56,7 +56,7 @@ class ReferralService {
 
   /// Clear the cached referral code (e.g. on logout).
   static Future<void> clearCache() async {
-    final storage = FlutterSecureStorage();
+    final storage = const FlutterSecureStorage();
     await storage.delete(key: _codeKey);
   }
 }

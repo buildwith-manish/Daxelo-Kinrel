@@ -174,7 +174,7 @@ class _CodeCluesGameScreenState extends ConsumerState<CodeCluesGameScreen> {
           backgroundColor: KinrelColors.darkCard,
           foregroundColor: KinrelColors.textWhite,
         ),
-        body: Center(
+        body: const Center(
           child: GamingEmptyCard(
             emoji: '🔐',
             title: 'Game not found',
@@ -191,7 +191,7 @@ class _CodeCluesGameScreenState extends ConsumerState<CodeCluesGameScreen> {
             icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
         title: Text(
           game.roomName?.isNotEmpty == true ? game.roomName! : 'Code Clues',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
             color: KinrelColors.textWhite,
@@ -387,7 +387,7 @@ class _TopHud extends StatelessWidget {
             : 'Finished';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: KinrelColors.darkCard,
         border: Border(bottom: BorderSide(color: KinrelColors.border)),
       ),
@@ -451,7 +451,7 @@ class _ClueBanner extends StatelessWidget {
           Expanded(
             child: RichText(
               text: TextSpan(
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   color: KinrelColors.textSilver,
@@ -694,11 +694,11 @@ class _ActionPanel extends StatelessWidget {
           borderRadius: BorderRadius.circular(KinrelRadius.md),
           border: Border.all(color: KinrelColors.border),
         ),
-        child: Row(
+        child: const Row(
           children: [
-            const Icon(Icons.visibility_outlined,
+            Icon(Icons.visibility_outlined,
                 size: 18, color: KinrelColors.textDim),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
               child: Text(
                 'You\'re spectating. Watch the spymasters battle it out!',
@@ -730,7 +730,7 @@ class _ActionPanel extends StatelessWidget {
     if (board.phase == CodeCluesPhase.guessing &&
         isSpymaster &&
         myTeam == board.currentTurnTeam) {
-      return _WaitingCard(
+      return const _WaitingCard(
         label: 'Field agents are guessing...',
         icon: Icons.hourglass_top_outlined,
       );
@@ -757,7 +757,7 @@ class _ActionPanel extends StatelessWidget {
                 Icon(Icons.touch_app_outlined,
                     size: 16, color: _teamColor(board.currentTurnTeam)),
                 const SizedBox(width: 8),
-                Expanded(
+                const Expanded(
                   child: Text(
                     'Tap a word to guess it. Find your team\'s words!',
                     style: TextStyle(
@@ -820,11 +820,11 @@ class _ClueInputCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.lightbulb_outlined,
+              Icon(Icons.lightbulb_outlined,
                   size: 16, color: KinrelColors.amber),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text('Give your clue',
                   style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
@@ -838,7 +838,7 @@ class _ClueInputCard extends StatelessWidget {
             controller: controller,
             maxLength: kCodeCluesMaxClueLength,
             textCapitalization: TextCapitalization.characters,
-            style: TextStyle(
+            style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
@@ -857,7 +857,7 @@ class _ClueInputCard extends StatelessWidget {
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
-                borderSide: BorderSide(color: KinrelColors.border),
+                borderSide: const BorderSide(color: KinrelColors.border),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
@@ -868,7 +868,7 @@ class _ClueInputCard extends StatelessWidget {
             onSubmitted: (_) => onSubmit(),
           ),
           const SizedBox(height: 10),
-          Text('Number of related words (0–9)',
+          const Text('Number of related words (0–9)',
               style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
@@ -968,7 +968,7 @@ class _WaitingCard extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(label,
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     color: KinrelColors.textDim)),
@@ -1047,14 +1047,14 @@ class _TeamProgressColumn extends StatelessWidget {
                 color: color)),
         const SizedBox(height: 4),
         Text('$found / $total',
-            style: TextStyle(
+            style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
                 color: KinrelColors.textWhite)),
         const SizedBox(height: 4),
         Text(remaining == 0 ? 'COMPLETE' : '$remaining left',
-            style: TextStyle(
+            style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 10,
                 color: KinrelColors.textDim)),
@@ -1083,11 +1083,11 @@ class _GameLog extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.receipt_long_outlined,
+              Icon(Icons.receipt_long_outlined,
                   size: 14, color: KinrelColors.textDim),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text('LOG',
                   style: TextStyle(
                       fontFamily: KinrelTypography.monoFont,
@@ -1261,7 +1261,7 @@ class _ResultsView extends StatelessWidget {
                           ? 'The other team left the game.'
                           : 'All agents found!',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.textSilver),
@@ -1271,7 +1271,7 @@ class _ResultsView extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           if (board != null) ...[
-            GamingSectionHeader(
+            const GamingSectionHeader(
                 title: 'Final Grid', icon: Icons.grid_on_outlined),
             Container(
               padding: const EdgeInsets.all(8),
@@ -1289,11 +1289,11 @@ class _ResultsView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
-            GamingSectionHeader(
+            const GamingSectionHeader(
                 title: 'Winning Team', icon: Icons.people_alt_outlined),
             if (winnerPlayers.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
                 child: Text('No active players on the winning team.',
                     style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -1321,7 +1321,7 @@ class _ResultsView extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(p.userName,
-                              style: TextStyle(
+                              style: const TextStyle(
                                   fontFamily: KinrelTypography.bodyFont,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,

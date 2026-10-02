@@ -96,13 +96,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
               padding: const EdgeInsets.only(top: 8, right: 8),
               child: TextButton(
                 onPressed: _onSkip,
-                child: Text(
+                child: const Text(
                   'Skip',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
-                    color: const Color(0xFFC9B4A8),
+                    color: Color(0xFFC9B4A8),
                   ),
                 ),
               ),
@@ -141,9 +141,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
               SmoothPageIndicator(
                 controller: _pageController,
                 count: _onboardingPageCount,
-                effect: ScrollingDotsEffect(
+                effect: const ScrollingDotsEffect(
                   activeDotColor: KinrelColors.orange,
-                  dotColor: const Color(0xFF202338),
+                  dotColor: Color(0xFF202338),
                   dotHeight: 8,
                   dotWidth: 8,
                   activeDotScale: 1.4,

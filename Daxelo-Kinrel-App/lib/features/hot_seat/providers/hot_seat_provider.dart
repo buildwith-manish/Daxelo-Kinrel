@@ -6,6 +6,10 @@ import '../../../core/services/supabase_service.dart';
 
 class HotSeatQuestion {
   const HotSeatQuestion({required this.id, required this.askerId, required this.askerName, required this.question, this.answer, required this.createdAt});
+  factory HotSeatQuestion.fromJson(Map<String, dynamic> json) => HotSeatQuestion(
+    id: json['id'] ?? '', askerId: json['askerId'] ?? '', askerName: json['askerName'] ?? 'Member',
+    question: json['question'] ?? '', answer: json['answer'] as String?, createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
+  );
   final String id;
   final String askerId;
   final String askerName;
@@ -15,10 +19,6 @@ class HotSeatQuestion {
 
   HotSeatQuestion copyWith({String? answer}) =>
     HotSeatQuestion(id: id, askerId: askerId, askerName: askerName, question: question, answer: answer ?? this.answer, createdAt: createdAt);
-  factory HotSeatQuestion.fromJson(Map<String, dynamic> json) => HotSeatQuestion(
-    id: json['id'] ?? '', askerId: json['askerId'] ?? '', askerName: json['askerName'] ?? 'Member',
-    question: json['question'] ?? '', answer: json['answer'] as String?, createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
-  );
 }
 
 class HotSeatState {
@@ -55,7 +55,7 @@ class HotSeatNotifier extends StateNotifier<HotSeatState> {
       final today = DateTime.now();
       final todayStr = '${today.year}-${today.month.toString().padLeft(2,'0')}-${today.day.toString().padLeft(2,'0')}';
 
-      var dailyResp = await client.from('hot_seat_daily').select().eq('familyId', familyId).eq('assignedDate', todayStr).limit(1);
+      final dailyResp = await client.from('hot_seat_daily').select().eq('familyId', familyId).eq('assignedDate', todayStr).limit(1);
       Map<String, dynamic>? dailyRow;
       if (dailyResp.isNotEmpty) {
         dailyRow = dailyResp.first;
@@ -82,7 +82,7 @@ class HotSeatNotifier extends StateNotifier<HotSeatState> {
       // was a per-question sequential fetch (N round-trips for N
       // questions). Now: 1 query, mapped back to questions client-side.
       final questionIds = questionsResp
-          .map((q) => (q as Map<String, dynamic>)['id'] as String?)
+          .map((q) => (q)['id'] as String?)
           .where((id) => id != null && id.isNotEmpty)
           .toList();
 
@@ -94,7 +94,7 @@ class HotSeatNotifier extends StateNotifier<HotSeatState> {
               .select('questionId, answer')
               .inFilter('questionId', questionIds);
           for (final a in answersResp) {
-            final aMap = a as Map<String, dynamic>;
+            final aMap = a;
             final qId = aMap['questionId'] as String?;
             final answer = aMap['answer'] as String?;
             if (qId != null && answer != null) {
@@ -106,7 +106,7 @@ class HotSeatNotifier extends StateNotifier<HotSeatState> {
 
       final questions = <HotSeatQuestion>[];
       for (final q in questionsResp) {
-        final qMap = q as Map<String, dynamic>;
+        final qMap = q;
         final qId = qMap['id'] as String?;
         final answer = qId != null ? answersByQuestionId[qId] : null;
         questions.add(HotSeatQuestion.fromJson(qMap).copyWith(answer: answer));

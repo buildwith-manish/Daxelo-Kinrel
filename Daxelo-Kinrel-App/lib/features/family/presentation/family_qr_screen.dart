@@ -157,9 +157,9 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
           icon: const Icon(Icons.arrow_back, color: _textPrimary),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
-        title: Text(
+        title: const Text(
           'Family QR Code',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 20,
             fontWeight: FontWeight.w700,
@@ -169,7 +169,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
         actions: [
           // Refresh QR / re-fetch Family ID
           IconButton(
-            icon: Icon(Icons.refresh_rounded, color: _textSecondary, size: 22),
+            icon: const Icon(Icons.refresh_rounded, color: _textSecondary, size: 22),
             tooltip: 'Refresh',
             onPressed: _fetchFamilyId,
           ),
@@ -213,7 +213,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                     children: [
                       Text(
                         _revealedKinId,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
@@ -233,7 +233,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                 ),
               )
             else if (_isLoadingId)
-              SizedBox(
+              const SizedBox(
                 height: 40,
                 child: Center(
                   child: SizedBox(
@@ -259,11 +259,11 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.refresh, color: KinrelColors.error, size: 16),
+                      const Icon(Icons.refresh, color: KinrelColors.error, size: 16),
                       const SizedBox(width: 6),
                       Text(
                         _fetchError!,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 13,
                           color: KinrelColors.error,
@@ -298,11 +298,11 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                     version: QrVersions.auto,
                     size: 200,
                     backgroundColor: Colors.white,
-                    eyeStyle: QrEyeStyle(
+                    eyeStyle: const QrEyeStyle(
                       eyeShape: QrEyeShape.circle,
                       color: Color(0xFF131416),
                     ),
-                    dataModuleStyle: QrDataModuleStyle(
+                    dataModuleStyle: const QrDataModuleStyle(
                       dataModuleShape: QrDataModuleShape.circle,
                       color: Color(0xFF131416),
                     ),
@@ -311,7 +311,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                         width: 200,
                         height: 200,
                         color: Colors.white,
-                        child: Center(
+                        child: const Center(
                           child: Text(
                             'QR Error',
                             style: TextStyle(color: KinrelColors.error),
@@ -325,8 +325,8 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                 .animate(onPlay: (c) => c.forward())
                 .fadeIn(duration: 500.ms)
                 .scale(
-                  begin: Offset(0.9, 0.9),
-                  end: Offset(1.0, 1.0),
+                  begin: const Offset(0.9, 0.9),
+                  end: const Offset(1.0, 1.0),
                   duration: 400.ms,
                   curve: Curves.easeOutBack,
                 )
@@ -341,7 +341,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                 ),
                 child: Center(
                   child: _isLoadingId
-                      ? CircularProgressIndicator(
+                      ? const CircularProgressIndicator(
                           strokeWidth: 2,
                           valueColor: AlwaysStoppedAnimation<Color>(_orange),
                         )
@@ -362,7 +362,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                 child: Text(
                   'Scan this QR code to join the $familyName family',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     color: _textDim,
@@ -418,7 +418,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                     child: _buildChannelButton(
                       icon: Icons.chat_bubble_rounded,
                       label: 'WhatsApp',
-                      color: Color(0xFF25D366),
+                      color: const Color(0xFF25D366),
                       onPressed: () => _shareViaWhatsApp(_kinFamilyId!, familyName),
                     ),
                   ),
@@ -427,7 +427,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                     child: _buildChannelButton(
                       icon: Icons.sms_rounded,
                       label: 'SMS',
-                      color: Color(0xFF4CAF7A),
+                      color: const Color(0xFF4CAF7A),
                       onPressed: () => _shareViaSMS(_kinFamilyId!, familyName),
                     ),
                   ),
@@ -436,7 +436,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                     child: _buildChannelButton(
                       icon: Icons.download_rounded,
                       label: 'Save QR',
-                      color: Color(0xFFF59240),
+                      color: const Color(0xFFF59240),
                       onPressed: _saveQRCode,
                     ),
                   ),
@@ -511,10 +511,10 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              const Row(
                 children: [
                   Icon(Icons.analytics_outlined, color: _orange, size: 18),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(
                     'Invite Analytics',
                     style: TextStyle(
@@ -552,7 +552,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                       ),
                       child: Text(
                         '$label: ${entry.value}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 11,
                           color: _textSecondary,
@@ -590,11 +590,11 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
       ),
       child: Row(
         children: [
-          Icon(Icons.trending_up_rounded, color: _orange, size: 16),
+          const Icon(Icons.trending_up_rounded, color: _orange, size: 16),
           const SizedBox(width: 8),
           Text(
             'Conversion rate: $rate%',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
               fontWeight: FontWeight.w500,
@@ -640,9 +640,9 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.people_outline, color: _orange, size: 18),
+                  const Icon(Icons.people_outline, color: _orange, size: 18),
                   const SizedBox(width: 8),
-                  Text(
+                  const Text(
                     'Recent Invites',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -654,7 +654,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                   const Spacer(),
                   Text(
                     '${invitees.length} sent',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
                       color: _textDim,
@@ -698,7 +698,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
               shape: BoxShape.circle,
               color: _orange.withValues(alpha: 0.1),
             ),
-            child: Icon(Icons.person_outline, size: 16, color: _orange),
+            child: const Icon(Icons.person_outline, size: 16, color: _orange),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -707,7 +707,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
               children: [
                 Text(
                   invite.channelLabel,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     color: _textPrimary,
@@ -715,7 +715,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                 ),
                 Text(
                   _formatTimeAgo(invite.sentAt),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,
                     color: _textDim,
@@ -776,7 +776,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
         const SizedBox(height: 2),
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 11,
             color: _textDim,
@@ -814,8 +814,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
     );
 
     final url = 'https://kinrel.app/join/$kinFamilyId';
-    final text = InviteMessageBuilder.build(familyName, url, 'en') +
-        '\n\nOr use Family ID: $kinFamilyId\n\n— Sent via Kinrel by Daxelo';
+    final text = '${InviteMessageBuilder.build(familyName, url, 'en')}\n\nOr use Family ID: $kinFamilyId\n\n— Sent via Kinrel by Daxelo';
 
     AnalyticsService.instance.logShareProfile('family_qr');
 

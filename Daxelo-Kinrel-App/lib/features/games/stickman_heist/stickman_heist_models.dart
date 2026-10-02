@@ -79,16 +79,6 @@ class StickmanHeistPlayerWire {
     this.leftAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final bool isReady;
-  final DateTime joinedAt;
-  final DateTime? leftAt;
-
-  bool get isActive => leftAt == null;
-
   factory StickmanHeistPlayerWire.fromJson(Map<String, dynamic> json) =>
       StickmanHeistPlayerWire(
         id: (json['id'] ?? '') as String,
@@ -102,6 +92,16 @@ class StickmanHeistPlayerWire {
             ? DateTime.tryParse(json['leftAt'] as String)
             : null,
       );
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final bool isReady;
+  final DateTime joinedAt;
+  final DateTime? leftAt;
+
+  bool get isActive => leftAt == null;
 }
 
 // ── Game (wire) ──────────────────────────────────────────────────────
@@ -129,48 +129,6 @@ class StickmanHeistGame {
     this.completedAt,
     this.lastStateBroadcast,
   });
-
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final StickmanHeistStatus status;
-  final int maxPlayers;
-  final DateTime createdAt;
-
-  final String? roomName;
-
-  /// Ordered list of userIds — set by fn_stickmanheist_start. Index in
-  /// this list = the player's idx inside boardState.players.
-  final List<String> playerOrder;
-
-  /// The live game state. Populated by fn_stickmanheist_start, updated
-  /// by fn_stickmanheist_broadcast_state (host calls ~10Hz).
-  final StickmanHeistBoardState? boardState;
-
-  final List<String> winnerUserIds;
-  final String? endReason;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final DateTime? lastStateBroadcast;
-
-  final bool spectatorsEnabled;
-
-  // Game-specific config
-  final String mapId;
-  final bool respawnsEnabled;
-  final int matchSeconds;
-
-  bool get isWaiting => status == StickmanHeistStatus.waiting;
-  bool get isInProgress => status == StickmanHeistStatus.inProgress;
-  bool get isCompleted => status == StickmanHeistStatus.completed;
-
-  /// The local user's idx inside boardState.players, or null.
-  int? idxForUserId(String? userId) {
-    if (userId == null) return null;
-    final i = playerOrder.indexOf(userId);
-    return i >= 0 ? i : null;
-  }
 
   factory StickmanHeistGame.fromJson(Map<String, dynamic> json) {
     final order = <String>[];
@@ -224,6 +182,48 @@ class StickmanHeistGame {
           (json['matchSeconds'] as num?)?.toInt() ?? 180,
     );
   }
+
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final StickmanHeistStatus status;
+  final int maxPlayers;
+  final DateTime createdAt;
+
+  final String? roomName;
+
+  /// Ordered list of userIds — set by fn_stickmanheist_start. Index in
+  /// this list = the player's idx inside boardState.players.
+  final List<String> playerOrder;
+
+  /// The live game state. Populated by fn_stickmanheist_start, updated
+  /// by fn_stickmanheist_broadcast_state (host calls ~10Hz).
+  final StickmanHeistBoardState? boardState;
+
+  final List<String> winnerUserIds;
+  final String? endReason;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final DateTime? lastStateBroadcast;
+
+  final bool spectatorsEnabled;
+
+  // Game-specific config
+  final String mapId;
+  final bool respawnsEnabled;
+  final int matchSeconds;
+
+  bool get isWaiting => status == StickmanHeistStatus.waiting;
+  bool get isInProgress => status == StickmanHeistStatus.inProgress;
+  bool get isCompleted => status == StickmanHeistStatus.completed;
+
+  /// The local user's idx inside boardState.players, or null.
+  int? idxForUserId(String? userId) {
+    if (userId == null) return null;
+    final i = playerOrder.indexOf(userId);
+    return i >= 0 ? i : null;
+  }
 }
 
 // ── Input (wire) ─────────────────────────────────────────────────────
@@ -243,6 +243,23 @@ class StickmanHeistInputWire {
     required this.swapWeaponRequested,
     this.updatedAt,
   });
+
+  factory StickmanHeistInputWire.fromJson(Map<String, dynamic> json) =>
+      StickmanHeistInputWire(
+        gameId: (json['gameId'] ?? '') as String,
+        userId: (json['userId'] ?? '') as String,
+        moveX: (json['moveX'] as num?)?.toDouble() ?? 0,
+        moveY: (json['moveY'] as num?)?.toDouble() ?? 0,
+        aimAngle: (json['aimAngle'] as num?)?.toDouble() ?? 0,
+        shooting: (json['shooting'] as bool?) ?? false,
+        reloadRequested:
+            (json['reloadRequested'] as bool?) ?? false,
+        swapWeaponRequested:
+            (json['swapWeaponRequested'] as bool?) ?? false,
+        updatedAt: json['updatedAt'] != null
+            ? DateTime.tryParse(json['updatedAt'] as String)
+            : null,
+      );
 
   final String gameId;
   final String userId;
@@ -264,21 +281,4 @@ class StickmanHeistInputWire {
         'reloadRequested': reloadRequested,
         'swapWeaponRequested': swapWeaponRequested,
       };
-
-  factory StickmanHeistInputWire.fromJson(Map<String, dynamic> json) =>
-      StickmanHeistInputWire(
-        gameId: (json['gameId'] ?? '') as String,
-        userId: (json['userId'] ?? '') as String,
-        moveX: (json['moveX'] as num?)?.toDouble() ?? 0,
-        moveY: (json['moveY'] as num?)?.toDouble() ?? 0,
-        aimAngle: (json['aimAngle'] as num?)?.toDouble() ?? 0,
-        shooting: (json['shooting'] as bool?) ?? false,
-        reloadRequested:
-            (json['reloadRequested'] as bool?) ?? false,
-        swapWeaponRequested:
-            (json['swapWeaponRequested'] as bool?) ?? false,
-        updatedAt: json['updatedAt'] != null
-            ? DateTime.tryParse(json['updatedAt'] as String)
-            : null,
-      );
 }

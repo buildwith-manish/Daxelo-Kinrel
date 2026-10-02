@@ -239,7 +239,7 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener>
         v is num ? v.toInt() : (v is String ? int.tryParse(v) ?? fallback : fallback);
 
     return GameInvite(
-      inviteId: (row['id'] as String?) ?? 'db_${gameId}',
+      inviteId: (row['id'] as String?) ?? 'db_$gameId',
       gameType: gameType,
       gameId: gameId,
       roomCode: (row['roomCode'] as String?) ?? '',
@@ -466,7 +466,7 @@ class _GameInviteDialog extends StatelessWidget {
                   children: [
                     Text(
                       '${invite.gameType.displayName} invite',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -476,7 +476,7 @@ class _GameInviteDialog extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       'Room ${invite.roomCode} · ${invite.currentPlayers}/${invite.maxPlayers} players',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 11,
                         color: KinrelColors.textDim,
@@ -491,7 +491,7 @@ class _GameInviteDialog extends StatelessWidget {
             Text(
               invite.message ??
                   '${invite.fromName} invited you to join ${invite.gameType.displayName}.',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 color: KinrelColors.textWhite,
@@ -501,7 +501,7 @@ class _GameInviteDialog extends StatelessWidget {
             const SizedBox(height: KinrelSpacing.sm),
             Text(
               'From ${invite.fromName}',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textDim,

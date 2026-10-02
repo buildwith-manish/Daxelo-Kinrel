@@ -45,17 +45,17 @@ void main() {
   // Returns the persons list + relationships list + deduped edges.
   ({List<GraphPerson> persons, List<({String fromId, String toId, String type})> relationships, List<DedupedEdge> edges}) buildFamilyGraph() {
     final persons = [
-      GraphPerson(id: 'viewer', name: 'Viewer', gender: 'male'),
-      GraphPerson(id: 'father', name: 'Father', gender: 'male'),
-      GraphPerson(id: 'mother', name: 'Mother', gender: 'female'),
-      GraphPerson(id: 'spouse', name: 'Spouse', gender: 'female'),
-      GraphPerson(id: 'sibling', name: 'Sibling', gender: 'male'),
-      GraphPerson(id: 'grandfather', name: 'Grandfather', gender: 'male'),
-      GraphPerson(id: 'grandmother', name: 'Grandmother', gender: 'female'),
-      GraphPerson(id: 'uncle', name: 'Uncle', gender: 'male'),
-      GraphPerson(id: 'cousin', name: 'Cousin', gender: 'male'),
-      GraphPerson(id: 'child', name: 'Child', gender: 'male'),
-      GraphPerson(id: 'disconnected', name: 'Disconnected', gender: 'male'),
+      const GraphPerson(id: 'viewer', name: 'Viewer', gender: 'male'),
+      const GraphPerson(id: 'father', name: 'Father', gender: 'male'),
+      const GraphPerson(id: 'mother', name: 'Mother', gender: 'female'),
+      const GraphPerson(id: 'spouse', name: 'Spouse', gender: 'female'),
+      const GraphPerson(id: 'sibling', name: 'Sibling', gender: 'male'),
+      const GraphPerson(id: 'grandfather', name: 'Grandfather', gender: 'male'),
+      const GraphPerson(id: 'grandmother', name: 'Grandmother', gender: 'female'),
+      const GraphPerson(id: 'uncle', name: 'Uncle', gender: 'male'),
+      const GraphPerson(id: 'cousin', name: 'Cousin', gender: 'male'),
+      const GraphPerson(id: 'child', name: 'Child', gender: 'male'),
+      const GraphPerson(id: 'disconnected', name: 'Disconnected', gender: 'male'),
     ];
 
     final relPairs = <List<String>>[
@@ -327,9 +327,9 @@ void main() {
     test('TEST 10: cycle safety — no infinite loop on circular graph', () {
       // Build a circular graph: A→B→C→A. BFS must not loop forever.
       final persons = [
-        GraphPerson(id: 'A', name: 'A'),
-        GraphPerson(id: 'B', name: 'B'),
-        GraphPerson(id: 'C', name: 'C'),
+        const GraphPerson(id: 'A', name: 'A'),
+        const GraphPerson(id: 'B', name: 'B'),
+        const GraphPerson(id: 'C', name: 'C'),
       ];
       final relationships = [
         (fromId: 'A', toId: 'B', type: 'father'),
@@ -337,9 +337,9 @@ void main() {
         (fromId: 'C', toId: 'A', type: 'father'), // creates cycle
       ];
       final edges = EdgeDeduplicator.deduplicate([
-        GraphEdgeData(id: 'e1', sourceId: 'A', targetId: 'B', relationshipKey: 'father'),
-        GraphEdgeData(id: 'e2', sourceId: 'B', targetId: 'C', relationshipKey: 'father'),
-        GraphEdgeData(id: 'e3', sourceId: 'C', targetId: 'A', relationshipKey: 'father'),
+        const GraphEdgeData(id: 'e1', sourceId: 'A', targetId: 'B', relationshipKey: 'father'),
+        const GraphEdgeData(id: 'e2', sourceId: 'B', targetId: 'C', relationshipKey: 'father'),
+        const GraphEdgeData(id: 'e3', sourceId: 'C', targetId: 'A', relationshipKey: 'father'),
       ]);
 
       // This must terminate (BFS has a visited set).

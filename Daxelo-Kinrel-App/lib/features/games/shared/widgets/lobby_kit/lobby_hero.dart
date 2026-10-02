@@ -67,7 +67,7 @@ class LobbyHero extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 23,
                       fontWeight: FontWeight.w800,
@@ -81,7 +81,7 @@ class LobbyHero extends StatelessWidget {
                     tagline,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12.5,
                       color: KinrelColors.textDim,
@@ -168,7 +168,7 @@ class _FactChip extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             fact.label,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 10.5,
               fontWeight: FontWeight.w600,

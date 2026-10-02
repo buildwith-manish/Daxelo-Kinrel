@@ -22,9 +22,9 @@ import '../../services/supabase_service.dart';
 /// This ensures the UI always shows cached data instantly while
 /// keeping the cache up-to-date in the background.
 class OfflineFamilyRepository {
-  final Ref _ref;
 
   OfflineFamilyRepository(this._ref);
+  final Ref _ref;
 
   AppDatabase get _db => _ref.read(isarProvider);
   bool get _isOnline => _ref.read(connectivityServiceProvider).isOnline;

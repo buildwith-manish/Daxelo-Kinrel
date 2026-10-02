@@ -111,7 +111,7 @@ class _UsernameSetupSheetState extends ConsumerState<_UsernameSetupSheet> {
     );
 
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: _cCard,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -139,7 +139,7 @@ class _UsernameSetupSheetState extends ConsumerState<_UsernameSetupSheet> {
           const SizedBox(height: 24),
 
           // Title
-          Text(
+          const Text(
             'Choose your @username',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -149,7 +149,7 @@ class _UsernameSetupSheetState extends ConsumerState<_UsernameSetupSheet> {
             ),
           ),
           const SizedBox(height: 6),
-          Text(
+          const Text(
             'This is how others find you on Daxelo Kinrel',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -173,8 +173,8 @@ class _UsernameSetupSheetState extends ConsumerState<_UsernameSetupSheet> {
             child: Row(
               children: [
                 // @ prefix
-                Padding(
-                  padding: const EdgeInsets.only(left: 16),
+                const Padding(
+                  padding: EdgeInsets.only(left: 16),
                   child: Text(
                     '@',
                     style: TextStyle(
@@ -192,7 +192,7 @@ class _UsernameSetupSheetState extends ConsumerState<_UsernameSetupSheet> {
                     autofocus: true,
                     keyboardType: TextInputType.text,
                     textCapitalization: TextCapitalization.none,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 22,
                       fontWeight: FontWeight.w600,
@@ -260,7 +260,7 @@ class _UsernameSetupSheetState extends ConsumerState<_UsernameSetupSheet> {
           // Suggestions
           if (suggestions.isNotEmpty && _controller.text.isEmpty) ...[
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Suggestions',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -295,7 +295,7 @@ class _UsernameSetupSheetState extends ConsumerState<_UsernameSetupSheet> {
                     ),
                     child: Text(
                       '@$suggestion',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
@@ -324,7 +324,7 @@ class _UsernameSetupSheetState extends ConsumerState<_UsernameSetupSheet> {
                 ),
               ),
               child: _isSubmitting
-                  ? SizedBox(
+                  ? const SizedBox(
                       width: 22,
                       height: 22,
                       child: CircularProgressIndicator(
@@ -332,7 +332,7 @@ class _UsernameSetupSheetState extends ConsumerState<_UsernameSetupSheet> {
                         color: Colors.white,
                       ),
                     )
-                  : Text(
+                  : const Text(
                       'Confirm',
                       style: TextStyle(
                         fontFamily: KinrelTypography.displayFont,
@@ -351,23 +351,23 @@ class _UsernameSetupSheetState extends ConsumerState<_UsernameSetupSheet> {
   Widget _buildStatusIndicator(UsernameAvailability availability) {
     switch (availability) {
       case UsernameAvailability.checking:
-        return SizedBox(
+        return const SizedBox(
           width: 20,
           height: 20,
           child: CircularProgressIndicator(strokeWidth: 2, color: _cOrange),
         );
       case UsernameAvailability.available:
-        return Icon(Icons.check_circle_rounded, size: 22, color: _cSuccess);
+        return const Icon(Icons.check_circle_rounded, size: 22, color: _cSuccess);
       case UsernameAvailability.taken:
-        return Icon(Icons.cancel_rounded, size: 22, color: KinrelColors.error);
+        return const Icon(Icons.cancel_rounded, size: 22, color: KinrelColors.error);
       case UsernameAvailability.invalid:
-        return Icon(
+        return const Icon(
           Icons.error_outline_rounded,
           size: 22,
           color: KinrelColors.warning,
         );
       case UsernameAvailability.initial:
-        return SizedBox.shrink();
+        return const SizedBox.shrink();
     }
   }
 
@@ -394,7 +394,7 @@ class _UsernameSetupSheetState extends ConsumerState<_UsernameSetupSheet> {
         color = _cTextDim;
         break;
       case UsernameAvailability.initial:
-        return SizedBox.shrink();
+        return const SizedBox.shrink();
     }
 
     return Padding(

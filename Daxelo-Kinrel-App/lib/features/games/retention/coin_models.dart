@@ -10,11 +10,6 @@ class CoinBalance {
     this.familyTreasury = 0,
   });
 
-  final int balance;
-  final int totalEarned;
-  final int totalSpent;
-  final int familyTreasury;
-
   factory CoinBalance.fromJson(Map<String, dynamic> json) {
     return CoinBalance(
       balance: (json['balance'] as num?)?.toInt() ?? 0,
@@ -23,6 +18,11 @@ class CoinBalance {
       familyTreasury: (json['familyTreasury'] as num?)?.toInt() ?? 0,
     );
   }
+
+  final int balance;
+  final int totalEarned;
+  final int totalSpent;
+  final int familyTreasury;
 }
 
 class UnlockableReward {
@@ -37,15 +37,6 @@ class UnlockableReward {
     this.isUnlocked = false,
   });
 
-  final String id;
-  final String name;
-  final String description;
-  final String type;
-  final String category;
-  final int cost;
-  final String iconEmoji;
-  final bool isUnlocked;
-
   factory UnlockableReward.fromJson(Map<String, dynamic> json) {
     return UnlockableReward(
       id: (json['id'] ?? '') as String,
@@ -57,6 +48,15 @@ class UnlockableReward {
       iconEmoji: (json['iconEmoji'] ?? '🎁') as String,
     );
   }
+
+  final String id;
+  final String name;
+  final String description;
+  final String type;
+  final String category;
+  final int cost;
+  final String iconEmoji;
+  final bool isUnlocked;
 
   UnlockableReward copyWith({bool? isUnlocked}) => UnlockableReward(
         id: id,
@@ -79,12 +79,6 @@ class CoinLedgerEntry {
     required this.createdAt,
   });
 
-  final String id;
-  final int amount;
-  final String reason;
-  final String? referenceId;
-  final DateTime createdAt;
-
   factory CoinLedgerEntry.fromJson(Map<String, dynamic> json) {
     return CoinLedgerEntry(
       id: (json['id'] ?? '') as String,
@@ -94,6 +88,12 @@ class CoinLedgerEntry {
       createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
     );
   }
+
+  final String id;
+  final int amount;
+  final String reason;
+  final String? referenceId;
+  final DateTime createdAt;
 
   String get reasonLabel {
     switch (reason) {
@@ -124,10 +124,6 @@ class CustomContent {
     required this.contentId,
   });
 
-  final Map<String, dynamic> contentJson;
-  final bool isCustom;
-  final String contentId;
-
   factory CustomContent.fromJson(Map<String, dynamic> json) {
     return CustomContent(
       contentJson: json['contentJson'] is Map
@@ -137,6 +133,10 @@ class CustomContent {
       contentId: (json['contentId'] ?? '') as String,
     );
   }
+
+  final Map<String, dynamic> contentJson;
+  final bool isCustom;
+  final String contentId;
 }
 
 class SeasonalTheme {
@@ -151,18 +151,6 @@ class SeasonalTheme {
     this.bannerAssetUrl,
   });
 
-  final String id;
-  final String name;
-  final DateTime startDate;
-  final DateTime endDate;
-  final String accentColor;
-  final String? bannerAssetUrl;
-  final double coinMultiplier;
-  final String iconEmoji;
-
-  bool get isActive =>
-      DateTime.now().isAfter(startDate) && DateTime.now().isBefore(endDate);
-
   factory SeasonalTheme.fromJson(Map<String, dynamic> json) {
     return SeasonalTheme(
       id: (json['id'] ?? '') as String,
@@ -175,6 +163,18 @@ class SeasonalTheme {
       iconEmoji: (json['iconEmoji'] ?? '🎉') as String,
     );
   }
+
+  final String id;
+  final String name;
+  final DateTime startDate;
+  final DateTime endDate;
+  final String accentColor;
+  final String? bannerAssetUrl;
+  final double coinMultiplier;
+  final String iconEmoji;
+
+  bool get isActive =>
+      DateTime.now().isAfter(startDate) && DateTime.now().isBefore(endDate);
 
   /// Parse the hex accent color string (#F59E0B) into a Flutter Color.
   /// Returns null if the string is invalid.

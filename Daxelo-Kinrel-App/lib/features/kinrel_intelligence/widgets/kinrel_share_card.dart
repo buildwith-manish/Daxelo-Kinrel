@@ -74,12 +74,12 @@ class KinrelShareCard extends StatelessWidget {
       width: 320,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF13141E),
-            const Color(0xFF191B2C),
+            Color(0xFF13141E),
+            Color(0xFF191B2C),
           ],
         ),
         borderRadius: BorderRadius.circular(24),
@@ -165,10 +165,10 @@ class KinrelShareCard extends StatelessWidget {
             children: [
               Icon(Icons.favorite, size: 10, color: accent.withValues(alpha: 0.7)),
               const SizedBox(width: 4),
-              Text(
+              const Text(
                 'Made with love by Daxelo',
                 style: TextStyle(
-                  color: const Color(0xFF8A7A72),
+                  color: Color(0xFF8A7A72),
                   fontSize: 10,
                 ),
               ),

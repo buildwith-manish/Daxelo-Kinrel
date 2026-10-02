@@ -50,9 +50,6 @@ final socketStatusProvider = StateProvider<SocketStatus>(
 
 /// Minimal payload emitted by the NestJS gateway for person events.
 class _MinimalPersonEvent {
-  final String id;
-  final String updatedAt;
-  final String? familyId;
 
   _MinimalPersonEvent({
     required this.id,
@@ -67,12 +64,13 @@ class _MinimalPersonEvent {
       familyId: json['familyId'] as String?,
     );
   }
+  final String id;
+  final String updatedAt;
+  final String? familyId;
 }
 
 /// Minimal payload for graph update events.
 class _MinimalGraphEvent {
-  final String familyId;
-  final String updatedAt;
 
   _MinimalGraphEvent({
     required this.familyId,
@@ -85,17 +83,14 @@ class _MinimalGraphEvent {
       updatedAt: json['updatedAt'] as String? ?? '',
     );
   }
+  final String familyId;
+  final String updatedAt;
 }
 
 // ── Sync Response Model ─────────────────────────────────────────────
 
 /// Response model for the /api/sync endpoint.
 class _SyncResponse {
-  final List<Map<String, dynamic>> members;
-  final List<Map<String, dynamic>> events;
-  final List<Map<String, dynamic>> familyMeta;
-  final String serverTime;
-  final bool hasMore;
 
   _SyncResponse({
     required this.members,
@@ -123,6 +118,11 @@ class _SyncResponse {
       hasMore: json['hasMore'] as bool? ?? false,
     );
   }
+  final List<Map<String, dynamic>> members;
+  final List<Map<String, dynamic>> events;
+  final List<Map<String, dynamic>> familyMeta;
+  final String serverTime;
+  final bool hasMore;
 }
 
 // ── Socket Service ──────────────────────────────────────────────────

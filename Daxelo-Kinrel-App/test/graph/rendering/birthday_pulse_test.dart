@@ -145,9 +145,9 @@ void main() {
   group('P3.3 — Painter layer 9 contract', () {
     test('birthday glow color constants are correct', () {
       // Ember for living birthdays.
-      expect(const Color(0xFFE8612A).value, equals(0xFFE8612A));
+      expect(const Color(0xFFE8612A).toARGB32(), equals(0xFFE8612A));
       // Amber for deceased birthdays.
-      expect(const Color(0xFFF59240).value, equals(0xFFF59240));
+      expect(const Color(0xFFF59240).toARGB32(), equals(0xFFF59240));
     });
 
     test('reduced-motion sentinel (-1.0) produces static alpha 0.45', () {

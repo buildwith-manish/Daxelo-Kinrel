@@ -55,21 +55,19 @@ import 'spring_palette.dart';
 /// camera.focusOnNode('member_123', Offset(200, 300));
 /// ```
 class CameraController extends ChangeNotifier {
-  /// Creates a camera controller with optional [positionMemory] for
+  /// Creates a camera controller with optional [_positionMemory] for
   /// persistence.
   ///
-  /// [minZoom] and [maxZoom] define the zoom range.
+  /// [_minZoom] and [_maxZoom] define the zoom range.
   /// Defaults: 0.2–5.0 — the user can zoom out to see large family
   /// graphs and zoom in for detail. Node readability at low zoom is
   /// handled by the semantic LOD system (FULL/CHIP/OVERVIEW tiers),
   /// NOT by clamping the camera.
   CameraController({
-    PositionMemory? positionMemory,
-    double minZoom = 0.2,
-    double maxZoom = 5.0,
-  })  : _positionMemory = positionMemory,
-        _minZoom = minZoom,
-        _maxZoom = maxZoom;
+    this._positionMemory,
+    this._minZoom = 0.2,
+    this._maxZoom = 5.0,
+  });
 
   final PositionMemory? _positionMemory;
   final double _minZoom;

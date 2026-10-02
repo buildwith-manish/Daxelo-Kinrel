@@ -81,7 +81,7 @@ class _RelationshipBuilderScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           'Link Members',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -89,15 +89,15 @@ class _RelationshipBuilderScreenState
           ),
         ),
         leading: IconButton(
-          icon: Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
         actions: [
           if (_selectedPerson1Id != null || _selectedPerson2Id != null)
             TextButton.icon(
               onPressed: _clearSelection,
-              icon: Icon(Icons.clear, size: 16),
-              label: Text(
+              icon: const Icon(Icons.clear, size: 16),
+              label: const Text(
                 'Clear',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -108,7 +108,7 @@ class _RelationshipBuilderScreenState
         ],
       ),
       body: detailAsync.when(
-        loading: () => Center(
+        loading: () => const Center(
           child: CircularProgressIndicator(color: KinrelColors.purple),
         ),
         error: (e, _) => _ErrorState(
@@ -145,7 +145,7 @@ class _RelationshipBuilderScreenState
         onPressed: () =>
             AddPersonSheet.show(context, familyId: widget.familyId),
         backgroundColor: KinrelColors.purple,
-        child: Icon(Icons.person_add, color: Colors.white),
+        child: const Icon(Icons.person_add, color: Colors.white),
       ),
     );
   }
@@ -172,7 +172,7 @@ class _RelationshipBuilderScreenState
         Expanded(
           child: GridView.builder(
             padding: const EdgeInsets.all(KinrelSpacing.base),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               mainAxisSpacing: KinrelSpacing.sm,
               crossAxisSpacing: KinrelSpacing.sm,
@@ -228,7 +228,7 @@ class _RelationshipBuilderScreenState
       child: Row(
         children: [
           Icon(Icons.link, size: 18, color: instructionColor),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               instruction,
@@ -242,10 +242,10 @@ class _RelationshipBuilderScreenState
           ),
           // Selection indicators
           if (_selectedPerson1Id != null)
-            _SelectionBadge(label: '1st', color: KinrelColors.purple),
+            const _SelectionBadge(label: '1st', color: KinrelColors.purple),
           if (_selectedPerson2Id != null) ...[
-            SizedBox(width: 6),
-            _SelectionBadge(label: '2nd', color: KinrelColors.amber),
+            const SizedBox(width: 6),
+            const _SelectionBadge(label: '2nd', color: KinrelColors.amber),
           ],
         ],
       ),
@@ -358,7 +358,7 @@ class _RelationshipBuilderScreenState
         );
 
         // Clear selection after a brief delay
-        await Future.delayed(Duration(milliseconds: 600));
+        await Future.delayed(const Duration(milliseconds: 600));
         if (mounted) {
           _clearSelection();
         }
@@ -454,7 +454,7 @@ class _PersonCard extends StatelessWidget {
         );
       },
       child: Padding(
-        padding: EdgeInsets.all(KinrelSpacing.md),
+        padding: const EdgeInsets.all(KinrelSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -467,7 +467,7 @@ class _PersonCard extends StatelessWidget {
                   height: 40,
                   decoration: BoxDecoration(
                     gradient: person.isDeceased
-                        ? LinearGradient(
+                        ? const LinearGradient(
                             colors: [
                               KinrelColors.textDim,
                               KinrelColors.darkSurface,
@@ -476,7 +476,7 @@ class _PersonCard extends StatelessWidget {
                         : isSelected1
                         ? KinrelGradients.igniteGradient
                         : isSelected2
-                        ? LinearGradient(
+                        ? const LinearGradient(
                             colors: [KinrelColors.amber, KinrelColors.purple],
                           )
                         : KinrelGradients.igniteGradient,
@@ -484,12 +484,12 @@ class _PersonCard extends StatelessWidget {
                   ),
                   child: Center(
                     child: person.isDeceased
-                        ? Text('🕊️', style: TextStyle(fontSize: 18))
+                        ? const Text('🕊️', style: TextStyle(fontSize: 18))
                         : Text(
                             person.name.isNotEmpty
                                 ? person.name[0].toUpperCase()
                                 : '?',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.displayFont,
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
@@ -498,17 +498,17 @@ class _PersonCard extends StatelessWidget {
                           ),
                   ),
                 ),
-                SizedBox(width: 10),
+                const SizedBox(width: 10),
 
                 // Selection badge
                 if (isSelected1)
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: KinrelColors.purple,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(
+                    child: const Text(
                       '1st',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -520,12 +520,12 @@ class _PersonCard extends StatelessWidget {
                   )
                 else if (isSelected2)
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: KinrelColors.amber,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(
+                    child: const Text(
                       '2nd',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -536,7 +536,7 @@ class _PersonCard extends StatelessWidget {
                     ),
                   ),
 
-                Spacer(),
+                const Spacer(),
 
                 // Gender icon
                 Icon(
@@ -550,7 +550,7 @@ class _PersonCard extends StatelessWidget {
                 ),
               ],
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
 
             // Name
             Text(
@@ -569,10 +569,10 @@ class _PersonCard extends StatelessWidget {
 
             // Relationship key
             if (person.gender != null) ...[
-              SizedBox(height: 2),
+              const SizedBox(height: 2),
               Text(
                 person.gender!.toUpperCase(),
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
                   color: KinrelColors.purple,
@@ -581,7 +581,7 @@ class _PersonCard extends StatelessWidget {
               ),
             ],
 
-            Spacer(),
+            const Spacer(),
 
             // Relationship tags
             if (relationshipTags.isNotEmpty)
@@ -600,7 +600,7 @@ class _PersonCard extends StatelessWidget {
                     ),
                     child: Text(
                       tag.snakeToTitle,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 9,
                         color: KinrelColors.textDim,
@@ -625,14 +625,14 @@ class _SelectionBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         label,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 10,
           fontWeight: FontWeight.w700,
@@ -671,7 +671,7 @@ class _EmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            Text(
+            const Text(
               'Add Members First',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -681,7 +681,7 @@ class _EmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Add family members, then link them here\nto build your family graph.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -694,12 +694,12 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: onAddMember,
-              icon: Icon(Icons.person_add, size: 18),
-              label: Text('Add First Member'),
+              icon: const Icon(Icons.person_add, size: 18),
+              label: const Text('Add First Member'),
               style: FilledButton.styleFrom(
                 backgroundColor: KinrelColors.purple,
                 foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
                 ),
@@ -722,7 +722,7 @@ class _ErrorState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: EdgeInsets.all(KinrelSpacing.xxl),
+        padding: const EdgeInsets.all(KinrelSpacing.xxl),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -731,10 +731,10 @@ class _ErrorState extends StatelessWidget {
               size: 64,
               color: KinrelColors.error.withValues(alpha: 0.5),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             Text(
               message,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,

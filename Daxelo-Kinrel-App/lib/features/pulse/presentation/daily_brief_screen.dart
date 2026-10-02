@@ -95,9 +95,9 @@ class _DailyBriefScreenState extends ConsumerState<DailyBriefScreen> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _BriefContent extends ConsumerWidget {
-  final DailyBrief brief;
 
   const _BriefContent({required this.brief});
+  final DailyBrief brief;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -150,9 +150,9 @@ class _BriefContent extends ConsumerWidget {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _GreetingHeader extends StatelessWidget {
-  final DailyBrief brief;
 
   const _GreetingHeader({required this.brief});
+  final DailyBrief brief;
 
   @override
   Widget build(BuildContext context) {
@@ -166,12 +166,12 @@ class _GreetingHeader extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            KinrelColors.orange.withOpacity(0.15),
-            KinrelColors.amber.withOpacity(0.05),
+            KinrelColors.orange.withValues(alpha: 0.15),
+            KinrelColors.amber.withValues(alpha: 0.05),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: KinrelColors.orange.withOpacity(0.3)),
+        border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,9 +199,9 @@ class _GreetingHeader extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: KinrelColors.amber.withOpacity(0.2),
+                color: KinrelColors.amber.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: KinrelColors.amber.withOpacity(0.4)),
+                border: Border.all(color: KinrelColors.amber.withValues(alpha: 0.4)),
               ),
               child: Text(
                 '${_archetypeEmoji(brief.familyArchetype)} ${brief.familyArchetype} family',
@@ -242,9 +242,9 @@ class _GreetingHeader extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _SummaryStrip extends StatelessWidget {
-  final DailyBrief brief;
 
   const _SummaryStrip({required this.brief});
+  final DailyBrief brief;
 
   @override
   Widget build(BuildContext context) {
@@ -253,7 +253,7 @@ class _SummaryStrip extends StatelessWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Row(
         children: [
@@ -262,7 +262,7 @@ class _SummaryStrip extends StatelessWidget {
               child: Text(
                 brief.summary!,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.85),
+                  color: Colors.white.withValues(alpha: 0.85),
                   fontSize: 13,
                   height: 1.4,
                 ),
@@ -273,9 +273,9 @@ class _SummaryStrip extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: KinrelColors.gold.withOpacity(0.15),
+                color: KinrelColors.gold.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: KinrelColors.gold.withOpacity(0.3)),
+                border: Border.all(color: KinrelColors.gold.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -305,9 +305,9 @@ class _SummaryStrip extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _BriefItemCard extends ConsumerWidget {
-  final BriefItem item;
 
   const _BriefItemCard({required this.item});
+  final BriefItem item;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -318,13 +318,13 @@ class _BriefItemCard extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isInteracted
-            ? KinrelColors.darkCard.withOpacity(0.5)
+            ? KinrelColors.darkCard.withValues(alpha: 0.5)
             : KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isInteracted
-              ? Colors.white.withOpacity(0.04)
-              : _itemTypeColor().withOpacity(0.25),
+              ? Colors.white.withValues(alpha: 0.04)
+              : _itemTypeColor().withValues(alpha: 0.25),
         ),
       ),
       child: Column(
@@ -345,7 +345,7 @@ class _BriefItemCard extends ConsumerWidget {
                     fontWeight: FontWeight.w600,
                     height: 1.3,
                     decoration: isInteracted ? TextDecoration.lineThrough : null,
-                    decorationColor: Colors.white.withOpacity(0.3),
+                    decorationColor: Colors.white.withValues(alpha: 0.3),
                   ),
                 ),
               ),
@@ -362,7 +362,7 @@ class _BriefItemCard extends ConsumerWidget {
               child: Text(
                 item.body,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.65),
+                  color: Colors.white.withValues(alpha: 0.65),
                   fontSize: 13,
                   height: 1.4,
                 ),
@@ -400,9 +400,9 @@ class _BriefItemCard extends ConsumerWidget {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _ActionButton extends ConsumerWidget {
-  final BriefItem item;
 
   const _ActionButton({required this.item});
+  final BriefItem item;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -535,18 +535,18 @@ class _ActionButton extends ConsumerWidget {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _EngagementFooter extends StatelessWidget {
-  final DailyBrief brief;
 
   const _EngagementFooter({required this.brief});
+  final DailyBrief brief;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: KinrelColors.darkCard.withOpacity(0.5),
+        color: KinrelColors.darkCard.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -554,7 +554,7 @@ class _EngagementFooter extends StatelessWidget {
           Text(
             'Today\'s engagement',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
+              color: Colors.white.withValues(alpha: 0.5),
               fontSize: 11,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.5,
@@ -579,11 +579,11 @@ class _EngagementFooter extends StatelessWidget {
 }
 
 class _StatChip extends StatelessWidget {
+
+  const _StatChip({required this.icon, required this.label, required this.value});
   final String icon;
   final String label;
   final int value;
-
-  const _StatChip({required this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -603,7 +603,7 @@ class _StatChip extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
+              color: Colors.white.withValues(alpha: 0.5),
               fontSize: 10,
             ),
           ),
@@ -637,7 +637,7 @@ class _LoadingState extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             'Generating your family brief...',
-            style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13),
           ),
         ],
       ),
@@ -646,8 +646,8 @@ class _LoadingState extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
-  final String message;
   const _ErrorState({required this.message});
+  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -666,7 +666,7 @@ class _ErrorState extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               message,
-              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
               textAlign: TextAlign.center,
             ),
           ],
@@ -677,8 +677,8 @@ class _ErrorState extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  final VoidCallback onRetry;
   const _EmptyState({required this.onRetry});
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -697,7 +697,7 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Your daily brief generates at 7am IST. Tap below to generate it now.',
-              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
@@ -725,7 +725,7 @@ class _NoItemsState extends StatelessWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         children: [
@@ -734,7 +734,7 @@ class _NoItemsState extends StatelessWidget {
           Text(
             'Nothing urgent today.',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
+              color: Colors.white.withValues(alpha: 0.8),
               fontSize: 15,
               fontWeight: FontWeight.w600,
             ),
@@ -742,7 +742,7 @@ class _NoItemsState extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             'Your family is doing well. Enjoy the day.',
-            style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
             textAlign: TextAlign.center,
           ),
         ],

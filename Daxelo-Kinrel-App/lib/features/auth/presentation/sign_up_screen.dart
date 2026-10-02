@@ -11,7 +11,6 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/haptic_service.dart';
-import '../../../core/services/celebration_service.dart';
 import '../../../core/routing/app_router.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/form_validators.dart';
@@ -362,7 +361,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   }) {
     return InputDecoration(
       hintText: hintText,
-      hintStyle: TextStyle(
+      hintStyle: const TextStyle(
         color: _hintColor,
         fontFamily: KinrelTypography.bodyFont,
         fontSize: 14,
@@ -395,7 +394,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: _errorColor, width: 1.5),
       ),
-      errorStyle: TextStyle(
+      errorStyle: const TextStyle(
         color: _errorColor,
         fontFamily: KinrelTypography.bodyFont,
         fontSize: 12,
@@ -414,7 +413,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
+              padding: const EdgeInsets.symmetric(
                 horizontal: KinrelSpacing.xl,
                 vertical: KinrelSpacing.lg,
               ),
@@ -461,7 +460,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     textCapitalization: TextCapitalization.words,
                     textInputAction: TextInputAction.next,
                     cursorColor: _focusBorder,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: _primaryText,
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
@@ -487,7 +486,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     textCapitalization: TextCapitalization.none,
                     autocorrect: false,
                     cursorColor: _focusBorder,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: _primaryText,
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
@@ -519,7 +518,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     textInputAction: TextInputAction.next,
                     textCapitalization: TextCapitalization.none,
                     cursorColor: _focusBorder,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: _primaryText,
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
@@ -610,7 +609,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     textInputAction: TextInputAction.done,
                     textCapitalization: TextCapitalization.none,
                     cursorColor: _focusBorder,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: _primaryText,
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
@@ -671,7 +670,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           onTap: () =>
                               setState(() => _agreedToTerms = !_agreedToTerms),
                           child: RichText(
-                            text: TextSpan(
+                            text: const TextSpan(
                               style: TextStyle(
                                 color: _secondaryText,
                                 fontFamily: KinrelTypography.bodyFont,
@@ -679,7 +678,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                 height: 1.4,
                               ),
                               children: [
-                                const TextSpan(text: 'I agree to the '),
+                                TextSpan(text: 'I agree to the '),
                                 TextSpan(
                                   text: 'Terms of Service',
                                   style: TextStyle(
@@ -687,7 +686,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                                const TextSpan(text: ' and '),
+                                TextSpan(text: ' and '),
                                 TextSpan(
                                   text: 'Privacy Policy',
                                   style: TextStyle(
@@ -749,7 +748,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             ? Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  SizedBox(
+                                  const SizedBox(
                                     height: 22,
                                     width: 22,
                                     child: CircularProgressIndicator(
@@ -771,7 +770,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                   ),
                                 ],
                               )
-                            : Text(
+                            : const Text(
                                 'Create Account',
                                 style: TextStyle(
                                   fontFamily: KinrelTypography.displayFont,
@@ -794,8 +793,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           color: const Color(0xFF2A2A3D),
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
                           'or continue with',
                           style: TextStyle(
@@ -834,7 +833,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
+                      const Text(
                         'Already have an account? ',
                         style: TextStyle(
                           color: _secondaryText,
@@ -849,7 +848,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
-                        child: Text(
+                        child: const Text(
                           'Sign In',
                           style: TextStyle(
                             color: KinrelColors.orange,

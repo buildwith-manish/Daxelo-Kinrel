@@ -54,7 +54,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   final _usernameController = TextEditingController();
   File? _avatarImageFile;
   String? _avatarUrl;
-  String _selectedRegion = 'North India';
+  final String _selectedRegion = 'North India';
   bool _isCustomCode = false;
 
   _PrivacyMode _privacyMode = _PrivacyMode.inviteOnly;
@@ -412,8 +412,8 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
       },
       child: DKScaffold(
         appBar: AppBar(
-          leading: IconButton(icon: Icon(Icons.arrow_back), onPressed: _prevStep),
-          title: Text(
+          leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _prevStep),
+          title: const Text(
             'Create Family',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -554,7 +554,7 @@ class _StepIndicator extends StatelessWidget {
             ),
             child: Center(
               child: isCompleted
-                  ? Icon(Icons.check_rounded, size: 16, color: Colors.white)
+                  ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
                   : Text(
                       '${stepIndex + 1}',
                       style: TextStyle(
@@ -620,7 +620,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
                       width: 2,
                     ),
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.family_restroom_rounded,
                     size: 36,
                     color: DKColors.brandPurple,
@@ -729,7 +729,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
             ),
             decoration: InputDecoration(
               prefixText: '@ ',
-              prefixStyle: TextStyle(
+              prefixStyle: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
@@ -768,10 +768,10 @@ class _Step1FamilyIdentity extends StatelessWidget {
                   color: DKColors.textSecondary(context),
                 ),
               ),
-              Spacer(),
+              const Spacer(),
               GestureDetector(
                 onTap: onEditCode,
-                child: Text(
+                child: const Text(
                   'Edit',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -952,7 +952,7 @@ class _Step2PrivacySetup extends StatelessWidget {
                     bottom: 0,
                     right: 0,
                     child: Container(
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: DKColors.brandPurple,
                         shape: BoxShape.circle,
                       ),
@@ -1010,7 +1010,7 @@ class _BottomNav extends StatelessWidget {
     final bool isLastStep = currentStep == totalSteps - 1;
 
     return Container(
-      padding: EdgeInsets.all(KinrelSpacing.base),
+      padding: const EdgeInsets.all(KinrelSpacing.base),
       decoration: BoxDecoration(
         color: DKColors.cardColor(context),
         border: Border(
@@ -1033,7 +1033,7 @@ class _BottomNav extends StatelessWidget {
                       size: DKButtonSize.md,
                     ),
                   ),
-                if (currentStep > 0) SizedBox(width: 12),
+                if (currentStep > 0) const SizedBox(width: 12),
                 Expanded(
                   flex: 2,
                   child: DKButton(
@@ -1136,7 +1136,7 @@ class _PrivacyCard extends StatelessWidget {
             ),
           ),
           if (isSelected)
-            Icon(
+            const Icon(
               Icons.check_circle_rounded,
               color: DKColors.brandPurple,
               size: 22,

@@ -94,7 +94,7 @@ class _ChatThemePickerSheet extends ConsumerWidget {
               ),
             ),
             // Title
-            Text(
+            const Text(
               'Chat Atmosphere',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -104,7 +104,7 @@ class _ChatThemePickerSheet extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
+            const Text(
               'Pick a curated atmosphere for this conversation',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -156,13 +156,13 @@ class _ChatThemePickerSheet extends ConsumerWidget {
                   color: KinrelColors.orange.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.photo_library_rounded,
                   color: KinrelColors.orange,
                   size: 20,
                 ),
               ),
-              title: Text(
+              title: const Text(
                 'Custom Wallpaper',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -171,7 +171,7 @@ class _ChatThemePickerSheet extends ConsumerWidget {
                   color: KinrelColors.textWhite,
                 ),
               ),
-              subtitle: Text(
+              subtitle: const Text(
                 'Choose a photo from your gallery',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -179,7 +179,7 @@ class _ChatThemePickerSheet extends ConsumerWidget {
                   color: KinrelColors.textDim,
                 ),
               ),
-              trailing: Icon(
+              trailing: const Icon(
                 Icons.chevron_right,
                 color: KinrelColors.textDim,
                 size: 20,
@@ -201,13 +201,13 @@ class _ChatThemePickerSheet extends ConsumerWidget {
                     color: Colors.redAccent.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.delete_outline_rounded,
                     color: Colors.redAccent,
                     size: 20,
                   ),
                 ),
-                title: Text(
+                title: const Text(
                   'Remove',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -216,7 +216,7 @@ class _ChatThemePickerSheet extends ConsumerWidget {
                     color: KinrelColors.textWhite,
                   ),
                 ),
-                subtitle: Text(
+                subtitle: const Text(
                   'Reset to default Midnight atmosphere',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -309,7 +309,7 @@ class _ThemeSwatch extends StatelessWidget {
                   children: [
                     Text(
                       theme.name,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 13,
                         fontWeight: FontWeight.w700,

@@ -162,7 +162,7 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
                 width: 1.5,
               ),
             ),
-            child: Icon(
+            child: const Icon(
               Icons.add,
               color: KinrelColors.orange,
               size: 24,
@@ -170,7 +170,7 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
           ),
         ),
         const SizedBox(height: 4),
-        Text(
+        const Text(
           'You',
           style: TextStyle(
             fontSize: 11,
@@ -193,10 +193,10 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
         itemCount: 6,
         separatorBuilder: (_, __) => const SizedBox(width: 14),
         itemBuilder: (context, index) {
-          return Column(
+          return const Column(
             children: [
               _ShimmerCircle(size: 56),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               _ShimmerRect(width: 40, height: 8),
             ],
           );
@@ -208,8 +208,8 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
 
 /// Simple shimmer animation circle
 class _ShimmerCircle extends StatefulWidget {
-  final double size;
   const _ShimmerCircle({required this.size});
+  final double size;
 
   @override
   State<_ShimmerCircle> createState() => _ShimmerCircleState();
@@ -255,9 +255,9 @@ class _ShimmerCircleState extends State<_ShimmerCircle>
 
 /// Simple shimmer animation rectangle
 class _ShimmerRect extends StatefulWidget {
+  const _ShimmerRect({required this.width, required this.height});
   final double width;
   final double height;
-  const _ShimmerRect({required this.width, required this.height});
 
   @override
   State<_ShimmerRect> createState() => _ShimmerRectState();

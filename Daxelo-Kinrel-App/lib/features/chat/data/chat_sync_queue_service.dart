@@ -60,14 +60,6 @@ class ChatSyncAction {
     this.retryCount = 0,
   });
 
-  final int id;
-  final ChatSyncActionType type;
-  final String familyId;
-  final String idempotencyKey;
-  final Map<String, dynamic> payload;
-  final DateTime createdAt;
-  final int retryCount;
-
   factory ChatSyncAction.fromPendingOperation(PendingOperation op) {
     return ChatSyncAction(
       id: op.id,
@@ -84,6 +76,14 @@ class ChatSyncAction {
       retryCount: op.retryCount,
     );
   }
+
+  final int id;
+  final ChatSyncActionType type;
+  final String familyId;
+  final String idempotencyKey;
+  final Map<String, dynamic> payload;
+  final DateTime createdAt;
+  final int retryCount;
 }
 
 /// The ChatSyncQueueService manages offline chat actions.

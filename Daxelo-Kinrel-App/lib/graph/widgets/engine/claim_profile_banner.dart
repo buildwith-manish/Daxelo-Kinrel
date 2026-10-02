@@ -14,7 +14,7 @@ import 'package:go_router/go_router.dart';
 /// which makes the labels look wrong (e.g. a father sees his children
 /// labeled as "sibling") with no explanation.
 class ClaimProfileBanner extends ConsumerWidget {
-  const ClaimProfileBanner({required this.familyId});
+  const ClaimProfileBanner({super.key, required this.familyId});
   final String familyId;
 
   @override

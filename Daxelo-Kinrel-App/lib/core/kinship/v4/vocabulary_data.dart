@@ -19,16 +19,6 @@ import '../v3/kinship_signature.dart';
 /// Raw vocabulary seed data. Each map represents one kinship term
 /// across all supported languages.
 class VocabSeed {
-  final String pathPattern;
-  final int generationDelta;
-  final FamilySide? side;
-  final Consanguinity? consanguinity;
-  final String? genderAnchor;
-  final String? seniority;
-  final String? intermediateSeniority;
-  final FamilySide? spouseSide;
-  final int? removal;
-  final Map<String, ({String term, List<String> aliases})> translations;
 
   const VocabSeed({
     required this.pathPattern,
@@ -42,6 +32,16 @@ class VocabSeed {
     this.removal,
     required this.translations,
   });
+  final String pathPattern;
+  final int generationDelta;
+  final FamilySide? side;
+  final Consanguinity? consanguinity;
+  final String? genderAnchor;
+  final String? seniority;
+  final String? intermediateSeniority;
+  final FamilySide? spouseSide;
+  final int? removal;
+  final Map<String, ({String term, List<String> aliases})> translations;
 }
 
 class VocabularyData {

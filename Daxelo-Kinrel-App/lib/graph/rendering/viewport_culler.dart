@@ -43,17 +43,15 @@ class ViewportCuller extends ChangeNotifier {
   ///
   /// [viewport] is the initial visible rectangle in graph-space
   /// coordinates.
-  /// [bufferPixels] is the buffer zone around the viewport (default:
+  /// [_bufferPixels] is the buffer zone around the viewport (default:
   ///   200 px). Nodes within this zone are built but may be clipped.
-  /// [rebuildThreshold] is the minimum pan/zoom displacement that
+  /// [_rebuildThreshold] is the minimum pan/zoom displacement that
   ///   triggers a rebuild (default: 50 px).
   ViewportCuller({
     required Rect viewport,
-    double bufferPixels = 200.0,
-    double rebuildThreshold = 50.0,
-  })  : _lastViewport = viewport,
-        _bufferPixels = bufferPixels,
-        _rebuildThreshold = rebuildThreshold;
+    this._bufferPixels = 200.0,
+    this._rebuildThreshold = 50.0,
+  })  : _lastViewport = viewport;
 
   double _bufferPixels;
   double _rebuildThreshold;

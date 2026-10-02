@@ -148,7 +148,7 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
   Future<void> _postStory() async {
     if (_storyType == _StoryType.text && _captionController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Please enter a caption for your story'),
           backgroundColor: _cCard,
           behavior: SnackBarBehavior.floating,
@@ -160,7 +160,7 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
     if ((_storyType == _StoryType.image || _storyType == _StoryType.video) &&
         _selectedMedia == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Please select a photo or video'),
           backgroundColor: _cCard,
           behavior: SnackBarBehavior.floating,
@@ -188,11 +188,11 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Story posted!'),
             backgroundColor: _cCard,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
+            duration: Duration(seconds: 2),
           ),
         );
       }
@@ -216,7 +216,7 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: _cCard,
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.bottomSheet),
@@ -250,7 +250,7 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
               ),
               child: Row(
                 children: [
-                  Text(
+                  const Text(
                     'Add Story',
                     style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
@@ -262,7 +262,7 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
                   const Spacer(),
                   GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
-                    child: Icon(
+                    child: const Icon(
                       Icons.close_rounded,
                       color: _cTextSecondary,
                       size: 24,
@@ -304,7 +304,7 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
                 controller: _captionController,
                 maxLines: 3,
                 minLines: 1,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 16,
                   color: _cTextPrimary,
@@ -313,7 +313,7 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
                   hintText: _storyType == _StoryType.video
                       ? 'Add a caption (optional)...'
                       : "What's on your mind?",
-                  hintStyle: TextStyle(
+                  hintStyle: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 16,
                     color: _cTextDim,
@@ -326,7 +326,7 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(KinrelRadius.md),
-                    borderSide: BorderSide(color: _cOrange, width: 1.5),
+                    borderSide: const BorderSide(color: _cOrange, width: 1.5),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -459,12 +459,12 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
                             height: double.infinity,
                             errorBuilder: (_, __, ___) => Container(
                               color: _cElevated,
-                              child: Center(
+                              child: const Center(
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(Icons.videocam_rounded, size: 48, color: _cTextSecondary),
-                                    const SizedBox(height: 8),
+                                    SizedBox(height: 8),
                                     Text('Video Preview', style: TextStyle(color: _cTextSecondary, fontSize: 14)),
                                   ],
                                 ),
@@ -477,7 +477,7 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
                               shape: BoxShape.circle,
                             ),
                             padding: const EdgeInsets.all(12),
-                            child: Icon(Icons.play_arrow_rounded, size: 36, color: _cTextPrimary),
+                            child: const Icon(Icons.play_arrow_rounded, size: 36, color: _cTextPrimary),
                           ),
                         ],
                       )
@@ -488,7 +488,7 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
                         height: double.infinity,
                         errorBuilder: (_, __, ___) => Container(
                           color: _cElevated,
-                          child: Center(
+                          child: const Center(
                             child: Icon(Icons.broken_image_rounded, size: 48, color: _cTextSecondary),
                           ),
                         ),
@@ -501,12 +501,12 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
                 child: GestureDetector(
                   onTap: _clearMedia,
                   child: Container(
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: Colors.black54,
                       shape: BoxShape.circle,
                     ),
                     padding: const EdgeInsets.all(6),
-                    child: Icon(Icons.close_rounded, size: 18, color: _cTextPrimary),
+                    child: const Icon(Icons.close_rounded, size: 18, color: _cTextPrimary),
                   ),
                 ),
               ),
@@ -541,7 +541,7 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
               child: Text(
                 caption,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
@@ -568,7 +568,7 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
         children: [
           Text(
             _storyType == _StoryType.video ? 'Select video' : 'Select photo',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               fontWeight: FontWeight.w500,
@@ -625,7 +625,7 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
             const SizedBox(width: 8),
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -644,8 +644,8 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
           child: Text(
             'Choose background',
             style: TextStyle(
@@ -710,7 +710,7 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Who can see this story?',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,

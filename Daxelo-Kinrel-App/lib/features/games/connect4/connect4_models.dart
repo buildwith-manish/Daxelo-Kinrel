@@ -43,16 +43,6 @@ class Connect4Player {
     this.leftAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final DateTime joinedAt;
-  final bool isReady;
-  final DateTime? leftAt;
-
-  bool get isActive => leftAt == null;
-
   factory Connect4Player.fromJson(Map<String, dynamic> json) {
     return Connect4Player(
       id: (json['id'] ?? '') as String,
@@ -66,6 +56,16 @@ class Connect4Player {
           : null,
     );
   }
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final DateTime joinedAt;
+  final bool isReady;
+  final DateTime? leftAt;
+
+  bool get isActive => leftAt == null;
 }
 
 class Connect4Placement {
@@ -77,12 +77,6 @@ class Connect4Placement {
     required this.moves,
   });
 
-  final String userId;
-  final String userName;
-  final int place;
-  final int discs;
-  final int moves;
-
   factory Connect4Placement.fromJson(Map<String, dynamic> json) {
     return Connect4Placement(
       userId: (json['userId'] ?? '') as String,
@@ -92,6 +86,12 @@ class Connect4Placement {
       moves: (json['moves'] ?? 0) as int,
     );
   }
+
+  final String userId;
+  final String userName;
+  final int place;
+  final int discs;
+  final int moves;
 
   String get medal {
     switch (place) {
@@ -127,49 +127,6 @@ class Connect4Game {
     this.completedAt,
     this.spectatorsEnabled = true,
   });
-
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final Connect4Status status;
-  final int maxPlayers;
-  final DateTime createdAt;
-  final String? roomName;
-  final List<String> playerOrder;
-  final String? currentPlayerId;
-  final int currentTurnIndex;
-  final DateTime? turnEndsAt;
-  final Connect4GameState? boardState;
-  final List<Connect4Placement> placements;
-  final List<String> winnerUserIds;
-  final String? endReason;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final bool spectatorsEnabled;
-
-  bool get isWaiting => status == Connect4Status.waiting;
-  bool get isInProgress => status == Connect4Status.inProgress;
-  bool get isCompleted => status == Connect4Status.completed;
-
-  int? get turnSecondsRemaining {
-    if (!isInProgress || turnEndsAt == null) return null;
-    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
-    return left < 0 ? 0 : left;
-  }
-
-  String get endReasonLabel {
-    switch (endReason) {
-      case 'four_in_a_row':
-        return 'Four in a row!';
-      case 'draw':
-        return 'Board full — it\'s a draw!';
-      case 'walkover':
-        return 'Opponent left — you win by default';
-      default:
-        return 'Game complete';
-    }
-  }
 
   factory Connect4Game.fromJson(Map<String, dynamic> json) {
     final order = <String>[];
@@ -228,5 +185,48 @@ class Connect4Game {
           : null,
       spectatorsEnabled: (json['spectatorsEnabled'] ?? true) as bool,
     );
+  }
+
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final Connect4Status status;
+  final int maxPlayers;
+  final DateTime createdAt;
+  final String? roomName;
+  final List<String> playerOrder;
+  final String? currentPlayerId;
+  final int currentTurnIndex;
+  final DateTime? turnEndsAt;
+  final Connect4GameState? boardState;
+  final List<Connect4Placement> placements;
+  final List<String> winnerUserIds;
+  final String? endReason;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final bool spectatorsEnabled;
+
+  bool get isWaiting => status == Connect4Status.waiting;
+  bool get isInProgress => status == Connect4Status.inProgress;
+  bool get isCompleted => status == Connect4Status.completed;
+
+  int? get turnSecondsRemaining {
+    if (!isInProgress || turnEndsAt == null) return null;
+    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
+    return left < 0 ? 0 : left;
+  }
+
+  String get endReasonLabel {
+    switch (endReason) {
+      case 'four_in_a_row':
+        return 'Four in a row!';
+      case 'draw':
+        return 'Board full — it\'s a draw!';
+      case 'walkover':
+        return 'Opponent left — you win by default';
+      default:
+        return 'Game complete';
+    }
   }
 }

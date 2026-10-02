@@ -94,11 +94,11 @@ class _UnlinkedMembersSheet extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.link_off, size: 18, color: KinrelColors.amber),
+                    const Icon(Icons.link_off, size: 18, color: KinrelColors.amber),
                     const SizedBox(width: 8),
-                    Text(
+                    const Text(
                       'Needs Linking',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 18.0,
                         fontWeight: FontWeight.w700,
@@ -114,7 +114,7 @@ class _UnlinkedMembersSheet extends ConsumerWidget {
                       ),
                       child: Text(
                         '${unlinkedPersons.length}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -125,7 +125,7 @@ class _UnlinkedMembersSheet extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 6),
-                Text(
+                const Text(
                   'These members aren\'t connected to the family tree yet. Tap one to link them.',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -139,8 +139,8 @@ class _UnlinkedMembersSheet extends ConsumerWidget {
           const Divider(color: Color(0x1AFFFFFF), height: 1.0),
           // List
           if (unlinkedPersons.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(24.0),
+            const Padding(
+              padding: EdgeInsets.all(24.0),
               child: Text(
                 'Everyone is connected!',
                 style: TextStyle(
@@ -176,7 +176,7 @@ class _UnlinkedMembersSheet extends ConsumerWidget {
                         color: KinrelColors.textWhite,
                       ),
                     ),
-                    subtitle: Text(
+                    subtitle: const Text(
                       'No relationships yet',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -185,7 +185,7 @@ class _UnlinkedMembersSheet extends ConsumerWidget {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    trailing: Icon(
+                    trailing: const Icon(
                       Icons.link_rounded,
                       color: KinrelColors.amber,
                       size: 20,

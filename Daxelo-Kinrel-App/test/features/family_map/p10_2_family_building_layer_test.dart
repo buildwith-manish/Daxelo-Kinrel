@@ -68,7 +68,7 @@ void main() {
 
   group('P10.2 buildFamilyPlacesGeoJson', () {
     final places = <FamilyPlace>[
-      FamilyPlace(
+      const FamilyPlace(
         id: 'p1',
         familyId: 'fam',
         name: 'Ancestral Home',
@@ -77,7 +77,7 @@ void main() {
         lng: 73.85,
         memoryCount: 7,
       ),
-      FamilyPlace(
+      const FamilyPlace(
         id: 'p2',
         familyId: 'fam',
         name: 'Grandma Memorial',
@@ -86,7 +86,7 @@ void main() {
         lng: 72.87,
         memoryCount: 0,
       ),
-      FamilyPlace(
+      const FamilyPlace(
         id: 'p3',
         familyId: 'fam',
         name: 'Wedding Venue',

@@ -231,6 +231,15 @@ class HeistPlayer {
     this.missesNextRound = false,
   });
 
+  factory HeistPlayer.fromJson(Map<String, dynamic> json) => HeistPlayer(
+        idx: (json['idx'] as num?)?.toInt() ?? 0,
+        userId: (json['userId'] ?? '') as String,
+        name: (json['name'] ?? 'Player') as String,
+        coins: (json['coins'] as num?)?.toInt() ?? 0,
+        suspicion: (json['suspicion'] as num?)?.toInt() ?? 0,
+        missesNextRound: (json['missesNextRound'] as bool?) ?? false,
+      );
+
   final int idx;
   final String userId;
   final String name;
@@ -262,15 +271,6 @@ class HeistPlayer {
         'suspicion': suspicion,
         'missesNextRound': missesNextRound,
       };
-
-  factory HeistPlayer.fromJson(Map<String, dynamic> json) => HeistPlayer(
-        idx: (json['idx'] as num?)?.toInt() ?? 0,
-        userId: (json['userId'] ?? '') as String,
-        name: (json['name'] ?? 'Player') as String,
-        coins: (json['coins'] as num?)?.toInt() ?? 0,
-        suspicion: (json['suspicion'] as num?)?.toInt() ?? 0,
-        missesNextRound: (json['missesNextRound'] as bool?) ?? false,
-      );
 }
 
 /// One resolved event inside a round's events list.
@@ -281,6 +281,13 @@ class HeistEvent {
     this.amount,
     this.penalty,
   });
+
+  factory HeistEvent.fromJson(Map<String, dynamic> json) => HeistEvent(
+        type: (json['type'] ?? '') as String,
+        userId: json['userId'] as String?,
+        amount: (json['amount'] as num?)?.toInt(),
+        penalty: (json['penalty'] as num?)?.toInt(),
+      );
 
   final String type; // steal_success, steal_blocked, trap_triggered, hack_success, hack_backfire, alarm_triggered, spy_used
   final String? userId;
@@ -293,13 +300,6 @@ class HeistEvent {
         if (amount != null) 'amount': amount,
         if (penalty != null) 'penalty': penalty,
       };
-
-  factory HeistEvent.fromJson(Map<String, dynamic> json) => HeistEvent(
-        type: (json['type'] ?? '') as String,
-        userId: json['userId'] as String?,
-        amount: (json['amount'] as num?)?.toInt(),
-        penalty: (json['penalty'] as num?)?.toInt(),
-      );
 
   /// Human-readable description.
   String get description {
@@ -334,6 +334,13 @@ class RevealedAction {
     required this.outcome,
   });
 
+  factory RevealedAction.fromJson(Map<String, dynamic> json) => RevealedAction(
+        userId: (json['userId'] ?? '') as String,
+        action: (json['action'] ?? '') as String,
+        amount: (json['amount'] as num?)?.toInt(),
+        outcome: (json['outcome'] ?? '') as String,
+      );
+
   final String userId;
   final String action; // wire form: 'steal', 'protect', etc.
   final int? amount;
@@ -345,13 +352,6 @@ class RevealedAction {
         if (amount != null) 'amount': amount,
         'outcome': outcome,
       };
-
-  factory RevealedAction.fromJson(Map<String, dynamic> json) => RevealedAction(
-        userId: (json['userId'] ?? '') as String,
-        action: (json['action'] ?? '') as String,
-        amount: (json['amount'] as num?)?.toInt(),
-        outcome: (json['outcome'] ?? '') as String,
-      );
 
   HeistAction? get parsedAction => HeistActionX.fromString(action);
 }
@@ -372,34 +372,6 @@ class HeistRound {
     required this.events,
     required this.revealedActions,
   });
-
-  final int roundNumber;
-  final HeistPhase phase;
-  final int lockedCount;
-  final int vaultLost;
-  final int stealsSuccessful;
-  final int stealsBlocked;
-  final int trapsTriggered;
-  final int hacksSucceeded;
-  final int hacksBackfired;
-  final int alarmsTriggered;
-  final List<HeistEvent> events;
-  final List<RevealedAction> revealedActions;
-
-  Map<String, dynamic> toJson() => {
-        'roundNumber': roundNumber,
-        'phase': phase.wire,
-        'lockedCount': lockedCount,
-        'vaultLost': vaultLost,
-        'stealsSuccessful': stealsSuccessful,
-        'stealsBlocked': stealsBlocked,
-        'trapsTriggered': trapsTriggered,
-        'hacksSucceeded': hacksSucceeded,
-        'hacksBackfired': hacksBackfired,
-        'alarmsTriggered': alarmsTriggered,
-        'events': events.map((e) => e.toJson()).toList(),
-        'revealedActions': revealedActions.map((a) => a.toJson()).toList(),
-      };
 
   factory HeistRound.fromJson(Map<String, dynamic> json) {
     final eventsList = <HeistEvent>[];
@@ -438,6 +410,34 @@ class HeistRound {
       revealedActions: revealedList,
     );
   }
+
+  final int roundNumber;
+  final HeistPhase phase;
+  final int lockedCount;
+  final int vaultLost;
+  final int stealsSuccessful;
+  final int stealsBlocked;
+  final int trapsTriggered;
+  final int hacksSucceeded;
+  final int hacksBackfired;
+  final int alarmsTriggered;
+  final List<HeistEvent> events;
+  final List<RevealedAction> revealedActions;
+
+  Map<String, dynamic> toJson() => {
+        'roundNumber': roundNumber,
+        'phase': phase.wire,
+        'lockedCount': lockedCount,
+        'vaultLost': vaultLost,
+        'stealsSuccessful': stealsSuccessful,
+        'stealsBlocked': stealsBlocked,
+        'trapsTriggered': trapsTriggered,
+        'hacksSucceeded': hacksSucceeded,
+        'hacksBackfired': hacksBackfired,
+        'alarmsTriggered': alarmsTriggered,
+        'events': events.map((e) => e.toJson()).toList(),
+        'revealedActions': revealedActions.map((a) => a.toJson()).toList(),
+      };
 }
 
 /// The full boardState JSONB from the games row, parsed.
@@ -456,6 +456,44 @@ class HeistBoardState {
     required this.status,
     required this.winnerIndex,
   });
+
+  factory HeistBoardState.fromJson(Map<String, dynamic> json) {
+    final roundsList = <HeistRound>[];
+    final rawRounds = json['rounds'];
+    if (rawRounds is List) {
+      for (final r in rawRounds) {
+        if (r is Map) {
+          roundsList
+              .add(HeistRound.fromJson(Map<String, dynamic>.from(r)));
+        }
+      }
+    }
+    final playersList = <HeistPlayer>[];
+    final rawPlayers = json['players'];
+    if (rawPlayers is List) {
+      for (final p in rawPlayers) {
+        if (p is Map) {
+          playersList
+              .add(HeistPlayer.fromJson(Map<String, dynamic>.from(p)));
+        }
+      }
+    }
+    return HeistBoardState(
+      playerCount: (json['playerCount'] as num?)?.toInt() ?? 3,
+      totalRounds: (json['totalRounds'] as num?)?.toInt() ?? 5,
+      startingCoins: (json['startingCoins'] as num?)?.toInt() ?? 100,
+      vaultSize: (json['vaultSize'] as num?)?.toInt() ?? 500,
+      vaultCoins: (json['vaultCoins'] as num?)?.toInt() ?? 500,
+      chaosMode: (json['chaosMode'] as bool?) ?? false,
+      actionSeconds: (json['actionSeconds'] as num?)?.toInt() ??
+          kSecretHeistDefaultActionSeconds,
+      currentRoundNumber: (json['currentRound'] as num?)?.toInt() ?? 1,
+      rounds: roundsList,
+      players: playersList,
+      status: (json['status'] as String?) ?? 'in_progress',
+      winnerIndex: (json['winner'] as num?)?.toInt() ?? -1,
+    );
+  }
 
   final int playerCount;
   final int totalRounds;
@@ -512,44 +550,6 @@ class HeistBoardState {
         'status': status,
         'winner': winnerIndex,
       };
-
-  factory HeistBoardState.fromJson(Map<String, dynamic> json) {
-    final roundsList = <HeistRound>[];
-    final rawRounds = json['rounds'];
-    if (rawRounds is List) {
-      for (final r in rawRounds) {
-        if (r is Map) {
-          roundsList
-              .add(HeistRound.fromJson(Map<String, dynamic>.from(r)));
-        }
-      }
-    }
-    final playersList = <HeistPlayer>[];
-    final rawPlayers = json['players'];
-    if (rawPlayers is List) {
-      for (final p in rawPlayers) {
-        if (p is Map) {
-          playersList
-              .add(HeistPlayer.fromJson(Map<String, dynamic>.from(p)));
-        }
-      }
-    }
-    return HeistBoardState(
-      playerCount: (json['playerCount'] as num?)?.toInt() ?? 3,
-      totalRounds: (json['totalRounds'] as num?)?.toInt() ?? 5,
-      startingCoins: (json['startingCoins'] as num?)?.toInt() ?? 100,
-      vaultSize: (json['vaultSize'] as num?)?.toInt() ?? 500,
-      vaultCoins: (json['vaultCoins'] as num?)?.toInt() ?? 500,
-      chaosMode: (json['chaosMode'] as bool?) ?? false,
-      actionSeconds: (json['actionSeconds'] as num?)?.toInt() ??
-          kSecretHeistDefaultActionSeconds,
-      currentRoundNumber: (json['currentRound'] as num?)?.toInt() ?? 1,
-      rounds: roundsList,
-      players: playersList,
-      status: (json['status'] as String?) ?? 'in_progress',
-      winnerIndex: (json['winner'] as num?)?.toInt() ?? -1,
-    );
-  }
 }
 
 /// Pure-Dart engine — client-side validation helpers + display logic.

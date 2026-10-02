@@ -386,7 +386,7 @@ void main() {
       // relationshipKey, isPrivate. There is NO linkedUserId,
       // isKinrelUser, or identitySource field. This is the structural
       // proof that identity source cannot determine edge visibility.
-      final edge = GraphEdgeData(
+      final edge = const GraphEdgeData(
         id: 'test',
         sourceId: 'a',
         targetId: 'b',

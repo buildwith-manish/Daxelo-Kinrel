@@ -556,12 +556,8 @@ class ChessNotifier extends StateNotifier<ChessState> {
       final fromSquare = matchedMove.fromAlgebraic;
       final toSquare = matchedMove.toAlgebraic;
       final pieceMoved = matchedMove.piece.toString().toUpperCase();
-      final capturedPiece = matchedMove.captured != null
-          ? matchedMove.captured.toString()
-          : null;
-      final promotedTo = matchedMove.promotion != null
-          ? matchedMove.promotion.toString().toUpperCase()
-          : null;
+      final capturedPiece = matchedMove.captured?.toString();
+      final promotedTo = matchedMove.promotion?.toString().toUpperCase();
 
       // Determine special move type by examining the move
       // chess.dart 0.8.1 Move class doesn't expose a 'flag' property,

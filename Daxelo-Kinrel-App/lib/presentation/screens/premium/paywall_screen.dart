@@ -83,7 +83,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen>
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: EdgeInsets.symmetric(
+          padding: const EdgeInsets.symmetric(
             horizontal: KinrelSpacing.base,
             vertical: KinrelSpacing.sm,
           ),
@@ -177,7 +177,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen>
 
         const SizedBox(height: 10),
 
-        Text(
+        const Text(
           'Add unlimited members, get AI suggestions,\nand unlock premium features.',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -398,7 +398,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen>
   // ═══════════════════════════════════════════════════════════════════
 
   Widget _buildTermsText() {
-    return Text(
+    return const Text(
       'Cancel anytime. Payment charged to your Google Play / Apple ID account. '
       'Subscription auto-renews unless cancelled 24 hours before the end of the period.',
       style: TextStyle(
@@ -633,7 +633,7 @@ class _PlanCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       pricePerMonth!,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
                         color: KinrelColors.textDim,
@@ -661,7 +661,7 @@ class _PlanCard extends StatelessWidget {
                   ),
                   TextSpan(
                     text: period,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.textDim,

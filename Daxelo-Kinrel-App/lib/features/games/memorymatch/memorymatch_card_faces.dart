@@ -275,129 +275,129 @@ const double _math_pi = math.pi;
 // ─────────────────────────────────────────────────────────────────────
 
 final List<MemoryFaceSpec> _classicList = [
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'star',
     label: 'Star',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFFFC940), accent: Color(0xFFF59240), detail: Color(0xFFE8862A)),
     painter: _faceStar,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'heart',
     label: 'Heart',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFFF6B81), accent: Color(0xFFE84393), detail: Color(0xFFC44569)),
     painter: _faceHeart,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'moon',
     label: 'Moon',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFFFE08A), accent: Color(0xFFD4AF37), detail: Color(0xFFB8912E)),
     painter: _faceMoon,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'sun',
     label: 'Sun',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFFFD54F), accent: Color(0xFFF59240), detail: Color(0xFFE8862A)),
     painter: _faceSun,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'crown',
     label: 'Crown',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFFFD54F), accent: Color(0xFFE8612A), detail: Color(0xFFB8912E)),
     painter: _faceCrown,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'gem',
     label: 'Gem',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFF6FD8E8), accent: Color(0xFF3BA8C9), detail: Color(0xFF2C7E9E)),
     painter: _faceGem,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'rocket',
     label: 'Rocket',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFE8EDF5), accent: Color(0xFFE8612A), detail: Color(0xFF3E4A5E)),
     painter: _faceRocket,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'balloon',
     label: 'Balloon',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFFF8FA3), accent: Color(0xFFE84393), detail: Color(0xFFC44569)),
     painter: _faceBalloon,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'rainbow',
     label: 'Rainbow',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFFF6B81), accent: Color(0xFF6FD8E8), detail: Color(0xFF9B8CFF)),
     painter: _faceRainbow,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'bolt',
     label: 'Bolt',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFFFD54F), accent: Color(0xFFF59240), detail: Color(0xFFE8862A)),
     painter: _faceBolt,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'flame',
     label: 'Flame',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF59240), accent: Color(0xFFFFC940), detail: Color(0xFFE8432A)),
     painter: _faceFlame,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'snow',
     label: 'Snowflake',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFBFE8F5), accent: Color(0xFF8FD4E8), detail: Color(0xFF6FB8D4)),
     painter: _faceSnow,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'target',
     label: 'Target',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFE8612A), accent: Color(0xFFFFFFFF), detail: Color(0xFFC44A18)),
     painter: _faceTarget,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'gift',
     label: 'Gift',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFF9B8CFF), accent: Color(0xFFFFC940), detail: Color(0xFF7A6BD4)),
     painter: _faceGift,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'puzzle',
     label: 'Puzzle',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFF6FD8A8), accent: Color(0xFF3EA87E), detail: Color(0xFF2C7E5E)),
     painter: _facePuzzle,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'sparkle',
     label: 'Sparkle',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFFFE08A), accent: Color(0xFFF59240), detail: Color(0xFFD4AF37)),
     painter: _faceSparkle,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'crystal',
     label: 'Crystal',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFB79BFF), accent: Color(0xFF8F6FE8), detail: Color(0xFF6B4FD4)),
     painter: _faceCrystal,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'butterfly',
     label: 'Butterfly',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFF8FD4E8), accent: Color(0xFFE84393), detail: Color(0xFF5E6B8C)),
     painter: _faceButterfly,
   ),
@@ -707,129 +707,129 @@ void _personFace(Canvas c, MemoryFacePalette p,
 }
 
 final List<MemoryFaceSpec> _familyList = [
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'mom',
     label: 'Mom',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF2C9A8), accent: Color(0xFFE8798A), detail: Color(0xFF5E4638)),
     painter: _faceMom,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'dad',
     label: 'Dad',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFEBB68E), accent: Color(0xFF4A6FA8), detail: Color(0xFF2E2A26)),
     painter: _faceDad,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'brother',
     label: 'Brother',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF2C9A8), accent: Color(0xFF3EA87E), detail: Color(0xFF2E2A26)),
     painter: _faceBrother,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'sister',
     label: 'Sister',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF5D1B4), accent: Color(0xFFE84393), detail: Color(0xFF6B4A2E)),
     painter: _faceSister,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'grandmother',
     label: 'Grandma',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF2C9A8), accent: Color(0xFF9B8CFF), detail: Color(0xFF8C8C99)),
     painter: _faceGrandmother,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'grandfather',
     label: 'Grandpa',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFEBB68E), accent: Color(0xFF6FA8C9), detail: Color(0xFFB9BDC9)),
     painter: _faceGrandfather,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'cousin',
     label: 'Cousin',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFD9A06B), accent: Color(0xFFF59240), detail: Color(0xFF2E2A26)),
     painter: _faceCousin,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'uncle',
     label: 'Uncle',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFC98E62), accent: Color(0xFF5E8A5E), detail: Color(0xFF2E2A26)),
     painter: _faceUncle,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'aunt',
     label: 'Aunt',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFEBB68E), accent: Color(0xFFE8862A), detail: Color(0xFF4A2E1E)),
     painter: _faceAunt,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'baby',
     label: 'Baby',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF7DCC2), accent: Color(0xFF8FD4E8), detail: Color(0xFF5E4638)),
     painter: _faceBaby,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'elder',
     label: 'Elder',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFDCB18A), accent: Color(0xFFD4AF37), detail: Color(0xFF9C9CA8)),
     painter: _faceElder,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'bigfamily',
     label: 'Family',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF2C9A8), accent: Color(0xFFE8612A), detail: Color(0xFF2E2A26)),
     painter: _faceBigFamily,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'hug',
     label: 'Hug',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF2C9A8), accent: Color(0xFF9B8CFF), detail: Color(0xFF4A6FA8)),
     painter: _faceHug,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'home',
     label: 'Home',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFE8A05C), accent: Color(0xFFC44A18), detail: Color(0xFF5E8A5E)),
     painter: _faceHome,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'petdog',
     label: 'Pet Dog',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFD9A96B), accent: Color(0xFF8C6239), detail: Color(0xFF2E2A26)),
     painter: _facePetDog,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'homefood',
     label: 'Home Food',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF5EEE0), accent: Color(0xFFE8862A), detail: Color(0xFFC44A18)),
     painter: _faceHomeFood,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'picnic',
     label: 'Picnic',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFD9A05C), accent: Color(0xFFE84393), detail: Color(0xFF5E8A5E)),
     painter: _facePicnic,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'storytime',
     label: 'Story Time',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFF6FA8C9), accent: Color(0xFFFFC940), detail: Color(0xFF3E5E7E)),
     painter: _faceStoryTime,
   ),
@@ -1183,129 +1183,129 @@ void _faceStoryTime(Canvas c, MemoryFacePalette p) {
 // ─────────────────────────────────────────────────────────────────────
 
 final List<MemoryFaceSpec> _foodList = [
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'pizza',
     label: 'Pizza',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF5C04E), accent: Color(0xFFE8612A), detail: Color(0xFFC44A18)),
     painter: _facePizza,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'burger',
     label: 'Burger',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF0B45E), accent: Color(0xFF5E8A3E), detail: Color(0xFF6B3E28)),
     painter: _faceBurger,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'icecream',
     label: 'Ice Cream',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF7DCC2), accent: Color(0xFFE8798A), detail: Color(0xFFC98E62)),
     painter: _faceIceCream,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'cake',
     label: 'Cake',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF7DCC2), accent: Color(0xFFE8798A), detail: Color(0xFFC44A18)),
     painter: _faceCake,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'apple',
     label: 'Apple',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFE84393), accent: Color(0xFF5E8A3E), detail: Color(0xFFC44569)),
     painter: _faceApple,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'fish',
     label: 'Fish',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFF6FD8E8), accent: Color(0xFF3E5E7E), detail: Color(0xFF2C7E9E)),
     painter: _faceFish,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'coffee',
     label: 'Coffee',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFF8C6239), accent: Color(0xFFF5EEE0), detail: Color(0xFF5E4630)),
     painter: _faceCoffee,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'donut',
     label: 'Donut',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFC08E66), accent: Color(0xFF8FD4E8), detail: Color(0xFFC98E62)),
     painter: _faceDonut,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'banana',
     label: 'Banana',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFFFE08A), accent: Color(0xFFE8A05C), detail: Color(0xFFC98E2E)),
     painter: _faceBanana,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'grapes',
     label: 'Grapes',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFF9B8CFF), accent: Color(0xFF6B4FD4), detail: Color(0xFF5E8A3E)),
     painter: _faceGrapes,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'taco',
     label: 'Taco',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF0B45E), accent: Color(0xFF5E8A3E), detail: Color(0xFFE84393)),
     painter: _faceTaco,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'noodles',
     label: 'Noodles',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF5EEE0), accent: Color(0xFFE8A05C), detail: Color(0xFFC44A18)),
     painter: _faceNoodles,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'sushi',
     label: 'Sushi',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF5EEE0), accent: Color(0xFFE8798A), detail: Color(0xFF2E3A2E)),
     painter: _faceSushi,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'cookie',
     label: 'Cookie',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFD9A05C), accent: Color(0xFF6B3E28), detail: Color(0xFFC98E62)),
     painter: _faceCookie,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'cupcake',
     label: 'Cupcake',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF7DCC2), accent: Color(0xFF9B8CFF), detail: Color(0xFFE8798A)),
     painter: _faceCupcake,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'strawberry',
     label: 'Strawberry',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFE84393), accent: Color(0xFF5E8A3E), detail: Color(0xFFFFC940)),
     painter: _faceStrawberry,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'avocado',
     label: 'Avocado',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFF6FB861), accent: Color(0xFFF5E6A8), detail: Color(0xFF4E7E42)),
     painter: _faceAvocado,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'popcorn',
     label: 'Popcorn',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF5EEE0), accent: Color(0xFFE8432A), detail: Color(0xFFC98E62)),
     painter: _facePopcorn,
   ),
@@ -1603,129 +1603,129 @@ void _animalSnout(Canvas c, MemoryFacePalette p) {
 }
 
 final List<MemoryFaceSpec> _animalsList = [
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'dog',
     label: 'Dog',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFD9A96B), accent: Color(0xFF8C6239), detail: Color(0xFF2E2A26)),
     painter: _faceADog,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'cat',
     label: 'Cat',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF0B45E), accent: Color(0xFFE8862A), detail: Color(0xFF2E2A26)),
     painter: _faceACat,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'lion',
     label: 'Lion',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFD9A05C), accent: Color(0xFFC9822E), detail: Color(0xFF5E4630)),
     painter: _faceALion,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'tiger',
     label: 'Tiger',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF59240), accent: Color(0xFF2E2A26), detail: Color(0xFFC44A18)),
     painter: _faceATiger,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'elephant',
     label: 'Elephant',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFF9BA8C4), accent: Color(0xFF7E8BA8), detail: Color(0xFF5A6478)),
     painter: _faceAElephant,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'rabbit',
     label: 'Rabbit',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF5EEE0), accent: Color(0xFFFFC9D4), detail: Color(0xFF5E4638)),
     painter: _faceARabbit,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'panda',
     label: 'Panda',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF5F5F5), accent: Color(0xFF2E2A30), detail: Color(0xFF1E1E24)),
     painter: _faceAPanda,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'bear',
     label: 'Bear',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFB07845), accent: Color(0xFF8C5A2E), detail: Color(0xFF3E2E1E)),
     painter: _faceABear,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'fox',
     label: 'Fox',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFE8762A), accent: Color(0xFFFFF5EE), detail: Color(0xFF5E2E14)),
     painter: _faceAFox,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'koala',
     label: 'Koala',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFB8BCC9), accent: Color(0xFFE8EAEE), detail: Color(0xFF4E5462)),
     painter: _faceAKoala,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'cow',
     label: 'Cow',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF5F0EE), accent: Color(0xFF2E2A26), detail: Color(0xFFE8A0B4)),
     painter: _faceACow,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'pig',
     label: 'Pig',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF7B8C4), accent: Color(0xFFE892A4), detail: Color(0xFF6B3E4A)),
     painter: _faceAPig,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'monkey',
     label: 'Monkey',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFB07845), accent: Color(0xFFF5D1B4), detail: Color(0xFF4A2E18)),
     painter: _faceAMonkey,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'hen',
     label: 'Hen',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF5EEE0), accent: Color(0xFFE8432A), detail: Color(0xFFFFC940)),
     painter: _faceAHen,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'unicorn',
     label: 'Unicorn',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFFF5F0F8), accent: Color(0xFF9B8CFF), detail: Color(0xFF4E4678)),
     painter: _faceAUnicorn,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'turtle',
     label: 'Turtle',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFF6FB861), accent: Color(0xFF4E7E42), detail: Color(0xFF2E4A26)),
     painter: _faceATurtle,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'frog',
     label: 'Frog',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFF7ECB6B), accent: Color(0xFF5EA84E), detail: Color(0xFF2E4A26)),
     painter: _faceAFrog,
   ),
-  MemoryFaceSpec(
+  const MemoryFaceSpec(
     key: 'owl',
     label: 'Owl',
-    palette: const MemoryFacePalette(
+    palette: MemoryFacePalette(
         base: Color(0xFF9B7E5E), accent: Color(0xFFF5E6C8), detail: Color(0xFF4A3626)),
     painter: _faceAOwl,
   ),

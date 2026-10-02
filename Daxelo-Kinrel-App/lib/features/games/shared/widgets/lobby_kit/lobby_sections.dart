@@ -44,7 +44,7 @@ class LobbySection extends StatelessWidget {
       children: [
         Text(
           label.toUpperCase(),
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.monoFont,
             fontSize: 11,
             fontWeight: FontWeight.w700,
@@ -167,10 +167,10 @@ class _ChoicePill extends StatelessWidget {
             ),
             boxShadow: isSelected
                 ? [
-                    BoxShadow(
+                    const BoxShadow(
                       color: KinrelColors.orangeGlow,
                       blurRadius: 10,
-                      offset: const Offset(0, 3),
+                      offset: Offset(0, 3),
                     ),
                   ]
                 : null,
@@ -342,7 +342,7 @@ class LobbySliderRow extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -360,7 +360,7 @@ class LobbySliderRow extends StatelessWidget {
               ),
               child: Text(
                 valueLabel,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
@@ -460,7 +460,7 @@ class LobbySwitchRow extends StatelessWidget {
                   children: [
                     Text(
                       label,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13.5,
                         fontWeight: FontWeight.w600,
@@ -471,7 +471,7 @@ class LobbySwitchRow extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         caption!,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 10.5,
                           color: KinrelColors.textDim,
@@ -530,7 +530,7 @@ class LobbyInfoNote extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11.5,
                 color: KinrelColors.textDim,

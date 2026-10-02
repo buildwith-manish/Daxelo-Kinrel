@@ -66,7 +66,7 @@ class _ChitmatchCardState extends ConsumerState<ChitmatchCard> {
                       child: const Icon(Icons.style_outlined, color: accent, size: 20),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
+                    const Expanded(
                       child: Text('TripleMatch', style: TextStyle(
                         fontFamily: KinrelTypography.displayFont, fontSize: 16,
                         fontWeight: FontWeight.w700, color: KinrelColors.textWhite,
@@ -79,7 +79,7 @@ class _ChitmatchCardState extends ConsumerState<ChitmatchCard> {
                   dlState.status != GameDownloadStatus.downloaded
                     ? 'Download in Games hub to play'
                     : 'Pass chits, collect 3-of-a-kind — 4-12 players!',
-                  style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim),
+                  style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim),
                 ),
               ],
             ),

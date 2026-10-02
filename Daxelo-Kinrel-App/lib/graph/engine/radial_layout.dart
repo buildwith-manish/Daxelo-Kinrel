@@ -31,6 +31,16 @@ import 'hierarchical_layout.dart' show HierarchicalLayout;
 
 /// Configuration for the [RadialLayout] engine.
 class RadialLayoutConfig {
+
+  const RadialLayoutConfig({
+    this.ringSpacing = 180.0,
+    this.compactSpacing = 120.0,
+    this.spouseAngularOffset = 90.0,
+    this.canvasPadding = 120.0,
+    this.baseRadius = 160.0,
+    this.compact = false,
+    this.minAngularGap = 0.02,
+  });
   /// Standard spacing between concentric rings (dp).
   final double ringSpacing;
 
@@ -51,16 +61,6 @@ class RadialLayoutConfig {
 
   /// Minimum angular gap between nodes on the same ring (radians).
   final double minAngularGap;
-
-  const RadialLayoutConfig({
-    this.ringSpacing = 180.0,
-    this.compactSpacing = 120.0,
-    this.spouseAngularOffset = 90.0,
-    this.canvasPadding = 120.0,
-    this.baseRadius = 160.0,
-    this.compact = false,
-    this.minAngularGap = 0.02,
-  });
 
   /// Active ring spacing based on compact mode.
   double get activeSpacing => compact ? compactSpacing : ringSpacing;
@@ -109,10 +109,10 @@ class RadialLayoutConfig {
 /// final result = layout.compute(persons: persons, relationships: relationships);
 /// ```
 class RadialLayout {
-  RadialLayoutConfig _config;
 
   RadialLayout({RadialLayoutConfig? config})
       : _config = config ?? const RadialLayoutConfig();
+  RadialLayoutConfig _config;
 
   /// Current configuration.
   RadialLayoutConfig get config => _config;

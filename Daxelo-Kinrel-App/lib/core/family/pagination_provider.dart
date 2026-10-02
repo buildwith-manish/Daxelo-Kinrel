@@ -101,7 +101,7 @@ class PaginatedFamilyNotifier
 
     try {
       // Try Drift cache first for instant rendering
-      List<Family> cachedFamilies = [];
+      final List<Family> cachedFamilies = [];
       if (IsarDatabase.isInitialized) {
         try {
           final db = _ref.read(isarProvider);

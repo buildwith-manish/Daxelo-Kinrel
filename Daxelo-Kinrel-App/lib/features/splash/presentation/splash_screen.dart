@@ -675,7 +675,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               end: Alignment.bottomRight,
             ).createShader(bounds);
           },
-          child: Text(
+          child: const Text(
             'KINREL',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont, // Outfit
@@ -701,7 +701,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       opacity: opacity,
       child: Transform.translate(
         offset: Offset(0, slideY),
-        child: Text(
+        child: const Text(
           'BY DAXELO',
           style: TextStyle(
             fontFamily: KinrelTypography.monoFont, // DM Mono
@@ -828,7 +828,7 @@ class _KGraphSplashPainter extends CustomPainter {
     canvas.drawCircle(center, radius * 1.8, innerGlow);
 
     final nodePaint = Paint()
-      ..shader = RadialGradient(
+      ..shader = const RadialGradient(
         center: Alignment(-0.3, -0.3),
         colors: [
           KinrelColors.brightViolet,

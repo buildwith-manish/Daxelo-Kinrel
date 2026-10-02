@@ -1,14 +1,5 @@
 // FamilyInviteModel — token-based family invite with creator tracking
 class FamilyInviteModel {
-  final String id;
-  final String familyId;
-  final String token;
-  final String creatorId;
-  final DateTime? expiresAt;
-  final int? maxUses;
-  final int useCount;
-  final bool active;
-  final DateTime createdAt;
 
   const FamilyInviteModel({
     required this.id,
@@ -39,6 +30,15 @@ class FamilyInviteModel {
           : DateTime.now(),
     );
   }
+  final String id;
+  final String familyId;
+  final String token;
+  final String creatorId;
+  final DateTime? expiresAt;
+  final int? maxUses;
+  final int useCount;
+  final bool active;
+  final DateTime createdAt;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -59,11 +59,6 @@ class FamilyInviteModel {
 
 /// Preview data shown before joining a family
 class FamilyJoinPreviewModel {
-  final String familyName;
-  final String ownerName;
-  final int memberCount;
-  final bool isValid;
-  final bool isExpired;
 
   const FamilyJoinPreviewModel({
     required this.familyName,
@@ -82,4 +77,9 @@ class FamilyJoinPreviewModel {
       isExpired: json['isExpired'] as bool? ?? false,
     );
   }
+  final String familyName;
+  final String ownerName;
+  final int memberCount;
+  final bool isValid;
+  final bool isExpired;
 }

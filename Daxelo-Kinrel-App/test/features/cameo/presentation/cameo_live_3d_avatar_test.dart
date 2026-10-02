@@ -33,7 +33,7 @@ void main() {
       'shows 2D fallback on dense surfaces (map_marker)',
       (tester) async {
         await tester.pumpWidget(
-          MaterialApp(
+          const MaterialApp(
             home: Scaffold(
               body: CameoLive3DAvatar(
                 personName: 'Test Person',
@@ -59,7 +59,7 @@ void main() {
       'shows 2D fallback on chat_avatar surface',
       (tester) async {
         await tester.pumpWidget(
-          MaterialApp(
+          const MaterialApp(
             home: Scaffold(
               body: CameoLive3DAvatar(
                 personName: 'Test Person',
@@ -82,7 +82,7 @@ void main() {
       'shows 2D fallback on graph_node surface',
       (tester) async {
         await tester.pumpWidget(
-          MaterialApp(
+          const MaterialApp(
             home: Scaffold(
               body: CameoLive3DAvatar(
                 personName: 'Test Person',
@@ -103,7 +103,7 @@ void main() {
       'shows 2D fallback on timeline_card surface',
       (tester) async {
         await tester.pumpWidget(
-          MaterialApp(
+          const MaterialApp(
             home: Scaffold(
               body: CameoLive3DAvatar(
                 personName: 'Test Person',
@@ -139,7 +139,7 @@ void main() {
           // In headless CI, Thermion init fails gracefully → 2D fallback.
           // We verify the fallback path instead of skipping entirely.
           await tester.pumpWidget(
-            MaterialApp(
+            const MaterialApp(
               home: Scaffold(
                 body: CameoLive3DAvatar(
                   personName: 'Test Person',
@@ -159,7 +159,7 @@ void main() {
         }
 
         await tester.pumpWidget(
-          MaterialApp(
+          const MaterialApp(
             home: Scaffold(
               body: CameoLive3DAvatar(
                 personName: 'Test Person',
@@ -183,7 +183,7 @@ void main() {
       (tester) async {
         if (!_hasGPU) {
           await tester.pumpWidget(
-            MaterialApp(
+            const MaterialApp(
               home: Scaffold(
                 body: CameoLive3DAvatar(
                   personName: 'Test Person',
@@ -201,7 +201,7 @@ void main() {
         }
 
         await tester.pumpWidget(
-          MaterialApp(
+          const MaterialApp(
             home: Scaffold(
               body: CameoLive3DAvatar(
                 personName: 'Test Person',
@@ -223,7 +223,7 @@ void main() {
       (tester) async {
         if (!_hasGPU) {
           await tester.pumpWidget(
-            MaterialApp(
+            const MaterialApp(
               home: Scaffold(
                 body: CameoLive3DAvatar(
                   personName: 'Test Person',
@@ -242,7 +242,7 @@ void main() {
         }
 
         await tester.pumpWidget(
-          MaterialApp(
+          const MaterialApp(
             home: Scaffold(
               body: CameoLive3DAvatar(
                 personName: 'Test Person',
@@ -264,7 +264,7 @@ void main() {
       'graceful fallback on renderer init failure',
       (tester) async {
         await tester.pumpWidget(
-          MaterialApp(
+          const MaterialApp(
             home: Scaffold(
               body: CameoLive3DAvatar(
                 personName: 'Broken Init Test',
@@ -287,7 +287,7 @@ void main() {
       'disposes resources correctly on unmount',
       (tester) async {
         await tester.pumpWidget(
-          MaterialApp(
+          const MaterialApp(
             home: Scaffold(
               body: CameoLive3DAvatar(
                 personName: 'Dispose Test',
@@ -378,7 +378,7 @@ void main() {
       'provides semantic label for accessibility',
       (tester) async {
         await tester.pumpWidget(
-          MaterialApp(
+          const MaterialApp(
             home: Scaffold(
               body: CameoLive3DAvatar(
                 personName: 'Aaji',

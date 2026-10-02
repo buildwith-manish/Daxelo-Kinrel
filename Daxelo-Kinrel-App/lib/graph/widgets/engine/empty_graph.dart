@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 /// v5.135: The genuinely-empty state — the family has 0 real members.
 /// Shows the "add someone to start" prompt.
 class EmptyGraph extends StatelessWidget {
-  const EmptyGraph();
+  const EmptyGraph({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -123,7 +123,7 @@ class AccessIssueGraph extends StatelessWidget {
 }
 
 class ErrorRetry extends StatelessWidget {
-  const ErrorRetry({required this.onRetry});
+  const ErrorRetry({super.key, required this.onRetry});
 
   final VoidCallback onRetry;
 

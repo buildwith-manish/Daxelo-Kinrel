@@ -44,11 +44,6 @@ class UserLastSeen {
     this.updatedAt,
   });
 
-  final String userId;
-  final bool isOnline;
-  final DateTime? lastSeenAt; // null when isOnline = true
-  final DateTime? updatedAt;
-
   factory UserLastSeen.fromJson(Map<String, dynamic> json) {
     return UserLastSeen(
       userId: json['userId'] as String? ?? '',
@@ -61,6 +56,11 @@ class UserLastSeen {
           : DateTime.tryParse(json['updatedAt'].toString()),
     );
   }
+
+  final String userId;
+  final bool isOnline;
+  final DateTime? lastSeenAt; // null when isOnline = true
+  final DateTime? updatedAt;
 }
 
 /// Format a [UserLastSeen] into a human-readable label.

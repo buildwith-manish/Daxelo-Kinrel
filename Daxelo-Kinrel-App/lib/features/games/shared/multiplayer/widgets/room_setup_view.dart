@@ -167,7 +167,7 @@ class _RoomSetupViewState extends ConsumerState<RoomSetupView> {
 
   Widget _sectionLabel(String text) => Text(
         text,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.displayFont,
           fontSize: 13,
           fontWeight: FontWeight.w600,

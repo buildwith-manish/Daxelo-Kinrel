@@ -166,14 +166,14 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                   fontSize: 15,
                   color: _textDim.withValues(alpha: 0.7),
                 ),
-                prefixIcon: Icon(
+                prefixIcon: const Icon(
                   Icons.search_rounded,
                   color: _textDim,
                   size: 22,
                 ),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.clear, color: _textDim, size: 20),
+                        icon: const Icon(Icons.clear, color: _textDim, size: 20),
                         onPressed: () {
                           _searchController.clear();
                           setState(() => _searchQuery = '');
@@ -328,7 +328,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Try a different search term',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,

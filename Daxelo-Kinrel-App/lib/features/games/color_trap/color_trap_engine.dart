@@ -107,6 +107,12 @@ class ColorTrapTile {
     required this.color,
     this.isVisible = true,
   });
+  factory ColorTrapTile.fromJson(Map<String, dynamic> json) => ColorTrapTile(
+    row: (json['r'] as num?)?.toInt() ?? 0,
+    col: (json['c'] as num?)?.toInt() ?? 0,
+    color: ColorTrapTileColorX.fromString(json['color'] as String?),
+    isVisible: (json['v'] as bool?) ?? true,
+  );
   final int row;
   final int col;
   ColorTrapTileColor color;
@@ -115,12 +121,6 @@ class ColorTrapTile {
   Map<String, dynamic> toJson() => {
     'r': row, 'c': col, 'color': color.wire, 'v': isVisible,
   };
-  factory ColorTrapTile.fromJson(Map<String, dynamic> json) => ColorTrapTile(
-    row: (json['r'] as num?)?.toInt() ?? 0,
-    col: (json['c'] as num?)?.toInt() ?? 0,
-    color: ColorTrapTileColorX.fromString(json['color'] as String?),
-    isVisible: (json['v'] as bool?) ?? true,
-  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -137,6 +137,15 @@ class ColorTrapPlayer {
     this.isAlive = true,
     this.eliminatedRound = -1,
   });
+  factory ColorTrapPlayer.fromJson(Map<String, dynamic> json) => ColorTrapPlayer(
+    playerIndex: (json['idx'] as num?)?.toInt() ?? 0,
+    userId: (json['userId'] ?? '') as String,
+    userName: (json['name'] ?? 'Player') as String,
+    row: (json['r'] as num?)?.toInt() ?? 0,
+    col: (json['c'] as num?)?.toInt() ?? 0,
+    isAlive: (json['alive'] as bool?) ?? true,
+    eliminatedRound: (json['elim'] as num?)?.toInt() ?? -1,
+  );
   final int playerIndex;
   final String userId;
   final String userName;
@@ -149,15 +158,6 @@ class ColorTrapPlayer {
     'idx': playerIndex, 'userId': userId, 'name': userName,
     'r': row, 'c': col, 'alive': isAlive, 'elim': eliminatedRound,
   };
-  factory ColorTrapPlayer.fromJson(Map<String, dynamic> json) => ColorTrapPlayer(
-    playerIndex: (json['idx'] as num?)?.toInt() ?? 0,
-    userId: (json['userId'] ?? '') as String,
-    userName: (json['name'] ?? 'Player') as String,
-    row: (json['r'] as num?)?.toInt() ?? 0,
-    col: (json['c'] as num?)?.toInt() ?? 0,
-    isAlive: (json['alive'] as bool?) ?? true,
-    eliminatedRound: (json['elim'] as num?)?.toInt() ?? -1,
-  );
 
   ColorTrapPlayer copy() => ColorTrapPlayer(
     playerIndex: playerIndex, userId: userId, userName: userName,
@@ -194,18 +194,6 @@ class ColorTrapRound {
     required this.tiles,
     required this.arenaSize,
   });
-  final int roundNumber;
-  ColorTrapTileColor targetColor;
-  List<ColorTrapTile> tiles;
-  final int arenaSize;
-  ColorTrapPhase phase = ColorTrapPhase.arenaShown;
-  int countdownRemaining = 0;
-
-  Map<String, dynamic> toJson() => {
-    'round': roundNumber, 'target': targetColor.wire,
-    'tiles': tiles.map((t) => t.toJson()).toList(),
-    'size': arenaSize, 'phase': phase.wire, 'countdown': countdownRemaining,
-  };
   factory ColorTrapRound.fromJson(Map<String, dynamic> json) {
     final tilesList = <ColorTrapTile>[];
     final rawTiles = json['tiles'];
@@ -224,6 +212,18 @@ class ColorTrapRound {
     round.countdownRemaining = (json['countdown'] as num?)?.toInt() ?? 0;
     return round;
   }
+  final int roundNumber;
+  ColorTrapTileColor targetColor;
+  List<ColorTrapTile> tiles;
+  final int arenaSize;
+  ColorTrapPhase phase = ColorTrapPhase.arenaShown;
+  int countdownRemaining = 0;
+
+  Map<String, dynamic> toJson() => {
+    'round': roundNumber, 'target': targetColor.wire,
+    'tiles': tiles.map((t) => t.toJson()).toList(),
+    'size': arenaSize, 'phase': phase.wire, 'countdown': countdownRemaining,
+  };
 
   ColorTrapRound copy() {
     final r = ColorTrapRound(
@@ -252,30 +252,6 @@ class ColorTrapGameState {
     this.winnerPlayerIndex = -1,
   });
 
-  int playerCount;
-  ColorTrapDifficulty difficulty;
-  int currentRoundNumber;
-  List<ColorTrapRound> rounds;
-  List<ColorTrapPlayer> players;
-  String status; // 'in_progress' | 'completed'
-  int winnerPlayerIndex;
-
-  ColorTrapRound? get currentRound =>
-      rounds.isNotEmpty && currentRoundNumber <= rounds.length
-          ? rounds[currentRoundNumber - 1] : null;
-
-  bool get isFinished => status == 'completed';
-  List<ColorTrapPlayer> get alivePlayers => players.where((p) => p.isAlive).toList();
-  int get aliveCount => alivePlayers.length;
-
-  Map<String, dynamic> toJson() => {
-    'playerCount': playerCount, 'difficulty': difficulty.wire,
-    'currentRound': currentRoundNumber,
-    'rounds': rounds.map((r) => r.toJson()).toList(),
-    'players': players.map((p) => p.toJson()).toList(),
-    'status': status, 'winner': winnerPlayerIndex,
-  };
-
   factory ColorTrapGameState.fromJson(Map<String, dynamic> json) {
     final roundsList = <ColorTrapRound>[];
     final rawRounds = json['rounds'];
@@ -300,6 +276,30 @@ class ColorTrapGameState {
       winnerPlayerIndex: (json['winner'] as num?)?.toInt() ?? -1,
     );
   }
+
+  int playerCount;
+  ColorTrapDifficulty difficulty;
+  int currentRoundNumber;
+  List<ColorTrapRound> rounds;
+  List<ColorTrapPlayer> players;
+  String status; // 'in_progress' | 'completed'
+  int winnerPlayerIndex;
+
+  ColorTrapRound? get currentRound =>
+      rounds.isNotEmpty && currentRoundNumber <= rounds.length
+          ? rounds[currentRoundNumber - 1] : null;
+
+  bool get isFinished => status == 'completed';
+  List<ColorTrapPlayer> get alivePlayers => players.where((p) => p.isAlive).toList();
+  int get aliveCount => alivePlayers.length;
+
+  Map<String, dynamic> toJson() => {
+    'playerCount': playerCount, 'difficulty': difficulty.wire,
+    'currentRound': currentRoundNumber,
+    'rounds': rounds.map((r) => r.toJson()).toList(),
+    'players': players.map((p) => p.toJson()).toList(),
+    'status': status, 'winner': winnerPlayerIndex,
+  };
 
   ColorTrapGameState copy() => ColorTrapGameState(
     playerCount: playerCount, difficulty: difficulty,
@@ -373,12 +373,12 @@ class ColorTrapEngine {
 
     // Pick target color — ensure at least ~30% of tiles are the target
     // so the game is always playable.
-    var targetColor = availableColors[rng.nextInt(availableColors.length)];
+    final targetColor = availableColors[rng.nextInt(availableColors.length)];
     final targetCount = tiles.where((t) => t.color == targetColor).length;
     final minSafe = (size * size * 0.3).round();
     if (targetCount < minSafe) {
       // Reassign some tiles to the target color
-      var needed = minSafe - targetCount;
+      final needed = minSafe - targetCount;
       final nonTargetTiles = tiles.where((t) => t.color != targetColor).toList()..shuffle(rng);
       for (var i = 0; i < needed && i < nonTargetTiles.length; i++) {
         nonTargetTiles[i].color = targetColor;

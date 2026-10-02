@@ -32,27 +32,6 @@ class CommunityModel {
     required this.createdAt,
   });
 
-  final String id;
-  final String name;
-  final String type; // gotra, village, surname, custom
-  final String? description;
-  final String? avatarUrl;
-  final String? coverUrl;
-  final bool isPublic;
-  final int memberCount;
-  final int postCount;
-  final String? gotraName;
-  final String? villageName;
-  final String? surname;
-  final String? region;
-  final List<Map<String, dynamic>> rules;
-  final String? myRole; // admin, moderator, member, null (not joined)
-  final DateTime createdAt;
-
-  bool get isJoined => myRole != null;
-  bool get isAdmin => myRole == 'admin';
-  bool get isModerator => myRole == 'moderator' || myRole == 'admin';
-
   factory CommunityModel.fromJson(Map<String, dynamic> json) {
     return CommunityModel(
       id: json['id'] as String,
@@ -76,6 +55,27 @@ class CommunityModel {
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
   }
+
+  final String id;
+  final String name;
+  final String type; // gotra, village, surname, custom
+  final String? description;
+  final String? avatarUrl;
+  final String? coverUrl;
+  final bool isPublic;
+  final int memberCount;
+  final int postCount;
+  final String? gotraName;
+  final String? villageName;
+  final String? surname;
+  final String? region;
+  final List<Map<String, dynamic>> rules;
+  final String? myRole; // admin, moderator, member, null (not joined)
+  final DateTime createdAt;
+
+  bool get isJoined => myRole != null;
+  bool get isAdmin => myRole == 'admin';
+  bool get isModerator => myRole == 'moderator' || myRole == 'admin';
 }
 
 class CommunityPostModel {
@@ -92,18 +92,6 @@ class CommunityPostModel {
     this.isLocked = false,
     this.createdAt,
   });
-
-  final String id;
-  final String communityId;
-  final String authorId;
-  final String type; // discussion, announcement, poll, media
-  final String body;
-  final String? title;
-  final List<String> mediaUrls;
-  final String visibility;
-  final bool isPinned;
-  final bool isLocked;
-  final DateTime? createdAt;
 
   factory CommunityPostModel.fromJson(Map<String, dynamic> json) {
     return CommunityPostModel(
@@ -125,6 +113,18 @@ class CommunityPostModel {
           : null,
     );
   }
+
+  final String id;
+  final String communityId;
+  final String authorId;
+  final String type; // discussion, announcement, poll, media
+  final String body;
+  final String? title;
+  final List<String> mediaUrls;
+  final String visibility;
+  final bool isPinned;
+  final bool isLocked;
+  final DateTime? createdAt;
 }
 
 class CommunityEventModel {
@@ -139,16 +139,6 @@ class CommunityEventModel {
     this.attendeeCount = 0,
     required this.createdAt,
   });
-
-  final String id;
-  final String communityId;
-  final String title;
-  final String? description;
-  final DateTime? eventDate;
-  final String? location;
-  final String? myRsvp; // attending, maybe, declined
-  final int attendeeCount;
-  final DateTime createdAt;
 
   factory CommunityEventModel.fromJson(Map<String, dynamic> json) {
     return CommunityEventModel(
@@ -165,6 +155,16 @@ class CommunityEventModel {
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
   }
+
+  final String id;
+  final String communityId;
+  final String title;
+  final String? description;
+  final DateTime? eventDate;
+  final String? location;
+  final String? myRsvp; // attending, maybe, declined
+  final int attendeeCount;
+  final DateTime createdAt;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

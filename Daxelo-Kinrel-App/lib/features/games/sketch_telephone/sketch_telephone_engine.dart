@@ -135,14 +135,14 @@ SketchPhase phaseForStep(int stepIndex) {
 /// One stroke = list of points + color + brush size.
 class SketchStrokePoint {
   const SketchStrokePoint({required this.x, required this.y});
-  final double x;
-  final double y;
 
   factory SketchStrokePoint.fromJson(Map<String, dynamic> json) =>
       SketchStrokePoint(
         x: (json['x'] as num?)?.toDouble() ?? 0,
         y: (json['y'] as num?)?.toDouble() ?? 0,
       );
+  final double x;
+  final double y;
 
   Map<String, dynamic> toJson() => {'x': x, 'y': y};
 }
@@ -152,10 +152,7 @@ class SketchStroke {
     required this.points,
     required this.color,
     required this.size,
-  });
-  final List<SketchStrokePoint> points;
-  final int color; // ARGB int
-  final double size; // brush width in px
+  }); // brush width in px
 
   factory SketchStroke.fromJson(Map<String, dynamic> json) {
     final rawPoints = json['points'] as List? ?? const [];
@@ -168,6 +165,9 @@ class SketchStroke {
       size: (json['size'] as num?)?.toDouble() ?? 4.0,
     );
   }
+  final List<SketchStrokePoint> points;
+  final int color; // ARGB int
+  final double size;
 
   Map<String, dynamic> toJson() => {
         'points': points.map((p) => p.toJson()).toList(),
@@ -185,6 +185,15 @@ class SketchChainStep {
     required this.authorUserId,
     required this.authorName,
   });
+
+  factory SketchChainStep.fromJson(Map<String, dynamic> json) =>
+      SketchChainStep(
+        stepIndex: (json['stepIndex'] as num?)?.toInt() ?? 0,
+        stepType: SketchStepTypeX.fromString(json['stepType'] as String?),
+        content: (json['content'] ?? '') as String,
+        authorUserId: (json['authorUserId'] ?? '') as String,
+        authorName: (json['authorName'] ?? 'Player') as String,
+      );
 
   final int stepIndex;
   final SketchStepType stepType;
@@ -217,15 +226,6 @@ class SketchChainStep {
         'authorUserId': authorUserId,
         'authorName': authorName,
       };
-
-  factory SketchChainStep.fromJson(Map<String, dynamic> json) =>
-      SketchChainStep(
-        stepIndex: (json['stepIndex'] as num?)?.toInt() ?? 0,
-        stepType: SketchStepTypeX.fromString(json['stepType'] as String?),
-        content: (json['content'] ?? '') as String,
-        authorUserId: (json['authorUserId'] ?? '') as String,
-        authorName: (json['authorName'] ?? 'Player') as String,
-      );
 }
 
 /// One full chain (one per player).
@@ -236,21 +236,6 @@ class SketchChain {
     required this.ownerName,
     required this.steps,
   });
-
-  final int chainIndex;
-  final String ownerUserId;
-  final String ownerName;
-  final List<SketchChainStep> steps;
-
-  /// Number of steps completed in this chain.
-  int get completedSteps => steps.length;
-
-  Map<String, dynamic> toJson() => {
-        'chainIndex': chainIndex,
-        'ownerUserId': ownerUserId,
-        'ownerName': ownerName,
-        'steps': steps.map((s) => s.toJson()).toList(),
-      };
 
   factory SketchChain.fromJson(Map<String, dynamic> json) {
     final stepsList = <SketchChainStep>[];
@@ -270,6 +255,21 @@ class SketchChain {
       steps: stepsList,
     );
   }
+
+  final int chainIndex;
+  final String ownerUserId;
+  final String ownerName;
+  final List<SketchChainStep> steps;
+
+  /// Number of steps completed in this chain.
+  int get completedSteps => steps.length;
+
+  Map<String, dynamic> toJson() => {
+        'chainIndex': chainIndex,
+        'ownerUserId': ownerUserId,
+        'ownerName': ownerName,
+        'steps': steps.map((s) => s.toJson()).toList(),
+      };
 }
 
 /// Player info stored inside the boardState (just idx + identity).
@@ -279,6 +279,13 @@ class SketchPlayerInfo {
     required this.userId,
     required this.name,
   });
+
+  factory SketchPlayerInfo.fromJson(Map<String, dynamic> json) =>
+      SketchPlayerInfo(
+        idx: (json['idx'] as num?)?.toInt() ?? 0,
+        userId: (json['userId'] ?? '') as String,
+        name: (json['name'] ?? 'Player') as String,
+      );
   final int idx;
   final String userId;
   final String name;
@@ -288,13 +295,6 @@ class SketchPlayerInfo {
         'userId': userId,
         'name': name,
       };
-
-  factory SketchPlayerInfo.fromJson(Map<String, dynamic> json) =>
-      SketchPlayerInfo(
-        idx: (json['idx'] as num?)?.toInt() ?? 0,
-        userId: (json['userId'] ?? '') as String,
-        name: (json['name'] ?? 'Player') as String,
-      );
 }
 
 /// The full boardState JSONB from the games row, parsed.
@@ -309,6 +309,40 @@ class SketchBoardState {
     required this.status,
     required this.winnerIndex,
   });
+
+  factory SketchBoardState.fromJson(Map<String, dynamic> json) {
+    final chainsList = <SketchChain>[];
+    final rawChains = json['chains'];
+    if (rawChains is List) {
+      for (final c in rawChains) {
+        if (c is Map) {
+          chainsList
+              .add(SketchChain.fromJson(Map<String, dynamic>.from(c)));
+        }
+      }
+    }
+    final playersList = <SketchPlayerInfo>[];
+    final rawPlayers = json['players'];
+    if (rawPlayers is List) {
+      for (final p in rawPlayers) {
+        if (p is Map) {
+          playersList.add(
+              SketchPlayerInfo.fromJson(Map<String, dynamic>.from(p)));
+        }
+      }
+    }
+    return SketchBoardState(
+      playerCount: (json['playerCount'] as num?)?.toInt() ?? 4,
+      drawingSeconds: (json['drawingSeconds'] as num?)?.toInt() ??
+          kSketchTelephoneDefaultDrawingSeconds,
+      currentStep: (json['currentStep'] as num?)?.toInt() ?? 0,
+      phase: SketchPhaseX.fromString(json['phase'] as String?),
+      chains: chainsList,
+      players: playersList,
+      status: (json['status'] as String?) ?? 'in_progress',
+      winnerIndex: (json['winnerIndex'] as num?)?.toInt() ?? -1,
+    );
+  }
 
   final int playerCount;
   final int drawingSeconds;
@@ -349,40 +383,6 @@ class SketchBoardState {
         'status': status,
         'winnerIndex': winnerIndex,
       };
-
-  factory SketchBoardState.fromJson(Map<String, dynamic> json) {
-    final chainsList = <SketchChain>[];
-    final rawChains = json['chains'];
-    if (rawChains is List) {
-      for (final c in rawChains) {
-        if (c is Map) {
-          chainsList
-              .add(SketchChain.fromJson(Map<String, dynamic>.from(c)));
-        }
-      }
-    }
-    final playersList = <SketchPlayerInfo>[];
-    final rawPlayers = json['players'];
-    if (rawPlayers is List) {
-      for (final p in rawPlayers) {
-        if (p is Map) {
-          playersList.add(
-              SketchPlayerInfo.fromJson(Map<String, dynamic>.from(p)));
-        }
-      }
-    }
-    return SketchBoardState(
-      playerCount: (json['playerCount'] as num?)?.toInt() ?? 4,
-      drawingSeconds: (json['drawingSeconds'] as num?)?.toInt() ??
-          kSketchTelephoneDefaultDrawingSeconds,
-      currentStep: (json['currentStep'] as num?)?.toInt() ?? 0,
-      phase: SketchPhaseX.fromString(json['phase'] as String?),
-      chains: chainsList,
-      players: playersList,
-      status: (json['status'] as String?) ?? 'in_progress',
-      winnerIndex: (json['winnerIndex'] as num?)?.toInt() ?? -1,
-    );
-  }
 }
 
 /// Pure-Dart engine — client-side validation + display helpers.

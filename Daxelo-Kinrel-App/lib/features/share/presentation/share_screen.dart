@@ -215,7 +215,7 @@ class _ShareHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Share & Invite',
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
@@ -228,7 +228,7 @@ class _ShareHeader extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   familyName,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     color: _cTextDim,
@@ -273,12 +273,12 @@ class _ShareTabBar extends StatelessWidget {
         dividerColor: Colors.transparent,
         labelColor: Colors.white,
         unselectedLabelColor: _cTextDim,
-        labelStyle: TextStyle(
+        labelStyle: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 13,
           fontWeight: FontWeight.w600,
         ),
-        unselectedLabelStyle: TextStyle(
+        unselectedLabelStyle: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 13,
           fontWeight: FontWeight.w500,
@@ -333,11 +333,11 @@ class _InviteTab extends ConsumerWidget {
                 Clipboard.setData(ClipboardData(text: primaryLink.deepLink));
                 notifier.markCopied();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
+                  const SnackBar(
                     content: Text('Link copied to clipboard!'),
                     backgroundColor: _cCard,
                     behavior: SnackBarBehavior.floating,
-                    duration: const Duration(seconds: 2),
+                    duration: Duration(seconds: 2),
                   ),
                 );
               },
@@ -346,7 +346,7 @@ class _InviteTab extends ConsumerWidget {
           const SizedBox(height: 20),
 
           // ── "Choose how to invite" label ───────────────────────────
-          Text(
+          const Text(
             'Choose how to invite',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -368,11 +368,11 @@ class _InviteTab extends ConsumerWidget {
                     );
                     notifier.markCopied();
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
+                      const SnackBar(
                         content: Text('Link copied to clipboard!'),
                         backgroundColor: _cCard,
                         behavior: SnackBarBehavior.floating,
-                        duration: const Duration(seconds: 2),
+                        duration: Duration(seconds: 2),
                       ),
                     );
                   }
@@ -401,11 +401,11 @@ class _InviteTab extends ConsumerWidget {
                   ),
                 ],
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.add_rounded, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
+                  Icon(Icons.add_rounded, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
                   Text(
                     'Generate New Link',
                     style: TextStyle(
@@ -425,7 +425,7 @@ class _InviteTab extends ConsumerWidget {
 
           // ── Active Invite Links ───────────────────────────────────
           if (shareState.activeLinks.isNotEmpty) ...[
-            Text(
+            const Text(
               'Active Links',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -449,7 +449,7 @@ class _InviteTab extends ConsumerWidget {
           // ── Expired Links ─────────────────────────────────────────
           if (shareState.expiredLinks.isNotEmpty) ...[
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Expired Links',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -522,7 +522,7 @@ class _InviteLinkCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              Expanded(
+              const Expanded(
                 child: Text(
                   'Your Invite Link',
                   style: TextStyle(
@@ -609,7 +609,7 @@ class _InviteLinkCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     link.deepLink,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -811,7 +811,7 @@ class _ShareMethodCard extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -819,7 +819,7 @@ class _ShareMethodCard extends StatelessWidget {
                 ),
               ),
             ),
-            Icon(Icons.chevron_right_rounded, size: 18, color: _cTextDim),
+            const Icon(Icons.chevron_right_rounded, size: 18, color: _cTextDim),
           ],
         ),
       ),
@@ -945,7 +945,7 @@ class _ActiveLinkTile extends StatelessWidget {
               children: [
                 Text(
                   link.deepLink,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -957,7 +957,7 @@ class _ActiveLinkTile extends StatelessWidget {
                   children: [
                     Text(
                       link.expiryLabel,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
                         color: _cAmber,
@@ -966,7 +966,7 @@ class _ActiveLinkTile extends StatelessWidget {
                     const SizedBox(width: 10),
                     Text(
                       link.usageLabel,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
                         color: _cTextDim,
@@ -1025,7 +1025,7 @@ class _ExpiredLinkTile extends StatelessWidget {
               color: _cTextDim.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(KinrelRadius.sm),
             ),
-            child: Icon(Icons.link_off_rounded, color: _cTextDim, size: 16),
+            child: const Icon(Icons.link_off_rounded, color: _cTextDim, size: 16),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1034,7 +1034,7 @@ class _ExpiredLinkTile extends StatelessWidget {
               children: [
                 Text(
                   link.deepLink,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -1045,7 +1045,7 @@ class _ExpiredLinkTile extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   'Expired · ${link.formattedCreatedDate}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,
                     color: _cTextDim,
@@ -1056,7 +1056,7 @@ class _ExpiredLinkTile extends StatelessWidget {
           ),
           Text(
             '${link.usedCount} joined',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 11,
               fontWeight: FontWeight.w500,
@@ -1112,7 +1112,7 @@ class _LinkDetailSheet extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          Text(
+          const Text(
             'Share Invite Link',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -1122,7 +1122,7 @@ class _LinkDetailSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Anyone with this link can join your family on Kinrel.',
             textAlign: TextAlign.center,
             style: TextStyle(
@@ -1145,7 +1145,7 @@ class _LinkDetailSheet extends StatelessWidget {
             ),
             child: Text(
               link?.deepLink ?? 'https://daxelo-kinrel.vercel.app/invite/...',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
@@ -1170,11 +1170,11 @@ class _LinkDetailSheet extends StatelessWidget {
                 gradient: KinrelGradients.igniteGradient,
                 borderRadius: BorderRadius.circular(KinrelRadius.lg),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.copy_rounded, color: Colors.white, size: 18),
-                  const SizedBox(width: 8),
+                  Icon(Icons.copy_rounded, color: Colors.white, size: 18),
+                  SizedBox(width: 8),
                   Text(
                     'Copy Link',
                     style: TextStyle(
@@ -1209,15 +1209,15 @@ class _LinkDetailSheet extends StatelessWidget {
                 borderRadius: BorderRadius.circular(KinrelRadius.lg),
                 border: Border.all(color: _cBorder),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.share_rounded,
                     color: _cTextSecondary,
                     size: 18,
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(
                     'Share via...',
                     style: TextStyle(
@@ -1309,7 +1309,7 @@ class _QRCodeSheet extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     // QR code placeholder pattern
-                    Icon(Icons.qr_code_2_rounded, size: 80, color: _cBg),
+                    const Icon(Icons.qr_code_2_rounded, size: 80, color: _cBg),
                   ],
                 ),
               ),
@@ -1317,7 +1317,7 @@ class _QRCodeSheet extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          Text(
+          const Text(
             'Scan to Join',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -1329,7 +1329,7 @@ class _QRCodeSheet extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             link?.deepLink ?? 'https://daxelo-kinrel.vercel.app/invite/...',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 12,
               fontWeight: FontWeight.w500,
@@ -1349,15 +1349,15 @@ class _QRCodeSheet extends StatelessWidget {
                 gradient: KinrelGradients.igniteGradient,
                 borderRadius: BorderRadius.circular(KinrelRadius.lg),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.save_alt_rounded,
                     color: Colors.white,
                     size: 18,
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(
                     'Save QR Code',
                     style: TextStyle(
@@ -1456,7 +1456,7 @@ class _WhatsAppSheet extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          Text(
+          const Text(
             'Share via WhatsApp',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -1478,7 +1478,7 @@ class _WhatsAppSheet extends StatelessWidget {
             ),
             child: Text(
               link?.whatsappMessage ?? '',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 color: _cTextSecondary,
@@ -1513,11 +1513,11 @@ class _WhatsAppSheet extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.chat_rounded, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
+                  Icon(Icons.chat_rounded, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
                   Text(
                     'Send on WhatsApp',
                     style: TextStyle(
@@ -1571,7 +1571,7 @@ class _SMSSheet extends StatelessWidget {
             child: const Icon(Icons.sms_rounded, color: _cSMS, size: 32),
           ),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'Send via SMS',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -1591,7 +1591,7 @@ class _SMSSheet extends StatelessWidget {
             ),
             child: Text(
               link?.smsMessage ?? '',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 color: _cTextSecondary,
@@ -1624,11 +1624,11 @@ class _SMSSheet extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.sms_rounded, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
+                  Icon(Icons.sms_rounded, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
                   Text(
                     'Send SMS',
                     style: TextStyle(
@@ -1682,7 +1682,7 @@ class _EmailSheet extends StatelessWidget {
             child: const Icon(Icons.email_rounded, color: _cEmail, size: 32),
           ),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'Send via Email',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -1699,7 +1699,7 @@ class _EmailSheet extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: _cBg,
-              borderRadius: BorderRadius.only(
+              borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(KinrelRadius.md),
                 topRight: Radius.circular(KinrelRadius.md),
               ),
@@ -1707,7 +1707,7 @@ class _EmailSheet extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Text(
+                const Text(
                   'Subject: ',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -1719,7 +1719,7 @@ class _EmailSheet extends StatelessWidget {
                 Expanded(
                   child: Text(
                     link?.emailSubject ?? '',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: _cTextPrimary,
@@ -1734,7 +1734,7 @@ class _EmailSheet extends StatelessWidget {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: _cBg,
               borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(KinrelRadius.md),
@@ -1748,7 +1748,7 @@ class _EmailSheet extends StatelessWidget {
             ),
             child: Text(
               link?.emailBody ?? '',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 color: _cTextSecondary,
@@ -1781,15 +1781,15 @@ class _EmailSheet extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.email_rounded,
                     color: Colors.white,
                     size: 20,
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(
                     'Open Email App',
                     style: TextStyle(
@@ -1850,7 +1850,7 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
           // ── "What do I call [name]?" section ──────────────────────
           Text(
             card.questionText,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 22,
               fontWeight: FontWeight.w700,
@@ -1870,7 +1870,7 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
           const SizedBox(height: 20),
 
           // ── Card Selector (horizontal scroll of kinship terms) ────
-          Text(
+          const Text(
             'Choose a kinship card',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -1952,7 +1952,7 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
                       ClipboardData(text: card.whatsappStatusText),
                     );
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
+                      const SnackBar(
                         content: Text('Copied for WhatsApp Status!'),
                         backgroundColor: _cCard,
                         behavior: SnackBarBehavior.floating,
@@ -1972,15 +1972,15 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
                         ),
                       ],
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.chat_rounded,
                           color: Colors.white,
                           size: 18,
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Flexible(
                           child: Text(
                             'WhatsApp Status',
@@ -2005,7 +2005,7 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: card.shareText));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
+                      const SnackBar(
                         content: Text('Copied to clipboard!'),
                         backgroundColor: _cCard,
                         behavior: SnackBarBehavior.floating,
@@ -2025,15 +2025,15 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
                         ),
                       ],
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.share_rounded,
                           color: Colors.white,
                           size: 18,
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Flexible(
                           child: Text(
                             'Share',
@@ -2079,7 +2079,7 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
               ),
             ),
             const SizedBox(height: 20),
-            Text(
+            const Text(
               'No kinship cards yet',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -2089,7 +2089,7 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Find a kinship term to create a shareable card.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -2121,7 +2121,7 @@ class _KinshipCardWidget extends StatelessWidget {
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(KinrelRadius.xl),
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           colors: [Color(0xFF1E1028), Color(0xFF191B2C), Color(0xFF1A1420)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -2192,7 +2192,7 @@ class _KinshipCardWidget extends StatelessWidget {
                       ),
                       child: Text(
                         card.languageName,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
@@ -2204,7 +2204,7 @@ class _KinshipCardWidget extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       card.languageScript,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 10,
                         color: _cTextDim,
@@ -2218,7 +2218,7 @@ class _KinshipCardWidget extends StatelessWidget {
                 // ── Person name ──────────────────────────────────────
                 Text(
                   card.personName,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -2231,7 +2231,7 @@ class _KinshipCardWidget extends StatelessWidget {
                 // ── Regional kinship term (LARGE, ORANGE) ────────────
                 Text(
                   card.kinshipTermRegional,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 56,
                     fontWeight: FontWeight.w800,
@@ -2246,7 +2246,7 @@ class _KinshipCardWidget extends StatelessWidget {
                 // ── English translation ──────────────────────────────
                 Text(
                   card.kinshipTermEnglish,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
@@ -2274,12 +2274,12 @@ class _KinshipCardWidget extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.route_rounded, size: 14, color: _cAmber),
+                      const Icon(Icons.route_rounded, size: 14, color: _cAmber),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           card.relationshipPath,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.monoFont,
                             fontSize: 12,
                             fontWeight: FontWeight.w400,
@@ -2319,7 +2319,7 @@ class _KinshipCardWidget extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    Text(
+                    const Text(
                       'Generated by Kinrel',
                       style: TextStyle(
                         fontFamily: KinrelTypography.monoFont,
@@ -2371,7 +2371,7 @@ class _ShareGraphTab extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── "Share Family Graph" heading ──────────────────────────
-          Text(
+          const Text(
             'Share Family Graph',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -2383,7 +2383,7 @@ class _ShareGraphTab extends ConsumerWidget {
 
           const SizedBox(height: 6),
 
-          Text(
+          const Text(
             'Export your family graph as a high-resolution image',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -2415,7 +2415,7 @@ class _ShareGraphTab extends ConsumerWidget {
                   await notifier.exportGraph();
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
+                      const SnackBar(
                         content: Text('Graph exported successfully!'),
                         backgroundColor: _cCard,
                         behavior: SnackBarBehavior.floating,
@@ -2447,14 +2447,14 @@ class _ShareGraphTab extends ConsumerWidget {
                     color: _cOrange.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(KinrelRadius.sm),
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.branding_watermark,
                     color: _cOrange,
                     size: 18,
                   ),
                 ),
                 const SizedBox(width: 12),
-                Expanded(
+                const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -2467,7 +2467,7 @@ class _ShareGraphTab extends ConsumerWidget {
                           color: _cTextPrimary,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       Text(
                         'All exported images include "Created with Kinrel by Daxelo" watermark',
                         style: TextStyle(
@@ -2508,15 +2508,15 @@ class _ShareGraphTab extends ConsumerWidget {
                   ),
                 ],
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.share_rounded,
                     color: Colors.white,
                     size: 20,
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(
                     'Share Graph',
                     style: TextStyle(
@@ -2552,7 +2552,7 @@ class _GraphPreviewCard extends StatelessWidget {
       height: 280,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(KinrelRadius.xl),
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           colors: [Color(0xFF191B2C), Color(0xFF202338), Color(0xFF1A1420)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -2586,7 +2586,7 @@ class _GraphPreviewCard extends StatelessWidget {
             child: Column(
               children: [
                 // Gen 2: Grandparents
-                _GraphGenRow(
+                const _GraphGenRow(
                   generation: 'Gen 2',
                   nodes: [
                     _Graphnode(initials: 'DK', color: _cGold),
@@ -2598,14 +2598,14 @@ class _GraphPreviewCard extends StatelessWidget {
 
                 // Connecting lines (simplified)
                 CustomPaint(
-                  size: Size(double.infinity, 20),
+                  size: const Size(double.infinity, 20),
                   painter: _SimpleTreeLinePainter(),
                 ),
 
                 const SizedBox(height: 16),
 
                 // Gen 1: Parents + siblings
-                _GraphGenRow(
+                const _GraphGenRow(
                   generation: 'Gen 1',
                   nodes: [
                     _Graphnode(initials: 'RS', color: _cAmber),
@@ -2618,14 +2618,14 @@ class _GraphPreviewCard extends StatelessWidget {
                 const SizedBox(height: 16),
 
                 CustomPaint(
-                  size: Size(double.infinity, 20),
+                  size: const Size(double.infinity, 20),
                   painter: _SimpleTreeLinePainter(),
                 ),
 
                 const SizedBox(height: 16),
 
                 // Gen 0: You + cousins
-                _GraphGenRow(
+                const _GraphGenRow(
                   generation: 'You',
                   nodes: [
                     _Graphnode(initials: 'AS', color: _cOrange, isYou: true),
@@ -2700,7 +2700,7 @@ class _GraphGenRow extends StatelessWidget {
           width: 36,
           child: Text(
             generation,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 8,
               fontWeight: FontWeight.w500,
@@ -2887,7 +2887,7 @@ class _ExportOptionsSection extends ConsumerWidget {
                 pw.SizedBox(height: 4),
                 pw.Text(
                   'Family Tree',
-                  style: pw.TextStyle(
+                  style: const pw.TextStyle(
                     fontSize: 14,
                     color: PdfColors.grey700,
                   ),
@@ -2911,7 +2911,7 @@ class _ExportOptionsSection extends ConsumerWidget {
                     padding: const pw.EdgeInsets.only(bottom: 4),
                     child: pw.Text(
                       '• $name${isAnchor ? ' (You)' : ''} — $gender${dob != null ? ' • DOB: $dob' : ''}',
-                      style: pw.TextStyle(fontSize: 11),
+                      style: const pw.TextStyle(fontSize: 11),
                     ),
                   );
                 }),
@@ -2933,7 +2933,7 @@ class _ExportOptionsSection extends ConsumerWidget {
                     padding: const pw.EdgeInsets.only(bottom: 3),
                     child: pw.Text(
                       '• $from → $to ($key)',
-                      style: pw.TextStyle(fontSize: 10),
+                      style: const pw.TextStyle(fontSize: 10),
                     ),
                   );
                 }),
@@ -2944,7 +2944,7 @@ class _ExportOptionsSection extends ConsumerWidget {
                   alignment: pw.Alignment.centerRight,
                   child: pw.Text(
                     'Generated by Kinrel • ${DateTime.now().toLocal().toString().split('.').first}',
-                    style: pw.TextStyle(fontSize: 8, color: PdfColors.grey),
+                    style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey),
                   ),
                 ),
               ],
@@ -3104,7 +3104,7 @@ class _ExportOptionsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Export Options',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -3138,7 +3138,7 @@ class _ExportOptionsSection extends ConsumerWidget {
             // pdf package. No screenshot needed.
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
+                const SnackBar(
                   content: Row(
                     children: [
                       SizedBox(
@@ -3148,13 +3148,13 @@ class _ExportOptionsSection extends ConsumerWidget {
                           color: _cOrange,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       Text('Generating PDF...'),
                     ],
                   ),
                   backgroundColor: _cCard,
                   behavior: SnackBarBehavior.floating,
-                  duration: const Duration(seconds: 15),
+                  duration: Duration(seconds: 15),
                 ),
               );
             }
@@ -3164,7 +3164,7 @@ class _ExportOptionsSection extends ConsumerWidget {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).hideCurrentSnackBar();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
+                    const SnackBar(
                       content: Text('Could not generate PDF. No family data.'),
                       backgroundColor: _cCard,
                       behavior: SnackBarBehavior.floating,
@@ -3211,7 +3211,7 @@ class _ExportOptionsSection extends ConsumerWidget {
             // text elements. Opens in any SVG viewer / design tool.
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
+                const SnackBar(
                   content: Row(
                     children: [
                       SizedBox(
@@ -3221,13 +3221,13 @@ class _ExportOptionsSection extends ConsumerWidget {
                           color: _cAmber,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       Text('Generating SVG...'),
                     ],
                   ),
                   backgroundColor: _cCard,
                   behavior: SnackBarBehavior.floating,
-                  duration: const Duration(seconds: 15),
+                  duration: Duration(seconds: 15),
                 ),
               );
             }
@@ -3237,7 +3237,7 @@ class _ExportOptionsSection extends ConsumerWidget {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).hideCurrentSnackBar();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
+                    const SnackBar(
                       content: Text('Could not generate SVG. No family data.'),
                       backgroundColor: _cCard,
                       behavior: SnackBarBehavior.floating,
@@ -3333,7 +3333,7 @@ class _ExportOptionTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -3343,7 +3343,7 @@ class _ExportOptionTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
                       color: _cTextDim,
@@ -3352,7 +3352,7 @@ class _ExportOptionTile extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, size: 20, color: _cTextDim),
+            const Icon(Icons.chevron_right_rounded, size: 20, color: _cTextDim),
           ],
         ),
       ),

@@ -13,7 +13,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -214,15 +213,15 @@ class _EmptyMomentsState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.photo_library_outlined, size: 48, color: KinrelColors.textDim),
-            const SizedBox(height: 12),
-            const Text(
+            Icon(Icons.photo_library_outlined, size: 48, color: KinrelColors.textDim),
+            SizedBox(height: 12),
+            Text(
               'No Family Moments yet',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -231,8 +230,8 @@ class _EmptyMomentsState extends StatelessWidget {
                 color: KinrelColors.textWhite,
               ),
             ),
-            const SizedBox(height: 6),
-            const Text(
+            SizedBox(height: 6),
+            Text(
               'When someone in your family wins a Prediction Battle, the moment will show up here automatically.',
               textAlign: TextAlign.center,
               style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim),
@@ -285,8 +284,8 @@ class _MomentCard extends StatelessWidget {
                   const Icon(Icons.push_pin, size: 12, color: KinrelColors.brightGold),
                   const SizedBox(width: 4),
                   Text(
-                    'FEATURED · ${_timeUntil(featuredUntil!)} left',
-                    style: TextStyle(
+                    'FEATURED · ${_timeUntil(featuredUntil)} left',
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 9,
                       fontWeight: FontWeight.w800,
@@ -299,7 +298,7 @@ class _MomentCard extends StatelessWidget {
             ),
           Text(
             title,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -310,7 +309,7 @@ class _MomentCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               body,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textSilver,
@@ -323,7 +322,7 @@ class _MomentCard extends StatelessWidget {
             children: [
               Text(
                 '$userName · ${_formatDate(createdAt)}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 10,
                   color: KinrelColors.textDim,
@@ -340,11 +339,11 @@ class _MomentCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: KinrelColors.brightGold.withValues(alpha: 0.30), width: 0.8),
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.push_pin, size: 10, color: KinrelColors.brightGold),
-                        const SizedBox(width: 4),
+                        Icon(Icons.push_pin, size: 10, color: KinrelColors.brightGold),
+                        SizedBox(width: 4),
                         Text(
                           'Feature · 🪙 50',
                           style: TextStyle(

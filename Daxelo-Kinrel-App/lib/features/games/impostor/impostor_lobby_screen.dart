@@ -26,7 +26,7 @@ class ImpostorLobbyScreen extends ConsumerStatefulWidget {
 class _ImpostorLobbyScreenState extends ConsumerState<ImpostorLobbyScreen> {
   final _roomNameController = TextEditingController();
   int _maxPlayers = 10; int _totalRounds = 3; String _wordPackId = 'food';
-  int _clueSeconds = 30; int _voteSeconds = 30;
+  final int _clueSeconds = 30; final int _voteSeconds = 30;
   bool _spectatorsEnabled = true; bool _creating = false;
 
   @override void initState() { super.initState();
@@ -65,7 +65,7 @@ class _ImpostorLobbyScreenState extends ConsumerState<ImpostorLobbyScreen> {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.canPop() ? context.pop() : context.go('/family/${widget.familyId}')),
-        title: hasGame ? Text(state.game?.roomName?.isNotEmpty == true ? state.game!.roomName! : 'Who\'s the Impostor?', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)) : null,
+        title: hasGame ? Text(state.game?.roomName?.isNotEmpty == true ? state.game!.roomName! : 'Who\'s the Impostor?', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)) : null,
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [
           if (hasGame && isHost) IconButton(tooltip: 'Invite family member', icon: const Icon(Icons.person_add_outlined), onPressed: () => _openInviteSheet(state)),
@@ -90,11 +90,11 @@ class _ImpostorLobbyScreenState extends ConsumerState<ImpostorLobbyScreen> {
     await showModalBottomSheet<void>(context: context, backgroundColor: KinrelColors.darkCard,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(KinrelRadius.lg))),
       builder: (_) => Padding(padding: const EdgeInsets.all(KinrelSpacing.xl), child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text('Share this code', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        const Text('Share this code', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         const SizedBox(height: KinrelSpacing.md),
-        Text(code, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 40, fontWeight: FontWeight.w700, color: KinrelColors.orange, letterSpacing: 6)),
+        Text(code, style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 40, fontWeight: FontWeight.w700, color: KinrelColors.orange, letterSpacing: 6)),
         const SizedBox(height: KinrelSpacing.md),
-        Text('Up to ${_maxPlayers - 1} family members can join. Find the impostor!', textAlign: TextAlign.center, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
+        Text('Up to ${_maxPlayers - 1} family members can join. Find the impostor!', textAlign: TextAlign.center, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
         const SizedBox(height: KinrelSpacing.lg),
         DKButton(label: 'Done', variant: DKButtonVariant.primary, fullWidth: true, onPressed: () => context.canPop() ? context.pop() : context.go('/family/${widget.familyId}')),
       ])));
@@ -106,10 +106,10 @@ class _ImpostorLobbyScreenState extends ConsumerState<ImpostorLobbyScreen> {
       tagline: 'Social deduction — blend in or get caught!',
       facts: const [LobbyFact(icon: Icons.groups_2_outlined, label: '3–10 players'), LobbyFact(icon: Icons.casino_outlined, label: '3/5/10 rounds'), LobbyFact(icon: Icons.psychology_outlined, label: 'Find the impostor')],
       settings: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        LobbySection(label: 'Room Name', child: TextField(controller: _roomNameController, maxLength: 24, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textWhite),
+        LobbySection(label: 'Room Name', child: TextField(controller: _roomNameController, maxLength: 24, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textWhite),
           decoration: InputDecoration(counterText: '', hintText: 'e.g. Family Mystery Night', hintStyle: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim.withValues(alpha: 0.6)),
             filled: true, fillColor: KinrelColors.darkCard, contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(KinrelRadius.md), borderSide: BorderSide(color: KinrelColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(KinrelRadius.md), borderSide: const BorderSide(color: KinrelColors.border)),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(KinrelRadius.md), borderSide: const BorderSide(color: KinrelColors.orange, width: 1.4))))),
         const SizedBox(height: KinrelSpacing.md),
         LobbySection(label: 'Rounds', child: LobbyChoiceGrid<int>(selected: _totalRounds, onSelect: (v) => setState(() => _totalRounds = v), options: const [LobbyOption(value: 3, label: '3 Rounds', caption: 'Quick'), LobbyOption(value: 5, label: '5 Rounds', caption: 'Standard'), LobbyOption(value: 10, label: '10 Rounds', caption: 'Marathon')])),

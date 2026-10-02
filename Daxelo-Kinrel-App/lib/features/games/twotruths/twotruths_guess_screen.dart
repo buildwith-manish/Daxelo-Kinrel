@@ -30,7 +30,7 @@ class _TtGuessScreenState extends ConsumerState<TtGuessScreen> {
     final game = state.game;
 
     if (game?.roundResolved == true && mounted) { WidgetsBinding.instance.addPostFrameCallback((_) => context.pushReplacement('/family/${widget.familyId}/twotruths/results/${widget.gameId}')); }
-    if (game == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, body: const Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
+    if (game == null) return const DKScaffold(backgroundColor: KinrelColors.darkSurface, body: Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
 
     final round = state.currentRound;
     final isSubmitter = game.currentSubmitterId == myId;
@@ -48,7 +48,7 @@ class _TtGuessScreenState extends ConsumerState<TtGuessScreen> {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.close_rounded), onPressed: () { ref.read(ttProvider(widget.familyId).notifier).leaveGame(); if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
-        title: Text('Round ${game.currentRound}/${game.totalRounds}', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: Text('Round ${game.currentRound}/${game.totalRounds}', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),
       body: round == null ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange)) : SafeArea(child: Column(children: [
@@ -57,14 +57,14 @@ class _TtGuessScreenState extends ConsumerState<TtGuessScreen> {
           decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: KinrelColors.border)),
           child: Column(children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-            Column(children: [Text(round.submitterName, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
-              Text('submitted', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 10, color: KinrelColors.textDim))]),
+            Column(children: [Text(round.submitterName, style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
+              const Text('submitted', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 10, color: KinrelColors.textDim))]),
             SizedBox(width: 48, height: 48, child: Stack(alignment: Alignment.center, children: [
               CircularProgressIndicator(value: progress, strokeWidth: 4, backgroundColor: KinrelColors.darkElevated, valueColor: AlwaysStoppedAnimation<Color>(timerColor)),
               Text('${secsLeft}s', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: timerColor)),
             ])),
-            Column(children: [Text('${state.players.where((p) => p.hasGuessed && p.userId != round.submitterId).length}/${state.players.length - 1}', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
-              Text('guessed', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 10, color: KinrelColors.textDim))]),
+            Column(children: [Text('${state.players.where((p) => p.hasGuessed && p.userId != round.submitterId).length}/${state.players.length - 1}', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
+              const Text('guessed', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 10, color: KinrelColors.textDim))]),
             ]),
             const SizedBox(height: 8),
             // Thin accent progress bar mirroring the countdown ring.
@@ -121,8 +121,8 @@ class _TtGuessScreenState extends ConsumerState<TtGuessScreen> {
             decoration: BoxDecoration(shape: BoxShape.circle, color: isMyGuess ? KinrelColors.orange : KinrelColors.darkElevated, border: Border.all(color: isMyGuess ? KinrelColors.orange : KinrelColors.border, width: 1.5)),
             child: Text('0${i + 1}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 10, fontWeight: FontWeight.w800, color: isMyGuess ? Colors.white : KinrelColors.textDim))),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
-          if (isMyGuess) Icon(Icons.check_circle_rounded, size: 18, color: KinrelColors.orange),
+          Expanded(child: Text(text, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
+          if (isMyGuess) const Icon(Icons.check_circle_rounded, size: 18, color: KinrelColors.orange),
         ]),
       ),
     );

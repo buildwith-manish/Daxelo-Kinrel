@@ -37,21 +37,6 @@ class CameoSkinMaterial {
     required this.subsurfaceTint,
   });
 
-  /// 1–10 (CameoColorPalette.skinTone).
-  final int toneIndex;
-
-  /// Surface roughness. Higher = more diffuse. Aged skin is rougher.
-  final double roughness;
-
-  /// F0 specular reflectance. Skin is dielectric — keep low.
-  final double specular;
-
-  /// Subsurface scattering strength in [0, 1].
-  final double subsurfaceStrength;
-
-  /// The warm-red tint of light scattered under the skin.
-  final Color subsurfaceTint;
-
   /// Default young-adult skin for a tone.
   factory CameoSkinMaterial.youngAdult({required int toneIndex}) {
     return CameoSkinMaterial(
@@ -81,6 +66,21 @@ class CameoSkinMaterial {
     );
   }
 
+  /// 1–10 (CameoColorPalette.skinTone).
+  final int toneIndex;
+
+  /// Surface roughness. Higher = more diffuse. Aged skin is rougher.
+  final double roughness;
+
+  /// F0 specular reflectance. Skin is dielectric — keep low.
+  final double specular;
+
+  /// Subsurface scattering strength in [0, 1].
+  final double subsurfaceStrength;
+
+  /// The warm-red tint of light scattered under the skin.
+  final Color subsurfaceTint;
+
   Color get baseColor => CameoColorPalette.skinTone(toneIndex);
 }
 
@@ -94,14 +94,6 @@ class CameoHairMaterial {
     required this.anisotropy,
     required this.greyingMix, // 0 = natural, 1 = fully grey/white
   });
-
-  final Color baseColor;
-  final double roughness;
-  final double specular;
-
-  /// Hair anisotropy (strand direction highlight). 0 = isotropic.
-  final double anisotropy;
-  final double greyingMix;
 
   /// Linearly mix the base color toward grey per age band (V2 §15.5).
   factory CameoHairMaterial.withGreying({
@@ -124,6 +116,14 @@ class CameoHairMaterial {
       greyingMix: greyingMix,
     );
   }
+
+  final Color baseColor;
+  final double roughness;
+  final double specular;
+
+  /// Hair anisotropy (strand direction highlight). 0 = isotropic.
+  final double anisotropy;
+  final double greyingMix;
 }
 
 /// Deterministic PBR parameters for the Cameo eye material (V2 §18).
@@ -158,13 +158,6 @@ class CameoClothMaterial {
     required this.drape, // 0 = skin-tight, 1 = free-flowing
   });
 
-  final Color baseColor;
-  final double roughness;
-
-  /// Cloth sheen (Fabric Transmission). 0 = none, 1 = strong velvet.
-  final double sheen;
-  final double drape;
-
   /// Cotton / kurta fabric — matte, soft.
   factory CameoClothMaterial.cotton(Color baseColor) {
     return CameoClothMaterial(
@@ -194,6 +187,13 @@ class CameoClothMaterial {
       drape: 0.30,
     );
   }
+
+  final Color baseColor;
+  final double roughness;
+
+  /// Cloth sheen (Fabric Transmission). 0 = none, 1 = strong velvet.
+  final double sheen;
+  final double drape;
 }
 
 /// Deterministic PBR parameters for metal jewellery (V2 §25.2).

@@ -361,7 +361,7 @@ void main() {
     });
 
     test('4-member family stays NEAR with hysteresis memory', () {
-      var tier =
+      final tier =
           computeSemanticTier(0.5, memberCount: 4, currentTier: SemanticTier.far);
       expect(tier, SemanticTier.near,
           reason: 'Small family overrides hysteresis — always NEAR');

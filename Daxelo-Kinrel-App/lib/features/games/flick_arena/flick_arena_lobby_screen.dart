@@ -123,7 +123,7 @@ class _FlickArenaLobbyScreenState
                 state.game?.roomName?.isNotEmpty == true
                     ? state.game!.roomName!
                     : 'Flick Arena',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontWeight: FontWeight.w600,
                   color: KinrelColors.textWhite,
@@ -203,7 +203,7 @@ class _FlickArenaLobbyScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Share this code',
+            const Text('Share this code',
                 style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 18,
@@ -211,7 +211,7 @@ class _FlickArenaLobbyScreenState
                     color: KinrelColors.textWhite)),
             const SizedBox(height: KinrelSpacing.md),
             Text(code,
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 40,
                     fontWeight: FontWeight.w700,
@@ -221,7 +221,7 @@ class _FlickArenaLobbyScreenState
             Text(
               'Up to ${_matchType.maxPlayers - 1} members. Flick, aim, score!',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim),
@@ -257,7 +257,7 @@ class _FlickArenaLobbyScreenState
             label: _matchType == FlickArenaMatchType.soloDuel
                 ? 'First to 3'
                 : 'First to 5'),
-        LobbyFact(icon: Icons.bolt_outlined, label: '15s turns'),
+        const LobbyFact(icon: Icons.bolt_outlined, label: '15s turns'),
       ],
       settings: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -267,7 +267,7 @@ class _FlickArenaLobbyScreenState
             child: TextField(
               controller: _roomNameController,
               maxLength: 24,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: KinrelColors.textWhite),
@@ -284,7 +284,7 @@ class _FlickArenaLobbyScreenState
                     horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  borderSide: BorderSide(color: KinrelColors.border),
+                  borderSide: const BorderSide(color: KinrelColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
@@ -401,7 +401,7 @@ class _FlickArenaWaitingRoom extends StatelessWidget {
               Container(
                 width: 8,
                 height: 8,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: KinrelColors.orange,
                   shape: BoxShape.circle,
                   boxShadow: [
@@ -414,7 +414,7 @@ class _FlickArenaWaitingRoom extends StatelessWidget {
               Expanded(
                 child: Text(
                   '$filled / ${game.maxPlayers} players · ${game.matchType.label}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -423,14 +423,14 @@ class _FlickArenaWaitingRoom extends StatelessWidget {
                 ),
               ),
               if (game.matchType == FlickArenaMatchType.soloDuel)
-                Text('First to 3',
+                const Text('First to 3',
                     style: TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
                         color: KinrelColors.amber))
               else
-                Text('First to 5',
+                const Text('First to 5',
                     style: TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 11,
@@ -452,7 +452,7 @@ class _FlickArenaWaitingRoom extends StatelessWidget {
                   color: KinrelColors.error.withValues(alpha: 0.35)),
             ),
             child: Text(error!,
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     color: KinrelColors.error)),
@@ -461,7 +461,7 @@ class _FlickArenaWaitingRoom extends StatelessWidget {
         ],
 
         // ── Player slot list ───────────────────────────────────────
-        GamingSectionHeader(title: 'Players', icon: Icons.groups_2_outlined),
+        const GamingSectionHeader(title: 'Players', icon: Icons.groups_2_outlined),
         const SizedBox(height: 6),
         for (final slot in slots)
           _PlayerSlotRow(
@@ -505,7 +505,7 @@ class _FlickArenaWaitingRoom extends StatelessWidget {
               borderRadius: BorderRadius.circular(KinrelRadius.md),
               border: Border.all(color: KinrelColors.border),
             ),
-            child: Center(
+            child: const Center(
               child: Text(
                 'Waiting for the host to start the match...',
                 style: TextStyle(
@@ -583,7 +583,7 @@ class _PlayerSlotRow extends StatelessWidget {
               ),
               child: Center(
                 child: isEmpty
-                    ? Icon(Icons.add,
+                    ? const Icon(Icons.add,
                         size: 16, color: KinrelColors.textDim)
                     : Text(
                         '$slot',
@@ -615,7 +615,7 @@ class _PlayerSlotRow extends StatelessWidget {
                     matchType == FlickArenaMatchType.teamBattle
                         ? 'Team $team'
                         : 'Player $slot',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
                       color: KinrelColors.textDim,
@@ -634,7 +634,7 @@ class _PlayerSlotRow extends StatelessWidget {
                   border: Border.all(
                       color: KinrelColors.amber.withValues(alpha: 0.4)),
                 ),
-                child: Text('HOST',
+                child: const Text('HOST',
                     style: TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 9,
@@ -642,8 +642,8 @@ class _PlayerSlotRow extends StatelessWidget {
                         color: KinrelColors.amber)),
               ),
             if (isMe)
-              Padding(
-                padding: const EdgeInsets.only(left: 6),
+              const Padding(
+                padding: EdgeInsets.only(left: 6),
                 child: Text('YOU',
                     style: TextStyle(
                         fontFamily: KinrelTypography.monoFont,

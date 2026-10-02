@@ -794,14 +794,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       width: 1.5,
                     ),
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.lock_rounded,
                     size: 36,
                     color: KinrelColors.ember,
                   ),
                 ),
                 const SizedBox(height: 24),
-                Text(
+                const Text(
                   'This chat is locked',
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
@@ -811,7 +811,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
+                const Text(
                   'Authenticate with Face ID, Touch ID, or your device PIN to view messages.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -845,7 +845,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       context.go('/home');
                     }
                   },
-                  child: Text(
+                  child: const Text(
                     'Go back',
                     style: TextStyle(color: KinrelColors.textDim),
                   ),
@@ -937,7 +937,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ? widget.familyName.substring(0, 1)
               : 'F')
           .toUpperCase(),
-      style: TextStyle(
+      style: const TextStyle(
         fontFamily: KinrelTypography.displayFont,
         fontSize: 16,
         fontWeight: FontWeight.w700,
@@ -996,7 +996,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               children: [
                 // ── Back button ────────────────────────────────────────
                 IconButton(
-                  icon: Icon(
+                  icon: const Icon(
                     Icons.arrow_back_ios_new,
                     size: 18,
                     color: KinrelColors.textSilver,
@@ -1074,7 +1074,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                         _buildLetterAvatar(),
                                   ))
                             : Container(
-                                decoration: BoxDecoration(
+                                decoration: const BoxDecoration(
                                   shape: BoxShape.circle,
                                   gradient: KinrelGradients.igniteGradient,
                                 ),
@@ -1116,7 +1116,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         // otherwise the family name.
                         Text(
                           widget.groupName ?? widget.familyName,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.displayFont,
                             fontSize: 16.5,
                             fontWeight: FontWeight.w700,
@@ -1172,7 +1172,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                   children: [
                                     // Small family icon — heart for
                                     // family connection (warmth, care)
-                                    Icon(
+                                    const Icon(
                                       Icons.favorite_rounded,
                                       size: 9,
                                       color:
@@ -1226,7 +1226,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Text(
+                                      const Text(
                                         '🔥',
                                         style: TextStyle(
                                           fontSize: 9,
@@ -1236,7 +1236,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                       const SizedBox(width: 3),
                                       Text(
                                         '$streak',
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           fontFamily: KinrelTypography.bodyFont,
                                           fontSize: 10,
                                           fontWeight: FontWeight.w700,
@@ -1370,7 +1370,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   size: 20,
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
+                      const SnackBar(
                         content: Text('Video call coming soon!'),
                         backgroundColor: KinrelColors.darkCard,
                         behavior: SnackBarBehavior.floating,
@@ -1383,7 +1383,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   size: 18,
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
+                      const SnackBar(
                         content: Text('Voice call coming soon!'),
                         backgroundColor: KinrelColors.darkCard,
                         behavior: SnackBarBehavior.floating,
@@ -1393,7 +1393,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
                 // More menu — settings, wallpaper, mute, etc.
                 PopupMenuButton<String>(
-                  icon: Icon(Icons.more_vert,
+                  icon: const Icon(Icons.more_vert,
                       color: KinrelColors.textSilver, size: 20),
                   color: KinrelColors.darkCard,
                   shape: RoundedRectangleBorder(
@@ -1602,7 +1602,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     lines.add('Exported: ${DateTime.now().toLocal()}');
     lines.add('Messages: ${sorted.length}');
     lines.add('');
-    lines.add('${'─' * 60}');
+    lines.add('─' * 60);
     lines.add('');
 
     for (final msg in sorted) {
@@ -1650,7 +1650,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
 
     lines.add('');
-    lines.add('${'─' * 60}');
+    lines.add('─' * 60);
     lines.add('Export complete');
 
     final exportText = lines.join('\n');
@@ -1698,8 +1698,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Text(
                 'Share live location',
                 style: TextStyle(
@@ -1711,23 +1711,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
             ),
             ListTile(
-              leading: Icon(Icons.access_time_rounded,
+              leading: const Icon(Icons.access_time_rounded,
                   color: KinrelColors.ember),
-              title: Text('15 minutes',
+              title: const Text('15 minutes',
                   style: TextStyle(color: KinrelColors.textWhite)),
               onTap: () => Navigator.pop(ctx, 15),
             ),
             ListTile(
-              leading: Icon(Icons.schedule_rounded,
+              leading: const Icon(Icons.schedule_rounded,
                   color: KinrelColors.ember),
-              title: Text('1 hour',
+              title: const Text('1 hour',
                   style: TextStyle(color: KinrelColors.textWhite)),
               onTap: () => Navigator.pop(ctx, 60),
             ),
             ListTile(
-              leading: Icon(Icons.update_rounded,
+              leading: const Icon(Icons.update_rounded,
                   color: KinrelColors.ember),
-              title: Text('8 hours',
+              title: const Text('8 hours',
                   style: TextStyle(color: KinrelColors.textWhite)),
               onTap: () => Navigator.pop(ctx, 480),
             ),
@@ -1932,7 +1932,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Chat Wallpaper',
+            const Text('Chat Wallpaper',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 18,
@@ -1940,7 +1940,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   color: KinrelColors.textWhite,
                 )),
             const SizedBox(height: 4),
-            Text(
+            const Text(
               'Pick a color — changes instantly',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -1965,7 +1965,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // v113: Checkmark overlay on the active swatch so users
                 // get visual confirmation of which wallpaper is applied.
                 final isActive = _wallpaperColor != null &&
-                    _wallpaperColor!.value == 0xFF000000 + colorValue;
+                    _wallpaperColor!.toARGB32() == 0xFF000000 + colorValue;
                 return GestureDetector(
                   onTap: () async {
                     Navigator.pop(ctx);
@@ -1999,7 +1999,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       ),
                     ),
                     child: isActive
-                        ? Center(
+                        ? const Center(
                             child: Icon(
                               Icons.check_rounded,
                               color: KinrelColors.orange,
@@ -2036,8 +2036,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
+            const Padding(
+              padding: EdgeInsets.all(16),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -2053,11 +2053,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
             // Option A: Choose from Gallery
             ListTile(
-              leading: Icon(
+              leading: const Icon(
                 Icons.photo_library_rounded,
                 color: KinrelColors.orange,
               ),
-              title: Text(
+              title: const Text(
                 'Choose from Gallery',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -2085,11 +2085,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             // Option B: Remove Wallpaper (only if one is set)
             if (currentPath != null)
               ListTile(
-                leading: Icon(
+                leading: const Icon(
                   Icons.delete_outline_rounded,
                   color: Colors.redAccent,
                 ),
-                title: Text(
+                title: const Text(
                   'Remove Wallpaper',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -2113,11 +2113,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
             // Option C: Set as Default Wallpaper
             ListTile(
-              leading: Icon(
+              leading: const Icon(
                 Icons.photo_library_outlined,
                 color: KinrelColors.textSilver,
               ),
-              title: Text(
+              title: const Text(
                 'Set as Default Wallpaper',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -2190,7 +2190,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            Text('Starred Messages',
+            const Text('Starred Messages',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 18,
@@ -2200,7 +2200,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             const SizedBox(height: 16),
             Expanded(
               child: starred.isEmpty
-                  ? Center(
+                  ? const Center(
                       child: Text('No starred messages',
                           style: TextStyle(color: KinrelColors.textDim)))
                   : ListView.builder(
@@ -2221,18 +2221,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(msg.senderName,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
                                       color: KinrelColors.orange)),
                               const SizedBox(height: 4),
                               Text(msg.content,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                       fontSize: 13,
                                       color: KinrelColors.textWhite)),
                               const SizedBox(height: 4),
                               Text(msg.formattedTime,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                       fontSize: 10,
                                       color: KinrelColors.textDim)),
                             ],
@@ -2275,11 +2275,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            Row(
+            const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.push_pin, size: 18, color: KinrelColors.orange),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Text('Pinned Messages',
                     style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
@@ -2292,7 +2292,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             const SizedBox(height: 16),
             Expanded(
               child: pinned.isEmpty
-                  ? Center(
+                  ? const Center(
                       child: Text('No pinned messages',
                           style: TextStyle(color: KinrelColors.textDim)))
                   : ListView.builder(
@@ -2314,11 +2314,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             children: [
                               Row(
                                 children: [
-                                  Icon(Icons.push_pin,
+                                  const Icon(Icons.push_pin,
                                       size: 14, color: KinrelColors.orange),
                                   const SizedBox(width: 4),
                                   Text(msg.senderName,
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         fontFamily: KinrelTypography.bodyFont,
                                         fontSize: 13,
                                         fontWeight: FontWeight.w600,
@@ -2326,7 +2326,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                       )),
                                   const Spacer(),
                                   Text(msg.formattedTime,
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         fontSize: 11,
                                         color: KinrelColors.textDim,
                                       )),
@@ -2337,7 +2337,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                 msg.content.isNotEmpty
                                     ? msg.content
                                     : '[${msg.messageType.name}]',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: KinrelTypography.bodyFont,
                                   fontSize: 14,
                                   color: KinrelColors.textWhite,
@@ -2511,7 +2511,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
             ],
           ),
-          child: Icon(
+          child: const Icon(
             Icons.keyboard_arrow_down,
             color: KinrelColors.textSilver,
             size: 24,
@@ -2553,7 +2553,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             child: Center(
               child: Text(
                 ((firstInitial.isNotEmpty) ? firstInitial.substring(0, 1) : '?').toUpperCase(),
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
@@ -2565,7 +2565,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           const SizedBox(width: 8),
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
               color: KinrelColors.textSilver,
@@ -2591,7 +2591,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   child: Container(
                     width: 4,
                     height: 4,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       color: KinrelColors.orange,
                     ),
@@ -2610,10 +2610,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Widget _buildReplyPreview(ChatMessage replyTo) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF13141E),
+      decoration: const BoxDecoration(
+        color: Color(0xFF13141E),
         border: Border(
-          top: BorderSide(color: const Color(0xFF2A2A3D), width: 0.5),
+          top: BorderSide(color: Color(0xFF2A2A3D), width: 0.5),
         ),
       ),
       child: Row(
@@ -2635,7 +2635,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               children: [
                 Text(
                   replyTo.senderName,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -2645,7 +2645,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 const SizedBox(height: 2),
                 Text(
                   replyTo.content,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     color: KinrelColors.textSilver,
@@ -2657,7 +2657,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
           ),
           IconButton(
-            icon: Icon(Icons.close, size: 18, color: KinrelColors.textDim),
+            icon: const Icon(Icons.close, size: 18, color: KinrelColors.textDim),
             onPressed: () {
               ref.read(chatProvider(widget.familyId).notifier).clearReplyTo();
             },
@@ -2793,7 +2793,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             focusNode: _focusNode,
                             maxLines: null,
                             textInputAction: TextInputAction.newline,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                             fontSize: 15,
                             color: KinrelColors.textWhite,
@@ -2935,7 +2935,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // Timer
                 Text(
                   '$minutes:$seconds',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -2944,7 +2944,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ),
                 ),
                 const SizedBox(width: 10),
-                Text(
+                const Text(
                   'Recording',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -2964,7 +2964,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       shape: BoxShape.circle,
                       color: Colors.white.withValues(alpha: 0.06),
                     ),
-                    child: Icon(
+                    child: const Icon(
                       Icons.close_rounded,
                       size: 19,
                       color: KinrelColors.textSilver,
@@ -3012,7 +3012,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (!hasPermission) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: Text('Microphone permission denied.'),
               backgroundColor: KinrelColors.darkCard,
             ),
@@ -3208,8 +3208,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Text(
                 'Attach',
                 style: TextStyle(
@@ -3221,38 +3221,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
             ),
             ListTile(
-              leading: Icon(Icons.photo_outlined,
+              leading: const Icon(Icons.photo_outlined,
                   color: KinrelColors.ember),
-              title: Text('Photo',
+              title: const Text('Photo',
                   style: TextStyle(color: KinrelColors.textWhite)),
-              subtitle: Text('From gallery',
+              subtitle: const Text('From gallery',
                   style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
               onTap: () => Navigator.pop(ctx, 'photo'),
             ),
             ListTile(
-              leading: Icon(Icons.insert_drive_file_outlined,
+              leading: const Icon(Icons.insert_drive_file_outlined,
                   color: KinrelColors.ember),
-              title: Text('Document',
+              title: const Text('Document',
                   style: TextStyle(color: KinrelColors.textWhite)),
-              subtitle: Text('PDF, DOC, XLS, etc.',
+              subtitle: const Text('PDF, DOC, XLS, etc.',
                   style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
               onTap: () => Navigator.pop(ctx, 'document'),
             ),
             ListTile(
-              leading: Icon(Icons.location_on_outlined,
+              leading: const Icon(Icons.location_on_outlined,
                   color: KinrelColors.ember),
-              title: Text('Location',
+              title: const Text('Location',
                   style: TextStyle(color: KinrelColors.textWhite)),
-              subtitle: Text('Share your current location',
+              subtitle: const Text('Share your current location',
                   style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
               onTap: () => Navigator.pop(ctx, 'location'),
             ),
             ListTile(
-              leading: Icon(Icons.gif_box_outlined,
+              leading: const Icon(Icons.gif_box_outlined,
                   color: KinrelColors.ember),
-              title: Text('GIF',
+              title: const Text('GIF',
                   style: TextStyle(color: KinrelColors.textWhite)),
-              subtitle: Text('Search Giphy',
+              subtitle: const Text('Search Giphy',
                   style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
               onTap: () => Navigator.pop(ctx, 'gif'),
             ),
@@ -3309,7 +3309,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // Show a sending indicator
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Row(
               children: [
                 SizedBox(
@@ -3319,13 +3319,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     color: KinrelColors.orange,
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Text('Sending attachment...'),
               ],
             ),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 10),
+            duration: Duration(seconds: 10),
           ),
         );
       }
@@ -3339,11 +3339,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Attachment sent'),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 1),
+            duration: Duration(seconds: 1),
           ),
         );
       }
@@ -3379,7 +3379,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           SnackBar(
             content: Row(
               children: [
-                SizedBox(
+                const SizedBox(
                   width: 16, height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2, color: KinrelColors.orange,
@@ -3428,11 +3428,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Document sent'),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 1),
+            duration: Duration(seconds: 1),
           ),
         );
       }
@@ -3456,7 +3456,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     try {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Row(
               children: [
                 SizedBox(
@@ -3465,13 +3465,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     strokeWidth: 2, color: KinrelColors.orange,
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Text('Getting your location...'),
               ],
             ),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 15),
+            duration: Duration(seconds: 15),
           ),
         );
       }
@@ -3493,11 +3493,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Location shared'),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 1),
+            duration: Duration(seconds: 1),
           ),
         );
       }
@@ -3540,21 +3540,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: KinrelColors.darkCard,
-        title: Text('Edit Message',
+        title: const Text('Edit Message',
             style: TextStyle(color: KinrelColors.textWhite)),
         content: TextField(
           controller: editController,
           maxLines: null,
           autofocus: true,
-          style: TextStyle(color: KinrelColors.textWhite),
+          style: const TextStyle(color: KinrelColors.textWhite),
           decoration: InputDecoration(
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: KinrelColors.border),
+              borderSide: const BorderSide(color: KinrelColors.border),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: KinrelColors.orange),
+              borderSide: const BorderSide(color: KinrelColors.orange),
             ),
           ),
         ),
@@ -3576,7 +3576,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
               }
             },
-            child: Text('Save', style: TextStyle(color: KinrelColors.orange)),
+            child: const Text('Save', style: TextStyle(color: KinrelColors.orange)),
           ),
         ],
       ),
@@ -3652,7 +3652,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                 : null,
                           ),
                           child: Center(
-                            child: Text(emoji, style: TextStyle(fontSize: 22)),
+                            child: Text(emoji, style: const TextStyle(fontSize: 22)),
                           ),
                         ),
                       );
@@ -3671,11 +3671,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       child: Container(
                         width: 44,
                         height: 44,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           shape: BoxShape.circle,
                           color: KinrelColors.darkElevated,
                         ),
-                        child: Center(
+                        child: const Center(
                           child: Icon(
                             Icons.add,
                             color: KinrelColors.textSilver,
@@ -3688,8 +3688,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
               ),
               const SizedBox(height: 8),
-              Divider(
-                color: const Color(0xFF3A3A4A),
+              const Divider(
+                color: Color(0xFF3A3A4A),
                 height: 1,
                 thickness: 0.5,
               ),
@@ -3698,12 +3698,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               // useful for long text messages / photos that are
               // truncated in the bubble).
               ListTile(
-                leading: Icon(
+                leading: const Icon(
                   Icons.zoom_out_map_rounded,
                   color: KinrelColors.ember,
                   size: 22,
                 ),
-                title: Text(
+                title: const Text(
                   'Preview',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -3718,12 +3718,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
               // Reply action
               ListTile(
-                leading: Icon(
+                leading: const Icon(
                   Icons.reply,
                   color: KinrelColors.orange,
                   size: 22,
                 ),
-                title: Text(
+                title: const Text(
                   'Reply',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -3740,12 +3740,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
               // Copy action
               ListTile(
-                leading: Icon(
+                leading: const Icon(
                   Icons.copy_rounded,
                   color: KinrelColors.textSilver,
                   size: 22,
                 ),
-                title: Text(
+                title: const Text(
                   'Copy',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -3767,12 +3767,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
               // Forward action
               ListTile(
-                leading: Icon(
+                leading: const Icon(
                   Icons.forward,
                   color: KinrelColors.textSilver,
                   size: 22,
                 ),
-                title: Text(
+                title: const Text(
                   'Forward',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -3787,12 +3787,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
               // v125: Share (native share sheet)
               ListTile(
-                leading: Icon(
+                leading: const Icon(
                   Icons.share_outlined,
                   color: KinrelColors.textSilver,
                   size: 22,
                 ),
-                title: Text(
+                title: const Text(
                   'Share',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -3833,7 +3833,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
                 title: Text(
                   message.isStarred ? 'Unstar' : 'Star',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 15,
                     color: KinrelColors.textWhite,
@@ -3860,7 +3860,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ),
                   title: Text(
                     message.isPinned ? 'Unpin' : 'Pin',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 15,
                       color: KinrelColors.textWhite,
@@ -3876,12 +3876,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               // Edit (only for own text messages)
               if (isMe && message.messageType == MessageType.text)
                 ListTile(
-                  leading: Icon(
+                  leading: const Icon(
                     Icons.edit_outlined,
                     color: KinrelColors.textSilver,
                     size: 22,
                   ),
-                  title: Text(
+                  title: const Text(
                     'Edit',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -3896,12 +3896,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
               // Delete for Me
               ListTile(
-                leading: Icon(
+                leading: const Icon(
                   Icons.delete_outline,
                   color: KinrelColors.textSilver,
                   size: 22,
                 ),
-                title: Text(
+                title: const Text(
                   'Delete for Me',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -3927,12 +3927,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               if (message.messageType == MessageType.text ||
                   message.messageType == MessageType.photo)
                 ListTile(
-                  leading: Icon(
+                  leading: const Icon(
                     Icons.info_outline_rounded,
                     color: KinrelColors.textSilver,
                     size: 22,
                   ),
-                  title: Text(
+                  title: const Text(
                     'Info',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -3948,12 +3948,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               // Delete for Everyone (only for own messages)
               if (isMe)
                 ListTile(
-                  leading: Icon(
+                  leading: const Icon(
                     Icons.delete_forever,
                     color: KinrelColors.error,
                     size: 22,
                   ),
-                  title: Text(
+                  title: const Text(
                     'Delete for Everyone',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -3968,9 +3968,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       context: context,
                       builder: (ctx) => AlertDialog(
                         backgroundColor: KinrelColors.darkCard,
-                        title: Text('Delete for Everyone?',
+                        title: const Text('Delete for Everyone?',
                             style: TextStyle(color: KinrelColors.textWhite)),
-                        content: Text(
+                        content: const Text(
                             'This message will be deleted for everyone in the chat.',
                             style: TextStyle(color: KinrelColors.textSilver)),
                         actions: [
@@ -3979,7 +3979,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               child: const Text('Cancel')),
                           TextButton(
                               onPressed: () => Navigator.pop(ctx, true),
-                              child: Text('Delete',
+                              child: const Text('Delete',
                                   style: TextStyle(color: KinrelColors.error))),
                         ],
                       ),
@@ -4051,7 +4051,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                       ? message.senderName[0]
                                       : '?')
                                   .toUpperCase(),
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 color: KinrelColors.ember,
@@ -4065,7 +4065,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               children: [
                                 Text(
                                   message.senderName,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontFamily: KinrelTypography.bodyFont,
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
@@ -4074,7 +4074,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                 ),
                                 Text(
                                   message.formattedTime,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontFamily: KinrelTypography.monoFont,
                                     fontSize: 10,
                                     color: KinrelColors.textDim,
@@ -4124,7 +4124,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       else
                         SelectableText(
                           message.content,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 16,
                             color: KinrelColors.textWhite,
@@ -4133,7 +4133,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         ),
                       const SizedBox(height: 16),
                       // Footer: close hint
-                      Center(
+                      const Center(
                         child: Text(
                           'Tap anywhere to close',
                           style: TextStyle(
@@ -4174,8 +4174,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
+            const Padding(
+              padding: EdgeInsets.all(12),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -4201,18 +4201,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 config: Config(
                   height: MediaQuery.of(context).size.height * 0.45,
                   checkPlatformCompatibility: true,
-                  emojiViewConfig: EmojiViewConfig(
+                  emojiViewConfig: const EmojiViewConfig(
                     backgroundColor: KinrelColors.darkCard,
                     emojiSizeMax: 28,
                   ),
-                  categoryViewConfig: CategoryViewConfig(
+                  categoryViewConfig: const CategoryViewConfig(
                     backgroundColor: KinrelColors.darkCard,
                     iconColor: KinrelColors.textSilver,
                     iconColorSelected: KinrelColors.orange,
                     indicatorColor: KinrelColors.orange,
                     backspaceColor: KinrelColors.textSilver,
                   ),
-                  searchViewConfig: SearchViewConfig(
+                  searchViewConfig: const SearchViewConfig(
                     backgroundColor: KinrelColors.darkCard,
                     buttonIconColor: KinrelColors.textSilver,
                     hintText: 'Search emoji',

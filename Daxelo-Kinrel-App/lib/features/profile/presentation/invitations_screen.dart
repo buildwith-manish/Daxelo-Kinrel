@@ -245,8 +245,8 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen>
             fontWeight: FontWeight.w500,
           ),
           tabs: [
-            Tab(text: 'Received', iconMargin: EdgeInsets.zero),
-            Tab(text: 'Sent', iconMargin: EdgeInsets.zero),
+            const Tab(text: 'Received', iconMargin: EdgeInsets.zero),
+            const Tab(text: 'Sent', iconMargin: EdgeInsets.zero),
           ],
         ),
       ),
@@ -369,7 +369,7 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen>
       itemCount: 3,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
-        final _shimmerChild = Container(
+        final shimmerChild = Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -426,14 +426,14 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen>
         );
 
         if (!DeviceTierCache.instance.shouldShimmer) {
-          return _shimmerChild;
+          return shimmerChild;
         }
 
         return Shimmer.fromColors(
           baseColor: const Color(0xFF202338),
           highlightColor: const Color(0xFF13141E),
           period: const Duration(milliseconds: 1500),
-          child: _shimmerChild,
+          child: shimmerChild,
         );
       },
     );

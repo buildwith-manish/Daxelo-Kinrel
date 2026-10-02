@@ -76,7 +76,7 @@ class GamingSectionHeader extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -89,7 +89,7 @@ class GamingSectionHeader extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
                       subtitle!,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
                         color: KinrelColors.textDim,
@@ -106,7 +106,7 @@ class GamingSectionHeader extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 minimumSize: const Size(44, 36),
                 foregroundColor: KinrelColors.amber,
-                textStyle: TextStyle(
+                textStyle: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -253,7 +253,7 @@ class GamingStatChip extends StatelessWidget {
             children: [
               Text(
                 value,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
@@ -262,7 +262,7 @@ class GamingStatChip extends StatelessWidget {
               ),
               Text(
                 label,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 10,
                   color: KinrelColors.textDim,
@@ -427,7 +427,7 @@ class GamingPodium extends StatelessWidget {
                 name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -625,7 +625,7 @@ class GamingRankRow extends StatelessWidget {
                       ? _rankBadge(rank)
                       : Text(
                           '#$rank',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.monoFont,
                             fontSize: 13,
                             color: KinrelColors.textDim,
@@ -643,7 +643,7 @@ class GamingRankRow extends StatelessWidget {
                               isMe ? '$userName (you)' : userName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
@@ -668,7 +668,7 @@ class GamingRankRow extends StatelessWidget {
                                   const SizedBox(width: 3),
                                   Text(
                                     '$streak',
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       fontFamily: KinrelTypography.monoFont,
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
@@ -684,7 +684,7 @@ class GamingRankRow extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         _participationLine(),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 11,
                           color: KinrelColors.textDim,
@@ -772,7 +772,7 @@ class GamingActivityTile extends StatelessWidget {
               children: [
                 Text(
                   description,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     height: 1.35,
@@ -782,7 +782,7 @@ class GamingActivityTile extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   timeLabel,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 10,
                     color: KinrelColors.textDim,
@@ -837,7 +837,7 @@ class GamingEmptyCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             title,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -848,7 +848,7 @@ class GamingEmptyCard extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
               height: 1.4,

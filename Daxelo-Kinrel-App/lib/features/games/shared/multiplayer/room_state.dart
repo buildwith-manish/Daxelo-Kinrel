@@ -29,19 +29,6 @@ class RoomParticipant {
     this.leftAt,
   });
 
-  final String userId;
-  final String? userName;
-  final String role; // 'player' | 'host' | 'spectator'
-  final DateTime? readyAt;
-  final String connectionState; // 'online' | 'offline'
-  final DateTime? joinedAt;
-  final DateTime? leftAt;
-
-  bool get isReady => readyAt != null;
-  bool get isHost => role == 'host';
-  bool get isSpectator => role == 'spectator';
-  bool get isOnline => connectionState == 'online' && leftAt == null;
-
   factory RoomParticipant.fromJson(Map<String, dynamic> json) {
     return RoomParticipant(
       userId: (json['userId'] ?? '') as String,
@@ -59,6 +46,19 @@ class RoomParticipant {
           : null,
     );
   }
+
+  final String userId;
+  final String? userName;
+  final String role; // 'player' | 'host' | 'spectator'
+  final DateTime? readyAt;
+  final String connectionState; // 'online' | 'offline'
+  final DateTime? joinedAt;
+  final DateTime? leftAt;
+
+  bool get isReady => readyAt != null;
+  bool get isHost => role == 'host';
+  bool get isSpectator => role == 'spectator';
+  bool get isOnline => connectionState == 'online' && leftAt == null;
 
   Map<String, dynamic> toJson() => {
         'userId': userId,
@@ -101,10 +101,6 @@ class RoomSpectator {
     this.joinedAt,
   });
 
-  final String userId;
-  final String? userName;
-  final DateTime? joinedAt;
-
   factory RoomSpectator.fromJson(Map<String, dynamic> json) {
     return RoomSpectator(
       userId: (json['userId'] ?? '') as String,
@@ -114,6 +110,10 @@ class RoomSpectator {
           : null,
     );
   }
+
+  final String userId;
+  final String? userName;
+  final DateTime? joinedAt;
 }
 
 /// A single system event in the room's event log (join / leave / ready /
@@ -131,6 +131,24 @@ class RoomEvent {
     this.userName,
     this.payload = const {},
   });
+
+  factory RoomEvent.fromJson(Map<String, dynamic> json) {
+    return RoomEvent(
+      id: (json['id'] ?? '') as String,
+      gameTable: (json['gameTable'] ?? '') as String,
+      gameId: (json['gameId'] ?? '') as String,
+      familyId: (json['familyId'] ?? '') as String,
+      eventType: (json['eventType'] ?? 'system') as String,
+      createdAt: json['createdAt'] is String
+          ? (DateTime.tryParse(json['createdAt'] as String) ?? DateTime.now())
+          : DateTime.now(),
+      userId: json['userId'] as String?,
+      userName: json['userName'] as String?,
+      payload: json['payload'] is Map
+          ? Map<String, dynamic>.from(json['payload'] as Map)
+          : const {},
+    );
+  }
 
   final String id;
   final String gameTable;
@@ -195,24 +213,6 @@ class RoomEvent {
       default:
         return null;
     }
-  }
-
-  factory RoomEvent.fromJson(Map<String, dynamic> json) {
-    return RoomEvent(
-      id: (json['id'] ?? '') as String,
-      gameTable: (json['gameTable'] ?? '') as String,
-      gameId: (json['gameId'] ?? '') as String,
-      familyId: (json['familyId'] ?? '') as String,
-      eventType: (json['eventType'] ?? 'system') as String,
-      createdAt: json['createdAt'] is String
-          ? (DateTime.tryParse(json['createdAt'] as String) ?? DateTime.now())
-          : DateTime.now(),
-      userId: json['userId'] as String?,
-      userName: json['userName'] as String?,
-      payload: json['payload'] is Map
-          ? Map<String, dynamic>.from(json['payload'] as Map)
-          : const {},
-    );
   }
 }
 

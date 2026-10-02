@@ -37,7 +37,7 @@ void main() {
   setUpAll(setupNativePluginMocks);
   tearDownAll(tearDownNativePluginMocks);
   group('FamilyGraphScreen AppBar actions', () {
-    GoRouter _buildTestRouter() {
+    GoRouter buildTestRouter() {
       return GoRouter(
         routes: [
           GoRoute(
@@ -63,7 +63,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             child: MaterialApp.router(
-              routerConfig: _buildTestRouter(),
+              routerConfig: buildTestRouter(),
             ),
           ),
         );
@@ -80,7 +80,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             child: MaterialApp.router(
-              routerConfig: _buildTestRouter(),
+              routerConfig: buildTestRouter(),
             ),
           ),
         );
@@ -97,7 +97,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             child: MaterialApp.router(
-              routerConfig: _buildTestRouter(),
+              routerConfig: buildTestRouter(),
             ),
           ),
         );
@@ -118,7 +118,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             child: MaterialApp.router(
-              routerConfig: _buildTestRouter(),
+              routerConfig: buildTestRouter(),
             ),
           ),
         );

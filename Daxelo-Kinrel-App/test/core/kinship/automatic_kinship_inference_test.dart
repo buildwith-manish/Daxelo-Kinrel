@@ -22,21 +22,21 @@ void main() {
       // and a grandparent edge (grandparent → sister, 'granddaughter')
 
       final persons = [
-        Person(id: 'self', familyId: 'fam', name: 'Self', gender: 'male'),
-        Person(id: 'sister', familyId: 'fam', name: 'Sister', gender: 'female'),
-        Person(id: 'parent', familyId: 'fam', name: 'Parent', gender: 'male'),
-        Person(id: 'grandparent', familyId: 'fam', name: 'Grandparent', gender: 'male'),
+        const Person(id: 'self', familyId: 'fam', name: 'Self', gender: 'male'),
+        const Person(id: 'sister', familyId: 'fam', name: 'Sister', gender: 'female'),
+        const Person(id: 'parent', familyId: 'fam', name: 'Parent', gender: 'male'),
+        const Person(id: 'grandparent', familyId: 'fam', name: 'Grandparent', gender: 'male'),
       ];
 
       final existingRels = [
         // Canonical: from=parent, to=self, label='son' → self is parent's son
-        FamilyRelationship(
+        const FamilyRelationship(
           id: 'r1', familyId: 'fam',
           fromPersonId: 'parent', toPersonId: 'self',
           relationshipKey: 'parent', labelAtoB: 'son', isActive: true,
         ),
         // Canonical: from=grandparent, to=parent, label='son' → parent is grandparent's son
-        FamilyRelationship(
+        const FamilyRelationship(
           id: 'r2', familyId: 'fam',
           fromPersonId: 'grandparent', toPersonId: 'parent',
           relationshipKey: 'parent', labelAtoB: 'son', isActive: true,
@@ -79,14 +79,14 @@ void main() {
       //   (parent is wife's father-in-law)
 
       final persons = [
-        Person(id: 'self', familyId: 'fam', name: 'Self', gender: 'male'),
-        Person(id: 'wife', familyId: 'fam', name: 'Wife', gender: 'female'),
-        Person(id: 'parent', familyId: 'fam', name: 'Parent', gender: 'male'),
+        const Person(id: 'self', familyId: 'fam', name: 'Self', gender: 'male'),
+        const Person(id: 'wife', familyId: 'fam', name: 'Wife', gender: 'female'),
+        const Person(id: 'parent', familyId: 'fam', name: 'Parent', gender: 'male'),
       ];
 
       final existingRels = [
         // Canonical: from=parent, to=self, label='son' → self is parent's son
-        FamilyRelationship(
+        const FamilyRelationship(
           id: 'r1', familyId: 'fam',
           fromPersonId: 'parent', toPersonId: 'self',
           relationshipKey: 'parent', labelAtoB: 'son', isActive: true,
@@ -123,13 +123,13 @@ void main() {
 
     test('TEST 3: filterExistingEdges removes duplicates', () {
       final inferred = [
-        InferredEdge(fromPersonId: 'A', toPersonId: 'B', labelAtoB: 'daughter', reason: 'test'),
-        InferredEdge(fromPersonId: 'C', toPersonId: 'D', labelAtoB: 'son', reason: 'test'),
+        const InferredEdge(fromPersonId: 'A', toPersonId: 'B', labelAtoB: 'daughter', reason: 'test'),
+        const InferredEdge(fromPersonId: 'C', toPersonId: 'D', labelAtoB: 'son', reason: 'test'),
       ];
 
       final existing = [
         // Canonical: from=A, to=B, label='daughter'
-        FamilyRelationship(
+        const FamilyRelationship(
           id: 'r1', familyId: 'fam',
           fromPersonId: 'A', toPersonId: 'B',
           relationshipKey: 'parent', labelAtoB: 'daughter', isActive: true,
@@ -158,21 +158,21 @@ void main() {
       //      Canonical: from=grandparent, to=new_child, label='grandson'
 
       final persons = [
-        Person(id: 'parent', familyId: 'fam', name: 'Parent', gender: 'male'),
-        Person(id: 'new_child', familyId: 'fam', name: 'NewChild', gender: 'male'),
-        Person(id: 'existing_child', familyId: 'fam', name: 'ExistingChild', gender: 'female'),
-        Person(id: 'grandparent', familyId: 'fam', name: 'Grandparent', gender: 'male'),
+        const Person(id: 'parent', familyId: 'fam', name: 'Parent', gender: 'male'),
+        const Person(id: 'new_child', familyId: 'fam', name: 'NewChild', gender: 'male'),
+        const Person(id: 'existing_child', familyId: 'fam', name: 'ExistingChild', gender: 'female'),
+        const Person(id: 'grandparent', familyId: 'fam', name: 'Grandparent', gender: 'male'),
       ];
 
       final existingRels = [
         // Canonical: from=parent, to=existing_child, label='daughter'
-        FamilyRelationship(
+        const FamilyRelationship(
           id: 'r1', familyId: 'fam',
           fromPersonId: 'parent', toPersonId: 'existing_child',
           relationshipKey: 'parent', labelAtoB: 'daughter', isActive: true,
         ),
         // Canonical: from=grandparent, to=parent, label='son'
-        FamilyRelationship(
+        const FamilyRelationship(
           id: 'r2', familyId: 'fam',
           fromPersonId: 'grandparent', toPersonId: 'parent',
           relationshipKey: 'parent', labelAtoB: 'son', isActive: true,
@@ -215,14 +215,14 @@ void main() {
       // is anchor's father (parent).
 
       final persons = [
-        Person(id: 'anchor', familyId: 'fam', name: 'Anchor', gender: 'male'),
-        Person(id: 'father', familyId: 'fam', name: 'Father', gender: 'male'),
+        const Person(id: 'anchor', familyId: 'fam', name: 'Anchor', gender: 'male'),
+        const Person(id: 'father', familyId: 'fam', name: 'Father', gender: 'male'),
       ];
 
       final existingRels = [
         // Post-v5.17 canonical: from=anchor, to=father, label='father'
         // → "father is anchor's father" → father is anchor's PARENT
-        FamilyRelationship(
+        const FamilyRelationship(
           id: 'r1', familyId: 'fam',
           fromPersonId: 'anchor', toPersonId: 'father',
           relationshipKey: 'parent', labelAtoB: 'father', isActive: true,
@@ -237,7 +237,7 @@ void main() {
         newLabelAtoB: 'brother',
         persons: [
           ...persons,
-          Person(id: 'sibling', familyId: 'fam', name: 'Sibling', gender: 'male'),
+          const Person(id: 'sibling', familyId: 'fam', name: 'Sibling', gender: 'male'),
         ],
         existingRelationships: existingRels,
       );

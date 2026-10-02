@@ -30,6 +30,14 @@ const _kPersonTable = 'Person';
 
 /// Immutable state for the paginated family-members list.
 class PaginatedMembersState {
+
+  const PaginatedMembersState({
+    this.members = const [],
+    this.cursor,
+    this.isLoadingMore = false,
+    this.hasMore = true,
+    this.error,
+  });
   /// Currently loaded members (may span multiple pages).
   final List<Person> members;
 
@@ -45,14 +53,6 @@ class PaginatedMembersState {
 
   /// Non-null when the last page-fetch failed.
   final String? error;
-
-  const PaginatedMembersState({
-    this.members = const [],
-    this.cursor,
-    this.isLoadingMore = false,
-    this.hasMore = true,
-    this.error,
-  });
 
   /// Sentinel value so `copyWith(cursor: null)` actually sets cursor to null
   /// instead of falling back to the current value.

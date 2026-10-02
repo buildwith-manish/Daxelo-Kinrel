@@ -415,13 +415,13 @@ class _InviteFamilyBanner extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 14),
-            Expanded(
+            const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Invite family member',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -429,10 +429,10 @@ class _InviteFamilyBanner extends StatelessWidget {
                       letterSpacing: 0.2,
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  const Text(
+                  SizedBox(height: 3),
+                  Text(
                     'The Arena is better with everyone — one tap to invite',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11.5,
                       color: Colors.white,

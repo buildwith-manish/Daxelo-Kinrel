@@ -41,26 +41,6 @@ class NameplaceGame {
     required this.createdAt,
   });
 
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final NameplaceStatus status;
-  final List<String> categories;
-  final int roundTimerSeconds;
-  final int totalRounds;
-  final int currentRound;
-  final String? currentLetterChooserId;
-  final String? currentLetter;
-  final DateTime? roundEndsAt;
-  final bool allAnswersSubmitted;
-  final bool roundScoringDone;
-  final List<String>? winnerUserIds;
-  final List<String>? winnerNames;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final DateTime createdAt;
-
   factory NameplaceGame.fromJson(Map<String, dynamic> json) => NameplaceGame(
     id: json['id'] ?? '',
     familyId: json['familyId'] ?? '',
@@ -83,6 +63,26 @@ class NameplaceGame {
     createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
   );
 
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final NameplaceStatus status;
+  final List<String> categories;
+  final int roundTimerSeconds;
+  final int totalRounds;
+  final int currentRound;
+  final String? currentLetterChooserId;
+  final String? currentLetter;
+  final DateTime? roundEndsAt;
+  final bool allAnswersSubmitted;
+  final bool roundScoringDone;
+  final List<String>? winnerUserIds;
+  final List<String>? winnerNames;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final DateTime createdAt;
+
   bool get isWaiting => status == NameplaceStatus.waiting;
   bool get isInProgress => status == NameplaceStatus.inProgress;
   bool get isCompleted => status == NameplaceStatus.completed;
@@ -102,18 +102,6 @@ class NameplacePlayer {
     this.readyAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final int turnOrder;
-  final int totalScore;
-  final bool hasSubmitted;
-  final DateTime joinedAt;
-  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
-  final bool isReady;
-  final DateTime? readyAt;
-
   factory NameplacePlayer.fromJson(Map<String, dynamic> json) => NameplacePlayer(
     id: json['id'] ?? '',
     gameId: json['gameId'] ?? '',
@@ -128,6 +116,18 @@ class NameplacePlayer {
         ? DateTime.tryParse(json['readyAt'])
         : null,
   );
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final int turnOrder;
+  final int totalScore;
+  final bool hasSubmitted;
+  final DateTime joinedAt;
+  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
+  final bool isReady;
+  final DateTime? readyAt;
 }
 
 class NameplaceRound {
@@ -141,14 +141,6 @@ class NameplaceRound {
     required this.createdAt,
   });
 
-  final String id;
-  final String gameId;
-  final int roundNumber;
-  final String letter;
-  final String letterChooserId;
-  final String letterChooserName;
-  final DateTime createdAt;
-
   factory NameplaceRound.fromJson(Map<String, dynamic> json) => NameplaceRound(
     id: json['id'] ?? '',
     gameId: json['gameId'] ?? '',
@@ -158,6 +150,14 @@ class NameplaceRound {
     letterChooserName: json['letterChooserName'] ?? 'Player',
     createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
   );
+
+  final String id;
+  final String gameId;
+  final int roundNumber;
+  final String letter;
+  final String letterChooserId;
+  final String letterChooserName;
+  final DateTime createdAt;
 }
 
 class NameplaceAnswerModel {
@@ -173,16 +173,6 @@ class NameplaceAnswerModel {
     required this.createdAt,
   });
 
-  final String id;
-  final String roundId;
-  final String gameId;
-  final String playerId;
-  final String playerName;
-  final String category;
-  final String answerText;
-  final int? pointsAwarded;
-  final DateTime createdAt;
-
   factory NameplaceAnswerModel.fromJson(Map<String, dynamic> json) => NameplaceAnswerModel(
     id: json['id'] ?? '',
     roundId: json['roundId'] ?? '',
@@ -194,4 +184,14 @@ class NameplaceAnswerModel {
     pointsAwarded: json['pointsAwarded'],
     createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
   );
+
+  final String id;
+  final String roundId;
+  final String gameId;
+  final String playerId;
+  final String playerName;
+  final String category;
+  final String answerText;
+  final int? pointsAwarded;
+  final DateTime createdAt;
 }

@@ -61,8 +61,8 @@ class HouseholdClusterMarkerGenerator {
       ui.Offset(size / 2, size / 2),
       size / 2 + 4,
       ui.Paint()
-        ..color = KinrelColors.orange.withOpacity(
-          MapVisualConstants.clusterGlowAlpha,
+        ..color = KinrelColors.orange.withValues(
+          alpha: MapVisualConstants.clusterGlowAlpha,
         )
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
     );
@@ -287,17 +287,17 @@ class HouseholdClusterMarkerWidget extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: KinrelColors.orange.withOpacity(
-              MapVisualConstants.clusterGlowAlpha,
+            color: KinrelColors.orange.withValues(
+              alpha: MapVisualConstants.clusterGlowAlpha,
             ),
             blurRadius: 6,
           ),
           BoxShadow(
-            color: Colors.black.withOpacity(
-              MapVisualConstants.clusterShadowOpacity,
+            color: Colors.black.withValues(
+              alpha: MapVisualConstants.clusterShadowOpacity,
             ),
             blurRadius: 4,
-            offset: Offset(0, MapVisualConstants.markerShadowOffset),
+            offset: const Offset(0, MapVisualConstants.markerShadowOffset),
           ),
         ],
       ),

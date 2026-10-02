@@ -55,7 +55,7 @@ class GroupHubScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new,
+          icon: const Icon(Icons.arrow_back_ios_new,
               size: 18, color: KinrelColors.textSilver),
           onPressed: () {
             if (context.canPop()) {
@@ -65,7 +65,7 @@ class GroupHubScreen extends ConsumerWidget {
             }
           },
         ),
-        title: Text(
+        title: const Text(
           'Group Hub',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -77,7 +77,7 @@ class GroupHubScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.more_vert,
+            icon: const Icon(Icons.more_vert,
                 color: KinrelColors.textSilver, size: 20),
             onPressed: () {},
           ),
@@ -192,7 +192,7 @@ class _GroupHero extends StatelessWidget {
           // Group name
           Text(
             group.name,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 26,
               fontWeight: FontWeight.w700,
@@ -350,10 +350,10 @@ class _GroupMembersSection extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.people_alt_rounded,
+              const Icon(Icons.people_alt_rounded,
                   size: 16, color: KinrelColors.ember),
               const SizedBox(width: 8),
-              Text(
+              const Text(
                 'Members',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
@@ -373,12 +373,12 @@ class _GroupMembersSection extends StatelessWidget {
                     color: KinrelColors.ember.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(100),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.add_rounded,
                           size: 14, color: KinrelColors.ember),
-                      const SizedBox(width: 3),
+                      SizedBox(width: 3),
                       Text(
                         'Add',
                         style: TextStyle(
@@ -417,9 +417,9 @@ class _GroupMembersSection extends StatelessWidget {
             ...guestMembers.map((m) => _MemberRow(member: m)),
           ],
           if (members.isEmpty)
-            Center(
+            const Center(
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.all(20),
                 child: Text(
                   'No members yet',
                   style: TextStyle(color: KinrelColors.textDim, fontSize: 13),
@@ -460,7 +460,7 @@ class _MemberSubsectionLabel extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           '($count)',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.monoFont,
             fontSize: 9.5,
             fontWeight: FontWeight.w500,
@@ -529,7 +529,7 @@ class _MemberRow extends StatelessWidget {
               children: [
                 Text(
                   member.displayName,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13.5,
                     fontWeight: FontWeight.w500,
@@ -572,13 +572,13 @@ class _MemberRow extends StatelessWidget {
                               .withValues(alpha: 0.10),
                           borderRadius: BorderRadius.circular(100),
                         ),
-                        child: Text(
+                        child: const Text(
                           'Guest',
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 9,
                             fontWeight: FontWeight.w600,
-                            color: const Color(0xFF8AFFB7),
+                            color: Color(0xFF8AFFB7),
                             letterSpacing: 0.3,
                           ),
                         ),
@@ -658,11 +658,11 @@ class _GroupSharedMediaSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
               Icon(Icons.photo_library_outlined,
                   size: 16, color: KinrelColors.ember),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(
                 'Shared Media',
                 style: TextStyle(
@@ -677,9 +677,9 @@ class _GroupSharedMediaSection extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           if (photos.isEmpty)
-            Center(
+            const Center(
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.all(20),
                 child: Text(
                   'No media shared yet',
                   style: TextStyle(color: KinrelColors.textDim, fontSize: 12.5),
@@ -707,7 +707,7 @@ class _GroupSharedMediaSection extends StatelessWidget {
                         Container(color: const Color(0xFF202338)),
                     errorWidget: (_, __, ___) => Container(
                       color: const Color(0xFF202338),
-                      child: Icon(Icons.broken_image_outlined,
+                      child: const Icon(Icons.broken_image_outlined,
                           size: 24, color: KinrelColors.textDim),
                     ),
                   ),
@@ -783,11 +783,11 @@ class _GroupActivitySection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
               Icon(Icons.auto_awesome_rounded,
                   size: 16, color: KinrelColors.ember),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(
                 'Recent Activity',
                 style: TextStyle(
@@ -859,7 +859,7 @@ class _GroupActivitySection extends StatelessWidget {
                         const SizedBox(height: 3),
                         Text(
                           _formatTimeAgo(e.time),
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.monoFont,
                             fontSize: 10,
                             fontWeight: FontWeight.w500,
@@ -914,7 +914,7 @@ class _GroupSettingsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'GROUP SETTINGS',
             style: TextStyle(
               fontFamily: KinrelTypography.monoFont,
@@ -990,7 +990,7 @@ class _SettingsRow extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -999,7 +999,7 @@ class _SettingsRow extends StatelessWidget {
                 ),
               ),
             ),
-            Icon(Icons.chevron_right, size: 18, color: KinrelColors.textDim),
+            const Icon(Icons.chevron_right, size: 18, color: KinrelColors.textDim),
           ],
         ),
       ),
@@ -1088,14 +1088,14 @@ class _EnterGroupChatGateway extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.chat_rounded,
                   size: 26,
                   color: Colors.white,
                 ),
               ),
               const SizedBox(height: 16),
-              Text(
+              const Text(
                 'Open Group Conversation',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
@@ -1138,7 +1138,7 @@ class _EnterGroupChatGateway extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
@@ -1151,7 +1151,7 @@ class _EnterGroupChatGateway extends StatelessWidget {
                         letterSpacing: 0.5,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Icon(Icons.arrow_forward_rounded,
                         size: 18, color: Colors.white),
                   ],

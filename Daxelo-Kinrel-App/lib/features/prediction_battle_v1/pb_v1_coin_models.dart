@@ -26,15 +26,15 @@ class PBv1CoinBalance {
     this.updatedAt,
   });
 
-  final int balance;
-  final int lifetimeEarned;
-  final DateTime? updatedAt;
-
   factory PBv1CoinBalance.fromJson(Map<String, dynamic> json) => PBv1CoinBalance(
     balance: (json['balance'] ?? 0) as int,
     lifetimeEarned: (json['lifetimeEarned'] ?? json['lifetime_earned'] ?? 0) as int,
     updatedAt: DateTime.tryParse((json['updatedAt'] ?? json['updated_at'] ?? '').toString()),
   );
+
+  final int balance;
+  final int lifetimeEarned;
+  final DateTime? updatedAt;
 
   Map<String, dynamic> toJson() => {
     'balance': balance,
@@ -56,12 +56,6 @@ class PBv1CoinHistoryEntry {
     required this.createdAt,
   });
 
-  final String id;
-  final int amount;             // can be negative for spends
-  final String reason;          // 'prediction_winner' | 'prediction_streak_bonus' | 'prediction_close_guess' | 'prediction_participation' | future
-  final Map<String, dynamic> metadata;
-  final DateTime createdAt;
-
   factory PBv1CoinHistoryEntry.fromJson(Map<String, dynamic> json) => PBv1CoinHistoryEntry(
     id: (json['id'] ?? '') as String,
     amount: (json['amount'] ?? 0) as int,
@@ -71,6 +65,12 @@ class PBv1CoinHistoryEntry {
         : <String, dynamic>{},
     createdAt: DateTime.tryParse((json['createdAt'] ?? json['created_at'] ?? '').toString()) ?? DateTime.now(),
   );
+
+  final String id;
+  final int amount;             // can be negative for spends
+  final String reason;          // 'prediction_winner' | 'prediction_streak_bonus' | 'prediction_close_guess' | 'prediction_participation' | future
+  final Map<String, dynamic> metadata;
+  final DateTime createdAt;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -118,10 +118,6 @@ class PBv1CoinHistory {
     required this.cachedAt,
   });
 
-  final PBv1CoinBalance balance;
-  final List<PBv1CoinHistoryEntry> rows;
-  final String cachedAt;
-
   factory PBv1CoinHistory.fromJson(Map<String, dynamic> json) => PBv1CoinHistory(
     balance: json['balance'] is Map
         ? PBv1CoinBalance.fromJson(Map<String, dynamic>.from(json['balance'] as Map))
@@ -132,6 +128,10 @@ class PBv1CoinHistory {
         .toList(),
     cachedAt: (json['cachedAt'] ?? '') as String,
   );
+
+  final PBv1CoinBalance balance;
+  final List<PBv1CoinHistoryEntry> rows;
+  final String cachedAt;
 
   Map<String, dynamic> toJson() => {
     'balance': balance.toJson(),

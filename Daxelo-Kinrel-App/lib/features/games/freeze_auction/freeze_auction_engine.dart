@@ -59,6 +59,13 @@ class AuctionItem {
     this.value = 0,
     this.description = '',
   });
+  factory AuctionItem.fromJson(Map<String, dynamic> json) => AuctionItem(
+    id: (json['id'] ?? '') as String, name: (json['name'] ?? '') as String,
+    rarity: AuctionItemRarityX.fromString(json['rarity'] as String?),
+    effect: AuctionItemEffectX.fromString(json['effect'] as String?),
+    value: (json['value'] as num?)?.toInt() ?? 0,
+    description: (json['desc'] ?? '') as String,
+  );
   final String id;
   final String name;
   final AuctionItemRarity rarity;
@@ -67,13 +74,6 @@ class AuctionItem {
   final String description;
 
   Map<String, dynamic> toJson() => {'id': id, 'name': name, 'rarity': rarity.wire, 'effect': effect.wire, 'value': value, 'desc': description};
-  factory AuctionItem.fromJson(Map<String, dynamic> json) => AuctionItem(
-    id: (json['id'] ?? '') as String, name: (json['name'] ?? '') as String,
-    rarity: AuctionItemRarityX.fromString(json['rarity'] as String?),
-    effect: AuctionItemEffectX.fromString(json['effect'] as String?),
-    value: (json['value'] as num?)?.toInt() ?? 0,
-    description: (json['desc'] ?? '') as String,
-  );
 
   /// The item pool — all possible crate contents.
   static const List<AuctionItem> normalPool = [
@@ -124,30 +124,20 @@ class AuctionItem {
 
 class AuctionBid {
   const AuctionBid({required this.playerIndex, required this.amount, required this.submittedAt});
-  final int playerIndex;
-  final int amount;
-  final DateTime submittedAt;
-
-  Map<String, dynamic> toJson() => {'p': playerIndex, 'amt': amount, 'ts': submittedAt.toIso8601String()};
   factory AuctionBid.fromJson(Map<String, dynamic> json) => AuctionBid(
     playerIndex: (json['p'] as num?)?.toInt() ?? 0,
     amount: (json['amt'] as num?)?.toInt() ?? 0,
     submittedAt: DateTime.tryParse(json['ts'] ?? '') ?? DateTime.now(),
   );
+  final int playerIndex;
+  final int amount;
+  final DateTime submittedAt;
+
+  Map<String, dynamic> toJson() => {'p': playerIndex, 'amt': amount, 'ts': submittedAt.toIso8601String()};
 }
 
 class AuctionPlayer {
   AuctionPlayer({required this.playerIndex, required this.userId, required this.userName, this.coins = 100, this.isAlive = true, this.hasShield = false, this.hasMultiplier = false, this.isFrozen = false});
-  final int playerIndex;
-  final String userId;
-  final String userName;
-  int coins;
-  bool isAlive;
-  bool hasShield;
-  bool hasMultiplier;
-  bool isFrozen;
-
-  Map<String, dynamic> toJson() => {'idx': playerIndex, 'userId': userId, 'name': userName, 'coins': coins, 'alive': isAlive, 'shield': hasShield, 'mult': hasMultiplier, 'frozen': isFrozen};
   factory AuctionPlayer.fromJson(Map<String, dynamic> json) => AuctionPlayer(
     playerIndex: (json['idx'] as num?)?.toInt() ?? 0,
     userId: (json['userId'] ?? '') as String,
@@ -158,6 +148,16 @@ class AuctionPlayer {
     hasMultiplier: (json['mult'] as bool?) ?? false,
     isFrozen: (json['frozen'] as bool?) ?? false,
   );
+  final int playerIndex;
+  final String userId;
+  final String userName;
+  int coins;
+  bool isAlive;
+  bool hasShield;
+  bool hasMultiplier;
+  bool isFrozen;
+
+  Map<String, dynamic> toJson() => {'idx': playerIndex, 'userId': userId, 'name': userName, 'coins': coins, 'alive': isAlive, 'shield': hasShield, 'mult': hasMultiplier, 'frozen': isFrozen};
   AuctionPlayer copy() => AuctionPlayer(playerIndex: playerIndex, userId: userId, userName: userName, coins: coins, isAlive: isAlive, hasShield: hasShield, hasMultiplier: hasMultiplier, isFrozen: isFrozen);
 }
 
@@ -170,16 +170,6 @@ extension AuctionPhaseX on AuctionPhase {
 
 class AuctionRound {
   AuctionRound({required this.roundNumber, required this.item, required this.isFinalRound});
-  final int roundNumber;
-  AuctionItem item;
-  final bool isFinalRound;
-  AuctionPhase phase = AuctionPhase.bidding;
-  List<AuctionBid> bids = [];
-  int? winnerPlayerIndex;
-  int winningBid = 0;
-  String? effectDescription;
-
-  Map<String, dynamic> toJson() => {'round': roundNumber, 'item': item.toJson(), 'final': isFinalRound, 'phase': phase.wire, 'bids': bids.map((b) => b.toJson()).toList(), 'winner': winnerPlayerIndex ?? -1, 'winBid': winningBid, 'effect': effectDescription};
   factory AuctionRound.fromJson(Map<String, dynamic> json) {
     final round = AuctionRound(
       roundNumber: (json['round'] as num?)?.toInt() ?? 1,
@@ -195,6 +185,16 @@ class AuctionRound {
     round.effectDescription = json['effect'] as String?;
     return round;
   }
+  final int roundNumber;
+  AuctionItem item;
+  final bool isFinalRound;
+  AuctionPhase phase = AuctionPhase.bidding;
+  List<AuctionBid> bids = [];
+  int? winnerPlayerIndex;
+  int winningBid = 0;
+  String? effectDescription;
+
+  Map<String, dynamic> toJson() => {'round': roundNumber, 'item': item.toJson(), 'final': isFinalRound, 'phase': phase.wire, 'bids': bids.map((b) => b.toJson()).toList(), 'winner': winnerPlayerIndex ?? -1, 'winBid': winningBid, 'effect': effectDescription};
   AuctionRound copy() {
     final r = AuctionRound(roundNumber: roundNumber, item: item, isFinalRound: isFinalRound);
     r.phase = phase;
@@ -208,20 +208,6 @@ class AuctionRound {
 
 class FreezeAuctionState {
   FreezeAuctionState({required this.playerCount, required this.totalRounds, required this.startingCoins, required this.itemPoolId, required this.currentRoundNumber, required this.rounds, required this.players, required this.status, this.winnerPlayerIndex = -1});
-  int playerCount;
-  int totalRounds;
-  int startingCoins;
-  String itemPoolId;
-  int currentRoundNumber;
-  List<AuctionRound> rounds;
-  List<AuctionPlayer> players;
-  String status;
-  int winnerPlayerIndex;
-
-  AuctionRound? get currentRound => rounds.isNotEmpty && currentRoundNumber <= rounds.length ? rounds[currentRoundNumber - 1] : null;
-  bool get isFinished => status == 'completed';
-
-  Map<String, dynamic> toJson() => {'playerCount': playerCount, 'totalRounds': totalRounds, 'startingCoins': startingCoins, 'itemPoolId': itemPoolId, 'currentRound': currentRoundNumber, 'rounds': rounds.map((r) => r.toJson()).toList(), 'players': players.map((p) => p.toJson()).toList(), 'status': status, 'winner': winnerPlayerIndex};
   factory FreezeAuctionState.fromJson(Map<String, dynamic> json) {
     final roundsList = <AuctionRound>[];
     final rawRounds = json['rounds'];
@@ -240,6 +226,20 @@ class FreezeAuctionState {
       winnerPlayerIndex: (json['winner'] as num?)?.toInt() ?? -1,
     );
   }
+  int playerCount;
+  int totalRounds;
+  int startingCoins;
+  String itemPoolId;
+  int currentRoundNumber;
+  List<AuctionRound> rounds;
+  List<AuctionPlayer> players;
+  String status;
+  int winnerPlayerIndex;
+
+  AuctionRound? get currentRound => rounds.isNotEmpty && currentRoundNumber <= rounds.length ? rounds[currentRoundNumber - 1] : null;
+  bool get isFinished => status == 'completed';
+
+  Map<String, dynamic> toJson() => {'playerCount': playerCount, 'totalRounds': totalRounds, 'startingCoins': startingCoins, 'itemPoolId': itemPoolId, 'currentRound': currentRoundNumber, 'rounds': rounds.map((r) => r.toJson()).toList(), 'players': players.map((p) => p.toJson()).toList(), 'status': status, 'winner': winnerPlayerIndex};
   FreezeAuctionState copy() => FreezeAuctionState(
     playerCount: playerCount, totalRounds: totalRounds, startingCoins: startingCoins, itemPoolId: itemPoolId,
     currentRoundNumber: currentRoundNumber, rounds: rounds.map((r) => r.copy()).toList(),

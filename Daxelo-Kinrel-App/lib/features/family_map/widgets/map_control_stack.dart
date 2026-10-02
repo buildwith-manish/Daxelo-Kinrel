@@ -245,25 +245,25 @@ class MapControlStack extends StatelessWidget {
                 'Locate me',
             onPressed: () => _locate(context),
           ),
-          SizedBox(height: MapVisualConstants.controlButtonGap),
+          const SizedBox(height: MapVisualConstants.controlButtonGap),
           _ControlButton(
             icon: Icons.add_rounded,
             label: S.of(context)?.familyMapControlZoomIn ?? 'Zoom in',
             onPressed: _zoomIn,
           ),
-          SizedBox(height: MapVisualConstants.controlButtonGap),
+          const SizedBox(height: MapVisualConstants.controlButtonGap),
           _ControlButton(
             icon: Icons.remove_rounded,
             label: S.of(context)?.familyMapControlZoomOut ?? 'Zoom out',
             onPressed: _zoomOut,
           ),
-          SizedBox(height: MapVisualConstants.controlButtonGap),
+          const SizedBox(height: MapVisualConstants.controlButtonGap),
           _ControlButton(
             icon: Icons.layers_rounded,
             label: S.of(context)?.familyMapControlLayers ?? 'Layers',
             onPressed: () => _showLayersPopover(context),
           ),
-          SizedBox(height: MapVisualConstants.controlButtonGap),
+          const SizedBox(height: MapVisualConstants.controlButtonGap),
           _ControlButton(
             icon: isLightMap
                 ? Icons.dark_mode_rounded
@@ -283,7 +283,7 @@ class MapControlStack extends StatelessWidget {
           // supports 3D (mid/high tier). Low-tier devices force 2D mode
           // with no opt-in, so the button is hidden entirely.
           if (canToggle3D && onToggleBuildings3D != null) ...[
-            SizedBox(height: MapVisualConstants.controlButtonGap),
+            const SizedBox(height: MapVisualConstants.controlButtonGap),
             _ControlButton(
               icon: Icons.view_in_ar_rounded,
               label: buildings3DEnabled
@@ -466,7 +466,7 @@ class _LayersPopover extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.layers_rounded,
                 size: 18,
                 color: KinrelColors.orange,
@@ -474,7 +474,7 @@ class _LayersPopover extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 l10n?.familyMapLayersTitle ?? 'Map layers',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -498,7 +498,7 @@ class _LayersPopover extends StatelessWidget {
                 onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
                 child: Text(
                   l10n?.familyMapLayersDone ?? 'Done',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: KinrelColors.orange,
                     fontFamily: KinrelTypography.bodyFont,
                     fontWeight: FontWeight.w600,
@@ -548,7 +548,7 @@ class _LayerRow extends StatelessWidget {
           Expanded(
             child: Text(
               meta.label(context),
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 color: KinrelColors.textWhite,

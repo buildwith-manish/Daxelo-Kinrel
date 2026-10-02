@@ -159,7 +159,7 @@ class _CrystalBridgeGameScreenState
           backgroundColor: KinrelColors.darkCard,
           foregroundColor: KinrelColors.textWhite,
         ),
-        body: Center(
+        body: const Center(
           child: GamingEmptyCard(
             emoji: '🔮',
             title: 'Game not found',
@@ -178,7 +178,7 @@ class _CrystalBridgeGameScreenState
           game.roomName?.isNotEmpty == true
               ? game.roomName!
               : 'Crystal Bridge',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
             color: KinrelColors.textWhite,
@@ -348,7 +348,7 @@ class _TopHud extends StatelessWidget {
     final currentPlayer = board.currentPlayer;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: KinrelColors.darkCard,
         border: Border(bottom: BorderSide(color: KinrelColors.border)),
       ),
@@ -594,11 +594,11 @@ class _StartMarker extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: KinrelColors.border),
       ),
-      child: Row(
+      child: const Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.gps_fixed, size: 12, color: KinrelColors.textDim),
-          const SizedBox(width: 6),
+          Icon(Icons.gps_fixed, size: 12, color: KinrelColors.textDim),
+          SizedBox(width: 6),
           Text(
             'START',
             style: TextStyle(
@@ -1007,7 +1007,7 @@ class _PowerButton extends StatelessWidget {
                   children: [
                     Text(
                       'Power: ${power.label}',
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -1022,7 +1022,7 @@ class _PowerButton extends StatelessWidget {
                           color: KinrelColors.textDim.withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: Text('USED',
+                        child: const Text('USED',
                             style: TextStyle(
                                 fontFamily: KinrelTypography.monoFont,
                                 fontSize: 8,
@@ -1038,7 +1038,7 @@ class _PowerButton extends StatelessWidget {
                           color: KinrelColors.success.withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: Text('SHIELDED',
+                        child: const Text('SHIELDED',
                             style: TextStyle(
                                 fontFamily: KinrelTypography.monoFont,
                                 fontSize: 8,
@@ -1051,7 +1051,7 @@ class _PowerButton extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   power.description,
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
                       color: KinrelColors.textDim),
@@ -1094,7 +1094,7 @@ class _PlayersStrip extends StatelessWidget {
               const Icon(Icons.groups_2_outlined,
                   size: 16, color: kCrystalBridgeAccent),
               const SizedBox(width: 8),
-              Text('Players',
+              const Text('Players',
                   style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 13,
@@ -1102,7 +1102,7 @@ class _PlayersStrip extends StatelessWidget {
                       color: KinrelColors.textWhite)),
               const Spacer(),
               Text('${board.aliveCount}/${board.playerCount} alive',
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -1234,7 +1234,7 @@ class _EventsLog extends StatelessWidget {
               const Icon(Icons.history,
                   size: 16, color: kCrystalBridgeAccent),
               const SizedBox(width: 8),
-              Text('Events',
+              const Text('Events',
                   style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 13,
@@ -1242,7 +1242,7 @@ class _EventsLog extends StatelessWidget {
                       color: KinrelColors.textWhite)),
               const Spacer(),
               Text('${events.length}',
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 11,
                       color: KinrelColors.textDim)),
@@ -1252,9 +1252,9 @@ class _EventsLog extends StatelessWidget {
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 140),
             child: events.isEmpty
-                ? Center(
+                ? const Center(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      padding: EdgeInsets.symmetric(vertical: 18),
                       child: Text(
                         'No events yet — the match is starting.',
                         style: TextStyle(
@@ -1284,7 +1284,7 @@ class _EventsLog extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 e.summaryFor(name),
-                                style: TextStyle(
+                                style: const TextStyle(
                                     fontFamily: KinrelTypography.bodyFont,
                                     fontSize: 11,
                                     color: KinrelColors.textSilver),
@@ -1425,7 +1425,7 @@ class _ResultsView extends StatelessWidget {
                           ? '$winnerName wins!'
                           : 'Match Complete',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
@@ -1437,7 +1437,7 @@ class _ResultsView extends StatelessWidget {
                       ? 'No one made it across the bridge.'
                       : 'Last one standing — or first to finish — takes the crown.$teamLabel',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.textSilver),
@@ -1447,7 +1447,7 @@ class _ResultsView extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           if (board != null) ...[
-            GamingSectionHeader(
+            const GamingSectionHeader(
                 title: 'Final Standings',
                 icon: Icons.leaderboard_outlined),
             for (final p in board.players
@@ -1487,7 +1487,7 @@ class _ResultsView extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(p.name,
-                                style: TextStyle(
+                                style: const TextStyle(
                                     fontFamily: KinrelTypography.bodyFont,
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
@@ -1496,7 +1496,7 @@ class _ResultsView extends StatelessWidget {
                               p.isAlive
                                   ? 'Survived · ${p.crystalsCrossed} crystals crossed'
                                   : 'Eliminated · ${p.crystalsCrossed} crystals crossed',
-                              style: TextStyle(
+                              style: const TextStyle(
                                   fontFamily: KinrelTypography.bodyFont,
                                   fontSize: 10,
                                   color: KinrelColors.textDim)),
@@ -1515,7 +1515,7 @@ class _ResultsView extends StatelessWidget {
               ),
             const SizedBox(height: 18),
             // Match stats
-            GamingSectionHeader(
+            const GamingSectionHeader(
                 title: 'Match Stats', icon: Icons.insights_outlined),
             _StatRow(
                 label: 'Bridge type', value: board.bridgeType.label),
@@ -1617,13 +1617,13 @@ class _StatRow extends StatelessWidget {
           children: [
             Expanded(
               child: Text(label,
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.textDim)),
             ),
             Text(value,
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,

@@ -151,27 +151,27 @@ class _PulseLearningProfileScreenState
 
   Widget _buildContent() {
     if (!_optedIn) {
-      return Center(
+      return const Center(
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: EdgeInsets.all(32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.lock_outline, color: _textDim, size: 48),
-              const SizedBox(height: 16),
-              const Text(
+              Icon(Icons.lock_outline, color: _textDim, size: 48),
+              SizedBox(height: 16),
+              Text(
                 'Smart notification timing is off',
                 style: TextStyle(
                     color: _textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w600),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 'When you enable smart notification timing, Kinrel will '
                 'learn your active hours and show the learned data here. '
                 'You can turn it on in Quiet Hours settings.',
-                style: const TextStyle(color: _textDim, fontSize: 13),
+                style: TextStyle(color: _textDim, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -181,23 +181,23 @@ class _PulseLearningProfileScreenState
     }
 
     if (_profile == null) {
-      return Center(
+      return const Center(
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: EdgeInsets.all(32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.hourglass_empty, color: _textDim, size: 48),
-              const SizedBox(height: 16),
-              const Text(
+              Icon(Icons.hourglass_empty, color: _textDim, size: 48),
+              SizedBox(height: 16),
+              Text(
                 'No data yet',
                 style: TextStyle(
                     color: _textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w600),
               ),
-              const SizedBox(height: 8),
-              const Text(
+              SizedBox(height: 8),
+              Text(
                 'Kinrel needs at least 10 engagement samples before it '
                 'can learn your active hours. Keep using the app — your '
                 'profile will appear here.',

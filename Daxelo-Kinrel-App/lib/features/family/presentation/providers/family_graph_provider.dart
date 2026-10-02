@@ -84,30 +84,6 @@ final driftDatabaseProvider = Provider<AppDatabase?>((ref) {
 /// We map nodes → persons and edges → relationships to keep the rest of the
 /// app (FamilyGraphEngineView, graphLayoutProvider) unchanged.
 class FlatGraphResult {
-  /// Raw person data mapped from RPC nodes.
-  final List<Map<String, dynamic>> persons;
-
-  /// Raw relationship data mapped from RPC edges.
-  final List<Map<String, dynamic>> relationships;
-
-  /// v5.154: ALL family edges (not just proximity-filtered). Used by
-  /// the collapse system to compute TRUE subtree sizes so branch
-  /// bubbles show the real hidden count (e.g. "+38" not "+3").
-  /// Null when the RPC doesn't return allEdges (legacy callers).
-  final List<Map<String, dynamic>>? allRelationships;
-
-  /// Whether the response was truncated (server capped at 5000 nodes).
-  final bool isTruncated;
-
-  /// Total count of persons in the family (may exceed [persons.length]
-  /// when [isTruncated] is true).
-  final int? totalCount;
-
-  /// P5.1: Pagination offset of the current page (0 for first page).
-  final int paginationOffset;
-
-  /// P5.1: Pagination limit of the current page.
-  final int paginationLimit;
 
   const FlatGraphResult({
     required this.persons,
@@ -223,6 +199,30 @@ class FlatGraphResult {
       paginationLimit: (json['limit'] as num?)?.toInt() ?? 0,
     );
   }
+  /// Raw person data mapped from RPC nodes.
+  final List<Map<String, dynamic>> persons;
+
+  /// Raw relationship data mapped from RPC edges.
+  final List<Map<String, dynamic>> relationships;
+
+  /// v5.154: ALL family edges (not just proximity-filtered). Used by
+  /// the collapse system to compute TRUE subtree sizes so branch
+  /// bubbles show the real hidden count (e.g. "+38" not "+3").
+  /// Null when the RPC doesn't return allEdges (legacy callers).
+  final List<Map<String, dynamic>>? allRelationships;
+
+  /// Whether the response was truncated (server capped at 5000 nodes).
+  final bool isTruncated;
+
+  /// Total count of persons in the family (may exceed [persons.length]
+  /// when [isTruncated] is true).
+  final int? totalCount;
+
+  /// P5.1: Pagination offset of the current page (0 for first page).
+  final int paginationOffset;
+
+  /// P5.1: Pagination limit of the current page.
+  final int paginationLimit;
 
   /// v5.154: Parse the `allEdges` field from the RPC response.
   /// Returns null if the field is absent (legacy RPC).
@@ -1746,7 +1746,7 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
         debugPrint('[EDGE-DEBUG] Deduped: ${relationships.length} → ${dedupedRelationships.length} '
             '(removed ${relationships.length - dedupedRelationships.length} duplicate inverse edges)');
       }
-      var finalRelationships = dedupedRelationships;
+      final finalRelationships = dedupedRelationships;
 
       // P0.3: The v9 retry-without-filter safety net was removed. The DB
       // now guarantees isActive is non-null (NOT NULL constraint + DEFAULT
@@ -2622,6 +2622,22 @@ Future<GraphLayoutResult> _runRadialLayoutInIsolate({
 /// v5.145 (STEP 3): The input to the radial layout isolate. All fields
 /// are isolate-safe primitives (no closures, no Flutter objects).
 class _RadialLayoutIsolateInput {
+
+  const _RadialLayoutIsolateInput({
+    required this.persons,
+    required this.relationships,
+    required this.anchorPersonId,
+    required this.ringSpacing,
+    required this.compactSpacing,
+    required this.spouseAngularOffset,
+    required this.canvasPadding,
+    required this.baseRadius,
+    required this.compact,
+    required this.minAngularGap,
+    this.preservePositions = false,
+    this.previousPositionsPrimitive = const {},
+    this.expandedBranchRoots,
+  });
   final List<GraphPerson> persons;
   final List<GraphRelationship> relationships;
   final String anchorPersonId;
@@ -2644,22 +2660,6 @@ class _RadialLayoutIsolateInput {
   /// v5.161: branch root IDs that have been expanded — used for
   /// per-branch angular sector assignment.
   final Set<String>? expandedBranchRoots;
-
-  const _RadialLayoutIsolateInput({
-    required this.persons,
-    required this.relationships,
-    required this.anchorPersonId,
-    required this.ringSpacing,
-    required this.compactSpacing,
-    required this.spouseAngularOffset,
-    required this.canvasPadding,
-    required this.baseRadius,
-    required this.compact,
-    required this.minAngularGap,
-    this.preservePositions = false,
-    this.previousPositionsPrimitive = const {},
-    this.expandedBranchRoots,
-  });
 }
 
 /// v5.145 (STEP 3): The top-level isolate entry point. Must be a
@@ -2782,22 +2782,22 @@ final graphRealtimeProvider =
 
   // v5.145: Increased from 1.5s → 2.5s. See the provider doc comment
   // for the rationale.
-  Timer? _debounceTimer;
-  bool _hasStructureChange = false;
+  Timer? debounceTimer;
+  bool hasStructureChange = false;
 
   // v5.185: Collect metadata-only Person UPDATE payloads so we can
   // patch the cached FlatGraphResult in place instead of re-fetching.
-  final List<Map<String, dynamic>> _pendingMetadataUpdates = [];
+  final List<Map<String, dynamic>> pendingMetadataUpdates = [];
 
   void invalidateIfNeeded() {
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 2500), () {
-      if (!_hasStructureChange && _pendingMetadataUpdates.isNotEmpty) {
+    debounceTimer?.cancel();
+    debounceTimer = Timer(const Duration(milliseconds: 2500), () {
+      if (!hasStructureChange && pendingMetadataUpdates.isNotEmpty) {
         // v5.185 (TIER 1 PERF): Metadata-only path — patch the cached
         // FlatGraphResult in place WITHOUT triggering a full re-fetch
         // + isolate layout recompute. This is the fast path for name
         // changes, photo updates, birthday updates, etc.
-        debugPrint('[graphRealtimeProvider] v5.185: Patching ${_pendingMetadataUpdates.length} '
+        debugPrint('[graphRealtimeProvider] v5.185: Patching ${pendingMetadataUpdates.length} '
             'metadata updates in-place for family $familyId (no re-fetch)');
 
         // Get the cached result
@@ -2805,7 +2805,7 @@ final graphRealtimeProvider =
         if (cached != null) {
           // Patch each person in the cached persons list
           final patchedPersons = List<Map<String, dynamic>>.from(cached.persons);
-          for (final update in _pendingMetadataUpdates) {
+          for (final update in pendingMetadataUpdates) {
             final personId = update['id'] as String?;
             if (personId == null) continue;
 
@@ -2860,20 +2860,20 @@ final graphRealtimeProvider =
           ref.invalidate(familyGraphProvider(familyId));
         }
 
-        _pendingMetadataUpdates.clear();
-        _hasStructureChange = false;
+        pendingMetadataUpdates.clear();
+        hasStructureChange = false;
         return;
       }
 
       debugPrint('[graphRealtimeProvider] v5.145: Invalidating graph for '
-          '$familyId (debounced 2.5s, structureChange=$_hasStructureChange)');
+          '$familyId (debounced 2.5s, structureChange=$hasStructureChange)');
       // §1 non-negotiable: ONE cache invalidation path, ONE renderer
       // (Graph). v5.163 (TREE REMOVAL): the `familyTreeProvider`
       // invalidation call that was here is gone — the Tree tab is no
       // longer in Family Space, so there's nothing to invalidate.
       ref.invalidate(familyGraphProvider(familyId));
-      _hasStructureChange = false;
-      _pendingMetadataUpdates.clear();
+      hasStructureChange = false;
+      pendingMetadataUpdates.clear();
     });
   }
 
@@ -2897,7 +2897,7 @@ final graphRealtimeProvider =
           // labels, but the layout positions are unaffected.
           if (payload.eventType == PostgresChangeEvent.insert ||
               payload.eventType == PostgresChangeEvent.delete) {
-            _hasStructureChange = true;
+            hasStructureChange = true;
           }
           invalidateIfNeeded();
         },
@@ -2914,14 +2914,14 @@ final graphRealtimeProvider =
         callback: (payload) {
           if (payload.eventType == PostgresChangeEvent.insert ||
               payload.eventType == PostgresChangeEvent.delete) {
-            _hasStructureChange = true;
+            hasStructureChange = true;
           } else if (payload.eventType == PostgresChangeEvent.update) {
             // v5.185 (TIER 1 PERF): Collect metadata-only Person UPDATEs
             // so they can be patched in place instead of triggering a
             // full re-fetch. Extract the changed fields from the
             // payload's newRecord.
             final newRecord = payload.newRecord;
-            _pendingMetadataUpdates.add(Map<String, dynamic>.from(newRecord));
+            pendingMetadataUpdates.add(Map<String, dynamic>.from(newRecord));
           }
           invalidateIfNeeded();
         },
@@ -2929,7 +2929,7 @@ final graphRealtimeProvider =
       .subscribe();
 
   ref.onDispose(() {
-    _debounceTimer?.cancel();
+    debounceTimer?.cancel();
     client.removeChannel(channel);
   });
 });

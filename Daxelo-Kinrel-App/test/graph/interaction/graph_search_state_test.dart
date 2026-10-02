@@ -257,12 +257,12 @@ void main() {
     // Edge tuple helper: (child → parent, 'father') = parent is the
     // child's father.
     ({String fromId, String toId, String edgeId, String relationshipKey})
-        _e(String child, String parent, String id) =>
+        e(String child, String parent, String id) =>
             (fromId: child, toId: parent, edgeId: id, relationshipKey: 'father');
 
     ({List<GraphPerson> persons,
           List<({String fromId, String toId, String edgeId, String relationshipKey})> edges})
-        _buildFamily() {
+        buildFamily() {
       // v5.159 (TEST REFRESH): sized for the v5.151 budget — the soft
       // and hard budgets are BOTH 50 now (aligned), and rings 1+2
       // always fill in full. The original family (10 c × 2 gc = 32
@@ -273,23 +273,23 @@ void main() {
       // t1 and the unrelated u3* branch stay hidden.
       final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[
         // Ring 1: p0's children (12).
-        for (var i = 1; i <= 12; i++) _e('c$i', 'p0', 'e-c$i'),
+        for (var i = 1; i <= 12; i++) e('c$i', 'p0', 'e-c$i'),
         // Ring 2: each cN has three children (36); c1 has a fourth (x1).
         for (var i = 1; i <= 12; i++) ...[
-          _e('g${i}a', 'c$i', 'e-g${i}a'),
-          _e('g${i}b', 'c$i', 'e-g${i}b'),
-          _e('g${i}c', 'c$i', 'e-g${i}c'),
+          e('g${i}a', 'c$i', 'e-g${i}a'),
+          e('g${i}b', 'c$i', 'e-g${i}b'),
+          e('g${i}c', 'c$i', 'e-g${i}c'),
         ],
-        _e('x1', 'c1', 'e-x1'),
+        e('x1', 'c1', 'e-x1'),
         // The chain beyond the default set: x1 → x2 → x3 → t1 → tc.
-        _e('x2', 'x1', 'e-x2'),
-        _e('x3', 'x2', 'e-x3'),
-        _e('t1', 'x3', 'e-t1'), // t1 = the search TARGET (5 hops).
-        _e('tc', 't1', 'e-tc'),
+        e('x2', 'x1', 'e-x2'),
+        e('x3', 'x2', 'e-x3'),
+        e('t1', 'x3', 'e-t1'), // t1 = the search TARGET (5 hops).
+        e('tc', 't1', 'e-tc'),
         // An unrelated branch off g10a (ring 3 — outside default set).
-        _e('u3a', 'g10a', 'e-u3a'),
-        _e('u3b', 'g10a', 'e-u3b'),
-        _e('u3c', 'g10a', 'e-u3c'),
+        e('u3a', 'g10a', 'e-u3a'),
+        e('u3b', 'g10a', 'e-u3b'),
+        e('u3c', 'g10a', 'e-u3c'),
       ];
       final ids = <String>{
         for (final e in edges) e.fromId,
@@ -306,7 +306,7 @@ void main() {
 
     /// childrenOf adjacency built the way the canvas builds it
     /// (parent-labeled edges: toPerson is fromPerson's parent).
-    Map<String, Set<String>> _childrenOf(List<({String fromId, String toId, String edgeId, String relationshipKey})> edges) {
+    Map<String, Set<String>> childrenOf0(List<({String fromId, String toId, String edgeId, String relationshipKey})> edges) {
       final childrenOf = <String, Set<String>>{};
       for (final e in edges) {
         childrenOf.putIfAbsent(e.toId, () => <String>{}).add(e.fromId);
@@ -317,7 +317,7 @@ void main() {
     test('search jump: 5-hop offscreen target — path revealed, unrelated '
         'branch untouched, focus set to target', () {
       RelationshipEngine.instance.invalidateCache();
-      final family = _buildFamily();
+      final family = buildFamily();
 
       final container = ProviderContainer();
       addTearDown(container.dispose);
@@ -386,7 +386,7 @@ void main() {
       final collapse = BranchCollapseNotifier();
       collapse.computeDensityCollapse(
         visibleNodeIds: visible,
-        childrenOf: _childrenOf(family.edges),
+        childrenOf: childrenOf0(family.edges),
         personNameOf: (id) => 'Person $id',
         allEdges: family.edges,
         protectedIds: {
@@ -420,7 +420,7 @@ void main() {
     test('search jump: revealed path is protected when the candidate set '
         'exceeds the node budget', () {
       RelationshipEngine.instance.invalidateCache();
-      final family = _buildFamily();
+      final family = buildFamily();
 
       final container = ProviderContainer();
       addTearDown(container.dispose);
@@ -465,7 +465,7 @@ void main() {
       final collapse = BranchCollapseNotifier();
       collapse.computeDensityCollapse(
         visibleNodeIds: candidates,
-        childrenOf: _childrenOf(family.edges),
+        childrenOf: childrenOf0(family.edges),
         personNameOf: (id) => 'Person $id',
         allEdges: family.edges,
         protectedIds: {
@@ -492,7 +492,7 @@ void main() {
     test('search jump: target already visible → no reveal, protection '
         'cleared', () {
       RelationshipEngine.instance.invalidateCache();
-      final family = _buildFamily();
+      final family = buildFamily();
 
       final container = ProviderContainer();
       addTearDown(container.dispose);
@@ -539,7 +539,7 @@ void main() {
     test('search jump: disconnected target → revealed alone so the camera '
         'can still center on them', () {
       RelationshipEngine.instance.invalidateCache();
-      final family = _buildFamily();
+      final family = buildFamily();
 
       final container = ProviderContainer();
       addTearDown(container.dispose);

@@ -108,7 +108,7 @@ void main() {
       // Passing familyId is required: omitting it would be a compile
       // error. Passing the empty string is allowed at the constructor
       // (the provider handles the empty case above).
-      final screen = FamilyMapScreen(familyId: 'fam-test');
+      final screen = const FamilyMapScreen(familyId: 'fam-test');
       expect(screen.familyId, 'fam-test');
       expect(screen.familyId, isA<String>());
     });
@@ -117,8 +117,8 @@ void main() {
       // This proves the familyId is per-instance, not a global constant
       // — the map screen can render family A OR family B based on what
       // the caller passes.
-      final screenA = FamilyMapScreen(familyId: 'fam-a');
-      final screenB = FamilyMapScreen(familyId: 'fam-b');
+      final screenA = const FamilyMapScreen(familyId: 'fam-a');
+      final screenB = const FamilyMapScreen(familyId: 'fam-b');
       expect(screenA.familyId, 'fam-a');
       expect(screenB.familyId, 'fam-b');
       expect(screenA.familyId, isNot(screenB.familyId));

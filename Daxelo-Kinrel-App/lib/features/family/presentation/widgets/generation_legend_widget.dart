@@ -15,10 +15,7 @@ import '../../../../core/constants/brand_typography.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Represents a generation category with its display properties.
-class GenerationCategory {
-  final String label;
-  final Color color;
-  final int generationIndex; // The generation index this category represents.
+class GenerationCategory { // The generation index this category represents.
   // For "Parents" this is -1 (any gen < 0 matches).
   // For "Self" this is 0.
   // For "Children" this is 1 (any gen > 0 matches).
@@ -30,6 +27,9 @@ class GenerationCategory {
     required this.color,
     required this.generationIndex,
   });
+  final String label;
+  final Color color;
+  final int generationIndex;
 
   /// Whether a person with the given generationIndex belongs to this category.
   bool matches(int personGenIndex) {

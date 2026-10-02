@@ -153,7 +153,7 @@ class _BadgesOverlayState extends State<_BadgesOverlay>
                         widget.badges.length == 1
                             ? 'New badge earned!'
                             : '${widget.badges.length} new badges!',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -165,7 +165,7 @@ class _BadgesOverlayState extends State<_BadgesOverlay>
                         widget.badges.map((b) => b['name']).join(', '),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
                           color: KinrelColors.textWhite,

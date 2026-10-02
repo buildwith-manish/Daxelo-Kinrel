@@ -21,7 +21,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('P10.9 MapSessionState round-trip', () {
-    final original = MapSessionState(
+    final original = const MapSessionState(
       lat: 18.52,
       lng: 73.85,
       zoom: 14.0,
@@ -119,7 +119,7 @@ void main() {
 
   group('P10.9 MapSessionState.copyWith', () {
     test('preserves unspecified fields', () {
-      final original = MapSessionState(
+      final original = const MapSessionState(
         lat: 1,
         lng: 2,
         zoom: 3,

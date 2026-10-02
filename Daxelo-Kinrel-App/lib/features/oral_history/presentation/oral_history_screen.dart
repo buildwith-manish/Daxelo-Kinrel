@@ -160,7 +160,7 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
 
   Widget _buildHeader(OralHistoryState state) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(
+      padding: const EdgeInsets.fromLTRB(
         KinrelSpacing.base,
         KinrelSpacing.xl,
         KinrelSpacing.base,
@@ -181,7 +181,7 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
               size: 22,
             ),
           ),
-          SizedBox(width: KinrelSpacing.md),
+          const SizedBox(width: KinrelSpacing.md),
           Expanded(
             child: Text(
               'Oral History',
@@ -199,10 +199,10 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
                 gradient: KinrelGradients.igniteGradient,
                 borderRadius: BorderRadius.circular(KinrelRadius.full),
                 boxShadow: [
-                  BoxShadow(
+                  const BoxShadow(
                     color: KinrelColors.orangeGlow,
                     blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    offset: Offset(0, 2),
                   ),
                 ],
               ),
@@ -236,7 +236,7 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
 
   Widget _buildSearchBar(OralHistoryState state) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(
+      padding: const EdgeInsets.fromLTRB(
         KinrelSpacing.base,
         KinrelSpacing.sm,
         KinrelSpacing.base,
@@ -270,7 +270,7 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
       height: 40,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+        padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
         itemCount: categories.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
@@ -337,7 +337,7 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
 
   Widget _buildDashboard(OralHistoryState state) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(
+      padding: const EdgeInsets.fromLTRB(
         KinrelSpacing.base,
         KinrelSpacing.md,
         KinrelSpacing.base,
@@ -451,7 +451,7 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
                       Container(
                         width: 36,
                         height: 36,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           shape: BoxShape.circle,
                           gradient: KinrelGradients.igniteGradient,
                         ),
@@ -503,7 +503,7 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
     if (state.recentlyAdded.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(
+      padding: const EdgeInsets.fromLTRB(
         KinrelSpacing.base,
         KinrelSpacing.sm,
         0,
@@ -672,10 +672,10 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
           borderRadius: BorderRadius.circular(KinrelRadius.full),
           gradient: KinrelGradients.igniteGradient,
           boxShadow: [
-            BoxShadow(
+            const BoxShadow(
               color: KinrelColors.orangeGlowIntense,
               blurRadius: 20,
-              offset: const Offset(0, 4),
+              offset: Offset(0, 4),
             ),
           ],
         ),
@@ -823,7 +823,7 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(KinrelRadius.md),
-                          borderSide: BorderSide(
+                          borderSide: const BorderSide(
                             color: KinrelColors.orange,
                             width: 1.5,
                           ),
@@ -999,7 +999,7 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(KinrelRadius.md),
-                          borderSide: BorderSide(
+                          borderSide: const BorderSide(
                             color: KinrelColors.orange,
                             width: 1.5,
                           ),
@@ -1034,7 +1034,7 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(KinrelRadius.md),
-                          borderSide: BorderSide(
+                          borderSide: const BorderSide(
                             color: KinrelColors.orange,
                             width: 1.5,
                           ),
@@ -1274,7 +1274,7 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
               ),
               const Divider(color: Color(0xFF2A2A3D), height: 1),
               ListTile(
-                leading: Icon(
+                leading: const Icon(
                   Icons.play_circle_rounded,
                   color: KinrelColors.orange,
                 ),
@@ -1595,10 +1595,10 @@ class _StoryCard extends StatelessWidget {
                   : null,
               boxShadow: story.isFavorite
                   ? [
-                      BoxShadow(
+                      const BoxShadow(
                         color: KinrelColors.orangeGlowSubtle,
                         blurRadius: 12,
-                        offset: const Offset(0, 2),
+                        offset: Offset(0, 2),
                       ),
                     ]
                   : null,
@@ -1784,14 +1784,14 @@ class _StoryCard extends StatelessWidget {
                     Container(
                       width: 44,
                       height: 44,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: KinrelGradients.igniteGradient,
                         boxShadow: [
                           BoxShadow(
                             color: KinrelColors.orangeGlow,
                             blurRadius: 10,
-                            offset: const Offset(0, 2),
+                            offset: Offset(0, 2),
                           ),
                         ],
                       ),
@@ -1840,7 +1840,7 @@ class _StoryCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.transcribe_rounded,
                         size: 14,
                         color: KinrelColors.success,
@@ -1993,7 +1993,7 @@ class _RecordingBottomSheetState extends State<_RecordingBottomSheet>
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 8),
-            SizedBox(
+            const SizedBox(
               width: 32,
               height: 32,
               child: CircularProgressIndicator(
@@ -2028,10 +2028,10 @@ class _RecordingBottomSheetState extends State<_RecordingBottomSheet>
         ),
         border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.2)),
         boxShadow: [
-          BoxShadow(
+          const BoxShadow(
             color: KinrelColors.orangeGlow,
             blurRadius: 20,
-            offset: const Offset(0, -4),
+            offset: Offset(0, -4),
           ),
         ],
       ),
@@ -2237,14 +2237,14 @@ class _RecordingBottomSheetState extends State<_RecordingBottomSheet>
                 child: Container(
                   width: 52,
                   height: 52,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: KinrelGradients.igniteGradient,
                     boxShadow: [
                       BoxShadow(
                         color: KinrelColors.orangeGlow,
                         blurRadius: 12,
-                        offset: const Offset(0, 2),
+                        offset: Offset(0, 2),
                       ),
                     ],
                   ),
@@ -2334,7 +2334,7 @@ class _StoryDetailPlayerState extends ConsumerState<_StoryDetailPlayer>
     if (text.isNotEmpty) {
       Clipboard.setData(ClipboardData(text: text));
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Transcription copied!'),
           backgroundColor: KinrelColors.darkCard,
           behavior: SnackBarBehavior.floating,
@@ -2389,7 +2389,7 @@ Shared via Daxelo KinRel — Family Oral History
                         child: Container(
                           width: 40,
                           height: 40,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             shape: BoxShape.circle,
                             color: KinrelColors.darkCard,
                           ),
@@ -2418,7 +2418,7 @@ Shared via Daxelo KinRel — Family Oral History
                         child: Container(
                           width: 40,
                           height: 40,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             shape: BoxShape.circle,
                             color: KinrelColors.darkCard,
                           ),
@@ -2496,12 +2496,12 @@ Shared via Daxelo KinRel — Family Oral History
                         children: [
                           // Progress bar
                           SliderTheme(
-                            data: SliderThemeData(
+                            data: const SliderThemeData(
                               activeTrackColor: KinrelColors.orange,
                               inactiveTrackColor: KinrelColors.darkElevated,
                               thumbColor: KinrelColors.orange,
                               trackHeight: 3,
-                              thumbShape: const RoundSliderThumbShape(
+                              thumbShape: RoundSliderThumbShape(
                                 enabledThumbRadius: 6,
                               ),
                             ),
@@ -2553,11 +2553,11 @@ Shared via Daxelo KinRel — Family Oral History
                       child: Container(
                         width: 44,
                         height: 44,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           shape: BoxShape.circle,
                           color: KinrelColors.darkCard,
                         ),
-                        child: Icon(
+                        child: const Icon(
                           Icons.replay_10_rounded,
                           color: KinrelColors.textSilver,
                           size: 22,
@@ -2574,14 +2574,14 @@ Shared via Daxelo KinRel — Family Oral History
                       child: Container(
                         width: 64,
                         height: 64,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           shape: BoxShape.circle,
                           gradient: KinrelGradients.igniteGradient,
                           boxShadow: [
                             BoxShadow(
                               color: KinrelColors.orangeGlowIntense,
                               blurRadius: 16,
-                              offset: const Offset(0, 4),
+                              offset: Offset(0, 4),
                             ),
                           ],
                         ),
@@ -2608,11 +2608,11 @@ Shared via Daxelo KinRel — Family Oral History
                       child: Container(
                         width: 44,
                         height: 44,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           shape: BoxShape.circle,
                           color: KinrelColors.darkCard,
                         ),
-                        child: Icon(
+                        child: const Icon(
                           Icons.forward_10_rounded,
                           color: KinrelColors.textSilver,
                           size: 22,
@@ -2868,7 +2868,7 @@ Shared via Daxelo KinRel — Family Oral History
                                     height: 16,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation(
+                                      valueColor: const AlwaysStoppedAnimation(
                                         KinrelColors.orange,
                                       ),
                                       value: tsState.detectionProgress,
@@ -3106,7 +3106,7 @@ Shared via Daxelo KinRel — Family Oral History
                                     height: 16,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation(
+                                      valueColor: const AlwaysStoppedAnimation(
                                         KinrelColors.info,
                                       ),
                                       value: tsState.translationProgress,

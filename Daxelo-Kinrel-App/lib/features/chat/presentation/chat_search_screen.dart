@@ -280,7 +280,7 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
                   ? 'Search $thisChatName'
                   : 'Search this chat')
               : 'Search all chats',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 17,
             fontWeight: FontWeight.w700,
@@ -308,7 +308,7 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
               textInputAction: TextInputAction.search,
               onChanged: _onSearchChanged,
               onSubmitted: _runSearch,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 15,
                 color: KinrelColors.textWhite,
@@ -318,11 +318,11 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
                 hintStyle: TextStyle(
                   color: KinrelColors.textDim.withValues(alpha: 0.7),
                 ),
-                prefixIcon: Icon(Icons.search_rounded,
+                prefixIcon: const Icon(Icons.search_rounded,
                     size: 20, color: KinrelColors.textDim),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.close_rounded,
+                        icon: const Icon(Icons.close_rounded,
                             size: 18, color: KinrelColors.textDim),
                         onPressed: () {
                           _searchController.clear();
@@ -343,13 +343,13 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
           ),
           // Scope toggle (only in "all chats" mode — "this chat" mode is fixed)
           if (!isThisChat)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: Row(
                 children: [
                   Icon(Icons.info_outline_rounded,
                       size: 13, color: KinrelColors.textDim),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'Searching across all your family chats',
@@ -385,21 +385,21 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
           child: Text(
             _error!,
             textAlign: TextAlign.center,
-            style: TextStyle(color: KinrelColors.error, fontSize: 13),
+            style: const TextStyle(color: KinrelColors.error, fontSize: 13),
           ),
         ),
       );
     }
     if (_hasSearched && _results.isEmpty) {
-      return Center(
+      return const Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.search_off_rounded,
                   size: 48, color: KinrelColors.textDim),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Text(
                 'No messages found',
                 style: TextStyle(
@@ -408,7 +408,7 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 'Try different keywords',
                 style: TextStyle(color: KinrelColors.textDim, fontSize: 13),
@@ -428,7 +428,7 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
               Icon(Icons.search_rounded,
                   size: 48, color: KinrelColors.textDim.withValues(alpha: 0.5)),
               const SizedBox(height: 12),
-              Text(
+              const Text(
                 'Search your messages',
                 style: TextStyle(
                   color: KinrelColors.textSilver,
@@ -437,7 +437,7 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
+              const Text(
                 'Type to find messages across your chats',
                 style: TextStyle(color: KinrelColors.textDim, fontSize: 12.5),
                 textAlign: TextAlign.center,
@@ -488,7 +488,7 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
               child: Center(
                 child: Text(
                   _initials(result.senderName),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: KinrelColors.ember,
@@ -510,7 +510,7 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
                           result.senderName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -532,7 +532,7 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
                             result.familyName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.monoFont,
                               fontSize: 9,
                               fontWeight: FontWeight.w600,
@@ -544,7 +544,7 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
                       const Spacer(),
                       Text(
                         result.formattedTime,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 10,
                           color: KinrelColors.textDim,
@@ -558,7 +558,7 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
                     result.snippetFor(query),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
                       color: KinrelColors.textSilver,

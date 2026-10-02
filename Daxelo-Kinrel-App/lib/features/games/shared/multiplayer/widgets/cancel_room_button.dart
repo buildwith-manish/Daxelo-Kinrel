@@ -93,7 +93,7 @@ class CancelRoomButton extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (isSubmitting)
-                  SizedBox(
+                  const SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
@@ -103,7 +103,7 @@ class CancelRoomButton extends ConsumerWidget {
                     ),
                   )
                 else
-                  Icon(Icons.warning_amber_rounded,
+                  const Icon(Icons.warning_amber_rounded,
                       color: KinrelColors.error, size: 22),
                 const SizedBox(width: KinrelSpacing.sm),
                 Expanded(
@@ -111,7 +111,7 @@ class CancelRoomButton extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
+                      const Text(
                         'Close Room',
                         style: TextStyle(
                           fontFamily: KinrelTypography.displayFont,

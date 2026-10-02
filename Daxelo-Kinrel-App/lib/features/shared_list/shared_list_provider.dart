@@ -10,12 +10,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/services/supabase_service.dart';
 
 class SharedList {
-  final String id;
-  final String familyId;
-  final String title;
-  final String? emoji;
-  final DateTime createdAt;
-  final String createdBy;
 
   SharedList({
     required this.id,
@@ -34,15 +28,15 @@ class SharedList {
     createdAt: DateTime.tryParse(m['createdAt'] as String? ?? '') ?? DateTime.now(),
     createdBy: m['createdBy'] as String,
   );
+  final String id;
+  final String familyId;
+  final String title;
+  final String? emoji;
+  final DateTime createdAt;
+  final String createdBy;
 }
 
 class SharedListItem {
-  final String id;
-  final String listId;
-  final String text;
-  final bool isDone;
-  final String? doneBy;
-  final DateTime createdAt;
 
   SharedListItem({
     required this.id,
@@ -61,6 +55,12 @@ class SharedListItem {
     doneBy: m['doneBy'] as String?,
     createdAt: DateTime.tryParse(m['createdAt'] as String? ?? '') ?? DateTime.now(),
   );
+  final String id;
+  final String listId;
+  final String text;
+  final bool isDone;
+  final String? doneBy;
+  final DateTime createdAt;
 }
 
 /// All shared lists for a family.
@@ -102,8 +102,8 @@ final sharedListItemsProvider =
 );
 
 class SharedListNotifier {
-  final WidgetRef _ref;
   SharedListNotifier(this._ref);
+  final WidgetRef _ref;
 
   Future<void> createList(String familyId, String title, {String? emoji}) async {
     final client = _ref.read(supabaseProvider);

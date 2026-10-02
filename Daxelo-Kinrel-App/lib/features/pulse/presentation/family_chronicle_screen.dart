@@ -11,10 +11,10 @@ import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
 
 class FamilyChronicleScreen extends ConsumerWidget {
-  final bool embedded;
-  final String familyId;
 
   const FamilyChronicleScreen({super.key, this.embedded = false, this.familyId = ''});
+  final bool embedded;
+  final String familyId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -96,9 +96,9 @@ class FamilyChronicleScreen extends ConsumerWidget {
 }
 
 class _ChronicleContent extends StatelessWidget {
-  final FamilyChronicle chronicle;
 
   const _ChronicleContent({required this.chronicle});
+  final FamilyChronicle chronicle;
 
   @override
   Widget build(BuildContext context) {
@@ -114,12 +114,12 @@ class _ChronicleContent extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              KinrelColors.blue.withOpacity(0.15),
-              KinrelColors.extendedPurple.withOpacity(0.1),
+              KinrelColors.blue.withValues(alpha: 0.15),
+              KinrelColors.extendedPurple.withValues(alpha: 0.1),
             ],
           ),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: KinrelColors.blue.withOpacity(0.3)),
+          border: Border.all(color: KinrelColors.blue.withValues(alpha: 0.3)),
         ),
         child: Column(
           children: [
@@ -139,7 +139,7 @@ class _ChronicleContent extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 chronicle.subtitle!,
-                style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13, fontStyle: FontStyle.italic),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13, fontStyle: FontStyle.italic),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -223,25 +223,25 @@ class _ChronicleContent extends StatelessWidget {
 }
 
 class _Stat extends StatelessWidget {
+  const _Stat({required this.label, required this.value});
   final String label;
   final String value;
-  const _Stat({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         Text(value, style: const TextStyle(color: KinrelColors.blue, fontSize: 18, fontWeight: FontWeight.w700)),
-        Text(label, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11)),
+        Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
       ],
     );
   }
 }
 
 class _ChapterCard extends StatelessWidget {
-  final ChronicleChapter chapter;
 
   const _ChapterCard({required this.chapter});
+  final ChronicleChapter chapter;
 
   @override
   Widget build(BuildContext context) {
@@ -251,7 +251,7 @@ class _ChapterCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,7 +262,7 @@ class _ChapterCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: KinrelColors.blue.withOpacity(0.15),
+                  color: KinrelColors.blue.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(

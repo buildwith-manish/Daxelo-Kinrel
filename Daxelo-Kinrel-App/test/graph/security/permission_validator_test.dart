@@ -11,7 +11,7 @@ void main() {
     group('hidden member handling', () {
       test('hidden member appears as anonymous node (no name, no avatar)', () {
         // Create a hidden member node
-        final hiddenNode = GraphNodeData(
+        final hiddenNode = const GraphNodeData(
           id: 'hidden_1',
           name: 'Secret Person',
           avatarUrl: 'https://example.com/photo.jpg',
@@ -38,9 +38,9 @@ void main() {
     group('blocked member handling', () {
       test('blocked member is completely excluded from returned nodes', () {
         final nodes = [
-          GraphNodeData(id: 'visible_1', name: 'Visible'),
-          GraphNodeData(id: 'blocked_1', name: 'Blocked'),
-          GraphNodeData(id: 'visible_2', name: 'Also Visible'),
+          const GraphNodeData(id: 'visible_1', name: 'Visible'),
+          const GraphNodeData(id: 'blocked_1', name: 'Blocked'),
+          const GraphNodeData(id: 'visible_2', name: 'Also Visible'),
         ];
 
         final blockedIds = {'blocked_1'};
@@ -53,7 +53,7 @@ void main() {
       test('blocked member count is never exposed', () {
         // The VisibilityResult blockedIds set should never be exposed
         // to the UI layer — only used internally for indirect connection detection.
-        final result = VisibilityResult(
+        final result = const VisibilityResult(
           visible: [GraphNodeData(id: 'v1', name: 'Visible')],
           anonymous: [],
           blockedIds: {'b1', 'b2', 'b3'},
@@ -67,7 +67,7 @@ void main() {
 
     group('private relationship handling', () {
       test('private relationship invisible to non-participant', () {
-        final edge = GraphEdgeData(
+        final edge = const GraphEdgeData(
           id: 'private_rel',
           sourceId: 'person_a',
           targetId: 'person_b',
@@ -83,7 +83,7 @@ void main() {
       });
 
       test('private relationship visible to participant with lock', () {
-        final edge = GraphEdgeData(
+        final edge = const GraphEdgeData(
           id: 'private_rel',
           sourceId: 'person_a',
           targetId: 'person_b',

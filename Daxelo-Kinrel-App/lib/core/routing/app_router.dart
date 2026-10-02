@@ -834,14 +834,14 @@ final routerProvider = Provider<GoRouter>((ref) {
   // Pre-confirmed exits (the in-screen Close Room button already showed
   // its dialog) pass through without a second dialog.
   // ─────────────────────────────────────────────────────────────────────
-  String? _myUserId() =>
+  String? myUserId() =>
       ref.read(supabaseProvider)?.auth.currentUser?.id;
 
   final sosLobbyExit = guardGameRoomExit(
     gameTable: 'sos_games',
     readState: (fid) => ref.read(sosProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isLobby,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(sosProvider(fid).notifier).leaveGame(),
   );
 
@@ -849,7 +849,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'bingo_games',
     readState: (fid) => ref.read(bingoProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(bingoProvider(fid).notifier).leaveGame(),
   );
 
@@ -857,7 +857,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'ludo_games',
     readState: (fid) => ref.read(ludoProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(ludoProvider(fid).notifier).leaveGame(),
   );
 
@@ -865,7 +865,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'antakshari_games',
     readState: (fid) => ref.read(antakshariProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(antakshariProvider(fid).notifier).leaveGame(),
   );
 
@@ -874,7 +874,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     readState: (fid) => ref.read(chitmatchProvider(fid)),
     hasRoom: (s) =>
         s.game != null && (s.game!.isWaiting || s.game!.isSetup),
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(chitmatchProvider(fid).notifier).leaveGame(),
   );
 
@@ -882,7 +882,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'dotsboxes_games',
     readState: (fid) => ref.read(dbProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(dbProvider(fid).notifier).leaveGame(),
   );
 
@@ -890,7 +890,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'nameplace_games',
     readState: (fid) => ref.read(nameplaceProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(nameplaceProvider(fid).notifier).leaveGame(),
   );
 
@@ -898,7 +898,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'redlight_rounds',
     readState: (fid) => ref.read(redlightProvider(fid)),
     hasRoom: (s) => s.round != null && s.round!.isLobby,
-    isHost: (s) => s.round?.hostUserId == _myUserId(),
+    isHost: (s) => s.round?.hostUserId == myUserId(),
     leave: (fid) => ref.read(redlightProvider(fid).notifier).leaveRound(),
   );
 
@@ -906,7 +906,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'truthordare_games',
     readState: (fid) => ref.read(todProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(todProvider(fid).notifier).leaveGame(),
   );
 
@@ -914,7 +914,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'tugofwar_games',
     readState: (fid) => ref.read(tugOfWarProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(tugOfWarProvider(fid).notifier).leaveGame(),
   );
 
@@ -922,7 +922,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'memorymatch_games',
     readState: (fid) => ref.read(memoryMatchProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(memoryMatchProvider(fid).notifier).leaveGame(),
   );
 
@@ -930,7 +930,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'ashta_chamma_games',
     readState: (fid) => ref.read(ashtaChammaProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(ashtaChammaProvider(fid).notifier).leaveGame(),
   );
 
@@ -938,7 +938,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'connect4_games',
     readState: (fid) => ref.read(connect4Provider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(connect4Provider(fid).notifier).leaveGame(),
   );
 
@@ -946,7 +946,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'impostor_games',
     readState: (fid) => ref.read(impostorProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(impostorProvider(fid).notifier).leaveGame(),
   );
 
@@ -954,7 +954,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'color_trap_games',
     readState: (fid) => ref.read(colorTrapProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(colorTrapProvider(fid).notifier).leaveGame(),
   );
 
@@ -962,7 +962,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'freeze_auction_games',
     readState: (fid) => ref.read(freezeAuctionProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(freezeAuctionProvider(fid).notifier).leaveGame(),
   );
 
@@ -970,7 +970,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'flick_arena_games',
     readState: (fid) => ref.read(flickArenaProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(flickArenaProvider(fid).notifier).leaveRoom(),
   );
 
@@ -978,7 +978,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'secret_heist_games',
     readState: (fid) => ref.read(secretHeistProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(secretHeistProvider(fid).notifier).leaveGame(),
   );
 
@@ -986,7 +986,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'mind_match_games',
     readState: (fid) => ref.read(mindMatchProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(mindMatchProvider(fid).notifier).leaveGame(),
   );
 
@@ -994,7 +994,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'code_clues_games',
     readState: (fid) => ref.read(codeCluesProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(codeCluesProvider(fid).notifier).leaveGame(),
   );
 
@@ -1002,7 +1002,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'night_falls_games',
     readState: (fid) => ref.read(nightFallsProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(nightFallsProvider(fid).notifier).leaveGame(),
   );
 
@@ -1010,7 +1010,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'sketch_telephone_games',
     readState: (fid) => ref.read(sketchTelephoneProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(sketchTelephoneProvider(fid).notifier).leaveGame(),
   );
 
@@ -1018,7 +1018,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'word_forge_games',
     readState: (fid) => ref.read(wordForgeProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(wordForgeProvider(fid).notifier).leaveGame(),
   );
 
@@ -1026,7 +1026,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'stickman_heist_games',
     readState: (fid) => ref.read(stickmanHeistProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(stickmanHeistProvider(fid).notifier).leaveGame(),
   );
 
@@ -1034,7 +1034,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'crystal_bridge_games',
     readState: (fid) => ref.read(crystalBridgeProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(crystalBridgeProvider(fid).notifier).leaveGame(),
   );
 
@@ -1042,7 +1042,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'twotruths_games',
     readState: (fid) => ref.read(ttProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(ttProvider(fid).notifier).leaveGame(),
   );
 
@@ -1053,7 +1053,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'chess_games',
     readState: (fid) => ref.read(chessProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(chessProvider(fid).notifier).leaveRoom(),
   );
 
@@ -1061,7 +1061,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'checkers_games',
     readState: (fid) => ref.read(checkersProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(checkersProvider(fid).notifier).leaveRoom(),
   );
 
@@ -1069,7 +1069,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'carrom_games',
     readState: (fid) => ref.read(carromProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(carromProvider(fid).notifier).leaveRoom(),
   );
 
@@ -1077,7 +1077,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'tictactoe_games',
     readState: (fid) => ref.read(tttProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
-    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    isHost: (s) => s.game?.hostUserId == myUserId(),
     leave: (fid) => ref.read(tttProvider(fid).notifier).leaveRoom(),
   );
 
@@ -1089,7 +1089,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'tictactoe_games',
     readState: (fid) => ref.read(tttProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isInProgress,
-    isHost: (s) => s.game?.playerXId == _myUserId(),
+    isHost: (s) => s.game?.playerXId == myUserId(),
     leave: (fid) async {
       final s = ref.read(tttProvider(fid));
       ref.read(tttProvider(fid).notifier).leaveGame();
@@ -1107,7 +1107,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'chess_games',
     readState: (fid) => ref.read(chessProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isInProgress,
-    isHost: (s) => s.game?.playerWhiteId == _myUserId(),
+    isHost: (s) => s.game?.playerWhiteId == myUserId(),
     leave: (fid) async {
       final s = ref.read(chessProvider(fid));
       ref.read(chessProvider(fid).notifier).leaveGame();
@@ -1125,7 +1125,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'checkers_games',
     readState: (fid) => ref.read(checkersProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isInProgress,
-    isHost: (s) => s.game?.playerOneId == _myUserId(),
+    isHost: (s) => s.game?.playerOneId == myUserId(),
     leave: (fid) async {
       final s = ref.read(checkersProvider(fid));
       ref.read(checkersProvider(fid).notifier).leaveGame();
@@ -1143,7 +1143,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     gameTable: 'carrom_games',
     readState: (fid) => ref.read(carromProvider(fid)),
     hasRoom: (s) => s.game != null && s.game!.isInProgress,
-    isHost: (s) => s.game?.playerOneId == _myUserId(),
+    isHost: (s) => s.game?.playerOneId == myUserId(),
     leave: (fid) async {
       final s = ref.read(carromProvider(fid));
       ref.read(carromProvider(fid).notifier).leaveGame();
@@ -1223,12 +1223,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/splash',
         pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: SplashScreen()),
+            _fastFadePage(key: state.pageKey, child: const SplashScreen()),
       ),
       GoRoute(
         path: '/onboarding',
         pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: OnboardingScreen()),
+            _fastFadePage(key: state.pageKey, child: const OnboardingScreen()),
       ),
       GoRoute(
         path: '/sign-in',
@@ -1254,7 +1254,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/2fa-verify',
         pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: TwoFactorLoginScreen()),
+            _fastFadePage(key: state.pageKey, child: const TwoFactorLoginScreen()),
       ),
 
       // ── B1 Gate Verification / Cameo Viewer ──
@@ -1288,7 +1288,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/search',
             pageBuilder: (context, state) =>
-                _instantPage(key: state.pageKey, child: SearchScreen()),
+                _instantPage(key: state.pageKey, child: const SearchScreen()),
           ),
           GoRoute(
             path: '/families',
@@ -3364,18 +3364,18 @@ class _AddPersonScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           'Add Family Member',
           style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600),
         ),
         leading: IconButton(
-          icon: Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/$familyId'); } },
         ),
       ),
       body: SingleChildScrollView(
         child: Padding(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           child: _AddPersonForm(familyId: familyId),
         ),
       ),
@@ -3673,8 +3673,9 @@ class _BottomNav extends StatelessWidget {
   int _currentIndex(String location) {
     if (location.startsWith('/home')) return 0;
     if (location.startsWith('/chat')) return 1;
-    if (location.startsWith('/families') || location.startsWith('/family/'))
+    if (location.startsWith('/families') || location.startsWith('/family/')) {
       return 2;
+    }
     if (location.startsWith('/search')) return 3;
     if (location.startsWith('/profile')) return 4;
     return 0;

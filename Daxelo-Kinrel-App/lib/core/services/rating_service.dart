@@ -40,9 +40,7 @@ class RatingService {
   /// Called when app goes to foreground.
   void onForeground() {
     _isForeground = true;
-    if (_sessionStart == null) {
-      _sessionStart = DateTime.now();
-    }
+    _sessionStart ??= DateTime.now();
   }
 
   /// Called when app goes to background.

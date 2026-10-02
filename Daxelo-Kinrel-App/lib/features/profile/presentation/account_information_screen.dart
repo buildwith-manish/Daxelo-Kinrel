@@ -125,7 +125,7 @@ class _AccountInformationScreenState
           icon: const Icon(Icons.arrow_back, color: KinrelColors.textWhite),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
-        title: Text(
+        title: const Text(
           'Account Information',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -155,7 +155,7 @@ class _AccountInformationScreenState
             const SizedBox(height: 6),
             _buildReadOnlyField(email, Icons.email_outlined),
             const SizedBox(height: 4),
-            Text(
+            const Text(
               'Your email is linked to your account and cannot be changed here.',
               style: TextStyle(
                 fontSize: 11,
@@ -228,7 +228,7 @@ class _AccountInformationScreenState
       children: [
         Text(
           title,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 16,
             fontWeight: FontWeight.w700,
@@ -238,7 +238,7 @@ class _AccountInformationScreenState
         const SizedBox(height: 4),
         Text(
           subtitle,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 12,
             color: KinrelColors.textDim,
@@ -251,7 +251,7 @@ class _AccountInformationScreenState
   Widget _buildFieldLabel(String label) {
     return Text(
       label,
-      style: TextStyle(
+      style: const TextStyle(
         fontFamily: KinrelTypography.bodyFont,
         fontSize: 13,
         fontWeight: FontWeight.w600,
@@ -276,7 +276,7 @@ class _AccountInformationScreenState
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 color: KinrelColors.textWhite,
@@ -309,12 +309,12 @@ class _AccountInformationScreenState
             child: TextFormField(
               controller: _phoneController,
               keyboardType: TextInputType.phone,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 color: KinrelColors.textWhite,
               ),
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: 'Phone number',
                 hintStyle: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -323,7 +323,7 @@ class _AccountInformationScreenState
                 ),
                 border: InputBorder.none,
                 contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+                    EdgeInsets.symmetric(horizontal: 10, vertical: 14),
               ),
             ),
           ),
@@ -362,7 +362,7 @@ class _AccountInformationScreenState
                     children: [
                       Text(
                         title,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -372,7 +372,7 @@ class _AccountInformationScreenState
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
                           color: KinrelColors.textDim,
@@ -381,7 +381,7 @@ class _AccountInformationScreenState
                     ],
                   ),
                 ),
-                Icon(
+                const Icon(
                   Icons.chevron_right,
                   size: 20,
                   color: KinrelColors.textDim,

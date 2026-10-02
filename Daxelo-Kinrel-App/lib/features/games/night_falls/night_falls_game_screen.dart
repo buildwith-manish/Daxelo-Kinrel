@@ -131,7 +131,7 @@ class _NightFallsGameScreenState extends ConsumerState<NightFallsGameScreen> {
           backgroundColor: KinrelColors.darkCard,
           foregroundColor: KinrelColors.textWhite,
         ),
-        body: Center(
+        body: const Center(
           child: GamingEmptyCard(
             emoji: '🌙',
             title: 'Game not found',
@@ -149,7 +149,7 @@ class _NightFallsGameScreenState extends ConsumerState<NightFallsGameScreen> {
           game.roomName?.isNotEmpty == true
               ? game.roomName!
               : 'Night Falls',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
             color: KinrelColors.textWhite,
@@ -227,7 +227,7 @@ class _RoundIndicator extends StatelessWidget {
       ),
       child: Text(
         'R$current',
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.monoFont,
           fontSize: 12,
           fontWeight: FontWeight.w700,
@@ -381,7 +381,7 @@ class _PhaseBanner extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -435,10 +435,10 @@ class _RoleRevealViewState extends State<_RoleRevealView> {
           border: Border.all(
               color: _kNightFallsAccent.withValues(alpha: 0.3)),
         ),
-        child: Column(
+        child: const Column(
           children: [
-            const Text('🌙', style: TextStyle(fontSize: 48)),
-            const SizedBox(height: 12),
+            Text('🌙', style: TextStyle(fontSize: 48)),
+            SizedBox(height: 12),
             Text('Loading your role...',
                 style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -459,17 +459,17 @@ class _RoleRevealViewState extends State<_RoleRevealView> {
             border: Border.all(
                 color: _kNightFallsAccent.withValues(alpha: 0.3)),
           ),
-          child: Column(
+          child: const Column(
             children: [
-              const Text('🌙', style: TextStyle(fontSize: 48)),
-              const SizedBox(height: 12),
+              Text('🌙', style: TextStyle(fontSize: 48)),
+              SizedBox(height: 12),
               Text('Tap to reveal your role',
                   style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       color: KinrelColors.textWhite)),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text('Make sure no one else is looking!',
                   style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -511,7 +511,7 @@ class _RoleRevealViewState extends State<_RoleRevealView> {
           const SizedBox(height: 10),
           Text(role.description,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   color: KinrelColors.textSilver,
@@ -528,7 +528,7 @@ class _RoleRevealViewState extends State<_RoleRevealView> {
               ),
               child: Column(
                 children: [
-                  Text('🐺 Your pack:',
+                  const Text('🐺 Your pack:',
                       style: TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 11,
@@ -621,14 +621,14 @@ class _NightViewState extends ConsumerState<_NightView> {
           children: [
             const Text('🌙', style: TextStyle(fontSize: 48)),
             const SizedBox(height: 12),
-            Text('Night falls...',
+            const Text('Night falls...',
                 style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: KinrelColors.textWhite)),
             const SizedBox(height: 8),
-            Text(
+            const Text(
                 'You sleep peacefully. The wolves, seer, and doctor are acting in secret.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -716,7 +716,7 @@ class _NightViewState extends ConsumerState<_NightView> {
                         Text(role.glyph,
                             style: const TextStyle(fontSize: 36)),
                         const SizedBox(height: 8),
-                        Text('Choice locked in. Waiting for night to end...',
+                        const Text('Choice locked in. Waiting for night to end...',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
@@ -780,7 +780,7 @@ class _DayView extends StatelessWidget {
                   ? 'The doctor saved a life, or the wolves stayed their hand. Debate who the wolves might be.'
                   : 'A tragic night. Discuss your suspicions and vote to eliminate a suspect.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   color: KinrelColors.textSilver,
@@ -863,13 +863,13 @@ class _VoteViewState extends ConsumerState<_VoteView> {
                 : null,
           ),
         ] else if (me != null && !me.isAlive) ...[
-          Center(
+          const Center(
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(20),
               child: Column(
                 children: [
-                  const Text('👻', style: TextStyle(fontSize: 40)),
-                  const SizedBox(height: 8),
+                  Text('👻', style: TextStyle(fontSize: 40)),
+                  SizedBox(height: 8),
                   Text('You\'re eliminated — spectating the vote.',
                       style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
@@ -889,7 +889,7 @@ class _VoteViewState extends ConsumerState<_VoteView> {
                   const SizedBox(height: 8),
                   Text(
                       'Vote submitted! Waiting for ${aliveCount - widget.round.voteLockedCount} more...',
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 14,
                           color: KinrelColors.textDim)),
@@ -957,7 +957,7 @@ class _ResultViewState extends ConsumerState<_ResultView> {
                       ? 'No one was eliminated (tie vote)'
                       : '$eliminated was voted out',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -1011,10 +1011,10 @@ class _ResultViewState extends ConsumerState<_ResultView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  const Row(
                     children: [
-                      const Text('🎯', style: TextStyle(fontSize: 20)),
-                      const SizedBox(width: 8),
+                      Text('🎯', style: TextStyle(fontSize: 20)),
+                      SizedBox(width: 8),
                       Expanded(
                         child: Text('Hunter\'s Revenge — take one player down',
                             style: TextStyle(
@@ -1059,10 +1059,10 @@ class _ResultViewState extends ConsumerState<_ResultView> {
                 border: Border.all(
                     color: KinrelColors.amber.withValues(alpha: 0.3)),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  const Text('🎯', style: TextStyle(fontSize: 20)),
-                  const SizedBox(width: 8),
+                  Text('🎯', style: TextStyle(fontSize: 20)),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text('The Hunter is choosing their revenge...',
                         style: TextStyle(
@@ -1091,7 +1091,7 @@ class _ResultViewState extends ConsumerState<_ResultView> {
                 Expanded(
                   child: Text(
                       'Hunter\'s revenge: ${round.hunterRevengeTargetName} (${round.hunterRevengeRole?.label ?? '?'}) was taken down!',
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
                           color: KinrelColors.textSilver)),
@@ -1188,7 +1188,7 @@ class _FinishedView extends StatelessWidget {
                     wolvesWin
                         ? 'The wolves devoured the village.'
                         : 'The village hunted down all the wolves.',
-                    style: TextStyle(
+                    style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
                         color: KinrelColors.textDim)),
@@ -1196,7 +1196,7 @@ class _FinishedView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          GamingSectionHeader(title: 'Final Roster', icon: Icons.groups_outlined),
+          const GamingSectionHeader(title: 'Final Roster', icon: Icons.groups_outlined),
           const SizedBox(height: 8),
           for (final p in state.players)
             Padding(
@@ -1215,7 +1215,7 @@ class _FinishedView extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(p.userName,
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -1235,7 +1235,7 @@ class _FinishedView extends StatelessWidget {
                                   : KinrelColors.textSilver)),
                     ] else ...[
                       Text(p.isAlive ? 'Survived' : 'Eliminated',
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 12,
                               color: KinrelColors.textDim)),
@@ -1301,7 +1301,7 @@ class _PlayerRoster extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GamingSectionHeader(title: 'Players', icon: Icons.people_outline),
+        const GamingSectionHeader(title: 'Players', icon: Icons.people_outline),
         const SizedBox(height: 8),
         for (final p in state.players)
           Padding(
@@ -1391,16 +1391,16 @@ class _SeerHistoryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Text('🔮', style: TextStyle(fontSize: 18)),
-              const SizedBox(width: 8),
+              Text('🔮', style: TextStyle(fontSize: 18)),
+              SizedBox(width: 8),
               Text('Seer\'s Investigations',
                   style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFFA855F7))),
+                      color: Color(0xFFA855F7))),
             ],
           ),
           const SizedBox(height: 10),
@@ -1410,7 +1410,7 @@ class _SeerHistoryCard extends StatelessWidget {
               child: Row(
                 children: [
                   Text('R${r.roundNumber}',
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -1419,7 +1419,7 @@ class _SeerHistoryCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                         state.playerFor(r.targetUserId)?.userName ?? 'Unknown',
-                        style: TextStyle(
+                        style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 13,
                             color: KinrelColors.textWhite)),
@@ -1569,7 +1569,7 @@ class _PlayerTargetList extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(p.userName,
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -1583,8 +1583,8 @@ class _PlayerTargetList extends StatelessWidget {
             ),
           ),
         if (candidates.isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(12),
+          const Padding(
+            padding: EdgeInsets.all(12),
             child: Text('No valid targets.',
                 style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -1611,7 +1611,7 @@ class _NameChip extends StatelessWidget {
         border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(name,
-          style: TextStyle(
+          style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
               fontWeight: FontWeight.w700,

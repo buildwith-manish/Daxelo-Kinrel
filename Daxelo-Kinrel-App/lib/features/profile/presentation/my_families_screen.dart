@@ -94,7 +94,7 @@ class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
         backgroundColor: _cardBg,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: _borderSubtle),
+          side: const BorderSide(color: _borderSubtle),
         ),
         title: Text(
           'Leave "${family.name}"?',
@@ -237,7 +237,7 @@ class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Create a new family or accept an invitation to get started',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -282,7 +282,7 @@ class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
       itemCount: 4,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
-        final _shimmerChild = Container(
+        final shimmerChild = Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -339,14 +339,14 @@ class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
         );
 
         if (!DeviceTierCache.instance.shouldShimmer) {
-          return _shimmerChild;
+          return shimmerChild;
         }
 
         return Shimmer.fromColors(
           baseColor: const Color(0xFF202338),
           highlightColor: const Color(0xFF13141E),
           period: const Duration(milliseconds: 1500),
-          child: _shimmerChild,
+          child: shimmerChild,
         );
       },
     );
@@ -436,7 +436,7 @@ class _FamilyCard extends StatelessWidget {
                     if (family.username != null)
                       Text(
                         '@${family.username}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 12,
                           color: _textDim,
@@ -486,7 +486,7 @@ class _FamilyCard extends StatelessWidget {
           Row(
             children: [
               // Member count
-              Icon(Icons.people_outline, color: _textDim, size: 16),
+              const Icon(Icons.people_outline, color: _textDim, size: 16),
               const SizedBox(width: 6),
               Text(
                 '${family.memberCount} ${family.memberCount == 1 ? 'member' : 'members'}',

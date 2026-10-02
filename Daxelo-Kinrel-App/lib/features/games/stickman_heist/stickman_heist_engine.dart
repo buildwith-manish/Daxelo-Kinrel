@@ -362,6 +362,14 @@ class StickmanHeistWall {
     required this.y2,
   });
 
+  factory StickmanHeistWall.fromJson(Map<String, dynamic> json) =>
+      StickmanHeistWall(
+        x1: (json['x1'] as num?)?.toDouble() ?? 0,
+        y1: (json['y1'] as num?)?.toDouble() ?? 0,
+        x2: (json['x2'] as num?)?.toDouble() ?? 0,
+        y2: (json['y2'] as num?)?.toDouble() ?? 0,
+      );
+
   final double x1;
   final double y1;
   final double x2;
@@ -373,14 +381,6 @@ class StickmanHeistWall {
         'x2': x2,
         'y2': y2,
       };
-
-  factory StickmanHeistWall.fromJson(Map<String, dynamic> json) =>
-      StickmanHeistWall(
-        x1: (json['x1'] as num?)?.toDouble() ?? 0,
-        y1: (json['y1'] as num?)?.toDouble() ?? 0,
-        x2: (json['x2'] as num?)?.toDouble() ?? 0,
-        y2: (json['y2'] as num?)?.toDouble() ?? 0,
-      );
 }
 
 /// A map definition — id, name, walls (obstacles), spawn points, escape
@@ -563,6 +563,36 @@ class StickmanHeistPlayer {
     this.reloadStartedAtMs = 0,
   });
 
+  factory StickmanHeistPlayer.fromJson(Map<String, dynamic> json) {
+    return StickmanHeistPlayer(
+      idx: (json['idx'] as num?)?.toInt() ?? 0,
+      userId: (json['userId'] ?? '') as String,
+      name: (json['name'] ?? 'Player') as String,
+      x: (json['x'] as num?)?.toDouble() ?? 0,
+      y: (json['y'] as num?)?.toDouble() ?? 0,
+      angle: (json['angle'] as num?)?.toDouble() ?? 0,
+      health: (json['health'] as num?)?.toInt() ??
+          kStickmanHeistDefaultHealth,
+      maxHealth: (json['maxHealth'] as num?)?.toInt() ??
+          kStickmanHeistDefaultHealth,
+      isAlive: (json['isAlive'] as bool?) ?? true,
+      weapon: StickmanHeistWeaponX.fromString(json['weapon'] as String?),
+      ammo: (json['ammo'] as num?)?.toInt() ?? 12,
+      maxAmmo: (json['maxAmmo'] as num?)?.toInt() ?? 12,
+      isReloading: (json['isReloading'] as bool?) ?? false,
+      hasTreasure: (json['hasTreasure'] as bool?) ?? false,
+      kills: (json['kills'] as num?)?.toInt() ?? 0,
+      deaths: (json['deaths'] as num?)?.toInt() ?? 0,
+      respawnAt: (json['respawnAt'] as num?)?.toInt() ?? 0,
+      shieldActive: (json['shieldActive'] as bool?) ?? false,
+      speedBoostUntil:
+          (json['speedBoostUntil'] as num?)?.toInt() ?? 0,
+      lastShotAtMs: (json['lastShotAtMs'] as num?)?.toInt() ?? 0,
+      reloadStartedAtMs:
+          (json['reloadStartedAtMs'] as num?)?.toInt() ?? 0,
+    );
+  }
+
   /// Slot index 0..N-1 in the player order.
   int idx;
 
@@ -677,36 +707,6 @@ class StickmanHeistPlayer {
         'shieldActive': shieldActive,
         'speedBoostUntil': speedBoostUntil,
       };
-
-  factory StickmanHeistPlayer.fromJson(Map<String, dynamic> json) {
-    return StickmanHeistPlayer(
-      idx: (json['idx'] as num?)?.toInt() ?? 0,
-      userId: (json['userId'] ?? '') as String,
-      name: (json['name'] ?? 'Player') as String,
-      x: (json['x'] as num?)?.toDouble() ?? 0,
-      y: (json['y'] as num?)?.toDouble() ?? 0,
-      angle: (json['angle'] as num?)?.toDouble() ?? 0,
-      health: (json['health'] as num?)?.toInt() ??
-          kStickmanHeistDefaultHealth,
-      maxHealth: (json['maxHealth'] as num?)?.toInt() ??
-          kStickmanHeistDefaultHealth,
-      isAlive: (json['isAlive'] as bool?) ?? true,
-      weapon: StickmanHeistWeaponX.fromString(json['weapon'] as String?),
-      ammo: (json['ammo'] as num?)?.toInt() ?? 12,
-      maxAmmo: (json['maxAmmo'] as num?)?.toInt() ?? 12,
-      isReloading: (json['isReloading'] as bool?) ?? false,
-      hasTreasure: (json['hasTreasure'] as bool?) ?? false,
-      kills: (json['kills'] as num?)?.toInt() ?? 0,
-      deaths: (json['deaths'] as num?)?.toInt() ?? 0,
-      respawnAt: (json['respawnAt'] as num?)?.toInt() ?? 0,
-      shieldActive: (json['shieldActive'] as bool?) ?? false,
-      speedBoostUntil:
-          (json['speedBoostUntil'] as num?)?.toInt() ?? 0,
-      lastShotAtMs: (json['lastShotAtMs'] as num?)?.toInt() ?? 0,
-      reloadStartedAtMs:
-          (json['reloadStartedAtMs'] as num?)?.toInt() ?? 0,
-    );
-  }
 }
 
 // ── Projectile ───────────────────────────────────────────────────────
@@ -725,6 +725,20 @@ class StickmanHeistProjectile {
     required this.damage,
     required this.lifeMs,
   });
+
+  factory StickmanHeistProjectile.fromJson(Map<String, dynamic> json) =>
+      StickmanHeistProjectile(
+        id: (json['id'] ?? '') as String,
+        x: (json['x'] as num?)?.toDouble() ?? 0,
+        y: (json['y'] as num?)?.toDouble() ?? 0,
+        vx: (json['vx'] as num?)?.toDouble() ?? 0,
+        vy: (json['vy'] as num?)?.toDouble() ?? 0,
+        ownerId: (json['ownerId'] ?? '') as String,
+        ownerIdx: (json['ownerIdx'] as num?)?.toInt() ?? -1,
+        damage: (json['damage'] as num?)?.toInt() ?? 10,
+        lifeMs: (json['lifeMs'] as num?)?.toInt() ??
+            kStickmanHeistProjectileLifeMs,
+      );
 
   final String id;
   double x;
@@ -749,20 +763,6 @@ class StickmanHeistProjectile {
         'damage': damage,
         'lifeMs': lifeMs,
       };
-
-  factory StickmanHeistProjectile.fromJson(Map<String, dynamic> json) =>
-      StickmanHeistProjectile(
-        id: (json['id'] ?? '') as String,
-        x: (json['x'] as num?)?.toDouble() ?? 0,
-        y: (json['y'] as num?)?.toDouble() ?? 0,
-        vx: (json['vx'] as num?)?.toDouble() ?? 0,
-        vy: (json['vy'] as num?)?.toDouble() ?? 0,
-        ownerId: (json['ownerId'] ?? '') as String,
-        ownerIdx: (json['ownerIdx'] as num?)?.toInt() ?? -1,
-        damage: (json['damage'] as num?)?.toInt() ?? 10,
-        lifeMs: (json['lifeMs'] as num?)?.toInt() ??
-            kStickmanHeistProjectileLifeMs,
-      );
 }
 
 // ── Treasure ─────────────────────────────────────────────────────────
@@ -777,6 +777,14 @@ class StickmanHeistTreasure {
     required this.collected,
   });
 
+  factory StickmanHeistTreasure.fromJson(Map<String, dynamic> json) =>
+      StickmanHeistTreasure(
+        x: (json['x'] as num?)?.toDouble() ?? 0,
+        y: (json['y'] as num?)?.toDouble() ?? 0,
+        carrierIdx: (json['carrierIdx'] as num?)?.toInt() ?? -1,
+        collected: (json['collected'] as bool?) ?? false,
+      );
+
   double x;
   double y;
   int carrierIdx;
@@ -790,14 +798,6 @@ class StickmanHeistTreasure {
         'carrierIdx': carrierIdx,
         'collected': collected,
       };
-
-  factory StickmanHeistTreasure.fromJson(Map<String, dynamic> json) =>
-      StickmanHeistTreasure(
-        x: (json['x'] as num?)?.toDouble() ?? 0,
-        y: (json['y'] as num?)?.toDouble() ?? 0,
-        carrierIdx: (json['carrierIdx'] as num?)?.toInt() ?? -1,
-        collected: (json['collected'] as bool?) ?? false,
-      );
 }
 
 // ── Escape Zone ──────────────────────────────────────────────────────
@@ -813,6 +813,15 @@ class StickmanHeistEscapeZone {
     required this.label,
   });
 
+  factory StickmanHeistEscapeZone.fromJson(Map<String, dynamic> json) =>
+      StickmanHeistEscapeZone(
+        x: (json['x'] as num?)?.toDouble() ?? 0,
+        y: (json['y'] as num?)?.toDouble() ?? 0,
+        radius: (json['radius'] as num?)?.toDouble() ?? 1.5,
+        active: (json['active'] as bool?) ?? false,
+        label: (json['label'] ?? 'EXIT') as String,
+      );
+
   double x;
   double y;
   double radius;
@@ -826,15 +835,6 @@ class StickmanHeistEscapeZone {
         'active': active,
         'label': label,
       };
-
-  factory StickmanHeistEscapeZone.fromJson(Map<String, dynamic> json) =>
-      StickmanHeistEscapeZone(
-        x: (json['x'] as num?)?.toDouble() ?? 0,
-        y: (json['y'] as num?)?.toDouble() ?? 0,
-        radius: (json['radius'] as num?)?.toDouble() ?? 1.5,
-        active: (json['active'] as bool?) ?? false,
-        label: (json['label'] ?? 'EXIT') as String,
-      );
 }
 
 // ── Weapon / Powerup Spawns ──────────────────────────────────────────
@@ -848,6 +848,16 @@ class StickmanHeistWeaponSpawn {
     required this.taken,
     this.respawnAtMs = 0,
   });
+
+  factory StickmanHeistWeaponSpawn.fromJson(Map<String, dynamic> json) =>
+      StickmanHeistWeaponSpawn(
+        x: (json['x'] as num?)?.toDouble() ?? 0,
+        y: (json['y'] as num?)?.toDouble() ?? 0,
+        weapon:
+            StickmanHeistWeaponX.fromString(json['weapon'] as String?),
+        taken: (json['taken'] as bool?) ?? false,
+        respawnAtMs: (json['respawnAtMs'] as num?)?.toInt() ?? 0,
+      );
 
   double x;
   double y;
@@ -864,16 +874,6 @@ class StickmanHeistWeaponSpawn {
         'taken': taken,
         'respawnAtMs': respawnAtMs,
       };
-
-  factory StickmanHeistWeaponSpawn.fromJson(Map<String, dynamic> json) =>
-      StickmanHeistWeaponSpawn(
-        x: (json['x'] as num?)?.toDouble() ?? 0,
-        y: (json['y'] as num?)?.toDouble() ?? 0,
-        weapon:
-            StickmanHeistWeaponX.fromString(json['weapon'] as String?),
-        taken: (json['taken'] as bool?) ?? false,
-        respawnAtMs: (json['respawnAtMs'] as num?)?.toInt() ?? 0,
-      );
 }
 
 /// A powerup pickup on the map.
@@ -885,6 +885,16 @@ class StickmanHeistPowerupSpawn {
     required this.taken,
     this.respawnAtMs = 0,
   });
+
+  factory StickmanHeistPowerupSpawn.fromJson(Map<String, dynamic> json) =>
+      StickmanHeistPowerupSpawn(
+        x: (json['x'] as num?)?.toDouble() ?? 0,
+        y: (json['y'] as num?)?.toDouble() ?? 0,
+        type: StickmanHeistPowerupTypeX.fromString(
+            json['type'] as String?),
+        taken: (json['taken'] as bool?) ?? false,
+        respawnAtMs: (json['respawnAtMs'] as num?)?.toInt() ?? 0,
+      );
 
   double x;
   double y;
@@ -899,16 +909,6 @@ class StickmanHeistPowerupSpawn {
         'taken': taken,
         'respawnAtMs': respawnAtMs,
       };
-
-  factory StickmanHeistPowerupSpawn.fromJson(Map<String, dynamic> json) =>
-      StickmanHeistPowerupSpawn(
-        x: (json['x'] as num?)?.toDouble() ?? 0,
-        y: (json['y'] as num?)?.toDouble() ?? 0,
-        type: StickmanHeistPowerupTypeX.fromString(
-            json['type'] as String?),
-        taken: (json['taken'] as bool?) ?? false,
-        respawnAtMs: (json['respawnAtMs'] as num?)?.toInt() ?? 0,
-      );
 }
 
 // ── Game Event (kill / pickup / escape notification) ─────────────────
@@ -924,6 +924,14 @@ class StickmanHeistEvent {
     this.color = 0xFFFFFFFF,
   });
 
+  factory StickmanHeistEvent.fromJson(Map<String, dynamic> json) =>
+      StickmanHeistEvent(
+        kind: (json['kind'] ?? '') as String,
+        text: (json['text'] ?? '') as String,
+        atMs: (json['atMs'] as num?)?.toInt() ?? 0,
+        color: (json['color'] as num?)?.toInt() ?? 0xFFFFFFFF,
+      );
+
   final String kind; // 'pickup', 'kill', 'escape', 'drop', 'win'
   final String text;
   final int atMs;
@@ -935,14 +943,6 @@ class StickmanHeistEvent {
         'atMs': atMs,
         'color': color,
       };
-
-  factory StickmanHeistEvent.fromJson(Map<String, dynamic> json) =>
-      StickmanHeistEvent(
-        kind: (json['kind'] ?? '') as String,
-        text: (json['text'] ?? '') as String,
-        atMs: (json['atMs'] as num?)?.toInt() ?? 0,
-        color: (json['color'] as num?)?.toInt() ?? 0xFFFFFFFF,
-      );
 }
 
 // ── Board State ──────────────────────────────────────────────────────
@@ -968,100 +968,6 @@ class StickmanHeistBoardState {
     required this.winnerIdx,
     required this.matchStartTime,
   });
-
-  int playerCount;
-  String mapId;
-  bool respawnsEnabled;
-  int matchSeconds;
-  int matchTimeRemaining;
-
-  StickmanHeistPhase phase;
-
-  StickmanHeistTreasure treasure;
-  List<StickmanHeistEscapeZone> escapeZones;
-  List<StickmanHeistWeaponSpawn> weaponSpawns;
-  List<StickmanHeistPowerupSpawn> powerupSpawns;
-  List<StickmanHeistProjectile> projectiles;
-  List<StickmanHeistEvent> events;
-  List<StickmanHeistPlayer> players;
-
-  /// 'in_progress' or 'completed' — set to 'completed' when carrier
-  /// escapes or time runs out.
-  String status;
-
-  /// -1 while match ongoing, otherwise the idx of the winning player.
-  int winnerIdx;
-
-  /// Epoch ms when the match started.
-  int matchStartTime;
-
-  /// Convenience: the carrier, or null if none.
-  StickmanHeistPlayer? get carrier => treasure.carrierIdx >= 0
-      ? players
-          .where((p) => p.idx == treasure.carrierIdx)
-          .firstOrNull
-      : null;
-
-  StickmanHeistBoardState copyWith({
-    int? playerCount,
-    String? mapId,
-    bool? respawnsEnabled,
-    int? matchSeconds,
-    int? matchTimeRemaining,
-    StickmanHeistPhase? phase,
-    StickmanHeistTreasure? treasure,
-    List<StickmanHeistEscapeZone>? escapeZones,
-    List<StickmanHeistWeaponSpawn>? weaponSpawns,
-    List<StickmanHeistPowerupSpawn>? powerupSpawns,
-    List<StickmanHeistProjectile>? projectiles,
-    List<StickmanHeistEvent>? events,
-    List<StickmanHeistPlayer>? players,
-    String? status,
-    int? winnerIdx,
-    int? matchStartTime,
-  }) =>
-      StickmanHeistBoardState(
-        playerCount: playerCount ?? this.playerCount,
-        mapId: mapId ?? this.mapId,
-        respawnsEnabled: respawnsEnabled ?? this.respawnsEnabled,
-        matchSeconds: matchSeconds ?? this.matchSeconds,
-        matchTimeRemaining:
-            matchTimeRemaining ?? this.matchTimeRemaining,
-        phase: phase ?? this.phase,
-        treasure: treasure ?? this.treasure,
-        escapeZones: escapeZones ?? this.escapeZones,
-        weaponSpawns: weaponSpawns ?? this.weaponSpawns,
-        powerupSpawns: powerupSpawns ?? this.powerupSpawns,
-        projectiles: projectiles ?? this.projectiles,
-        events: events ?? this.events,
-        players: players ?? this.players,
-        status: status ?? this.status,
-        winnerIdx: winnerIdx ?? this.winnerIdx,
-        matchStartTime: matchStartTime ?? this.matchStartTime,
-      );
-
-  Map<String, dynamic> toJson() => {
-        'playerCount': playerCount,
-        'mapId': mapId,
-        'respawnsEnabled': respawnsEnabled,
-        'matchSeconds': matchSeconds,
-        'matchTimeRemaining': matchTimeRemaining,
-        'phase': phase.wire,
-        'treasure': treasure.toJson(),
-        'escapeZones':
-            escapeZones.map((e) => e.toJson()).toList(),
-        'weaponSpawns':
-            weaponSpawns.map((w) => w.toJson()).toList(),
-        'powerupSpawns':
-            powerupSpawns.map((p) => p.toJson()).toList(),
-        'projectiles':
-            projectiles.map((p) => p.toJson()).toList(),
-        'events': events.map((e) => e.toJson()).toList(),
-        'players': players.map((p) => p.toJson()).toList(),
-        'status': status,
-        'winnerIdx': winnerIdx,
-        'matchStartTime': matchStartTime,
-      };
 
   factory StickmanHeistBoardState.fromJson(Map<String, dynamic> json) {
     final zonesRaw = json['escapeZones'];
@@ -1160,6 +1066,100 @@ class StickmanHeistBoardState {
           (json['matchStartTime'] as num?)?.toInt() ?? 0),
     );
   }
+
+  int playerCount;
+  String mapId;
+  bool respawnsEnabled;
+  int matchSeconds;
+  int matchTimeRemaining;
+
+  StickmanHeistPhase phase;
+
+  StickmanHeistTreasure treasure;
+  List<StickmanHeistEscapeZone> escapeZones;
+  List<StickmanHeistWeaponSpawn> weaponSpawns;
+  List<StickmanHeistPowerupSpawn> powerupSpawns;
+  List<StickmanHeistProjectile> projectiles;
+  List<StickmanHeistEvent> events;
+  List<StickmanHeistPlayer> players;
+
+  /// 'in_progress' or 'completed' — set to 'completed' when carrier
+  /// escapes or time runs out.
+  String status;
+
+  /// -1 while match ongoing, otherwise the idx of the winning player.
+  int winnerIdx;
+
+  /// Epoch ms when the match started.
+  int matchStartTime;
+
+  /// Convenience: the carrier, or null if none.
+  StickmanHeistPlayer? get carrier => treasure.carrierIdx >= 0
+      ? players
+          .where((p) => p.idx == treasure.carrierIdx)
+          .firstOrNull
+      : null;
+
+  StickmanHeistBoardState copyWith({
+    int? playerCount,
+    String? mapId,
+    bool? respawnsEnabled,
+    int? matchSeconds,
+    int? matchTimeRemaining,
+    StickmanHeistPhase? phase,
+    StickmanHeistTreasure? treasure,
+    List<StickmanHeistEscapeZone>? escapeZones,
+    List<StickmanHeistWeaponSpawn>? weaponSpawns,
+    List<StickmanHeistPowerupSpawn>? powerupSpawns,
+    List<StickmanHeistProjectile>? projectiles,
+    List<StickmanHeistEvent>? events,
+    List<StickmanHeistPlayer>? players,
+    String? status,
+    int? winnerIdx,
+    int? matchStartTime,
+  }) =>
+      StickmanHeistBoardState(
+        playerCount: playerCount ?? this.playerCount,
+        mapId: mapId ?? this.mapId,
+        respawnsEnabled: respawnsEnabled ?? this.respawnsEnabled,
+        matchSeconds: matchSeconds ?? this.matchSeconds,
+        matchTimeRemaining:
+            matchTimeRemaining ?? this.matchTimeRemaining,
+        phase: phase ?? this.phase,
+        treasure: treasure ?? this.treasure,
+        escapeZones: escapeZones ?? this.escapeZones,
+        weaponSpawns: weaponSpawns ?? this.weaponSpawns,
+        powerupSpawns: powerupSpawns ?? this.powerupSpawns,
+        projectiles: projectiles ?? this.projectiles,
+        events: events ?? this.events,
+        players: players ?? this.players,
+        status: status ?? this.status,
+        winnerIdx: winnerIdx ?? this.winnerIdx,
+        matchStartTime: matchStartTime ?? this.matchStartTime,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'playerCount': playerCount,
+        'mapId': mapId,
+        'respawnsEnabled': respawnsEnabled,
+        'matchSeconds': matchSeconds,
+        'matchTimeRemaining': matchTimeRemaining,
+        'phase': phase.wire,
+        'treasure': treasure.toJson(),
+        'escapeZones':
+            escapeZones.map((e) => e.toJson()).toList(),
+        'weaponSpawns':
+            weaponSpawns.map((w) => w.toJson()).toList(),
+        'powerupSpawns':
+            powerupSpawns.map((p) => p.toJson()).toList(),
+        'projectiles':
+            projectiles.map((p) => p.toJson()).toList(),
+        'events': events.map((e) => e.toJson()).toList(),
+        'players': players.map((p) => p.toJson()).toList(),
+        'status': status,
+        'winnerIdx': winnerIdx,
+        'matchStartTime': matchStartTime,
+      };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────

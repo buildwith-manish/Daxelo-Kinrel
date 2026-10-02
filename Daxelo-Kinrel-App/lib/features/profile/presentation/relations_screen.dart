@@ -501,7 +501,7 @@ class _RelationshipCard extends StatelessWidget {
                           color: _textPrimary,
                         ),
                       ),
-                      TextSpan(
+                      const TextSpan(
                         text: '  →  ',
                         style: TextStyle(
                           fontFamily: KinrelTypography.monoFont,
@@ -516,7 +516,7 @@ class _RelationshipCard extends StatelessWidget {
                           color: _orange,
                         ),
                       ),
-                      TextSpan(
+                      const TextSpan(
                         text: '  →  ',
                         style: TextStyle(
                           fontFamily: KinrelTypography.monoFont,
@@ -541,7 +541,7 @@ class _RelationshipCard extends StatelessWidget {
                 // Family name
                 Row(
                   children: [
-                    Icon(Icons.park_outlined, color: _textDim, size: 12),
+                    const Icon(Icons.park_outlined, color: _textDim, size: 12),
                     const SizedBox(width: 4),
                     Text(
                       entry.familyName,
@@ -560,7 +560,7 @@ class _RelationshipCard extends StatelessWidget {
           ),
 
           // Arrow
-          Icon(Icons.chevron_right, color: _textDim, size: 18),
+          const Icon(Icons.chevron_right, color: _textDim, size: 18),
         ],
       ),
     );

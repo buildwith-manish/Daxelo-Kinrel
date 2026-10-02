@@ -293,6 +293,15 @@ class CrystalBridgeRow {
     required this.rightBroke,
   });
 
+  factory CrystalBridgeRow.fromJson(Map<String, dynamic> json) =>
+      CrystalBridgeRow(
+        rowNumber: (json['rowNumber'] as num?)?.toInt() ?? 1,
+        safeSide: (json['safeSide'] as num?)?.toInt() ?? 0,
+        revealed: (json['revealed'] as bool?) ?? false,
+        leftBroke: (json['leftBroke'] as bool?) ?? false,
+        rightBroke: (json['rightBroke'] as bool?) ?? false,
+      );
+
   /// 1-based row number (row 1 is the first stepping row).
   final int rowNumber;
 
@@ -328,15 +337,6 @@ class CrystalBridgeRow {
         'leftBroke': leftBroke,
         'rightBroke': rightBroke,
       };
-
-  factory CrystalBridgeRow.fromJson(Map<String, dynamic> json) =>
-      CrystalBridgeRow(
-        rowNumber: (json['rowNumber'] as num?)?.toInt() ?? 1,
-        safeSide: (json['safeSide'] as num?)?.toInt() ?? 0,
-        revealed: (json['revealed'] as bool?) ?? false,
-        leftBroke: (json['leftBroke'] as bool?) ?? false,
-        rightBroke: (json['rightBroke'] as bool?) ?? false,
-      );
 }
 
 /// A player row inside the boardState JSON.
@@ -353,6 +353,21 @@ class CrystalBridgePlayer {
     required this.isStunned,
     required this.crystalsCrossed,
   });
+
+  factory CrystalBridgePlayer.fromJson(Map<String, dynamic> json) =>
+      CrystalBridgePlayer(
+        idx: (json['idx'] as num?)?.toInt() ?? 0,
+        userId: (json['userId'] ?? '') as String,
+        name: (json['name'] ?? 'Player') as String,
+        position: (json['position'] as num?)?.toInt() ?? 0,
+        isAlive: (json['isAlive'] as bool?) ?? true,
+        power: CrystalBridgePowerX.fromString(json['power'] as String?),
+        powerUsed: (json['powerUsed'] as bool?) ?? false,
+        shieldActive: (json['shieldActive'] as bool?) ?? false,
+        isStunned: (json['isStunned'] as bool?) ?? false,
+        crystalsCrossed:
+            (json['crystalsCrossed'] as num?)?.toInt() ?? 0,
+      );
 
   final int idx;
   final String userId;
@@ -409,21 +424,6 @@ class CrystalBridgePlayer {
         'isStunned': isStunned,
         'crystalsCrossed': crystalsCrossed,
       };
-
-  factory CrystalBridgePlayer.fromJson(Map<String, dynamic> json) =>
-      CrystalBridgePlayer(
-        idx: (json['idx'] as num?)?.toInt() ?? 0,
-        userId: (json['userId'] ?? '') as String,
-        name: (json['name'] ?? 'Player') as String,
-        position: (json['position'] as num?)?.toInt() ?? 0,
-        isAlive: (json['isAlive'] as bool?) ?? true,
-        power: CrystalBridgePowerX.fromString(json['power'] as String?),
-        powerUsed: (json['powerUsed'] as bool?) ?? false,
-        shieldActive: (json['shieldActive'] as bool?) ?? false,
-        isStunned: (json['isStunned'] as bool?) ?? false,
-        crystalsCrossed:
-            (json['crystalsCrossed'] as num?)?.toInt() ?? 0,
-      );
 }
 
 /// One event in the scrolling event log.
@@ -435,6 +435,15 @@ class CrystalBridgeEvent {
     this.side,
     this.atMs,
   });
+
+  factory CrystalBridgeEvent.fromJson(Map<String, dynamic> json) =>
+      CrystalBridgeEvent(
+        type: (json['type'] ?? '') as String,
+        playerIdx: (json['playerIdx'] as num?)?.toInt() ?? 0,
+        row: (json['row'] as num?)?.toInt(),
+        side: (json['side'] as num?)?.toInt(),
+        atMs: (json['atMs'] as num?)?.toInt(),
+      );
 
   /// Event types emitted by the SQL: safe, eliminated, shield_saved,
   /// ice_slide, lava_stun, storm_strike, power_reveal, power_shield,
@@ -452,15 +461,6 @@ class CrystalBridgeEvent {
         if (side != null) 'side': side,
         if (atMs != null) 'atMs': atMs,
       };
-
-  factory CrystalBridgeEvent.fromJson(Map<String, dynamic> json) =>
-      CrystalBridgeEvent(
-        type: (json['type'] ?? '') as String,
-        playerIdx: (json['playerIdx'] as num?)?.toInt() ?? 0,
-        row: (json['row'] as num?)?.toInt(),
-        side: (json['side'] as num?)?.toInt(),
-        atMs: (json['atMs'] as num?)?.toInt(),
-      );
 
   /// Human-readable summary used by the events log.
   String summaryFor(String playerName) {
@@ -514,6 +514,60 @@ class CrystalBridgeBoardState {
     required this.winningTeam,
     required this.matchStartTime,
   });
+
+  factory CrystalBridgeBoardState.fromJson(Map<String, dynamic> json) {
+    final rowsList = <CrystalBridgeRow>[];
+    final rawRows = json['rows'];
+    if (rawRows is List) {
+      for (final r in rawRows) {
+        if (r is Map) {
+          rowsList.add(
+              CrystalBridgeRow.fromJson(Map<String, dynamic>.from(r)));
+        }
+      }
+    }
+    final playersList = <CrystalBridgePlayer>[];
+    final rawPlayers = json['players'];
+    if (rawPlayers is List) {
+      for (final p in rawPlayers) {
+        if (p is Map) {
+          playersList.add(
+              CrystalBridgePlayer.fromJson(Map<String, dynamic>.from(p)));
+        }
+      }
+    }
+    final eventsList = <CrystalBridgeEvent>[];
+    final rawEvents = json['events'];
+    if (rawEvents is List) {
+      for (final e in rawEvents) {
+        if (e is Map) {
+          eventsList.add(
+              CrystalBridgeEvent.fromJson(Map<String, dynamic>.from(e)));
+        }
+      }
+    }
+    return CrystalBridgeBoardState(
+      playerCount: (json['playerCount'] as num?)?.toInt() ?? 2,
+      bridgeType:
+          CrystalBridgeTypeX.fromString(json['bridgeType'] as String?),
+      totalRows: (json['totalRows'] as num?)?.toInt() ?? 20,
+      teamMode:
+          CrystalBridgeTeamModeX.fromString(json['teamMode'] as String?),
+      turnSeconds: (json['turnSeconds'] as num?)?.toInt() ??
+          kCrystalBridgeDefaultTurnSeconds,
+      currentPlayerIdx:
+          (json['currentPlayerIdx'] as num?)?.toInt() ?? 0,
+      currentRow: (json['currentRow'] as num?)?.toInt() ?? 1,
+      phase: CrystalBridgePhaseX.fromString(json['phase'] as String?),
+      rows: rowsList,
+      players: playersList,
+      events: eventsList,
+      status: (json['status'] as String?) ?? 'in_progress',
+      winnerIdx: (json['winnerIdx'] as num?)?.toInt() ?? -1,
+      winningTeam: (json['winningTeam'] as num?)?.toInt() ?? -1,
+      matchStartTime: (json['matchStartTime'] as num?)?.toInt() ?? 0,
+    );
+  }
 
   final int playerCount;
   final CrystalBridgeType bridgeType;
@@ -583,60 +637,6 @@ class CrystalBridgeBoardState {
         'winningTeam': winningTeam,
         'matchStartTime': matchStartTime,
       };
-
-  factory CrystalBridgeBoardState.fromJson(Map<String, dynamic> json) {
-    final rowsList = <CrystalBridgeRow>[];
-    final rawRows = json['rows'];
-    if (rawRows is List) {
-      for (final r in rawRows) {
-        if (r is Map) {
-          rowsList.add(
-              CrystalBridgeRow.fromJson(Map<String, dynamic>.from(r)));
-        }
-      }
-    }
-    final playersList = <CrystalBridgePlayer>[];
-    final rawPlayers = json['players'];
-    if (rawPlayers is List) {
-      for (final p in rawPlayers) {
-        if (p is Map) {
-          playersList.add(
-              CrystalBridgePlayer.fromJson(Map<String, dynamic>.from(p)));
-        }
-      }
-    }
-    final eventsList = <CrystalBridgeEvent>[];
-    final rawEvents = json['events'];
-    if (rawEvents is List) {
-      for (final e in rawEvents) {
-        if (e is Map) {
-          eventsList.add(
-              CrystalBridgeEvent.fromJson(Map<String, dynamic>.from(e)));
-        }
-      }
-    }
-    return CrystalBridgeBoardState(
-      playerCount: (json['playerCount'] as num?)?.toInt() ?? 2,
-      bridgeType:
-          CrystalBridgeTypeX.fromString(json['bridgeType'] as String?),
-      totalRows: (json['totalRows'] as num?)?.toInt() ?? 20,
-      teamMode:
-          CrystalBridgeTeamModeX.fromString(json['teamMode'] as String?),
-      turnSeconds: (json['turnSeconds'] as num?)?.toInt() ??
-          kCrystalBridgeDefaultTurnSeconds,
-      currentPlayerIdx:
-          (json['currentPlayerIdx'] as num?)?.toInt() ?? 0,
-      currentRow: (json['currentRow'] as num?)?.toInt() ?? 1,
-      phase: CrystalBridgePhaseX.fromString(json['phase'] as String?),
-      rows: rowsList,
-      players: playersList,
-      events: eventsList,
-      status: (json['status'] as String?) ?? 'in_progress',
-      winnerIdx: (json['winnerIdx'] as num?)?.toInt() ?? -1,
-      winningTeam: (json['winningTeam'] as num?)?.toInt() ?? -1,
-      matchStartTime: (json['matchStartTime'] as num?)?.toInt() ?? 0,
-    );
-  }
 }
 
 /// Pure-Dart engine — client-side validation + display helpers.

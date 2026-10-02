@@ -60,16 +60,6 @@ class MindMatchPlayerWire {
     this.leftAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final DateTime joinedAt;
-  final bool isReady;
-  final DateTime? leftAt;
-
-  bool get isActive => leftAt == null;
-
   factory MindMatchPlayerWire.fromJson(Map<String, dynamic> json) =>
       MindMatchPlayerWire(
         id: (json['id'] ?? '') as String,
@@ -83,6 +73,16 @@ class MindMatchPlayerWire {
             ? DateTime.tryParse(json['leftAt'] as String)
             : null,
       );
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final DateTime joinedAt;
+  final bool isReady;
+  final DateTime? leftAt;
+
+  bool get isActive => leftAt == null;
 }
 
 class MindMatchGame {
@@ -110,41 +110,6 @@ class MindMatchGame {
     this.categories = const ['everyday', 'fun', 'family', 'global'],
     this.familyQuestionsEnabled = true,
   });
-
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final MindMatchStatus status;
-  final int maxPlayers;
-  final DateTime createdAt;
-  final String? roomName;
-  final List<String> playerOrder;
-  final String? currentPlayerId;
-  final int currentTurnIndex;
-  final DateTime? turnEndsAt;
-  final MindMatchBoardState? boardState;
-  final List<String> winnerUserIds;
-  final String? endReason;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final bool spectatorsEnabled;
-
-  // Game-specific config
-  final int totalRounds;
-  final int answerSeconds;
-  final List<String> categories;
-  final bool familyQuestionsEnabled;
-
-  bool get isWaiting => status == MindMatchStatus.waiting;
-  bool get isInProgress => status == MindMatchStatus.inProgress;
-  bool get isCompleted => status == MindMatchStatus.completed;
-
-  int? get turnSecondsRemaining {
-    if (!isInProgress || turnEndsAt == null) return null;
-    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
-    return left < 0 ? 0 : left;
-  }
 
   factory MindMatchGame.fromJson(Map<String, dynamic> json) {
     final order = <String>[];
@@ -204,6 +169,41 @@ class MindMatchGame {
           (json['familyQuestionsEnabled'] as bool?) ?? true,
     );
   }
+
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final MindMatchStatus status;
+  final int maxPlayers;
+  final DateTime createdAt;
+  final String? roomName;
+  final List<String> playerOrder;
+  final String? currentPlayerId;
+  final int currentTurnIndex;
+  final DateTime? turnEndsAt;
+  final MindMatchBoardState? boardState;
+  final List<String> winnerUserIds;
+  final String? endReason;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final bool spectatorsEnabled;
+
+  // Game-specific config
+  final int totalRounds;
+  final int answerSeconds;
+  final List<String> categories;
+  final bool familyQuestionsEnabled;
+
+  bool get isWaiting => status == MindMatchStatus.waiting;
+  bool get isInProgress => status == MindMatchStatus.inProgress;
+  bool get isCompleted => status == MindMatchStatus.completed;
+
+  int? get turnSecondsRemaining {
+    if (!isInProgress || turnEndsAt == null) return null;
+    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
+    return left < 0 ? 0 : left;
+  }
 }
 
 /// One row from mind_match_answers (RLS limits to caller's own row).
@@ -217,13 +217,6 @@ class MindMatchAnswerWire {
     required this.submittedAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final int roundNumber;
-  final String answer;
-  final DateTime submittedAt;
-
   factory MindMatchAnswerWire.fromJson(Map<String, dynamic> json) =>
       MindMatchAnswerWire(
         id: (json['id'] ?? '') as String,
@@ -234,4 +227,11 @@ class MindMatchAnswerWire {
         submittedAt: DateTime.tryParse(json['submittedAt'] ?? '') ??
             DateTime.now(),
       );
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final int roundNumber;
+  final String answer;
+  final DateTime submittedAt;
 }

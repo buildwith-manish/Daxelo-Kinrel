@@ -758,7 +758,7 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
     // is heavy: BoxShadow + gradients + TextPainter calls per frame).
     // The physics engine itself still steps at 60fps for accuracy;
     // only the state.copyWith() + notifyListeners is throttled.
-    int _simTickNum = 0;
+    int simTickNum = 0;
     _simTimer = Timer.periodic(
       const Duration(milliseconds: 16),
       (_) {
@@ -787,13 +787,13 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
         // Throttle: emit state every other sim tick (~30fps). Phase
         // transitions / completion always emit immediately regardless
         // of tick parity so the post-match flow doesn't lag.
-        final shouldEmit = (_simTickNum & 1) == 0 ||
+        final shouldEmit = (simTickNum & 1) == 0 ||
             live.phase == StickmanHeistPhase.completed ||
             live.phase != state.liveState?.phase;
         if (shouldEmit) {
           state = state.copyWith(liveState: live);
         }
-        _simTickNum++;
+        simTickNum++;
         // If the sim says the match is over, stop the loops and let
         // the broadcast timer push the final state once (durably).
         if (live.phase == StickmanHeistPhase.completed) {

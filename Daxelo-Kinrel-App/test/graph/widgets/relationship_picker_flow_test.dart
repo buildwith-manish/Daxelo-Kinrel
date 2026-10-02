@@ -25,7 +25,7 @@ void main() {
       // Verify that we can construct a GraphPersonData for an unlinked person
       // — this is what the unlinked-members sheet does when passing the
       // selected person to showRelationshipPickerFlow.
-      final unlinkedPerson = GraphPersonData(
+      final unlinkedPerson = const GraphPersonData(
         id: 'unlinked-person-1',
         name: 'Yakshitha',
       );
@@ -61,9 +61,9 @@ void main() {
       // The showRelationshipPickerFlow function accepts an onComplete
       // callback that receives `true` when a relationship is created.
       // We verify the callback type is correct.
-      void Function(bool)? onComplete = (created) {
+      void onComplete(bool created) {
         expect(created, isA<bool>());
-      };
+      }
       expect(onComplete, isNotNull);
     });
   });

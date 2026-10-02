@@ -64,23 +64,6 @@ class ChitmatchGame {
     required this.createdAt,
   });
 
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final ChitmatchStatus status;
-  final int playerCount;
-  final int roundNumber;
-  final int roundTimerSeconds;
-  final DateTime? roundEndsAt;
-  final bool allPassesCollected;
-  final List<String>? winnerUserIds;
-  final List<String>? winnerNames;
-  final ChitmatchSetupPhase setupPhase;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final DateTime createdAt;
-
   factory ChitmatchGame.fromJson(Map<String, dynamic> json) => ChitmatchGame(
     id: json['id'] ?? '',
     familyId: json['familyId'] ?? '',
@@ -99,6 +82,23 @@ class ChitmatchGame {
     completedAt: json['completedAt'] != null ? DateTime.tryParse(json['completedAt']) : null,
     createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
   );
+
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final ChitmatchStatus status;
+  final int playerCount;
+  final int roundNumber;
+  final int roundTimerSeconds;
+  final DateTime? roundEndsAt;
+  final bool allPassesCollected;
+  final List<String>? winnerUserIds;
+  final List<String>? winnerNames;
+  final ChitmatchSetupPhase setupPhase;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final DateTime createdAt;
 
   bool get isWaiting => status == ChitmatchStatus.waiting;
   bool get isSetup => status == ChitmatchStatus.setup;
@@ -122,20 +122,6 @@ class ChitmatchPlayerModel {
     this.readyAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final int turnOrder;
-  final String? submittedWord;
-  final List<String> currentHand;
-  final int? selectedChitIndex;
-  final bool hasWon;
-  final DateTime joinedAt;
-  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
-  final bool isReady;
-  final DateTime? readyAt;
-
   factory ChitmatchPlayerModel.fromJson(Map<String, dynamic> json) => ChitmatchPlayerModel(
     id: json['id'] ?? '',
     gameId: json['gameId'] ?? '',
@@ -152,6 +138,20 @@ class ChitmatchPlayerModel {
         ? DateTime.tryParse(json['readyAt'])
         : null,
   );
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final int turnOrder;
+  final String? submittedWord;
+  final List<String> currentHand;
+  final int? selectedChitIndex;
+  final bool hasWon;
+  final DateTime joinedAt;
+  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
+  final bool isReady;
+  final DateTime? readyAt;
 }
 
 class ChitmatchPassRecord {
@@ -167,16 +167,6 @@ class ChitmatchPassRecord {
     required this.createdAt,
   });
 
-  final String id;
-  final String gameId;
-  final int roundNumber;
-  final String fromPlayerId;
-  final String fromPlayerName;
-  final String toPlayerId;
-  final String toPlayerName;
-  final String chitPassed;
-  final DateTime createdAt;
-
   factory ChitmatchPassRecord.fromJson(Map<String, dynamic> json) => ChitmatchPassRecord(
     id: json['id'] ?? '',
     gameId: json['gameId'] ?? '',
@@ -188,4 +178,14 @@ class ChitmatchPassRecord {
     chitPassed: json['chitPassed'] ?? '',
     createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
   );
+
+  final String id;
+  final String gameId;
+  final int roundNumber;
+  final String fromPlayerId;
+  final String fromPlayerName;
+  final String toPlayerId;
+  final String toPlayerName;
+  final String chitPassed;
+  final DateTime createdAt;
 }

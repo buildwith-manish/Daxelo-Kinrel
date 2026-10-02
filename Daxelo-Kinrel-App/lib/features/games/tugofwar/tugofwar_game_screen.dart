@@ -324,7 +324,7 @@ class _TopBar extends StatelessWidget {
                   child: Text(
                     game.roomName!,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.textDim,
@@ -561,12 +561,12 @@ class _TeamsPanel extends StatelessWidget {
               myUserId: myUserId,
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.sm),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.sm),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const SizedBox(height: 18),
+                SizedBox(height: 18),
                 Text(
                   'VS',
                   style: TextStyle(
@@ -656,12 +656,12 @@ class _TeamCard extends StatelessWidget {
                   ),
                 ),
               ),
-              KinrelIcon(KinrelIconData.users,
+              const KinrelIcon(KinrelIconData.users,
                   size: 11, color: KinrelColors.textDim),
               const SizedBox(width: 2),
               Text(
                 '${stats.size}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
@@ -704,7 +704,7 @@ class _TeamCard extends StatelessWidget {
                       p.userName.trim().isEmpty
                           ? '?'
                           : p.userName.trim()[0].toUpperCase(),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
@@ -745,7 +745,7 @@ class _TeamCard extends StatelessWidget {
                 child: Text(
                   '${stats.avgTaps.toStringAsFixed(0)} avg',
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -756,7 +756,7 @@ class _TeamCard extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 '${stats.tapRate(elapsed).toStringAsFixed(1)}/s',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 10,
                   color: KinrelColors.textDim,
@@ -775,7 +775,7 @@ class _TeamCard extends StatelessWidget {
                     child: Text(
                       '${topPuller.userName.split(' ').first} · ${topPuller.pullCount}',
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 9,
                         color: KinrelColors.textDim,
@@ -866,12 +866,12 @@ class _PullSection extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(color: KinrelColors.border),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.visibility_outlined,
+                  Icon(Icons.visibility_outlined,
                       size: 15, color: KinrelColors.textDim),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6),
                   Text(
                     'You\'re watching — cheer them on!',
                     style: TextStyle(
@@ -906,8 +906,8 @@ class _PullSection extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (state.isRateLimited)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
+            const Padding(
+              padding: EdgeInsets.only(bottom: 6),
               child: Text(
                 'Steady! Taps above 15/sec don\'t count',
                 style: TextStyle(
@@ -1049,7 +1049,7 @@ class _ResultsView extends ConsumerWidget {
         Center(
           child: Text(
             game.endReasonLabel,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
               color: KinrelColors.textDim,
@@ -1061,7 +1061,7 @@ class _ResultsView extends ConsumerWidget {
 
         // ── MVP trio ──
         if (state.players.isNotEmpty) ...[
-          Text(
+          const Text(
             'MOST VALUABLE PULLERS',
             style: TextStyle(
               fontFamily: KinrelTypography.monoFont,
@@ -1154,7 +1154,7 @@ class _WinnerBanner extends StatelessWidget {
                 ? 'Dead Heat!'
                 : '${winner!.label} Wins!',
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 26,
               fontWeight: FontWeight.w900,
@@ -1289,7 +1289,7 @@ class _MvpCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             title,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 8,
               fontWeight: FontWeight.w700,
@@ -1301,7 +1301,7 @@ class _MvpCard extends StatelessWidget {
           Text(
             player.userName.split(' ').first,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
               fontWeight: FontWeight.w700,
@@ -1341,7 +1341,7 @@ class _TeamBreakdown extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'TEAM BREAKDOWN',
             style: TextStyle(
               fontFamily: KinrelTypography.monoFont,
@@ -1457,7 +1457,7 @@ class _TeamRows extends StatelessWidget {
                     child: Text(
                       '${p.pullCount} · ${total == 0 ? 0 : (p.pullCount * 100 / total).round()}%',
                       textAlign: TextAlign.right,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 10,
                         color: KinrelColors.textDim,
@@ -1553,7 +1553,7 @@ class _RematchRow extends ConsumerWidget {
                   color: iWon ? KinrelColors.gold : KinrelColors.textDim,
                 ),
                 const SizedBox(width: 6),
-                Expanded(
+                const Expanded(
                   child: Text(
                     'Waiting for the host to set up the rematch',
                     style: TextStyle(
@@ -1578,7 +1578,7 @@ class _RematchRow extends ConsumerWidget {
           label: const Text('Back to Games'),
           style: OutlinedButton.styleFrom(
             foregroundColor: KinrelColors.textDim,
-            side: BorderSide(color: KinrelColors.border),
+            side: const BorderSide(color: KinrelColors.border),
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(KinrelRadius.md),
@@ -1620,7 +1620,7 @@ class _RematchButton extends StatelessWidget {
           ),
           boxShadow: primary
               ? [
-                  BoxShadow(
+                  const BoxShadow(
                     color: KinrelColors.orangeGlow,
                     blurRadius: 14,
                   ),

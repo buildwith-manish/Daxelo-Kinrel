@@ -79,7 +79,7 @@ void main() {
   });
 
   group('P10.1 FamilyPlace.isValidAt', () {
-    final base = FamilyPlace(
+    final base = const FamilyPlace(
       id: 'p1',
       familyId: 'f1',
       name: 'Test Place',
@@ -177,7 +177,7 @@ void main() {
 
   group('P10.1 FamilyPlace equality', () {
     test('two places with same id are equal', () {
-      final a = FamilyPlace(
+      final a = const FamilyPlace(
         id: 'same',
         familyId: 'f',
         name: 'A',
@@ -185,7 +185,7 @@ void main() {
         lat: 0,
         lng: 0,
       );
-      final b = FamilyPlace(
+      final b = const FamilyPlace(
         id: 'same',
         familyId: 'other',
         name: 'B',

@@ -77,7 +77,7 @@ void main() {
     });
 
     test('toJson round-trips', () {
-      final g = PBv1HistoryGuess(guessValue: 100, distance: 5);
+      final g = const PBv1HistoryGuess(guessValue: 100, distance: 5);
       final back = PBv1HistoryGuess.fromJson(g.toJson());
       expect(back.guessValue, 100);
       expect(back.distance, 5);
@@ -357,7 +357,7 @@ void main() {
     });
 
     test('toJson round-trips through fromJson', () {
-      final e = PBv1LeaderboardEntry(
+      final e = const PBv1LeaderboardEntry(
         userId: 'u-4',
         currentStreak: 6,
         bestStreak: 12,
@@ -444,10 +444,10 @@ void main() {
     });
 
     test('leaderboard survives toJson → fromJson round-trip', () {
-      final original = PBv1History(
-        streak: const PBv1Streak(currentStreak: 3, bestStreak: 7),
-        rounds: const [],
-        leaderboard: const [
+      final original = const PBv1History(
+        streak: PBv1Streak(currentStreak: 3, bestStreak: 7),
+        rounds: [],
+        leaderboard: [
           PBv1LeaderboardEntry(
             userId: 'u-1',
             currentStreak: 5,

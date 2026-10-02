@@ -54,12 +54,12 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen>
       backgroundColor: KinrelColors.darkBackground,
       body: communityAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(color: _cOrange)),
-        error: (e, _) => Center(
+        error: (e, _) => const Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.error_outline_rounded, size: 48, color: _cTextDim),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Text('Failed to load community', style: TextStyle(color: _cTextSecondary)),
             ],
           ),
@@ -76,7 +76,7 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen>
                   flexibleSpace: FlexibleSpaceBar(
                     title: Text(
                       community.name,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -112,7 +112,7 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen>
                                   ? Center(
                                       child: Text(
                                         community.name.substring(0, 1).toUpperCase(),
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           color: _cOrange,
                                           fontSize: 28,
                                           fontWeight: FontWeight.w700,
@@ -136,8 +136,8 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen>
                       unselectedLabelColor: _cTextSecondary,
                       indicatorColor: _cOrange,
                       tabs: [
-                        Tab(text: 'Posts'),
-                        Tab(text: 'Events'),
+                        const Tab(text: 'Posts'),
+                        const Tab(text: 'Events'),
                       ],
                     ),
                   ),
@@ -169,11 +169,11 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen>
         color: _cCard,
         child: Row(
           children: [
-            Icon(Icons.check_circle_rounded, color: Colors.green, size: 20),
+            const Icon(Icons.check_circle_rounded, color: Colors.green, size: 20),
             const SizedBox(width: 8),
             Text(
               'Joined as ${community.myRole ?? 'member'}',
-              style: TextStyle(color: _cTextSecondary, fontSize: 14),
+              style: const TextStyle(color: _cTextSecondary, fontSize: 14),
             ),
             const Spacer(),
             TextButton(
@@ -181,8 +181,8 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen>
                   ? null
                   : () => _leaveCommunity(community.id),
               child: actionState.isLeaving
-                  ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.error))
-                  : Text('Leave', style: TextStyle(color: KinrelColors.error)),
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.error))
+                  : const Text('Leave', style: TextStyle(color: KinrelColors.error)),
             ),
           ],
         ),
@@ -203,10 +203,10 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen>
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           child: actionState.isJoining
-              ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
               : Text(
                   community.isPublic ? 'Join Community' : 'Request to Join',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
         ),
       ),
@@ -272,19 +272,19 @@ class _PostsTab extends ConsumerWidget {
 
     return postsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator(color: _cOrange)),
-      error: (e, _) => Center(
+      error: (e, _) => const Center(
         child: Text('Failed to load posts', style: TextStyle(color: _cTextSecondary)),
       ),
       data: (posts) {
         if (posts.isEmpty) {
-          return Center(
+          return const Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.article_outlined, size: 48, color: _cTextDim),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Text('No posts yet', style: TextStyle(color: _cTextSecondary)),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Text('Be the first to start a discussion!', style: TextStyle(color: _cTextDim, fontSize: 13)),
               ],
             ),
@@ -323,7 +323,7 @@ class _PostCard extends StatelessWidget {
           if (post.title != null) ...[
             Text(
               post.title!,
-              style: TextStyle(
+              style: const TextStyle(
                 color: _cTextPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -333,7 +333,7 @@ class _PostCard extends StatelessWidget {
           ],
           Text(
             post.body,
-            style: TextStyle(color: _cTextSecondary, fontSize: 14, height: 1.5),
+            style: const TextStyle(color: _cTextSecondary, fontSize: 14, height: 1.5),
             maxLines: 4,
             overflow: TextOverflow.ellipsis,
           ),
@@ -348,17 +348,17 @@ class _PostCard extends StatelessWidget {
                 ),
                 child: Text(
                   post.type.toUpperCase(),
-                  style: TextStyle(color: _cOrange, fontSize: 10, fontWeight: FontWeight.w600),
+                  style: const TextStyle(color: _cOrange, fontSize: 10, fontWeight: FontWeight.w600),
                 ),
               ),
               const SizedBox(width: 8),
               if (post.isPinned)
-                Icon(Icons.push_pin_rounded, size: 14, color: _cOrange),
+                const Icon(Icons.push_pin_rounded, size: 14, color: _cOrange),
               const Spacer(),
               if (post.createdAt != null)
                 Text(
                   _timeAgo(post.createdAt!),
-                  style: TextStyle(color: _cTextDim, fontSize: 12),
+                  style: const TextStyle(color: _cTextDim, fontSize: 12),
                 ),
             ],
           ),
@@ -391,17 +391,17 @@ class _EventsTab extends ConsumerWidget {
 
     return eventsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator(color: _cOrange)),
-      error: (e, _) => Center(
+      error: (e, _) => const Center(
         child: Text('Failed to load events', style: TextStyle(color: _cTextSecondary)),
       ),
       data: (events) {
         if (events.isEmpty) {
-          return Center(
+          return const Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.event_outlined, size: 48, color: _cTextDim),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Text('No events yet', style: TextStyle(color: _cTextSecondary)),
               ],
             ),
@@ -443,7 +443,7 @@ class _EventCard extends ConsumerWidget {
         children: [
           Text(
             event.title,
-            style: TextStyle(
+            style: const TextStyle(
               color: _cTextPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -453,7 +453,7 @@ class _EventCard extends ConsumerWidget {
             const SizedBox(height: 8),
             Text(
               event.description!,
-              style: TextStyle(color: _cTextSecondary, fontSize: 14),
+              style: const TextStyle(color: _cTextSecondary, fontSize: 14),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -462,21 +462,21 @@ class _EventCard extends ConsumerWidget {
           Row(
             children: [
               if (event.eventDate != null) ...[
-                Icon(Icons.calendar_today_rounded, size: 14, color: _cOrange),
+                const Icon(Icons.calendar_today_rounded, size: 14, color: _cOrange),
                 const SizedBox(width: 4),
                 Text(
                   _formatDate(event.eventDate!),
-                  style: TextStyle(color: _cTextSecondary, fontSize: 13),
+                  style: const TextStyle(color: _cTextSecondary, fontSize: 13),
                 ),
               ],
               if (event.location != null) ...[
                 const SizedBox(width: 12),
-                Icon(Icons.location_on_rounded, size: 14, color: _cOrange),
+                const Icon(Icons.location_on_rounded, size: 14, color: _cOrange),
                 const SizedBox(width: 4),
                 Flexible(
                   child: Text(
                     event.location!,
-                    style: TextStyle(color: _cTextSecondary, fontSize: 13),
+                    style: const TextStyle(color: _cTextSecondary, fontSize: 13),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),

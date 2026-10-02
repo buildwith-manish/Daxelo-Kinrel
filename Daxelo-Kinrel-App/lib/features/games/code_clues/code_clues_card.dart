@@ -78,7 +78,7 @@ class _CodeCluesCardState extends ConsumerState<CodeCluesCard> {
                     children: [
                       Row(
                         children: [
-                          Expanded(
+                          const Expanded(
                             child: Text(
                               'Code Clues',
                               style: TextStyle(
@@ -98,7 +98,7 @@ class _CodeCluesCardState extends ConsumerState<CodeCluesCard> {
                               border: Border.all(
                                   color: accent.withValues(alpha: 0.4)),
                             ),
-                            child: Text(
+                            child: const Text(
                               '4–8',
                               style: TextStyle(
                                 fontFamily: KinrelTypography.monoFont,
@@ -111,7 +111,7 @@ class _CodeCluesCardState extends ConsumerState<CodeCluesCard> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      const Text(
                         'Word association · Teams',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
@@ -132,7 +132,7 @@ class _CodeCluesCardState extends ConsumerState<CodeCluesCard> {
                           ),
                         )
                       else
-                        Text(
+                        const Text(
                           'Codenames duel — give one-word clues, find your team\'s words. Avoid the assassin!',
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,

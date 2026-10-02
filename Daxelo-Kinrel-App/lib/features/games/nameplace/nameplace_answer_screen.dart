@@ -44,7 +44,9 @@ class _NameplaceAnswerScreenState extends ConsumerState<NameplaceAnswerScreen> {
   @override
   void dispose() {
     _tickTimer?.cancel();
-    for (final c in _controllers.values) c.dispose();
+    for (final c in _controllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -66,7 +68,7 @@ class _NameplaceAnswerScreenState extends ConsumerState<NameplaceAnswerScreen> {
     }
 
     if (game == null) {
-      return DKScaffold(backgroundColor: KinrelColors.darkSurface, body: const Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
+      return const DKScaffold(backgroundColor: KinrelColors.darkSurface, body: Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
     }
 
     final letter = game.currentLetter ?? '?';
@@ -94,7 +96,7 @@ class _NameplaceAnswerScreenState extends ConsumerState<NameplaceAnswerScreen> {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.close_rounded), onPressed: () { ref.read(nameplaceProvider(widget.familyId).notifier).leaveGame(); if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
-        title: Text('Round ${game.currentRound}/${game.totalRounds}', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: Text('Round ${game.currentRound}/${game.totalRounds}', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),
       body: iHaveSubmitted
@@ -103,7 +105,7 @@ class _NameplaceAnswerScreenState extends ConsumerState<NameplaceAnswerScreen> {
           // Letter + timer
           Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
             Column(children: [
-              Text('LETTER', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
+              const Text('LETTER', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
               const SizedBox(height: 4),
               Container(width: 72, height: 72,
                 decoration: BoxDecoration(
@@ -121,9 +123,9 @@ class _NameplaceAnswerScreenState extends ConsumerState<NameplaceAnswerScreen> {
               Text('${secondsRemaining}s', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 14, fontWeight: FontWeight.w700, color: timerColor)),
             ])),
             Column(children: [
-              Text('SUBMITTED', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
+              const Text('SUBMITTED', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
               const SizedBox(height: 4),
-              Text('${state.players.where((p) => p.hasSubmitted).length}/${state.players.length}', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 20, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
+              Text('${state.players.where((p) => p.hasSubmitted).length}/${state.players.length}', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 20, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
             ]),
           ]),
           const SizedBox(height: KinrelSpacing.xl),
@@ -142,14 +144,14 @@ class _NameplaceAnswerScreenState extends ConsumerState<NameplaceAnswerScreen> {
               const SizedBox(width: KinrelSpacing.sm),
               Expanded(child: TextField(
                 controller: _controllerFor(cat),
-                style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 15, color: KinrelColors.textWhite),
+                style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 15, color: KinrelColors.textWhite),
                 decoration: InputDecoration(
                   hintText: '$cat starting with $letter...',
-                  hintStyle: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim),
+                  hintStyle: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim),
                   filled: true, fillColor: KinrelColors.darkCard,
                   isDense: true,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: KinrelColors.border)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: KinrelColors.border)),
                   focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: catAccent, width: 2)),
                 ),
                 onChanged: (v) => ref.read(nameplaceProvider(widget.familyId).notifier).updateAnswer(cat, v),
@@ -158,7 +160,7 @@ class _NameplaceAnswerScreenState extends ConsumerState<NameplaceAnswerScreen> {
               GestureDetector(
                 onTap: () { _controllerFor(cat).text = '-'; ref.read(nameplaceProvider(widget.familyId).notifier).updateAnswer(cat, '-'); GameMotionTokens.tap(); },
                 child: Container(width: 36, height: 36, decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(8), border: Border.all(color: KinrelColors.border)),
-                  child: Center(child: Text('-', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: KinrelColors.textDim))),
+                  child: const Center(child: Text('-', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: KinrelColors.textDim))),
                 ),
               ),
             ]),
@@ -177,11 +179,11 @@ class _NameplaceAnswerScreenState extends ConsumerState<NameplaceAnswerScreen> {
 
   Widget _submittedView(state) {
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Icon(Icons.check_circle, size: 48, color: KinrelColors.success),
+      const Icon(Icons.check_circle, size: 48, color: KinrelColors.success),
       const SizedBox(height: KinrelSpacing.md),
-      Text('Answers submitted!', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
+      const Text('Answers submitted!', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
       const SizedBox(height: 4),
-      Text('Waiting for others...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
+      const Text('Waiting for others...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
       const SizedBox(height: KinrelSpacing.lg),
       ...state.players.map((p) => Padding(
         padding: const EdgeInsets.only(bottom: 4),

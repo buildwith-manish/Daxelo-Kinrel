@@ -52,6 +52,26 @@ class PlayWithSuggestion {
     this.lastPlayedTogetherAt,
   });
 
+  factory PlayWithSuggestion.fromJson(Map<String, dynamic> json) {
+    final rawGameTable = json['last_shared_game_id'] as String?;
+    // Map the Supabase game table back to a catalog gameId so we can route
+    // into the right lobby. Falls back to null when no shared history.
+    final catalogEntry = gameByTable(rawGameTable);
+    return PlayWithSuggestion(
+      userId: (json['user_id'] as String?) ?? '',
+      userName: (json['user_name'] as String?) ?? 'Family Member',
+      avatarUrl: json['avatar_url'] as String?,
+      isOnline: json['is_online'] as bool? ?? false,
+      sharedGamesCount: (json['shared_games_count'] as num?)?.toInt() ?? 0,
+      lastSharedGameId: catalogEntry?.gameId,
+      lastSharedGameName: json['last_shared_game_name'] as String?,
+      lastSharedGameIcon: json['last_shared_game_icon'] as String?,
+      lastPlayedTogetherAt: json['last_played_together_at'] == null
+          ? null
+          : DateTime.tryParse(json['last_played_together_at'].toString()),
+    );
+  }
+
   final String userId;
   final String userName;
   final String? avatarUrl;
@@ -76,26 +96,6 @@ class PlayWithSuggestion {
   /// only when the shared-games count itself is zero; the no-last-game case
   /// falls through to the "Played N games together" subtext.
   bool get isNew => sharedGamesCount == 0;
-
-  factory PlayWithSuggestion.fromJson(Map<String, dynamic> json) {
-    final rawGameTable = json['last_shared_game_id'] as String?;
-    // Map the Supabase game table back to a catalog gameId so we can route
-    // into the right lobby. Falls back to null when no shared history.
-    final catalogEntry = gameByTable(rawGameTable);
-    return PlayWithSuggestion(
-      userId: (json['user_id'] as String?) ?? '',
-      userName: (json['user_name'] as String?) ?? 'Family Member',
-      avatarUrl: json['avatar_url'] as String?,
-      isOnline: json['is_online'] as bool? ?? false,
-      sharedGamesCount: (json['shared_games_count'] as num?)?.toInt() ?? 0,
-      lastSharedGameId: catalogEntry?.gameId,
-      lastSharedGameName: json['last_shared_game_name'] as String?,
-      lastSharedGameIcon: json['last_shared_game_icon'] as String?,
-      lastPlayedTogetherAt: json['last_played_together_at'] == null
-          ? null
-          : DateTime.tryParse(json['last_played_together_at'].toString()),
-    );
-  }
 }
 
 /// The lightest/shortest game in the catalog — used as the default

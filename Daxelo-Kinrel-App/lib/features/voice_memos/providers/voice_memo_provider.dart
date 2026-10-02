@@ -50,7 +50,7 @@ class VoiceMemoController extends StateNotifier<VoiceMemoState> {
 
   /// Starts recording.
   Future<void> startRecording() async {
-    state = VoiceMemoState(isRecording: true);
+    state = const VoiceMemoState(isRecording: true);
     // TODO: Wire to record package when dependency is approved.
     // final recorder = AudioRecorder();
     // await recorder.start(RecordConfig(), path: path);

@@ -34,11 +34,11 @@ class _TttCardState extends ConsumerState<TttCard> {
             Container(width: 36, height: 36, decoration: BoxDecoration(shape: BoxShape.circle, color: accent.withValues(alpha: 0.2)),
               child: const Icon(Icons.grid_3x3, color: accent, size: 20)),
             const SizedBox(width: 12),
-            Expanded(child: Text('Tic-Tac-Toe', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
+            const Expanded(child: Text('Tic-Tac-Toe', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
           ]),
           const SizedBox(height: 10),
           Text(dlState.status != GameDownloadStatus.downloaded ? 'Download in Games hub to play' : 'Classic 3×3 — best of N rounds!',
-            style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
+            style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
         ])),
       )),
     );

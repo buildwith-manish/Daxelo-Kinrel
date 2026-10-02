@@ -93,7 +93,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            const Text(
               'Share this code',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -105,7 +105,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
             const SizedBox(height: KinrelSpacing.md),
             Text(
               code,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 40,
                 fontWeight: FontWeight.w700,
@@ -114,7 +114,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
               ),
             ),
             const SizedBox(height: KinrelSpacing.md),
-            Text(
+            const Text(
               'Family members can join from the Games Hub.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -180,7 +180,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
         title: hasRound
-            ? Text(
+            ? const Text(
                 'Freeze & Dash',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
@@ -441,7 +441,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
         children: [
           Text(
             'Starting in $seconds…',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 22,
               fontWeight: FontWeight.w700,

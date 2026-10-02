@@ -48,40 +48,6 @@ class CarromGame {
     this.autoCloseDeadline,
   });
 
-  final String id;
-  final String familyId;
-  final String playerOneId;
-  final String playerOneName;
-
-  /// Player Two's user id — EMPTY while the room is waiting for an
-  /// opponent to join (Create Room flow: the host creates the room
-  /// first, the first family member to join takes this slot).
-  final String playerTwoId;
-  final String playerTwoName;
-  final String currentTurnPlayerId;
-  final CarromStatus status;
-  final CarromCoinType playerOneColor;
-  final CarromCoinType playerTwoColor;
-  final List<CarromCoin> boardState;
-  final double strikerX;
-  final double strikerY;
-  final int playerOneScore;
-  final int playerTwoScore;
-  final CarromQueenStatus queenStatus;
-  final String? queenPottedBy;
-  final String? winnerId;
-  final String? winnerName;
-  final Map<String, dynamic>? lastTurnSummary;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final DateTime createdAt;
-
-  /// Room-framework columns (Create Room flow).
-  final String? hostUserId;
-  final String? hostUserName;
-  final bool spectatorsEnabled;
-  final DateTime? autoCloseDeadline;
-
   factory CarromGame.fromJson(Map<String, dynamic> json) => CarromGame(
     id: json['id'] ?? '',
     familyId: json['familyId'] ?? '',
@@ -122,6 +88,40 @@ class CarromGame {
         ? DateTime.tryParse(json['autoCloseDeadline'] as String)
         : null,
   );
+
+  final String id;
+  final String familyId;
+  final String playerOneId;
+  final String playerOneName;
+
+  /// Player Two's user id — EMPTY while the room is waiting for an
+  /// opponent to join (Create Room flow: the host creates the room
+  /// first, the first family member to join takes this slot).
+  final String playerTwoId;
+  final String playerTwoName;
+  final String currentTurnPlayerId;
+  final CarromStatus status;
+  final CarromCoinType playerOneColor;
+  final CarromCoinType playerTwoColor;
+  final List<CarromCoin> boardState;
+  final double strikerX;
+  final double strikerY;
+  final int playerOneScore;
+  final int playerTwoScore;
+  final CarromQueenStatus queenStatus;
+  final String? queenPottedBy;
+  final String? winnerId;
+  final String? winnerName;
+  final Map<String, dynamic>? lastTurnSummary;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final DateTime createdAt;
+
+  /// Room-framework columns (Create Room flow).
+  final String? hostUserId;
+  final String? hostUserName;
+  final bool spectatorsEnabled;
+  final DateTime? autoCloseDeadline;
 
   bool get isWaiting => status == CarromStatus.waiting;
   bool get isInProgress => status == CarromStatus.inProgress;
@@ -166,23 +166,6 @@ class CarromTurnRecord {
     required this.createdAt,
   });
 
-  final String id;
-  final String gameId;
-  final String playerId;
-  final String playerName;
-  final double strikerStartX;
-  final double strikerStartY;
-  final double angle;
-  final double force;
-  final List<String> pottedCoins;
-  final bool wasFoul;
-  final String? foulReason;
-  final bool extraTurn;
-  final bool queenPotted;
-  final bool queenCovered;
-  final int turnNumber;
-  final DateTime createdAt;
-
   factory CarromTurnRecord.fromJson(Map<String, dynamic> json) =>
       CarromTurnRecord(
         id: json['id'] ?? '',
@@ -205,4 +188,21 @@ class CarromTurnRecord {
         createdAt:
             DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
       );
+
+  final String id;
+  final String gameId;
+  final String playerId;
+  final String playerName;
+  final double strikerStartX;
+  final double strikerStartY;
+  final double angle;
+  final double force;
+  final List<String> pottedCoins;
+  final bool wasFoul;
+  final String? foulReason;
+  final bool extraTurn;
+  final bool queenPotted;
+  final bool queenCovered;
+  final int turnNumber;
+  final DateTime createdAt;
 }

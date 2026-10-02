@@ -60,16 +60,6 @@ class WordForgePlayerWire {
     this.leftAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final DateTime joinedAt;
-  final bool isReady;
-  final DateTime? leftAt;
-
-  bool get isActive => leftAt == null;
-
   factory WordForgePlayerWire.fromJson(Map<String, dynamic> json) =>
       WordForgePlayerWire(
         id: (json['id'] ?? '') as String,
@@ -83,6 +73,16 @@ class WordForgePlayerWire {
             ? DateTime.tryParse(json['leftAt'] as String)
             : null,
       );
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final DateTime joinedAt;
+  final bool isReady;
+  final DateTime? leftAt;
+
+  bool get isActive => leftAt == null;
 }
 
 class WordForgeGame {
@@ -108,39 +108,6 @@ class WordForgeGame {
     this.totalRounds = 10,
     this.answerSeconds = 60,
   });
-
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final WordForgeStatus status;
-  final int maxPlayers;
-  final DateTime createdAt;
-  final String? roomName;
-  final List<String> playerOrder;
-  final String? currentPlayerId;
-  final int currentTurnIndex;
-  final DateTime? turnEndsAt;
-  final WordForgeBoardState? boardState;
-  final List<String> winnerUserIds;
-  final String? endReason;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final bool spectatorsEnabled;
-
-  // Game-specific config
-  final int totalRounds;
-  final int answerSeconds;
-
-  bool get isWaiting => status == WordForgeStatus.waiting;
-  bool get isInProgress => status == WordForgeStatus.inProgress;
-  bool get isCompleted => status == WordForgeStatus.completed;
-
-  int? get turnSecondsRemaining {
-    if (!isInProgress || turnEndsAt == null) return null;
-    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
-    return left < 0 ? 0 : left;
-  }
 
   factory WordForgeGame.fromJson(Map<String, dynamic> json) {
     final order = <String>[];
@@ -189,6 +156,39 @@ class WordForgeGame {
           (json['answerSeconds'] as num?)?.toInt() ?? 60,
     );
   }
+
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final WordForgeStatus status;
+  final int maxPlayers;
+  final DateTime createdAt;
+  final String? roomName;
+  final List<String> playerOrder;
+  final String? currentPlayerId;
+  final int currentTurnIndex;
+  final DateTime? turnEndsAt;
+  final WordForgeBoardState? boardState;
+  final List<String> winnerUserIds;
+  final String? endReason;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final bool spectatorsEnabled;
+
+  // Game-specific config
+  final int totalRounds;
+  final int answerSeconds;
+
+  bool get isWaiting => status == WordForgeStatus.waiting;
+  bool get isInProgress => status == WordForgeStatus.inProgress;
+  bool get isCompleted => status == WordForgeStatus.completed;
+
+  int? get turnSecondsRemaining {
+    if (!isInProgress || turnEndsAt == null) return null;
+    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
+    return left < 0 ? 0 : left;
+  }
 }
 
 /// One row from word_forge_definitions (RLS limits to caller's own row
@@ -204,14 +204,6 @@ class WordForgeDefinitionWire {
     required this.submittedAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final int roundNumber;
-  final String definition;
-  final bool isReal;
-  final DateTime submittedAt;
-
   factory WordForgeDefinitionWire.fromJson(Map<String, dynamic> json) =>
       WordForgeDefinitionWire(
         id: (json['id'] ?? '') as String,
@@ -223,6 +215,14 @@ class WordForgeDefinitionWire {
         submittedAt: DateTime.tryParse(json['submittedAt'] ?? '') ??
             DateTime.now(),
       );
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final int roundNumber;
+  final String definition;
+  final bool isReal;
+  final DateTime submittedAt;
 }
 
 /// One row from word_forge_votes (RLS limits to caller's own row until
@@ -237,13 +237,6 @@ class WordForgeVoteWire {
     required this.votedAt,
   });
 
-  final String id;
-  final String gameId;
-  final String voterUserId;
-  final int roundNumber;
-  final String votedForUserId;
-  final DateTime votedAt;
-
   factory WordForgeVoteWire.fromJson(Map<String, dynamic> json) =>
       WordForgeVoteWire(
         id: (json['id'] ?? '') as String,
@@ -254,4 +247,11 @@ class WordForgeVoteWire {
         votedAt: DateTime.tryParse(json['votedAt'] ?? '') ??
             DateTime.now(),
       );
+
+  final String id;
+  final String gameId;
+  final String voterUserId;
+  final int roundNumber;
+  final String votedForUserId;
+  final DateTime votedAt;
 }

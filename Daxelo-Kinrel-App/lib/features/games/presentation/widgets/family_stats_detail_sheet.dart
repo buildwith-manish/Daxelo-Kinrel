@@ -69,7 +69,7 @@ class FamilyStatsDetailSheet extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
             child: Row(
               children: [
-                Expanded(
+                const Expanded(
                   child: Text(
                     'Your family gaming at a glance',
                     style: TextStyle(
@@ -231,7 +231,7 @@ class _CupStandingCard extends StatelessWidget {
                   season.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 14.5,
                     fontWeight: FontWeight.w800,
@@ -243,7 +243,7 @@ class _CupStandingCard extends StatelessWidget {
                   myPoints > 0
                       ? '${season.daysRemaining}d left · you\'re #${myRank > 0 ? myRank : '—'} with $myPoints pts'
                       : '${season.daysRemaining}d left · play a match to earn Cup points',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11.5,
                     color: KinrelColors.textSilver,
@@ -280,7 +280,7 @@ class _ChallengeCarousel extends StatelessWidget {
     final challenges =
         dashboard.challenges.where((c) => !c.isCompleted).take(6).toList();
     if (challenges.isEmpty) {
-      return GamingEmptyCard(
+      return const GamingEmptyCard(
         emoji: '✅',
         title: 'All challenges complete!',
         message:
@@ -316,7 +316,7 @@ class _ChallengeCarousel extends StatelessWidget {
                     color: color,
                     child: Text(
                       '${c.progress}/${c.target}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -342,7 +342,7 @@ class _ChallengeCarousel extends StatelessWidget {
                                 c.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: KinrelTypography.bodyFont,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
@@ -357,7 +357,7 @@ class _ChallengeCarousel extends StatelessWidget {
                           c.description,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 10.5,
                             height: 1.3,
@@ -447,7 +447,7 @@ class _QuickLinkChip extends StatelessWidget {
       avatar: Icon(icon, size: 16, color: KinrelColors.orange),
       label: Text(
         label,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 12,
           fontWeight: FontWeight.w600,

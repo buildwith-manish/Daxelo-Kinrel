@@ -94,14 +94,14 @@ class _AddMemberOptionsSheet extends ConsumerWidget {
             ),
 
             // Title
-            Padding(
-              padding: const EdgeInsets.symmetric(
+            const Padding(
+              padding: EdgeInsets.symmetric(
                   horizontal: KinrelSpacing.base, vertical: KinrelSpacing.sm),
               child: Row(
                 children: [
-                  const Icon(Icons.person_add,
+                  Icon(Icons.person_add,
                       color: KinrelColors.orange, size: 24),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Text(
                     'Add Family Member',
                     style: TextStyle(
@@ -247,7 +247,7 @@ class _OptionTile extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -257,7 +257,7 @@ class _OptionTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
                         color: KinrelColors.textDim,
@@ -267,7 +267,7 @@ class _OptionTile extends StatelessWidget {
                 ),
               ),
               // Chevron
-              Icon(Icons.chevron_right,
+              const Icon(Icons.chevron_right,
                   color: KinrelColors.textDim, size: 24),
             ],
           ),

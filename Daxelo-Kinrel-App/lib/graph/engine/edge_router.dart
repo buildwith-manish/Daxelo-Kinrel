@@ -64,6 +64,14 @@ enum MidpointType {
 
 /// Complete styling information for a relationship edge.
 class EdgeStyle {
+
+  const EdgeStyle({
+    this.lineStyle = EdgeLineStyle.solid,
+    this.color = KinrelColors.textSilver,
+    this.width = 1.5,
+    this.midpointType = MidpointType.none,
+    this.opacity = 1.0,
+  });
   /// Line style (solid, dashed, or dotted).
   final EdgeLineStyle lineStyle;
 
@@ -78,14 +86,6 @@ class EdgeStyle {
 
   /// Opacity multiplier (0.0–1.0).
   final double opacity;
-
-  const EdgeStyle({
-    this.lineStyle = EdgeLineStyle.solid,
-    this.color = KinrelColors.textSilver,
-    this.width = 1.5,
-    this.midpointType = MidpointType.none,
-    this.opacity = 1.0,
-  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -133,6 +133,14 @@ extension RelationshipCategoryMapper on RelationshipCategory {
 
 /// Configuration for the [EdgeRouter].
 class EdgeRouterConfig {
+
+  const EdgeRouterConfig({
+    this.childHorizontalOffset = 20.0,
+    this.siblingArcHeightFactor = 10.0,
+    this.siblingArcBaseHeight = 40.0,
+    this.bezierControlOffset = 0.5,
+    this.nodeSize = 56.0,
+  });
   /// Horizontal offset for multiple children from the same parent (dp).
   final double childHorizontalOffset;
 
@@ -154,14 +162,6 @@ class EdgeRouterConfig {
   /// boundary. 56.0 is the median value (tablet/phone landscape).
   /// Callers should pass the exact resolveSize() value when available.
   final double nodeSize;
-
-  const EdgeRouterConfig({
-    this.childHorizontalOffset = 20.0,
-    this.siblingArcHeightFactor = 10.0,
-    this.siblingArcBaseHeight = 40.0,
-    this.bezierControlOffset = 0.5,
-    this.nodeSize = 56.0,
-  });
 
   EdgeRouterConfig copyWith({
     double? childHorizontalOffset,
@@ -205,10 +205,10 @@ class EdgeRouterConfig {
 /// // style.midpointType → MidpointType.none
 /// ```
 class EdgeRouter {
-  EdgeRouterConfig _config;
 
   EdgeRouter({EdgeRouterConfig? config})
       : _config = config ?? const EdgeRouterConfig();
+  final EdgeRouterConfig _config;
 
   /// Current configuration.
   EdgeRouterConfig get config => _config;

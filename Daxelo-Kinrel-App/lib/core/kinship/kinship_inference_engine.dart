@@ -103,19 +103,19 @@ class KinshipInferenceEngine {
         candidates.add(InferredRelationship(
           key: 'mother',
           confidence: 0.85,
-          reason: '${personB.name} is ${ageDiff} years older (mother)',
+          reason: '${personB.name} is $ageDiff years older (mother)',
         ));
       } else if (genderB == 'male') {
         candidates.add(InferredRelationship(
           key: 'father',
           confidence: 0.85,
-          reason: '${personB.name} is ${ageDiff} years older (father)',
+          reason: '${personB.name} is $ageDiff years older (father)',
         ));
       } else {
         candidates.add(InferredRelationship(
           key: 'parent',
           confidence: 0.75,
-          reason: '${personB.name} is ${ageDiff} years older (parent)',
+          reason: '${personB.name} is $ageDiff years older (parent)',
         ));
       }
     }
@@ -150,19 +150,19 @@ class KinshipInferenceEngine {
       if (!sameGender && !aHasSpouse) {
         // Opposite gender, similar age, A has no spouse → likely spouse
         if (genderB == 'female') {
-          candidates.add(InferredRelationship(
+          candidates.add(const InferredRelationship(
             key: 'wife',
             confidence: 0.70,
             reason: 'Opposite gender, similar age, no existing spouse (wife)',
           ));
         } else if (genderB == 'male') {
-          candidates.add(InferredRelationship(
+          candidates.add(const InferredRelationship(
             key: 'husband',
             confidence: 0.70,
             reason: 'Opposite gender, similar age, no existing spouse (husband)',
           ));
         } else {
-          candidates.add(InferredRelationship(
+          candidates.add(const InferredRelationship(
             key: 'spouse',
             confidence: 0.60,
             reason: 'Opposite gender, similar age, no existing spouse',
@@ -188,7 +188,7 @@ class KinshipInferenceEngine {
               : 'Similar age (brother)',
         ));
       } else {
-        candidates.add(InferredRelationship(
+        candidates.add(const InferredRelationship(
           key: 'sibling',
           confidence: 0.50,
           reason: 'Similar age (sibling)',
@@ -199,13 +199,13 @@ class KinshipInferenceEngine {
     // ── RULE 3: Fill in missing parent if no age info ──
     if (ageDiff == null && !aHasFather) {
       if (genderB == 'female' && !aHasMother) {
-        candidates.add(InferredRelationship(
+        candidates.add(const InferredRelationship(
           key: 'mother',
           confidence: 0.40,
           reason: 'No mother assigned yet',
         ));
       } else if (genderB == 'male') {
-        candidates.add(InferredRelationship(
+        candidates.add(const InferredRelationship(
           key: 'father',
           confidence: 0.40,
           reason: 'No father assigned yet',
@@ -222,19 +222,19 @@ class KinshipInferenceEngine {
         !existingKeys.contains('husband') &&
         !existingKeys.contains('spouse')) {
       if (genderB == 'female') {
-        candidates.add(InferredRelationship(
+        candidates.add(const InferredRelationship(
           key: 'wife',
           confidence: 0.30,
           reason: 'Fallback (wife)',
         ));
       } else if (genderB == 'male') {
-        candidates.add(InferredRelationship(
+        candidates.add(const InferredRelationship(
           key: 'husband',
           confidence: 0.30,
           reason: 'Fallback (husband)',
         ));
       } else {
-        candidates.add(InferredRelationship(
+        candidates.add(const InferredRelationship(
           key: 'spouse',
           confidence: 0.25,
           reason: 'Fallback (spouse)',
@@ -247,19 +247,19 @@ class KinshipInferenceEngine {
         !existingKeys.contains('mother') &&
         !existingKeys.contains('parent')) {
       if (genderB == 'female') {
-        candidates.add(InferredRelationship(
+        candidates.add(const InferredRelationship(
           key: 'mother',
           confidence: 0.25,
           reason: 'Fallback (mother)',
         ));
       } else if (genderB == 'male') {
-        candidates.add(InferredRelationship(
+        candidates.add(const InferredRelationship(
           key: 'father',
           confidence: 0.25,
           reason: 'Fallback (father)',
         ));
       } else {
-        candidates.add(InferredRelationship(
+        candidates.add(const InferredRelationship(
           key: 'parent',
           confidence: 0.20,
           reason: 'Fallback (parent)',
@@ -272,19 +272,19 @@ class KinshipInferenceEngine {
         !existingKeys.contains('daughter') &&
         !existingKeys.contains('child')) {
       if (genderB == 'female') {
-        candidates.add(InferredRelationship(
+        candidates.add(const InferredRelationship(
           key: 'daughter',
           confidence: 0.25,
           reason: 'Fallback (daughter)',
         ));
       } else if (genderB == 'male') {
-        candidates.add(InferredRelationship(
+        candidates.add(const InferredRelationship(
           key: 'son',
           confidence: 0.25,
           reason: 'Fallback (son)',
         ));
       } else {
-        candidates.add(InferredRelationship(
+        candidates.add(const InferredRelationship(
           key: 'child',
           confidence: 0.20,
           reason: 'Fallback (child)',
@@ -297,19 +297,19 @@ class KinshipInferenceEngine {
         !existingKeys.contains('sister') &&
         !existingKeys.contains('sibling')) {
       if (genderB == 'female') {
-        candidates.add(InferredRelationship(
+        candidates.add(const InferredRelationship(
           key: 'sister',
           confidence: 0.25,
           reason: 'Fallback (sister)',
         ));
       } else if (genderB == 'male') {
-        candidates.add(InferredRelationship(
+        candidates.add(const InferredRelationship(
           key: 'brother',
           confidence: 0.25,
           reason: 'Fallback (brother)',
         ));
       } else {
-        candidates.add(InferredRelationship(
+        candidates.add(const InferredRelationship(
           key: 'sibling',
           confidence: 0.20,
           reason: 'Fallback (sibling)',

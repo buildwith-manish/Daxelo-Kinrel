@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:kinrel/core/database/app_database.dart';
 
 import '../isar_database.dart';
 
@@ -6,7 +7,7 @@ import '../isar_database.dart';
 /// Provides fine-grained cache invalidation to avoid stale data
 /// while minimizing unnecessary data refetches.
 class CacheInvalidation {
-  static get _db => IsarDatabase.instance;
+  static AppDatabase get _db => IsarDatabase.instance;
 
   /// Invalidate all cached data for a specific family.
   /// Called when a family, its members, or relationships are modified.
@@ -81,36 +82,5 @@ class CacheInvalidation {
     }
 
     debugPrint('🗑️ Invalidated API cache matching: $keyPattern');
-  }
-
-  /// Invalidate all cache entries older than the specified duration.
-  static Future<void> invalidateStaleEntries({
-    Duration familyTtl = const Duration(hours: 1),
-    Duration personTtl = const Duration(hours: 1),
-    Duration profileTtl = const Duration(minutes: 30),
-    Duration apiTtl = const Duration(minutes: 5),
-  }) async {
-    if (!IsarDatabase.isInitialized) return;
-
-    final now = DateTime.now();
-    int removedCount = 0;
-
-    // Check families
-    final families = await _db.getAllFamilies();
-    for (final f in families) {
-      final cachedAt = DateTime.tryParse(f.cachedAt);
-      if (cachedAt != null && now.difference(cachedAt) > familyTtl) {
-        await _db.deleteFamily(f.id);
-        removedCount++;
-      }
-    }
-
-    // Check persons
-    // Note: with the Drift schema, persons are stored by familyId
-    // Stale entry cleanup is handled by the API cache TTL
-
-    if (removedCount > 0) {
-      debugPrint('🗑️ Removed $removedCount stale cache entries');
-    }
   }
 }

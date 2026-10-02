@@ -79,7 +79,7 @@ class _BingoCardState extends ConsumerState<BingoCard> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
+                    const Expanded(
                       child: Text(
                         'Bingo',
                         style: TextStyle(
@@ -94,7 +94,7 @@ class _BingoCardState extends ConsumerState<BingoCard> {
                 ),
                 const SizedBox(height: 10),
                 if (dlState.status != GameDownloadStatus.downloaded)
-                  Text(
+                  const Text(
                     'Download in Games hub to play',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -103,7 +103,7 @@ class _BingoCardState extends ConsumerState<BingoCard> {
                     ),
                   )
                 else
-                  Text(
+                  const Text(
                     'Mark your 5×5 card — first to complete a line wins!',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,

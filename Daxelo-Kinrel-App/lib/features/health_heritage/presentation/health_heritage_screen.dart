@@ -181,10 +181,10 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
                 gradient: KinrelGradients.igniteGradient,
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
                 boxShadow: [
-                  BoxShadow(
+                  const BoxShadow(
                     color: KinrelColors.orangeGlow,
                     blurRadius: 12,
-                    offset: const Offset(0, 4),
+                    offset: Offset(0, 4),
                   ),
                 ],
               ),
@@ -385,7 +385,7 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
                   Container(
                     width: 32,
                     height: 32,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       gradient: KinrelGradients.igniteGradient,
                       shape: BoxShape.circle,
                       boxShadow: [
@@ -516,7 +516,7 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
 
   Widget _buildFAB() {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: KinrelGradients.igniteGradient,
         shape: BoxShape.circle,
         boxShadow: [
@@ -779,10 +779,10 @@ class _RiskScoreCard extends StatelessWidget {
                 end: Alignment.bottomRight,
               ),
               boxShadow: [
-                BoxShadow(
+                const BoxShadow(
                   color: KinrelColors.orangeGlow,
                   blurRadius: 20,
-                  offset: const Offset(0, 4),
+                  offset: Offset(0, 4),
                 ),
               ],
             ),
@@ -939,7 +939,7 @@ class _RiskRing extends StatelessWidget {
         child: Center(
           child: Text(
             '${percentage.round()}%',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 24,
               fontWeight: FontWeight.w800,
@@ -1024,7 +1024,7 @@ class _InsightsSection extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
           child: Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.lightbulb_outline_rounded,
                 size: 18,
                 color: KinrelColors.orange,
@@ -1205,7 +1205,7 @@ class _InheritancePatternSection extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
           child: Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.account_tree_rounded,
                 size: 18,
                 color: KinrelColors.orange,
@@ -1324,7 +1324,7 @@ class _InheritancePatternCard extends StatelessWidget {
                         ),
                         child: Center(
                           child: hasCondition
-                              ? Icon(
+                              ? const Icon(
                                   Icons.circle,
                                   size: 8,
                                   color: KinrelColors.orange,
@@ -1409,7 +1409,7 @@ class _CategoryBreakdown extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
           child: Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.category_rounded,
                 size: 18,
                 color: KinrelColors.orange,
@@ -1608,8 +1608,8 @@ class _ConditionCard extends StatelessWidget {
                             ),
                           ),
                           if (condition.isHereditary)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 6),
+                            const Padding(
+                              padding: EdgeInsets.only(left: 6),
                               child: Icon(
                                 Icons.biotech_rounded,
                                 size: 14,
@@ -1617,8 +1617,8 @@ class _ConditionCard extends StatelessWidget {
                               ),
                             ),
                           if (condition.isPrivate)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 4),
+                            const Padding(
+                              padding: EdgeInsets.only(left: 4),
                               child: Icon(
                                 Icons.lock_outline_rounded,
                                 size: 12,
@@ -1833,14 +1833,14 @@ class _GenerationConditionCard extends StatelessWidget {
                       ),
                     ),
                     if (condition.isHereditary)
-                      Icon(
+                      const Icon(
                         Icons.biotech_rounded,
                         size: 12,
                         color: KinrelColors.orange,
                       ),
                     if (condition.isPrivate)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 3),
+                      const Padding(
+                        padding: EdgeInsets.only(left: 3),
                         child: Icon(
                           Icons.lock_outline_rounded,
                           size: 10,
@@ -1954,7 +1954,7 @@ class _HealthTimelineEventCard extends StatelessWidget {
                             ),
                           ),
                           if (c.isHereditary)
-                            Icon(
+                            const Icon(
                               Icons.biotech_rounded,
                               size: 12,
                               color: KinrelColors.orange,
@@ -2149,9 +2149,9 @@ class _ConditionDetailSheet extends StatelessWidget {
                     color: KinrelColors.amber,
                   ),
                 if (condition.isHereditary)
-                  _DetailBadge(label: 'Hereditary', color: KinrelColors.orange),
+                  const _DetailBadge(label: 'Hereditary', color: KinrelColors.orange),
                 if (condition.isPrivate)
-                  _DetailBadge(label: 'Private', color: KinrelColors.textDim),
+                  const _DetailBadge(label: 'Private', color: KinrelColors.textDim),
                 _DetailBadge(
                   label: 'Gen ${condition.generation}',
                   color: KinrelColors.orange,
@@ -2326,10 +2326,10 @@ class _ConditionDetailSheet extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.check_circle_outline_rounded,
                         size: 14,
-                        color: const Color(0xFF22C55E),
+                        color: Color(0xFF22C55E),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -2506,7 +2506,7 @@ class _GeneticRiskCalculatorSheetState
                             _person2Id != null &&
                             _person1Id != _person2Id
                         ? KinrelGradients.igniteGradient
-                        : LinearGradient(
+                        : const LinearGradient(
                             colors: [
                               KinrelColors.darkElevated,
                               KinrelColors.darkElevated,
@@ -2708,7 +2708,7 @@ class _GeneticRiskCalculatorSheetState
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.arrow_right_rounded,
                     size: 16,
                     color: KinrelColors.orange,
@@ -2794,7 +2794,7 @@ class _MemberDropdown extends StatelessWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: const Color(0xFF3A3A4A)),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.person_outline_rounded,
                   size: 16,
                   color: KinrelColors.textDim,
@@ -2811,7 +2811,7 @@ class _MemberDropdown extends StatelessWidget {
                 ),
               ),
             ),
-            Icon(
+            const Icon(
               Icons.arrow_drop_down_rounded,
               color: KinrelColors.textSilver,
               size: 20,
@@ -2870,7 +2870,7 @@ class _MemberDropdown extends StatelessWidget {
                   ),
                 ),
                 trailing: m.id == selectedId
-                    ? Icon(
+                    ? const Icon(
                         Icons.check_circle,
                         color: KinrelColors.orange,
                         size: 20,
@@ -3221,7 +3221,7 @@ class _AddConditionSheetState extends ConsumerState<_AddConditionSheet> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.info_outline_rounded,
                         size: 14,
                         color: KinrelColors.orange,
@@ -3268,10 +3268,10 @@ class _AddConditionSheetState extends ConsumerState<_AddConditionSheet> {
                     gradient: KinrelGradients.igniteGradient,
                     borderRadius: BorderRadius.circular(KinrelRadius.md),
                     boxShadow: [
-                      BoxShadow(
+                      const BoxShadow(
                         color: KinrelColors.orangeGlow,
                         blurRadius: 12,
-                        offset: const Offset(0, 4),
+                        offset: Offset(0, 4),
                       ),
                     ],
                   ),

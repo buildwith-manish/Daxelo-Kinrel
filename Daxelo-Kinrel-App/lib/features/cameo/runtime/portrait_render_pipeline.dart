@@ -35,10 +35,9 @@ import 'cameo_runtime_scene.dart';
 ///   );
 class PortraitRenderPipeline {
   PortraitRenderPipeline({
-    required CameoRuntimeScene scene,
-    required CameoRenderCache cache,
-  }) : _scene = scene,
-       _cache = cache;
+    required this._scene,
+    required this._cache,
+  });
 
   final CameoRuntimeScene _scene;
   final CameoRenderCache _cache;

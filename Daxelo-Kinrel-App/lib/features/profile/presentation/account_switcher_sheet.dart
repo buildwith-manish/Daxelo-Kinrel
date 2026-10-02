@@ -235,7 +235,7 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
             child: Container(
               width: 40, height: 4,
               decoration: BoxDecoration(
-                color: theme.colorScheme.outline.withOpacity(0.3),
+                color: theme.colorScheme.outline.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -372,7 +372,7 @@ class _AccountTile extends StatelessWidget {
       leading: CircleAvatar(
         radius: 20,
         backgroundColor: isActive
-            ? KinrelColors.orange.withOpacity(0.15)
+            ? KinrelColors.orange.withValues(alpha: 0.15)
             : theme.colorScheme.surfaceContainerHighest,
         backgroundImage: account.avatarUrl != null && account.avatarUrl!.isNotEmpty
             ? NetworkImage(account.avatarUrl!)
@@ -409,7 +409,7 @@ class _AccountTile extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (isActive)
-                  Icon(Icons.check_circle, color: KinrelColors.orange, size: 20)
+                  const Icon(Icons.check_circle, color: KinrelColors.orange, size: 20)
                 else if (onRemove != null)
                   IconButton(
                     icon: const Icon(Icons.close, size: 18),

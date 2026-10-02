@@ -128,7 +128,7 @@ class _SecretHeistLobbyScreenState
                 state.game?.roomName?.isNotEmpty == true
                     ? state.game!.roomName!
                     : 'Secret Heist',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontWeight: FontWeight.w600,
                   color: KinrelColors.textWhite,
@@ -197,7 +197,7 @@ class _SecretHeistLobbyScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Share this code',
+            const Text('Share this code',
                 style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 18,
@@ -205,7 +205,7 @@ class _SecretHeistLobbyScreenState
                     color: KinrelColors.textWhite)),
             const SizedBox(height: KinrelSpacing.md),
             Text(code,
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 40,
                     fontWeight: FontWeight.w700,
@@ -215,7 +215,7 @@ class _SecretHeistLobbyScreenState
             Text(
               'Up to ${_maxPlayers - 1} members. Bluff, steal, outsmart!',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim),
@@ -241,7 +241,7 @@ class _SecretHeistLobbyScreenState
       title: 'Secret Heist',
       tagline: 'Bluff, steal, outsmart — hidden-role heist',
       facts: [
-        LobbyFact(icon: Icons.groups_2_outlined, label: '3–8 players'),
+        const LobbyFact(icon: Icons.groups_2_outlined, label: '3–8 players'),
         LobbyFact(
             icon: Icons.account_balance_outlined,
             label: '$_vaultSize vault'),
@@ -255,7 +255,7 @@ class _SecretHeistLobbyScreenState
             child: TextField(
               controller: _roomNameController,
               maxLength: 24,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: KinrelColors.textWhite),
@@ -272,7 +272,7 @@ class _SecretHeistLobbyScreenState
                     horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  borderSide: BorderSide(color: KinrelColors.border),
+                  borderSide: const BorderSide(color: KinrelColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
@@ -360,7 +360,7 @@ class _SecretHeistLobbyScreenState
             ),
             child: Row(
               children: [
-                Expanded(
+                const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -370,7 +370,7 @@ class _SecretHeistLobbyScreenState
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
                               color: KinrelColors.textWhite)),
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       Text(
                         'Unlocks Double Steal + Alarm Bait actions.',
                         style: TextStyle(
@@ -392,12 +392,12 @@ class _SecretHeistLobbyScreenState
         ],
       ),
       rules: [
-        LobbyRule('Every round, secretly choose: Steal, Protect, Spy, Trap, or Hack.'),
-        LobbyRule('Choices are revealed only after everyone locks in.'),
-        LobbyRule('Steal takes coins from the vault. Protect blocks steals.'),
-        LobbyRule('Trap catches thieves — they lose 10 coins. Hack can double, backfire, or trigger an alarm.'),
-        LobbyRule('Suspicion meter rises with aggressive play — others will notice.'),
-        LobbyRule('After all rounds, the player with the most coins wins!'),
+        const LobbyRule('Every round, secretly choose: Steal, Protect, Spy, Trap, or Hack.'),
+        const LobbyRule('Choices are revealed only after everyone locks in.'),
+        const LobbyRule('Steal takes coins from the vault. Protect blocks steals.'),
+        const LobbyRule('Trap catches thieves — they lose 10 coins. Hack can double, backfire, or trigger an alarm.'),
+        const LobbyRule('Suspicion meter rises with aggressive play — others will notice.'),
+        const LobbyRule('After all rounds, the player with the most coins wins!'),
       ],
       rulesFootnote:
           'Standard = 5 rounds. Extended = 10 rounds. Chaos Mode adds extra high-variance actions.',

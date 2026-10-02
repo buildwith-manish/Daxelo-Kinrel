@@ -45,6 +45,43 @@ class MemberDetailModel {
     this.notes = const [],
   });
 
+  /// Deserialize from JSON (Drift cache).
+  factory MemberDetailModel.fromJson(Map<String, dynamic> json) {
+    return MemberDetailModel(
+      memberId: json['memberId'] as String? ?? '',
+      name: json['name'] as String? ?? 'Unknown',
+      familyId: json['familyId'] as String? ?? '',
+      nickname: json['nickname'] as String?,
+      gender: json['gender'] as String?,
+      dateOfBirth: json['dateOfBirth'] as String?,
+      dateOfDeath: json['dateOfDeath'] as String?,
+      birthplace: json['birthplace'] as String?,
+      currentCity: json['currentCity'] as String?,
+      phone: json['phone'] as String?,
+      email: json['email'] as String?,
+      occupation: json['occupation'] as String?,
+      bio: json['bio'] as String?,
+      photoUrl: json['photoUrl'] as String?,
+      kinshipNameToUser: json['kinshipNameToUser'] as String?,
+      kinshipPathToUser: json['kinshipPathToUser'] as String?,
+      generationNumber: json['generationNumber'] as int? ?? 0,
+      directConnectionsCount: json['directConnectionsCount'] as int? ?? 0,
+      isDeceased: json['isDeceased'] as bool? ?? false,
+      relations: (json['relations'] as List?)
+              ?.map((r) => MemberRelation.fromJson(r as Map<String, dynamic>))
+              .toList() ??
+          [],
+      timelineEvents: (json['timelineEvents'] as List?)
+              ?.map((e) => TimelineEvent.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      notes: (json['notes'] as List?)
+              ?.map((n) => MemberNote.fromJson(n as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
+
   final String memberId;
   final String name;
   final String familyId;
@@ -116,43 +153,6 @@ class MemberDetailModel {
         'timelineEvents': timelineEvents.map((e) => e.toJson()).toList(),
         'notes': notes.map((n) => n.toJson()).toList(),
       };
-
-  /// Deserialize from JSON (Drift cache).
-  factory MemberDetailModel.fromJson(Map<String, dynamic> json) {
-    return MemberDetailModel(
-      memberId: json['memberId'] as String? ?? '',
-      name: json['name'] as String? ?? 'Unknown',
-      familyId: json['familyId'] as String? ?? '',
-      nickname: json['nickname'] as String?,
-      gender: json['gender'] as String?,
-      dateOfBirth: json['dateOfBirth'] as String?,
-      dateOfDeath: json['dateOfDeath'] as String?,
-      birthplace: json['birthplace'] as String?,
-      currentCity: json['currentCity'] as String?,
-      phone: json['phone'] as String?,
-      email: json['email'] as String?,
-      occupation: json['occupation'] as String?,
-      bio: json['bio'] as String?,
-      photoUrl: json['photoUrl'] as String?,
-      kinshipNameToUser: json['kinshipNameToUser'] as String?,
-      kinshipPathToUser: json['kinshipPathToUser'] as String?,
-      generationNumber: json['generationNumber'] as int? ?? 0,
-      directConnectionsCount: json['directConnectionsCount'] as int? ?? 0,
-      isDeceased: json['isDeceased'] as bool? ?? false,
-      relations: (json['relations'] as List?)
-              ?.map((r) => MemberRelation.fromJson(r as Map<String, dynamic>))
-              .toList() ??
-          [],
-      timelineEvents: (json['timelineEvents'] as List?)
-              ?.map((e) => TimelineEvent.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      notes: (json['notes'] as List?)
-              ?.map((n) => MemberNote.fromJson(n as Map<String, dynamic>))
-              .toList() ??
-          [],
-    );
-  }
 }
 
 /// A relation connected to the member.
@@ -164,6 +164,16 @@ class MemberRelation {
     this.kinshipName,
     this.gender,
   });
+
+  factory MemberRelation.fromJson(Map<String, dynamic> json) {
+    return MemberRelation(
+      memberId: json['memberId'] as String? ?? '',
+      name: json['name'] as String? ?? 'Unknown',
+      photoUrl: json['photoUrl'] as String?,
+      kinshipName: json['kinshipName'] as String?,
+      gender: json['gender'] as String?,
+    );
+  }
 
   final String memberId;
   final String name;
@@ -180,16 +190,6 @@ class MemberRelation {
         'kinshipName': kinshipName,
         'gender': gender,
       };
-
-  factory MemberRelation.fromJson(Map<String, dynamic> json) {
-    return MemberRelation(
-      memberId: json['memberId'] as String? ?? '',
-      name: json['name'] as String? ?? 'Unknown',
-      photoUrl: json['photoUrl'] as String?,
-      kinshipName: json['kinshipName'] as String?,
-      gender: json['gender'] as String?,
-    );
-  }
 }
 
 /// A timeline event for the member.
@@ -201,6 +201,19 @@ class TimelineEvent {
     this.description,
     this.eventType = TimelineEventType.milestone,
   });
+
+  factory TimelineEvent.fromJson(Map<String, dynamic> json) {
+    return TimelineEvent(
+      id: json['id'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      date: json['date'] as String? ?? '',
+      description: json['description'] as String?,
+      eventType: TimelineEventType.values.firstWhere(
+        (e) => e.name == json['eventType'],
+        orElse: () => TimelineEventType.milestone,
+      ),
+    );
+  }
 
   final String id;
   final String title;
@@ -215,19 +228,6 @@ class TimelineEvent {
         'description': description,
         'eventType': eventType.name,
       };
-
-  factory TimelineEvent.fromJson(Map<String, dynamic> json) {
-    return TimelineEvent(
-      id: json['id'] as String? ?? '',
-      title: json['title'] as String? ?? '',
-      date: json['date'] as String? ?? '',
-      description: json['description'] as String?,
-      eventType: TimelineEventType.values.firstWhere(
-        (e) => e.name == json['eventType'],
-        orElse: () => TimelineEventType.milestone,
-      ),
-    );
-  }
 }
 
 /// Timeline event types.
@@ -251,6 +251,15 @@ class MemberNote {
     this.author = 'You',
   });
 
+  factory MemberNote.fromJson(Map<String, dynamic> json) {
+    return MemberNote(
+      id: json['id'] as String? ?? '',
+      content: json['content'] as String? ?? '',
+      createdAt: json['createdAt'] as String? ?? '',
+      author: json['author'] as String? ?? 'You',
+    );
+  }
+
   final String id;
   final String content;
   final String createdAt;
@@ -262,15 +271,6 @@ class MemberNote {
         'createdAt': createdAt,
         'author': author,
       };
-
-  factory MemberNote.fromJson(Map<String, dynamic> json) {
-    return MemberNote(
-      id: json['id'] as String? ?? '',
-      content: json['content'] as String? ?? '',
-      createdAt: json['createdAt'] as String? ?? '',
-      author: json['author'] as String? ?? 'You',
-    );
-  }
 }
 
 // ── Table name constant (matching Prisma schema PascalCase) ────────

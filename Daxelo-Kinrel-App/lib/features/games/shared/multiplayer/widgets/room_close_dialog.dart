@@ -41,11 +41,11 @@ Future<bool?> showRoomCloseConfirmDialog(BuildContext context) {
   return showDialog<bool>(
     context: context,
     barrierDismissible: false, // forces an explicit choice
-    builder: (ctx) => _RoomDialog(
+    builder: (ctx) => const _RoomDialog(
       icon: Icons.warning_amber_rounded,
       iconColor: KinrelColors.error,
       title: 'Close Room?',
-      body: const [
+      body: [
         'Are you sure you want to close this room?',
         'All players and spectators will be removed.',
         'This action cannot be undone.',
@@ -64,11 +64,11 @@ Future<bool?> showLeaveRoomDialog(BuildContext context) {
   return showDialog<bool>(
     context: context,
     barrierDismissible: false,
-    builder: (ctx) => _RoomDialog(
+    builder: (ctx) => const _RoomDialog(
       icon: Icons.logout,
       iconColor: KinrelColors.orange,
       title: 'Leave Room?',
-      body: const [
+      body: [
         'Are you sure you want to leave this room?',
         'Your slot will be freed for another player.',
       ],
@@ -86,11 +86,11 @@ Future<bool?> showLeaveSpectatorDialog(BuildContext context) {
   return showDialog<bool>(
     context: context,
     barrierDismissible: false,
-    builder: (ctx) => _RoomDialog(
+    builder: (ctx) => const _RoomDialog(
       icon: Icons.visibility_off_outlined,
       iconColor: KinrelColors.orange,
       title: 'Leave Spectator?',
-      body: const [
+      body: [
         'You will stop watching this room.',
         'You can rejoin later if the room is still open.',
       ],
@@ -135,7 +135,7 @@ class _RoomDialog extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -175,7 +175,7 @@ class _RoomDialog extends StatelessWidget {
           ),
           child: Text(
             negativeLabel,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14,
               color: KinrelColors.textDim,
@@ -196,7 +196,7 @@ class _RoomDialog extends StatelessWidget {
           ),
           child: Text(
             positiveLabel,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14,
               fontWeight: FontWeight.w700,

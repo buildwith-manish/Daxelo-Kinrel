@@ -23,39 +23,6 @@ class MemoryModel {
     required this.updatedAt,
   });
 
-  /// Unique identifier (UUID from Supabase).
-  final String id;
-
-  /// The family this memory belongs to.
-  final String familyId;
-
-  /// User ID of the person who uploaded the memory.
-  final String uploaderId;
-
-  /// Display name of the uploader (denormalized for fast reads).
-  final String uploaderName;
-
-  /// Optional caption for the photo (max 200 characters).
-  final String? caption;
-
-  /// Public URL of the photo in Supabase Storage.
-  final String photoUrl;
-
-  /// Media type — currently always 'photo', future: 'video'.
-  final String mediaType;
-
-  /// When the photo was originally taken (user-selected date).
-  final DateTime? takenAt;
-
-  /// IDs of family members tagged in the photo.
-  final List<String> taggedPersonIds;
-
-  /// Server timestamp when the memory was created.
-  final DateTime createdAt;
-
-  /// Server timestamp when the memory was last updated.
-  final DateTime updatedAt;
-
   // ── Factory Constructors ──────────────────────────────────────────
 
   /// Create a MemoryModel from a Supabase row (Map).
@@ -95,6 +62,39 @@ class MemoryModel {
       updatedAt: now,
     );
   }
+
+  /// Unique identifier (UUID from Supabase).
+  final String id;
+
+  /// The family this memory belongs to.
+  final String familyId;
+
+  /// User ID of the person who uploaded the memory.
+  final String uploaderId;
+
+  /// Display name of the uploader (denormalized for fast reads).
+  final String uploaderName;
+
+  /// Optional caption for the photo (max 200 characters).
+  final String? caption;
+
+  /// Public URL of the photo in Supabase Storage.
+  final String photoUrl;
+
+  /// Media type — currently always 'photo', future: 'video'.
+  final String mediaType;
+
+  /// When the photo was originally taken (user-selected date).
+  final DateTime? takenAt;
+
+  /// IDs of family members tagged in the photo.
+  final List<String> taggedPersonIds;
+
+  /// Server timestamp when the memory was created.
+  final DateTime createdAt;
+
+  /// Server timestamp when the memory was last updated.
+  final DateTime updatedAt;
 
   // ── Computed Getters ─────────────────────────────────────────────
 

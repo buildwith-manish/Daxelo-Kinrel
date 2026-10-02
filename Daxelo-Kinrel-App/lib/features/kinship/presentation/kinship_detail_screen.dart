@@ -10,6 +10,7 @@ import '../../../core/constants/supported_languages.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../../shared/widgets/kinrel_skeleton.dart';
 import 'widgets/pronunciation_button.dart';
 
 class KinshipDetailScreen extends ConsumerWidget {
@@ -26,12 +27,12 @@ class KinshipDetailScreen extends ConsumerWidget {
     return DKScaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.share),
+            icon: const Icon(Icons.share),
             onPressed: () {
               Share.share('Check out this kinship term: $relationshipKey');
             },
@@ -41,7 +42,7 @@ class KinshipDetailScreen extends ConsumerWidget {
       body: allTranslationsAsync.when(
         data: (translations) {
           if (translations == null) {
-            return Center(child: Text('Relationship not found'));
+            return const Center(child: Text('Relationship not found'));
           }
 
           final kinshipService = ref.read(kinshipServiceProvider);
@@ -52,7 +53,7 @@ class KinshipDetailScreen extends ConsumerWidget {
               // Hero section
               SliverToBoxAdapter(
                 child: Container(
-                  padding: EdgeInsets.all(KinrelSpacing.xl),
+                  padding: const EdgeInsets.all(KinrelSpacing.xl),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
@@ -69,7 +70,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                       // Category badge
                       if (rel != null)
                         Container(
-                          padding: EdgeInsets.symmetric(
+                          padding: const EdgeInsets.symmetric(
                             horizontal: 10,
                             vertical: 4,
                           ),
@@ -81,7 +82,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                             rel.relationshipCategory
                                 .replaceAll('_', ' ')
                                 .toUpperCase(),
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -175,7 +176,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                   ),
                 ),
 
-              SliverToBoxAdapter(child: SizedBox(height: 24)),
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
               // Relationship path
               if (rel != null && rel.relationshipPath.isNotEmpty)
@@ -237,7 +238,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                   ),
                 ),
 
-              SliverToBoxAdapter(child: SizedBox(height: 24)),
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
               // Translations header
               SliverToBoxAdapter(
@@ -257,7 +258,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                 ),
               ),
 
-              SliverToBoxAdapter(child: SizedBox(height: 12)),
+              const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
               // Translations grid
               SliverPadding(
@@ -265,7 +266,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                   horizontal: KinrelSpacing.base,
                 ),
                 sliver: SliverGrid(
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     mainAxisSpacing: 8,
                     crossAxisSpacing: 8,
@@ -369,7 +370,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                       horizontal: KinrelSpacing.base,
                     ),
                     itemCount: _getRelatedTerms(relationshipKey).length,
-                    separatorBuilder: (_, __) => SizedBox(width: 8),
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (context, index) {
                       final term = _getRelatedTerms(relationshipKey)[index];
                       return SizedBox(
@@ -394,7 +395,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              Text(
+                              const Text(
                                 'Tap to view',
                                 style: TextStyle(
                                   fontFamily: KinrelTypography.bodyFont,
@@ -411,16 +412,16 @@ class KinshipDetailScreen extends ConsumerWidget {
                 ),
               ),
 
-              SliverToBoxAdapter(child: SizedBox(height: 100)),
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           );
         },
         loading: () => ListView(
           padding: const EdgeInsets.all(KinrelSpacing.base),
           children: [
-            DKLoadingShimmer(width: 200, height: 32),
+            const KinrelSkeletonBox(width: 200, height: 32),
             const SizedBox(height: 12),
-            DKLoadingShimmer(
+            const KinrelSkeletonBox(
               width: double.infinity,
               height: 60,
               radius: KinrelRadius.card,
@@ -428,9 +429,9 @@ class KinshipDetailScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             ...List.generate(
               6,
-              (_) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: DKLoadingShimmer(
+              (_) => const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: KinrelSkeletonBox(
                   width: double.infinity,
                   height: 50,
                   radius: KinrelRadius.md,

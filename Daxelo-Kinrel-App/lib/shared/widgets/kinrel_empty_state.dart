@@ -207,7 +207,7 @@ class KinrelEmptyState extends StatelessWidget {
               child: Text(
                 actionLabel,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
@@ -234,7 +234,7 @@ class KinrelEmptyState extends StatelessWidget {
               ),
               child: Text(
                 secondaryLabel!,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,

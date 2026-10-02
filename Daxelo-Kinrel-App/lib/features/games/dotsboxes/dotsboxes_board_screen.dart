@@ -66,7 +66,7 @@ class _DotsboxesBoardScreenState extends ConsumerState<DotsboxesBoardScreen> {
             }
           },
         ),
-        title: Text('Dots & Boxes', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: const Text('Dots & Boxes', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),
       body: state.isLoading && game == null ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
@@ -87,7 +87,7 @@ class _DotsboxesBoardScreenState extends ConsumerState<DotsboxesBoardScreen> {
         final color = colors[p.playerColor % 4];
         return Column(mainAxisSize: MainAxisSize.min, children: [
           Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 10, height: 10, decoration: BoxDecoration(shape: BoxShape.circle, color: color)), const SizedBox(width: 4),
-            Text(p.userId == myId ? 'You' : p.userName.split(' ').first, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 10, color: KinrelColors.textDim))]),
+            Text(p.userId == myId ? 'You' : p.userName.split(' ').first, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 10, color: KinrelColors.textDim))]),
           Text('${p.boxesCaptured}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 18, fontWeight: FontWeight.w800, color: color)),
         ]);
       }).toList()));
@@ -105,7 +105,7 @@ class _DotsboxesBoardScreenState extends ConsumerState<DotsboxesBoardScreen> {
         else SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: turnColor)),
         const SizedBox(width: 6),
         Text(isMyTurn ? (game.bonusTurn ? 'Bonus turn — draw again!' : 'Your turn — draw a line!') : '${currentPlayer?.userName ?? 'Player'}\'s turn…',
-          style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600)),
+          style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600)),
       ]));
   }
 
@@ -181,21 +181,21 @@ class _DotsboxesBoardScreenState extends ConsumerState<DotsboxesBoardScreen> {
       gradient: isMyWin ? KinrelGradients.deepFireGradient : null,
       backgroundColor: isMyWin ? null : KinrelColors.darkSurface,
       appBar: AppBar(automaticallyImplyLeading: false,
-        title: Text('Results', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: const Text('Results', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: Colors.transparent, foregroundColor: KinrelColors.textWhite, elevation: 0),
       body: Stack(children: [
         ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
         const SizedBox(height: KinrelSpacing.lg),
         Column(children: [
-          KinrelIcon(KinrelIconData.trophy, size: 64, color: KinrelColors.brightGold).animate(onPlay: (c) => c.forward()).fadeIn(duration: 500.ms).scale(begin: const Offset(0.5, 0.5), end: const Offset(1.0, 1.0), duration: 500.ms, curve: Curves.elasticOut),
+          const KinrelIcon(KinrelIconData.trophy, size: 64, color: KinrelColors.brightGold).animate(onPlay: (c) => c.forward()).fadeIn(duration: 500.ms).scale(begin: const Offset(0.5, 0.5), end: const Offset(1.0, 1.0), duration: 500.ms, curve: Curves.elasticOut),
           const SizedBox(height: KinrelSpacing.sm),
           Text(isMyWin ? (winners.length > 1 ? 'Joint Winners!' : 'You Won!') : (winners.length > 1 ? 'Joint Winners!' : 'Winner!'),
-            style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 28, fontWeight: FontWeight.w800, color: KinrelColors.textWhite, letterSpacing: 2)),
+            style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 28, fontWeight: FontWeight.w800, color: KinrelColors.textWhite, letterSpacing: 2)),
           const SizedBox(height: KinrelSpacing.sm),
           Wrap(spacing: 6, runSpacing: 6, alignment: WrapAlignment.center,
             children: winnerNames.map((n) => Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(color: KinrelColors.orange.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(14), border: Border.all(color: KinrelColors.orange)),
-              child: Text(n, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.orange)))).toList()),
+              child: Text(n, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.orange)))).toList()),
         ]).animate().fadeIn(duration: 400.ms).scale(begin: const Offset(0.92, 0.92), end: const Offset(1.0, 1.0), duration: 400.ms, curve: Curves.easeOutBack),
         const SizedBox(height: KinrelSpacing.xl),
         ...sorted.asMap().entries.map((entry) {
@@ -203,10 +203,10 @@ class _DotsboxesBoardScreenState extends ConsumerState<DotsboxesBoardScreen> {
           final medal = rank == 1 ? '🥇' : rank == 2 ? '🥈' : rank == 3 ? '🥉' : '$rank';
           return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(10), border: Border.all(color: p.userId == myId ? KinrelColors.orange : KinrelColors.border, width: p.userId == myId ? 2 : 1)),
-            child: Row(children: [SizedBox(width: 28, child: Text(medal, style: TextStyle(fontSize: 16))),
+            child: Row(children: [SizedBox(width: 28, child: Text(medal, style: const TextStyle(fontSize: 16))),
               Container(width: 16, height: 16, decoration: BoxDecoration(shape: BoxShape.circle, color: color)),
               const SizedBox(width: 8),
-              Expanded(child: Text(p.userId == myId ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
+              Expanded(child: Text(p.userId == myId ? '${p.userName} (You)' : p.userName, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
               Text('${p.boxesCaptured} boxes', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 14, fontWeight: FontWeight.w800, color: color))]));
         }),
         MatchEcosystemSummary(

@@ -21,6 +21,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../features/cameo/cameo.dart' show CameoAvatar, CameoFallbackConfig;
 import '../constants/brand_colors.dart';
 import '../utils/image_cache_config.dart';
+import '../utils/image_url_utils.dart';
 
 // ════════════════════════════════════════════════════════════════════
 // CACHED AVATAR
@@ -166,7 +167,18 @@ class CachedAvatar extends StatelessWidget {
       ),
       child: ClipOval(
         child: CachedNetworkImage(
-          imageUrl: imageUrl!,
+          // ── Image resizing: request a resized variant from Supabase
+          // Storage instead of the full-resolution image. For a 40px
+          // avatar at 2x pixel ratio, this reduces the network payload
+          // from ~2MB to ~5KB. The resized variant is cached separately
+          // from the full-resolution original (different URL = different
+          // cache key), so both the small avatar and a full-size profile
+          // photo of the same person are cached independently.
+          imageUrl: resizeSupabaseImageUrl(
+            imageUrl!,
+            size: diameter,
+            pixelRatio: pixelRatio,
+          ) ?? imageUrl!,
           cacheManager: KinrelImageCacheManager.instance,
           fadeInDuration: const Duration(milliseconds: 200),
           fit: effectiveFit,

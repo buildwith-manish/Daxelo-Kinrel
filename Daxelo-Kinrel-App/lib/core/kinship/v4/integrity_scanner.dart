@@ -16,11 +16,6 @@ import '../../../core/services/graph_layout_service.dart' show GraphPerson;
 
 /// A single integrity issue found in the family graph.
 class IntegrityIssue {
-  final IntegrityIssueType type;
-  final String description;
-  final String? personAId;
-  final String? personBId;
-  final String? repairSuggestion;
 
   const IntegrityIssue({
     required this.type,
@@ -29,6 +24,11 @@ class IntegrityIssue {
     this.personBId,
     this.repairSuggestion,
   });
+  final IntegrityIssueType type;
+  final String description;
+  final String? personAId;
+  final String? personBId;
+  final String? repairSuggestion;
 }
 
 enum IntegrityIssueType {
@@ -43,8 +43,6 @@ enum IntegrityIssueType {
 
 /// The result of an integrity scan.
 class IntegrityScanResult {
-  final List<IntegrityIssue> issues;
-  final bool hasIssues;
 
   const IntegrityScanResult({required this.issues}) : hasIssues = false;
 
@@ -53,6 +51,8 @@ class IntegrityScanResult {
   }
 
   const IntegrityScanResult._({required this.issues, required this.hasIssues});
+  final List<IntegrityIssue> issues;
+  final bool hasIssues;
 }
 
 class IntegrityScanner {

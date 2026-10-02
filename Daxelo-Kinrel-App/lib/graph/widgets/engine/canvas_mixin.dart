@@ -1133,8 +1133,9 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                   final s = (r['fromPersonId'] ?? '').toString();
                   final t = (r['toPersonId'] ?? '').toString();
                   String? neighbor;
-                  if (s == current) neighbor = t;
-                  else if (t == current) neighbor = s;
+                  if (s == current) {
+                    neighbor = t;
+                  } else if (t == current) neighbor = s;
                   else continue;
                   if (visited.add(neighbor)) {
                     if (visible.contains(neighbor) &&
@@ -1324,10 +1325,8 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           // the edge the color of the more distant relative, which is
           // more visually meaningful than the intermediate person.
           // Fall back to the source's category if target has none.
-          if (cat == null) {
-            cat = relationCategoryById[e.targetId] ??
+          cat ??= relationCategoryById[e.targetId] ??
                 relationCategoryById[e.sourceId];
-          }
 
           if (cat != null) {
             edgeCategories[e.id] = cat;

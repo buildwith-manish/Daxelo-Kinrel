@@ -32,7 +32,7 @@ class GamingMilestonesScreen extends ConsumerWidget {
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.canPop() ? context.pop() : context.go('/home')),
-        title: Text('Family Milestones',
+        title: const Text('Family Milestones',
             style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontWeight: FontWeight.w700)),
@@ -43,7 +43,7 @@ class GamingMilestonesScreen extends ConsumerWidget {
       body: milestonesAsync.when(
         loading: () => const Center(
             child: CircularProgressIndicator(color: KinrelColors.orange)),
-        error: (e, _) => Center(
+        error: (e, _) => const Center(
           child: GamingEmptyCard(
             emoji: '🔌',
             title: 'Couldn\'t load milestones',
@@ -65,7 +65,7 @@ class GamingMilestonesScreen extends ConsumerWidget {
                   distinct: data.distinctGames,
                   unlocked: data.milestones.length),
               const SizedBox(height: 18),
-              GamingSectionHeader(
+              const GamingSectionHeader(
                 title: 'Games Played Together',
                 subtitle: 'Every match — win, lose or just-for-fun — counts',
                 icon: Icons.favorite_outline,
@@ -78,7 +78,7 @@ class GamingMilestonesScreen extends ConsumerWidget {
                   target: t,
                 ),
               const SizedBox(height: 14),
-              GamingSectionHeader(
+              const GamingSectionHeader(
                 title: 'Game Variety',
                 subtitle: 'Explore the whole playground as a family',
                 icon: Icons.explore_outlined,
@@ -98,7 +98,7 @@ class GamingMilestonesScreen extends ConsumerWidget {
                   child: Text(
                     'Last family match ${gamingTimeAgo(data.lastMatchAt)} — the journey continues',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.textDim,
@@ -171,7 +171,7 @@ class _JourneyHero extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'The Family Journey',
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
@@ -183,7 +183,7 @@ class _JourneyHero extends StatelessWidget {
                 const SizedBox(height: 5),
                 Text(
                   '$total matches played · $distinct different games · $unlocked milestones unlocked',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     height: 1.4,
@@ -261,7 +261,7 @@ class _MilestoneRow extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13.5,
                     fontWeight: FontWeight.w700,
@@ -279,7 +279,7 @@ class _MilestoneRow extends StatelessWidget {
                   reached
                       ? 'Unlocked · $current+ $unit played'
                       : '$current of $target $unit · ${target - current} to go',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 10,
                     color: KinrelColors.textDim,

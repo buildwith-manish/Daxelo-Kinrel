@@ -173,10 +173,6 @@ class KinrelToast {
 
 /// Per-type configuration: icon, colors, duration.
 class _ToastConfig {
-  final IconData icon;
-  final Color iconColor;
-  final Color backgroundColor;
-  final Duration duration;
 
   const _ToastConfig({
     required this.icon,
@@ -184,6 +180,10 @@ class _ToastConfig {
     required this.backgroundColor,
     required this.duration,
   });
+  final IconData icon;
+  final Color iconColor;
+  final Color backgroundColor;
+  final Duration duration;
 
   static _ToastConfig forType(KinrelToastType type) {
     switch (type) {
@@ -209,11 +209,11 @@ class _ToastConfig {
           duration: const Duration(milliseconds: 3000),
         );
       case KinrelToastType.info:
-        return _ToastConfig(
+        return const _ToastConfig(
           icon: Icons.info_outline_rounded,
           iconColor: KinrelColors.orange,
-          backgroundColor: const Color(0xFF1A1F2E), // dark blue tint
-          duration: const Duration(milliseconds: 2500),
+          backgroundColor: Color(0xFF1A1F2E), // dark blue tint
+          duration: Duration(milliseconds: 2500),
         );
     }
   }
@@ -259,7 +259,7 @@ class _ToastContent extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,

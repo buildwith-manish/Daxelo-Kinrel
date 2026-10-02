@@ -143,7 +143,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
   }
 
   void _attach() {
-    SocketService socket = _socket ?? ref.read(socketServiceProvider);
+    final SocketService socket = _socket ?? ref.read(socketServiceProvider);
     _socket = socket;
 
     // Subscribe to incoming chat messages.
@@ -164,7 +164,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
   }
 
   void _tryJoin() {
-    SocketService socket = _socket ?? ref.read(socketServiceProvider);
+    final SocketService socket = _socket ?? ref.read(socketServiceProvider);
     _socket = socket;
     socket.joinGameChatRoom(
       gameTable: widget.gameTable,
@@ -417,7 +417,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
                     size: 16,
                   ),
                   const SizedBox(width: 6),
-                  Text(
+                  const Text(
                     'Lobby chat',
                     style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
@@ -449,7 +449,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
                       ),
                       child: Text(
                         '$_unreadCount new',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 9,
                           color: KinrelColors.textWhite,
@@ -460,7 +460,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
                   else
                     Text(
                       '${_messages.length} msgs',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 10,
                         color: KinrelColors.textDim,
@@ -476,7 +476,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
               child: Stack(
                 children: [
                   _messages.isEmpty
-                      ? Center(
+                      ? const Center(
                           // QA fix 2026-09-19: on tight docks (e.g. the
                           // 880px lobby viewport) the empty-state Column was
                           // exactly 1px taller than the Expanded box →
@@ -488,9 +488,9 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const KinrelIcon(KinrelIconData.sparkle,
+                                KinrelIcon(KinrelIconData.sparkle,
                                     size: 22, color: KinrelColors.orange),
-                                const SizedBox(height: 8),
+                                SizedBox(height: 8),
                                 Text(
                                   'Nobody has spoken yet.',
                                   style: TextStyle(
@@ -500,7 +500,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
                                     color: KinrelColors.textSilver,
                                   ),
                                 ),
-                                const SizedBox(height: 2),
+                                SizedBox(height: 2),
                                 Text(
                                   'Start the family conversation.',
                                   style: TextStyle(
@@ -550,7 +550,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
                               children: [
                                 Text(
                                   '$_unreadCount new',
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontFamily: KinrelTypography.monoFont,
                                     fontSize: 10,
                                     color: KinrelColors.textWhite,
@@ -589,7 +589,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
                     const SizedBox(width: 6),
                     Text(
                       typingLabel,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 10,
                         color: KinrelColors.textDim,
@@ -635,7 +635,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
                                 ),
                                 child: Text(
                                   chip,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontFamily: KinrelTypography.bodyFont,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
@@ -655,14 +655,14 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
                         child: TextField(
                           controller: _textCtrl,
                           onChanged: _onTextChanged,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 12,
                             color: KinrelColors.textWhite,
                           ),
                           decoration: InputDecoration(
                             hintText: 'Type a message…',
-                            hintStyle: TextStyle(
+                            hintStyle: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 12,
                               color: KinrelColors.textDim,
@@ -726,7 +726,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
                 color: KinrelColors.darkElevated,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
+              child: const Text(
                 'WATCH',
                 style: TextStyle(
                   fontFamily: KinrelTypography.monoFont,
@@ -748,7 +748,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
                   if (!isEmoji)
                     TextSpan(
                       text: '$senderName ',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         color: KinrelColors.orange,
                       ),

@@ -144,10 +144,10 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
       backgroundColor: _cBg,
       elevation: 0,
       leading: IconButton(
-        icon: Icon(Icons.close, color: _cTextSecondary, size: 24),
+        icon: const Icon(Icons.close, color: _cTextSecondary, size: 24),
         onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
       ),
-      title: Text(
+      title: const Text(
         'New Post',
         style: TextStyle(
           fontFamily: KinrelTypography.displayFont,
@@ -186,14 +186,14 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
         Container(
           width: 40,
           height: 40,
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             shape: BoxShape.circle,
             gradient: KinrelGradients.igniteGradient,
           ),
           child: Center(
             child: Text(
               userName[0].toUpperCase(),
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -211,7 +211,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
             children: [
               Text(
                 userName,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -235,8 +235,8 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
                   child: DropdownButton<String>(
                     value: create.selectedFamilyId,
                     isDense: true,
-                    icon: Icon(Icons.expand_more, size: 16, color: _cOrange),
-                    style: TextStyle(
+                    icon: const Icon(Icons.expand_more, size: 16, color: _cOrange),
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: _cOrange,
@@ -248,7 +248,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
                         value: family.id,
                         child: Text(
                           family.name,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 12,
                             color: _cTextPrimary,
@@ -281,7 +281,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
           maxLength: _maxChars,
           maxLines: 8,
           minLines: 4,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 16,
             color: _cTextPrimary,
@@ -289,7 +289,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
           ),
           decoration: InputDecoration(
             hintText: 'Share a moment with your family\u2026',
-            hintStyle: TextStyle(
+            hintStyle: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 16,
               color: _cTextDim,
@@ -300,7 +300,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
               borderRadius: BorderRadius.circular(KinrelRadius.lg),
               borderSide: BorderSide.none,
             ),
-            counterStyle: TextStyle(
+            counterStyle: const TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 11,
               color: _cTextDim,
@@ -347,7 +347,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
                 color: _cBg.withValues(alpha: 0.8),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.close, size: 16, color: _cTextPrimary),
+              child: const Icon(Icons.close, size: 16, color: _cTextPrimary),
             ),
           ),
         ),
@@ -355,7 +355,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
     )
         .animate()
         .fadeIn(duration: 200.ms)
-        .scale(begin: Offset(0.95, 0.95), end: Offset(1, 1));
+        .scale(begin: const Offset(0.95, 0.95), end: const Offset(1, 1));
   }
 
   // ── Media Picker Row ───────────────────────────────────────────
@@ -402,19 +402,19 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
   Widget _buildLocationInput() {
     return TextField(
       controller: _locationController,
-      style: TextStyle(
+      style: const TextStyle(
         fontFamily: KinrelTypography.bodyFont,
         fontSize: 14,
         color: _cTextPrimary,
       ),
       decoration: InputDecoration(
         hintText: 'Add location',
-        hintStyle: TextStyle(
+        hintStyle: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 14,
           color: _cTextDim,
         ),
-        prefixIcon: Icon(Icons.location_on_outlined, size: 20, color: _cTextDim),
+        prefixIcon: const Icon(Icons.location_on_outlined, size: 20, color: _cTextDim),
         filled: true,
         fillColor: _cCard,
         border: OutlineInputBorder(
@@ -434,7 +434,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Occasion',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -492,7 +492,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Audience',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -554,7 +554,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
       debugPrint('⚠️ Image picker error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open photo picker')),
+          const SnackBar(content: Text('Could not open photo picker')),
         );
       }
     }
@@ -575,7 +575,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
       debugPrint('⚠️ Video picker error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open video picker')),
+          const SnackBar(content: Text('Could not open video picker')),
         );
       }
     }
@@ -644,7 +644,7 @@ class _MediaPickerButton extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
@@ -683,8 +683,8 @@ class _AudienceSegment extends StatelessWidget {
               ? KinrelGradients.igniteGradient.colors.first.withValues(alpha: 0.2)
               : Colors.transparent,
           borderRadius: BorderRadius.horizontal(
-            left: isFirst ? Radius.circular(KinrelRadius.full) : Radius.zero,
-            right: isFirst ? Radius.zero : Radius.circular(KinrelRadius.full),
+            left: isFirst ? const Radius.circular(KinrelRadius.full) : Radius.zero,
+            right: isFirst ? Radius.zero : const Radius.circular(KinrelRadius.full),
           ),
         ),
         child: Center(

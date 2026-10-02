@@ -312,7 +312,7 @@ class _MembersAddedScreenState extends ConsumerState<MembersAddedScreen> {
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(color: _bg, shape: BoxShape.circle),
+                decoration: const BoxDecoration(color: _bg, shape: BoxShape.circle),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -414,7 +414,7 @@ class _MemberCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    Icon(Icons.park_outlined, color: _textDim, size: 12),
+                    const Icon(Icons.park_outlined, color: _textDim, size: 12),
                     const SizedBox(width: 4),
                     Text(
                       member.familyName,
@@ -433,7 +433,7 @@ class _MemberCard extends StatelessWidget {
           ),
 
           // Arrow
-          Icon(Icons.chevron_right, color: _textDim, size: 18),
+          const Icon(Icons.chevron_right, color: _textDim, size: 18),
         ],
       ),
     );

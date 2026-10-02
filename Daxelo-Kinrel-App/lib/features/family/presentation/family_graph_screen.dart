@@ -368,7 +368,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: KinrelColors.darkCard,
-        title: Text(
+        title: const Text(
           'Show All Branches?',
           style: TextStyle(color: KinrelColors.textWhite),
         ),
@@ -387,11 +387,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text('Cancel', style: TextStyle(color: KinrelColors.textDim)),
+            child: const Text('Cancel', style: TextStyle(color: KinrelColors.textDim)),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Show All', style: TextStyle(color: KinrelColors.orange)),
+            child: const Text('Show All', style: TextStyle(color: KinrelColors.orange)),
           ),
         ],
       ),
@@ -851,7 +851,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
       leading: const BackButton(),
       title: Text(
         widget.familyName ?? 'Family Graph',
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.displayFont,
           fontWeight: FontWeight.w600,
           fontSize: 18,
@@ -1506,7 +1506,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
         children: [
           Text(
             '${_selectedNodeIds.length} selected',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -1557,7 +1557,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
           const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 10,
               color: KinrelColors.textSilver,
             ),
@@ -1756,11 +1756,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
             color: KinrelColors.tealAccent.withValues(alpha: 0.6),
             width: 1),
       ),
-      child: Row(
+      child: const Row(
         children: [
           Icon(Icons.open_with,
               size: 16, color: KinrelColors.tealAccent),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: Text(
               'Rearrange mode — drag nodes / curve dots. '
@@ -1822,13 +1822,13 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
+              const Icon(
                 Icons.link_off,
                 size: 16,
                 color: KinrelColors.amber,
               ),
               const SizedBox(width: 6),
-              Text(
+              const Text(
                 'Linking',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -1846,7 +1846,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
                 ),
                 child: Text(
                   '$unlinkedCount',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -1888,13 +1888,13 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
+              const Icon(
                 Icons.mail_outline_rounded,
                 size: 16,
                 color: KinrelColors.tealAccent,
               ),
               const SizedBox(width: 6),
-              Text(
+              const Text(
                 'Invites',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -1912,7 +1912,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
                 ),
                 child: Text(
                   '$inviteCount',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -1956,8 +1956,8 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
                 ),
               ),
               // Title
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: Text(
                   'Pending Invitations',
                   style: TextStyle(
@@ -2018,7 +2018,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Text(
         message,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 13,
           color: KinrelColors.textDim,
@@ -2041,8 +2041,8 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
       return Column(
         children: invitations.map((inv) {
           return ListTile(
-            leading: Icon(Icons.mail_outline, color: KinrelColors.tealAccent, size: 20),
-            title: Text(inv.recipientName ?? 'Unknown', style: TextStyle(
+            leading: const Icon(Icons.mail_outline, color: KinrelColors.tealAccent, size: 20),
+            title: Text(inv.recipientName ?? 'Unknown', style: const TextStyle(
               color: KinrelColors.textWhite,
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14,
@@ -2052,7 +2052,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
               children: [
                 Text(
                   '${inv.specificLabelAtoB} • ${inv.status}',
-                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+                  style: const TextStyle(color: KinrelColors.textDim, fontSize: 12),
                 ),
                 // v5.96: Show relative time ("Sent 5 minutes ago")
                 // using updatedAt (refreshed on resend) or createdAt.
@@ -2099,7 +2099,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
                       );
                     }
                   },
-                  child: Text('Resend', style: TextStyle(
+                  child: const Text('Resend', style: TextStyle(
                     color: KinrelColors.tealAccent, fontSize: 12,
                   )),
                 ),
@@ -2438,17 +2438,17 @@ class _IndirectRelationCoachMarkState
                     painter: _CoachMarkBadgePreviewPainter(),
                   ),
                   const SizedBox(height: 12),
-                  Text(
+                  const Text(
                     'Indirect Relation',
                     style: TextStyle(
-                      color: const Color(0xFF14B8A6),
+                      color: Color(0xFF14B8A6),
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                       fontFamily: KinrelTypography.displayFont,
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Text(
+                  const Text(
                     'This icon means you\'re indirectly related to '
                     'this person — tap their name to see how.',
                     textAlign: TextAlign.center,
@@ -2460,7 +2460,7 @@ class _IndirectRelationCoachMarkState
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text(
+                  const Text(
                     'Tap to dismiss',
                     style: TextStyle(
                       color: KinrelColors.textDim,

@@ -136,7 +136,7 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
                 state.game?.roomName?.isNotEmpty == true
                     ? state.game!.roomName!
                     : 'Tug of War',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontWeight: FontWeight.w600,
                   color: KinrelColors.textWhite,
@@ -214,7 +214,7 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            const Text(
               'Share this code',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -226,7 +226,7 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
             const SizedBox(height: KinrelSpacing.md),
             Text(
               code,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 40,
                 fontWeight: FontWeight.w700,
@@ -239,7 +239,7 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
               'Up to ${(_maxPlayersFromState() - 1)} family members can join. '
               'Tug together, giggle together!',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textDim,
@@ -318,7 +318,7 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
             ),
           ),
           const SizedBox(height: KinrelSpacing.md),
-          LobbySection(
+          const LobbySection(
             label: 'Teams',
             child: LobbyInfoNote(
               icon: Icons.bolt,
@@ -359,7 +359,7 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
     return TextField(
       controller: _roomNameController,
       maxLength: 24,
-      style: TextStyle(
+      style: const TextStyle(
         fontFamily: KinrelTypography.bodyFont,
         fontSize: 14,
         color: KinrelColors.textWhite,
@@ -378,7 +378,7 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(KinrelRadius.md),
-          borderSide: BorderSide(color: KinrelColors.border),
+          borderSide: const BorderSide(color: KinrelColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(KinrelRadius.md),
@@ -529,7 +529,7 @@ class TugTeamBoard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       'You joined ${myTeam.label}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -563,11 +563,11 @@ class TugTeamBoard extends StatelessWidget {
                   myUserId: myUserId,
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
                 child: Column(
                   children: [
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     Text(
                       'VS',
                       style: TextStyle(
@@ -772,7 +772,7 @@ class _TeamAvatar extends StatelessWidget {
           Center(
             child: Text(
               initials.toUpperCase(),
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 11,
                 fontWeight: FontWeight.w800,

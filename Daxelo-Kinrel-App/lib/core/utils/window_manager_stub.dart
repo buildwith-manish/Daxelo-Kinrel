@@ -11,11 +11,6 @@
 // Only the methods actually called from main.dart are stubbed here.
 
 class WindowOptions {
-  final dynamic size;
-  final dynamic minimumSize;
-  final bool center;
-  final String title;
-  final dynamic titleBarStyle;
 
   const WindowOptions({
     this.size,
@@ -24,6 +19,11 @@ class WindowOptions {
     this.title = '',
     this.titleBarStyle,
   });
+  final dynamic size;
+  final dynamic minimumSize;
+  final bool center;
+  final String title;
+  final dynamic titleBarStyle;
 }
 
 // Match the real TitleBarStyle enum values
@@ -32,8 +32,8 @@ class TitleBarStyle {
 }
 
 class WindowManager {
-  static final WindowManager instance = WindowManager._();
   WindowManager._();
+  static final WindowManager instance = WindowManager._();
 
   Future<void> ensureInitialized() async {}
   Future<void> waitUntilReadyToShow(

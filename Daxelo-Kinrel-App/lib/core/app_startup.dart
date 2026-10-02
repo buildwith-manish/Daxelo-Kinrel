@@ -409,9 +409,9 @@ final backgroundRefreshProvider =
 
 /// Notifier for background refresh operations.
 class BackgroundRefreshNotifier extends StateNotifier<AsyncValue<void>> {
-  final Ref _ref;
 
   BackgroundRefreshNotifier(this._ref) : super(const AsyncValue.data(null));
+  final Ref _ref;
 
   /// Trigger a background refresh of all key providers.
   ///

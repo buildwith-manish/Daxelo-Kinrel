@@ -546,7 +546,7 @@ class _FamilyInitialAvatar extends StatelessWidget {
                 child: SizedBox(
                   width: size * 0.2,
                   height: size * 0.2,
-                  child: CircularProgressIndicator(
+                  child: const CircularProgressIndicator(
                     strokeWidth: 2,
                     color: KinrelColors.orange,
                   ),

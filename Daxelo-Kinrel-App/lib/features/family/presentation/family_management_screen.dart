@@ -648,7 +648,7 @@ class _FamilyManagementScreenState
         // when ON; grey track + grey thumb when OFF. The previous
         // implementation only set `activeColor` which on Material 3
         // collapses to a fully-orange block with no thumb distinction.
-        activeColor: KinrelColors.orange,
+        activeThumbColor: KinrelColors.orange,
         activeTrackColor: KinrelColors.orange.withValues(alpha: 0.4),
         inactiveThumbColor: KinrelColors.textSilver,
         inactiveTrackColor: KinrelColors.border,
@@ -782,7 +782,7 @@ class _FamilyManagementScreenState
                   : Switch(
                       value: _bridgeOptIn,
                       onChanged: canEdit ? _toggleBridgeOptIn : null,
-                      activeColor: KinrelColors.gold,
+                      activeThumbColor: KinrelColors.gold,
                       activeTrackColor: KinrelColors.gold.withValues(alpha: 0.4),
                       inactiveThumbColor: KinrelColors.textSilver,
                       inactiveTrackColor: KinrelColors.border,

@@ -443,10 +443,6 @@ void main() {
 
 /// Test case for directionality verification.
 class _DirectionalityCase {
-  final String name;
-  final GraphEdgeData edge;
-  final String expectedKey;
-  final KinshipEdgeCategory expectedCategory;
 
   _DirectionalityCase({
     required this.name,
@@ -454,4 +450,8 @@ class _DirectionalityCase {
     required this.expectedKey,
     required this.expectedCategory,
   });
+  final String name;
+  final GraphEdgeData edge;
+  final String expectedKey;
+  final KinshipEdgeCategory expectedCategory;
 }

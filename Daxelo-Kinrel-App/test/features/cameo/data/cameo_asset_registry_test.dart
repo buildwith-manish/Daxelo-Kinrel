@@ -170,7 +170,7 @@ void main() {
       });
 
       test('outfit layer is added when clothingId is set', () {
-        final defWithClothing = CameoDefinition(
+        final defWithClothing = const CameoDefinition(
           id: 'test',
           personId: 'p1',
           familyId: 'f1',

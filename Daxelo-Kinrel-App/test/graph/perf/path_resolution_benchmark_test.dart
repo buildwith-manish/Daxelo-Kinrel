@@ -11,8 +11,8 @@ void main() {
       final relationships = <({String fromId, String toId, String type})>[];
       for (int i = 0; i < 500; i++) {
         persons.add(GraphPerson(
-          id: 'p' + i.toString(),
-          name: 'Person ' + i.toString(),
+          id: 'p$i',
+          name: 'Person $i',
           gender: i % 2 == 0 ? 'male' : 'female',
           generationIndex: (i / 3).floor(),
           isAnchor: i == 0,
@@ -25,8 +25,8 @@ void main() {
           final childIdx = i * 3 + c;
           if (childIdx >= 500) break;
           relationships.add((
-            fromId: 'p' + i.toString(),
-            toId: 'p' + childIdx.toString(),
+            fromId: 'p$i',
+            toId: 'p$childIdx',
             type: 'child',
           ));
         }

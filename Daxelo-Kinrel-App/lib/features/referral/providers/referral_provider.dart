@@ -170,7 +170,7 @@ final referralProvider = StateNotifierProvider<ReferralNotifier, ReferralState>(
 );
 
 class ReferralNotifier extends StateNotifier<ReferralState> {
-  ReferralNotifier(this._ref) : super(ReferralState());
+  ReferralNotifier(this._ref) : super(const ReferralState());
 
   final Ref _ref;
 

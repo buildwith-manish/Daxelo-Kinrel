@@ -285,7 +285,7 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
                   children: [
                     Text(
                       _formatDuration(_position),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 10,
                         color: KinrelColors.textDim,
@@ -301,7 +301,7 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
                     ),
                     if (_hasError) ...[
                       const SizedBox(width: 6),
-                      Icon(
+                      const Icon(
                         Icons.error_outline,
                         size: 11,
                         color: KinrelColors.error,

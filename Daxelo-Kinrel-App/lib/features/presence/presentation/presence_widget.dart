@@ -39,7 +39,7 @@ class PresenceRow extends ConsumerWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Color(myStatus.colorValue).withOpacity(0.15),
+                    color: Color(myStatus.colorValue).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Color(myStatus.colorValue), width: 1),
                   ),
@@ -76,7 +76,7 @@ class PresenceRow extends ConsumerWidget {
                             children: [
                               CircleAvatar(
                                 radius: 12,
-                                backgroundColor: color.withOpacity(0.2),
+                                backgroundColor: color.withValues(alpha: 0.2),
                                 // perf pass — presence dots are the smallest
                                 // avatar in the app (24×24). Without
                                 // cacheWidth/cacheHeight, a 1024×1024 upload
@@ -142,7 +142,7 @@ class PresenceRow extends ConsumerWidget {
             ...PresenceStatus.values.map((s) => ListTile(
               leading: Container(
                 width: 36, height: 36,
-                decoration: BoxDecoration(color: Color(s.colorValue).withOpacity(0.15), shape: BoxShape.circle),
+                decoration: BoxDecoration(color: Color(s.colorValue).withValues(alpha: 0.15), shape: BoxShape.circle),
                 child: Center(child: Text(s.emoji, style: const TextStyle(fontSize: 16))),
               ),
               title: Text(s.label),

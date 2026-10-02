@@ -5,13 +5,6 @@ import '../repositories/follow_repository.dart';
 // ── State ────────────────────────────────────────────────────────────
 
 class FollowState {
-  final Map<String, String> statusMap; // userId -> 'none'|'pending'|'following'|'self'
-  final List<FollowModel> followers;
-  final List<FollowModel> following;
-  final List<FollowModel> pendingRequests;
-  final Map<String, int> followCounts; // userId -> followers count
-  final bool isLoading;
-  final String? error;
 
   const FollowState({
     this.statusMap = const {},
@@ -22,6 +15,13 @@ class FollowState {
     this.isLoading = false,
     this.error,
   });
+  final Map<String, String> statusMap; // userId -> 'none'|'pending'|'following'|'self'
+  final List<FollowModel> followers;
+  final List<FollowModel> following;
+  final List<FollowModel> pendingRequests;
+  final Map<String, int> followCounts; // userId -> followers count
+  final bool isLoading;
+  final String? error;
 
   FollowState copyWith({
     Map<String, String>? statusMap,

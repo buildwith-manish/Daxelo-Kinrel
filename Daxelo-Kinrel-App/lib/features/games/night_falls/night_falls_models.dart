@@ -60,18 +60,6 @@ class NightFallsPlayerWire {
     this.role,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final DateTime joinedAt;
-  final bool isAlive;
-  final bool isReady;
-  final DateTime? leftAt;
-  final NightFallsRole? role;
-
-  bool get isActive => leftAt == null;
-
   factory NightFallsPlayerWire.fromJson(Map<String, dynamic> json) =>
       NightFallsPlayerWire(
         id: (json['id'] ?? '') as String,
@@ -89,6 +77,18 @@ class NightFallsPlayerWire {
         // is fetched via a SECURITY DEFINER RPC.
         role: NightFallsRoleX.fromString(json['role'] as String?),
       );
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final DateTime joinedAt;
+  final bool isAlive;
+  final bool isReady;
+  final DateTime? leftAt;
+  final NightFallsRole? role;
+
+  bool get isActive => leftAt == null;
 }
 
 /// A row from `night_falls_games`.
@@ -117,41 +117,6 @@ class NightFallsGame {
     this.voteSeconds = kNightFallsDefaultVoteSeconds,
     this.roleRevealSeconds = kNightFallsDefaultRoleRevealSeconds,
   });
-
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final NightFallsStatus status;
-  final int maxPlayers;
-  final DateTime createdAt;
-  final String? roomName;
-  final List<String> playerOrder;
-  final String? currentPlayerId;
-  final int currentTurnIndex;
-  final DateTime? turnEndsAt;
-  final NightFallsBoardState? boardState;
-  final List<String> winnerUserIds;
-  final String? endReason;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final bool spectatorsEnabled;
-
-  // Game-specific config
-  final int nightSeconds;
-  final int daySeconds;
-  final int voteSeconds;
-  final int roleRevealSeconds;
-
-  bool get isWaiting => status == NightFallsStatus.waiting;
-  bool get isInProgress => status == NightFallsStatus.inProgress;
-  bool get isCompleted => status == NightFallsStatus.completed;
-
-  int? get turnSecondsRemaining {
-    if (!isInProgress || turnEndsAt == null) return null;
-    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
-    return left < 0 ? 0 : left;
-  }
 
   factory NightFallsGame.fromJson(Map<String, dynamic> json) {
     final order = <String>[];
@@ -203,6 +168,41 @@ class NightFallsGame {
               kNightFallsDefaultRoleRevealSeconds,
     );
   }
+
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final NightFallsStatus status;
+  final int maxPlayers;
+  final DateTime createdAt;
+  final String? roomName;
+  final List<String> playerOrder;
+  final String? currentPlayerId;
+  final int currentTurnIndex;
+  final DateTime? turnEndsAt;
+  final NightFallsBoardState? boardState;
+  final List<String> winnerUserIds;
+  final String? endReason;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final bool spectatorsEnabled;
+
+  // Game-specific config
+  final int nightSeconds;
+  final int daySeconds;
+  final int voteSeconds;
+  final int roleRevealSeconds;
+
+  bool get isWaiting => status == NightFallsStatus.waiting;
+  bool get isInProgress => status == NightFallsStatus.inProgress;
+  bool get isCompleted => status == NightFallsStatus.completed;
+
+  int? get turnSecondsRemaining {
+    if (!isInProgress || turnEndsAt == null) return null;
+    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
+    return left < 0 ? 0 : left;
+  }
 }
 
 /// A row from `night_falls_actions` (RLS limits to caller's own rows).
@@ -219,6 +219,20 @@ class NightFallsActionWire {
     this.result,
     required this.submittedAt,
   });
+
+  factory NightFallsActionWire.fromJson(Map<String, dynamic> json) =>
+      NightFallsActionWire(
+        id: (json['id'] ?? '') as String,
+        gameId: (json['gameId'] ?? '') as String,
+        userId: (json['userId'] ?? '') as String,
+        roundNumber: (json['roundNumber'] as num?)?.toInt() ?? 1,
+        actionType: NightFallsActionTypeX.fromString(
+            json['actionType'] as String?),
+        targetUserId: json['targetUserId'] as String?,
+        result: json['result'] as String?,
+        submittedAt:
+            DateTime.tryParse(json['submittedAt'] ?? '') ?? DateTime.now(),
+      );
 
   final String id;
   final String gameId;
@@ -239,18 +253,4 @@ class NightFallsActionWire {
   /// The seer's verdict for this investigation ('werewolf' or 'villager'),
   /// or null if not a seer action / not yet resolved.
   String? get seerVerdict => isSeerResult ? result : null;
-
-  factory NightFallsActionWire.fromJson(Map<String, dynamic> json) =>
-      NightFallsActionWire(
-        id: (json['id'] ?? '') as String,
-        gameId: (json['gameId'] ?? '') as String,
-        userId: (json['userId'] ?? '') as String,
-        roundNumber: (json['roundNumber'] as num?)?.toInt() ?? 1,
-        actionType: NightFallsActionTypeX.fromString(
-            json['actionType'] as String?),
-        targetUserId: json['targetUserId'] as String?,
-        result: json['result'] as String?,
-        submittedAt:
-            DateTime.tryParse(json['submittedAt'] ?? '') ?? DateTime.now(),
-      );
 }

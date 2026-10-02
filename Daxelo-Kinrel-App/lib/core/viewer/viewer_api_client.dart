@@ -23,10 +23,6 @@ import '../services/supabase_service.dart';
 
 /// Response shape for `GET /families/:familyId/viewer`.
 class ViewerResolution {
-  final String familyId;
-  final String? viewerPersonId;
-  final String resolution; // "linked" | "anchor" | "none"
-  final bool isLinked;
 
   const ViewerResolution({
     required this.familyId,
@@ -43,15 +39,15 @@ class ViewerResolution {
       isLinked: json['isLinked'] as bool? ?? false,
     );
   }
+  final String familyId;
+  final String? viewerPersonId;
+  final String resolution; // "linked" | "anchor" | "none"
+  final bool isLinked;
 }
 
 /// Response shape for `POST /families/:familyId/persons/:personId/claim`
 /// and `POST /families/:familyId/invitations/:code/accept`.
 class PersonLinkResult {
-  final String personId;
-  final String linkedUserId;
-  final DateTime linkedAt;
-  final String? invitationCode;
 
   const PersonLinkResult({
     required this.personId,
@@ -68,16 +64,14 @@ class PersonLinkResult {
       invitationCode: json['invitationCode'] as String?,
     );
   }
+  final String personId;
+  final String linkedUserId;
+  final DateTime linkedAt;
+  final String? invitationCode;
 }
 
 /// Response shape for `POST /families/:familyId/persons/:personId/invite`.
 class InvitationResult {
-  final String personId;
-  final String invitationCode;
-  final String? recipientEmail;
-  final String? recipientPhone;
-  final DateTime expiresAt;
-  final DateTime createdAt;
 
   const InvitationResult({
     required this.personId,
@@ -98,12 +92,16 @@ class InvitationResult {
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
   }
+  final String personId;
+  final String invitationCode;
+  final String? recipientEmail;
+  final String? recipientPhone;
+  final DateTime expiresAt;
+  final DateTime createdAt;
 }
 
 /// Result shape for `DELETE /families/:familyId/persons/:personId/unlink`.
 class UnlinkResult {
-  final String personId;
-  final bool unlinked;
 
   const UnlinkResult({
     required this.personId,
@@ -116,16 +114,18 @@ class UnlinkResult {
       unlinked: json['unlinked'] as bool? ?? true,
     );
   }
+  final String personId;
+  final bool unlinked;
 }
 
 /// Error thrown when the server rejects a viewer operation
 /// (e.g. already-claimed profile, expired invitation, not a family
 /// member).
 class ViewerApiException implements Exception {
-  final String message;
-  final int? statusCode;
 
   const ViewerApiException(this.message, {this.statusCode});
+  final String message;
+  final int? statusCode;
 
   @override
   String toString() => 'ViewerApiException($statusCode): $message';

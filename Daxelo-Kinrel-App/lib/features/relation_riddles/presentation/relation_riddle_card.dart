@@ -32,13 +32,13 @@ class _RelationRiddleCardState extends ConsumerState<RelationRiddleCard> {
           color: KinrelColors.darkCard,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Center(
+        child: const Center(
           child: SizedBox(
             width: 22,
             height: 22,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: const Color(0xFF10B981),
+              color: Color(0xFF10B981),
             ),
           ),
         ),
@@ -84,7 +84,7 @@ class _RelationRiddleCardState extends ConsumerState<RelationRiddleCard> {
                       child: const Icon(Icons.extension_outlined, color: Color(0xFF10B981), size: 20),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
+                    const Expanded(
                       child: Text(
                         'Relation Riddle',
                         style: TextStyle(
@@ -100,7 +100,7 @@ class _RelationRiddleCardState extends ConsumerState<RelationRiddleCard> {
                 const SizedBox(height: 10),
                 Text(
                   'How is ${state.personAName} related to ${state.personBName}?',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -120,12 +120,12 @@ class _RelationRiddleCardState extends ConsumerState<RelationRiddleCard> {
                       const SizedBox(width: 6),
                       Text(
                         state.wasCorrect == true ? 'Correct! Tap to see details' : 'Not quite — tap to see answer',
-                        style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim),
+                        style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim),
                       ),
                     ],
                   )
                 else
-                  Text(
+                  const Text(
                     '4 options · tap to play',
                     style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim),
                   ),

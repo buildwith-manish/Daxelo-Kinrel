@@ -76,14 +76,14 @@ class PollCard extends ConsumerWidget {
                   shape: BoxShape.circle,
                   color: KinrelColors.ember.withValues(alpha: 0.18),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.poll_rounded,
                   size: 14,
                   color: KinrelColors.ember,
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
+              const Text(
                 'POLL',
                 style: TextStyle(
                   fontFamily: KinrelTypography.monoFont,
@@ -96,7 +96,7 @@ class PollCard extends ConsumerWidget {
               const Spacer(),
               Text(
                 '$totalVotes ${totalVotes == 1 ? 'vote' : 'votes'}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 10,
                   color: KinrelColors.textDim,
@@ -108,7 +108,7 @@ class PollCard extends ConsumerWidget {
           // ── Question ──
           Text(
             question,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -187,7 +187,7 @@ class _PollOption extends StatelessWidget {
                         Row(
                           children: [
                             if (isMyVote) ...[
-                              Icon(
+                              const Icon(
                                 Icons.check_circle_rounded,
                                 size: 14,
                                 color: KinrelColors.ember,
@@ -213,7 +213,7 @@ class _PollOption extends StatelessWidget {
                           const SizedBox(height: 4),
                           Text(
                             '$count ${count == 1 ? 'vote' : 'votes'} · ${(pct * 100).round()}%',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.monoFont,
                               fontSize: 10,
                               color: KinrelColors.textDim,
@@ -224,7 +224,7 @@ class _PollOption extends StatelessWidget {
                     ),
                   ),
                   if (enabled && !isMyVote)
-                    Icon(
+                    const Icon(
                       Icons.radio_button_unchecked_rounded,
                       size: 18,
                       color: KinrelColors.textDim,

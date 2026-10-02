@@ -51,7 +51,7 @@ class _FamilyQuestsScreenState extends ConsumerState<FamilyQuestsScreen>
           controller: _tabController,
           indicatorColor: KinrelColors.orange,
           labelColor: Colors.white,
-          unselectedLabelColor: Colors.white.withOpacity(0.4),
+          unselectedLabelColor: Colors.white.withValues(alpha: 0.4),
           tabs: const [
             Tab(text: 'Active'),
             Tab(text: 'History'),
@@ -92,7 +92,7 @@ class _ActiveQuestsTab extends ConsumerWidget {
                   const SizedBox(height: 8),
                   Text(
                     'New suggestions appear every Monday.\nReach out to family when you are ready.',
-                    style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -122,7 +122,7 @@ class _QuestHistoryTab extends ConsumerWidget {
       data: (quests) {
         if (quests.isEmpty) {
           return Center(
-            child: Text('No quest history yet', style: TextStyle(color: Colors.white.withOpacity(0.5))),
+            child: Text('No quest history yet', style: TextStyle(color: Colors.white.withValues(alpha: 0.5))),
           );
         }
         return ListView.builder(
@@ -136,10 +136,10 @@ class _QuestHistoryTab extends ConsumerWidget {
 }
 
 class _QuestCard extends ConsumerWidget {
-  final FamilyQuest quest;
-  final bool isHistory;
 
   const _QuestCard({required this.quest, this.isHistory = false});
+  final FamilyQuest quest;
+  final bool isHistory;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -151,8 +151,8 @@ class _QuestCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: quest.status == 'completed'
-              ? KinrelColors.success.withOpacity(0.3)
-              : KinrelColors.amber.withOpacity(0.25),
+              ? KinrelColors.success.withValues(alpha: 0.3)
+              : KinrelColors.amber.withValues(alpha: 0.25),
         ),
       ),
       child: Column(
@@ -177,9 +177,9 @@ class _QuestCard extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: KinrelColors.gold.withOpacity(0.15),
+                  color: KinrelColors.gold.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: KinrelColors.gold.withOpacity(0.3)),
+                  border: Border.all(color: KinrelColors.gold.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   '+${quest.karmaReward}',
@@ -193,7 +193,7 @@ class _QuestCard extends ConsumerWidget {
             padding: const EdgeInsets.only(left: 36),
             child: Text(
               quest.description,
-              style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13, height: 1.4),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13, height: 1.4),
             ),
           ),
           if (quest.isActive) ...[
@@ -207,7 +207,7 @@ class _QuestCard extends ConsumerWidget {
                     await ref.read(pulseApiClientProvider).skipQuest(quest.id);
                     ref.invalidate(activeQuestsProvider);
                   },
-                  child: Text('Not now', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13)),
+                  child: Text('Not now', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 13)),
                 ),
                 const Spacer(),
                 // Complete button
@@ -241,11 +241,11 @@ class _QuestCard extends ConsumerWidget {
               padding: const EdgeInsets.only(left: 36),
               child: Row(
                 children: [
-                  Icon(Icons.check_circle, color: KinrelColors.success, size: 14),
+                  const Icon(Icons.check_circle, color: KinrelColors.success, size: 14),
                   const SizedBox(width: 4),
                   Text(
                     'Completed +${quest.karmaAwarded} karma',
-                    style: TextStyle(color: KinrelColors.success, fontSize: 12, fontWeight: FontWeight.w500),
+                    style: const TextStyle(color: KinrelColors.success, fontSize: 12, fontWeight: FontWeight.w500),
                   ),
                 ],
               ),

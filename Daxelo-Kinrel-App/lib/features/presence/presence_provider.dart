@@ -39,11 +39,6 @@ extension PresenceStatusExt on PresenceStatus {
 }
 
 class FamilyPresence {
-  final String userId;
-  final String? displayName;
-  final String? avatarUrl;
-  final PresenceStatus status;
-  final DateTime updatedAt;
   FamilyPresence({
     required this.userId,
     this.displayName,
@@ -58,6 +53,11 @@ class FamilyPresence {
     status: PresenceStatusExt.fromString(map['status'] as String?),
     updatedAt: DateTime.tryParse(map['updatedAt'] as String? ?? '') ?? DateTime.now(),
   );
+  final String userId;
+  final String? displayName;
+  final String? avatarUrl;
+  final PresenceStatus status;
+  final DateTime updatedAt;
 }
 
 final myPresenceProvider = StateNotifierProvider<MyPresenceNotifier, PresenceStatus>(
@@ -65,8 +65,8 @@ final myPresenceProvider = StateNotifierProvider<MyPresenceNotifier, PresenceSta
 );
 
 class MyPresenceNotifier extends StateNotifier<PresenceStatus> {
-  final Ref _ref;
   MyPresenceNotifier(this._ref) : super(PresenceStatus.away);
+  final Ref _ref;
 
   Future<void> load() async {
     final client = _ref.read(supabaseProvider);

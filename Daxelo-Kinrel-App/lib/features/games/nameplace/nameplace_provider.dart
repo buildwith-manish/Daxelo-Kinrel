@@ -218,7 +218,9 @@ class NameplaceNotifier extends StateNotifier<NameplaceState> {
     // submitAnswers / _resolveRound throw forever (game bricked).
     if (_isPickingLetter) return;
     if (game.currentLetterChooserId == null ||
-        game.currentLetterChooserId != myId) return;
+        game.currentLetterChooserId != myId) {
+      return;
+    }
     if (game.currentLetter != null) return; // already picked this round
     if (state.rounds.any((r) => r.roundNumber == game.currentRound)) return;
 

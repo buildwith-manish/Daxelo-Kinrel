@@ -108,11 +108,6 @@ class ExplanationEngine {
 
 /// A single step in the explanation path.
 class ExplanationStep {
-  final String fromNode;
-  final String toNode;
-  final String traversalPrimitive;
-  final String relationshipLabel;
-  final String stepLabel;
 
   const ExplanationStep({
     required this.fromNode,
@@ -121,6 +116,11 @@ class ExplanationStep {
     required this.relationshipLabel,
     required this.stepLabel,
   });
+  final String fromNode;
+  final String toNode;
+  final String traversalPrimitive;
+  final String relationshipLabel;
+  final String stepLabel;
 
   @override
   String toString() => '$fromNode → $stepLabel → $toNode';
@@ -128,15 +128,6 @@ class ExplanationStep {
 
 /// The full explanation of a kinship resolution.
 class KinshipExplanation {
-  final String fromPerson;
-  final String toPerson;
-  final String resolvedTerm;
-  final List<ExplanationStep> steps;
-  final KinshipSignature signature;
-  final String pathPattern;
-  final int generationDelta;
-  final FamilySide side;
-  final Consanguinity consanguinity;
 
   const KinshipExplanation({
     required this.fromPerson,
@@ -149,6 +140,15 @@ class KinshipExplanation {
     required this.side,
     required this.consanguinity,
   });
+  final String fromPerson;
+  final String toPerson;
+  final String resolvedTerm;
+  final List<ExplanationStep> steps;
+  final KinshipSignature signature;
+  final String pathPattern;
+  final int generationDelta;
+  final FamilySide side;
+  final Consanguinity consanguinity;
 
   /// Produces a human-readable summary string.
   String get summary {

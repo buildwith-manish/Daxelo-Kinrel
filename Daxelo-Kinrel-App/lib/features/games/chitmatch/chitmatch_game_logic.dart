@@ -92,9 +92,7 @@ void dealChits(
 void autoSelectUnselected(List<ChitmatchPlayer> players, {math.Random? random}) {
   final rng = random ?? math.Random();
   for (final player in players) {
-    if (player.selectedChitIndex == null) {
-      player.selectedChitIndex = rng.nextInt(3);
-    }
+    player.selectedChitIndex ??= rng.nextInt(3);
   }
 }
 

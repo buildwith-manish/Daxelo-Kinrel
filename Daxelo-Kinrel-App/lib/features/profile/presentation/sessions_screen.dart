@@ -451,7 +451,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
       itemCount: 3,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
-        final _shimmerChild = Container(
+        final shimmerChild = Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -499,7 +499,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
         );
 
         if (!DeviceTierCache.instance.shouldShimmer) {
-          return _shimmerChild;
+          return shimmerChild;
         }
 
         return Shimmer.fromColors(
@@ -510,7 +510,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
               ? const Color(0xFFF5F5F5)
               : const Color(0xFF13141E),
           period: const Duration(milliseconds: 1500),
-          child: _shimmerChild,
+          child: shimmerChild,
         );
       },
     );

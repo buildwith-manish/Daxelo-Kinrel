@@ -32,11 +32,11 @@ class _TodCardState extends ConsumerState<TodCard> {
             Container(width: 36, height: 36, decoration: BoxDecoration(shape: BoxShape.circle, color: accent.withValues(alpha: 0.2)),
               child: const Icon(Icons.rotate_right, color: accent, size: 20)),
             const SizedBox(width: 12),
-            Expanded(child: Text('Truth or Dare', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
+            const Expanded(child: Text('Truth or Dare', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
           ]),
           const SizedBox(height: 10),
           Text(dl.status != GameDownloadStatus.downloaded ? 'Download in Games hub to play' : 'Spin the bottle — family-submitted prompts!',
-            style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
+            style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
         ])),
       )),
     );

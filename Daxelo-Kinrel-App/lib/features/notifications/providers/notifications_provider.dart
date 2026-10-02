@@ -95,6 +95,14 @@ class NotificationPreference {
     this.email = false,
   });
 
+  factory NotificationPreference.fromJson(Map<String, dynamic> json) {
+    return NotificationPreference(
+      push: json['push'] as bool? ?? true,
+      inApp: json['inApp'] as bool? ?? true,
+      email: json['email'] as bool? ?? false,
+    );
+  }
+
   /// Whether to send push notifications for this type.
   final bool push;
 
@@ -113,14 +121,6 @@ class NotificationPreference {
       push: push ?? this.push,
       inApp: inApp ?? this.inApp,
       email: email ?? this.email,
-    );
-  }
-
-  factory NotificationPreference.fromJson(Map<String, dynamic> json) {
-    return NotificationPreference(
-      push: json['push'] as bool? ?? true,
-      inApp: json['inApp'] as bool? ?? true,
-      email: json['email'] as bool? ?? false,
     );
   }
 

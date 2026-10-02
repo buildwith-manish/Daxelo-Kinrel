@@ -83,6 +83,16 @@ class CodeCluesPlayer {
     required this.score,
   });
 
+  factory CodeCluesPlayer.fromJson(Map<String, dynamic> json) =>
+      CodeCluesPlayer(
+        idx: (json['idx'] as num?)?.toInt() ?? 0,
+        userId: (json['userId'] ?? '') as String,
+        name: (json['name'] ?? 'Player') as String,
+        team: (json['team'] as num?)?.toInt() ?? 1,
+        isSpymaster: (json['isSpymaster'] as bool?) ?? false,
+        score: (json['score'] as num?)?.toInt() ?? 0,
+      );
+
   final int idx;
   final String userId;
   final String name;
@@ -109,16 +119,6 @@ class CodeCluesPlayer {
         'isSpymaster': isSpymaster,
         'score': score,
       };
-
-  factory CodeCluesPlayer.fromJson(Map<String, dynamic> json) =>
-      CodeCluesPlayer(
-        idx: (json['idx'] as num?)?.toInt() ?? 0,
-        userId: (json['userId'] ?? '') as String,
-        name: (json['name'] ?? 'Player') as String,
-        team: (json['team'] as num?)?.toInt() ?? 1,
-        isSpymaster: (json['isSpymaster'] as bool?) ?? false,
-        score: (json['score'] as num?)?.toInt() ?? 0,
-      );
 }
 
 /// One entry in the boardState.log[] activity stream.
@@ -133,6 +133,18 @@ class CodeCluesLogEntry {
     this.assignment,
     this.user,
   });
+
+  factory CodeCluesLogEntry.fromJson(Map<String, dynamic> json) =>
+      CodeCluesLogEntry(
+        type: (json['type'] ?? '') as String,
+        team: (json['team'] as num?)?.toInt(),
+        clue: json['clue'] as String?,
+        number: (json['number'] as num?)?.toInt(),
+        wordIndex: (json['wordIndex'] as num?)?.toInt(),
+        word: json['word'] as String?,
+        assignment: (json['assignment'] as num?)?.toInt(),
+        user: json['user'] as String?,
+      );
 
   /// 'clue' | 'guess' | 'pass' | 'timeout' | 'assassin'
   final String type;
@@ -154,18 +166,6 @@ class CodeCluesLogEntry {
         if (assignment != null) 'assignment': assignment,
         if (user != null) 'user': user,
       };
-
-  factory CodeCluesLogEntry.fromJson(Map<String, dynamic> json) =>
-      CodeCluesLogEntry(
-        type: (json['type'] ?? '') as String,
-        team: (json['team'] as num?)?.toInt(),
-        clue: json['clue'] as String?,
-        number: (json['number'] as num?)?.toInt(),
-        wordIndex: (json['wordIndex'] as num?)?.toInt(),
-        word: json['word'] as String?,
-        assignment: (json['assignment'] as num?)?.toInt(),
-        user: json['user'] as String?,
-      );
 }
 
 /// The full boardState JSONB from the games row, parsed.
@@ -193,6 +193,87 @@ class CodeCluesBoardState {
     required this.status,
     required this.winnerIndex,
   });
+
+  factory CodeCluesBoardState.fromJson(Map<String, dynamic> json) {
+    List<String> parseWords() {
+      final raw = json['words'];
+      if (raw is List) {
+        return raw.map((e) => e.toString()).toList();
+      }
+      return List<String>.filled(kCodeCluesGridSize, '');
+    }
+
+    List<int> parseAssignments() {
+      final raw = json['assignments'];
+      if (raw is List) {
+        return raw.map((e) => (e as num).toInt()).toList();
+      }
+      return List<int>.filled(kCodeCluesGridSize, 0);
+    }
+
+    List<bool> parseRevealed() {
+      final raw = json['revealed'];
+      if (raw is List) {
+        return raw
+            .map((e) => e is bool ? e : (e == true || e == 1 || e == 'true'))
+            .toList();
+      }
+      return List<bool>.filled(kCodeCluesGridSize, false);
+    }
+
+    final logList = <CodeCluesLogEntry>[];
+    final rawLog = json['log'];
+    if (rawLog is List) {
+      for (final e in rawLog) {
+        if (e is Map) {
+          logList.add(
+              CodeCluesLogEntry.fromJson(Map<String, dynamic>.from(e)));
+        }
+      }
+    }
+
+    final playersList = <CodeCluesPlayer>[];
+    final rawPlayers = json['players'];
+    if (rawPlayers is List) {
+      for (final p in rawPlayers) {
+        if (p is Map) {
+          playersList
+              .add(CodeCluesPlayer.fromJson(Map<String, dynamic>.from(p)));
+        }
+      }
+    }
+
+    return CodeCluesBoardState(
+      playerCount: (json['playerCount'] as num?)?.toInt() ??
+          kCodeCluesMinPlayers,
+      clueSeconds: (json['clueSeconds'] as num?)?.toInt() ??
+          kCodeCluesDefaultClueSeconds,
+      guessSeconds: (json['guessSeconds'] as num?)?.toInt() ??
+          kCodeCluesDefaultGuessSeconds,
+      currentTurnTeam: (json['currentTurnTeam'] as num?)?.toInt() ?? 1,
+      phase: CodeCluesPhaseX.fromString(json['phase'] as String?),
+      words: parseWords(),
+      assignments: parseAssignments(),
+      revealed: parseRevealed(),
+      clue: json['clue'] as String?,
+      clueNumber: (json['clueNumber'] as num?)?.toInt(),
+      clueGiverId: json['clueGiverId'] as String?,
+      clueGiverName: json['clueGiverName'] as String?,
+      guessesLeft: (json['guessesLeft'] as num?)?.toInt() ?? 0,
+      team1Found: (json['team1Found'] as num?)?.toInt() ?? 0,
+      team2Found: (json['team2Found'] as num?)?.toInt() ?? 0,
+      team1Total: (json['team1Total'] as num?)?.toInt() ??
+          kCodeCluesTeam1Total,
+      team2Total: (json['team2Total'] as num?)?.toInt() ??
+          kCodeCluesTeam2Total,
+      log: logList,
+      players: playersList,
+      status: (json['status'] as String?) ?? 'in_progress',
+      winnerIndex: (json['winner'] as num?)?.toInt() ??
+          (json['winnerIndex'] as num?)?.toInt() ??
+          -1,
+    );
+  }
 
   final int playerCount;
   final int clueSeconds;
@@ -286,87 +367,6 @@ class CodeCluesBoardState {
         'status': status,
         'winner': winnerIndex,
       };
-
-  factory CodeCluesBoardState.fromJson(Map<String, dynamic> json) {
-    List<String> parseWords() {
-      final raw = json['words'];
-      if (raw is List) {
-        return raw.map((e) => e.toString()).toList();
-      }
-      return List<String>.filled(kCodeCluesGridSize, '');
-    }
-
-    List<int> parseAssignments() {
-      final raw = json['assignments'];
-      if (raw is List) {
-        return raw.map((e) => (e as num).toInt()).toList();
-      }
-      return List<int>.filled(kCodeCluesGridSize, 0);
-    }
-
-    List<bool> parseRevealed() {
-      final raw = json['revealed'];
-      if (raw is List) {
-        return raw
-            .map((e) => e is bool ? e : (e == true || e == 1 || e == 'true'))
-            .toList();
-      }
-      return List<bool>.filled(kCodeCluesGridSize, false);
-    }
-
-    final logList = <CodeCluesLogEntry>[];
-    final rawLog = json['log'];
-    if (rawLog is List) {
-      for (final e in rawLog) {
-        if (e is Map) {
-          logList.add(
-              CodeCluesLogEntry.fromJson(Map<String, dynamic>.from(e)));
-        }
-      }
-    }
-
-    final playersList = <CodeCluesPlayer>[];
-    final rawPlayers = json['players'];
-    if (rawPlayers is List) {
-      for (final p in rawPlayers) {
-        if (p is Map) {
-          playersList
-              .add(CodeCluesPlayer.fromJson(Map<String, dynamic>.from(p)));
-        }
-      }
-    }
-
-    return CodeCluesBoardState(
-      playerCount: (json['playerCount'] as num?)?.toInt() ??
-          kCodeCluesMinPlayers,
-      clueSeconds: (json['clueSeconds'] as num?)?.toInt() ??
-          kCodeCluesDefaultClueSeconds,
-      guessSeconds: (json['guessSeconds'] as num?)?.toInt() ??
-          kCodeCluesDefaultGuessSeconds,
-      currentTurnTeam: (json['currentTurnTeam'] as num?)?.toInt() ?? 1,
-      phase: CodeCluesPhaseX.fromString(json['phase'] as String?),
-      words: parseWords(),
-      assignments: parseAssignments(),
-      revealed: parseRevealed(),
-      clue: json['clue'] as String?,
-      clueNumber: (json['clueNumber'] as num?)?.toInt(),
-      clueGiverId: json['clueGiverId'] as String?,
-      clueGiverName: json['clueGiverName'] as String?,
-      guessesLeft: (json['guessesLeft'] as num?)?.toInt() ?? 0,
-      team1Found: (json['team1Found'] as num?)?.toInt() ?? 0,
-      team2Found: (json['team2Found'] as num?)?.toInt() ?? 0,
-      team1Total: (json['team1Total'] as num?)?.toInt() ??
-          kCodeCluesTeam1Total,
-      team2Total: (json['team2Total'] as num?)?.toInt() ??
-          kCodeCluesTeam2Total,
-      log: logList,
-      players: playersList,
-      status: (json['status'] as String?) ?? 'in_progress',
-      winnerIndex: (json['winner'] as num?)?.toInt() ??
-          (json['winnerIndex'] as num?)?.toInt() ??
-          -1,
-    );
-  }
 }
 
 /// Human-readable label for a given assignment code (UI helper).

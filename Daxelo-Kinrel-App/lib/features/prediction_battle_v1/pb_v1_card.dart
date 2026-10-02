@@ -261,7 +261,7 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
                 },
               ),
             ListTile(
-              leading: Icon(Icons.settings_outlined, color: KinrelColors.textDim),
+              leading: const Icon(Icons.settings_outlined, color: KinrelColors.textDim),
               title: const Text('Widget settings', style: TextStyle(color: KinrelColors.textSilver, fontFamily: KinrelTypography.bodyFont)),
               subtitle: const Text('Choose families for the home widget', style: TextStyle(color: KinrelColors.textDim, fontSize: 11)),
               onTap: () {
@@ -303,8 +303,7 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
             style: DefaultTextStyle.of(flightContext).style,
             child: (flightDirection == HeroFlightDirection.push
                     ? fromHeroContext.widget
-                    : toHeroContext.widget)
-                as Widget,
+                    : toHeroContext.widget),
           ),
         );
       },
@@ -328,7 +327,7 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
               children: [
                 const Icon(Icons.gps_fixed, size: 24, color: KinrelColors.orange),
                 const SizedBox(width: 8),
-                Text('PREDICTION BATTLE', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 1.3, color: KinrelColors.textWhite)),
+                const Text('PREDICTION BATTLE', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 1.3, color: KinrelColors.textWhite)),
                 const Spacer(),
                 _StatusPill(status: round.status, revealed: state.revealed),
               ],
@@ -337,11 +336,11 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
             // Question text
             Text(
               question.questionText,
-              style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite, height: 1.3),
+              style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite, height: 1.3),
             ),
             if (question.unitLabel.isNotEmpty) ...[
               const SizedBox(height: 4),
-              Text('(in ${question.unitLabel})', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
+              Text('(in ${question.unitLabel})', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
             ],
             const SizedBox(height: 14),
 
@@ -351,13 +350,13 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
               TextField(
                 controller: _controller,
                 keyboardType: TextInputType.number,
-                style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, color: KinrelColors.textWhite),
+                style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, color: KinrelColors.textWhite),
                 decoration: InputDecoration(
                   hintText: 'Enter your guess...',
-                  hintStyle: TextStyle(color: KinrelColors.textDim),
+                  hintStyle: const TextStyle(color: KinrelColors.textDim),
                   filled: true,
                   fillColor: KinrelColors.darkCard,
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: KinrelColors.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: KinrelColors.border)),
                   focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: KinrelColors.orange, width: 1.4)),
                 ),
               ),
@@ -375,7 +374,7 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
               const SizedBox(height: 8),
               Text(
                 'Reveal at ${_formatRevealTime(round.revealAt)} · $_liveCountdown',
-                style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: KinrelColors.textDim),
+                style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: KinrelColors.textDim),
               ),
               const SizedBox(height: 6),
               // Subtle history link — lets curious users see past
@@ -383,7 +382,7 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
               // reveal summary state.
               GestureDetector(
                 onTap: () => context.push('/family/${widget.familyId}/prediction-battle-v1/history'),
-                child: Text(
+                child: const Text(
                   'View history →',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -402,7 +401,7 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
                   Expanded(
                     child: Text(
                       'Guess locked in — ${state.myGuess!.guessValue.toStringAsFixed(state.myGuess!.guessValue == state.myGuess!.guessValue.roundToDouble() ? 0 : 1)} ${question.unitLabel}',
-                      style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textWhite),
+                      style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textWhite),
                     ),
                   ),
                 ],
@@ -410,12 +409,12 @@ class _PredictionBattleV1CardState extends ConsumerState<PredictionBattleV1Card>
               const SizedBox(height: 6),
               Text(
                 'Reveal in $_liveCountdown',
-                style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.amber),
+                style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.amber),
               ),
               const SizedBox(height: 6),
               GestureDetector(
                 onTap: () => context.push('/family/${widget.familyId}/prediction-battle-v1/history'),
-                child: Text(
+                child: const Text(
                   'View history →',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -479,7 +478,7 @@ class _RevealSummary extends StatelessWidget {
         // Correct answer
         Text(
           'Answer: ${question.correctAnswer.toStringAsFixed(question.correctAnswer == question.correctAnswer.roundToDouble() ? 0 : 1)} ${question.unitLabel}',
-          style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w800, color: KinrelColors.brightGold),
+          style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w800, color: KinrelColors.brightGold),
         ),
         const SizedBox(height: 6),
         if (state.myGuess != null) ...[
@@ -505,7 +504,7 @@ class _RevealSummary extends StatelessWidget {
                 HapticFeedback.selectionClick();
                 context.push('/family/$familyId/prediction-battle-v1/reveal/${state.round!.id}');
               },
-              child: Text(
+              child: const Text(
                 'See full reveal →',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -518,7 +517,7 @@ class _RevealSummary extends StatelessWidget {
             const SizedBox(width: 16),
             GestureDetector(
               onTap: () => context.push('/family/$familyId/prediction-battle-v1/history'),
-              child: Text(
+              child: const Text(
                 'View history →',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,

@@ -126,7 +126,7 @@ class _StickmanHeistLobbyScreenState
                 state.game?.roomName?.isNotEmpty == true
                     ? state.game!.roomName!
                     : 'Stickman Heist',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontWeight: FontWeight.w600,
                   color: KinrelColors.textWhite,
@@ -197,7 +197,7 @@ class _StickmanHeistLobbyScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Share this code',
+            const Text('Share this code',
                 style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 18,
@@ -205,17 +205,17 @@ class _StickmanHeistLobbyScreenState
                     color: KinrelColors.textWhite)),
             const SizedBox(height: KinrelSpacing.md),
             Text(code,
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 40,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFFEF4444),
+                    color: Color(0xFFEF4444),
                     letterSpacing: 6)),
             const SizedBox(height: KinrelSpacing.md),
             Text(
               'Up to ${_maxPlayers - 1} members. Find the treasure, escape, win!',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim),
@@ -242,11 +242,11 @@ class _StickmanHeistLobbyScreenState
       title: 'Stickman Heist',
       tagline: 'Treasure-hunt shooter · find it, hold it, escape',
       facts: [
-        LobbyFact(icon: Icons.groups_2_outlined, label: '2–8 players'),
+        const LobbyFact(icon: Icons.groups_2_outlined, label: '2–8 players'),
         LobbyFact(
             icon: Icons.timer_outlined,
             label: '${(_matchSeconds ~/ 60)}m match'),
-        LobbyFact(icon: Icons.gps_fixed, label: 'Top-down'),
+        const LobbyFact(icon: Icons.gps_fixed, label: 'Top-down'),
       ],
       settings: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,7 +256,7 @@ class _StickmanHeistLobbyScreenState
             child: TextField(
               controller: _roomNameController,
               maxLength: 24,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: KinrelColors.textWhite),
@@ -273,7 +273,7 @@ class _StickmanHeistLobbyScreenState
                     horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  borderSide: BorderSide(color: KinrelColors.border),
+                  borderSide: const BorderSide(color: KinrelColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),

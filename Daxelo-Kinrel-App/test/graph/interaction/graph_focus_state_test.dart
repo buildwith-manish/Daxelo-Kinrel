@@ -157,7 +157,7 @@ void main() {
 
   group('Phase 1 — Focus history push', () {
     test('TEST 4: focus pushes viewport onto history', () {
-      final viewport = FocusViewportSnapshot(
+      final viewport = const FocusViewportSnapshot(
           panX: 100.0, panY: 200.0, zoom: 1.5);
 
       notifier.focus(
@@ -173,9 +173,9 @@ void main() {
     });
 
     test('focusing same person twice does not duplicate history', () {
-      final viewport1 = FocusViewportSnapshot(
+      final viewport1 = const FocusViewportSnapshot(
           panX: 10.0, panY: 20.0, zoom: 1.0);
-      final viewport2 = FocusViewportSnapshot(
+      final viewport2 = const FocusViewportSnapshot(
           panX: 30.0, panY: 40.0, zoom: 2.0);
 
       notifier.focus(
@@ -332,11 +332,11 @@ void main() {
       // holds: focusedPersonId, history, firstDegreeIds,
       // secondDegreeIds, revision. None of these are persisted to
       // Supabase or Drift.
-      final state = GraphFocusState(
+      final state = const GraphFocusState(
         focusedPersonId: 'A',
-        history: const [],
+        history: [],
         firstDegreeIds: {'B', 'C'},
-        secondDegreeIds: const {},
+        secondDegreeIds: {},
         revision: 1,
       );
 

@@ -85,7 +85,7 @@ class _SketchTelephoneCardState extends ConsumerState<SketchTelephoneCard> {
                     children: [
                       Row(
                         children: [
-                          Expanded(
+                          const Expanded(
                             child: Text(
                               'Sketch Telephone',
                               style: TextStyle(
@@ -105,7 +105,7 @@ class _SketchTelephoneCardState extends ConsumerState<SketchTelephoneCard> {
                               border: Border.all(
                                   color: accent.withValues(alpha: 0.4)),
                             ),
-                            child: Text(
+                            child: const Text(
                               '4–8',
                               style: TextStyle(
                                 fontFamily: KinrelTypography.monoFont,
@@ -118,7 +118,7 @@ class _SketchTelephoneCardState extends ConsumerState<SketchTelephoneCard> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      const Text(
                         'Drawing chain · Gartic Phone-style',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
@@ -139,7 +139,7 @@ class _SketchTelephoneCardState extends ConsumerState<SketchTelephoneCard> {
                           ),
                         )
                       else
-                        Text(
+                        const Text(
                           'Write a prompt, draw it, describe the drawing, draw that… then reveal the chaos!',
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,

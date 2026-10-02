@@ -151,17 +151,7 @@ class KinrelSymbolParameters {
     required this.secondaryColorHex,
     required this.accentColorHex,
     required this.pulseSpeedMs,
-  });
-
-  final int ringCount; // 1–8
-  final int spokeCount; // 3–12
-  final KinrelInnerPattern innerPatternType;
-  final double outerRingRadiusPct; // 0.50–0.95
-  final int patternComplexity; // 1–10
-  final String primaryColorHex; // #RRGGBB
-  final String secondaryColorHex;
-  final String accentColorHex;
-  final int pulseSpeedMs; // 2000–6000
+  }); // 2000–6000
 
   factory KinrelSymbolParameters.fromJson(Map<String, dynamic> json) {
     return KinrelSymbolParameters(
@@ -181,6 +171,16 @@ class KinrelSymbolParameters {
       pulseSpeedMs: _readInt(json, 'pulseSpeedMs', 3000),
     );
   }
+
+  final int ringCount; // 1–8
+  final int spokeCount; // 3–12
+  final KinrelInnerPattern innerPatternType;
+  final double outerRingRadiusPct; // 0.50–0.95
+  final int patternComplexity; // 1–10
+  final String primaryColorHex; // #RRGGBB
+  final String secondaryColorHex;
+  final String accentColorHex;
+  final int pulseSpeedMs;
 
   Map<String, dynamic> toJson() => {
         'ringCount': ringCount,
@@ -234,17 +234,6 @@ class KinrelMetrics {
     required this.rootNode,
   });
 
-  final int memberCount;
-  final int generationDepth;
-  final int edgeCount;
-  final double clusteringCoefficient;
-  final int graphDiameter;
-  final double avgDegree;
-  final int distinctLineages;
-  final Map<String, double> languageDistribution;
-  final String? maxBetweennessNode;
-  final String? rootNode;
-
   factory KinrelMetrics.fromJson(Map<String, dynamic> json) {
     final rawDist = json['languageDistribution'];
     final Map<String, double> dist = {};
@@ -272,6 +261,17 @@ class KinrelMetrics {
     );
   }
 
+  final int memberCount;
+  final int generationDepth;
+  final int edgeCount;
+  final double clusteringCoefficient;
+  final int graphDiameter;
+  final double avgDegree;
+  final int distinctLineages;
+  final Map<String, double> languageDistribution;
+  final String? maxBetweennessNode;
+  final String? rootNode;
+
   Map<String, dynamic> toJson() => {
         'memberCount': memberCount,
         'generationDepth': generationDepth,
@@ -294,16 +294,6 @@ class KinrelArchetype {
     this.definition,
   });
 
-  final ArchetypeType key;
-  final double confidence; // 0.0–1.0
-
-  /// Bug 8 fix: optional locale-string bundle sent by the backend.
-  /// When present, contains `names` and `descriptions` maps keyed by
-  /// locale code (e.g. {'en': 'The Deep Root', 'hi': 'गहरी जड़', ...}).
-  /// The Flutter client uses this to render the user's locale instead
-  /// of the hardcoded English strings in archetype_strings.dart.
-  final KinrelArchetypeDefinition? definition;
-
   factory KinrelArchetype.fromJson(Map<String, dynamic> json) {
     final defJson = json['definition'] as Map<String, dynamic>?;
     return KinrelArchetype(
@@ -313,6 +303,16 @@ class KinrelArchetype {
           defJson == null ? null : KinrelArchetypeDefinition.fromJson(defJson),
     );
   }
+
+  final ArchetypeType key;
+  final double confidence; // 0.0–1.0
+
+  /// Bug 8 fix: optional locale-string bundle sent by the backend.
+  /// When present, contains `names` and `descriptions` maps keyed by
+  /// locale code (e.g. {'en': 'The Deep Root', 'hi': 'गहरी जड़', ...}).
+  /// The Flutter client uses this to render the user's locale instead
+  /// of the hardcoded English strings in archetype_strings.dart.
+  final KinrelArchetypeDefinition? definition;
 
   Map<String, dynamic> toJson() => {
         'key': key.wireKey,
@@ -329,14 +329,8 @@ class KinrelArchetypeDefinition {
     required this.descriptions,
   });
 
-  /// Locale code → display name (e.g. {'en': 'The Deep Root', 'hi': 'गहरी जड़'}).
-  final Map<String, String> names;
-
-  /// Locale code → 2-line poetic description.
-  final Map<String, String> descriptions;
-
   factory KinrelArchetypeDefinition.fromJson(Map<String, dynamic> json) {
-    Map<String, String> _readStringMap(Map<String, dynamic>? m) {
+    Map<String, String> readStringMap(Map<String, dynamic>? m) {
       if (m == null) return const {};
       return m.map(
         (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
@@ -344,11 +338,17 @@ class KinrelArchetypeDefinition {
     }
 
     return KinrelArchetypeDefinition(
-      names: _readStringMap(json['names'] as Map<String, dynamic>?),
+      names: readStringMap(json['names'] as Map<String, dynamic>?),
       descriptions:
-          _readStringMap(json['descriptions'] as Map<String, dynamic>?),
+          readStringMap(json['descriptions'] as Map<String, dynamic>?),
     );
   }
+
+  /// Locale code → display name (e.g. {'en': 'The Deep Root', 'hi': 'गहरी जड़'}).
+  final Map<String, String> names;
+
+  /// Locale code → 2-line poetic description.
+  final Map<String, String> descriptions;
 
   Map<String, dynamic> toJson() => {
         'names': names,
@@ -383,13 +383,6 @@ class KinrelModel {
     required this.updatedAt,
   });
 
-  final String familyId;
-  final KinrelSymbolParameters symbol;
-  final KinrelArchetype archetype;
-  final KinrelMetrics metrics;
-  final DateTime computedAt;
-  final DateTime updatedAt;
-
   factory KinrelModel.fromJson(Map<String, dynamic> json) {
     return KinrelModel(
       familyId: (json['familyId'] as String?) ?? '',
@@ -407,6 +400,13 @@ class KinrelModel {
     );
   }
 
+  final String familyId;
+  final KinrelSymbolParameters symbol;
+  final KinrelArchetype archetype;
+  final KinrelMetrics metrics;
+  final DateTime computedAt;
+  final DateTime updatedAt;
+
   Map<String, dynamic> toJson() => {
         'familyId': familyId,
         'symbol': symbol.toJson(),
@@ -423,7 +423,7 @@ class KinrelModel {
   static KinrelModel decode(String jsonString) {
     final decoded = jsonDecode(jsonString);
     if (decoded is! Map<String, dynamic>) {
-      throw FormatException('CachedKinrel.data is not a JSON object');
+      throw const FormatException('CachedKinrel.data is not a JSON object');
     }
     return KinrelModel.fromJson(decoded);
   }
@@ -442,18 +442,6 @@ class RoleGlyph {
     required this.degreeCount,
   });
 
-  final String memberId;
-
-  /// One of: root | anchor | bridge | weaver | leaf | twin_node
-  final String roleKey;
-
-  /// Visual hint from the backend (e.g. `deep_anchor`, `bridge_cross`).
-  final String glyphShape;
-  final String glyphColorHex; // #RRGGBB
-  final int generationIndex;
-  final double betweennessScore;
-  final int degreeCount;
-
   factory RoleGlyph.fromJson(Map<String, dynamic> json) {
     return RoleGlyph(
       memberId: (json['memberId'] as String?) ?? '',
@@ -466,6 +454,18 @@ class RoleGlyph {
       degreeCount: _readInt(json, 'degreeCount', 0),
     );
   }
+
+  final String memberId;
+
+  /// One of: root | anchor | bridge | weaver | leaf | twin_node
+  final String roleKey;
+
+  /// Visual hint from the backend (e.g. `deep_anchor`, `bridge_cross`).
+  final String glyphShape;
+  final String glyphColorHex; // #RRGGBB
+  final int generationIndex;
+  final double betweennessScore;
+  final int degreeCount;
 
   Map<String, dynamic> toJson() => {
         'memberId': memberId,
@@ -498,27 +498,6 @@ class KinrelHistorySnapshot {
     required this.triggerEventType,
     this.languageDistribution = const {},
   });
-
-  final String id;
-  final int memberCount;
-  final int generationDepth;
-  final ArchetypeType archetypeKey;
-  final int ringCount;
-  final int spokeCount;
-  final KinrelInnerPattern innerPatternType;
-  final String primaryColorHex;
-  final String secondaryColorHex;
-  final String accentColorHex;
-  final bool archetypeChanged;
-  final String? previousArchetype;
-  final DateTime capturedAt;
-  final String? triggerMemberId;
-  final String triggerEventType;
-
-  /// Bug 9 fix: language distribution at this point in time.
-  /// ISO-639-1 code → ratio (sums to 1.0). Empty for snapshots written
-  /// before the migration that added this column.
-  final Map<String, double> languageDistribution;
 
   factory KinrelHistorySnapshot.fromJson(Map<String, dynamic> json) {
     final rawDist = json['languageDistribution'];
@@ -557,6 +536,27 @@ class KinrelHistorySnapshot {
       languageDistribution: dist,
     );
   }
+
+  final String id;
+  final int memberCount;
+  final int generationDepth;
+  final ArchetypeType archetypeKey;
+  final int ringCount;
+  final int spokeCount;
+  final KinrelInnerPattern innerPatternType;
+  final String primaryColorHex;
+  final String secondaryColorHex;
+  final String accentColorHex;
+  final bool archetypeChanged;
+  final String? previousArchetype;
+  final DateTime capturedAt;
+  final String? triggerMemberId;
+  final String triggerEventType;
+
+  /// Bug 9 fix: language distribution at this point in time.
+  /// ISO-639-1 code → ratio (sums to 1.0). Empty for snapshots written
+  /// before the migration that added this column.
+  final Map<String, double> languageDistribution;
 }
 
 // ─── helpers ───────────────────────────────────────────────────────────

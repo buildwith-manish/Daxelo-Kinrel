@@ -223,7 +223,7 @@ class Pseudo3DNodePainter extends CustomPainter {
       center + params.shadowOffset,
       r,
       _cachedNodeBlurPaint(
-        color: Colors.black.value,
+        color: Colors.black.toARGB32(),
         alpha: params.shadowAlpha,
         sigma: params.shadowBlur,
       ),
@@ -337,7 +337,7 @@ class Pseudo3DNodePainter extends CustomPainter {
           endAngle: 2 * pi,
           colors: [borderBright, borderDark, borderDark, borderBright],
           stops: const [0.0, 0.25, 0.75, 1.0],
-          transform: GradientRotation(-pi * 0.75),
+          transform: const GradientRotation(-pi * 0.75),
         ).createShader(rimRect),
     );
 
@@ -430,7 +430,7 @@ class Pseudo3DNodePainter extends CustomPainter {
         Offset(center.dx - r * 0.03, center.dy - r * 0.42),
         params.specularThickness * 0.35,
         _cachedNodeBlurPaint(
-          color: Colors.white.value,
+          color: Colors.white.toARGB32(),
           alpha: specAlpha * 0.6,
           sigma: 1.5,
         ),
@@ -449,7 +449,7 @@ class Pseudo3DNodePainter extends CustomPainter {
         center,
         r + 1.5,
         _cachedNodeBlurPaint(
-          color: params.borderColor.value,
+          color: params.borderColor.toARGB32(),
           alpha: params.glowAlpha,
           sigma: params.glowBlur,
         ),

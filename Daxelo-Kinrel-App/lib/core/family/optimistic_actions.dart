@@ -175,7 +175,7 @@ Future<Family> createFamilyOptimistic({
       id: Value(tempId),
       name: Value(name),
       data: Value(_jsonEncode(optimisticFamily.toJson())),
-      kinFamilyId: Value(null),
+      kinFamilyId: const Value(null),
       username: Value(username),
       cachedAt: Value(now),
     ));

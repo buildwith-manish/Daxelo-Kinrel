@@ -55,8 +55,8 @@ class MapSkeleton extends StatelessWidget {
       child: Icon(
         Icons.map_outlined,
         size: 48,
-        color: KinrelColors.orange.withOpacity(
-          MapVisualConstants.timelineSliderOverlayOpacity,
+        color: KinrelColors.orange.withValues(
+          alpha: MapVisualConstants.timelineSliderOverlayOpacity,
         ),
       ),
     );
@@ -75,14 +75,14 @@ class MapSkeleton extends StatelessWidget {
                       .animate(onPlay: (c) => c.repeat())
                       .shimmer(
                         duration: 1500.ms,
-                        color: KinrelColors.orange.withOpacity(
-                          MapVisualConstants.skeletonShimmerOpacity,
+                        color: KinrelColors.orange.withValues(
+                          alpha: MapVisualConstants.skeletonShimmerOpacity,
                         ),
                       ),
             const SizedBox(height: 24),
             Text(
               message,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,

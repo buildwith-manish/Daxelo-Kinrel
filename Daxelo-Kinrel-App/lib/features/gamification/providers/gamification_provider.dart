@@ -75,6 +75,26 @@ class AchievementBadge {
     this.category,
   });
 
+  /// Create from API BadgeModel + optional UserBadgeModel.
+  factory AchievementBadge.fromApi({
+    required BadgeModel badge,
+    UserBadgeModel? userBadge,
+  }) {
+    return AchievementBadge(
+      id: badge.slug,
+      name: badge.name,
+      description: badge.description,
+      icon: BadgeIcons.forSlug(badge.slug),
+      isUnlocked: userBadge != null,
+      unlockedDate: userBadge?.earnedAt,
+      condition: badge.threshold != null
+          ? 'Reach ${badge.threshold} ${badge.category.replaceAll('_', ' ')}'
+          : badge.description,
+      tier: badge.tier,
+      category: badge.category,
+    );
+  }
+
   final String id;
   final String name;
   final String description;
@@ -104,26 +124,6 @@ class AchievementBadge {
       category: category,
     );
   }
-
-  /// Create from API BadgeModel + optional UserBadgeModel.
-  factory AchievementBadge.fromApi({
-    required BadgeModel badge,
-    UserBadgeModel? userBadge,
-  }) {
-    return AchievementBadge(
-      id: badge.slug,
-      name: badge.name,
-      description: badge.description,
-      icon: BadgeIcons.forSlug(badge.slug),
-      isUnlocked: userBadge != null,
-      unlockedDate: userBadge?.earnedAt,
-      condition: badge.threshold != null
-          ? 'Reach ${badge.threshold} ${badge.category.replaceAll('_', ' ')}'
-          : badge.description,
-      tier: badge.tier,
-      category: badge.category,
-    );
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -138,6 +138,21 @@ class StreakData {
     this.todayCheckedIn = false,
     this.streakStartDate,
   });
+
+  /// Create from API CheckInResult or ContributionModel.
+  factory StreakData.fromApi({
+    int? streakCount,
+    int? longestStreak,
+    DateTime? lastCheckIn,
+    bool todayCheckedIn = false,
+  }) {
+    return StreakData(
+      currentStreak: streakCount ?? 0,
+      longestStreak: longestStreak ?? streakCount ?? 0,
+      lastCheckInDate: lastCheckIn,
+      todayCheckedIn: todayCheckedIn,
+    );
+  }
 
   final int currentStreak;
   final int longestStreak;
@@ -176,21 +191,6 @@ class StreakData {
       lastCheckInDate: lastCheckInDate ?? this.lastCheckInDate,
       todayCheckedIn: todayCheckedIn ?? this.todayCheckedIn,
       streakStartDate: streakStartDate ?? this.streakStartDate,
-    );
-  }
-
-  /// Create from API CheckInResult or ContributionModel.
-  factory StreakData.fromApi({
-    int? streakCount,
-    int? longestStreak,
-    DateTime? lastCheckIn,
-    bool todayCheckedIn = false,
-  }) {
-    return StreakData(
-      currentStreak: streakCount ?? 0,
-      longestStreak: longestStreak ?? streakCount ?? 0,
-      lastCheckInDate: lastCheckIn,
-      todayCheckedIn: todayCheckedIn,
     );
   }
 }
@@ -514,11 +514,11 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
     }
 
     // Suggest exploring kinship terms
-    steps.add(SuggestedStep(
+    steps.add(const SuggestedStep(
       id: 'learn_languages',
       title: 'Explore Kinship in a New Language',
       description: 'Discover how family relationships are named across Indian languages!',
-      icon: const IconData(0xe55b, fontFamily: 'MaterialIcons'),
+      icon: IconData(0xe55b, fontFamily: 'MaterialIcons'),
       accentColor: 0xFFD4AF37,
       actionLabel: 'Explore Terms',
       route: '/kinship-search',
@@ -546,8 +546,9 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
     final unlockedBadges = badges.map((b) {
       if (b.isUnlocked) {
         DateTime? date;
-        if (b.id == 'first_steps') date = now.subtract(const Duration(days: 30));
-        else if (b.id == 'growing_family') date = now.subtract(const Duration(days: 18));
+        if (b.id == 'first_steps') {
+          date = now.subtract(const Duration(days: 30));
+        } else if (b.id == 'growing_family') date = now.subtract(const Duration(days: 18));
         else if (b.id == 'generation_mapper') date = now.subtract(const Duration(days: 10));
         else if (b.id == 'connector') date = now.subtract(const Duration(days: 5));
         return b.copyWith(unlockedDate: date);

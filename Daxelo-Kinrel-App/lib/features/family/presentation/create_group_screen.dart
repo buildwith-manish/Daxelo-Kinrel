@@ -95,7 +95,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       context.go('/family/${widget.familyId}/groups/$groupId/hub');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Could not create group. Please try again.'),
           backgroundColor: KinrelColors.darkCard,
         ),
@@ -111,7 +111,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new,
+          icon: const Icon(Icons.arrow_back_ios_new,
               size: 18, color: KinrelColors.textSilver),
           onPressed: () {
             if (_currentStep > 0) {
@@ -121,7 +121,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             }
           },
         ),
-        title: Text(
+        title: const Text(
           'Create Group',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -167,7 +167,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'What type of group?',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -255,7 +255,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Name your group',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -278,7 +278,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         TextField(
           controller: _nameController,
           autofocus: true,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 16,
             color: KinrelColors.textWhite,
@@ -321,7 +321,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Add a description',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -344,7 +344,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         TextField(
           controller: _descriptionController,
           maxLines: 4,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 15,
             color: KinrelColors.textWhite,
@@ -395,7 +395,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       loading: () => const Center(
         child: CircularProgressIndicator(color: KinrelColors.orange),
       ),
-      error: (_, __) => Center(
+      error: (_, __) => const Center(
         child: Text('Could not load members',
             style: TextStyle(color: KinrelColors.textDim)),
       ),
@@ -405,7 +405,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Select members',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -418,7 +418,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             const SizedBox(height: 6),
             Text(
               '${_selectedMemberIds.length} selected',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 color: KinrelColors.ember,
@@ -439,11 +439,11 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                     width: 0.75,
                   ),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
                     Icon(Icons.admin_panel_settings_rounded,
                         size: 18, color: KinrelColors.ember),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'You (Admin)',
@@ -509,7 +509,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                         child: Center(
                           child: Text(
                             initials,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.displayFont,
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -522,7 +522,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                       Expanded(
                         child: Text(
                           name,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -557,7 +557,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Review & create',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -572,12 +572,12 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
+            gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                const Color(0xFF1A1D2E),
-                const Color(0xFF14162A),
+                Color(0xFF1A1D2E),
+                Color(0xFF14162A),
               ],
             ),
             borderRadius: BorderRadius.circular(20),
@@ -611,7 +611,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                 _nameController.text.trim().isEmpty
                     ? 'Group Name'
                     : _nameController.text.trim(),
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -647,12 +647,12 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.people_outline_rounded,
+                  const Icon(Icons.people_outline_rounded,
                       size: 14, color: KinrelColors.textDim),
                   const SizedBox(width: 5),
                   Text(
                     '${_selectedMemberIds.length + 1} members', // +1 for creator
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.textDim,
@@ -695,7 +695,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                       color: Colors.white.withValues(alpha: 0.04),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Text(
+                    child: const Text(
                       'Back',
                       textAlign: TextAlign.center,
                       style: TextStyle(

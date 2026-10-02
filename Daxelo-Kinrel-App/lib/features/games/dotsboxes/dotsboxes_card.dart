@@ -30,11 +30,11 @@ class _DotsboxesCardState extends ConsumerState<DotsboxesCard> {
             Container(width: 36, height: 36, decoration: BoxDecoration(shape: BoxShape.circle, color: accent.withValues(alpha: 0.2)),
               child: const Icon(Icons.grid_on_rounded, color: accent, size: 20)),
             const SizedBox(width: 12),
-            Expanded(child: Text('Dots and Boxes', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
+            const Expanded(child: Text('Dots and Boxes', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
           ]),
           const SizedBox(height: 10),
           Text(dl.status != GameDownloadStatus.downloaded ? 'Download in Games hub to play' : 'Draw lines, capture boxes — most boxes wins!',
-            style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
+            style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
         ])),
       )),
     );

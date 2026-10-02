@@ -187,8 +187,8 @@ void main() {
 
 /// Deterministic seeded random for reproducible test positions.
 class _SeededRandom {
-  int _state;
   _SeededRandom(this._state);
+  int _state;
 
   double nextDouble() {
     // Simple LCG — deterministic, good enough for test positions.

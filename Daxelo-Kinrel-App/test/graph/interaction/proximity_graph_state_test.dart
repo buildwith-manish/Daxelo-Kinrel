@@ -440,9 +440,9 @@ void main() {
       // alone so they still render and the camera can center on them.
       RelationshipEngine.instance.invalidateCache();
       final persons = <GraphPerson>[
-        GraphPerson(id: 'anchor', name: 'Anchor'),
-        GraphPerson(id: 'wife', name: 'Wife'),
-        GraphPerson(id: 'stranger', name: 'Stranger'),
+        const GraphPerson(id: 'anchor', name: 'Anchor'),
+        const GraphPerson(id: 'wife', name: 'Wife'),
+        const GraphPerson(id: 'stranger', name: 'Stranger'),
       ];
       final pathSteps = RelationshipEngine.instance.resolvePath(
         viewerPersonId: 'anchor',

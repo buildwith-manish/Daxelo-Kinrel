@@ -13,12 +13,6 @@ import '../../../core/services/graph_layout_service.dart' show GraphPerson;
 
 /// Result of a spouse inference check.
 class SpouseInference {
-  final String personAId;
-  final String personAName;
-  final String personBId;
-  final String personBName;
-  final List<String> sharedChildIds;
-  final bool alreadySpouse;
 
   const SpouseInference({
     required this.personAId,
@@ -28,6 +22,12 @@ class SpouseInference {
     required this.sharedChildIds,
     required this.alreadySpouse,
   });
+  final String personAId;
+  final String personAName;
+  final String personBId;
+  final String personBName;
+  final List<String> sharedChildIds;
+  final bool alreadySpouse;
 }
 
 class SpouseInferenceEngine {

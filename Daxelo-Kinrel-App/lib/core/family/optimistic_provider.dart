@@ -136,7 +136,7 @@ final combinedMembersProvider =
 
   // Pass 1: dedupe by Person `id` (real wins over pending).
   final seenIds = <String>{};
-  var dedupedById = <Person>[];
+  final dedupedById = <Person>[];
   for (final p in raw) {
     if (seenIds.add(p.id)) {
       dedupedById.add(p);

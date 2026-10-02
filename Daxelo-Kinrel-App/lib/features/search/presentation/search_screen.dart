@@ -127,19 +127,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         ),
         decoration: InputDecoration(
           hintText: 'Search by name, @username, or KIN-XXXXXXXX...',
-          hintStyle: TextStyle(
+          hintStyle: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 15,
             color: KinrelColors.textDim,
           ),
-          prefixIcon: Icon(
+          prefixIcon: const Icon(
             Icons.search_rounded,
             color: KinrelColors.orange,
             size: 22,
           ),
           suffixIcon: query.isNotEmpty
               ? IconButton(
-                  icon: Icon(
+                  icon: const Icon(
                     Icons.close,
                     color: KinrelColors.textDim,
                     size: 20,
@@ -163,7 +163,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(KinrelRadius.xl),
-            borderSide: BorderSide(color: KinrelColors.orange, width: 1.5),
+            borderSide: const BorderSide(color: KinrelColors.orange, width: 1.5),
           ),
         ),
       ),
@@ -208,7 +208,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   Widget _buildRecentSearches(SearchState state) {
     final searches = state.recentSearches;
     return ListView.builder(
-      scrollCacheExtent: ScrollCacheExtent.pixels(500),
+      scrollCacheExtent: const ScrollCacheExtent.pixels(500),
       padding: const EdgeInsets.symmetric(
         horizontal: KinrelSpacing.base,
         vertical: KinrelSpacing.sm,
@@ -232,7 +232,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               TextButton(
                 onPressed: () =>
                     ref.read(searchProvider.notifier).clearRecentSearches(),
-                child: Text(
+                child: const Text(
                   'Clear all',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -256,21 +256,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             horizontal: 0,
             vertical: 0,
           ),
-          leading: Icon(
+          leading: const Icon(
             Icons.access_time,
             color: KinrelColors.textDim,
             size: 18,
           ),
           title: Text(
             item,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14,
               color: KinrelColors.textSilver,
             ),
           ),
           trailing: IconButton(
-            icon: Icon(Icons.close, color: KinrelColors.textDim, size: 16),
+            icon: const Icon(Icons.close, color: KinrelColors.textDim, size: 16),
             onPressed: () =>
                 ref.read(searchProvider.notifier).removeRecentSearch(item),
           ),
@@ -289,7 +289,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.search_off_rounded,
               size: 48,
               color: KinrelColors.textDim,
@@ -297,7 +297,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             const SizedBox(height: KinrelSpacing.md),
             Text(
               'No results for "${state.query}"',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 15,
                 color: KinrelColors.textSilver,
@@ -305,7 +305,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: KinrelSpacing.xs),
-            Text(
+            const Text(
               'Try searching by ID directly',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -365,7 +365,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     }
 
     return ListView.builder(
-      scrollCacheExtent: ScrollCacheExtent.pixels(500),
+      scrollCacheExtent: const ScrollCacheExtent.pixels(500),
       padding: const EdgeInsets.symmetric(
         horizontal: KinrelSpacing.base,
         vertical: KinrelSpacing.sm,
@@ -381,7 +381,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               padding: const EdgeInsets.symmetric(vertical: 16),
               child: Center(
                 child: isLoadingMore
-                    ? SizedBox(
+                    ? const SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
@@ -392,7 +392,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                     : TextButton(
                         onPressed: () =>
                             ref.read(searchProvider.notifier).loadMore(),
-                        child: Text(
+                        child: const Text(
                           'Load more',
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
@@ -450,7 +450,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         children: [
           Text(
             title.toUpperCase(),
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -460,7 +460,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           ),
           GestureDetector(
             onTap: onSeeAll,
-            child: Text(
+            child: const Text(
               'See all',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -507,7 +507,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                             ),
                             placeholder: (_, __) => Text(
                               initials,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.displayFont,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
@@ -516,7 +516,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                             ),
                             errorWidget: (_, __, ___) => Text(
                               initials,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.displayFont,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
@@ -527,7 +527,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                         )
                       : Text(
                           initials,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.displayFont,
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
@@ -558,7 +558,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                         children: [
                           Text(
                             'ID: $displayId',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.monoFont,
                               fontSize: 11,
                               color: KinrelColors.textDim,
@@ -568,7 +568,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                           Flexible(
                             child: Text(
                               person.familyId.isNotEmpty ? 'Family' : '',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 11,
                                 color: KinrelColors.textSilver,
@@ -584,7 +584,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                 ),
 
                 // Chevron
-                Icon(
+                const Icon(
                   Icons.chevron_right,
                   color: KinrelColors.textDim,
                   size: 20,
@@ -635,7 +635,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                         children: [
                           Text(
                             'ID: $displayId',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.monoFont,
                               fontSize: 11,
                               color: KinrelColors.textDim,
@@ -644,7 +644,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                           const SizedBox(width: 8),
                           Text(
                             '${family.memberCount} members',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 11,
                               color: KinrelColors.textSilver,
@@ -657,7 +657,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                 ),
 
                 // Chevron
-                Icon(
+                const Icon(
                   Icons.chevron_right,
                   color: KinrelColors.textDim,
                   size: 20,
@@ -698,7 +698,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               borderRadius: BorderRadius.circular(8),
               color: KinrelColors.amber.withAlpha(30),
             ),
-            child: Center(
+            child: const Center(
               child: Icon(Icons.group, color: KinrelColors.amber, size: 22),
             ),
           ),
@@ -709,7 +709,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               borderRadius: BorderRadius.circular(8),
               color: KinrelColors.amber.withAlpha(30),
             ),
-            child: Center(
+            child: const Center(
               child: Icon(Icons.group, color: KinrelColors.amber, size: 22),
             ),
           ),
@@ -725,7 +725,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         borderRadius: BorderRadius.circular(8),
         color: KinrelColors.amber.withAlpha(30),
       ),
-      child: Center(
+      child: const Center(
         child: Icon(Icons.group, color: KinrelColors.amber, size: 22),
       ),
     );

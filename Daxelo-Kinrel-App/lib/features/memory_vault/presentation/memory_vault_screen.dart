@@ -28,6 +28,7 @@ import '../../../core/services/image_cache_manager.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/widgets/cached_avatar.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../../shared/widgets/kinrel_skeleton.dart';
 import '../providers/memory_vault_provider.dart';
 import '../data/memory_model.dart';
 import 'memory_detail_screen.dart';
@@ -120,7 +121,7 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
             ),
           ),
           const SizedBox(width: 8),
-          Icon(
+          const Icon(
             Icons.lock_outline_rounded,
             size: 18,
             color: KinrelColors.amber,
@@ -141,10 +142,10 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
         gradient: KinrelGradients.igniteGradient,
         borderRadius: BorderRadius.circular(KinrelRadius.full),
         boxShadow: [
-          BoxShadow(
+          const BoxShadow(
             color: KinrelColors.orangeGlow,
             blurRadius: 8,
-            offset: const Offset(0, 2),
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -187,7 +188,7 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
 
   Widget _buildTabChips() {
     return Padding(
-      padding: EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: KinrelSpacing.base,
         vertical: KinrelSpacing.md,
       ),
@@ -291,7 +292,7 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
     }
 
     return GridView.builder(
-      padding: EdgeInsets.fromLTRB(
+      padding: const EdgeInsets.fromLTRB(
         KinrelSpacing.base,
         KinrelSpacing.sm,
         KinrelSpacing.base,
@@ -353,7 +354,7 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
 
   Widget _buildLoadingGrid() {
     return GridView.builder(
-      padding: EdgeInsets.fromLTRB(
+      padding: const EdgeInsets.fromLTRB(
         KinrelSpacing.base,
         KinrelSpacing.sm,
         KinrelSpacing.base,
@@ -415,14 +416,14 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
     }
 
     return ListView.separated(
-      padding: EdgeInsets.fromLTRB(
+      padding: const EdgeInsets.fromLTRB(
         KinrelSpacing.base,
         KinrelSpacing.sm,
         KinrelSpacing.base,
         KinrelSpacing.xxl,
       ),
       itemCount: onThisDay.length,
-      separatorBuilder: (_, __) => SizedBox(height: KinrelSpacing.md),
+      separatorBuilder: (_, __) => const SizedBox(height: KinrelSpacing.md),
       itemBuilder: (context, index) {
         return _OnThisDayCard(memory: onThisDay[index]);
       },
@@ -436,7 +437,7 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
   Widget _buildEmptyState() {
     return Center(
       child: Padding(
-        padding: EdgeInsets.all(KinrelSpacing.xl),
+        padding: const EdgeInsets.all(KinrelSpacing.xl),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -516,14 +517,14 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: EdgeInsets.all(KinrelSpacing.xl),
+            padding: const EdgeInsets.all(KinrelSpacing.xl),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   width: 64,
                   height: 64,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: KinrelGradients.achievementGradient,
                   ),
@@ -642,7 +643,7 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
               ),
               if (isOwner)
                 ListTile(
-                  leading: Icon(Icons.delete_outline_rounded,
+                  leading: const Icon(Icons.delete_outline_rounded,
                       color: KinrelColors.error),
                   title: Text(
                     'Delete',
@@ -777,8 +778,8 @@ class _OnThisDayCard extends StatelessWidget {
                 fit: BoxFit.cover,
                 placeholder: (context, url) => Container(
                   color: KinrelColors.darkElevated,
-                  child: Center(
-                    child: DKLoadingShimmer(width: 40, height: 40),
+                  child: const Center(
+                    child: KinrelSkeletonBox(width: 40, height: 40),
                   ),
                 ),
                 errorWidget: (context, url, error) => Container(
@@ -816,7 +817,7 @@ class _OnThisDayCard extends StatelessWidget {
                 // Date + Years ago badge
                 Row(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.calendar_today_rounded,
                       size: 14,
                       color: KinrelColors.textDim,
@@ -1139,7 +1140,7 @@ class _UploadMemorySheetState extends ConsumerState<_UploadMemorySheet> {
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(KinrelRadius.md),
               borderSide:
-                  BorderSide(color: KinrelColors.orange, width: 1.5),
+                  const BorderSide(color: KinrelColors.orange, width: 1.5),
             ),
           ),
         ),
@@ -1292,7 +1293,7 @@ class _UploadMemorySheetState extends ConsumerState<_UploadMemorySheet> {
                                 : null,
                             boxShadow: isSelected
                                 ? [
-                                    BoxShadow(
+                                    const BoxShadow(
                                       color:
                                           KinrelColors.orangeGlow,
                                       blurRadius: 8,
@@ -1355,7 +1356,7 @@ class _UploadMemorySheetState extends ConsumerState<_UploadMemorySheet> {
       ),
       child: Row(
         children: [
-          SizedBox(
+          const SizedBox(
             width: 20,
             height: 20,
             child: CircularProgressIndicator(
@@ -1378,7 +1379,7 @@ class _UploadMemorySheetState extends ConsumerState<_UploadMemorySheet> {
                 const SizedBox(height: 4),
                 LinearProgressIndicator(
                   backgroundColor: KinrelColors.darkElevated,
-                  valueColor: AlwaysStoppedAnimation<Color>(
+                  valueColor: const AlwaysStoppedAnimation<Color>(
                       KinrelColors.orange),
                   borderRadius: BorderRadius.circular(2),
                 ),

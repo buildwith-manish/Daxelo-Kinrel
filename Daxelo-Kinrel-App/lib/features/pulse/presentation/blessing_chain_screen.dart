@@ -16,8 +16,8 @@ import '../providers/pulse_providers.dart';
 import 'blessing_record_sheet.dart';
 
 class BlessingChainScreen extends ConsumerStatefulWidget {
-  final bool embedded;
   const BlessingChainScreen({super.key, this.embedded = false});
+  final bool embedded;
 
   @override
   ConsumerState<BlessingChainScreen> createState() => _BlessingChainScreenState();
@@ -55,7 +55,7 @@ class _BlessingChainScreenState extends ConsumerState<BlessingChainScreen>
           controller: _tabController,
           indicatorColor: KinrelColors.gold,
           labelColor: Colors.white,
-          unselectedLabelColor: Colors.white.withOpacity(0.4),
+          unselectedLabelColor: Colors.white.withValues(alpha: 0.4),
           tabs: const [
             Tab(text: 'For Me'),
             Tab(text: 'Family'),
@@ -104,7 +104,7 @@ class _BlessingsForMeTab extends ConsumerWidget {
                   const SizedBox(height: 8),
                   Text(
                     'When an elder records a blessing for your birthday\nor a festival, it will appear here.',
-                    style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -135,7 +135,7 @@ class _FamilyBlessingsTab extends ConsumerWidget {
           padding: const EdgeInsets.all(32),
           child: Text(
             'Select a family to view blessings.',
-            style: TextStyle(color: Colors.white.withOpacity(0.5)),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
             textAlign: TextAlign.center,
           ),
         ),
@@ -148,7 +148,7 @@ class _FamilyBlessingsTab extends ConsumerWidget {
       data: (blessings) {
         if (blessings.isEmpty) {
           return Center(
-            child: Text('No family blessings yet', style: TextStyle(color: Colors.white.withOpacity(0.5))),
+            child: Text('No family blessings yet', style: TextStyle(color: Colors.white.withValues(alpha: 0.5))),
           );
         }
         return ListView.builder(
@@ -162,10 +162,10 @@ class _FamilyBlessingsTab extends ConsumerWidget {
 }
 
 class _BlessingCard extends ConsumerWidget {
-  final BlessingChain blessing;
-  final bool isForMe;
 
   const _BlessingCard({required this.blessing, this.isForMe = false});
+  final BlessingChain blessing;
+  final bool isForMe;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -178,8 +178,8 @@ class _BlessingCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isUnviewed
-              ? KinrelColors.gold.withOpacity(0.4)
-              : Colors.white.withOpacity(0.08),
+              ? KinrelColors.gold.withValues(alpha: 0.4)
+              : Colors.white.withValues(alpha: 0.08),
         ),
       ),
       child: Column(
@@ -192,7 +192,7 @@ class _BlessingCard extends ConsumerWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: KinrelColors.gold.withOpacity(0.15),
+                  color: KinrelColors.gold.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: blessing.elderPerson?.photoThumb != null
@@ -226,7 +226,7 @@ class _BlessingCard extends ConsumerWidget {
                     const SizedBox(height: 2),
                     Text(
                       blessing.isRecurring ? '🔄 Recurring · ${blessing.triggerType}' : blessing.triggerType,
-                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11),
                     ),
                   ],
                 ),
@@ -250,7 +250,7 @@ class _BlessingCard extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: KinrelColors.gold.withOpacity(0.08),
+                color: KinrelColors.gold.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -263,11 +263,11 @@ class _BlessingCard extends ConsumerWidget {
           // Trigger info
           Row(
             children: [
-              Icon(Icons.event, color: KinrelColors.gold.withOpacity(0.6), size: 14),
+              Icon(Icons.event, color: KinrelColors.gold.withValues(alpha: 0.6), size: 14),
               const SizedBox(width: 4),
               Text(
                 'Delivered on ${blessing.triggerDate} (${blessing.triggerType})',
-                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11),
               ),
               const Spacer(),
               if (isForMe && isUnviewed)
@@ -287,8 +287,8 @@ class _BlessingCard extends ConsumerWidget {
 }
 
 class _AudioBlessingPlayer extends StatefulWidget {
-  final BlessingChain blessing;
   const _AudioBlessingPlayer({required this.blessing});
+  final BlessingChain blessing;
 
   @override
   State<_AudioBlessingPlayer> createState() => _AudioBlessingPlayerState();
@@ -374,7 +374,7 @@ class _AudioBlessingPlayerState extends State<_AudioBlessingPlayer> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: KinrelColors.gold.withOpacity(0.08),
+        color: KinrelColors.gold.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Semantics(
@@ -414,7 +414,7 @@ class _AudioBlessingPlayerState extends State<_AudioBlessingPlayer> {
                     style: TextStyle(
                       color: _loadError != null
                           ? Colors.red.shade300
-                          : Colors.white.withOpacity(0.7),
+                          : Colors.white.withValues(alpha: 0.7),
                       fontSize: 12,
                     ),
                   ),
@@ -426,7 +426,7 @@ class _AudioBlessingPlayerState extends State<_AudioBlessingPlayer> {
                           ? _position.inSeconds / _duration.inSeconds
                           : 0.0,
                       backgroundColor:
-                          KinrelColors.gold.withOpacity(0.2),
+                          KinrelColors.gold.withValues(alpha: 0.2),
                       valueColor:
                           const AlwaysStoppedAnimation<Color>(KinrelColors.gold),
                       minHeight: 3,
@@ -438,13 +438,13 @@ class _AudioBlessingPlayerState extends State<_AudioBlessingPlayer> {
                         Text(
                           _formatDuration(_position),
                           style: TextStyle(
-                              color: Colors.white.withOpacity(0.5),
+                              color: Colors.white.withValues(alpha: 0.5),
                               fontSize: 10),
                         ),
                         Text(
                           _formatDuration(_duration),
                           style: TextStyle(
-                              color: Colors.white.withOpacity(0.5),
+                              color: Colors.white.withValues(alpha: 0.5),
                               fontSize: 10),
                         ),
                       ],

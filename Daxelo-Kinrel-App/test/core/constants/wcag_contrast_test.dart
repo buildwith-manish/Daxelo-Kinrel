@@ -134,15 +134,15 @@ void main() {
 
   group('P4.6 — High-contrast theme definition', () {
     test('HC background is pure black (#000000)', () {
-      expect(KinrelColorsHighContrast.darkBackground.value, equals(0xFF000000));
+      expect(KinrelColorsHighContrast.darkBackground.toARGB32(), equals(0xFF000000));
     });
 
     test('HC text is pure white (#FFFFFF)', () {
-      expect(KinrelColorsHighContrast.textWhite.value, equals(0xFFFFFFFF));
+      expect(KinrelColorsHighContrast.textWhite.toARGB32(), equals(0xFFFFFFFF));
     });
 
     test('HC border is white (visible against black)', () {
-      expect(KinrelColorsHighContrast.border.value, equals(0xFFFFFFFF));
+      expect(KinrelColorsHighContrast.border.toARGB32(), equals(0xFFFFFFFF));
     });
 
     test('HC sepia matrix has 20 elements (4x5)', () {

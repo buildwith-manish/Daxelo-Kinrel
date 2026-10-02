@@ -59,7 +59,7 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
     // challenge lobby that attached the RoomController is replaced by
     // this route; without a watch the autoDispose controller dies and
     // the server-side reaper auto-closes the room ~60-75s in.
-    Widget view = RoomKeepAlive(
+    final Widget view = RoomKeepAlive(
       roomKey: RoomControllerKey(RoomConfig.tictactoe, widget.familyId),
       child: DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
@@ -71,7 +71,7 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
           // confirmation dialog first.
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
-        title: Text('Tic-Tac-Toe', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: const Text('Tic-Tac-Toe', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),
       body: state.isLoading && state.game == null ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
@@ -123,14 +123,14 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
       decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: KinrelColors.border)),
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
         _scoreChip('You', myScore, KinrelColors.orange),
-        Text('Round ${game.currentRound}/${game.bestOf}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, color: KinrelColors.textDim, fontWeight: FontWeight.w700)),
+        Text('Round ${game.currentRound}/${game.bestOf}', style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, color: KinrelColors.textDim, fontWeight: FontWeight.w700)),
         _scoreChip(oppName, oppScore, const Color(0xFF8B5CF6)),
       ]));
   }
 
   Widget _scoreChip(String name, int score, Color color) {
     return Column(mainAxisSize: MainAxisSize.min, children: [
-      Text(name, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: KinrelColors.textDim)),
+      Text(name, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: KinrelColors.textDim)),
       Text('$score', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 20, fontWeight: FontWeight.w800, color: color)),
     ]);
   }
@@ -149,7 +149,7 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
         if (isMyTurn && result == null) const Icon(Icons.pan_tool_rounded, size: 14, color: Colors.white)
         else if (result == null) SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: color)),
         const SizedBox(width: 6),
-        Text(text, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600)),
+        Text(text, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600)),
       ]));
   }
 
@@ -235,19 +235,19 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
       gradient: isWinner ? KinrelGradients.deepFireGradient : null,
       backgroundColor: isWinner ? null : KinrelColors.darkSurface,
       appBar: AppBar(automaticallyImplyLeading: false,
-        title: Text('Results', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: const Text('Results', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: Colors.transparent, foregroundColor: KinrelColors.textWhite, elevation: 0),
       body: Stack(children: [
         ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
         const SizedBox(height: KinrelSpacing.lg),
         Column(children: [
-          KinrelIcon(KinrelIconData.trophy, size: 64, color: KinrelColors.brightGold).animate(onPlay: (c) => c.forward()).fadeIn(duration: 500.ms).scale(begin: const Offset(0.5, 0.5), end: const Offset(1.0, 1.0), duration: 500.ms, curve: Curves.elasticOut),
+          const KinrelIcon(KinrelIconData.trophy, size: 64, color: KinrelColors.brightGold).animate(onPlay: (c) => c.forward()).fadeIn(duration: 500.ms).scale(begin: const Offset(0.5, 0.5), end: const Offset(1.0, 1.0), duration: 500.ms, curve: Curves.elasticOut),
           const SizedBox(height: KinrelSpacing.sm),
-          Text(isWinner ? 'You Won!' : 'Winner!', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 32, fontWeight: FontWeight.w800, color: KinrelColors.textWhite, letterSpacing: 2)),
+          Text(isWinner ? 'You Won!' : 'Winner!', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 32, fontWeight: FontWeight.w800, color: KinrelColors.textWhite, letterSpacing: 2)),
           const SizedBox(height: 4),
-          Text(isWinner ? '$winnerName (You)' : winnerName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 22, fontWeight: FontWeight.w600, color: KinrelColors.orange)),
+          Text(isWinner ? '$winnerName (You)' : winnerName, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 22, fontWeight: FontWeight.w600, color: KinrelColors.orange)),
           const SizedBox(height: KinrelSpacing.sm),
-          Text('${game.roundsWonX} — ${game.roundsWonO}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 16, color: KinrelColors.textDim)),
+          Text('${game.roundsWonX} — ${game.roundsWonO}', style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 16, color: KinrelColors.textDim)),
         ]).animate().fadeIn(duration: 400.ms).scale(begin: const Offset(0.92, 0.92), end: const Offset(1.0, 1.0), duration: 400.ms, curve: Curves.easeOutBack),
         MatchEcosystemSummary(
           gameTable: 'tictactoe_games',

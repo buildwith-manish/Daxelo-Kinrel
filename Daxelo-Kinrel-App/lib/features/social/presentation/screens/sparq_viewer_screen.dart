@@ -564,7 +564,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
 
   Widget _buildIntensityRingAvatar(SparqModel sparq, Color moodAccent) {
     Color ringColor;
-    double ringWidth = 2.5;
+    final double ringWidth = 2.5;
 
     switch (sparq.intensity) {
       case 'calm':
@@ -878,10 +878,6 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
 // ══════════════════════════════════════════════════════════════════════
 
 class _IntensityRingPainter extends CustomPainter {
-  final Color ringColor;
-  final double ringWidth;
-  final String intensity;
-  final bool isTimeCapsule;
 
   _IntensityRingPainter({
     required this.ringColor,
@@ -889,6 +885,10 @@ class _IntensityRingPainter extends CustomPainter {
     required this.intensity,
     required this.isTimeCapsule,
   });
+  final Color ringColor;
+  final double ringWidth;
+  final String intensity;
+  final bool isTimeCapsule;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -938,10 +938,10 @@ class _IntensityRingPainter extends CustomPainter {
 // ══════════════════════════════════════════════════════════════════════
 
 class _MoodParticlePainter extends CustomPainter {
-  final Color moodColor;
-  final double time;
 
   _MoodParticlePainter({required this.moodColor, required this.time});
+  final Color moodColor;
+  final double time;
 
   @override
   void paint(Canvas canvas, Size size) {

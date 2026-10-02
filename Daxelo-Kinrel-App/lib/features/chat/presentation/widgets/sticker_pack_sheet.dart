@@ -190,13 +190,13 @@ class _StickerPackSheetState extends State<StickerPackSheet> {
               ),
             ),
             // Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
               child: Row(
                 children: [
                   Icon(Icons.emoji_emotions_rounded,
                       size: 22, color: KinrelColors.ember),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Text(
                     'Stickers',
                     style: TextStyle(
@@ -221,7 +221,7 @@ class _StickerPackSheetState extends State<StickerPackSheet> {
                   });
                 },
                 onSubmitted: _search,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: KinrelColors.textWhite,
@@ -230,11 +230,11 @@ class _StickerPackSheetState extends State<StickerPackSheet> {
                   hintText: 'Search stickers…',
                   hintStyle: TextStyle(
                       color: KinrelColors.textDim.withValues(alpha: 0.7)),
-                  prefixIcon: Icon(Icons.search_rounded,
+                  prefixIcon: const Icon(Icons.search_rounded,
                       size: 20, color: KinrelColors.textDim),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
-                          icon: Icon(Icons.close_rounded,
+                          icon: const Icon(Icons.close_rounded,
                               size: 18, color: KinrelColors.textDim),
                           onPressed: () {
                             _searchController.clear();
@@ -276,13 +276,13 @@ class _StickerPackSheetState extends State<StickerPackSheet> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline,
+              const Icon(Icons.error_outline,
                   size: 40, color: KinrelColors.error),
               const SizedBox(height: 10),
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: KinrelColors.textDim, fontSize: 13),
+                style: const TextStyle(color: KinrelColors.textDim, fontSize: 13),
               ),
               const SizedBox(height: 12),
               TextButton(
@@ -302,7 +302,7 @@ class _StickerPackSheetState extends State<StickerPackSheet> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.emoji_emotions_outlined,
+              const Icon(Icons.emoji_emotions_outlined,
                   size: 40, color: KinrelColors.textDim),
               const SizedBox(height: 10),
               Text(
@@ -310,7 +310,7 @@ class _StickerPackSheetState extends State<StickerPackSheet> {
                     ? 'No trending stickers right now'
                     : 'No stickers found for "${_searchController.text}"',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: KinrelColors.textDim, fontSize: 13),
+                style: const TextStyle(color: KinrelColors.textDim, fontSize: 13),
               ),
             ],
           ),
@@ -353,7 +353,7 @@ class _StickerPackSheetState extends State<StickerPackSheet> {
             ),
             errorWidget: (_, __, ___) => Container(
               color: const Color(0xFF11132A),
-              child: Icon(Icons.broken_image_outlined,
+              child: const Icon(Icons.broken_image_outlined,
                   color: KinrelColors.textDim, size: 20),
             ),
           ),

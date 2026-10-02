@@ -47,6 +47,15 @@ import '../interaction/fuzzy_search.dart' show fuzzyMatch;
 
 /// A single search result from the graph search.
 class GraphSearchResult {
+
+  const GraphSearchResult({
+    required this.memberId,
+    required this.name,
+    this.photoUrl,
+    this.relationshipKey,
+    this.generationIndex = 0,
+    this.username,
+  });
   /// The member ID.
   final String memberId;
 
@@ -64,15 +73,6 @@ class GraphSearchResult {
 
   /// Optional username.
   final String? username;
-
-  const GraphSearchResult({
-    required this.memberId,
-    required this.name,
-    this.photoUrl,
-    this.relationshipKey,
-    this.generationIndex = 0,
-    this.username,
-  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -778,7 +778,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
                     child: Switch(
                       value: _activeOnly,
                       onChanged: _setActiveOnly,
-                      activeColor: KinrelColors.orange,
+                      activeThumbColor: KinrelColors.orange,
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ),

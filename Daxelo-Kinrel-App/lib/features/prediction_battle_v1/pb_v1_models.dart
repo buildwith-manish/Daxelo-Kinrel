@@ -16,16 +16,6 @@ class PBv1Question {
     this.isActive = true,
   });
 
-  final String id;
-  final String questionText;
-  final double correctAnswer;
-  final String unitLabel;
-  final String category;
-  final String funFactText;
-  final double? minBound;
-  final double? maxBound;
-  final bool isActive;
-
   factory PBv1Question.fromJson(Map<String, dynamic> json) => PBv1Question(
     id: (json['id'] ?? json['question_id'] ?? '') as String,
     questionText: (json['questionText'] ?? json['question_text'] ?? '') as String,
@@ -37,6 +27,16 @@ class PBv1Question {
     maxBound: (json['maxBound'] ?? json['max_bound'] as num?)?.toDouble(),
     isActive: (json['isActive'] ?? json['is_active'] ?? true) as bool,
   );
+
+  final String id;
+  final String questionText;
+  final double correctAnswer;
+  final String unitLabel;
+  final String category;
+  final String funFactText;
+  final double? minBound;
+  final double? maxBound;
+  final bool isActive;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -63,6 +63,16 @@ class PBv1Round {
     required this.createdAt,
   });
 
+  factory PBv1Round.fromJson(Map<String, dynamic> json) => PBv1Round(
+    id: (json['id'] ?? '') as String,
+    familyId: (json['familyId'] ?? json['family_id'] ?? '') as String,
+    questionId: (json['questionId'] ?? json['question_id'] ?? '') as String,
+    opensAt: DateTime.tryParse((json['opensAt'] ?? json['opens_at'] ?? '').toString()) ?? DateTime.now(),
+    revealAt: DateTime.tryParse((json['revealAt'] ?? json['reveal_at'] ?? '').toString()) ?? DateTime.now(),
+    status: (json['status'] ?? 'open') as String,
+    createdAt: DateTime.tryParse((json['createdAt'] ?? json['created_at'] ?? '').toString()) ?? DateTime.now(),
+  );
+
   final String id;
   final String familyId;
   final String questionId;
@@ -74,16 +84,6 @@ class PBv1Round {
   bool get isOpen => status == 'open';
   bool get isRevealed => status == 'revealed';
   bool get isPastReveal => DateTime.now().toUtc().isAfter(revealAt);
-
-  factory PBv1Round.fromJson(Map<String, dynamic> json) => PBv1Round(
-    id: (json['id'] ?? '') as String,
-    familyId: (json['familyId'] ?? json['family_id'] ?? '') as String,
-    questionId: (json['questionId'] ?? json['question_id'] ?? '') as String,
-    opensAt: DateTime.tryParse((json['opensAt'] ?? json['opens_at'] ?? '').toString()) ?? DateTime.now(),
-    revealAt: DateTime.tryParse((json['revealAt'] ?? json['reveal_at'] ?? '').toString()) ?? DateTime.now(),
-    status: (json['status'] ?? 'open') as String,
-    createdAt: DateTime.tryParse((json['createdAt'] ?? json['created_at'] ?? '').toString()) ?? DateTime.now(),
-  );
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -105,17 +105,17 @@ class PBv1Guess {
     this.distance,
   });
 
-  final String userId;
-  final double guessValue;
-  final DateTime submittedAt;
-  final double? distance;
-
   factory PBv1Guess.fromJson(Map<String, dynamic> json) => PBv1Guess(
     userId: (json['userId'] ?? json['user_id'] ?? '') as String,
     guessValue: ((json['guessValue'] ?? json['guess_value'] ?? 0) as num).toDouble(),
     submittedAt: DateTime.tryParse((json['submittedAt'] ?? json['submitted_at'] ?? '').toString()) ?? DateTime.now(),
     distance: (json['distance'] as num?)?.toDouble(),
   );
+
+  final String userId;
+  final double guessValue;
+  final DateTime submittedAt;
+  final double? distance;
 
   Map<String, dynamic> toJson() => {
     'user_id': userId,

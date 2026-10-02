@@ -180,9 +180,9 @@ class WinCelebration extends StatelessWidget {
       await Clipboard.setData(ClipboardData(text: text));
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Result copied to clipboard — share it with your family!'),
-            duration: const Duration(seconds: 2),
+          const SnackBar(
+            content: Text('Result copied to clipboard — share it with your family!'),
+            duration: Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -230,7 +230,7 @@ class WinCelebration extends StatelessWidget {
           Text(
             _headline,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 28,
               fontWeight: FontWeight.w800,
@@ -248,7 +248,7 @@ class WinCelebration extends StatelessWidget {
           Text(
             _subline,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               color: KinrelColors.textDim,
@@ -284,7 +284,7 @@ class WinCelebration extends StatelessWidget {
                         ),
                         child: Text(
                           name,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 12,
                             color: KinrelColors.orange,
@@ -626,7 +626,7 @@ class _ReactionsRow extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(
+          const Text(
             'Family Cheers',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -656,7 +656,7 @@ class _ReactionsRow extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           '${r.count}',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.monoFont,
             fontSize: 16,
             fontWeight: FontWeight.w700,

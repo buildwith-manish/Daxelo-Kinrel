@@ -520,7 +520,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
             },
           ),
           const SizedBox(height: 12.0),
-          Text(
+          const Text(
             'Create your profile',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -530,9 +530,9 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
             ),
           ),
           const SizedBox(height: 4.0),
-          Text(
+          const Text(
             'Your node will appear at the center of your family graph.',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13.0,
               color: KinrelColors.textSilver,
@@ -559,7 +559,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
             ],
           ),
           const SizedBox(height: 12.0),
-          Text(
+          const Text(
             'Grow your graph',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -569,9 +569,9 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
             ),
           ),
           const SizedBox(height: 4.0),
-          Text(
+          const Text(
             'Add parents, spouse, siblings, or children to build your tree.',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13.0,
               color: KinrelColors.textSilver,
@@ -581,10 +581,10 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
           ),
         ],
       ),
-      OnboardingStep.explore => Column(
+      OnboardingStep.explore => const Column(
         children: [
           Icon(Icons.explore, size: 48.0, color: KinrelColors.orange),
-          const SizedBox(height: 12.0),
+          SizedBox(height: 12.0),
           Text(
             'Explore your family graph',
             style: TextStyle(
@@ -594,10 +594,10 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
               color: KinrelColors.textWhite,
             ),
           ),
-          const SizedBox(height: 4.0),
+          SizedBox(height: 4.0),
           Text(
             'Pinch to zoom, drag to pan, and tap nodes for details.',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13.0,
               color: KinrelColors.textSilver,
@@ -634,7 +634,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
         if (_canSkip)
           TextButton(
             onPressed: _skipStep,
-            child: Text(
+            child: const Text(
               'Skip',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -663,7 +663,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
           ),
           child: Text(
             _ctaLabel,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 14.0,
               fontWeight: FontWeight.w700,
@@ -709,7 +709,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
               ),
             ],
           ),
-          child: Column(
+          child: const Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
@@ -717,7 +717,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
                 size: 56.0,
                 color: KinrelColors.brightGold,
               ),
-              const SizedBox(height: 16.0),
+              SizedBox(height: 16.0),
               Text(
                 'Your family graph is ready!',
                 style: TextStyle(
@@ -728,10 +728,10 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 8.0),
+              SizedBox(height: 8.0),
               Text(
                 'Explore your connections, expand branches, and discover your family story.',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14.0,
                   color: KinrelColors.textSilver,

@@ -807,7 +807,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // user always sees family markers on a dark background instead
       // of an infinite black-screen loop.
       debugPrint('⚠️ FamilyMap: fallback patch failed (input not valid JSON: '
-          '${styleJson.length > 80 ? styleJson.substring(0, 80) + '…' : styleJson}) — '
+          '${styleJson.length > 80 ? '${styleJson.substring(0, 80)}…' : styleJson}) — '
           'switching to offline floor style');
       return _kOfflineFloorStyleJson;
     }
@@ -997,7 +997,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // FamilyBuildingLayer.add/update).
       try {
         await style.addSource(
-          GeoJsonSource(
+          const GeoJsonSource(
             id: FamilyBuildingLayer.sourceId,
             data: '{"type":"FeatureCollection","features":[]}',
           ),
@@ -1163,7 +1163,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // small to extrude meaningfully).
       try {
         await style.addLayer(
-          FillExtrusionStyleLayer(
+          const FillExtrusionStyleLayer(
             id: 'kinrel-3d-buildings',
             sourceId: 'openmaptiles',
             sourceLayerId: 'building',
@@ -1232,7 +1232,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // warm-orange gradient. Same height expression as the main layer.
       try {
         await style.addLayer(
-          FillExtrusionStyleLayer(
+          const FillExtrusionStyleLayer(
             id: 'kinrel-3d-buildings-warm-glow',
             sourceId: 'openmaptiles',
             sourceLayerId: 'building',
@@ -1323,7 +1323,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // _updateLiveLocationPoint).
       try {
         await style.addSource(
-          GeoJsonSource(
+          const GeoJsonSource(
             id: 'live-location-point',
             data: '{"type":"FeatureCollection","features":[]}',
           ),
@@ -1341,7 +1341,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // cool "live presence" contrast against warm family beacons.
       try {
         await style.addLayer(
-          CircleStyleLayer(
+          const CircleStyleLayer(
             id: 'live-location-ambient-glow',
             sourceId: 'live-location-point',
             minZoom: 8,
@@ -1579,8 +1579,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         _stateSaver = DebouncedMapStateSaver(loadedFamilyId);
         MapStatePersistence.load(loadedFamilyId).then((state) {
           if (!mounted) return;
-          if (widget.familyId != loadedFamilyId)
+          if (widget.familyId != loadedFamilyId) {
             return; // stale — family changed again
+          }
           if (state != null && mounted) {
             setState(() {
               _restoredState = state;
@@ -1699,7 +1700,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
           children: [
             Text(
               S.of(context)?.familyMapTitle ?? 'Family Map',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -1714,7 +1715,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 return Text(
                   l10n?.familyMapLocatedCount(locatedCount) ??
                       '$locatedCount member${locatedCount == 1 ? '' : 's'} located',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     fontWeight: FontWeight.w400,
@@ -1725,7 +1726,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
               },
               loading: () => Text(
                 S.of(context)?.familyMapLoading ?? 'Loading...',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim,
@@ -1733,7 +1734,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
               ),
               error: (_, __) => Text(
                 S.of(context)?.familyMapFailedTitle ?? 'Unable to load',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim,
@@ -1849,12 +1850,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.map_outlined, color: KinrelColors.orange, size: 48),
+                const Icon(Icons.map_outlined, color: KinrelColors.orange, size: 48),
                 const SizedBox(height: 16),
                 Text(
                   l10n?.familyMapFailedTitle ??
                       'Could not load the family map.',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: KinrelColors.textWhite,
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 16,
@@ -1865,7 +1866,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 Text(
                   l10n?.familyMapFailedBody ??
                       'Check your connection and try again, or use offline mode to view family markers without the map.',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: KinrelColors.textDim,
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
@@ -1883,7 +1884,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                   ),
                   child: Text(
                     tierLabel,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: KinrelColors.textDim,
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
@@ -1912,7 +1913,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                       _lifecycle.reset();
                     });
                   },
-                  child: Text(
+                  child: const Text(
                     'Use Offline Mode',
                     style: TextStyle(
                       color: KinrelColors.textDim,
@@ -1942,14 +1943,14 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: KinrelColors.darkCard.withOpacity(0.92),
+            color: KinrelColors.darkCard.withValues(alpha: 0.92),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: KinrelColors.darkElevated),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
+              const Icon(
                 Icons.location_off_rounded,
                 color: KinrelColors.orange,
                 size: 24,
@@ -1957,7 +1958,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
               const SizedBox(height: 8),
               Text(
                 l10n?.familyMapEmptyTitle ?? 'No family locations yet',
-                style: TextStyle(
+                style: const TextStyle(
                   color: KinrelColors.textWhite,
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 14,
@@ -1969,7 +1970,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
               Text(
                 l10n?.familyMapEmptyBody ??
                     'Add a location to a family member to see your family across the map.',
-                style: TextStyle(
+                style: const TextStyle(
                   color: KinrelColors.textSilver,
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
@@ -2259,7 +2260,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     final restored = _restoredState;
     final initCenter = restored != null
         ? Geographic(lon: restored.lng, lat: restored.lat)
-        : Geographic(lon: 78.9629, lat: 20.5937);
+        : const Geographic(lon: 78.9629, lat: 20.5937);
     final initZoom = restored?.zoom ?? 4.0;
     // Part 1 — Initial pitch depends on whether 3D buildings are enabled.
     // When 3D is OFF (the new default), the map loads flat (pitch 0°).
@@ -2582,12 +2583,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: KinrelColors.darkCard.withOpacity(0.85),
+                      color: KinrelColors.darkCard.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       _loadState.message,
-                      style: TextStyle(
+                      style: const TextStyle(
                         // On-brand: use KinrelColors.textSilver instead of
                         // Colors.white70 — matches the rest of the app's
                         // secondary text styling.
@@ -2641,7 +2642,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       if (reducedMotion) {
         // Reduced motion: instant camera move (no animation).
         controller.moveCamera(
-          center: Geographic(lon: 78.9629, lat: 20.5937),
+          center: const Geographic(lon: 78.9629, lat: 20.5937),
           zoom: 5.5,
           pitch: entrancePitch,
           bearing: MapVisualConstants.defaultBearing,
@@ -2656,7 +2657,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
           if (_mapController == null) return;
           if (!mounted) return;
           _mapController!.animateCamera(
-            center: Geographic(lon: 78.9629, lat: 20.5937),
+            center: const Geographic(lon: 78.9629, lat: 20.5937),
             zoom: 5.5,
             pitch: entrancePitch,
             bearing: MapVisualConstants.defaultBearing,
@@ -3157,7 +3158,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       '🚀 Flying to Bengaluru: zoom=16.5, pitch=45° for 3D building test',
     );
     controller.animateCamera(
-      center: Geographic(lon: 77.5946, lat: 12.9716), // Bengaluru
+      center: const Geographic(lon: 77.5946, lat: 12.9716), // Bengaluru
       zoom: 16.5,
       pitch: 45, // 45° pitch — shows 3D building extrusion
       bearing: 0,
@@ -3336,21 +3337,21 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     final l10n = S.of(context);
     return Center(
       child: Padding(
-        padding: EdgeInsets.all(KinrelSpacing.xxl),
+        padding: const EdgeInsets.all(KinrelSpacing.xxl),
         child: DKCard(
           backgroundColor: KinrelColors.darkCard,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
+              const Icon(
                 Icons.error_outline_rounded,
                 size: 48,
                 color: KinrelColors.error,
               ),
-              SizedBox(height: KinrelSpacing.lg),
+              const SizedBox(height: KinrelSpacing.lg),
               Text(
                 l10n?.familyMapCouldNotLoad ?? 'Could Not Load Map',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -3358,18 +3359,18 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 ),
                 textAlign: TextAlign.center,
               ),
-              SizedBox(height: KinrelSpacing.sm),
+              const SizedBox(height: KinrelSpacing.sm),
               Text(
                 l10n?.familyMapErrorBody ??
                     'Something went wrong while loading the family map. Please try again.',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: KinrelColors.textSilver,
                 ),
                 textAlign: TextAlign.center,
               ),
-              SizedBox(height: KinrelSpacing.lg),
+              const SizedBox(height: KinrelSpacing.lg),
               DKButton(
                 label: l10n?.familyMapRetry ?? 'Retry',
                 variant: DKButtonVariant.primary,

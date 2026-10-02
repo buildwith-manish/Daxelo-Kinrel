@@ -62,10 +62,10 @@ List<Map<String, dynamic>> filterNotNullKey(
 
 /// Payload for filter-by-key isolate work.
 class _FilterByKeyPayload {
-  final List<Map<String, dynamic>> maps;
-  final String key;
 
   const _FilterByKeyPayload(this.maps, this.key);
+  final List<Map<String, dynamic>> maps;
+  final String key;
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -164,15 +164,15 @@ List<String> findRelationshipPath(GraphPayload payload) {
 
 /// Payload for graph path computation isolate.
 class GraphPayload {
-  final List<Map<String, dynamic>> relationships;
-  final String fromPersonId;
-  final String toPersonId;
 
   const GraphPayload({
     required this.relationships,
     required this.fromPersonId,
     required this.toPersonId,
   });
+  final List<Map<String, dynamic>> relationships;
+  final String fromPersonId;
+  final String toPersonId;
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -205,11 +205,11 @@ List<Map<String, dynamic>> sortByDateTimeKey(SortPayload payload) {
 
 /// Payload for sort isolate work.
 class SortPayload {
+
+  const SortPayload(this.maps, this.key, {this.descending = false});
   final List<Map<String, dynamic>> maps;
   final String key;
   final bool descending;
-
-  const SortPayload(this.maps, this.key, {this.descending = false});
 }
 
 // ════════════════════════════════════════════════════════════════════

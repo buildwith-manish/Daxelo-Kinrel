@@ -125,11 +125,11 @@ class _FamilyInsightsDashboardState extends State<FamilyInsightsDashboard> {
                 gradient: KinrelGradients.igniteGradient,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 14),
-                  const SizedBox(width: 4),
+                  SizedBox(width: 4),
                   Text(
                     'PREMIUM',
                     style: TextStyle(
@@ -145,13 +145,13 @@ class _FamilyInsightsDashboardState extends State<FamilyInsightsDashboard> {
             ),
           ),
           // Centered "Unlock" prompt
-          Positioned.fill(
+          const Positioned.fill(
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.lock_outline_rounded, color: KinrelColors.orange, size: 28),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     'Unlock Family Insights',
                     style: TextStyle(
@@ -161,7 +161,7 @@ class _FamilyInsightsDashboardState extends State<FamilyInsightsDashboard> {
                       color: KinrelColors.textWhite,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     'Tap to upgrade',
                     style: TextStyle(
@@ -209,9 +209,9 @@ class _FamilyInsightsDashboardState extends State<FamilyInsightsDashboard> {
           // ── Header ──────────────────────────────────────────────────
           Row(
             children: [
-              Icon(Icons.insights_rounded, color: KinrelColors.orange, size: 20),
+              const Icon(Icons.insights_rounded, color: KinrelColors.orange, size: 20),
               const SizedBox(width: 8),
-              Text(
+              const Text(
                 'Family Insights',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
@@ -231,7 +231,7 @@ class _FamilyInsightsDashboardState extends State<FamilyInsightsDashboard> {
                       color: KinrelColors.orange.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(
+                    child: const Icon(
                       Icons.ios_share_rounded,
                       color: KinrelColors.orange,
                       size: 16,
@@ -245,7 +245,7 @@ class _FamilyInsightsDashboardState extends State<FamilyInsightsDashboard> {
           // ── Pride summary ──────────────────────────────────────────
           Text(
             insights.prideSummary,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -285,7 +285,7 @@ class _FamilyInsightsDashboardState extends State<FamilyInsightsDashboard> {
             children: [
               Row(
                 children: [
-                  Text(
+                  const Text(
                     'Tree completeness',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -296,7 +296,7 @@ class _FamilyInsightsDashboardState extends State<FamilyInsightsDashboard> {
                   const Spacer(),
                   Text(
                     '${insights.completenessPercent}%',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -312,7 +312,7 @@ class _FamilyInsightsDashboardState extends State<FamilyInsightsDashboard> {
                   value: insights.completenessPercent / 100,
                   minHeight: 6,
                   backgroundColor: Colors.white.withValues(alpha: 0.1),
-                  valueColor: AlwaysStoppedAnimation(KinrelColors.orange),
+                  valueColor: const AlwaysStoppedAnimation(KinrelColors.orange),
                 ),
               ),
             ],
@@ -381,7 +381,7 @@ class _StatChip extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               value,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
@@ -391,7 +391,7 @@ class _StatChip extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 10,
                 color: KinrelColors.textSilver,

@@ -17,7 +17,6 @@ import 'dart:math';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -131,15 +130,15 @@ class _ThinkingInboxScreenState extends ConsumerState<ThinkingInboxScreen> {
 class _EmptyInbox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.favorite_rounded, size: 48, color: KinrelColors.orange),
-            const SizedBox(height: 16),
-            const Text(
+            Icon(Icons.favorite_rounded, size: 48, color: KinrelColors.orange),
+            SizedBox(height: 16),
+            Text(
               'No Thinking of You moments yet',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -148,8 +147,8 @@ class _EmptyInbox extends StatelessWidget {
                 color: KinrelColors.textWhite,
               ),
             ),
-            const SizedBox(height: 8),
-            const Text(
+            SizedBox(height: 8),
+            Text(
               'When family members send you a Thinking of You, it will appear here with their emotion and a timestamp.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -243,7 +242,7 @@ class _TapCard extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       senderName.split(' ').first,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -265,7 +264,7 @@ class _TapCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   'sent you ${emotion.label.toLowerCase()}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     color: KinrelColors.textSilver,
@@ -274,7 +273,7 @@ class _TapCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   _formatTime(tappedAt),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 10,
                     color: KinrelColors.textDim,
@@ -369,7 +368,11 @@ class _InboxReactionIcon extends CustomPainter {
           final a = (i / 12) * pi2 - pi / 2;
           final r = i % 2 == 0 ? s * 0.5 : s * 0.2;
           final p = center + Offset(cos(a) * r, sin(a) * r);
-          if (i == 0) path.moveTo(p.dx, p.dy); else path.lineTo(p.dx, p.dy);
+          if (i == 0) {
+            path.moveTo(p.dx, p.dy);
+          } else {
+            path.lineTo(p.dx, p.dy);
+          }
         }
         path.close();
         canvas.drawPath(path, fillPaint);

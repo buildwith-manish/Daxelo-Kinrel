@@ -12,9 +12,9 @@ import '../../../core/constants/brand_colors.dart';
 import '../providers/story_mode_controller.dart';
 
 class StoryModeScreen extends ConsumerWidget {
-  final String familyId;
 
   const StoryModeScreen({super.key, required this.familyId});
+  final String familyId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

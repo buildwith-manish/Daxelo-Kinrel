@@ -78,7 +78,7 @@ class _LudoCardState extends ConsumerState<LudoCard> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
+                    const Expanded(
                       child: Text(
                         'Ludo',
                         style: TextStyle(
@@ -93,7 +93,7 @@ class _LudoCardState extends ConsumerState<LudoCard> {
                 ),
                 const SizedBox(height: 10),
                 if (dlState.status != GameDownloadStatus.downloaded)
-                  Text(
+                  const Text(
                     'Download in Games hub to play',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -102,7 +102,7 @@ class _LudoCardState extends ConsumerState<LudoCard> {
                     ),
                   )
                 else
-                  Text(
+                  const Text(
                     'Roll, race, and capture — 2-4 players, classic board game',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,

@@ -203,7 +203,7 @@ class _TwoFactorLoginScreenState extends ConsumerState<TwoFactorLoginScreen> {
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
+              padding: const EdgeInsets.symmetric(
                 horizontal: KinrelSpacing.xl,
                 vertical: KinrelSpacing.lg,
               ),
@@ -220,22 +220,22 @@ class _TwoFactorLoginScreenState extends ConsumerState<TwoFactorLoginScreen> {
                         color: KinrelColors.orange.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.shield_rounded,
                         color: KinrelColors.orange,
                         size: 36,
                       ),
                     ),
                   ).animate().fadeIn(duration: 400.ms).scale(
-                        begin: Offset(0.8, 0.8),
-                        end: Offset(1, 1),
+                        begin: const Offset(0.8, 0.8),
+                        end: const Offset(1, 1),
                         duration: 400.ms,
                       ),
 
                   const SizedBox(height: 24),
 
                   // ── Title ────────────────────────────────────────
-                  Center(
+                  const Center(
                     child: Text(
                       'Two-Factor Authentication',
                       style: TextStyle(
@@ -250,7 +250,7 @@ class _TwoFactorLoginScreenState extends ConsumerState<TwoFactorLoginScreen> {
                   const SizedBox(height: 8),
 
                   // ── Subtitle ─────────────────────────────────────
-                  Center(
+                  const Center(
                     child: Text(
                       'Enter the 6-digit code from your\nauthenticator app to continue',
                       textAlign: TextAlign.center,
@@ -274,7 +274,7 @@ class _TwoFactorLoginScreenState extends ConsumerState<TwoFactorLoginScreen> {
                     textAlign: TextAlign.center,
                     maxLength: 6,
                     cursorColor: _focusBorder,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
@@ -335,7 +335,7 @@ class _TwoFactorLoginScreenState extends ConsumerState<TwoFactorLoginScreen> {
                       child: Text(
                         _errorMessage!,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 13,
                           color: _errorColor,
@@ -389,7 +389,7 @@ class _TwoFactorLoginScreenState extends ConsumerState<TwoFactorLoginScreen> {
                             ? Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  SizedBox(
+                                  const SizedBox(
                                     height: 22,
                                     width: 22,
                                     child: CircularProgressIndicator(
@@ -411,7 +411,7 @@ class _TwoFactorLoginScreenState extends ConsumerState<TwoFactorLoginScreen> {
                                   ),
                                 ],
                               )
-                            : Text(
+                            : const Text(
                                 'Verify',
                                 style: TextStyle(
                                   fontFamily: KinrelTypography.displayFont,

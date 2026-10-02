@@ -33,6 +33,13 @@ class RoleGlyphBadge extends StatelessWidget {
     this.showLabel = false,
   });
 
+  /// Returns an empty badge (renders nothing) — convenience for callers
+  /// that don't yet have a role.
+  const RoleGlyphBadge.none({super.key})
+      : role = null,
+        size = 18,
+        showLabel = false;
+
   /// The role glyph to render. Pass `null` (via [RoleGlyphBadge.none])
   /// if Kinrel hasn't been computed yet — the badge renders nothing.
   final RoleGlyph? role;
@@ -43,13 +50,6 @@ class RoleGlyphBadge extends StatelessWidget {
   /// If true, render the role name to the right of the badge instead of
   /// inside it. Used in the role legend / list views.
   final bool showLabel;
-
-  /// Returns an empty badge (renders nothing) — convenience for callers
-  /// that don't yet have a role.
-  const RoleGlyphBadge.none({super.key})
-      : role = null,
-        size = 18,
-        showLabel = false;
 
   @override
   Widget build(BuildContext context) {

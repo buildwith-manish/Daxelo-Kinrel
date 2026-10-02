@@ -63,16 +63,6 @@ class SecretHeistPlayerWire {
     this.leftAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final DateTime joinedAt;
-  final bool isReady;
-  final DateTime? leftAt;
-
-  bool get isActive => leftAt == null;
-
   factory SecretHeistPlayerWire.fromJson(Map<String, dynamic> json) =>
       SecretHeistPlayerWire(
         id: (json['id'] ?? '') as String,
@@ -86,6 +76,16 @@ class SecretHeistPlayerWire {
             ? DateTime.tryParse(json['leftAt'] as String)
             : null,
       );
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final DateTime joinedAt;
+  final bool isReady;
+  final DateTime? leftAt;
+
+  bool get isActive => leftAt == null;
 }
 
 class SecretHeistGame {
@@ -114,42 +114,6 @@ class SecretHeistGame {
     this.chaosMode = false,
     this.actionSeconds = 30,
   });
-
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final SecretHeistStatus status;
-  final int maxPlayers;
-  final DateTime createdAt;
-  final String? roomName;
-  final List<String> playerOrder;
-  final String? currentPlayerId;
-  final int currentTurnIndex;
-  final DateTime? turnEndsAt;
-  final HeistBoardState? boardState;
-  final List<String> winnerUserIds;
-  final String? endReason;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final bool spectatorsEnabled;
-
-  // Game-specific config
-  final int totalRounds;
-  final int startingCoins;
-  final int vaultSize;
-  final bool chaosMode;
-  final int actionSeconds;
-
-  bool get isWaiting => status == SecretHeistStatus.waiting;
-  bool get isInProgress => status == SecretHeistStatus.inProgress;
-  bool get isCompleted => status == SecretHeistStatus.completed;
-
-  int? get turnSecondsRemaining {
-    if (!isInProgress || turnEndsAt == null) return null;
-    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
-    return left < 0 ? 0 : left;
-  }
 
   factory SecretHeistGame.fromJson(Map<String, dynamic> json) {
     final order = <String>[];
@@ -200,6 +164,42 @@ class SecretHeistGame {
       actionSeconds: (json['actionSeconds'] as num?)?.toInt() ?? 30,
     );
   }
+
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final SecretHeistStatus status;
+  final int maxPlayers;
+  final DateTime createdAt;
+  final String? roomName;
+  final List<String> playerOrder;
+  final String? currentPlayerId;
+  final int currentTurnIndex;
+  final DateTime? turnEndsAt;
+  final HeistBoardState? boardState;
+  final List<String> winnerUserIds;
+  final String? endReason;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final bool spectatorsEnabled;
+
+  // Game-specific config
+  final int totalRounds;
+  final int startingCoins;
+  final int vaultSize;
+  final bool chaosMode;
+  final int actionSeconds;
+
+  bool get isWaiting => status == SecretHeistStatus.waiting;
+  bool get isInProgress => status == SecretHeistStatus.inProgress;
+  bool get isCompleted => status == SecretHeistStatus.completed;
+
+  int? get turnSecondsRemaining {
+    if (!isInProgress || turnEndsAt == null) return null;
+    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
+    return left < 0 ? 0 : left;
+  }
 }
 
 /// One row from secret_heist_actions (RLS limits to caller's own row).
@@ -214,16 +214,6 @@ class SecretHeistActionWire {
     required this.submittedAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final int roundNumber;
-  final String action;
-  final int amount;
-  final DateTime submittedAt;
-
-  HeistAction get parsedAction => HeistActionX.fromString(action);
-
   factory SecretHeistActionWire.fromJson(Map<String, dynamic> json) =>
       SecretHeistActionWire(
         id: (json['id'] ?? '') as String,
@@ -235,4 +225,14 @@ class SecretHeistActionWire {
         submittedAt: DateTime.tryParse(json['submittedAt'] ?? '') ??
             DateTime.now(),
       );
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final int roundNumber;
+  final String action;
+  final int amount;
+  final DateTime submittedAt;
+
+  HeistAction get parsedAction => HeistActionX.fromString(action);
 }

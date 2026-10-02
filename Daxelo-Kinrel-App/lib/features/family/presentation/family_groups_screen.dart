@@ -37,7 +37,7 @@ class FamilyGroupsScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new,
+          icon: const Icon(Icons.arrow_back_ios_new,
               size: 18, color: KinrelColors.textSilver),
           onPressed: () {
             if (context.canPop()) {
@@ -47,7 +47,7 @@ class FamilyGroupsScreen extends ConsumerWidget {
             }
           },
         ),
-        title: Text(
+        title: const Text(
           'Groups',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -59,7 +59,7 @@ class FamilyGroupsScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.add_rounded, color: KinrelColors.ember, size: 24),
+            icon: const Icon(Icons.add_rounded, color: KinrelColors.ember, size: 24),
             onPressed: () =>
                 context.push('/family/$familyId/groups/create'),
           ),
@@ -71,7 +71,7 @@ class FamilyGroupsScreen extends ConsumerWidget {
         loading: () => const Center(
           child: CircularProgressIndicator(color: KinrelColors.orange),
         ),
-        error: (e, _) => Center(
+        error: (e, _) => const Center(
           child: Text(
             'Could not load groups',
             style: TextStyle(color: KinrelColors.textDim),
@@ -133,14 +133,14 @@ class _EmptyGroupsState extends StatelessWidget {
                   width: 1.2,
                 ),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.groups_2_rounded,
                 size: 36,
                 color: KinrelColors.ember,
               ),
             ),
             const SizedBox(height: 20),
-            Text(
+            const Text(
               'No Groups Yet',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -178,11 +178,11 @@ class _EmptyGroupsState extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.add_rounded, size: 18, color: Colors.white),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Text(
                       'Create Group',
                       style: TextStyle(
@@ -222,12 +222,12 @@ class _GroupCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
+          gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              const Color(0xFF1A1D2E),
-              const Color(0xFF14162A),
+              Color(0xFF1A1D2E),
+              Color(0xFF14162A),
             ],
           ),
           borderRadius: BorderRadius.circular(20),
@@ -297,7 +297,7 @@ class _GroupCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     group.name,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -325,12 +325,12 @@ class _GroupCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      Icon(Icons.people_outline_rounded,
+                      const Icon(Icons.people_outline_rounded,
                           size: 11, color: KinrelColors.textDim),
                       const SizedBox(width: 4),
                       Text(
                         '${group.memberCount} members',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 10.5,
                           color: KinrelColors.textDim,
@@ -338,12 +338,12 @@ class _GroupCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      Icon(Icons.access_time_rounded,
+                      const Icon(Icons.access_time_rounded,
                           size: 11, color: KinrelColors.textDim),
                       const SizedBox(width: 4),
                       Text(
                         timeAgo,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 10.5,
                           color: KinrelColors.textDim,
@@ -356,7 +356,7 @@ class _GroupCard extends StatelessWidget {
               ),
             ),
             // Chevron
-            Icon(Icons.chevron_right,
+            const Icon(Icons.chevron_right,
                 size: 20, color: KinrelColors.textDim),
           ],
         ),

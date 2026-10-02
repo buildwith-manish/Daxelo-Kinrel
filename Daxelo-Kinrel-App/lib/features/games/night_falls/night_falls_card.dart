@@ -78,7 +78,7 @@ class _NightFallsCardState extends ConsumerState<NightFallsCard> {
                     children: [
                       Row(
                         children: [
-                          Expanded(
+                          const Expanded(
                             child: Text(
                               'Night Falls',
                               style: TextStyle(
@@ -98,7 +98,7 @@ class _NightFallsCardState extends ConsumerState<NightFallsCard> {
                               border: Border.all(
                                   color: accent.withValues(alpha: 0.4)),
                             ),
-                            child: Text(
+                            child: const Text(
                               '5–12',
                               style: TextStyle(
                                 fontFamily: KinrelTypography.monoFont,
@@ -111,7 +111,7 @@ class _NightFallsCardState extends ConsumerState<NightFallsCard> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      const Text(
                         'Social deduction · Classic Werewolf',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
@@ -132,7 +132,7 @@ class _NightFallsCardState extends ConsumerState<NightFallsCard> {
                           ),
                         )
                       else
-                        Text(
+                        const Text(
                           'Wolves hunt by night, village votes by day. Find the wolves before they outnumber you!',
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,

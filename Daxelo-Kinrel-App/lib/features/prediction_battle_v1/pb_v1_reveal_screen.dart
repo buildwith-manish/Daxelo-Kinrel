@@ -187,8 +187,7 @@ class _RevealBody extends StatelessWidget {
                 style: DefaultTextStyle.of(flightContext).style,
                 child: (flightDirection == HeroFlightDirection.push
                         ? fromHeroContext.widget
-                        : toHeroContext.widget)
-                    as Widget,
+                        : toHeroContext.widget),
               ),
             );
           },
@@ -236,7 +235,7 @@ class _RevealBody extends StatelessWidget {
         ],
         const SizedBox(height: 20),
         // Ranked guesses
-        Text('Family Guesses', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
+        const Text('Family Guesses', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
         const SizedBox(height: 8),
         for (var i = 0; i < ranked.length; i++)
           _RankedGuessRow(

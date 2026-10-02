@@ -207,7 +207,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
-            Text(
+            const Text(
               'You signed in with Google. Use \'Forgot Password\' to set a password.',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -280,8 +280,8 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
             },
           ),
           const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.only(left: 4),
+          const Padding(
+            padding: EdgeInsets.only(left: 4),
             child: Text(
               'Minimum 8 characters with letters and numbers',
               style: TextStyle(
@@ -331,7 +331,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
               onPressed: () {
                 context.showSnackBar('Password reset email will be sent');
               },
-              child: Text(
+              child: const Text(
                 'Forgot Password?',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,

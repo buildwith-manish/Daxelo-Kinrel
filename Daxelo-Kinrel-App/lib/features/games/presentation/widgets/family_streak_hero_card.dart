@@ -27,7 +27,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_tokens.dart';
 import '../../../../core/constants/brand_colors.dart';
-import '../../../../core/constants/brand_typography.dart';
 import '../../../gaming_ecosystem/data/gaming_models.dart';
 import '../../../gaming_ecosystem/data/gaming_providers.dart';
 import '../../shared/icons/kinrel_icons.dart';

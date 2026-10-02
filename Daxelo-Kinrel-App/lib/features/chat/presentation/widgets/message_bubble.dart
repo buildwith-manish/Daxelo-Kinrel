@@ -35,7 +35,7 @@ import '../voice_message_player.dart';
 import 'full_screen_image_viewer.dart';
 
 class MessageBubble extends ConsumerWidget {
-  const MessageBubble({
+  const MessageBubble({super.key, 
     required this.message,
     required this.isMe,
     required this.onReply,
@@ -111,26 +111,26 @@ class MessageBubble extends ConsumerWidget {
     // threshold. When the swipe exceeds the threshold, onReply is
     // called (which calls setReplyTo in the provider). A visual
     // reply icon appears during the drag for feedback.
-    double _dragX = 0;
-    bool _replyTriggered = false;
+    double dragX = 0;
+    bool replyTriggered = false;
 
     return StatefulBuilder(
       builder: (context, setLocalState) {
         return GestureDetector(
           onLongPress: onLongPress,
           onHorizontalDragUpdate: (details) {
-            if (details.delta.dx > 0 && !_replyTriggered) {
-              _dragX += details.delta.dx;
-              if (_dragX > 40) {
-                _replyTriggered = true;
+            if (details.delta.dx > 0 && !replyTriggered) {
+              dragX += details.delta.dx;
+              if (dragX > 40) {
+                replyTriggered = true;
                 onReply();
                 HapticFeedback.selectionClick();
               }
             }
           },
           onHorizontalDragEnd: (_) {
-            _dragX = 0;
-            _replyTriggered = false;
+            dragX = 0;
+            replyTriggered = false;
           },
           child: Align(
             alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -139,14 +139,14 @@ class MessageBubble extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 // v122: Reply icon shown during swipe (left side).
-                if (_dragX > 5 && !isSticker)
+                if (dragX > 5 && !isSticker)
                   Padding(
                     padding: const EdgeInsets.only(right: 4),
                     child: Icon(
                       Icons.reply_rounded,
                       size: 20,
                       color: KinrelColors.orange
-                          .withValues(alpha: (_dragX / 40).clamp(0.0, 1.0)),
+                          .withValues(alpha: (dragX / 40).clamp(0.0, 1.0)),
                     ),
                   ),
                 // v127: Avatar only on first message in group.

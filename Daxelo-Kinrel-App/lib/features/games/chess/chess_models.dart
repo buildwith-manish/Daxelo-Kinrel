@@ -104,35 +104,6 @@ class ChessGame {
     this.autoCloseDeadline,
   });
 
-  final String id;
-  final String familyId;
-  final String playerWhiteId;
-  final String playerWhiteName;
-
-  /// Black's user id — EMPTY while the room is waiting for an opponent
-  /// to join (Create Room flow: the host creates the room first, the
-  /// first family member to join takes this slot).
-  final String playerBlackId;
-  final String playerBlackName;
-  final ChessColor currentTurnColor;
-  final String boardState; // FEN string
-  final ChessStatus status;
-  final ChessResult? result;
-  final String? winnerId;
-  final String? winnerName;
-  final DateTime? lastMoveAt;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final DateTime createdAt;
-
-  /// Room-framework columns (Create Room flow). The host is the room
-  /// creator; the room auto-closes when autoCloseDeadline passes with
-  /// no activity while waiting.
-  final String? hostUserId;
-  final String? hostUserName;
-  final bool spectatorsEnabled;
-  final DateTime? autoCloseDeadline;
-
   factory ChessGame.fromJson(Map<String, dynamic> json) => ChessGame(
     id: json['id'] ?? '',
     familyId: json['familyId'] ?? '',
@@ -166,6 +137,35 @@ class ChessGame {
         ? DateTime.tryParse(json['autoCloseDeadline'] as String)
         : null,
   );
+
+  final String id;
+  final String familyId;
+  final String playerWhiteId;
+  final String playerWhiteName;
+
+  /// Black's user id — EMPTY while the room is waiting for an opponent
+  /// to join (Create Room flow: the host creates the room first, the
+  /// first family member to join takes this slot).
+  final String playerBlackId;
+  final String playerBlackName;
+  final ChessColor currentTurnColor;
+  final String boardState; // FEN string
+  final ChessStatus status;
+  final ChessResult? result;
+  final String? winnerId;
+  final String? winnerName;
+  final DateTime? lastMoveAt;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final DateTime createdAt;
+
+  /// Room-framework columns (Create Room flow). The host is the room
+  /// creator; the room auto-closes when autoCloseDeadline passes with
+  /// no activity while waiting.
+  final String? hostUserId;
+  final String? hostUserName;
+  final bool spectatorsEnabled;
+  final DateTime? autoCloseDeadline;
 
   bool get isWaiting => status == ChessStatus.waiting;
   bool get isInProgress => status == ChessStatus.inProgress;
@@ -217,20 +217,6 @@ class ChessMoveRecord {
     required this.createdAt,
   });
 
-  final String id;
-  final String gameId;
-  final String playerId;
-  final String playerName;
-  final String fromSquare;
-  final String toSquare;
-  final String pieceMoved;
-  final String? capturedPiece;
-  final String? specialMove;
-  final String? promotedTo;
-  final int moveNumber;
-  final String notation;
-  final DateTime createdAt;
-
   factory ChessMoveRecord.fromJson(Map<String, dynamic> json) =>
       ChessMoveRecord(
         id: json['id'] ?? '',
@@ -248,6 +234,20 @@ class ChessMoveRecord {
         createdAt:
             DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
       );
+
+  final String id;
+  final String gameId;
+  final String playerId;
+  final String playerName;
+  final String fromSquare;
+  final String toSquare;
+  final String pieceMoved;
+  final String? capturedPiece;
+  final String? specialMove;
+  final String? promotedTo;
+  final int moveNumber;
+  final String notation;
+  final DateTime createdAt;
 }
 
 /// The starting FEN for a standard chess game.

@@ -81,7 +81,7 @@ class _CrystalBridgeCardState extends ConsumerState<CrystalBridgeCard> {
                     children: [
                       Row(
                         children: [
-                          Expanded(
+                          const Expanded(
                             child: Text(
                               'Crystal Bridge',
                               style: TextStyle(
@@ -101,7 +101,7 @@ class _CrystalBridgeCardState extends ConsumerState<CrystalBridgeCard> {
                               border: Border.all(
                                   color: accent.withValues(alpha: 0.4)),
                             ),
-                            child: Text(
+                            child: const Text(
                               '2–8',
                               style: TextStyle(
                                 fontFamily: KinrelTypography.monoFont,
@@ -114,7 +114,7 @@ class _CrystalBridgeCardState extends ConsumerState<CrystalBridgeCard> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      const Text(
                         'Survival · Risk vs Reward',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
@@ -135,7 +135,7 @@ class _CrystalBridgeCardState extends ConsumerState<CrystalBridgeCard> {
                           ),
                         )
                       else
-                        Text(
+                        const Text(
                           'Cross the bridge — one crystal saves you, one shatters you. Use powers to outlast family!',
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,

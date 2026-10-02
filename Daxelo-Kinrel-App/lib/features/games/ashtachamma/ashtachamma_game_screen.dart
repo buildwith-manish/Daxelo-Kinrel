@@ -161,7 +161,7 @@ class _AshtaChammaGameScreenState extends ConsumerState<AshtaChammaGameScreen> {
           backgroundColor: KinrelColors.darkCard,
           foregroundColor: KinrelColors.textWhite,
         ),
-        body: Center(
+        body: const Center(
           child: GamingEmptyCard(
             emoji: '🐚',
             title: 'Game not found',
@@ -213,7 +213,7 @@ class _AshtaChammaGameScreenState extends ConsumerState<AshtaChammaGameScreen> {
       ),
       title: Text(
         game.roomName?.isNotEmpty == true ? game.roomName! : 'Ashta Chamma',
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.displayFont,
           fontWeight: FontWeight.w600,
           color: KinrelColors.textWhite,
@@ -437,7 +437,7 @@ class _TurnBanner extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -529,7 +529,7 @@ class _ProgressChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             playerName,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 11,
               fontWeight: FontWeight.w600,
@@ -876,13 +876,13 @@ class _DiceArea extends StatelessWidget {
                     : canMove
                         ? Text(
                             'Tap a glowing piece to move it ${diceValue > 0 ? "by $diceValue" : ""}',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 12,
                               color: KinrelColors.textSilver,
                             ),
                           )
-                        : Text(
+                        : const Text(
                             'Waiting for other players...',
                             style: TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
@@ -895,7 +895,7 @@ class _DiceArea extends StatelessWidget {
           ),
           if (canMove && availableMoves.isEmpty) ...[
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'No legal moves — turn passes automatically',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -934,7 +934,7 @@ class _CowrieShellDice extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Shell emoji
-          Text(
+          const Text(
             '🐚',
             style: TextStyle(
               fontSize: 24,
@@ -1011,7 +1011,7 @@ class _ResultsView extends StatelessWidget {
                   winnerIds.isNotEmpty
                       ? '${placements.where((p) => p.place == 1).map((p) => p.userName).join(", ")} wins!'
                       : 'Game Complete',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
@@ -1021,7 +1021,7 @@ class _ResultsView extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   game.endReasonLabel,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     color: KinrelColors.textSilver,
@@ -1035,7 +1035,7 @@ class _ResultsView extends StatelessWidget {
 
           // Placements
           if (placements.isNotEmpty) ...[
-            GamingSectionHeader(
+            const GamingSectionHeader(
               title: 'Final Standings',
               icon: Icons.leaderboard_outlined,
             ),
@@ -1117,7 +1117,7 @@ class _PlacementRow extends StatelessWidget {
               children: [
                 Text(
                   placement.userName,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -1126,7 +1126,7 @@ class _PlacementRow extends StatelessWidget {
                 ),
                 Text(
                   '${placement.piecesHome}/4 pieces home · ${placement.captures} captures',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,
                     color: KinrelColors.textDim,

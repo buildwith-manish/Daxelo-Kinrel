@@ -42,7 +42,7 @@ class YourDataScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
+                const Icon(
                   Icons.shield_outlined,
                   color: KinrelColors.orange,
                   size: 32,
@@ -69,9 +69,9 @@ class YourDataScreen extends StatelessWidget {
           const SizedBox(height: 24),
 
           // What's stored
-          _SectionHeader(title: 'What we store'),
+          const _SectionHeader(title: 'What we store'),
           const SizedBox(height: 8),
-          _DataCard(
+          const _DataCard(
             icon: Icons.family_restroom,
             title: 'Family tree data',
             description:
@@ -79,7 +79,7 @@ class YourDataScreen extends StatelessWidget {
                 'Stored in Supabase with Row-Level Security — only your family members can see it.',
           ),
           const SizedBox(height: 8),
-          _DataCard(
+          const _DataCard(
             icon: Icons.photo_library_outlined,
             title: 'Memories & photos',
             description:
@@ -87,7 +87,7 @@ class YourDataScreen extends StatelessWidget {
                 'Supabase Storage with family-scoped access.',
           ),
           const SizedBox(height: 8),
-          _DataCard(
+          const _DataCard(
             icon: Icons.location_on_outlined,
             title: 'Location (optional)',
             description:
@@ -97,9 +97,9 @@ class YourDataScreen extends StatelessWidget {
           const SizedBox(height: 24),
 
           // What we DON'T store
-          _SectionHeader(title: 'What we don\'t store'),
+          const _SectionHeader(title: 'What we don\'t store'),
           const SizedBox(height: 8),
-          _DataCard(
+          const _DataCard(
             icon: Icons.block,
             title: 'No DNA or health data',
             description:
@@ -107,7 +107,7 @@ class YourDataScreen extends StatelessWidget {
             iconColor: Colors.green,
           ),
           const SizedBox(height: 8),
-          _DataCard(
+          const _DataCard(
             icon: Icons.block,
             title: 'No third-party tracking',
             description:
@@ -118,7 +118,7 @@ class YourDataScreen extends StatelessWidget {
           const SizedBox(height: 24),
 
           // Export section
-          _SectionHeader(title: 'Export your data'),
+          const _SectionHeader(title: 'Export your data'),
           const SizedBox(height: 8),
           _DataCard(
             icon: Icons.download_outlined,
@@ -224,9 +224,9 @@ class _DataCard extends StatelessWidget {
                 ),
               ),
               if (onTap != null)
-                Icon(
+                const Icon(
                   Icons.chevron_right,
-                  color: const Color(0xFF8A8296),
+                  color: Color(0xFF8A8296),
                   size: 20,
                 ),
             ],

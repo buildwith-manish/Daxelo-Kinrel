@@ -137,6 +137,19 @@ class MindMatchPlayer {
     required this.perfectMatches,
   });
 
+  factory MindMatchPlayer.fromJson(Map<String, dynamic> json) =>
+      MindMatchPlayer(
+        idx: (json['idx'] as num?)?.toInt() ?? 0,
+        userId: (json['userId'] ?? '') as String,
+        name: (json['name'] ?? 'Player') as String,
+        score: (json['score'] as num?)?.toInt() ?? 0,
+        lastRoundPoints:
+            (json['lastRoundPoints'] as num?)?.toInt() ?? 0,
+        streak: (json['streak'] as num?)?.toInt() ?? 0,
+        perfectMatches:
+            (json['perfectMatches'] as num?)?.toInt() ?? 0,
+      );
+
   final int idx;
   final String userId;
   final String name;
@@ -170,19 +183,6 @@ class MindMatchPlayer {
         'streak': streak,
         'perfectMatches': perfectMatches,
       };
-
-  factory MindMatchPlayer.fromJson(Map<String, dynamic> json) =>
-      MindMatchPlayer(
-        idx: (json['idx'] as num?)?.toInt() ?? 0,
-        userId: (json['userId'] ?? '') as String,
-        name: (json['name'] ?? 'Player') as String,
-        score: (json['score'] as num?)?.toInt() ?? 0,
-        lastRoundPoints:
-            (json['lastRoundPoints'] as num?)?.toInt() ?? 0,
-        streak: (json['streak'] as num?)?.toInt() ?? 0,
-        perfectMatches:
-            (json['perfectMatches'] as num?)?.toInt() ?? 0,
-      );
 }
 
 /// A group of matching answers (post-resolution).
@@ -195,6 +195,23 @@ class MindMatchAnswerGroup {
     required this.playerIndices,
     required this.size,
   });
+
+  factory MindMatchAnswerGroup.fromJson(Map<String, dynamic> json) =>
+      MindMatchAnswerGroup(
+        answer: (json['answer'] ?? '') as String,
+        normalizedAnswer:
+            (json['normalizedAnswer'] ?? '') as String,
+        userIds: (json['userIds'] as List? ?? [])
+            .map((e) => e.toString())
+            .toList(),
+        userNames: (json['userNames'] as List? ?? [])
+            .map((e) => e.toString())
+            .toList(),
+        playerIndices: (json['playerIndices'] as List? ?? [])
+            .map((e) => (e as num).toInt())
+            .toList(),
+        size: (json['size'] as num?)?.toInt() ?? 1,
+      );
 
   final String answer;
   final String normalizedAnswer;
@@ -217,23 +234,6 @@ class MindMatchAnswerGroup {
         'playerIndices': playerIndices,
         'size': size,
       };
-
-  factory MindMatchAnswerGroup.fromJson(Map<String, dynamic> json) =>
-      MindMatchAnswerGroup(
-        answer: (json['answer'] ?? '') as String,
-        normalizedAnswer:
-            (json['normalizedAnswer'] ?? '') as String,
-        userIds: (json['userIds'] as List? ?? [])
-            .map((e) => e.toString())
-            .toList(),
-        userNames: (json['userNames'] as List? ?? [])
-            .map((e) => e.toString())
-            .toList(),
-        playerIndices: (json['playerIndices'] as List? ?? [])
-            .map((e) => (e as num).toInt())
-            .toList(),
-        size: (json['size'] as num?)?.toInt() ?? 1,
-      );
 }
 
 /// Points awarded to a single player for a round.
@@ -247,6 +247,18 @@ class MindMatchPointsAwarded {
     required this.perfectBonus,
     required this.streak,
   });
+
+  factory MindMatchPointsAwarded.fromJson(Map<String, dynamic> json) =>
+      MindMatchPointsAwarded(
+        playerIndex:
+            (json['playerIndex'] as num?)?.toInt() ?? 0,
+        points: (json['points'] as num?)?.toInt() ?? 0,
+        matched: (json['matched'] as bool?) ?? false,
+        groupSize: (json['groupSize'] as num?)?.toInt() ?? 1,
+        crowdBonus: (json['crowdBonus'] as bool?) ?? false,
+        perfectBonus: (json['perfectBonus'] as bool?) ?? false,
+        streak: (json['streak'] as num?)?.toInt() ?? 0,
+      );
 
   final int playerIndex;
   final int points;
@@ -265,18 +277,6 @@ class MindMatchPointsAwarded {
         'perfectBonus': perfectBonus,
         'streak': streak,
       };
-
-  factory MindMatchPointsAwarded.fromJson(Map<String, dynamic> json) =>
-      MindMatchPointsAwarded(
-        playerIndex:
-            (json['playerIndex'] as num?)?.toInt() ?? 0,
-        points: (json['points'] as num?)?.toInt() ?? 0,
-        matched: (json['matched'] as bool?) ?? false,
-        groupSize: (json['groupSize'] as num?)?.toInt() ?? 1,
-        crowdBonus: (json['crowdBonus'] as bool?) ?? false,
-        perfectBonus: (json['perfectBonus'] as bool?) ?? false,
-        streak: (json['streak'] as num?)?.toInt() ?? 0,
-      );
 }
 
 /// One round's snapshot.
@@ -293,33 +293,6 @@ class MindMatchRound {
     required this.perfectMatch,
     required this.pointsAwarded,
   });
-
-  final int roundNumber;
-  final MindMatchPhase phase;
-  final String questionId;
-  final String questionPrompt;
-  final String questionCategory;
-  final int lockedCount;
-  final List<MindMatchAnswerGroup> answerGroups;
-  final String? crowdFavorite;
-  final bool perfectMatch;
-  final List<MindMatchPointsAwarded> pointsAwarded;
-
-  MindMatchCategory get category =>
-      MindMatchCategoryX.fromString(questionCategory);
-
-  Map<String, dynamic> toJson() => {
-        'roundNumber': roundNumber,
-        'phase': phase.wire,
-        'questionId': questionId,
-        'questionPrompt': questionPrompt,
-        'questionCategory': questionCategory,
-        'lockedCount': lockedCount,
-        'answerGroups': answerGroups.map((g) => g.toJson()).toList(),
-        'crowdFavorite': crowdFavorite,
-        'perfectMatch': perfectMatch,
-        'pointsAwarded': pointsAwarded.map((p) => p.toJson()).toList(),
-      };
 
   factory MindMatchRound.fromJson(Map<String, dynamic> json) {
     final groupsList = <MindMatchAnswerGroup>[];
@@ -357,6 +330,33 @@ class MindMatchRound {
       pointsAwarded: pointsList,
     );
   }
+
+  final int roundNumber;
+  final MindMatchPhase phase;
+  final String questionId;
+  final String questionPrompt;
+  final String questionCategory;
+  final int lockedCount;
+  final List<MindMatchAnswerGroup> answerGroups;
+  final String? crowdFavorite;
+  final bool perfectMatch;
+  final List<MindMatchPointsAwarded> pointsAwarded;
+
+  MindMatchCategory get category =>
+      MindMatchCategoryX.fromString(questionCategory);
+
+  Map<String, dynamic> toJson() => {
+        'roundNumber': roundNumber,
+        'phase': phase.wire,
+        'questionId': questionId,
+        'questionPrompt': questionPrompt,
+        'questionCategory': questionCategory,
+        'lockedCount': lockedCount,
+        'answerGroups': answerGroups.map((g) => g.toJson()).toList(),
+        'crowdFavorite': crowdFavorite,
+        'perfectMatch': perfectMatch,
+        'pointsAwarded': pointsAwarded.map((p) => p.toJson()).toList(),
+      };
 }
 
 /// The full boardState JSONB from the games row, parsed.
@@ -373,6 +373,54 @@ class MindMatchBoardState {
     required this.status,
     required this.winnerIndex,
   });
+
+  factory MindMatchBoardState.fromJson(Map<String, dynamic> json) {
+    final roundsList = <MindMatchRound>[];
+    final rawRounds = json['rounds'];
+    if (rawRounds is List) {
+      for (final r in rawRounds) {
+        if (r is Map) {
+          roundsList.add(
+              MindMatchRound.fromJson(Map<String, dynamic>.from(r)));
+        }
+      }
+    }
+    final playersList = <MindMatchPlayer>[];
+    final rawPlayers = json['players'];
+    if (rawPlayers is List) {
+      for (final p in rawPlayers) {
+        if (p is Map) {
+          playersList.add(
+              MindMatchPlayer.fromJson(Map<String, dynamic>.from(p)));
+        }
+      }
+    }
+    final cats = <String>[];
+    final rawCats = json['categories'];
+    if (rawCats is List) {
+      for (final c in rawCats) {
+        cats.add(c.toString());
+      }
+    }
+    if (cats.isEmpty) {
+      cats.addAll(const ['everyday', 'fun', 'family', 'global']);
+    }
+    return MindMatchBoardState(
+      playerCount: (json['playerCount'] as num?)?.toInt() ?? 2,
+      totalRounds: (json['totalRounds'] as num?)?.toInt() ?? 10,
+      answerSeconds: (json['answerSeconds'] as num?)?.toInt() ??
+          kMindMatchDefaultAnswerSeconds,
+      categories: cats,
+      familyQuestionsEnabled:
+          (json['familyQuestionsEnabled'] as bool?) ?? true,
+      currentRoundNumber:
+          (json['currentRound'] as num?)?.toInt() ?? 1,
+      rounds: roundsList,
+      players: playersList,
+      status: (json['status'] as String?) ?? 'in_progress',
+      winnerIndex: (json['winner'] as num?)?.toInt() ?? -1,
+    );
+  }
 
   final int playerCount;
   final int totalRounds;
@@ -423,54 +471,6 @@ class MindMatchBoardState {
         'status': status,
         'winner': winnerIndex,
       };
-
-  factory MindMatchBoardState.fromJson(Map<String, dynamic> json) {
-    final roundsList = <MindMatchRound>[];
-    final rawRounds = json['rounds'];
-    if (rawRounds is List) {
-      for (final r in rawRounds) {
-        if (r is Map) {
-          roundsList.add(
-              MindMatchRound.fromJson(Map<String, dynamic>.from(r)));
-        }
-      }
-    }
-    final playersList = <MindMatchPlayer>[];
-    final rawPlayers = json['players'];
-    if (rawPlayers is List) {
-      for (final p in rawPlayers) {
-        if (p is Map) {
-          playersList.add(
-              MindMatchPlayer.fromJson(Map<String, dynamic>.from(p)));
-        }
-      }
-    }
-    final cats = <String>[];
-    final rawCats = json['categories'];
-    if (rawCats is List) {
-      for (final c in rawCats) {
-        cats.add(c.toString());
-      }
-    }
-    if (cats.isEmpty) {
-      cats.addAll(const ['everyday', 'fun', 'family', 'global']);
-    }
-    return MindMatchBoardState(
-      playerCount: (json['playerCount'] as num?)?.toInt() ?? 2,
-      totalRounds: (json['totalRounds'] as num?)?.toInt() ?? 10,
-      answerSeconds: (json['answerSeconds'] as num?)?.toInt() ??
-          kMindMatchDefaultAnswerSeconds,
-      categories: cats,
-      familyQuestionsEnabled:
-          (json['familyQuestionsEnabled'] as bool?) ?? true,
-      currentRoundNumber:
-          (json['currentRound'] as num?)?.toInt() ?? 1,
-      rounds: roundsList,
-      players: playersList,
-      status: (json['status'] as String?) ?? 'in_progress',
-      winnerIndex: (json['winner'] as num?)?.toInt() ?? -1,
-    );
-  }
 }
 
 /// Normalize an answer for matching: lowercase, trim, collapse spaces.

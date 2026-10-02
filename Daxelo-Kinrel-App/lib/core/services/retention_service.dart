@@ -86,7 +86,7 @@ class RetentionService {
       );
     } catch (e) {
       debugPrint('⚠️ RetentionService.getStats failed: $e');
-      return EngagementStats();
+      return const EngagementStats();
     }
   }
 

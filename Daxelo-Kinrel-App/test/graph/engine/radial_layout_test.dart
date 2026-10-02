@@ -52,7 +52,7 @@ void main() {
     });
 
     /// Small fixture: anchor + father + mother + one child.
-    ({List<GraphPerson> persons, List<GraphRelationship> rels}) _smallFamily() {
+    ({List<GraphPerson> persons, List<GraphRelationship> rels}) smallFamily() {
       final persons = [
         _person('anchor', gen: 0, isAnchor: true),
         _person('father', gen: -1),
@@ -68,7 +68,7 @@ void main() {
     }
 
     test('layout output is deterministic across repeated runs', () {
-      final fam = _smallFamily();
+      final fam = smallFamily();
 
       final r1 = layout.compute(persons: fam.persons, relationships: fam.rels);
       final r2 = layout.compute(persons: fam.persons, relationships: fam.rels);
@@ -83,7 +83,7 @@ void main() {
     });
 
     test('no two nodes end up at the exact same coordinates', () {
-      final fam = _smallFamily();
+      final fam = smallFamily();
       final result = layout.compute(persons: fam.persons, relationships: fam.rels);
 
       final seen = <Offset>{};
@@ -124,7 +124,7 @@ void main() {
     });
 
     test('ancestors (gen < 0) are placed in the upper semicircle', () {
-      final fam = _smallFamily();
+      final fam = smallFamily();
       final result = layout.compute(persons: fam.persons, relationships: fam.rels);
 
       final anchorY = result.positions['anchor']!.dy;
@@ -135,7 +135,7 @@ void main() {
     });
 
     test('descendants (gen > 0) are placed in the lower semicircle', () {
-      final fam = _smallFamily();
+      final fam = smallFamily();
       final result = layout.compute(persons: fam.persons, relationships: fam.rels);
 
       final anchorY = result.positions['anchor']!.dy;
@@ -146,7 +146,7 @@ void main() {
     });
 
     test('every input person receives a position', () {
-      final fam = _smallFamily();
+      final fam = smallFamily();
       final result = layout.compute(persons: fam.persons, relationships: fam.rels);
 
       for (final p in fam.persons) {
@@ -156,7 +156,7 @@ void main() {
     });
 
     test('ring radii grow with |generationIndex|', () {
-      final fam = _smallFamily();
+      final fam = smallFamily();
       final result = layout.compute(persons: fam.persons, relationships: fam.rels);
 
       // Anchor (gen 0) is at radius 0; father (gen -1) and child (gen 1)
@@ -170,7 +170,7 @@ void main() {
     });
 
     test('distance from anchor matches ring radius for non-anchor nodes', () {
-      final fam = _smallFamily();
+      final fam = smallFamily();
       final result = layout.compute(persons: fam.persons, relationships: fam.rels);
 
       final anchor = result.positions['anchor']!;
@@ -207,7 +207,7 @@ void main() {
     // ═══════════════════════════════════════════════════════════════════
     group('v5.125 (Step 7) — barycenter any-relationship fallback', () {
       ({List<GraphPerson> persons, List<GraphRelationship> rels})
-          _inLawFamily() {
+          inLawFamily() {
         final persons = [
           _person('me', gen: 0, isAnchor: true),
           _person('son1', name: 'Son One'),
@@ -261,7 +261,7 @@ void main() {
 
       test('every person (including both in-laws) receives a position',
           () {
-        final fam = _inLawFamily();
+        final fam = inLawFamily();
         final result =
             layout.compute(persons: fam.persons, relationships: fam.rels);
 
@@ -273,7 +273,7 @@ void main() {
 
       test('in-laws land in their connected branch\'s angular sector, '
           'not stacked at the ring\'s end', () {
-        final fam = _inLawFamily();
+        final fam = inLawFamily();
         final result =
             layout.compute(persons: fam.persons, relationships: fam.rels);
         final pos = result.positions;
@@ -309,7 +309,7 @@ void main() {
 
       test('tier 1 (parent/child) still wins over the any-relationship '
           'fallback', () {
-        final fam = _inLawFamily();
+        final fam = inLawFamily();
         final result =
             layout.compute(persons: fam.persons, relationships: fam.rels);
         final pos = result.positions;
@@ -441,7 +441,7 @@ void main() {
         // The original _smallFamily fixture: anchor + father + mother +
         // child. Everyone is reachable. PeripherhalRing=2 (maxHop=1, +1)
         // but no node should land there.
-        final fam = _smallFamily();
+        final fam = smallFamily();
         final result = layout.compute(persons: fam.persons, relationships: fam.rels);
 
         // Re-check the original invariants still hold.

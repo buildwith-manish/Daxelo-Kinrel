@@ -57,7 +57,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/app_time.dart';
-import '../../../core/family/family_provider.dart';
 import 'pb_v1_models.dart';
 
 /// The Android app widget provider's Java/Kotlin class name. Must
@@ -196,12 +195,12 @@ class PredictionWidgetUpdater {
             .maybeSingle(),
       ]);
 
-      final guessRow = results[0] as Map<String, dynamic>?;
+      final guessRow = results[0];
       final myGuess = guessRow != null
           ? (guessRow['guess_value'] as num?)?.toDouble()
           : null;
 
-      final streakRow = results[1] as Map<String, dynamic>?;
+      final streakRow = results[1];
       final currentStreak = (streakRow?['current_streak'] as int?) ?? 0;
 
       final isRevealed = round.status == 'revealed' ||
@@ -213,7 +212,7 @@ class PredictionWidgetUpdater {
       // the question JSON but we should NOT show it on the widget
       // since the round is still open. The native side checks status.)
       double? correctAnswer;
-      bool isWinner = false;
+      final bool isWinner = false;
       if (isRevealed) {
         correctAnswer = question.correctAnswer;
         // We'd need to fetch all guesses + compute winners to know if

@@ -24,6 +24,14 @@ class CameoPersonality {
     this.dignity = 0.5,
   });
 
+  factory CameoPersonality.fromJson(Map<String, dynamic> json) =>
+      CameoPersonality(
+        warmth: (json['warmth'] as num?)?.toDouble() ?? 0.5,
+        reserve: (json['reserve'] as num?)?.toDouble() ?? 0.5,
+        playfulness: (json['playfulness'] as num?)?.toDouble() ?? 0.5,
+        dignity: (json['dignity'] as num?)?.toDouble() ?? 0.5,
+      );
+
   /// Higher = more frequent smile baseline + double-blinks.
   final double warmth;
 
@@ -54,14 +62,6 @@ class CameoPersonality {
     'dignity': dignity,
   };
 
-  factory CameoPersonality.fromJson(Map<String, dynamic> json) =>
-      CameoPersonality(
-        warmth: (json['warmth'] as num?)?.toDouble() ?? 0.5,
-        reserve: (json['reserve'] as num?)?.toDouble() ?? 0.5,
-        playfulness: (json['playfulness'] as num?)?.toDouble() ?? 0.5,
-        dignity: (json['dignity'] as num?)?.toDouble() ?? 0.5,
-      );
-
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -83,6 +83,12 @@ class CameoMemorialPreferences {
     this.candleGlow = false,
   });
 
+  factory CameoMemorialPreferences.fromJson(Map<String, dynamic> json) =>
+      CameoMemorialPreferences(
+        atmosphere: json['atmosphere'] as String? ?? 'softLight',
+        candleGlow: json['candleGlow'] as bool? ?? false,
+      );
+
   /// 'softLight' (default) or 'candleGlow' (family-opted only).
   final String atmosphere;
 
@@ -96,12 +102,6 @@ class CameoMemorialPreferences {
     'atmosphere': atmosphere,
     'candleGlow': candleGlow,
   };
-
-  factory CameoMemorialPreferences.fromJson(Map<String, dynamic> json) =>
-      CameoMemorialPreferences(
-        atmosphere: json['atmosphere'] as String? ?? 'softLight',
-        candleGlow: json['candleGlow'] as bool? ?? false,
-      );
 
   @override
   bool operator ==(Object other) =>
@@ -148,6 +148,45 @@ class CameoDefinition {
     this.assetPackVersion = '1.0.0',
     this.updatedAt,
   });
+
+  factory CameoDefinition.fromJson(Map<String, dynamic> json) {
+    return CameoDefinition(
+      id: json['id'] as String? ?? '',
+      personId: json['personId'] as String? ?? '',
+      familyId: json['familyId'] as String? ?? '',
+      schemaVersion: json['schemaVersion'] as int? ?? 1,
+      gender: CameoGender.values.firstWhere(
+        (e) => e.name == json['gender'],
+        orElse: () => CameoGender.unspecified,
+      ),
+      ageBandIndex: json['ageBandIndex'] as int? ?? 4,
+      skinToneIndex: json['skinToneIndex'] as int? ?? 5,
+      hairStyleId: json['hairStyleId'] as String?,
+      facialHairStyleId: json['facialHairStyleId'] as String?,
+      glassesId: json['glassesId'] as String?,
+      clothingId: json['clothingId'] as String?,
+      headwearId: json['headwearId'] as String?,
+      jewelleryIds:
+          (json['jewelleryIds'] as List<dynamic>?)?.cast<String>() ?? [],
+      accessoryIds:
+          (json['accessoryIds'] as List<dynamic>?)?.cast<String>() ?? [],
+      expressionId: json['expressionId'] as String?,
+      poseId: json['poseId'] as String?,
+      personality: json['personality'] != null
+          ? CameoPersonality.fromJson(
+              json['personality'] as Map<String, dynamic>,
+            )
+          : const CameoPersonality(),
+      memorialPreferences: json['memorialPreferences'] != null
+          ? CameoMemorialPreferences.fromJson(
+              json['memorialPreferences'] as Map<String, dynamic>,
+            )
+          : const CameoMemorialPreferences(),
+      isDeceased: json['isDeceased'] as bool? ?? false,
+      assetPackVersion: json['assetPackVersion'] as String? ?? '1.0.0',
+      updatedAt: json['updatedAt'] as String?,
+    );
+  }
 
   /// Unique ID for this definition (typically = personId).
   final String id;
@@ -278,45 +317,6 @@ class CameoDefinition {
     'assetPackVersion': assetPackVersion,
     'updatedAt': updatedAt,
   };
-
-  factory CameoDefinition.fromJson(Map<String, dynamic> json) {
-    return CameoDefinition(
-      id: json['id'] as String? ?? '',
-      personId: json['personId'] as String? ?? '',
-      familyId: json['familyId'] as String? ?? '',
-      schemaVersion: json['schemaVersion'] as int? ?? 1,
-      gender: CameoGender.values.firstWhere(
-        (e) => e.name == json['gender'],
-        orElse: () => CameoGender.unspecified,
-      ),
-      ageBandIndex: json['ageBandIndex'] as int? ?? 4,
-      skinToneIndex: json['skinToneIndex'] as int? ?? 5,
-      hairStyleId: json['hairStyleId'] as String?,
-      facialHairStyleId: json['facialHairStyleId'] as String?,
-      glassesId: json['glassesId'] as String?,
-      clothingId: json['clothingId'] as String?,
-      headwearId: json['headwearId'] as String?,
-      jewelleryIds:
-          (json['jewelleryIds'] as List<dynamic>?)?.cast<String>() ?? [],
-      accessoryIds:
-          (json['accessoryIds'] as List<dynamic>?)?.cast<String>() ?? [],
-      expressionId: json['expressionId'] as String?,
-      poseId: json['poseId'] as String?,
-      personality: json['personality'] != null
-          ? CameoPersonality.fromJson(
-              json['personality'] as Map<String, dynamic>,
-            )
-          : const CameoPersonality(),
-      memorialPreferences: json['memorialPreferences'] != null
-          ? CameoMemorialPreferences.fromJson(
-              json['memorialPreferences'] as Map<String, dynamic>,
-            )
-          : const CameoMemorialPreferences(),
-      isDeceased: json['isDeceased'] as bool? ?? false,
-      assetPackVersion: json['assetPackVersion'] as String? ?? '1.0.0',
-      updatedAt: json['updatedAt'] as String?,
-    );
-  }
 
   CameoDefinition copyWith({
     String? id,

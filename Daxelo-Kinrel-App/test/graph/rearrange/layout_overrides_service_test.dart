@@ -42,11 +42,11 @@ void main() {
         'p2': const Offset(300.0, 400.0),
         'p3': const Offset(500.0, 600.0),
       };
-      final saved = PersonalLayoutOverrides(
+      final saved = const PersonalLayoutOverrides(
         nodePositions: {
-          'p2': const Offset(350.0, 450.0), // moved down + right
+          'p2': Offset(350.0, 450.0), // moved down + right
         },
-        edgeWaypoints: const {},
+        edgeWaypoints: {},
       );
       final result = saved.applyTo(autoLayout);
       expect(result['p1'], const Offset(100.0, 200.0),
@@ -60,12 +60,12 @@ void main() {
     test('nodePositions and edgeWaypoints are independent — saving a '
         'node position does not disturb a saved edge waypoint, and '
         'vice versa (PART 1.3 + Part 2.4 round-trip independence)', () {
-      final saved = PersonalLayoutOverrides(
+      final saved = const PersonalLayoutOverrides(
         nodePositions: {
-          'personA': const Offset(42.0, 17.0),
+          'personA': Offset(42.0, 17.0),
         },
         edgeWaypoints: {
-          'rel-1': const Offset(-15.0, 30.0), // RELATIVE delta
+          'rel-1': Offset(-15.0, 30.0), // RELATIVE delta
         },
       );
       expect(saved.nodePositions.length, 1);
@@ -77,21 +77,21 @@ void main() {
     test('isEmpty returns true only when BOTH maps are empty', () {
       expect(const PersonalLayoutOverrides().isEmpty, true);
       expect(
-          PersonalLayoutOverrides(
-            nodePositions: {'a': const Offset(1, 2)},
+          const PersonalLayoutOverrides(
+            nodePositions: {'a': Offset(1, 2)},
           ).isEmpty,
           false,
           reason: 'node-only overrides are not empty');
       expect(
-          PersonalLayoutOverrides(
-            edgeWaypoints: {'r': const Offset(1, 2)},
+          const PersonalLayoutOverrides(
+            edgeWaypoints: {'r': Offset(1, 2)},
           ).isEmpty,
           false,
           reason: 'edge-only overrides are not empty');
       expect(
-          PersonalLayoutOverrides(
-            nodePositions: {'a': const Offset(1, 2)},
-            edgeWaypoints: {'r': const Offset(3, 4)},
+          const PersonalLayoutOverrides(
+            nodePositions: {'a': Offset(1, 2)},
+            edgeWaypoints: {'r': Offset(3, 4)},
           ).isEmpty,
           false);
     });

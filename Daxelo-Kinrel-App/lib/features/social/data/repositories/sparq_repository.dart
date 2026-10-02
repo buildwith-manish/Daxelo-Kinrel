@@ -17,14 +17,6 @@ class SparqReply {
     required this.createdAt,
   });
 
-  final String id;
-  final String sparqId;
-  final String userId;
-  final String userName;
-  final String? userAvatarUrl;
-  final String content;
-  final DateTime createdAt;
-
   factory SparqReply.fromJson(Map<String, dynamic> json) {
     return SparqReply(
       id: json['id'] as String? ?? '',
@@ -37,6 +29,14 @@ class SparqReply {
           DateTime.now(),
     );
   }
+
+  final String id;
+  final String sparqId;
+  final String userId;
+  final String userName;
+  final String? userAvatarUrl;
+  final String content;
+  final DateTime createdAt;
 }
 
 class SparqRepository {

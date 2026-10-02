@@ -288,9 +288,9 @@ class _JoinOrCreateFamilyScreenState extends ConsumerState<JoinOrCreateFamilyScr
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF13141E),
-        body: const Center(child: CircularProgressIndicator(color: KinrelColors.orange)),
+      return const Scaffold(
+        backgroundColor: Color(0xFF13141E),
+        body: Center(child: CircularProgressIndicator(color: KinrelColors.orange)),
       );
     }
     return Scaffold(
@@ -325,7 +325,7 @@ class _JoinOrCreateFamilyScreenState extends ConsumerState<JoinOrCreateFamilyScr
               style: TextStyle(fontSize: 56),
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Daxelo Kinrel is a private space for your family — share predictions, build your kinship graph, and stay connected with the people who matter.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -348,11 +348,11 @@ class _JoinOrCreateFamilyScreenState extends ConsumerState<JoinOrCreateFamilyScr
               const SizedBox(height: 20),
               // Divider with "or" — visually separates the banner
               // from the manual options below.
-              Row(
+              const Row(
                 children: [
-                  const Expanded(child: Divider(color: KinrelColors.border)),
+                  Expanded(child: Divider(color: KinrelColors.border)),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: EdgeInsets.symmetric(horizontal: 12),
                     child: Text(
                       'or',
                       style: TextStyle(
@@ -362,7 +362,7 @@ class _JoinOrCreateFamilyScreenState extends ConsumerState<JoinOrCreateFamilyScr
                       ),
                     ),
                   ),
-                  const Expanded(child: Divider(color: KinrelColors.border)),
+                  Expanded(child: Divider(color: KinrelColors.border)),
                 ],
               ),
               const SizedBox(height: 20),
@@ -390,11 +390,11 @@ class _JoinOrCreateFamilyScreenState extends ConsumerState<JoinOrCreateFamilyScr
                             fillColor: KinrelColors.darkCard,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: KinrelColors.border),
+                              borderSide: const BorderSide(color: KinrelColors.border),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: KinrelColors.orange, width: 1.2),
+                              borderSide: const BorderSide(color: KinrelColors.orange, width: 1.2),
                             ),
                           ),
                           onSubmitted: (_) => _joinWithManualCode(),
@@ -462,11 +462,11 @@ class _JoinOrCreateFamilyScreenState extends ConsumerState<JoinOrCreateFamilyScr
                       fillColor: KinrelColors.darkCard,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: KinrelColors.border),
+                        borderSide: const BorderSide(color: KinrelColors.border),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: KinrelColors.brightGold, width: 1.2),
+                        borderSide: const BorderSide(color: KinrelColors.brightGold, width: 1.2),
                       ),
                     ),
                     onSubmitted: (_) => _createNewFamily(),
@@ -494,7 +494,7 @@ class _JoinOrCreateFamilyScreenState extends ConsumerState<JoinOrCreateFamilyScr
 
             const SizedBox(height: 24),
             // Tiny help footer
-            Text(
+            const Text(
               'You can always join or create a family later from the home screen.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -543,7 +543,7 @@ class _ClipboardInviteBanner extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'We found an invite code in your clipboard',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -557,7 +557,7 @@ class _ClipboardInviteBanner extends StatelessWidget {
                     familyName != null
                         ? 'Tap to join "$familyName" ($familyId)'
                         : 'Tap to join $familyId',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
                       color: KinrelColors.textSilver,
@@ -635,7 +635,7 @@ class _SectionCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
                         color: KinrelColors.textDim,

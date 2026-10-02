@@ -71,6 +71,18 @@ import '../../core/services/graph_layout_service.dart';
 
 /// Configuration for the [HierarchicalLayout] engine.
 class HierarchicalLayoutConfig {
+
+  const HierarchicalLayoutConfig({
+    // v5.170: updated defaults to match the user's minimum spacing spec:
+    //   180px horizontal (siblingSpacing), 220px vertical (levelSpacing).
+    this.siblingSpacing = 180.0,
+    this.levelSpacing = 220.0,
+    this.spouseGap = 60.0,
+    this.padding = 60.0,
+    this.nodeWidth = 120.0,
+    this.nodeHeight = 72.0,
+    this.compact = false,
+  });
   /// Horizontal spacing between sibling nodes (dp).
   final double siblingSpacing;
 
@@ -91,18 +103,6 @@ class HierarchicalLayoutConfig {
 
   /// Whether to use compact mode (tighter spacing for dense graphs).
   final bool compact;
-
-  const HierarchicalLayoutConfig({
-    // v5.170: updated defaults to match the user's minimum spacing spec:
-    //   180px horizontal (siblingSpacing), 220px vertical (levelSpacing).
-    this.siblingSpacing = 180.0,
-    this.levelSpacing = 220.0,
-    this.spouseGap = 60.0,
-    this.padding = 60.0,
-    this.nodeWidth = 120.0,
-    this.nodeHeight = 72.0,
-    this.compact = false,
-  });
 
   HierarchicalLayoutConfig copyWith({
     double? siblingSpacing,
@@ -134,6 +134,8 @@ class HierarchicalLayoutConfig {
 /// Tracks the graph person, their subtree width, children, spouses,
 /// and the BFS-assigned generation number used for Y positioning.
 class _TreeNode {
+
+  _TreeNode(this.person);
   final GraphPerson person;
   final List<_TreeNode> children = [];
   final List<_TreeNode> spouses = [];
@@ -166,8 +168,6 @@ class _TreeNode {
   /// spouse edges with a dashed connector to distinguish them from
   /// the primary couple.
   bool isSecondarySpouse = false;
-
-  _TreeNode(this.person);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -188,10 +188,10 @@ class _TreeNode {
 ///           the couple's midpoint (primary + first spouse), not the
 ///           primary alone.
 class HierarchicalLayout {
-  HierarchicalLayoutConfig _config;
 
   HierarchicalLayout({HierarchicalLayoutConfig? config})
       : _config = config ?? const HierarchicalLayoutConfig();
+  HierarchicalLayoutConfig _config;
 
   /// Current configuration.
   HierarchicalLayoutConfig get config => _config;
@@ -964,13 +964,13 @@ class HierarchicalLayout {
 
 /// v5.164 (LOCAL EXPANSION): Result of [HierarchicalLayout.computeLocalExpansionLayout].
 class LocalExpansionResult {
-  final Map<String, Offset> positions;
-  final Set<String> positionedIds;
 
   const LocalExpansionResult({
     required this.positions,
     required this.positionedIds,
   });
+  final Map<String, Offset> positions;
+  final Set<String> positionedIds;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

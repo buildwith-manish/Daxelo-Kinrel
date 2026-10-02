@@ -61,16 +61,6 @@ class CrystalBridgePlayerWire {
     this.leftAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final DateTime joinedAt;
-  final bool isReady;
-  final DateTime? leftAt;
-
-  bool get isActive => leftAt == null;
-
   factory CrystalBridgePlayerWire.fromJson(Map<String, dynamic> json) =>
       CrystalBridgePlayerWire(
         id: (json['id'] ?? '') as String,
@@ -84,6 +74,16 @@ class CrystalBridgePlayerWire {
             ? DateTime.tryParse(json['leftAt'] as String)
             : null,
       );
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final DateTime joinedAt;
+  final bool isReady;
+  final DateTime? leftAt;
+
+  bool get isActive => leftAt == null;
 }
 
 class CrystalBridgeGame {
@@ -109,39 +109,6 @@ class CrystalBridgeGame {
     this.teamMode = CrystalBridgeTeamMode.solo,
     this.turnSeconds = kCrystalBridgeDefaultTurnSeconds,
   });
-
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final CrystalBridgeStatus status;
-  final int maxPlayers;
-  final DateTime createdAt;
-  final String? roomName;
-  final List<String> playerOrder;
-  final DateTime? turnEndsAt;
-  final CrystalBridgeBoardState? boardState;
-  final List<String> winnerUserIds;
-  final String? endReason;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final bool spectatorsEnabled;
-
-  // Game-specific config
-  final CrystalBridgeType bridgeType;
-  final int totalRows;
-  final CrystalBridgeTeamMode teamMode;
-  final int turnSeconds;
-
-  bool get isWaiting => status == CrystalBridgeStatus.waiting;
-  bool get isInProgress => status == CrystalBridgeStatus.inProgress;
-  bool get isCompleted => status == CrystalBridgeStatus.completed;
-
-  int? get turnSecondsRemaining {
-    if (!isInProgress || turnEndsAt == null) return null;
-    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
-    return left < 0 ? 0 : left;
-  }
 
   factory CrystalBridgeGame.fromJson(Map<String, dynamic> json) {
     final order = <String>[];
@@ -191,5 +158,38 @@ class CrystalBridgeGame {
       turnSeconds: (json['turnSeconds'] as num?)?.toInt() ??
           kCrystalBridgeDefaultTurnSeconds,
     );
+  }
+
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final CrystalBridgeStatus status;
+  final int maxPlayers;
+  final DateTime createdAt;
+  final String? roomName;
+  final List<String> playerOrder;
+  final DateTime? turnEndsAt;
+  final CrystalBridgeBoardState? boardState;
+  final List<String> winnerUserIds;
+  final String? endReason;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final bool spectatorsEnabled;
+
+  // Game-specific config
+  final CrystalBridgeType bridgeType;
+  final int totalRows;
+  final CrystalBridgeTeamMode teamMode;
+  final int turnSeconds;
+
+  bool get isWaiting => status == CrystalBridgeStatus.waiting;
+  bool get isInProgress => status == CrystalBridgeStatus.inProgress;
+  bool get isCompleted => status == CrystalBridgeStatus.completed;
+
+  int? get turnSecondsRemaining {
+    if (!isInProgress || turnEndsAt == null) return null;
+    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
+    return left < 0 ? 0 : left;
   }
 }

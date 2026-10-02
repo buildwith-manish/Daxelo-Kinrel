@@ -71,7 +71,7 @@ void main() {
 
     test('1 member: instant', () {
       final pins = [
-        MapPin(
+        const MapPin(
           personId: 'p1',
           name: 'A',
           city: 'X',

@@ -49,20 +49,6 @@ extension BriefItemTypeX on BriefItemType {
 }
 
 class BriefItem {
-  final String id;
-  final BriefItemType itemType;
-  final int priority;
-  final String title;
-  final String body;
-  final String actionLabel;
-  final String actionType;
-  final Map<String, dynamic> actionData;
-  final String? targetPersonId;
-  final String? targetUserId;
-  final double? relevanceScore;
-  final DateTime? interactedAt;
-  final String? interactionType;
-  final DateTime createdAt;
 
   BriefItem({
     required this.id,
@@ -97,27 +83,23 @@ class BriefItem {
     interactionType: j['interactionType'] as String?,
     createdAt: DateTime.parse(j['createdAt'] as String),
   );
+  final String id;
+  final BriefItemType itemType;
+  final int priority;
+  final String title;
+  final String body;
+  final String actionLabel;
+  final String actionType;
+  final Map<String, dynamic> actionData;
+  final String? targetPersonId;
+  final String? targetUserId;
+  final double? relevanceScore;
+  final DateTime? interactedAt;
+  final String? interactionType;
+  final DateTime createdAt;
 }
 
 class DailyBrief {
-  final String id;
-  final String userId;
-  final String familyId;
-  final String briefDate; // YYYY-MM-DD
-  final String greeting;
-  final String familyArchetype;
-  final String languageCode;
-  final Map<String, dynamic> content;
-  final DateTime generatedAt;
-  final DateTime? deliveredAt;
-  final DateTime? viewedAt;
-  final DateTime? interactedAt;
-  final int interactionCount;
-  final int callsInitiated;
-  final int messagesSent;
-  final int memoriesViewed;
-  final int karmaEarned;
-  final List<BriefItem> items;
 
   DailyBrief({
     required this.id,
@@ -162,6 +144,24 @@ class DailyBrief {
         .map((e) => BriefItem.fromJson(e as Map<String, dynamic>))
         .toList(),
   );
+  final String id;
+  final String userId;
+  final String familyId;
+  final String briefDate; // YYYY-MM-DD
+  final String greeting;
+  final String familyArchetype;
+  final String languageCode;
+  final Map<String, dynamic> content;
+  final DateTime generatedAt;
+  final DateTime? deliveredAt;
+  final DateTime? viewedAt;
+  final DateTime? interactedAt;
+  final int interactionCount;
+  final int callsInitiated;
+  final int messagesSent;
+  final int memoriesViewed;
+  final int karmaEarned;
+  final List<BriefItem> items;
 
   String? get summary => content['summary'] as String?;
 }
@@ -171,17 +171,6 @@ class DailyBrief {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class RelationshipWeather {
-  final String id;
-  final String familyId;
-  final String weather; // sunny | partly_cloudy | cloudy | rainy | stormy
-  final int daysSinceLastContact;
-  final int interactionCount30d;
-  final double? sentimentScore;
-  final int streakDays;
-  final String? previousWeather;
-  final DateTime? weatherChangedAt;
-  final DateTime computedAt;
-  final Counterpart? counterpart;
 
   RelationshipWeather({
     required this.id,
@@ -210,6 +199,17 @@ class RelationshipWeather {
     computedAt: DateTime.parse(j['computedAt'] as String),
     counterpart: j['counterpart'] != null ? Counterpart.fromJson(j['counterpart'] as Map<String, dynamic>) : null,
   );
+  final String id;
+  final String familyId;
+  final String weather; // sunny | partly_cloudy | cloudy | rainy | stormy
+  final int daysSinceLastContact;
+  final int interactionCount30d;
+  final double? sentimentScore;
+  final int streakDays;
+  final String? previousWeather;
+  final DateTime? weatherChangedAt;
+  final DateTime computedAt;
+  final Counterpart? counterpart;
 
   String get weatherEmoji {
     switch (weather) {
@@ -224,13 +224,6 @@ class RelationshipWeather {
 }
 
 class ConnectionStreak {
-  final String id;
-  final String familyId;
-  final int currentStreak;
-  final int longestStreak;
-  final DateTime? lastInteractionAt;
-  final String streakType;
-  final Counterpart? counterpart;
 
   ConnectionStreak({
     required this.id,
@@ -251,18 +244,16 @@ class ConnectionStreak {
     streakType: j['streakType'] as String? ?? 'any',
     counterpart: j['counterpart'] != null ? Counterpart.fromJson(j['counterpart'] as Map<String, dynamic>) : null,
   );
+  final String id;
+  final String familyId;
+  final int currentStreak;
+  final int longestStreak;
+  final DateTime? lastInteractionAt;
+  final String streakType;
+  final Counterpart? counterpart;
 }
 
 class FamilyKarma {
-  final String id;
-  final String familyId;
-  final int totalKarma;
-  final int karmaThisWeek;
-  final int karmaThisMonth;
-  final String karmaTrend;
-  final Map<String, int> karmaByRole;
-  final List<dynamic> recentReasons;
-  final DateTime? lastKarmaAt;
 
   FamilyKarma({
     required this.id,
@@ -293,13 +284,18 @@ class FamilyKarma {
     recentReasons: j['recentReasons'] as List? ?? [],
     lastKarmaAt: j['lastKarmaAt'] != null ? DateTime.parse(j['lastKarmaAt'] as String) : null,
   );
+  final String id;
+  final String familyId;
+  final int totalKarma;
+  final int karmaThisWeek;
+  final int karmaThisMonth;
+  final String karmaTrend;
+  final Map<String, int> karmaByRole;
+  final List<dynamic> recentReasons;
+  final DateTime? lastKarmaAt;
 }
 
 class Counterpart {
-  final String type; // person | user
-  final String id;
-  final String name;
-  final String? photoThumb;
 
   Counterpart({required this.type, required this.id, required this.name, this.photoThumb});
 
@@ -309,6 +305,10 @@ class Counterpart {
     name: j['name'] as String? ?? 'Unknown',
     photoThumb: j['photoThumb'] as String?,
   );
+  final String type; // person | user
+  final String id;
+  final String name;
+  final String? photoThumb;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -316,28 +316,6 @@ class Counterpart {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class AncestralMemory {
-  final String id;
-  final String familyId;
-  final String? elderPersonId;
-  final ElderInfo? elderPerson;
-  final String mediaType; // audio | video
-  final String mediaUrl;
-  final String? thumbnailUrl;
-  final int durationSec;
-  final String title;
-  final String? topic;
-  final String language;
-  final String? description;
-  final String? transcript;
-  final String? translation;
-  final String? aiSummary;
-  final List<dynamic> aiTags;
-  final String status; // pending | processing | ready | failed | archived
-  final bool isRevealed;
-  final int viewCount;
-  final int listenCount;
-  final DateTime createdAt;
-  final List<MemoryTagInfo> tags;
 
   AncestralMemory({
     required this.id,
@@ -390,6 +368,28 @@ class AncestralMemory {
         .map((e) => MemoryTagInfo.fromJson(e as Map<String, dynamic>))
         .toList(),
   );
+  final String id;
+  final String familyId;
+  final String? elderPersonId;
+  final ElderInfo? elderPerson;
+  final String mediaType; // audio | video
+  final String mediaUrl;
+  final String? thumbnailUrl;
+  final int durationSec;
+  final String title;
+  final String? topic;
+  final String language;
+  final String? description;
+  final String? transcript;
+  final String? translation;
+  final String? aiSummary;
+  final List<dynamic> aiTags;
+  final String status; // pending | processing | ready | failed | archived
+  final bool isRevealed;
+  final int viewCount;
+  final int listenCount;
+  final DateTime createdAt;
+  final List<MemoryTagInfo> tags;
 
   String get durationLabel {
     if (durationSec <= 0) return '';
@@ -401,9 +401,6 @@ class AncestralMemory {
 }
 
 class ElderInfo {
-  final String id;
-  final String name;
-  final String? photoThumb;
 
   ElderInfo({required this.id, required this.name, this.photoThumb});
 
@@ -412,13 +409,12 @@ class ElderInfo {
     name: j['name'] as String? ?? 'Unknown',
     photoThumb: j['photoThumb'] as String?,
   );
+  final String id;
+  final String name;
+  final String? photoThumb;
 }
 
 class MemoryTagInfo {
-  final String id;
-  final String personId;
-  final String tagType;
-  final ElderInfo? person;
 
   MemoryTagInfo({required this.id, required this.personId, required this.tagType, this.person});
 
@@ -428,23 +424,13 @@ class MemoryTagInfo {
     tagType: j['tagType'] as String? ?? 'mentions',
     person: j['person'] != null ? ElderInfo.fromJson(j['person'] as Map<String, dynamic>) : null,
   );
+  final String id;
+  final String personId;
+  final String tagType;
+  final ElderInfo? person;
 }
 
 class MemorialProfile {
-  final String id;
-  final String personId;
-  final String familyId;
-  final String? memorialTitle;
-  final String? memorialBio;
-  final String? birthDate;
-  final String? deathDate;
-  final String? coverPhotoUrl;
-  final bool isPublic;
-  final bool allowMessages;
-  final bool aiPersonaEnabled;
-  final ElderInfo person;
-  final int memoryCount;
-  final int totalListens;
 
   MemorialProfile({
     required this.id,
@@ -479,6 +465,20 @@ class MemorialProfile {
     memoryCount: j['memoryCount'] as int? ?? 0,
     totalListens: j['totalListens'] as int? ?? 0,
   );
+  final String id;
+  final String personId;
+  final String familyId;
+  final String? memorialTitle;
+  final String? memorialBio;
+  final String? birthDate;
+  final String? deathDate;
+  final String? coverPhotoUrl;
+  final bool isPublic;
+  final bool allowMessages;
+  final bool aiPersonaEnabled;
+  final ElderInfo person;
+  final int memoryCount;
+  final int totalListens;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -486,18 +486,6 @@ class MemorialProfile {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class Festival {
-  final String id;
-  final String festivalKey;
-  final String dateType;
-  final String festivalDate; // YYYY-MM-DD
-  final String region;
-  final Map<String, String> names;
-  final Map<String, String> greetings;
-  final String? description;
-  final List<dynamic> themes;
-  final List<dynamic> rituals;
-  final int daysUntil;
-  final bool isActive;
 
   Festival({
     required this.id,
@@ -528,6 +516,18 @@ class Festival {
     daysUntil: j['daysUntil'] as int? ?? 0,
     isActive: j['isActive'] as bool? ?? true,
   );
+  final String id;
+  final String festivalKey;
+  final String dateType;
+  final String festivalDate; // YYYY-MM-DD
+  final String region;
+  final Map<String, String> names;
+  final Map<String, String> greetings;
+  final String? description;
+  final List<dynamic> themes;
+  final List<dynamic> rituals;
+  final int daysUntil;
+  final bool isActive;
 
   String nameForLanguage(String langCode) => names[langCode] ?? names['en'] ?? festivalKey;
   String greetingForLanguage(String langCode) => greetings[langCode] ?? greetings['en'] ?? '';
@@ -538,24 +538,6 @@ class Festival {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class BlessingChain {
-  final String id;
-  final String familyId;
-  final String? elderPersonId;
-  final ElderInfo? elderPerson;
-  final String? recipientUserId;
-  final String mediaType; // text | audio
-  final String? textContent;
-  final String? mediaUrl;
-  final int durationSec;
-  final String triggerType; // birthday | festival | anniversary | custom
-  final String triggerDate; // YYYY-MM-DD
-  final String? festivalKey;
-  final String language;
-  final String status; // pending | delivered | viewed | cancelled
-  final DateTime? deliveredAt;
-  final DateTime? viewedAt;
-  final bool isRecurring;
-  final DateTime createdAt;
 
   BlessingChain({
     required this.id,
@@ -598,6 +580,24 @@ class BlessingChain {
     isRecurring: j['isRecurring'] as bool? ?? false,
     createdAt: DateTime.parse(j['createdAt'] as String),
   );
+  final String id;
+  final String familyId;
+  final String? elderPersonId;
+  final ElderInfo? elderPerson;
+  final String? recipientUserId;
+  final String mediaType; // text | audio
+  final String? textContent;
+  final String? mediaUrl;
+  final int durationSec;
+  final String triggerType; // birthday | festival | anniversary | custom
+  final String triggerDate; // YYYY-MM-DD
+  final String? festivalKey;
+  final String language;
+  final String status; // pending | delivered | viewed | cancelled
+  final DateTime? deliveredAt;
+  final DateTime? viewedAt;
+  final bool isRecurring;
+  final DateTime createdAt;
 
   bool get isDelivered => status == 'delivered' || status == 'viewed';
   bool get isAudio => mediaType == 'audio';
@@ -608,24 +608,6 @@ class BlessingChain {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class TimeCapsule {
-  final String id;
-  final String familyId;
-  final String creatorId;
-  final ElderInfo? creator;
-  final String? recipientUserId;
-  final String mediaType; // text | photo | video
-  final String? textContent;
-  final String? mediaUrl;
-  final String title;
-  final DateTime revealAt;
-  final String? revealReason;
-  final String status; // locked | revealed | viewed | cancelled
-  final DateTime? revealedAt;
-  final DateTime? viewedAt;
-  final bool notifyOnReveal;
-  final int countdownDays;
-  final bool isLocked;
-  final DateTime createdAt;
 
   TimeCapsule({
     required this.id,
@@ -668,6 +650,24 @@ class TimeCapsule {
     isLocked: j['isLocked'] as bool? ?? false,
     createdAt: DateTime.parse(j['createdAt'] as String),
   );
+  final String id;
+  final String familyId;
+  final String creatorId;
+  final ElderInfo? creator;
+  final String? recipientUserId;
+  final String mediaType; // text | photo | video
+  final String? textContent;
+  final String? mediaUrl;
+  final String title;
+  final DateTime revealAt;
+  final String? revealReason;
+  final String status; // locked | revealed | viewed | cancelled
+  final DateTime? revealedAt;
+  final DateTime? viewedAt;
+  final bool notifyOnReveal;
+  final int countdownDays;
+  final bool isLocked;
+  final DateTime createdAt;
 
   bool get isRevealed => status == 'revealed' || status == 'viewed';
 }
@@ -677,23 +677,6 @@ class TimeCapsule {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class FamilyQuest {
-  final String id;
-  final String familyId;
-  final String? targetPersonId;
-  final ElderInfo? targetPerson;
-  final String questType; // call | message | share_photo | wish_birthday | visit | ritual
-  final String title;
-  final String description;
-  final String actionType;
-  final Map<String, dynamic> actionData;
-  final String weekOf; // YYYY-MM-DD
-  final DateTime deadline;
-  final int karmaReward;
-  final int karmaAwarded;
-  final String status; // active | completed | expired | skipped
-  final DateTime? completedAt;
-  final String generatedBy;
-  final DateTime createdAt;
 
   FamilyQuest({
     required this.id,
@@ -734,6 +717,23 @@ class FamilyQuest {
     generatedBy: j['generatedBy'] as String? ?? 'graph_weak_point',
     createdAt: DateTime.parse(j['createdAt'] as String),
   );
+  final String id;
+  final String familyId;
+  final String? targetPersonId;
+  final ElderInfo? targetPerson;
+  final String questType; // call | message | share_photo | wish_birthday | visit | ritual
+  final String title;
+  final String description;
+  final String actionType;
+  final Map<String, dynamic> actionData;
+  final String weekOf; // YYYY-MM-DD
+  final DateTime deadline;
+  final int karmaReward;
+  final int karmaAwarded;
+  final String status; // active | completed | expired | skipped
+  final DateTime? completedAt;
+  final String generatedBy;
+  final DateTime createdAt;
 
   String get questEmoji {
     switch (questType) {
@@ -755,21 +755,6 @@ class FamilyQuest {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class SilentAlarm {
-  final String id;
-  final String familyId;
-  final String inactivePersonId;
-  final ElderInfo? inactivePerson;
-  final String bridgeUserId;
-  final int daysInactive;
-  final DateTime? lastActiveAt;
-  final String severity; // gentle | moderate | urgent
-  final String alarmMessage;
-  final String status; // triggered | acknowledged | resolved | escalated
-  final DateTime? acknowledgedAt;
-  final DateTime? resolvedAt;
-  final DateTime? escalatedAt;
-  final List<dynamic> suggestions;
-  final DateTime createdAt;
 
   SilentAlarm({
     required this.id,
@@ -806,6 +791,21 @@ class SilentAlarm {
     suggestions: j['suggestions'] as List? ?? [],
     createdAt: DateTime.parse(j['createdAt'] as String),
   );
+  final String id;
+  final String familyId;
+  final String inactivePersonId;
+  final ElderInfo? inactivePerson;
+  final String bridgeUserId;
+  final int daysInactive;
+  final DateTime? lastActiveAt;
+  final String severity; // gentle | moderate | urgent
+  final String alarmMessage;
+  final String status; // triggered | acknowledged | resolved | escalated
+  final DateTime? acknowledgedAt;
+  final DateTime? resolvedAt;
+  final DateTime? escalatedAt;
+  final List<dynamic> suggestions;
+  final DateTime createdAt;
 
   String get severityEmoji {
     switch (severity) {
@@ -821,17 +821,6 @@ class SilentAlarm {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class FamilyChronicle {
-  final String id;
-  final String familyId;
-  final String title;
-  final String? subtitle;
-  final List<ChronicleChapter> chapters;
-  final int chapterCount;
-  final DateTime? lastGeneratedAt;
-  final DateTime? nextGenerationAt;
-  final String? aiModel;
-  final DateTime createdAt;
-  final DateTime updatedAt;
 
   FamilyChronicle({
     required this.id,
@@ -862,13 +851,20 @@ class FamilyChronicle {
     createdAt: DateTime.parse(j['createdAt'] as String),
     updatedAt: DateTime.parse(j['updatedAt'] as String),
   );
+  final String id;
+  final String familyId;
+  final String title;
+  final String? subtitle;
+  final List<ChronicleChapter> chapters;
+  final int chapterCount;
+  final DateTime? lastGeneratedAt;
+  final DateTime? nextGenerationAt;
+  final String? aiModel;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 }
 
 class ChronicleChapter {
-  final int chapterNumber;
-  final String title;
-  final String content;
-  final DateTime generatedAt;
 
   ChronicleChapter({
     required this.chapterNumber,
@@ -883,6 +879,10 @@ class ChronicleChapter {
     content: j['content'] as String? ?? '',
     generatedAt: j['generatedAt'] != null ? DateTime.parse(j['generatedAt'] as String) : DateTime.now(),
   );
+  final int chapterNumber;
+  final String title;
+  final String content;
+  final DateTime generatedAt;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -890,13 +890,13 @@ class ChronicleChapter {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class InteractionResult {
-  final int karmaAwarded;
 
   InteractionResult({required this.karmaAwarded});
 
   factory InteractionResult.fromJson(Map<String, dynamic> j) => InteractionResult(
     karmaAwarded: j['karmaAwarded'] as int? ?? 0,
   );
+  final int karmaAwarded;
 }
 
 // Helper to safely decode JSON

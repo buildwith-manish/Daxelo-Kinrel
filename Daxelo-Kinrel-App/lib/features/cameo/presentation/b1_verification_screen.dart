@@ -96,9 +96,9 @@ class _B1VerificationScreenState extends State<B1VerificationScreen> {
     try {
       initResult = await renderer.initialize();
     } catch (e) {
-      initResult = CameoRendererInitResult(
+      initResult = const CameoRendererInitResult(
         success: false,
-        capabilities: const CameoRendererCapabilities(
+        capabilities: CameoRendererCapabilities(
           morphTargets: false, skeletalAnimation: false, pbrMaterials: false,
           iblLighting: false, shadows: false, ambientOcclusion: false,
           offscreenRendering: false, animationBlending: false,
@@ -245,7 +245,7 @@ class _B1VerificationScreenState extends State<B1VerificationScreen> {
         duration: Duration.zero,
       ));
     } else {
-      _addResult(B1CriterionResult(
+      _addResult(const B1CriterionResult(
         id: 7,
         name: 'Portrait is a valid image',
         status: B1Status.fail,
@@ -255,7 +255,7 @@ class _B1VerificationScreenState extends State<B1VerificationScreen> {
     }
 
     // ── Criterion 8: Visual deformation (manual) ──
-    _addResult(B1CriterionResult(
+    _addResult(const B1CriterionResult(
       id: 8,
       name: 'Visual mesh deformation',
       status: B1Status.pending,
@@ -287,7 +287,7 @@ class _B1VerificationScreenState extends State<B1VerificationScreen> {
   }
 
   void _markVisualPass() {
-    _addResult(B1CriterionResult(
+    _addResult(const B1CriterionResult(
       id: 8,
       name: 'Visual mesh deformation',
       status: B1Status.pass,
@@ -308,8 +308,9 @@ class _B1VerificationScreenState extends State<B1VerificationScreen> {
     for (final r in _results) {
       final s = r.status == B1Status.pass ? 'PASS' : r.status == B1Status.fail ? 'FAIL' : 'PENDING';
       buf.writeln('[$s] ${r.id}: ${r.name} — ${r.value} (${r.duration.inMilliseconds}ms)');
-      if (r.status == B1Status.pass) p++;
-      else if (r.status == B1Status.fail) f++;
+      if (r.status == B1Status.pass) {
+        p++;
+      } else if (r.status == B1Status.fail) f++;
       else pen++;
     }
     buf.writeln('');
@@ -383,7 +384,7 @@ class _B1VerificationScreenState extends State<B1VerificationScreen> {
 
                 // ── 2D Fallback avatar (shown when 3D fails) ──
                 if (_friendlyError != null) ...[
-                  Center(
+                  const Center(
                     child: SizedBox(
                       width: 200,
                       height: 200,
@@ -488,7 +489,7 @@ class _B1VerificationScreenState extends State<B1VerificationScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // 2D CameoAvatar — the premium fallback
-              SizedBox(
+              const SizedBox(
                 width: 200,
                 height: 200,
                 child: CameoAvatar(

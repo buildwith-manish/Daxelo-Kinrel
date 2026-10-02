@@ -10,6 +10,15 @@ import 'language_code_map.dart';
 /// Loads 5359 relationships × 15 languages at startup
 /// Provides O(1) lookups, indexed search, and multilingual support
 class KinshipService {
+
+  /// Public constructor for Riverpod. Internally sets the singleton.
+  factory KinshipService() {
+    _instance ??= KinshipService._();
+    return _instance!;
+  }
+
+  /// Private constructor — use [instance] or the Riverpod provider.
+  KinshipService._();
   KinshipData? _data;
 
   /// v62: Static singleton instance so non-Riverpod code (e.g. the
@@ -18,15 +27,6 @@ class KinshipService {
   /// (`kinshipServiceProvider`) returns this same instance.
   static KinshipService? _instance;
   static KinshipService get instance {
-    _instance ??= KinshipService._();
-    return _instance!;
-  }
-
-  /// Private constructor — use [instance] or the Riverpod provider.
-  KinshipService._();
-
-  /// Public constructor for Riverpod. Internally sets the singleton.
-  factory KinshipService() {
     _instance ??= KinshipService._();
     return _instance!;
   }

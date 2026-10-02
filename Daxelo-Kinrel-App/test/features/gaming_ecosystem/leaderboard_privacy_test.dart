@@ -39,7 +39,7 @@ void main() {
       // Synthetic "other" entry with non-zero wins/losses/winRate/streak.
       // The widget MUST ignore all of these for non-self rows even if they
       // are present in the data — defensive double-gate against stale cache.
-      final otherEntry = LeaderboardEntry(
+      final otherEntry = const LeaderboardEntry(
         userId: 'other-user-id',
         userName: 'Yakshitha',
         matches: 12,
@@ -122,7 +122,7 @@ void main() {
         'self row: full stats MAY be shown (the owner can always see own data) '
         'but the shared leaderboard surface still does not show win%',
         (tester) async {
-      final selfEntry = LeaderboardEntry(
+      final selfEntry = const LeaderboardEntry(
         userId: 'my-user-id',
         userName: 'Manish',
         matches: 8,
@@ -196,7 +196,7 @@ void main() {
         'zero-match nudge: a member with 0 games shows a soft CTA, never a '
         'loss record',
         (tester) async {
-      final zeroEntry = LeaderboardEntry(
+      final zeroEntry = const LeaderboardEntry(
         userId: 'other-user-id',
         userName: 'NewFamilyMember',
         matches: 0,

@@ -219,9 +219,9 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
               }
             },
           ),
-          title: Text(
+          title: const Text(
             'Edit Profile',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 20,
               fontWeight: FontWeight.w700,
@@ -426,15 +426,15 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     // Determine suffix icon
     Widget? suffixIcon;
     if (isChecking) {
-      suffixIcon = SizedBox(
+      suffixIcon = const SizedBox(
         width: 16,
         height: 16,
         child: CircularProgressIndicator(strokeWidth: 2, color: _orange),
       );
     } else if (isAvailable && isValid) {
-      suffixIcon = Icon(Icons.check_circle, color: Colors.green, size: 20);
+      suffixIcon = const Icon(Icons.check_circle, color: Colors.green, size: 20);
     } else if (isTaken) {
-      suffixIcon = Icon(Icons.cancel, color: _errorColor, size: 20);
+      suffixIcon = const Icon(Icons.cancel, color: _errorColor, size: 20);
     }
 
     return TextFormField(
@@ -484,7 +484,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
           color: _textDim.withValues(alpha: 0.6),
         ),
         prefixText: '@ ',
-        prefixStyle: TextStyle(
+        prefixStyle: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 15,
           fontWeight: FontWeight.w600,
@@ -550,7 +550,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
         ),
         child: Row(
           children: [
-            Icon(Icons.calendar_today_outlined, color: _textDim, size: 20),
+            const Icon(Icons.calendar_today_outlined, color: _textDim, size: 20),
             const SizedBox(width: 12),
             Text(
               dobText.isEmpty ? 'Select date of birth' : dobText,
@@ -571,7 +571,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                     _checkForChanges();
                   });
                 },
-                child: Icon(Icons.close, color: _textDim, size: 18),
+                child: const Icon(Icons.close, color: _textDim, size: 18),
               ),
           ],
         ),
@@ -597,7 +597,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
               surface: _cardBg,
               onSurface: _textPrimary,
             ),
-            dialogTheme: DialogThemeData(backgroundColor: _cardBg),
+            dialogTheme: const DialogThemeData(backgroundColor: _cardBg),
           ),
           child: child!,
         );
@@ -677,7 +677,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
             ),
           ),
           isExpanded: true,
-          icon: Icon(Icons.arrow_drop_down, color: _textDim),
+          icon: const Icon(Icons.arrow_drop_down, color: _textDim),
           dropdownColor: KinrelColors.darkElevated,
           style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,

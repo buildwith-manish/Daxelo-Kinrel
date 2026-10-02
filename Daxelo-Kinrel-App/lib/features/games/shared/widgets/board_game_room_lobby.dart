@@ -567,7 +567,7 @@ class _BoardGameRoomLobbyScreenState
         ),
         title: Text(
           _spec.title,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
             color: KinrelColors.textWhite,
@@ -748,7 +748,7 @@ class _BoardGameRoomLobbyScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            const Text(
               'Share this code',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -760,7 +760,7 @@ class _BoardGameRoomLobbyScreenState
             const SizedBox(height: KinrelSpacing.md),
             Text(
               code,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 40,
                 fontWeight: FontWeight.w700,
@@ -769,7 +769,7 @@ class _BoardGameRoomLobbyScreenState
               ),
             ),
             const SizedBox(height: KinrelSpacing.md),
-            Text(
+            const Text(
               'Share the code with family — the first member to join '
               'becomes your opponent.',
               textAlign: TextAlign.center,

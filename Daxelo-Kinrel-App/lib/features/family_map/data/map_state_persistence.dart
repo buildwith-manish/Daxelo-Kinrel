@@ -59,6 +59,62 @@ class MapSessionState {
     this.savedAt,
   });
 
+  /// Default state — used on first launch when no saved state exists.
+  /// Centered on India at a country-level zoom.
+  factory MapSessionState.defaults() => MapSessionState(
+    lat: 22.0,
+    lng: 79.0,
+    zoom: 4.5,
+    pitch: 0,
+    bearing: 0,
+    version: MapVisualConstants.stateVersion,
+    savedAt: DateTime.now().toUtc().toIso8601String(),
+  );
+
+  /// Parse from JSON. Gracefully handles missing fields + version skew.
+  /// Returns null only on a JSON parse error (caller treats as "no saved state").
+  factory MapSessionState.fromJson(Map<String, dynamic> json) {
+    final currentYear = DateTime.now().year;
+    // P13 — Parse layer toggles. Accepts a Map<String, dynamic> from JSON
+    // and casts each value to bool. Unknown keys are kept (forward-compat:
+    // newer clients may add layers; older clients ignore them via the
+    // screen's default-true fallback).
+    Map<String, bool>? parseLayerToggles() {
+      final raw = json['layerToggles'];
+      if (raw is! Map) return null;
+      final out = <String, bool>{};
+      for (final entry in raw.entries) {
+        if (entry.value is bool) {
+          out[entry.key.toString()] = entry.value as bool;
+        }
+      }
+      return out.isEmpty ? null : out;
+    }
+
+    return MapSessionState(
+      lat: _asDouble(json['lat']) ?? 22.0,
+      lng: _asDouble(json['lng']) ?? 79.0,
+      zoom: _asDouble(json['zoom']) ?? 4.5,
+      pitch: _asDouble(json['pitch']) ?? 0,
+      bearing: _asDouble(json['bearing']) ?? 0,
+      selectedPersonId: json['selectedPersonId'] as String?,
+      timelineYear: () {
+        final year = json['timelineYear'];
+        if (year is int) {
+          // Clamp future years to current year.
+          return year > currentYear ? currentYear : year;
+        }
+        return null;
+      }(),
+      isFocusMode: json['isFocusMode'] as bool? ?? false,
+      expandedHouseholdId: json['expandedHouseholdId'] as String?,
+      mapStyleId: json['mapStyleId'] as String? ?? 'kinrel_dark',
+      layerToggles: parseLayerToggles(),
+      version: json['version'] as int? ?? 1,
+      savedAt: json['savedAt'] as String?,
+    );
+  }
+
   /// Camera center latitude.
   final double lat;
 
@@ -102,18 +158,6 @@ class MapSessionState {
 
   /// When this state was saved (UTC ISO 8601).
   final String? savedAt;
-
-  /// Default state — used on first launch when no saved state exists.
-  /// Centered on India at a country-level zoom.
-  factory MapSessionState.defaults() => MapSessionState(
-    lat: 22.0,
-    lng: 79.0,
-    zoom: 4.5,
-    pitch: 0,
-    bearing: 0,
-    version: MapVisualConstants.stateVersion,
-    savedAt: DateTime.now().toUtc().toIso8601String(),
-  );
 
   MapSessionState copyWith({
     double? lat,
@@ -162,50 +206,6 @@ class MapSessionState {
     'version': version,
     'savedAt': savedAt ?? DateTime.now().toUtc().toIso8601String(),
   };
-
-  /// Parse from JSON. Gracefully handles missing fields + version skew.
-  /// Returns null only on a JSON parse error (caller treats as "no saved state").
-  factory MapSessionState.fromJson(Map<String, dynamic> json) {
-    final currentYear = DateTime.now().year;
-    // P13 — Parse layer toggles. Accepts a Map<String, dynamic> from JSON
-    // and casts each value to bool. Unknown keys are kept (forward-compat:
-    // newer clients may add layers; older clients ignore them via the
-    // screen's default-true fallback).
-    Map<String, bool>? parseLayerToggles() {
-      final raw = json['layerToggles'];
-      if (raw is! Map) return null;
-      final out = <String, bool>{};
-      for (final entry in raw.entries) {
-        if (entry.value is bool) {
-          out[entry.key.toString()] = entry.value as bool;
-        }
-      }
-      return out.isEmpty ? null : out;
-    }
-
-    return MapSessionState(
-      lat: _asDouble(json['lat']) ?? 22.0,
-      lng: _asDouble(json['lng']) ?? 79.0,
-      zoom: _asDouble(json['zoom']) ?? 4.5,
-      pitch: _asDouble(json['pitch']) ?? 0,
-      bearing: _asDouble(json['bearing']) ?? 0,
-      selectedPersonId: json['selectedPersonId'] as String?,
-      timelineYear: () {
-        final year = json['timelineYear'];
-        if (year is int) {
-          // Clamp future years to current year.
-          return year > currentYear ? currentYear : year;
-        }
-        return null;
-      }(),
-      isFocusMode: json['isFocusMode'] as bool? ?? false,
-      expandedHouseholdId: json['expandedHouseholdId'] as String?,
-      mapStyleId: json['mapStyleId'] as String? ?? 'kinrel_dark',
-      layerToggles: parseLayerToggles(),
-      version: json['version'] as int? ?? 1,
-      savedAt: json['savedAt'] as String?,
-    );
-  }
 
   @override
   String toString() =>

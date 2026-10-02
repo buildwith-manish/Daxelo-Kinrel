@@ -27,16 +27,16 @@ class _TodReviewScreenState extends ConsumerState<TodReviewScreen> {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
-        title: Text('Review Prompts', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: const Text('Review Prompts', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),
       body: ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
-        Text('Pending submissions awaiting your approval.', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
+        const Text('Pending submissions awaiting your approval.', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
         const SizedBox(height: KinrelSpacing.lg),
         if (state.pendingPrompts.isEmpty)
-          Center(child: Padding(padding: const EdgeInsets.all(40), child: Column(children: [
+          const Center(child: Padding(padding: EdgeInsets.all(40), child: Column(children: [
             Icon(Icons.check_circle, size: 48, color: KinrelColors.success),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Text('All caught up!', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
             Text('No pending prompts to review.', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
           ])))
@@ -74,13 +74,13 @@ class _TodReviewScreenState extends ConsumerState<TodReviewScreen> {
               Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: accent.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(4)),
                 child: Text(p.category.toUpperCase(), style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 9, fontWeight: FontWeight.w700, color: accent))),
               const SizedBox(width: 6),
-              Text('by ${p.submittedByName}', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 10, color: KinrelColors.textDim)),
+              Text('by ${p.submittedByName}', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 10, color: KinrelColors.textDim)),
               const Spacer(),
               if (p.flaggedByFilter) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: KinrelColors.warning.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4)),
-                child: Text('FLAGGED', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 9, fontWeight: FontWeight.w700, color: KinrelColors.warning))),
+                child: const Text('FLAGGED', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 9, fontWeight: FontWeight.w700, color: KinrelColors.warning))),
             ]),
             const SizedBox(height: 10),
-            Text(p.promptText, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textWhite, fontWeight: FontWeight.w500)),
+            Text(p.promptText, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textWhite, fontWeight: FontWeight.w500)),
             const SizedBox(height: 12),
             Row(children: [
               Expanded(child: DKButton(label: 'Approve', variant: DKButtonVariant.primary, icon: Icons.check, onPressed: () => ref.read(todProvider(widget.familyId).notifier).reviewPrompt(p.id, true))),

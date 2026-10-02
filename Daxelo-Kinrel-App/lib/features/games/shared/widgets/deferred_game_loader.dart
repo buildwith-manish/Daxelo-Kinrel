@@ -70,9 +70,9 @@ class _DeferredGameLoaderState extends State<DeferredGameLoader> {
                     const Icon(Icons.error_outline,
                         color: KinrelColors.red, size: 48),
                     const SizedBox(height: 16),
-                    Text(
+                    const Text(
                       'Failed to load game',
-                      style: const TextStyle(color: KinrelColors.textWhite),
+                      style: TextStyle(color: KinrelColors.textWhite),
                     ),
                     const SizedBox(height: 8),
                     TextButton(
@@ -88,19 +88,19 @@ class _DeferredGameLoaderState extends State<DeferredGameLoader> {
           }
           return widget.screenBuilder();
         }
-        return Scaffold(
+        return const Scaffold(
           backgroundColor: KinrelColors.darkBackground,
           body: Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const CircularProgressIndicator(
+                CircularProgressIndicator(
                   color: KinrelColors.tealAccent,
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 Text(
                   'Loading game...',
-                  style: const TextStyle(color: KinrelColors.textDim),
+                  style: TextStyle(color: KinrelColors.textDim),
                 ),
               ],
             ),

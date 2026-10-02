@@ -39,15 +39,6 @@ class GroupParticipant {
     required this.lastSeenAt,
   });
 
-  final String userId;
-  final String name;
-  final String? username;
-  final String? avatarUrl;
-  final String role; // 'admin' | 'member'
-  final DateTime joinedAt;
-  final bool isOnline;
-  final DateTime? lastSeenAt;
-
   // QA fix 2026-09-19: fromJson was declared as a STATIC member of
   // `extension on GroupParticipant` — static extension members cannot be
   // invoked through the extended type name (`GroupParticipant.fromJson`),
@@ -69,6 +60,15 @@ class GroupParticipant {
           : null,
     );
   }
+
+  final String userId;
+  final String name;
+  final String? username;
+  final String? avatarUrl;
+  final String role; // 'admin' | 'member'
+  final DateTime joinedAt;
+  final bool isOnline;
+  final DateTime? lastSeenAt;
 }
 
 /// Snapshot of the group chat info returned by GET /chat/info.
@@ -81,12 +81,6 @@ class GroupInfo {
     required this.participants,
   });
 
-  final String familyId;
-  final String familyName;
-  final String? familyAvatarUrl;
-  final int memberCount;
-  final List<GroupParticipant> participants;
-
   factory GroupInfo.fromJson(Map<String, dynamic> json) {
     return GroupInfo(
       familyId: json['familyId'] as String? ?? '',
@@ -98,6 +92,12 @@ class GroupInfo {
           .toList(),
     );
   }
+
+  final String familyId;
+  final String familyName;
+  final String? familyAvatarUrl;
+  final int memberCount;
+  final List<GroupParticipant> participants;
 }
 
 /// Riverpod future provider that fetches the group info from the backend.

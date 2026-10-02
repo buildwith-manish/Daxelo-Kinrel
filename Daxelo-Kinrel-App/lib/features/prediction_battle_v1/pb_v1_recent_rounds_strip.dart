@@ -93,7 +93,7 @@ class _PredictionBattleRecentRoundsStripState
             children: [
               const Icon(Icons.history, size: 14, color: KinrelColors.orange),
               const SizedBox(width: 6),
-              Text(
+              const Text(
                 'RECENT ROUNDS',
                 style: TextStyle(
                   fontFamily: KinrelTypography.monoFont,
@@ -107,7 +107,7 @@ class _PredictionBattleRecentRoundsStripState
               GestureDetector(
                 onTap: () =>
                     context.push('/family/${widget.familyId}/prediction-battle-v1/history'),
-                child: Text(
+                child: const Text(
                   'See all →',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -159,7 +159,7 @@ class _RecentRoundRow extends StatelessWidget {
               width: 44,
               child: Text(
                 _formatDate(round.revealAt),
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 10,
                   color: KinrelColors.textDim,
@@ -173,7 +173,7 @@ class _RecentRoundRow extends StatelessWidget {
                 round.questionText,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textSilver,

@@ -207,11 +207,11 @@ class LocalNotificationService {
       // reply text comes back via onDidReceiveNotificationResponse
       // with notificationResponseType = selectedNotificationAction +
       // a non-null response.input.
-      final androidAction = AndroidNotificationAction(
+      final androidAction = const AndroidNotificationAction(
         'reply_action', // unique action ID for de-dup in _handle
         'Reply', // button label
         showsUserInterface: false, // don't open the app — silent send
-        inputs: const [
+        inputs: [
           AndroidNotificationActionInput(
             allowFreeFormInput: true,
             label: 'Type a reply…',
@@ -237,7 +237,7 @@ class LocalNotificationService {
       // field when the user long-presses / 3D-touches the notification.
       // The reply comes back via the same onDidReceiveNotificationResponse
       // path, with actionIdentifier = 'reply_action'.
-      final iosDetails = DarwinNotificationDetails(
+      final iosDetails = const DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: true,

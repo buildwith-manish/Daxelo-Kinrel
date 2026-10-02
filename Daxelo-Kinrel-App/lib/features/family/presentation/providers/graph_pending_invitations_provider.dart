@@ -33,23 +33,6 @@ import '../../../../core/services/supabase_service.dart';
 
 /// A single pending graph invitation.
 class GraphPendingInvitation {
-  final String id;
-  final String familyId;
-  final String inviterUserId;
-  final String? inviterName;
-  final String targetPersonId;
-  final String? targetPersonName;
-  final String relationshipKey; // fundamental edge type: 'parent' | 'spouse' | etc.
-  final String specificLabelAtoB; // specific label: 'father' | 'brother' | etc.
-  final String? recipientName;
-  final String? recipientEmail;
-  final String? recipientPhone;
-  final String? recipientUserId; // v5.44: Kinrel user ID (for Find on Kinrel invites)
-  final String status; // 'pending' | 'accepted' | 'declined' | 'cancelled' | 'expired'
-  final DateTime? expiresAt;
-  final DateTime? createdAt;
-  final DateTime? updatedAt; // v5.96: when the invitation was last sent/resent
-  final String? inviteCode;
 
   const GraphPendingInvitation({
     required this.id,
@@ -98,6 +81,23 @@ class GraphPendingInvitation {
       inviteCode: json['inviteCode'] as String?,
     );
   }
+  final String id;
+  final String familyId;
+  final String inviterUserId;
+  final String? inviterName;
+  final String targetPersonId;
+  final String? targetPersonName;
+  final String relationshipKey; // fundamental edge type: 'parent' | 'spouse' | etc.
+  final String specificLabelAtoB; // specific label: 'father' | 'brother' | etc.
+  final String? recipientName;
+  final String? recipientEmail;
+  final String? recipientPhone;
+  final String? recipientUserId; // v5.44: Kinrel user ID (for Find on Kinrel invites)
+  final String status; // 'pending' | 'accepted' | 'declined' | 'cancelled' | 'expired'
+  final DateTime? expiresAt;
+  final DateTime? createdAt;
+  final DateTime? updatedAt; // v5.96: when the invitation was last sent/resent
+  final String? inviteCode;
 
   /// Human-readable label for the relationship, e.g. "Father of Manish".
   String get relationshipDescription {
@@ -149,10 +149,6 @@ class GraphPendingInvitation {
 /// success, duplicate invitation, duplicate member, and other errors
 /// so the caller can show the appropriate message.
 class InvitationResult {
-  final bool success;
-  final String? invitationId;
-  final String? errorCode;
-  final String message;
 
   const InvitationResult({
     required this.success,
@@ -160,6 +156,10 @@ class InvitationResult {
     this.errorCode,
     required this.message,
   });
+  final bool success;
+  final String? invitationId;
+  final String? errorCode;
+  final String message;
 
   /// Returns true if this is a duplicate-invitation error.
   bool get isDuplicateInvitation => errorCode == 'duplicate_invitation';
@@ -279,7 +279,7 @@ class GraphPendingInvitationsNotifier
   }) async {
     final client = ref.read(supabaseProvider);
     if (client == null) {
-      return InvitationResult(
+      return const InvitationResult(
         success: false,
         errorCode: 'no_client',
         message: 'Not connected to the server',
@@ -327,7 +327,7 @@ class GraphPendingInvitationsNotifier
     } catch (e) {
       // v5.83: Log the full error for diagnosis.
       debugPrint('[graphPendingInvitations] create error: $e');
-      String errorMsg = 'Network error: $e';
+      final String errorMsg = 'Network error: $e';
       return InvitationResult(
         success: false,
         errorCode: 'network_error',

@@ -55,6 +55,13 @@ enum MessageType { text, photo, voiceNote, familyEvent, sticker, gameInvite, pol
 class MessageReaction {
   const MessageReaction({required this.emoji, required this.userId});
 
+  factory MessageReaction.fromJson(Map<String, dynamic> json) {
+    return MessageReaction(
+      emoji: json['emoji'] as String? ?? '',
+      userId: json['userId'] as String? ?? '',
+    );
+  }
+
   /// The emoji character (e.g., '❤️', '😂', '👍').
   final String emoji;
 
@@ -72,13 +79,6 @@ class MessageReaction {
   int get hashCode => emoji.hashCode ^ userId.hashCode;
 
   Map<String, dynamic> toJson() => {'emoji': emoji, 'userId': userId};
-
-  factory MessageReaction.fromJson(Map<String, dynamic> json) {
-    return MessageReaction(
-      emoji: json['emoji'] as String? ?? '',
-      userId: json['userId'] as String? ?? '',
-    );
-  }
 }
 
 /// Phase 22 / Task 3 — A single @mention reference on a chat message.
@@ -98,6 +98,15 @@ class MentionRef {
     required this.start,
     required this.end,
   });
+
+  factory MentionRef.fromJson(Map<String, dynamic> json) {
+    return MentionRef(
+      userId: json['userId'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      start: (json['start'] as num?)?.toInt() ?? 0,
+      end: (json['end'] as num?)?.toInt() ?? 0,
+    );
+  }
 
   /// The mentioned user's UUID (matches `auth.uid()` for the recipient).
   final String userId;
@@ -133,15 +142,6 @@ class MentionRef {
         'start': start,
         'end': end,
       };
-
-  factory MentionRef.fromJson(Map<String, dynamic> json) {
-    return MentionRef(
-      userId: json['userId'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      start: (json['start'] as num?)?.toInt() ?? 0,
-      end: (json['end'] as num?)?.toInt() ?? 0,
-    );
-  }
 }
 
 /// A single chat message in the family group.
@@ -192,6 +192,57 @@ class ChatMessage {
     this.pollVoterIds = const [],
     this.pollCreatedAt,
   });
+
+  /// Parse a ChatMessage from a Supabase row.
+  factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    return ChatMessage(
+      id: json['id'] as String? ?? '',
+      senderId: json['senderId'] as String? ?? '',
+      senderName: json['senderName'] as String? ?? 'Unknown',
+      content: json['content'] as String? ?? '',
+      messageType: _parseMessageType(json['messageType'] as String?),
+      timestamp: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+      isRead: json['isRead'] as bool? ?? false,
+      reactions: const [],
+      replyToId: json['replyToId'] as String?,
+      replyToContent: json['replyToContent'] as String?,
+      replyToSenderName: json['replyToSenderName'] as String?,
+      senderInitials: json['senderInitials'] as String?,
+      durationSeconds: (json['durationSeconds'] as int?) ??
+          (json['voiceMessageDuration'] as int?),
+      eventTitle: json['eventTitle'] as String?,
+      eventDate: json['eventDate'] as String?,
+      mediaUrl: json['mediaUrl'] as String?,
+      isStarred: json['isStarred'] as bool? ?? false,
+      isPinned: json['isPinned'] as bool? ?? false,
+      isEdited: json['isEdited'] as bool? ?? false,
+      isDeletedForEveryone: json['isDeletedForEveryone'] as bool? ?? false,
+      messageStatus: json['messageStatus'] as String? ?? 'sent',
+      messageSubType: json['messageSubType'] as String?,
+      forwardedFrom: json['forwardedFrom'] as String?,
+      deletedForMe: json['deletedForMe'] as List<dynamic>? ?? const [],
+      groupId: json['groupId'] as String?,
+      gameType: json['gameType'] as String?,
+      gameId: json['gameId'] as String?,
+      roomCode: json['roomCode'] as String?,
+      gameMaxPlayers: json['gameMaxPlayers'] as int?,
+      gameCurrentPlayers: json['gameCurrentPlayers'] as int?,
+      gameInviteStatus: json['gameInviteStatus'] as String?,
+      // Phase 22 / Task 3 — parse the denormalized `mentions` JSONB
+      // column. Falls back to [] when the column is null or the row
+      // came from a server that didn't have the column yet.
+      mentions: _parseMentions(json['mentions']),
+      // Phase 22 / Task 5 — poll fields.
+      pollQuestion: json['pollQuestion'] as String?,
+      pollOptions: _parseStringArray(json['pollOptions']),
+      pollVoteCounts: _parseIntArray(json['pollVoteCounts']),
+      pollVoterIds: _parseVoterIds(json['pollVoterIds']),
+      pollCreatedAt: json['pollCreatedAt'] == null
+          ? null
+          : DateTime.tryParse(json['pollCreatedAt'] as String),
+    );
+  }
 
   /// URL of the attached media (photo or voice note) in Supabase storage.
   final String? mediaUrl;
@@ -457,57 +508,6 @@ class ChatMessage {
       pollVoteCounts: pollVoteCounts ?? this.pollVoteCounts,
       pollVoterIds: pollVoterIds ?? this.pollVoterIds,
       pollCreatedAt: pollCreatedAt ?? this.pollCreatedAt,
-    );
-  }
-
-  /// Parse a ChatMessage from a Supabase row.
-  factory ChatMessage.fromJson(Map<String, dynamic> json) {
-    return ChatMessage(
-      id: json['id'] as String? ?? '',
-      senderId: json['senderId'] as String? ?? '',
-      senderName: json['senderName'] as String? ?? 'Unknown',
-      content: json['content'] as String? ?? '',
-      messageType: _parseMessageType(json['messageType'] as String?),
-      timestamp: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
-          DateTime.now(),
-      isRead: json['isRead'] as bool? ?? false,
-      reactions: const [],
-      replyToId: json['replyToId'] as String?,
-      replyToContent: json['replyToContent'] as String?,
-      replyToSenderName: json['replyToSenderName'] as String?,
-      senderInitials: json['senderInitials'] as String?,
-      durationSeconds: (json['durationSeconds'] as int?) ??
-          (json['voiceMessageDuration'] as int?),
-      eventTitle: json['eventTitle'] as String?,
-      eventDate: json['eventDate'] as String?,
-      mediaUrl: json['mediaUrl'] as String?,
-      isStarred: json['isStarred'] as bool? ?? false,
-      isPinned: json['isPinned'] as bool? ?? false,
-      isEdited: json['isEdited'] as bool? ?? false,
-      isDeletedForEveryone: json['isDeletedForEveryone'] as bool? ?? false,
-      messageStatus: json['messageStatus'] as String? ?? 'sent',
-      messageSubType: json['messageSubType'] as String?,
-      forwardedFrom: json['forwardedFrom'] as String?,
-      deletedForMe: json['deletedForMe'] as List<dynamic>? ?? const [],
-      groupId: json['groupId'] as String?,
-      gameType: json['gameType'] as String?,
-      gameId: json['gameId'] as String?,
-      roomCode: json['roomCode'] as String?,
-      gameMaxPlayers: json['gameMaxPlayers'] as int?,
-      gameCurrentPlayers: json['gameCurrentPlayers'] as int?,
-      gameInviteStatus: json['gameInviteStatus'] as String?,
-      // Phase 22 / Task 3 — parse the denormalized `mentions` JSONB
-      // column. Falls back to [] when the column is null or the row
-      // came from a server that didn't have the column yet.
-      mentions: _parseMentions(json['mentions']),
-      // Phase 22 / Task 5 — poll fields.
-      pollQuestion: json['pollQuestion'] as String?,
-      pollOptions: _parseStringArray(json['pollOptions']),
-      pollVoteCounts: _parseIntArray(json['pollVoteCounts']),
-      pollVoterIds: _parseVoterIds(json['pollVoterIds']),
-      pollCreatedAt: json['pollCreatedAt'] == null
-          ? null
-          : DateTime.tryParse(json['pollCreatedAt'] as String),
     );
   }
 

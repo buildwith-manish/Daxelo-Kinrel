@@ -160,17 +160,17 @@ bool relationLabelVisibleAt({
 /// opacity to all descendant GraphNodes. Hosted at the canvas level
 /// inside the camera's `AnimatedBuilder`.
 class RelationLabelOpacityScope extends InheritedWidget {
-  /// The precomputed opacity for relation labels at the current zoom
-  /// level. Already accounts for small-family bypass and focus-mode
-  /// bypass (i.e. it's the FINAL opacity — 1.0 means fully visible,
-  /// 0.0 means fully hidden, in between means linear fade).
-  final double opacity;
 
   const RelationLabelOpacityScope({
     super.key,
     required this.opacity,
     required super.child,
   });
+  /// The precomputed opacity for relation labels at the current zoom
+  /// level. Already accounts for small-family bypass and focus-mode
+  /// bypass (i.e. it's the FINAL opacity — 1.0 means fully visible,
+  /// 0.0 means fully hidden, in between means linear fade).
+  final double opacity;
 
   /// Returns the inherited opacity, or `null` if no scope is found
   /// (caller should compute the opacity itself as a fallback).

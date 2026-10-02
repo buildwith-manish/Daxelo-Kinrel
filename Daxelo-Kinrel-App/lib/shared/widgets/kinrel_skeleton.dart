@@ -56,7 +56,6 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
-import '../../core/constants/brand_colors.dart';
 import '../../core/utils/motion_preference.dart';
 
 /// The base shimmer wrapper used by all skeleton widgets.
@@ -203,16 +202,16 @@ class KinrelSkeletonCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header row (avatar + name)
-            Row(
+            const Row(
               children: [
                 KinrelSkeletonBox(width: 36, height: 36, circle: true),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       KinrelSkeletonBox(width: 120, height: 12, radius: 4),
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6),
                       KinrelSkeletonBox(width: 80, height: 10, radius: 4),
                     ],
                   ),
@@ -228,10 +227,10 @@ class KinrelSkeletonCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             // Action row
-            Row(
+            const Row(
               children: [
                 KinrelSkeletonBox(width: 60, height: 10, radius: 4),
-                const SizedBox(width: 16),
+                SizedBox(width: 16),
                 KinrelSkeletonBox(width: 60, height: 10, radius: 4),
               ],
             ),
@@ -271,8 +270,8 @@ class KinrelSkeletonList extends StatelessWidget {
           case SkeletonItemType.card:
             return const KinrelSkeletonCard();
           case SkeletonItemType.textLine:
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -281,7 +280,7 @@ class KinrelSkeletonList extends StatelessWidget {
                     height: 14,
                     radius: 4,
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   KinrelSkeletonBox(width: 200, height: 14, radius: 4),
                 ],
               ),

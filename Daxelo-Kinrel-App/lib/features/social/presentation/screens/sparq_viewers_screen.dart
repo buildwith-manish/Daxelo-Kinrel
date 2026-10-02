@@ -16,12 +16,12 @@ class SparqViewersScreen extends ConsumerWidget {
       backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(
         backgroundColor: KinrelColors.darkBackground,
-        title: Text('Viewers', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+        title: const Text('Viewers', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
       ),
       body: viewersAsync.when(
         data: (viewers) {
           if (viewers.isEmpty) {
-            return Center(
+            return const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -35,9 +35,9 @@ class SparqViewersScreen extends ConsumerWidget {
             );
           }
           return ListView.separated(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             itemCount: viewers.length,
-            separatorBuilder: (_, __) => Divider(color: KinrelColors.elevation1),
+            separatorBuilder: (_, __) => const Divider(color: KinrelColors.elevation1),
             itemBuilder: (context, index) {
               final viewer = viewers[index];
               return ListTile(
@@ -47,34 +47,34 @@ class SparqViewersScreen extends ConsumerWidget {
                       : null,
                   backgroundColor: KinrelColors.elevation2,
                   child: viewer['avatarUrl'] == null
-                      ? Icon(Icons.person, color: KinrelColors.textSilver)
+                      ? const Icon(Icons.person, color: KinrelColors.textSilver)
                       : null,
                 ),
                 title: Text(
                   viewer['name'] as String? ?? 'Unknown',
-                  style: TextStyle(color: KinrelColors.textWhite, fontFamily: 'DM Sans'),
+                  style: const TextStyle(color: KinrelColors.textWhite, fontFamily: 'DM Sans'),
                 ),
                 trailing: Text(
                   _timeAgo(viewer['viewedAt'] as String?),
-                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+                  style: const TextStyle(color: KinrelColors.textDim, fontSize: 12),
                 ),
               );
             },
           );
         },
-        loading: () => Center(child: CircularProgressIndicator(color: KinrelColors.orange)),
+        loading: () => const Center(child: CircularProgressIndicator(color: KinrelColors.orange)),
         error: (e, _) => Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, size: 48, color: KinrelColors.error),
-              SizedBox(height: 12),
-              Text('Failed to load viewers', style: TextStyle(color: KinrelColors.textSilver)),
-              SizedBox(height: 12),
+              const Icon(Icons.error_outline, size: 48, color: KinrelColors.error),
+              const SizedBox(height: 12),
+              const Text('Failed to load viewers', style: TextStyle(color: KinrelColors.textSilver)),
+              const SizedBox(height: 12),
               ElevatedButton(
                 onPressed: () => ref.invalidate(sparqViewersProvider(sparqId)),
                 style: ElevatedButton.styleFrom(backgroundColor: KinrelColors.orange),
-                child: Text('Retry'),
+                child: const Text('Retry'),
               ),
             ],
           ),

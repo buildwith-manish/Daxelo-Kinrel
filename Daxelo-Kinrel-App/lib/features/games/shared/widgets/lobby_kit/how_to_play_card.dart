@@ -126,7 +126,7 @@ class _HowToPlayCardState extends State<HowToPlayCard>
                       ),
                     ),
                     const SizedBox(width: KinrelSpacing.md),
-                    Expanded(
+                    const Expanded(
                       child: Text(
                         'How to Play',
                         style: TextStyle(
@@ -146,7 +146,7 @@ class _HowToPlayCardState extends State<HowToPlayCard>
                       ),
                       child: Text(
                         '${widget.rules.length} steps',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
@@ -158,7 +158,7 @@ class _HowToPlayCardState extends State<HowToPlayCard>
                     const SizedBox(width: KinrelSpacing.sm),
                     RotationTransition(
                       turns: _chevron,
-                      child: Icon(
+                      child: const Icon(
                         Icons.expand_more,
                         size: 20,
                         color: KinrelColors.textDim,

@@ -164,7 +164,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                 final upcomingOccasions = occasionsState.withinSevenDays;
                 if (upcomingOccasions.isEmpty) return const SizedBox.shrink();
                 return Padding(
-                  padding: EdgeInsets.symmetric(
+                  padding: const EdgeInsets.symmetric(
                     horizontal: KinrelSpacing.base,
                   ),
                   child: Column(
@@ -178,8 +178,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                         alignment: Alignment.centerRight,
                         child: GestureDetector(
                           onTap: () => context.push('/occasions'),
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 4, bottom: 8),
+                          child: const Padding(
+                            padding: EdgeInsets.only(top: 4, bottom: 8),
                             child: Text(
                               'See all',
                               style: TextStyle(
@@ -230,7 +230,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
 
   Widget _buildHeader(int unreadCount) {
     return Padding(
-      padding: EdgeInsets.only(
+      padding: const EdgeInsets.only(
         left: KinrelSpacing.base,
         right: KinrelSpacing.base,
         top: KinrelSpacing.md,
@@ -261,12 +261,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
             child: Container(
               width: 36,
               height: 36,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
                 color: KinrelColors.darkElevated,
               ),
               alignment: Alignment.center,
-              child: Icon(
+              child: const Icon(
                 Icons.settings_outlined,
                 size: 20,
                 color: KinrelColors.textSilver,
@@ -292,7 +292,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     ];
 
     return Padding(
-      padding: EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: KinrelSpacing.base,
         vertical: KinrelSpacing.sm,
       ),
@@ -313,7 +313,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                 child: AnimatedContainer(
                   duration: KinrelMotion.fast,
                   curve: KinrelMotion.easeOut,
-                  margin: EdgeInsets.all(3),
+                  margin: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
                     color: isActive ? KinrelColors.orange : Colors.transparent,
                     borderRadius: BorderRadius.circular(KinrelRadius.lg),
@@ -342,7 +342,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
 
   Widget _buildMarkAllRead(int unreadCount) {
     return Padding(
-      padding: EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: KinrelSpacing.base,
         vertical: KinrelSpacing.xs,
       ),
@@ -350,8 +350,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
         alignment: Alignment.centerRight,
         child: GestureDetector(
           onTap: () => ref.read(notificationsProvider.notifier).markAllRead(),
-          child: Padding(
-            padding: const EdgeInsets.all(4),
+          child: const Padding(
+            padding: EdgeInsets.all(4),
             child: Text(
               'Mark all as read',
               style: TextStyle(
@@ -375,9 +375,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
       onRefresh: () =>
           ref.read(notificationsProvider.notifier).loadNotifications(),
       child: ListView.builder(
-        scrollCacheExtent: ScrollCacheExtent.pixels(500),
+        scrollCacheExtent: const ScrollCacheExtent.pixels(500),
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.symmetric(
+        padding: const EdgeInsets.symmetric(
           horizontal: KinrelSpacing.base,
           vertical: KinrelSpacing.sm,
         ),
@@ -452,7 +452,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
           ),
           const SizedBox(height: KinrelSpacing.xl),
 
-          Text(
+          const Text(
             'All caught up!',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -464,7 +464,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
           ),
           const SizedBox(height: KinrelSpacing.sm),
 
-          Text(
+          const Text(
             'No new notifications.',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -935,7 +935,7 @@ class _NotificationItem extends ConsumerWidget {
         onTap: () => _handleTap(context, ref),
         behavior: HitTestBehavior.opaque,
         child: Container(
-          margin: EdgeInsets.only(bottom: KinrelSpacing.sm),
+          margin: const EdgeInsets.only(bottom: KinrelSpacing.sm),
           padding: const EdgeInsets.all(KinrelSpacing.md),
           decoration: BoxDecoration(
             // Unread items get subtle orange tint: #E8612A05
@@ -999,7 +999,7 @@ class _NotificationItem extends ConsumerWidget {
                     // Body — Regular, #C9B4A8, 12px
                     Text(
                       notification.body,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
@@ -1014,7 +1014,7 @@ class _NotificationItem extends ConsumerWidget {
                     // Time — #8A7A72, 11px
                     Text(
                       notification.time,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
                         fontWeight: FontWeight.w400,
@@ -1065,7 +1065,7 @@ class _NotificationItem extends ConsumerWidget {
                             style: OutlinedButton.styleFrom(
                               foregroundColor: KinrelColors.textSilver,
                               padding: const EdgeInsets.symmetric(vertical: 8),
-                              side: BorderSide(
+                              side: const BorderSide(
                                 color: KinrelColors.border,
                                 width: 1,
                               ),
@@ -1146,7 +1146,7 @@ class _NotificationItem extends ConsumerWidget {
                 child: Container(
                   width: 8,
                   height: 8,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     color: KinrelColors.orange,
                   ),
@@ -1282,7 +1282,7 @@ class _NotificationItem extends ConsumerWidget {
   /// Swipe right → Pin (green background on left side)
   Widget _buildSwipeRightBackground() {
     return Container(
-      margin: EdgeInsets.only(bottom: KinrelSpacing.sm),
+      margin: const EdgeInsets.only(bottom: KinrelSpacing.sm),
       decoration: BoxDecoration(
         color: KinrelColors.gold.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
@@ -1300,7 +1300,7 @@ class _NotificationItem extends ConsumerWidget {
           const SizedBox(height: 2),
           Text(
             notification.isPinned ? 'Unpin' : 'Pin',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 10,
               fontWeight: FontWeight.w600,
@@ -1315,7 +1315,7 @@ class _NotificationItem extends ConsumerWidget {
   /// Swipe left → Mark as read / Delete (red background on right side)
   Widget _buildSwipeLeftBackground() {
     return Container(
-      margin: EdgeInsets.only(bottom: KinrelSpacing.sm),
+      margin: const EdgeInsets.only(bottom: KinrelSpacing.sm),
       decoration: BoxDecoration(
         color: KinrelColors.error.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
@@ -1378,11 +1378,11 @@ class _NotificationItem extends ConsumerWidget {
 
               if (!notification.isRead)
                 ListTile(
-                  leading: Icon(
+                  leading: const Icon(
                     Icons.done_rounded,
                     color: KinrelColors.success,
                   ),
-                  title: Text(
+                  title: const Text(
                     'Mark as read',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -1393,8 +1393,8 @@ class _NotificationItem extends ConsumerWidget {
                 ),
 
               ListTile(
-                leading: Icon(Icons.delete_outline, color: KinrelColors.error),
-                title: Text(
+                leading: const Icon(Icons.delete_outline, color: KinrelColors.error),
+                title: const Text(
                   'Delete',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -1405,8 +1405,8 @@ class _NotificationItem extends ConsumerWidget {
               ),
 
               ListTile(
-                leading: Icon(Icons.close, color: KinrelColors.textDim),
-                title: Text(
+                leading: const Icon(Icons.close, color: KinrelColors.textDim),
+                title: const Text(
                   'Cancel',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -1444,7 +1444,7 @@ class _CategoryTag extends StatelessWidget {
     };
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.sm, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.sm, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(KinrelRadius.xs),

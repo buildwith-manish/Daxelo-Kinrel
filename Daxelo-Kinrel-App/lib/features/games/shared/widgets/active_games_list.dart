@@ -44,7 +44,7 @@ class ActiveGamesList extends ConsumerWidget {
           child: CircularProgressIndicator(color: KinrelColors.orange),
         ),
       ),
-      error: (e, _) => SizedBox(
+      error: (e, _) => const SizedBox(
         height: 60,
         child: Center(
           child: Text(
@@ -77,7 +77,7 @@ class ActiveGamesList extends ConsumerWidget {
                   const Icon(Icons.play_circle_outline,
                       color: KinrelColors.orange, size: 16),
                   const SizedBox(width: 6),
-                  Text(
+                  const Text(
                     'ACTIVE GAMES',
                     style: TextStyle(
                       fontFamily: KinrelTypography.monoFont,
@@ -90,7 +90,7 @@ class ActiveGamesList extends ConsumerWidget {
                   const Spacer(),
                   Text(
                     '${ordered.length}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 11,
                       color: KinrelColors.textDim,
@@ -154,7 +154,7 @@ class ActiveGamesList extends ConsumerWidget {
                     color: KinrelColors.orange, size: 18),
               ),
               if (isMyTurn)
-                Positioned(
+                const Positioned(
                   top: -2,
                   right: -2,
                   child: _PulsingDot(),
@@ -173,7 +173,7 @@ class ActiveGamesList extends ConsumerWidget {
                         displayName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
@@ -234,7 +234,7 @@ class ActiveGamesList extends ConsumerWidget {
                 const SizedBox(height: 2),
                 Text(
                   'Host: $hostName${g.spectatorsEnabled ? ' · 👁 spectators welcome' : ''}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10,
                     color: KinrelColors.textDim,

@@ -82,7 +82,9 @@ class ThermionCameoRenderer implements CameoRenderer {
     }
     if (filtered.isEmpty) return;
     final ordered = <double>[];
-    for (final name in _discoveredMorphTargetNames) ordered.add(filtered[name] ?? 0.0);
+    for (final name in _discoveredMorphTargetNames) {
+      ordered.add(filtered[name] ?? 0.0);
+    }
     await _characterAsset!.setMorphTargetWeights(_characterEntity!, ordered);
   }
 

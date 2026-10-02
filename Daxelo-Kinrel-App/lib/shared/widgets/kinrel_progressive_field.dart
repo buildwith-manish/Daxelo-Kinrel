@@ -62,7 +62,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
-import '../../core/services/haptic_service.dart';
 
 /// A text field that shows progressive hints as the user types.
 ///
@@ -163,7 +162,7 @@ class _KinrelProgressiveFieldState extends State<KinrelProgressiveField> {
           focusNode: widget.focusNode,
           obscureText: widget._mode == _ProgressiveMode.password,
           textInputAction: TextInputAction.next,
-          style: TextStyle(
+          style: const TextStyle(
             color: KinrelColors.textWhite,
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 14,
@@ -184,7 +183,7 @@ class _KinrelProgressiveFieldState extends State<KinrelProgressiveField> {
 
     return InputDecoration(
       labelText: widget.label,
-      labelStyle: TextStyle(color: KinrelColors.textSilver),
+      labelStyle: const TextStyle(color: KinrelColors.textSilver),
       filled: true,
       fillColor: const Color(0xFF202338),
       border: OutlineInputBorder(

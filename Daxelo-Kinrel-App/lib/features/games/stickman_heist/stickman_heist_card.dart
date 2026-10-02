@@ -83,7 +83,7 @@ class _StickmanHeistCardState extends ConsumerState<StickmanHeistCard> {
                     children: [
                       Row(
                         children: [
-                          Expanded(
+                          const Expanded(
                             child: Text(
                               'Stickman Heist',
                               style: TextStyle(
@@ -103,7 +103,7 @@ class _StickmanHeistCardState extends ConsumerState<StickmanHeistCard> {
                               border: Border.all(
                                   color: accent.withValues(alpha: 0.4)),
                             ),
-                            child: Text(
+                            child: const Text(
                               '2–8',
                               style: TextStyle(
                                 fontFamily: KinrelTypography.monoFont,
@@ -116,7 +116,7 @@ class _StickmanHeistCardState extends ConsumerState<StickmanHeistCard> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      const Text(
                         'Treasure hunt shooter',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
@@ -137,7 +137,7 @@ class _StickmanHeistCardState extends ConsumerState<StickmanHeistCard> {
                           ),
                         )
                       else
-                        Text(
+                        const Text(
                           'Find the treasure, hold it, escape. Hunt the carrier — drop the loot!',
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
@@ -252,10 +252,10 @@ class _HeistMotifPainter extends CustomPainter {
 
     // Gold gradient fill.
     final diamondPaint = Paint()
-      ..shader = LinearGradient(
+      ..shader = const LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: const [
+        colors: [
           Color(0xFFFCD34D),
           Color(0xFFB45309),
         ],

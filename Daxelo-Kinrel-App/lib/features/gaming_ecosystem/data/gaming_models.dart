@@ -24,21 +24,6 @@ class LeaderboardEntry {
     this.winRate = 0,
   });
 
-  final String userId;
-  final String userName;
-  final String? avatarUrl;
-  final int wins;
-  final int losses;
-  final int draws;
-  final int matches;
-  final int points;
-  final int streakCurrent;
-  final int streakBest;
-  final int sportsmanship;
-  final double winRate;
-
-  String get winRateLabel => '${(winRate * 100).round()}%';
-
   factory LeaderboardEntry.fromJson(Map<String, dynamic> json) {
     return LeaderboardEntry(
       userId: (json['userId'] as String?) ?? '',
@@ -55,6 +40,21 @@ class LeaderboardEntry {
       winRate: (json['winRate'] as num?)?.toDouble() ?? 0,
     );
   }
+
+  final String userId;
+  final String userName;
+  final String? avatarUrl;
+  final int wins;
+  final int losses;
+  final int draws;
+  final int matches;
+  final int points;
+  final int streakCurrent;
+  final int streakBest;
+  final int sportsmanship;
+  final double winRate;
+
+  String get winRateLabel => '${(winRate * 100).round()}%';
 }
 
 /// A challenge (weekly or monthly mission) with live progress.
@@ -72,21 +72,6 @@ class ChallengeInfo {
     this.completedAt,
   });
 
-  final String slug;
-  final String title;
-  final String description;
-  final String cadence; // weekly | monthly
-  final String icon;
-  final int target;
-  final int rewardPoints;
-  final bool familyWide;
-  final int progress;
-  final DateTime? completedAt;
-
-  bool get isCompleted => progress >= target;
-  double get progressFraction =>
-      target <= 0 ? 0 : (progress / target).clamp(0.0, 1.0);
-
   factory ChallengeInfo.fromJson(Map<String, dynamic> json) {
     return ChallengeInfo(
       slug: (json['slug'] as String?) ?? '',
@@ -103,6 +88,21 @@ class ChallengeInfo {
           : DateTime.tryParse(json['completedAt'].toString()),
     );
   }
+
+  final String slug;
+  final String title;
+  final String description;
+  final String cadence; // weekly | monthly
+  final String icon;
+  final int target;
+  final int rewardPoints;
+  final bool familyWide;
+  final int progress;
+  final DateTime? completedAt;
+
+  bool get isCompleted => progress >= target;
+  double get progressFraction =>
+      target <= 0 ? 0 : (progress / target).clamp(0.0, 1.0);
 }
 
 /// A game badge (achievement) — earned or locked.
@@ -118,15 +118,6 @@ class BadgeInfo {
     this.earnedAt,
   });
 
-  final String slug;
-  final String name;
-  final String icon;
-  final String tier; // bronze | silver | gold | platinum
-  final String description;
-  final int threshold;
-  final bool earned;
-  final DateTime? earnedAt;
-
   factory BadgeInfo.fromJson(Map<String, dynamic> json) {
     return BadgeInfo(
       slug: (json['slug'] as String?) ?? '',
@@ -141,6 +132,15 @@ class BadgeInfo {
           : DateTime.tryParse(json['earnedAt'].toString()),
     );
   }
+
+  final String slug;
+  final String name;
+  final String icon;
+  final String tier; // bronze | silver | gold | platinum
+  final String description;
+  final int threshold;
+  final bool earned;
+  final DateTime? earnedAt;
 }
 
 /// One match in the player's history.
@@ -156,6 +156,25 @@ class MatchHistoryEntry {
     this.playerCount = 0,
     this.opponents = const [],
   });
+
+  factory MatchHistoryEntry.fromJson(Map<String, dynamic> json) {
+    return MatchHistoryEntry(
+      matchId: (json['matchId'] as String?) ?? '',
+      gameTable: (json['gameTable'] as String?) ?? '',
+      gameName: (json['gameName'] as String?) ?? 'Game',
+      gameIcon: (json['gameIcon'] as String?) ?? '🎮',
+      result: (json['result'] as String?) ?? 'played',
+      finishedAt: json['finishedAt'] == null
+          ? null
+          : DateTime.tryParse(json['finishedAt'].toString()),
+      durationSeconds: (json['durationSeconds'] as num?)?.toInt() ?? 0,
+      playerCount: (json['playerCount'] as num?)?.toInt() ?? 0,
+      opponents: (json['opponents'] as List? ?? [])
+          .map((e) =>
+              MatchOpponent.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+    );
+  }
 
   final String matchId;
   final String gameTable;
@@ -176,31 +195,10 @@ class MatchHistoryEntry {
     if (m <= 0) return '$s{s}';
     return '$m m ${s}s';
   }
-
-  factory MatchHistoryEntry.fromJson(Map<String, dynamic> json) {
-    return MatchHistoryEntry(
-      matchId: (json['matchId'] as String?) ?? '',
-      gameTable: (json['gameTable'] as String?) ?? '',
-      gameName: (json['gameName'] as String?) ?? 'Game',
-      gameIcon: (json['gameIcon'] as String?) ?? '🎮',
-      result: (json['result'] as String?) ?? 'played',
-      finishedAt: json['finishedAt'] == null
-          ? null
-          : DateTime.tryParse(json['finishedAt'].toString()),
-      durationSeconds: (json['durationSeconds'] as num?)?.toInt() ?? 0,
-      playerCount: (json['playerCount'] as num?)?.toInt() ?? 0,
-      opponents: (json['opponents'] as List? ?? [])
-          .map((e) =>
-              MatchOpponent.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList(),
-    );
-  }
 }
 
 class MatchOpponent {
   const MatchOpponent({required this.userName, this.result});
-  final String userName;
-  final String? result;
 
   factory MatchOpponent.fromJson(Map<String, dynamic> json) {
     return MatchOpponent(
@@ -208,6 +206,8 @@ class MatchOpponent {
       result: json['result'] as String?,
     );
   }
+  final String userName;
+  final String? result;
 }
 
 /// One entry in the family gaming activity feed.
@@ -221,6 +221,22 @@ class ActivityEntry {
     this.actorName,
     this.metadata = const {},
   });
+
+  factory ActivityEntry.fromJson(Map<String, dynamic> json) {
+    return ActivityEntry(
+      id: (json['id'] as String?) ?? '',
+      action: (json['action'] as String?) ?? '',
+      description: (json['description'] as String?) ?? '',
+      createdAt: json['createdAt'] == null
+          ? null
+          : DateTime.tryParse(json['createdAt'].toString()),
+      actorUserId: json['actorUserId'] as String?,
+      actorName: json['actorName'] as String?,
+      metadata: json['metadata'] is Map
+          ? Map<String, dynamic>.from(json['metadata'] as Map)
+          : const {},
+    );
+  }
 
   final String id;
   final String action; // game_match_completed | game_badge_earned | ...
@@ -248,22 +264,6 @@ class ActivityEntry {
         return '🎮';
     }
   }
-
-  factory ActivityEntry.fromJson(Map<String, dynamic> json) {
-    return ActivityEntry(
-      id: (json['id'] as String?) ?? '',
-      action: (json['action'] as String?) ?? '',
-      description: (json['description'] as String?) ?? '',
-      createdAt: json['createdAt'] == null
-          ? null
-          : DateTime.tryParse(json['createdAt'].toString()),
-      actorUserId: json['actorUserId'] as String?,
-      actorName: json['actorName'] as String?,
-      metadata: json['metadata'] is Map
-          ? Map<String, dynamic>.from(json['metadata'] as Map)
-          : const {},
-    );
-  }
 }
 
 /// A family gaming milestone (games played together etc.).
@@ -274,6 +274,17 @@ class MilestoneInfo {
     this.celebrated = false,
     this.description = '',
   });
+
+  factory MilestoneInfo.fromJson(Map<String, dynamic> json) {
+    return MilestoneInfo(
+      milestone: (json['milestone'] as String?) ?? '',
+      reachedAt: json['reachedAt'] == null
+          ? null
+          : DateTime.tryParse(json['reachedAt'].toString()),
+      celebrated: json['celebrated'] as bool? ?? false,
+      description: (json['description'] as String?) ?? '',
+    );
+  }
 
   final String milestone;
   final DateTime? reachedAt;
@@ -288,17 +299,6 @@ class MilestoneInfo {
     final last = parts.isNotEmpty ? parts.last : '';
     return int.tryParse(last) ?? 1;
   }
-
-  factory MilestoneInfo.fromJson(Map<String, dynamic> json) {
-    return MilestoneInfo(
-      milestone: (json['milestone'] as String?) ?? '',
-      reachedAt: json['reachedAt'] == null
-          ? null
-          : DateTime.tryParse(json['reachedAt'].toString()),
-      celebrated: json['celebrated'] as bool? ?? false,
-      description: (json['description'] as String?) ?? '',
-    );
-  }
 }
 
 /// The current Family Cup season.
@@ -311,13 +311,6 @@ class SeasonInfo {
     this.endsAt,
     this.daysRemaining = 0,
   });
-
-  final String id;
-  final String name;
-  final String periodKey;
-  final DateTime? startsAt;
-  final DateTime? endsAt;
-  final int daysRemaining;
 
   factory SeasonInfo.fromJson(Map<String, dynamic> json) {
     return SeasonInfo(
@@ -333,6 +326,13 @@ class SeasonInfo {
       daysRemaining: (json['daysRemaining'] as num?)?.toInt() ?? 0,
     );
   }
+
+  final String id;
+  final String name;
+  final String periodKey;
+  final DateTime? startsAt;
+  final DateTime? endsAt;
+  final int daysRemaining;
 }
 
 /// A smart "play with X" suggestion.
@@ -347,14 +347,6 @@ class SmartSuggestion {
     this.gamesTogether = 0,
   });
 
-  final String userId;
-  final String userName;
-  final String gameTable;
-  final String gameName;
-  final String gameIcon;
-  final String reason;
-  final int gamesTogether;
-
   factory SmartSuggestion.fromJson(Map<String, dynamic> json) {
     return SmartSuggestion(
       userId: (json['userId'] as String?) ?? '',
@@ -366,6 +358,14 @@ class SmartSuggestion {
       gamesTogether: (json['gamesTogether'] as num?)?.toInt() ?? 0,
     );
   }
+
+  final String userId;
+  final String userName;
+  final String gameTable;
+  final String gameName;
+  final String gameIcon;
+  final String reason;
+  final int gamesTogether;
 }
 
 /// A player in the season standings / family member list.
@@ -380,14 +380,6 @@ class SeasonStandingEntry {
     this.matches = 0,
   });
 
-  final String userId;
-  final String userName;
-  final String? avatarUrl;
-  final int points;
-  final int wins;
-  final int gamesPlayed;
-  final int matches;
-
   factory SeasonStandingEntry.fromJson(Map<String, dynamic> json) {
     return SeasonStandingEntry(
       userId: (json['userId'] as String?) ?? '',
@@ -399,6 +391,14 @@ class SeasonStandingEntry {
       matches: (json['matches'] as num?)?.toInt() ?? 0,
     );
   }
+
+  final String userId;
+  final String userName;
+  final String? avatarUrl;
+  final int points;
+  final int wins;
+  final int gamesPlayed;
+  final int matches;
 }
 
 /// The full gaming dashboard payload (fn_get_gaming_dashboard).
@@ -419,28 +419,6 @@ class GamingDashboard {
     this.allGameBadges = const [],
     this.familyMembers = const [],
   });
-
-  final int familyTotalMatches;
-  final int familyDistinctGames;
-  final GamingMeStats me;
-  final SeasonInfo? season;
-  final List<ChallengeInfo> challenges;
-  final List<LeaderboardEntry> leaderboard;
-  final List<LeaderboardEntry> weeklyLeaderboard;
-  final List<ActivityEntry> activity;
-  final List<SmartSuggestion> suggestions;
-  final List<MilestoneInfo> milestones;
-  final List<SeasonStandingEntry> seasonStandings;
-  final List<BadgeInfo> myBadges;
-  final List<BadgeInfo> allGameBadges;
-  final List<SeasonStandingEntry> familyMembers;
-
-  /// Challenges still in progress (not yet completed).
-  List<ChallengeInfo> get activeChallenges =>
-      challenges.where((c) => !c.isCompleted).toList();
-
-  List<ChallengeInfo> get completedChallenges =>
-      challenges.where((c) => c.isCompleted).toList();
 
   factory GamingDashboard.fromJson(Map<String, dynamic> json) {
     return GamingDashboard(
@@ -468,6 +446,28 @@ class GamingDashboard {
           _list(json['familyMembers'], SeasonStandingEntry.fromJson),
     );
   }
+
+  final int familyTotalMatches;
+  final int familyDistinctGames;
+  final GamingMeStats me;
+  final SeasonInfo? season;
+  final List<ChallengeInfo> challenges;
+  final List<LeaderboardEntry> leaderboard;
+  final List<LeaderboardEntry> weeklyLeaderboard;
+  final List<ActivityEntry> activity;
+  final List<SmartSuggestion> suggestions;
+  final List<MilestoneInfo> milestones;
+  final List<SeasonStandingEntry> seasonStandings;
+  final List<BadgeInfo> myBadges;
+  final List<BadgeInfo> allGameBadges;
+  final List<SeasonStandingEntry> familyMembers;
+
+  /// Challenges still in progress (not yet completed).
+  List<ChallengeInfo> get activeChallenges =>
+      challenges.where((c) => !c.isCompleted).toList();
+
+  List<ChallengeInfo> get completedChallenges =>
+      challenges.where((c) => c.isCompleted).toList();
 }
 
 class GamingMeStats {
@@ -480,13 +480,6 @@ class GamingMeStats {
     this.rank = 0,
   });
 
-  final String userId;
-  final int matches;
-  final int wins;
-  final int points;
-  final int streakCurrent;
-  final int rank;
-
   factory GamingMeStats.fromJson(Map<String, dynamic> json) {
     return GamingMeStats(
       userId: (json['userId'] as String?) ?? '',
@@ -497,6 +490,13 @@ class GamingMeStats {
       rank: (json['rank'] as num?)?.toInt() ?? 0,
     );
   }
+
+  final String userId;
+  final int matches;
+  final int wins;
+  final int points;
+  final int streakCurrent;
+  final int rank;
 }
 
 /// Player gaming profile (fn_get_player_gaming_profile).
@@ -525,6 +525,37 @@ class PlayerGamingProfile {
     this.recentMatches = const [],
     this.recentActivity = const [],
   });
+
+  factory PlayerGamingProfile.fromJson(Map<String, dynamic> json) {
+    return PlayerGamingProfile(
+      userId: (json['userId'] as String?) ?? '',
+      userName: (json['userName'] as String?) ?? 'Family Member',
+      avatarUrl: json['avatarUrl'] as String?,
+      username: json['username'] as String?,
+      isSelf: json['isSelf'] as bool? ?? false,
+      matches: (json['matches'] as num?)?.toInt() ?? 0,
+      wins: (json['wins'] as num?)?.toInt() ?? 0,
+      losses: (json['losses'] as num?)?.toInt() ?? 0,
+      draws: (json['draws'] as num?)?.toInt() ?? 0,
+      points: (json['points'] as num?)?.toInt() ?? 0,
+      streakCurrent: (json['streakCurrent'] as num?)?.toInt() ?? 0,
+      streakBest: (json['streakBest'] as num?)?.toInt() ?? 0,
+      sportsmanship: (json['sportsmanship'] as num?)?.toInt() ?? 0,
+      spectated: (json['spectated'] as num?)?.toInt() ?? 0,
+      winRate: (json['winRate'] as num?)?.toDouble() ?? 0,
+      rank: (json['rank'] as num?)?.toInt() ?? 0,
+      daysActiveThisWeek:
+          (json['daysActiveThisWeek'] as num?)?.toInt() ?? 0,
+      favoriteGame: json['favoriteGame'] is Map
+          ? GameStat.fromJson(
+              Map<String, dynamic>.from(json['favoriteGame'] as Map))
+          : null,
+      perGame: _list(json['perGame'], GameStat.fromJson),
+      badges: _list(json['badges'], BadgeInfo.fromJson),
+      recentMatches: _list(json['recentMatches'], RecentMatch.fromJson),
+      recentActivity: _list(json['recentActivity'], ActivityEntry.fromJson),
+    );
+  }
 
   final String userId;
   final String userName;
@@ -558,37 +589,6 @@ class PlayerGamingProfile {
   /// Family Gamer Level — 1 level per 100 points.
   int get level => (points ~/ 100) + (points > 0 ? 1 : 0);
   int get pointsIntoLevel => points % 100;
-
-  factory PlayerGamingProfile.fromJson(Map<String, dynamic> json) {
-    return PlayerGamingProfile(
-      userId: (json['userId'] as String?) ?? '',
-      userName: (json['userName'] as String?) ?? 'Family Member',
-      avatarUrl: json['avatarUrl'] as String?,
-      username: json['username'] as String?,
-      isSelf: json['isSelf'] as bool? ?? false,
-      matches: (json['matches'] as num?)?.toInt() ?? 0,
-      wins: (json['wins'] as num?)?.toInt() ?? 0,
-      losses: (json['losses'] as num?)?.toInt() ?? 0,
-      draws: (json['draws'] as num?)?.toInt() ?? 0,
-      points: (json['points'] as num?)?.toInt() ?? 0,
-      streakCurrent: (json['streakCurrent'] as num?)?.toInt() ?? 0,
-      streakBest: (json['streakBest'] as num?)?.toInt() ?? 0,
-      sportsmanship: (json['sportsmanship'] as num?)?.toInt() ?? 0,
-      spectated: (json['spectated'] as num?)?.toInt() ?? 0,
-      winRate: (json['winRate'] as num?)?.toDouble() ?? 0,
-      rank: (json['rank'] as num?)?.toInt() ?? 0,
-      daysActiveThisWeek:
-          (json['daysActiveThisWeek'] as num?)?.toInt() ?? 0,
-      favoriteGame: json['favoriteGame'] is Map
-          ? GameStat.fromJson(
-              Map<String, dynamic>.from(json['favoriteGame'] as Map))
-          : null,
-      perGame: _list(json['perGame'], GameStat.fromJson),
-      badges: _list(json['badges'], BadgeInfo.fromJson),
-      recentMatches: _list(json['recentMatches'], RecentMatch.fromJson),
-      recentActivity: _list(json['recentActivity'], ActivityEntry.fromJson),
-    );
-  }
 }
 
 /// Full match detail returned by `match_history_for_participant`.
@@ -610,20 +610,6 @@ class MatchDetail {
     required this.winnerNames,
     required this.players,
   });
-
-  final String matchId;
-  final String gameTable;
-  final String familyId;
-  final DateTime? finishedAt;
-  final DateTime? startedAt;
-  final int durationSeconds;
-  final int playerCount;
-
-  /// 'win' | 'draw' | 'played' — null/empty when stripped for non-participant.
-  final String? resultKind;
-  final List<String> winnerUserIds;
-  final List<String> winnerNames;
-  final List<MatchDetailPlayer> players;
 
   factory MatchDetail.fromJson(Map<String, dynamic> json) {
     return MatchDetail(
@@ -648,6 +634,20 @@ class MatchDetail {
       players: _list(json['players'], MatchDetailPlayer.fromJson),
     );
   }
+
+  final String matchId;
+  final String gameTable;
+  final String familyId;
+  final DateTime? finishedAt;
+  final DateTime? startedAt;
+  final int durationSeconds;
+  final int playerCount;
+
+  /// 'win' | 'draw' | 'played' — null/empty when stripped for non-participant.
+  final String? resultKind;
+  final List<String> winnerUserIds;
+  final List<String> winnerNames;
+  final List<MatchDetailPlayer> players;
 }
 
 class MatchDetailPlayer {
@@ -657,10 +657,6 @@ class MatchDetailPlayer {
     required this.result,
   });
 
-  final String userId;
-  final String userName;
-  final String? result;
-
   factory MatchDetailPlayer.fromJson(Map<String, dynamic> json) {
     return MatchDetailPlayer(
       userId: (json['userId'] as String?) ?? '',
@@ -668,6 +664,10 @@ class MatchDetailPlayer {
       result: json['result'] as String?,
     );
   }
+
+  final String userId;
+  final String userName;
+  final String? result;
 }
 
 /// Per-game stat row on a player profile.
@@ -682,14 +682,6 @@ class GameStat {
     this.draws = 0,
   });
 
-  final String gameTable;
-  final String name;
-  final String icon;
-  final int matches;
-  final int wins;
-  final int losses;
-  final int draws;
-
   factory GameStat.fromJson(Map<String, dynamic> json) {
     return GameStat(
       gameTable: (json['gameTable'] as String?) ?? '',
@@ -701,6 +693,14 @@ class GameStat {
       draws: (json['draws'] as num?)?.toInt() ?? 0,
     );
   }
+
+  final String gameTable;
+  final String name;
+  final String icon;
+  final int matches;
+  final int wins;
+  final int losses;
+  final int draws;
 }
 
 class RecentMatch {
@@ -710,11 +710,6 @@ class RecentMatch {
     required this.result,
     this.finishedAt,
   });
-
-  final String gameName;
-  final String gameIcon;
-  final String result;
-  final DateTime? finishedAt;
 
   factory RecentMatch.fromJson(Map<String, dynamic> json) {
     return RecentMatch(
@@ -726,6 +721,11 @@ class RecentMatch {
           : DateTime.tryParse(json['finishedAt'].toString()),
     );
   }
+
+  final String gameName;
+  final String gameIcon;
+  final String result;
+  final DateTime? finishedAt;
 }
 
 /// Post-match ecosystem result (fn_get_match_ecosystem).
@@ -747,6 +747,29 @@ class MatchEcosystemResult {
     this.personalBests = const [],
     this.participation = const {},
   });
+
+  factory MatchEcosystemResult.fromJson(Map<String, dynamic> json) {
+    return MatchEcosystemResult(
+      matchId: (json['matchId'] as String?) ?? '',
+      gameTable: (json['gameTable'] as String?) ?? '',
+      gameName: (json['gameName'] as String?) ?? 'Game',
+      gameIcon: (json['gameIcon'] as String?) ?? '🎮',
+      familyId: (json['familyId'] as String?) ?? '',
+      winners: (json['winners'] as List? ?? [])
+          .map((e) => e.toString())
+          .toList(),
+      playerCount: (json['playerCount'] as num?)?.toInt() ?? 0,
+      durationSeconds: (json['durationSeconds'] as num?)?.toInt() ?? 0,
+      archived: json['archived'] as bool? ?? false,
+      newBadges: _list(json['newBadges'], PlayerBadgeRewards.fromJson),
+      completedChallenges:
+          _list(json['completedChallenges'], PlayerChallengeRewards.fromJson),
+      milestones: _list(json['milestones'], MilestoneReward.fromJson),
+      players: _list(json['players'], MatchPlayerResult.fromJson),
+      personalBests: _list(json['personalBests'], PersonalBestReward.fromJson),
+      participation: _intMap(json['participation']),
+    );
+  }
 
   final String matchId;
   final String gameTable;
@@ -779,29 +802,6 @@ class MatchEcosystemResult {
   /// game has them) — gates the superlatives section.
   bool get hasScores =>
       players.any((p) => p.score != null || p.accuracyPct != null);
-
-  factory MatchEcosystemResult.fromJson(Map<String, dynamic> json) {
-    return MatchEcosystemResult(
-      matchId: (json['matchId'] as String?) ?? '',
-      gameTable: (json['gameTable'] as String?) ?? '',
-      gameName: (json['gameName'] as String?) ?? 'Game',
-      gameIcon: (json['gameIcon'] as String?) ?? '🎮',
-      familyId: (json['familyId'] as String?) ?? '',
-      winners: (json['winners'] as List? ?? [])
-          .map((e) => e.toString())
-          .toList(),
-      playerCount: (json['playerCount'] as num?)?.toInt() ?? 0,
-      durationSeconds: (json['durationSeconds'] as num?)?.toInt() ?? 0,
-      archived: json['archived'] as bool? ?? false,
-      newBadges: _list(json['newBadges'], PlayerBadgeRewards.fromJson),
-      completedChallenges:
-          _list(json['completedChallenges'], PlayerChallengeRewards.fromJson),
-      milestones: _list(json['milestones'], MilestoneReward.fromJson),
-      players: _list(json['players'], MatchPlayerResult.fromJson),
-      personalBests: _list(json['personalBests'], PersonalBestReward.fromJson),
-      participation: _intMap(json['participation']),
-    );
-  }
 }
 
 /// A personal best recorded (or first-ever set) during a match.
@@ -818,16 +818,6 @@ class PersonalBestReward {
     this.firstEver = false,
   });
 
-  final String userId;
-  final String userName;
-
-  /// 'score' (higher better) | 'accuracy_pct' (higher better) |
-  /// 'fastest_win' (seconds, lower better).
-  final String metric;
-  final num value;
-  final num? previousValue;
-  final bool firstEver;
-
   factory PersonalBestReward.fromJson(Map<String, dynamic> json) {
     return PersonalBestReward(
       userId: (json['userId'] as String?) ?? '',
@@ -840,6 +830,16 @@ class PersonalBestReward {
       firstEver: json['firstEver'] as bool? ?? false,
     );
   }
+
+  final String userId;
+  final String userName;
+
+  /// 'score' (higher better) | 'accuracy_pct' (higher better) |
+  /// 'fastest_win' (seconds, lower better).
+  final String metric;
+  final num value;
+  final num? previousValue;
+  final bool firstEver;
 }
 
 /// Family play-streak data (fn_get_family_play_streak) — the "Family
@@ -855,18 +855,6 @@ class FamilyPlayStreak {
     this.lastPlayedAt,
   });
 
-  final int currentStreakDays;
-  final int bestStreakDays;
-  final int matchesThisWeek;
-  final int playersThisWeek;
-  final bool playedToday;
-  final DateTime? lastPlayedAt;
-
-  /// Whether the hub should surface the streak card at all — hidden for
-  /// brand-new families so the hub stays clean until a ritual can start.
-  bool get isVisible =>
-      currentStreakDays > 0 || matchesThisWeek > 0;
-
   factory FamilyPlayStreak.fromJson(Map<String, dynamic> json) {
     return FamilyPlayStreak(
       currentStreakDays:
@@ -880,6 +868,18 @@ class FamilyPlayStreak {
           : DateTime.tryParse(json['lastPlayedAt'].toString()),
     );
   }
+
+  final int currentStreakDays;
+  final int bestStreakDays;
+  final int matchesThisWeek;
+  final int playersThisWeek;
+  final bool playedToday;
+  final DateTime? lastPlayedAt;
+
+  /// Whether the hub should surface the streak card at all — hidden for
+  /// brand-new families so the hub stays clean until a ritual can start.
+  bool get isVisible =>
+      currentStreakDays > 0 || matchesThisWeek > 0;
 }
 
 class PlayerBadgeRewards {
@@ -889,10 +889,6 @@ class PlayerBadgeRewards {
     required this.badges,
   });
 
-  final String userId;
-  final String userName;
-  final List<BadgeInfo> badges;
-
   factory PlayerBadgeRewards.fromJson(Map<String, dynamic> json) {
     return PlayerBadgeRewards(
       userId: (json['userId'] as String?) ?? '',
@@ -900,6 +896,10 @@ class PlayerBadgeRewards {
       badges: _list(json['badges'], BadgeInfo.fromJson),
     );
   }
+
+  final String userId;
+  final String userName;
+  final List<BadgeInfo> badges;
 }
 
 class PlayerChallengeRewards {
@@ -909,10 +909,6 @@ class PlayerChallengeRewards {
     required this.challenges,
   });
 
-  final String userId;
-  final String userName;
-  final List<ChallengeInfo> challenges;
-
   factory PlayerChallengeRewards.fromJson(Map<String, dynamic> json) {
     return PlayerChallengeRewards(
       userId: (json['userId'] as String?) ?? '',
@@ -920,12 +916,14 @@ class PlayerChallengeRewards {
       challenges: _list(json['challenges'], ChallengeInfo.fromJson),
     );
   }
+
+  final String userId;
+  final String userName;
+  final List<ChallengeInfo> challenges;
 }
 
 class MilestoneReward {
   const MilestoneReward({required this.milestone, required this.description});
-  final String milestone;
-  final String description;
 
   factory MilestoneReward.fromJson(Map<String, dynamic> json) {
     return MilestoneReward(
@@ -933,6 +931,8 @@ class MilestoneReward {
       description: (json['description'] as String?) ?? '',
     );
   }
+  final String milestone;
+  final String description;
 }
 
 class MatchPlayerResult {
@@ -944,6 +944,16 @@ class MatchPlayerResult {
     this.accuracyPct,
   });
 
+  factory MatchPlayerResult.fromJson(Map<String, dynamic> json) {
+    return MatchPlayerResult(
+      userId: (json['userId'] as String?) ?? '',
+      userName: (json['userName'] as String?) ?? '',
+      result: (json['result'] as String?) ?? 'played',
+      score: json['score'] is num ? json['score'] as num : null,
+      accuracyPct: (json['accuracyPct'] as num?)?.toInt(),
+    );
+  }
+
   final String userId;
   final String userName;
   final String result;
@@ -954,16 +964,6 @@ class MatchPlayerResult {
 
   /// Accuracy percentage 0–100 (games with hit/miss semantics).
   final int? accuracyPct;
-
-  factory MatchPlayerResult.fromJson(Map<String, dynamic> json) {
-    return MatchPlayerResult(
-      userId: (json['userId'] as String?) ?? '',
-      userName: (json['userName'] as String?) ?? '',
-      result: (json['result'] as String?) ?? 'played',
-      score: json['score'] is num ? json['score'] as num : null,
-      accuracyPct: (json['accuracyPct'] as num?)?.toInt(),
-    );
-  }
 }
 
 List<T> _list<T>(Object? raw, T Function(Map<String, dynamic>) fromJson) {

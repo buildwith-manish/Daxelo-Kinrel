@@ -175,22 +175,6 @@ class RedlightRound {
     required this.createdAt,
   });
 
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final CallerCharacter callerCharacter;
-  final MapTheme mapTheme;
-  final WeatherModifier? weatherModifier;
-  final bool teamMode;
-  final bool eliminationMode;
-  final String status; // lobby | countdown | active | finished
-  final String? winnerUserId;
-  final String? winnerUserName;
-  final DateTime? startedAt;
-  final DateTime? finishedAt;
-  final DateTime createdAt;
-
   factory RedlightRound.fromJson(Map<String, dynamic> json) => RedlightRound(
     id: json['id'] ?? '',
     familyId: json['familyId'] ?? '',
@@ -214,6 +198,22 @@ class RedlightRound {
         DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
   );
 
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final CallerCharacter callerCharacter;
+  final MapTheme mapTheme;
+  final WeatherModifier? weatherModifier;
+  final bool teamMode;
+  final bool eliminationMode;
+  final String status; // lobby | countdown | active | finished
+  final String? winnerUserId;
+  final String? winnerUserName;
+  final DateTime? startedAt;
+  final DateTime? finishedAt;
+  final DateTime createdAt;
+
   bool get isLobby => status == 'lobby';
   bool get isCountdown => status == 'countdown';
   bool get isActive => status == 'active';
@@ -234,19 +234,6 @@ class RedlightPlayer {
     this.isReady = false,
     this.readyAt,
   });
-
-  final String id;
-  final String roundId;
-  final String userId;
-  final String userName;
-  final String? teamId;
-  final double progress;
-  final bool alive;
-  final List<ActivePowerup> powerups;
-  final DateTime joinedAt;
-  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
-  final bool isReady;
-  final DateTime? readyAt;
 
   factory RedlightPlayer.fromJson(Map<String, dynamic> json) {
     final rawPowerups = (json['powerups'] as List?) ?? [];
@@ -269,6 +256,19 @@ class RedlightPlayer {
           : null,
     );
   }
+
+  final String id;
+  final String roundId;
+  final String userId;
+  final String userName;
+  final String? teamId;
+  final double progress;
+  final bool alive;
+  final List<ActivePowerup> powerups;
+  final DateTime joinedAt;
+  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
+  final bool isReady;
+  final DateTime? readyAt;
 
   RedlightPlayer copyWith({
     double? progress,
@@ -295,14 +295,14 @@ class ActivePowerup {
     required this.type,
     required this.expiresAt,
   });
-  final PowerupType type;
-  final DateTime expiresAt;
 
   factory ActivePowerup.fromJson(Map<String, dynamic> json) => ActivePowerup(
     type: PowerupTypeX.fromString(json['type']),
     expiresAt:
         DateTime.tryParse(json['expiresAt'] ?? '') ?? DateTime.now(),
   );
+  final PowerupType type;
+  final DateTime expiresAt;
 
   bool get isActive => DateTime.now().isBefore(expiresAt);
 }
@@ -318,14 +318,6 @@ class RedlightResult {
     required this.finishedAt,
   });
 
-  final String id;
-  final String roundId;
-  final String userId;
-  final String userName;
-  final double finalProgress;
-  final int placement;
-  final DateTime finishedAt;
-
   factory RedlightResult.fromJson(Map<String, dynamic> json) =>
       RedlightResult(
         id: json['id'] ?? '',
@@ -337,6 +329,14 @@ class RedlightResult {
         finishedAt:
             DateTime.tryParse(json['finishedAt'] ?? '') ?? DateTime.now(),
       );
+
+  final String id;
+  final String roundId;
+  final String userId;
+  final String userName;
+  final double finalProgress;
+  final int placement;
+  final DateTime finishedAt;
 }
 
 class SpawnedPowerup {
@@ -344,10 +344,7 @@ class SpawnedPowerup {
     required this.powerupId,
     required this.type,
     required this.position,
-  });
-  final String powerupId;
-  final PowerupType type;
-  final double position; // 0–100, track position
+  }); // 0–100, track position
 
   factory SpawnedPowerup.fromJson(Map<String, dynamic> json) =>
       SpawnedPowerup(
@@ -355,6 +352,9 @@ class SpawnedPowerup {
         type: PowerupTypeX.fromString(json['type']),
         position: (json['position'] as num?)?.toDouble() ?? 0,
       );
+  final String powerupId;
+  final PowerupType type;
+  final double position;
 }
 
 /// Compact leaderboard entry pushed by the gateway every 500ms.
@@ -366,11 +366,6 @@ class RedlightLeaderboardEntry {
     required this.alive,
     this.teamId,
   });
-  final String userId;
-  final String userName;
-  final double progress;
-  final bool alive;
-  final String? teamId;
 
   factory RedlightLeaderboardEntry.fromJson(Map<String, dynamic> json) =>
       RedlightLeaderboardEntry(
@@ -380,4 +375,9 @@ class RedlightLeaderboardEntry {
         alive: json['alive'] ?? true,
         teamId: json['teamId'],
       );
+  final String userId;
+  final String userName;
+  final double progress;
+  final bool alive;
+  final String? teamId;
 }

@@ -15,16 +15,6 @@ import 'package:kinrel/graph/engine/radial_layout.dart';
 // family_graph_provider.dart. We duplicate it here because the
 // original is private. If the original changes, update this to match.
 class _TestLayoutInput {
-  final List<GraphPerson> persons;
-  final List<GraphRelationship> relationships;
-  final String anchorPersonId;
-  final double ringSpacing;
-  final double compactSpacing;
-  final double spouseAngularOffset;
-  final double canvasPadding;
-  final double baseRadius;
-  final bool compact;
-  final double minAngularGap;
 
   const _TestLayoutInput({
     required this.persons,
@@ -38,6 +28,16 @@ class _TestLayoutInput {
     required this.compact,
     required this.minAngularGap,
   });
+  final List<GraphPerson> persons;
+  final List<GraphRelationship> relationships;
+  final String anchorPersonId;
+  final double ringSpacing;
+  final double compactSpacing;
+  final double spouseAngularOffset;
+  final double canvasPadding;
+  final double baseRadius;
+  final bool compact;
+  final double minAngularGap;
 }
 
 /// Mirror of the private _radialLayoutIsolateEntry.
@@ -65,29 +65,29 @@ void main() {
     test('isolate produces identical result to sync layout', () async {
       // Build a small family: anchor + 5 children + 2 spouses.
       final persons = <GraphPerson>[
-        GraphPerson(id: 'anchor', name: 'Anchor', isAnchor: true),
-        GraphPerson(id: 'c1', name: 'Child 1'),
-        GraphPerson(id: 'c2', name: 'Child 2'),
-        GraphPerson(id: 'c3', name: 'Child 3'),
-        GraphPerson(id: 'c4', name: 'Child 4'),
-        GraphPerson(id: 'c5', name: 'Child 5'),
-        GraphPerson(id: 's1', name: 'Spouse 1'),
-        GraphPerson(id: 's2', name: 'Spouse 2'),
+        const GraphPerson(id: 'anchor', name: 'Anchor', isAnchor: true),
+        const GraphPerson(id: 'c1', name: 'Child 1'),
+        const GraphPerson(id: 'c2', name: 'Child 2'),
+        const GraphPerson(id: 'c3', name: 'Child 3'),
+        const GraphPerson(id: 'c4', name: 'Child 4'),
+        const GraphPerson(id: 'c5', name: 'Child 5'),
+        const GraphPerson(id: 's1', name: 'Spouse 1'),
+        const GraphPerson(id: 's2', name: 'Spouse 2'),
       ];
       final relationships = <GraphRelationship>[
-        GraphRelationship(
+        const GraphRelationship(
             id: 'r1', fromPersonId: 'anchor', toPersonId: 'c1', relationshipKey: 'child'),
-        GraphRelationship(
+        const GraphRelationship(
             id: 'r2', fromPersonId: 'anchor', toPersonId: 'c2', relationshipKey: 'child'),
-        GraphRelationship(
+        const GraphRelationship(
             id: 'r3', fromPersonId: 'anchor', toPersonId: 'c3', relationshipKey: 'child'),
-        GraphRelationship(
+        const GraphRelationship(
             id: 'r4', fromPersonId: 'anchor', toPersonId: 'c4', relationshipKey: 'child'),
-        GraphRelationship(
+        const GraphRelationship(
             id: 'r5', fromPersonId: 'anchor', toPersonId: 'c5', relationshipKey: 'child'),
-        GraphRelationship(
+        const GraphRelationship(
             id: 'r6', fromPersonId: 'anchor', toPersonId: 's1', relationshipKey: 'spouse'),
-        GraphRelationship(
+        const GraphRelationship(
             id: 'r7', fromPersonId: 'c1', toPersonId: 's2', relationshipKey: 'spouse'),
       ];
 
@@ -144,7 +144,7 @@ void main() {
       // Simulate a branch expand to 50 nodes. The isolate should
       // complete without error and return positions for all 50.
       final persons = <GraphPerson>[
-        GraphPerson(id: 'anchor', name: 'Anchor', isAnchor: true),
+        const GraphPerson(id: 'anchor', name: 'Anchor', isAnchor: true),
         for (var i = 1; i < 50; i++)
           GraphPerson(id: 'p$i', name: 'Person $i'),
       ];
@@ -186,7 +186,7 @@ void main() {
     test('isolate handles empty graph gracefully', () async {
       final result = await compute(
         _testLayoutIsolateEntry,
-        _TestLayoutInput(
+        const _TestLayoutInput(
           persons: <GraphPerson>[],
           relationships: <GraphRelationship>[],
           anchorPersonId: 'none',

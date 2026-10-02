@@ -26,8 +26,8 @@ void main() {
   group('FamilyGraphScreen FAB presence', () {
     /// Build a 4-member FlatGraphResult so onboarding is done (4+ members
     /// means no onboarding overlay, which simplifies the test).
-    FlatGraphResult _buildFourMemberGraph() {
-      return FlatGraphResult(
+    FlatGraphResult buildFourMemberGraph() {
+      return const FlatGraphResult(
         persons: [
           <String, dynamic>{
             'id': 'p1',
@@ -93,7 +93,7 @@ void main() {
     }
 
     /// Builds a GoRouter that maps '/' to FamilyGraphScreen.
-    GoRouter _buildTestRouter() {
+    GoRouter buildTestRouter() {
       return GoRouter(
         routes: [
           GoRoute(
@@ -116,7 +116,7 @@ void main() {
     testWidgets(
       'v10: 4-member graph does NOT show FAB (FAB only in empty state)',
       (tester) async {
-        final graphData = _buildFourMemberGraph();
+        final graphData = buildFourMemberGraph();
 
         tester.view.physicalSize = const Size(1080, 1920);
         tester.view.devicePixelRatio = 1.0;
@@ -133,7 +133,7 @@ void main() {
               ),
             ],
             child: MaterialApp.router(
-              routerConfig: _buildTestRouter(),
+              routerConfig: buildTestRouter(),
             ),
           ),
         );
@@ -171,7 +171,7 @@ void main() {
     testWidgets(
       'v10: Empty graph (0 members) DOES show FAB',
       (tester) async {
-        final emptyGraph = FlatGraphResult(
+        final emptyGraph = const FlatGraphResult(
           persons: [],
           relationships: [],
         );
@@ -184,7 +184,7 @@ void main() {
               ),
             ],
             child: MaterialApp.router(
-              routerConfig: _buildTestRouter(),
+              routerConfig: buildTestRouter(),
             ),
           ),
         );
@@ -224,9 +224,9 @@ void main() {
 /// A fake FamilyGraphNotifier that immediately returns the provided
 /// [FlatGraphResult] without making any Supabase/RPC calls.
 class _FakeFamilyGraphNotifier extends FamilyGraphNotifier {
-  final FlatGraphResult _graphData;
 
   _FakeFamilyGraphNotifier(this._graphData);
+  final FlatGraphResult _graphData;
 
   @override
   Future<FlatGraphResult> build(String familyId) async {

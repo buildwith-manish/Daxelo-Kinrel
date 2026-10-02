@@ -79,7 +79,7 @@ class _SosCardState extends ConsumerState<SosCard> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
+                    const Expanded(
                       child: Text(
                         'SOS',
                         style: TextStyle(
@@ -94,7 +94,7 @@ class _SosCardState extends ConsumerState<SosCard> {
                 ),
                 const SizedBox(height: 10),
                 if (dlState.status != GameDownloadStatus.downloaded)
-                  Text(
+                  const Text(
                     'Download in Games hub to play',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -103,7 +103,7 @@ class _SosCardState extends ConsumerState<SosCard> {
                     ),
                   )
                 else
-                  Text(
+                  const Text(
                     'Complete S-O-S sequences — 2-player or 4-player team mode',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,

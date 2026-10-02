@@ -149,7 +149,7 @@ class _FreezeDashIcon extends _GameIconPainter {
     // Arm forward
     canvas.drawLine(Offset(s * 0.48, s * 0.4), Offset(s * 0.7, s * 0.35), strokePaint..strokeWidth = s * 0.05);
     // Frost accent (small snowflake near feet)
-    final frost = Paint()..color = Color(0xFF93C5FD)..style = PaintingStyle.fill;
+    final frost = Paint()..color = const Color(0xFF93C5FD)..style = PaintingStyle.fill;
     canvas.drawCircle(Offset(s * 0.75, s * 0.85), s * 0.06, frost);
   }
   @override

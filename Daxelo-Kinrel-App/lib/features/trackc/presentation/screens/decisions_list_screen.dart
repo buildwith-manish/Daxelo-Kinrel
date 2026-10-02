@@ -92,9 +92,9 @@ class _TrackcDecisionsListScreenState extends ConsumerState<TrackcDecisionsListS
       body: TabBarView(
         controller: _tabController,
         children: [
-          _DecisionList(status: 'open'),
-          _DecisionList(status: 'resolved'),
-          _DecisionList(status: null),
+          const _DecisionList(status: 'open'),
+          const _DecisionList(status: 'resolved'),
+          const _DecisionList(status: null),
           // Secretary is now a tab inside Decisions
           const TrackcSecretaryScreen(embedded: true),
           // Analytics is now a tab inside Decisions

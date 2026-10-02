@@ -43,7 +43,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/brand_colors.dart';
@@ -117,7 +116,7 @@ class KinshipShareCard extends StatelessWidget {
             // ── Top row: "Did you know?" + language chip ──────────────
             Row(
               children: [
-                Text(
+                const Text(
                   '✨ Did you know?',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -139,7 +138,7 @@ class KinshipShareCard extends StatelessWidget {
                     ),
                     child: Text(
                       languageName!,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 10,
                         fontWeight: FontWeight.w500,
@@ -154,7 +153,7 @@ class KinshipShareCard extends StatelessWidget {
             // ── The kinship term — the hero of the card ───────────────
             Text(
               kinshipTerm,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 48,
                 fontWeight: FontWeight.w800,
@@ -177,7 +176,7 @@ class KinshipShareCard extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.route_outlined,
                     size: 14,
                     color: KinrelColors.textSilver,
@@ -186,7 +185,7 @@ class KinshipShareCard extends StatelessWidget {
                   Flexible(
                     child: Text(
                       relationshipPath,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
                         color: KinrelColors.textSilver,
@@ -202,7 +201,7 @@ class KinshipShareCard extends StatelessWidget {
             // ── Bottom row: family name + Kinrel branding ────────────
             Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.cottage_rounded,
                   size: 14,
                   color: KinrelColors.textDim,
@@ -211,7 +210,7 @@ class KinshipShareCard extends StatelessWidget {
                 Flexible(
                   child: Text(
                     familyName,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.textDim,
@@ -220,7 +219,7 @@ class KinshipShareCard extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                Text(
+                const Text(
                   'KINREL',
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,

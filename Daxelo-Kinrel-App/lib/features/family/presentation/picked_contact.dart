@@ -8,8 +8,8 @@
 
 /// A simple data class holding the picked contact's details.
 class PickedContact {
+  const PickedContact({this.name, this.phone, this.email});
   final String? name;
   final String? phone;
   final String? email;
-  const PickedContact({this.name, this.phone, this.email});
 }

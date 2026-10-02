@@ -129,7 +129,7 @@ class _AshtaChammaLobbyScreenState
                 state.game?.roomName?.isNotEmpty == true
                     ? state.game!.roomName!
                     : 'Ashta Chamma',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontWeight: FontWeight.w600,
                   color: KinrelColors.textWhite,
@@ -207,7 +207,7 @@ class _AshtaChammaLobbyScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            const Text(
               'Share this code',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -219,7 +219,7 @@ class _AshtaChammaLobbyScreenState
             const SizedBox(height: KinrelSpacing.md),
             Text(
               code,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 40,
                 fontWeight: FontWeight.w700,
@@ -232,7 +232,7 @@ class _AshtaChammaLobbyScreenState
               'Up to ${_maxPlayers - 1} family members can join. '
               'First to bring all 4 pieces home wins!',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textDim,
@@ -349,7 +349,7 @@ class _AshtaChammaLobbyScreenState
     return TextField(
       controller: _roomNameController,
       maxLength: 24,
-      style: TextStyle(
+      style: const TextStyle(
         fontFamily: KinrelTypography.bodyFont,
         fontSize: 14,
         color: KinrelColors.textWhite,
@@ -368,7 +368,7 @@ class _AshtaChammaLobbyScreenState
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(KinrelRadius.md),
-          borderSide: BorderSide(color: KinrelColors.border),
+          borderSide: const BorderSide(color: KinrelColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(KinrelRadius.md),

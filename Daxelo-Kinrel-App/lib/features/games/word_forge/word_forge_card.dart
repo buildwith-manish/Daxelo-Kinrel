@@ -78,7 +78,7 @@ class _WordForgeCardState extends ConsumerState<WordForgeCard> {
                     children: [
                       Row(
                         children: [
-                          Expanded(
+                          const Expanded(
                             child: Text(
                               'Word Forge',
                               style: TextStyle(
@@ -98,7 +98,7 @@ class _WordForgeCardState extends ConsumerState<WordForgeCard> {
                               border: Border.all(
                                   color: accent.withValues(alpha: 0.4)),
                             ),
-                            child: Text(
+                            child: const Text(
                               '3–8',
                               style: TextStyle(
                                 fontFamily: KinrelTypography.monoFont,
@@ -111,7 +111,7 @@ class _WordForgeCardState extends ConsumerState<WordForgeCard> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      const Text(
                         'Balderdash · Forge fake definitions',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
@@ -132,7 +132,7 @@ class _WordForgeCardState extends ConsumerState<WordForgeCard> {
                           ),
                         )
                       else
-                        Text(
+                        const Text(
                           'Obscure words. Fool your family with fake definitions. Guess the real one!',
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,

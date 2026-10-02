@@ -24,6 +24,13 @@ class CarromCoin {
     this.isPotted = false,
   });
 
+  factory CarromCoin.fromJson(Map<String, dynamic> json) => CarromCoin(
+    type: CarromCoinTypeX.fromString(json['type']),
+    x: (json['x'] as num?)?.toDouble() ?? 0,
+    y: (json['y'] as num?)?.toDouble() ?? 0,
+    isPotted: json['isPotted'] ?? false,
+  );
+
   final CarromCoinType type;
   final double x;
   final double y;
@@ -42,20 +49,13 @@ class CarromCoin {
     'y': y,
     'isPotted': isPotted,
   };
-
-  factory CarromCoin.fromJson(Map<String, dynamic> json) => CarromCoin(
-    type: CarromCoinTypeX.fromString(json['type']),
-    x: (json['x'] as num?)?.toDouble() ?? 0,
-    y: (json['y'] as num?)?.toDouble() ?? 0,
-    isPotted: json['isPotted'] ?? false,
-  );
 }
 
 /// Create the initial board: 19 coins in a hexagonal flower pattern.
 /// Queen at center, inner ring of 6, outer ring of 12, alternating colors.
 List<CarromCoin> createInitialBoard() {
   final coins = <CarromCoin>[];
-  final center = math.Point<double>(0, 0);
+  final center = const math.Point<double>(0, 0);
 
   // Queen at center
   coins.add(const CarromCoin(type: CarromCoinType.queen, x: 0, y: 0));
@@ -217,7 +217,7 @@ TurnResult evaluateTurn({
 
   // If foul: any own-color coins potted this turn are returned to center
   // (standard carrom rule — fouling voids your potted coins for that turn)
-  List<CarromCoin> updatedCoins = List<CarromCoin>.from(coinsAfter);
+  final List<CarromCoin> updatedCoins = List<CarromCoin>.from(coinsAfter);
 
   if (wasFoul) {
     // Return any coins potted this turn back to the board (at center area)

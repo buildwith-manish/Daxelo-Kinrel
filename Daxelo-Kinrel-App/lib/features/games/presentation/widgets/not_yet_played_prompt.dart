@@ -60,7 +60,7 @@ class NotYetPlayedPrompt extends StatelessWidget {
                   member.userName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -68,7 +68,7 @@ class NotYetPlayedPrompt extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
+                const Text(
                   'Hasn\'t played yet — invite them',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -95,12 +95,12 @@ class NotYetPlayedPrompt extends StatelessWidget {
                 color: KinrelColors.orange,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const KinrelIcon(KinrelIconData.controller,
+                  KinrelIcon(KinrelIconData.controller,
                       size: 12, color: Colors.white),
-                  const SizedBox(width: 4),
+                  SizedBox(width: 4),
                   Text(
                     'Invite',
                     style: TextStyle(
@@ -174,7 +174,7 @@ class _Avatar extends StatelessWidget {
             : null,
         child: Text(
           name.isEmpty ? '?' : name.substring(0, 1).toUpperCase(),
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 12,
             fontWeight: FontWeight.w800,

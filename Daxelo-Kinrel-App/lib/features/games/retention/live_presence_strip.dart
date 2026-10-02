@@ -56,7 +56,7 @@ class LivePresenceStrip extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     '${online.length} ${online.length == 1 ? "person" : "people"} here now',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -179,10 +179,10 @@ class _EmptyPresence extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.nightlight_outlined,
+          const Icon(Icons.nightlight_outlined,
               size: 16, color: KinrelColors.textDim),
           const SizedBox(width: 8),
-          Expanded(
+          const Expanded(
             child: Text(
               'Be the first one here — invite someone to play',
               style: TextStyle(
@@ -202,7 +202,7 @@ class _EmptyPresence extends StatelessWidget {
                 border: Border.all(
                     color: KinrelColors.orange.withValues(alpha: 0.3)),
               ),
-              child: Text(
+              child: const Text(
                 'Invite',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,

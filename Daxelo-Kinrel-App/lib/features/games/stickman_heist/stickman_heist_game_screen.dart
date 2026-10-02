@@ -196,7 +196,7 @@ class _StickmanHeistGameScreenState
           backgroundColor: KinrelColors.darkCard,
           foregroundColor: KinrelColors.textWhite,
         ),
-        body: Center(
+        body: const Center(
           child: GamingEmptyCard(
             emoji: '💎',
             title: 'Game not found',
@@ -213,7 +213,7 @@ class _StickmanHeistGameScreenState
             icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
         title: Text(
           game.roomName?.isNotEmpty == true ? game.roomName! : 'Stickman Heist',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
             color: KinrelColors.textWhite,
@@ -435,7 +435,7 @@ class _TopHud extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: KinrelColors.darkCard,
         border: Border(bottom: BorderSide(color: KinrelColors.border)),
       ),
@@ -566,7 +566,7 @@ class _HpBar extends StatelessWidget {
                 ],
                 Text(
                   '$health/$maxHealth',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
@@ -626,7 +626,7 @@ class _WeaponChip extends StatelessWidget {
                   reloading
                       ? 'RELOADING…'
                       : '$ammo / $maxAmmo',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -696,11 +696,11 @@ class _KillsChip extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             '$kills',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 13,
               fontWeight: FontWeight.w800,
-              color: const Color(0xFFEF4444),
+              color: Color(0xFFEF4444),
             ),
           ),
         ],
@@ -820,10 +820,10 @@ class _ArenaPainter extends CustomPainter {
 
     // ── Background ──
     final bgPaint = Paint()
-      ..shader = LinearGradient(
+      ..shader = const LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: const [
+        colors: [
           Color(0xFF0F1424),
           Color(0xFF16182B),
         ],
@@ -1698,7 +1698,7 @@ class _ResultsView extends StatelessWidget {
                       ? '$winnerName escaped with the treasure!'
                       : 'Time out — no one escaped',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
@@ -1708,7 +1708,7 @@ class _ResultsView extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   didEscape ? 'Victory!' : 'No winner',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     color: KinrelColors.textSilver,
@@ -1720,7 +1720,7 @@ class _ResultsView extends StatelessWidget {
           const SizedBox(height: 18),
 
           // ── Leaderboard ──
-          GamingSectionHeader(
+          const GamingSectionHeader(
               title: 'Leaderboard', icon: Icons.leaderboard_outlined),
           for (var i = 0; i < sortedPlayers.length; i++)
             _LeaderboardRow(
@@ -1731,7 +1731,7 @@ class _ResultsView extends StatelessWidget {
           const SizedBox(height: 18),
 
           // ── Match stats summary ──
-          GamingSectionHeader(
+          const GamingSectionHeader(
               title: 'Match Summary', icon: Icons.insights_outlined),
           _StatRow(
               label: 'Map',
@@ -1858,7 +1858,7 @@ class _LeaderboardRow extends StatelessWidget {
             Expanded(
               child: Text(
                 player.name,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -1867,8 +1867,8 @@ class _LeaderboardRow extends StatelessWidget {
               ),
             ),
             if (player.hasTreasure)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
+              const Padding(
+                padding: EdgeInsets.only(right: 8),
                 child: Text('💎',
                     style: TextStyle(fontSize: 12)),
               ),
@@ -1949,7 +1949,7 @@ class _StatRow extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim,
@@ -1958,7 +1958,7 @@ class _StatRow extends StatelessWidget {
             ),
             Text(
               value,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,

@@ -270,6 +270,14 @@ class NightFallsPlayer {
     this.votedFor,
   });
 
+  factory NightFallsPlayer.fromJson(Map<String, dynamic> json) =>
+      NightFallsPlayer(
+        idx: (json['idx'] as num?)?.toInt() ?? 0,
+        userId: (json['userId'] ?? '') as String,
+        name: (json['name'] ?? 'Player') as String,
+        isAlive: (json['isAlive'] as bool?) ?? true,
+      );
+
   final int idx;
   final String userId;
   final String name;
@@ -300,14 +308,6 @@ class NightFallsPlayer {
         'name': name,
         'isAlive': isAlive,
       };
-
-  factory NightFallsPlayer.fromJson(Map<String, dynamic> json) =>
-      NightFallsPlayer(
-        idx: (json['idx'] as num?)?.toInt() ?? 0,
-        userId: (json['userId'] ?? '') as String,
-        name: (json['name'] ?? 'Player') as String,
-        isAlive: (json['isAlive'] as bool?) ?? true,
-      );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -322,6 +322,14 @@ class NightFallsNightActions {
     required this.noKill,
   });
 
+  factory NightFallsNightActions.fromJson(Map<String, dynamic> json) =>
+      NightFallsNightActions(
+        lockedCount: (json['lockedCount'] as num?)?.toInt() ?? 0,
+        killedUserId: json['killedUserId'] as String?,
+        killedUserName: json['killedUserName'] as String?,
+        noKill: (json['noKill'] as bool?) ?? false,
+      );
+
   final int lockedCount;
   final String? killedUserId;
   final String? killedUserName;
@@ -333,14 +341,6 @@ class NightFallsNightActions {
         'killedUserName': killedUserName,
         'noKill': noKill,
       };
-
-  factory NightFallsNightActions.fromJson(Map<String, dynamic> json) =>
-      NightFallsNightActions(
-        lockedCount: (json['lockedCount'] as num?)?.toInt() ?? 0,
-        killedUserId: json['killedUserId'] as String?,
-        killedUserName: json['killedUserName'] as String?,
-        noKill: (json['noKill'] as bool?) ?? false,
-      );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -353,6 +353,12 @@ class NightFallsVote {
     required this.targetUserId,
   });
 
+  factory NightFallsVote.fromJson(Map<String, dynamic> json) =>
+      NightFallsVote(
+        voterUserId: (json['voter'] ?? '') as String,
+        targetUserId: (json['target'] ?? '') as String,
+      );
+
   final String voterUserId;
   final String targetUserId;
 
@@ -360,12 +366,6 @@ class NightFallsVote {
         'voter': voterUserId,
         'target': targetUserId,
       };
-
-  factory NightFallsVote.fromJson(Map<String, dynamic> json) =>
-      NightFallsVote(
-        voterUserId: (json['voter'] ?? '') as String,
-        targetUserId: (json['target'] ?? '') as String,
-      );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -387,34 +387,6 @@ class NightFallsRound {
     this.hunterRevengeTargetName,
     this.hunterRevengeRole,
   });
-
-  final int roundNumber;
-  final NightFallsPhase phase;
-  final NightFallsNightActions nightActions;
-  final List<NightFallsVote> dayVotes;
-  final int voteLockedCount;
-  final String? eliminatedUserId;
-  final String? eliminatedUserName;
-  final NightFallsRole? eliminatedRole;
-  final bool hunterRevengePending;
-  final String? hunterRevengeTargetId;
-  final String? hunterRevengeTargetName;
-  final NightFallsRole? hunterRevengeRole;
-
-  Map<String, dynamic> toJson() => {
-        'roundNumber': roundNumber,
-        'phase': phase.wire,
-        'nightActions': nightActions.toJson(),
-        'dayVotes': dayVotes.map((v) => v.toJson()).toList(),
-        'voteLockedCount': voteLockedCount,
-        'eliminatedUserId': eliminatedUserId,
-        'eliminatedUserName': eliminatedUserName,
-        'eliminatedRole': eliminatedRole?.wire,
-        'hunterRevengePending': hunterRevengePending,
-        'hunterRevengeTargetId': hunterRevengeTargetId,
-        'hunterRevengeTargetName': hunterRevengeTargetName,
-        'hunterRevengeRole': hunterRevengeRole?.wire,
-      };
 
   factory NightFallsRound.fromJson(Map<String, dynamic> json) {
     final votesList = <NightFallsVote>[];
@@ -447,6 +419,34 @@ class NightFallsRound {
           NightFallsRoleX.fromString(json['hunterRevengeRole'] as String?),
     );
   }
+
+  final int roundNumber;
+  final NightFallsPhase phase;
+  final NightFallsNightActions nightActions;
+  final List<NightFallsVote> dayVotes;
+  final int voteLockedCount;
+  final String? eliminatedUserId;
+  final String? eliminatedUserName;
+  final NightFallsRole? eliminatedRole;
+  final bool hunterRevengePending;
+  final String? hunterRevengeTargetId;
+  final String? hunterRevengeTargetName;
+  final NightFallsRole? hunterRevengeRole;
+
+  Map<String, dynamic> toJson() => {
+        'roundNumber': roundNumber,
+        'phase': phase.wire,
+        'nightActions': nightActions.toJson(),
+        'dayVotes': dayVotes.map((v) => v.toJson()).toList(),
+        'voteLockedCount': voteLockedCount,
+        'eliminatedUserId': eliminatedUserId,
+        'eliminatedUserName': eliminatedUserName,
+        'eliminatedRole': eliminatedRole?.wire,
+        'hunterRevengePending': hunterRevengePending,
+        'hunterRevengeTargetId': hunterRevengeTargetId,
+        'hunterRevengeTargetName': hunterRevengeTargetName,
+        'hunterRevengeRole': hunterRevengeRole?.wire,
+      };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -468,6 +468,56 @@ class NightFallsBoardState {
     required this.rolesRevealed,
     required this.roles,
   });
+
+  factory NightFallsBoardState.fromJson(Map<String, dynamic> json) {
+    final roundsList = <NightFallsRound>[];
+    final rawRounds = json['rounds'];
+    if (rawRounds is List) {
+      for (final r in rawRounds) {
+        if (r is Map) {
+          roundsList.add(
+              NightFallsRound.fromJson(Map<String, dynamic>.from(r)));
+        }
+      }
+    }
+    final playersList = <NightFallsPlayer>[];
+    final rawPlayers = json['players'];
+    if (rawPlayers is List) {
+      for (final p in rawPlayers) {
+        if (p is Map) {
+          playersList.add(
+              NightFallsPlayer.fromJson(Map<String, dynamic>.from(p)));
+        }
+      }
+    }
+    final rolesMap = <String, NightFallsRole>{};
+    final rawRoles = json['roles'];
+    if (rawRoles is Map) {
+      rawRoles.forEach((k, v) {
+        rolesMap[k.toString()] = NightFallsRoleX.fromString(v.toString());
+      });
+    }
+    return NightFallsBoardState(
+      playerCount: (json['playerCount'] as num?)?.toInt() ??
+          kNightFallsMinPlayers,
+      nightSeconds: (json['nightSeconds'] as num?)?.toInt() ??
+          kNightFallsDefaultNightSeconds,
+      daySeconds: (json['daySeconds'] as num?)?.toInt() ??
+          kNightFallsDefaultDaySeconds,
+      voteSeconds: (json['voteSeconds'] as num?)?.toInt() ??
+          kNightFallsDefaultVoteSeconds,
+      roleRevealSeconds: (json['roleRevealSeconds'] as num?)?.toInt() ??
+          kNightFallsDefaultRoleRevealSeconds,
+      currentRoundNumber:
+          (json['currentRoundNumber'] as num?)?.toInt() ?? 1,
+      rounds: roundsList,
+      players: playersList,
+      status: (json['status'] as String?) ?? 'in_progress',
+      winnerTeam: NightFallsTeamX.fromString(json['winnerTeam'] as String?),
+      rolesRevealed: (json['rolesRevealed'] as bool?) ?? false,
+      roles: rolesMap,
+    );
+  }
 
   final int playerCount;
   final int nightSeconds;
@@ -530,56 +580,6 @@ class NightFallsBoardState {
         'rolesRevealed': rolesRevealed,
         'roles': roles.map((k, v) => MapEntry(k, v.wire)),
       };
-
-  factory NightFallsBoardState.fromJson(Map<String, dynamic> json) {
-    final roundsList = <NightFallsRound>[];
-    final rawRounds = json['rounds'];
-    if (rawRounds is List) {
-      for (final r in rawRounds) {
-        if (r is Map) {
-          roundsList.add(
-              NightFallsRound.fromJson(Map<String, dynamic>.from(r)));
-        }
-      }
-    }
-    final playersList = <NightFallsPlayer>[];
-    final rawPlayers = json['players'];
-    if (rawPlayers is List) {
-      for (final p in rawPlayers) {
-        if (p is Map) {
-          playersList.add(
-              NightFallsPlayer.fromJson(Map<String, dynamic>.from(p)));
-        }
-      }
-    }
-    final rolesMap = <String, NightFallsRole>{};
-    final rawRoles = json['roles'];
-    if (rawRoles is Map) {
-      rawRoles.forEach((k, v) {
-        rolesMap[k.toString()] = NightFallsRoleX.fromString(v.toString());
-      });
-    }
-    return NightFallsBoardState(
-      playerCount: (json['playerCount'] as num?)?.toInt() ??
-          kNightFallsMinPlayers,
-      nightSeconds: (json['nightSeconds'] as num?)?.toInt() ??
-          kNightFallsDefaultNightSeconds,
-      daySeconds: (json['daySeconds'] as num?)?.toInt() ??
-          kNightFallsDefaultDaySeconds,
-      voteSeconds: (json['voteSeconds'] as num?)?.toInt() ??
-          kNightFallsDefaultVoteSeconds,
-      roleRevealSeconds: (json['roleRevealSeconds'] as num?)?.toInt() ??
-          kNightFallsDefaultRoleRevealSeconds,
-      currentRoundNumber:
-          (json['currentRoundNumber'] as num?)?.toInt() ?? 1,
-      rounds: roundsList,
-      players: playersList,
-      status: (json['status'] as String?) ?? 'in_progress',
-      winnerTeam: NightFallsTeamX.fromString(json['winnerTeam'] as String?),
-      rolesRevealed: (json['rolesRevealed'] as bool?) ?? false,
-      roles: rolesMap,
-    );
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────

@@ -30,7 +30,7 @@ void main() {
       final file = File(
           'lib/features/trackc/presentation/screens/decisions_list_screen.dart');
       final content = file.readAsStringSync();
-      expect(content.contains("context.push<bool>"), isTrue);
+      expect(content.contains('context.push<bool>'), isTrue);
     });
 
     test('decisions_list_screen.dart does NOT use MaterialPageRoute for create',
@@ -38,7 +38,7 @@ void main() {
       final file = File(
           'lib/features/trackc/presentation/screens/decisions_list_screen.dart');
       final content = file.readAsStringSync();
-      expect(content.contains("MaterialPageRoute"), isFalse);
+      expect(content.contains('MaterialPageRoute'), isFalse);
     });
 
     test('route is deep-linkable via /family/:id/governance/decisions/create',

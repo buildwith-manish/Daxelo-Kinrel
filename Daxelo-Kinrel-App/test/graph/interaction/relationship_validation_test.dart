@@ -212,7 +212,7 @@ void main() {
     });
 
     test('TEST 8: undo add relationship', () {
-      final command = GraphEditCommand(
+      final command = const GraphEditCommand(
         type: GraphEditType.addRelationship,
         familyId: 'fam-1',
         fromPersonId: 'A',
@@ -231,7 +231,7 @@ void main() {
     });
 
     test('TEST 8: undo remove relationship', () {
-      final command = GraphEditCommand(
+      final command = const GraphEditCommand(
         type: GraphEditType.removeRelationship,
         familyId: 'fam-1',
         fromPersonId: 'A',
@@ -249,7 +249,7 @@ void main() {
 
     test('TEST 9: graph revision after edit (revision bumps)', () {
       final rev1 = notifier.state.revision;
-      notifier.push(GraphEditCommand(
+      notifier.push(const GraphEditCommand(
         type: GraphEditType.addRelationship,
         familyId: 'fam-1',
         fromPersonId: 'A',
@@ -279,7 +279,7 @@ void main() {
     });
 
     test('clearAll resets the stack', () {
-      notifier.push(GraphEditCommand(
+      notifier.push(const GraphEditCommand(
         type: GraphEditType.addRelationship,
         familyId: 'fam-1',
         fromPersonId: 'A',

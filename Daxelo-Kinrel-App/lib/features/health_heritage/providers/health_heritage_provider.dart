@@ -981,14 +981,14 @@ class HealthHeritageNotifier extends StateNotifier<HealthHeritageState> {
     // Recommendation: Preventive screening
     if (riskScore > 0.3) {
       insights.add(
-        HealthInsight(
+        const HealthInsight(
           id: 'insight_screening',
           title: 'Preventive Screening',
           description:
               'Based on your family health profile, annual health checkups and genetic screening are recommended.',
           type: InsightType.recommendation,
           icon: Icons.health_and_safety_rounded,
-          color: const Color(0xFF22C55E),
+          color: Color(0xFF22C55E),
           actionLabel: 'Schedule Checkup',
         ),
       );
@@ -998,14 +998,14 @@ class HealthHeritageNotifier extends StateNotifier<HealthHeritageState> {
     if (byCategory.containsKey(HealthCategory.cardiovascular) ||
         byCategory.containsKey(HealthCategory.diabetes)) {
       insights.add(
-        HealthInsight(
+        const HealthInsight(
           id: 'insight_lifestyle',
           title: 'Lifestyle Recommendations',
           description:
               'Heart-healthy diet, regular exercise, and stress management can help reduce risk of inherited cardiovascular and diabetic conditions.',
           type: InsightType.recommendation,
           icon: Icons.self_improvement_rounded,
-          color: const Color(0xFF22C55E),
+          color: Color(0xFF22C55E),
           actionLabel: 'View Plan',
         ),
       );
@@ -1023,14 +1023,14 @@ class HealthHeritageNotifier extends StateNotifier<HealthHeritageState> {
         .length;
     if (gen1Critical > 0 && gen3Critical > 0) {
       insights.add(
-        HealthInsight(
+        const HealthInsight(
           id: 'insight_generation_trend',
           title: 'Generational Trend',
           description:
               'Conditions appear to persist across multiple generations. Early intervention may help break the cycle.',
           type: InsightType.trend,
           icon: Icons.trending_up_rounded,
-          color: const Color(0xFF8B5CF6),
+          color: Color(0xFF8B5CF6),
           actionLabel: 'View Trends',
         ),
       );

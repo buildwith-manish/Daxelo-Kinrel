@@ -230,7 +230,7 @@ void main() {
       for (var i = 0; i < placements.length; i++) {
         for (var j = i + 1; j < placements.length; j++) {
           expect(placements[i].rect.overlaps(placements[j].rect), isFalse,
-              reason: 'Chip ${i} must not overlap chip ${j}');
+              reason: 'Chip $i must not overlap chip $j');
         }
       }
 
@@ -271,7 +271,7 @@ void main() {
       for (var i = 0; i < placements.length; i++) {
         for (var j = i + 1; j < placements.length; j++) {
           expect(placements[i].rect.overlaps(placements[j].rect), isFalse,
-              reason: 'Chip ${i} must not overlap chip ${j}');
+              reason: 'Chip $i must not overlap chip $j');
         }
       }
 

@@ -24,7 +24,7 @@ void main() {
 
   group('Location resolution', () {
     test('exact eligible FamilyPlace beats city centroid', () {
-      final place = FamilyPlace(
+      final place = const FamilyPlace(
         id: 'p1',
         familyId: 'f1',
         name: 'Home',
@@ -44,7 +44,7 @@ void main() {
     });
 
     test('ineligible historical Place does not replace city centroid', () {
-      final place = FamilyPlace(
+      final place = const FamilyPlace(
         id: 'p1',
         familyId: 'f1',
         name: 'Birthplace',
@@ -74,7 +74,7 @@ void main() {
     });
 
     test('invalid Place coordinates (0,0) fall through to city centroid', () {
-      final place = FamilyPlace(
+      final place = const FamilyPlace(
         id: 'p1',
         familyId: 'f1',
         name: 'Home',
@@ -108,7 +108,7 @@ void main() {
   group('Household clustering', () {
     test('identical city-centroid pins do NOT create a household', () {
       final pins = [
-        MapPin(
+        const MapPin(
           personId: 'a',
           name: 'A',
           city: 'Mumbai',
@@ -117,7 +117,7 @@ void main() {
           lng: 72.877,
           locationSource: MapLocationSource.cityCentroid,
         ),
-        MapPin(
+        const MapPin(
           personId: 'b',
           name: 'B',
           city: 'Mumbai',
@@ -137,7 +137,7 @@ void main() {
 
     test('two exact-home pins sharing coordinates CAN cluster', () {
       final pins = [
-        MapPin(
+        const MapPin(
           personId: 'a',
           name: 'A',
           city: 'Mumbai',
@@ -146,7 +146,7 @@ void main() {
           lng: 72.877,
           locationSource: MapLocationSource.exactPlace,
         ),
-        MapPin(
+        const MapPin(
           personId: 'b',
           name: 'B',
           city: 'Mumbai',
@@ -163,7 +163,7 @@ void main() {
 
     test('single member remains single household', () {
       final pins = [
-        MapPin(
+        const MapPin(
           personId: 'a',
           name: 'A',
           city: 'Mumbai',
@@ -181,7 +181,7 @@ void main() {
     test('pins with null locationSource are treated as clusterable', () {
       // Backward compatibility: pins without locationSource (legacy) still cluster.
       final pins = [
-        MapPin(
+        const MapPin(
           personId: 'a',
           name: 'A',
           city: 'Mumbai',
@@ -189,7 +189,7 @@ void main() {
           lat: 19.076,
           lng: 72.877,
         ),
-        MapPin(
+        const MapPin(
           personId: 'b',
           name: 'B',
           city: 'Mumbai',

@@ -126,7 +126,7 @@ class _GhostPainterDrawScreenState
             if (context.mounted) Navigator.of(context).pop();
           },
         ),
-        title: Text(
+        title: const Text(
           'Ghost Painter',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -142,7 +142,7 @@ class _GhostPainterDrawScreenState
               padding: const EdgeInsets.only(right: 6),
               child: TextButton(
                 onPressed: _doneDrawing,
-                child: Text(
+                child: const Text(
                   'Done',
                   style: TextStyle(
                     color: kGhostAccent,
@@ -173,12 +173,12 @@ class _GhostPainterDrawScreenState
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            GhostMedallion(emoji: '👻', size: 108)
+            const GhostMedallion(emoji: '👻', size: 108)
                 .animate(onPlay: (c) => c.repeat(reverse: true))
                 .moveY(begin: -8, end: 8, duration: 2000.ms)
                 .fadeIn(duration: 600.ms),
             const SizedBox(height: 24),
-            Text(
+            const Text(
               'Start Drawing',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -189,7 +189,7 @@ class _GhostPainterDrawScreenState
               ),
             ),
             const SizedBox(height: 10),
-            Text(
+            const Text(
               'Draw a secret word in glowing ink while your\nfamily races to guess it!',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -217,7 +217,7 @@ class _GhostPainterDrawScreenState
               child: FilledButton.icon(
                 onPressed: _startRound,
                 icon: const Icon(Icons.play_arrow_rounded),
-                label: Text(
+                label: const Text(
                   'Start Round',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -269,7 +269,7 @@ class _GhostPainterDrawScreenState
                     ),
                     child: Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.visibility_off_outlined,
                           size: 17,
                           color: kGhostAccent,
@@ -278,7 +278,7 @@ class _GhostPainterDrawScreenState
                         Flexible(
                           child: Text(
                             'Draw: ${round.promptWord}',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.displayFont,
                               fontSize: 15,
                               fontWeight: FontWeight.w800,
@@ -367,7 +367,7 @@ class _GhostPainterDrawScreenState
                 child: FilledButton.icon(
                   onPressed: _doneDrawing,
                   icon: const Icon(Icons.check_rounded),
-                  label: Text(
+                  label: const Text(
                     'I\'m Done Drawing',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -425,7 +425,7 @@ class _GhostPainterDrawScreenState
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            GhostMedallion(emoji: '🔮', size: 88)
+            const GhostMedallion(emoji: '🔮', size: 88)
                 .animate(onPlay: (c) => c.repeat(reverse: true))
                 .scale(
                   begin: const Offset(0.94, 0.94),
@@ -433,7 +433,7 @@ class _GhostPainterDrawScreenState
                   duration: 1600.ms,
                 ),
             const SizedBox(height: 22),
-            Text(
+            const Text(
               'Waiting for guesses…',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -446,7 +446,7 @@ class _GhostPainterDrawScreenState
             GhostGlassCard(
               child: Column(
                 children: [
-                  Text(
+                  const Text(
                     'YOUR WORD WAS',
                     style: TextStyle(
                       fontFamily: KinrelTypography.monoFont,
@@ -459,7 +459,7 @@ class _GhostPainterDrawScreenState
                   const SizedBox(height: 6),
                   Text(
                     round.promptWord,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 26,
                       fontWeight: FontWeight.w800,
@@ -472,7 +472,7 @@ class _GhostPainterDrawScreenState
             ),
             const SizedBox(height: 18),
             if (state.guesses.isEmpty)
-              Text(
+              const Text(
                 'No guesses yet — the ink is still drying…',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -484,7 +484,7 @@ class _GhostPainterDrawScreenState
               Text(
                 '${state.guesses.length} '
                 '${state.guesses.length == 1 ? 'guess' : 'guesses'} so far',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -533,7 +533,7 @@ class _GhostPainterDrawScreenState
               ),
             ),
             const SizedBox(height: 18),
-            Text(
+            const Text(
               'Round Complete!',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -547,7 +547,7 @@ class _GhostPainterDrawScreenState
             GhostGlassCard(
               child: Column(
                 children: [
-                  Text(
+                  const Text(
                     'THE WORD WAS',
                     style: TextStyle(
                       fontFamily: KinrelTypography.monoFont,
@@ -560,7 +560,7 @@ class _GhostPainterDrawScreenState
                   const SizedBox(height: 6),
                   Text(
                     round.promptWord,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 26,
                       fontWeight: FontWeight.w800,
@@ -573,7 +573,7 @@ class _GhostPainterDrawScreenState
             ),
             const SizedBox(height: 18),
             if (correctGuessers.isNotEmpty) ...[
-              Text(
+              const Text(
                 'GUESSED IT RIGHT',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -619,7 +619,7 @@ class _GhostPainterDrawScreenState
                           const SizedBox(width: 8),
                           Text(
                             correctGuessers[i].userName,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -632,7 +632,7 @@ class _GhostPainterDrawScreenState
                 ],
               ),
             ] else
-              GhostGlassCard(
+              const GhostGlassCard(
                 accent: KinrelColors.amber,
                 child: Text(
                   'Nobody guessed it — your masterpiece stumped the family! 🤐',

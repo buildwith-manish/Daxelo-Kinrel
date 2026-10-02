@@ -229,7 +229,7 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
 
     // Find the BFS source (viewer or anchor).
     // v5.7: Viewer ONLY. No anchor fallback.
-    String? bfsSource = viewerPersonId;
+    final String? bfsSource = viewerPersonId;
     // Guard: if source is not in graphPersons, return empty (no perspective).
     final effectiveSource = graphPersons.any((p) => p.id == bfsSource)
         ? bfsSource
@@ -283,7 +283,9 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
           if (from == null || to == null) continue;
           // Check if this edge connects source and target
           if (!((from == effectiveSource && to == p.id) ||
-                (to == effectiveSource && from == p.id))) continue;
+                (to == effectiveSource && from == p.id))) {
+            continue;
+          }
 
           // v5.101: Use labelAtoB (specific label) — it describes
           // "toPerson is fromPerson's <label>" regardless of direction.

@@ -81,16 +81,16 @@ class _FollowButtonState extends ConsumerState<FollowButton> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: KinrelColors.elevation2,
-        title: Text(title, style: TextStyle(color: KinrelColors.textWhite)),
-        content: Text(message, style: TextStyle(color: KinrelColors.textSilver)),
+        title: Text(title, style: const TextStyle(color: KinrelColors.textWhite)),
+        content: Text(message, style: const TextStyle(color: KinrelColors.textSilver)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: TextStyle(color: KinrelColors.textSilver)),
+            child: const Text('Cancel', style: TextStyle(color: KinrelColors.textSilver)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Confirm', style: TextStyle(color: KinrelColors.error)),
+            child: const Text('Confirm', style: TextStyle(color: KinrelColors.error)),
           ),
         ],
       ),
@@ -122,7 +122,7 @@ class _FollowButtonState extends ConsumerState<FollowButton> {
     return button
         .animate(target: status == 'none' ? 0 : 1)
         .fadeIn(duration: 200.ms)
-        .scale(begin: Offset(0.95, 0.95), end: Offset(1.0, 1.0), duration: 200.ms);
+        .scale(begin: const Offset(0.95, 0.95), end: const Offset(1.0, 1.0), duration: 200.ms);
   }
 
   Widget _buildFilledButton(String label, VoidCallback onTap) {
@@ -138,7 +138,7 @@ class _FollowButtonState extends ConsumerState<FollowButton> {
           elevation: 0,
         ),
         child: _isProcessing
-            ? SizedBox(
+            ? const SizedBox(
                 width: 16,
                 height: 16,
                 child: CircularProgressIndicator(
@@ -148,7 +148,7 @@ class _FollowButtonState extends ConsumerState<FollowButton> {
               )
             : Text(
                 label,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   fontFamily: 'Outfit',
@@ -172,7 +172,7 @@ class _FollowButtonState extends ConsumerState<FollowButton> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           ),
           child: _isProcessing
-              ? SizedBox(
+              ? const SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
@@ -182,7 +182,7 @@ class _FollowButtonState extends ConsumerState<FollowButton> {
                 )
               : Text(
                   label,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     fontFamily: 'Outfit',

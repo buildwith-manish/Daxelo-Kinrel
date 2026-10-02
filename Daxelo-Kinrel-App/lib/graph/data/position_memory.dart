@@ -41,6 +41,19 @@ class CameraPosition {
     required this.lastModified,
   });
 
+  /// Deserializes from a JSON map.
+  factory CameraPosition.fromJson(Map<String, dynamic> json) {
+    return CameraPosition(
+      panX: (json['pan_x'] as num).toDouble(),
+      panY: (json['pan_y'] as num).toDouble(),
+      zoomLevel: (json['zoom_level'] as num).toDouble(),
+      focusedNodeId: json['focused_node_id'] as String?,
+      lastModified: json['last_modified'] != null
+          ? DateTime.parse(json['last_modified'] as String)
+          : DateTime.now(),
+    );
+  }
+
   /// Horizontal pan offset in graph-space pixels.
   final double panX;
 
@@ -56,19 +69,6 @@ class CameraPosition {
 
   /// When this position was last saved.
   final DateTime lastModified;
-
-  /// Deserializes from a JSON map.
-  factory CameraPosition.fromJson(Map<String, dynamic> json) {
-    return CameraPosition(
-      panX: (json['pan_x'] as num).toDouble(),
-      panY: (json['pan_y'] as num).toDouble(),
-      zoomLevel: (json['zoom_level'] as num).toDouble(),
-      focusedNodeId: json['focused_node_id'] as String?,
-      lastModified: json['last_modified'] != null
-          ? DateTime.parse(json['last_modified'] as String)
-          : DateTime.now(),
-    );
-  }
 
   /// Serializes to a JSON map.
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -132,11 +132,11 @@ class CameraPosition {
 class PositionMemory {
   /// Creates a position memory instance.
   ///
-  /// [debounceDuration] controls how long the camera must be idle
+  /// [_debounceDuration] controls how long the camera must be idle
   /// before the position is persisted (default: 500 ms).
   PositionMemory({
-    Duration debounceDuration = const Duration(milliseconds: 500),
-  }) : _debounceDuration = debounceDuration;
+    this._debounceDuration = const Duration(milliseconds: 500),
+  });
 
   final Duration _debounceDuration;
 

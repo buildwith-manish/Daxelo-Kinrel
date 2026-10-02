@@ -47,6 +47,13 @@ enum EventPriority {
 
 /// Internal representation of a queued analytics event.
 class _BatchedEvent {
+
+  const _BatchedEvent({
+    required this.name,
+    required this.params,
+    required this.priority,
+    required this.createdAt,
+  });
   /// Firebase event name.
   final String name;
 
@@ -58,13 +65,6 @@ class _BatchedEvent {
 
   /// When this event was created.
   final DateTime createdAt;
-
-  const _BatchedEvent({
-    required this.name,
-    required this.params,
-    required this.priority,
-    required this.createdAt,
-  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════

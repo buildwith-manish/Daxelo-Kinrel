@@ -4,12 +4,6 @@ import '../../../../core/networking/dio_client.dart';
 // ── State ────────────────────────────────────────────────────────────
 
 class PrivacyState {
-  final bool isPrivate; // Profile privacy: true = follow requests required
-  final bool isFamilyGraphPublic; // Family tree visibility to non-members
-  final bool isProfileLoading;
-  final bool isGraphLoading;
-  final String? profileError;
-  final String? graphError;
 
   const PrivacyState({
     this.isPrivate = false,
@@ -19,6 +13,12 @@ class PrivacyState {
     this.profileError,
     this.graphError,
   });
+  final bool isPrivate; // Profile privacy: true = follow requests required
+  final bool isFamilyGraphPublic; // Family tree visibility to non-members
+  final bool isProfileLoading;
+  final bool isGraphLoading;
+  final String? profileError;
+  final String? graphError;
 
   PrivacyState copyWith({
     bool? isPrivate,

@@ -211,7 +211,7 @@ class _VariableRewardBannerState extends ConsumerState<VariableRewardBanner> {
               children: [
                 Text(
                   'Bonus! You earned $amount coin${amount == 1 ? '' : 's'}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -219,7 +219,7 @@ class _VariableRewardBannerState extends ConsumerState<VariableRewardBanner> {
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
+                const Text(
                   'A surprise thank-you for playing — added to your balance',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -335,11 +335,11 @@ class _RewardsBanner extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const KinrelIcon(KinrelIconData.sparkle,
+              KinrelIcon(KinrelIconData.sparkle,
                   size: 18, color: KinrelColors.brightGold),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(
                 'FAMILY MOMENTS FROM THIS MATCH',
                 style: TextStyle(
@@ -496,7 +496,7 @@ class _RewardRow extends StatelessWidget {
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13.5,
                   fontWeight: FontWeight.w700,
@@ -508,7 +508,7 @@ class _RewardRow extends StatelessWidget {
                 subtitle,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11.5,
                   height: 1.3,
@@ -573,11 +573,11 @@ class _SuperlativesSection extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const KinrelIcon(KinrelIconData.medal,
+              KinrelIcon(KinrelIconData.medal,
                   size: 16, color: KinrelColors.orange),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(
                 'MATCH SUPERLATIVES',
                 style: TextStyle(
@@ -719,11 +719,11 @@ class _SportsmanshipSectionState extends ConsumerState<_SportsmanshipSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const KinrelIcon(KinrelIconData.heart,
+              KinrelIcon(KinrelIconData.heart,
                   size: 16, color: KinrelColors.success),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(
                 'SAY WELL PLAYED',
                 style: TextStyle(
@@ -754,7 +754,7 @@ class _SportsmanshipSectionState extends ConsumerState<_SportsmanshipSection> {
               player.userName.isEmpty ? 'Family member' : player.userName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -816,7 +816,7 @@ class _SportsmanshipSectionState extends ConsumerState<_SportsmanshipSection> {
               Expanded(
                 child: Text(
                   'Badge earned: ${newBadges.first.name}!',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     color: KinrelColors.textWhite,
                   ),

@@ -40,16 +40,16 @@ class _TodSubmitScreenState extends ConsumerState<TodSubmitScreen> {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
-        title: Text('Submit Prompt', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: const Text('Submit Prompt', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),
       body: ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
-        Text('Submit a new prompt for your family\'s Truth or Dare pool.', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
+        const Text('Submit a new prompt for your family\'s Truth or Dare pool.', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
         const SizedBox(height: 4),
-        Text('All submissions are reviewed by your family\'s admin before they\'re playable.', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: KinrelColors.warning)),
+        const Text('All submissions are reviewed by your family\'s admin before they\'re playable.', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: KinrelColors.warning)),
         const SizedBox(height: KinrelSpacing.lg),
         // Category selector
-        Text('CATEGORY', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
+        const Text('CATEGORY', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
         const SizedBox(height: 8),
         Row(children: [
           _catChip('truth', 'Truth', KinrelColors.tealAccent, Icons.help_outline),
@@ -58,19 +58,19 @@ class _TodSubmitScreenState extends ConsumerState<TodSubmitScreen> {
         ]),
         const SizedBox(height: KinrelSpacing.lg),
         // Text input
-        TextField(controller: _controller, maxLines: 3, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 15, color: KinrelColors.textWhite),
+        TextField(controller: _controller, maxLines: 3, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 15, color: KinrelColors.textWhite),
           decoration: InputDecoration(hintText: _category == 'truth' ? 'e.g., What is your favorite childhood memory?' : 'e.g., Sing the chorus of your favorite song',
-            hintStyle: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim), filled: true, fillColor: KinrelColors.darkCard,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: KinrelColors.border)),
+            hintStyle: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim), filled: true, fillColor: KinrelColors.darkCard,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: KinrelColors.border)),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _category == 'truth' ? KinrelColors.tealAccent : KinrelColors.coral, width: 2))),
         ),
         const SizedBox(height: KinrelSpacing.md),
         DKButton(label: 'Submit for Review', variant: DKButtonVariant.gradient, fullWidth: true, isLoading: state.isSubmitting, onPressed: _submit),
         const SizedBox(height: KinrelSpacing.xl),
         // My submission history
-        Text('MY SUBMISSIONS', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
+        const Text('MY SUBMISSIONS', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
         const SizedBox(height: 8),
-        if (state.myPrompts.isEmpty) Text('No submissions yet.', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim))
+        if (state.myPrompts.isEmpty) const Text('No submissions yet.', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim))
         else ...state.myPrompts.map((p) => _myPromptCard(p)),
       ]),
     );
@@ -123,7 +123,7 @@ class _TodSubmitScreenState extends ConsumerState<TodSubmitScreen> {
               Container(width: 30, height: 30, decoration: BoxDecoration(shape: BoxShape.circle, color: accent.withValues(alpha: 0.14), border: Border.all(color: accent.withValues(alpha: 0.4))),
                 child: Center(child: Icon(isTruth ? Icons.help_outline : Icons.local_fire_department, size: 15, color: accent))),
               const SizedBox(width: 10),
-              Expanded(child: Text(p.promptText, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textWhite))),
+              Expanded(child: Text(p.promptText, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textWhite))),
               const SizedBox(width: 8),
               _statusBadge(p.status),
             ]))),

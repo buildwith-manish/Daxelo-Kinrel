@@ -191,14 +191,14 @@ class _ReportBugScreenState extends ConsumerState<ReportBugScreen> {
                     color: Colors.redAccent.withValues(alpha: 0.2),
                   ),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.bug_report_outlined,
                       color: Colors.redAccent,
                       size: 20,
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'Help us fix it! Describe the bug and how to reproduce it.',
@@ -249,7 +249,7 @@ class _ReportBugScreenState extends ConsumerState<ReportBugScreen> {
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
                     'Minimum 20 characters (${_messageController.text.trim().length}/20)',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
                       color: _orange,
@@ -293,16 +293,16 @@ class _ReportBugScreenState extends ConsumerState<ReportBugScreen> {
                             ),
                           ),
                         )
-                      : Row(
+                      : const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.bug_report_outlined,
                               size: 20,
                               color: Colors.white,
                             ),
-                            const SizedBox(width: 8),
-                            const Text(
+                            SizedBox(width: 8),
+                            Text(
                               'Submit Bug Report',
                               style: TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,

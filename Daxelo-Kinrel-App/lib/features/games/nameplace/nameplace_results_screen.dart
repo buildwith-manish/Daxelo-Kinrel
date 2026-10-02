@@ -48,7 +48,7 @@ class _NameplaceResultsScreenState extends ConsumerState<NameplaceResultsScreen>
     final game = state.game;
 
     if (game == null) {
-      return DKScaffold(backgroundColor: KinrelColors.darkSurface, body: const Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
+      return const DKScaffold(backgroundColor: KinrelColors.darkSurface, body: Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
     }
 
     // If game completed → show final results
@@ -67,7 +67,7 @@ class _NameplaceResultsScreenState extends ConsumerState<NameplaceResultsScreen>
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.close_rounded), onPressed: () { ref.read(nameplaceProvider(widget.familyId).notifier).leaveGame(); if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
-        title: Text('Round ${game.currentRound} Results', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: Text('Round ${game.currentRound} Results', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),
       body: state.isLoading
@@ -85,7 +85,7 @@ class _NameplaceResultsScreenState extends ConsumerState<NameplaceResultsScreen>
     return ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
       // Letter display
       Center(child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Text('LETTER', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
+        const Text('LETTER', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
         const SizedBox(width: 10),
         Container(width: 40, height: 40,
           decoration: BoxDecoration(
@@ -131,7 +131,7 @@ class _NameplaceResultsScreenState extends ConsumerState<NameplaceResultsScreen>
                       fontWeight: isMe ? FontWeight.w700 : FontWeight.w400,
                       decoration: isDash ? TextDecoration.lineThrough : null),
                   )),
-                  if (isMe) Text('(You) ', style: TextStyle(fontSize: 10, color: KinrelColors.orange)),
+                  if (isMe) const Text('(You) ', style: TextStyle(fontSize: 10, color: KinrelColors.orange)),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                     decoration: BoxDecoration(
                       color: isUnique ? KinrelColors.success.withValues(alpha: 0.2) : (isDuplicate ? KinrelColors.warning.withValues(alpha: 0.2) : KinrelColors.darkElevated),
@@ -155,9 +155,9 @@ class _NameplaceResultsScreenState extends ConsumerState<NameplaceResultsScreen>
         isMe: entry.value.userId == ref.read(supabaseProvider)?.auth.currentUser?.id)),
       const SizedBox(height: KinrelSpacing.xl),
       if (game.hostUserId == ref.read(supabaseProvider)?.auth.currentUser?.id && game.currentRound < game.totalRounds)
-        Text('Next round starting automatically...', textAlign: TextAlign.center, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim))
+        const Text('Next round starting automatically...', textAlign: TextAlign.center, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim))
       else
-        Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange))),
+        const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange))),
     ]);
   }
 
@@ -173,22 +173,22 @@ class _NameplaceResultsScreenState extends ConsumerState<NameplaceResultsScreen>
       gradient: isMyWin ? KinrelGradients.deepFireGradient : null,
       backgroundColor: isMyWin ? null : KinrelColors.darkSurface,
       appBar: AppBar(automaticallyImplyLeading: false,
-        title: Text('Final Results', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: const Text('Final Results', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: Colors.transparent, foregroundColor: KinrelColors.textWhite, elevation: 0),
       body: Stack(children: [
         ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
         const SizedBox(height: KinrelSpacing.lg),
         Column(children: [
-          KinrelIcon(KinrelIconData.trophy, size: 64, color: KinrelColors.orange)
+          const KinrelIcon(KinrelIconData.trophy, size: 64, color: KinrelColors.orange)
             .animate(onPlay: (c) => c.forward()).fadeIn(duration: 500.ms).scale(begin: const Offset(0.5, 0.5), end: const Offset(1.0, 1.0), duration: 500.ms, curve: Curves.elasticOut),
           const SizedBox(height: KinrelSpacing.sm),
           Text(isMyWin ? (winners.length > 1 ? 'Joint Winners!' : 'You Won!') : (winners.length > 1 ? 'Joint Winners!' : 'Winner!'),
-            style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 28, fontWeight: FontWeight.w800, color: KinrelColors.textWhite, letterSpacing: 2)),
+            style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 28, fontWeight: FontWeight.w800, color: KinrelColors.textWhite, letterSpacing: 2)),
           const SizedBox(height: KinrelSpacing.sm),
           Wrap(spacing: KinrelSpacing.sm, runSpacing: KinrelSpacing.sm, alignment: WrapAlignment.center,
             children: winnerNames.map((name) => Container(padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.md, vertical: KinrelSpacing.sm),
               decoration: BoxDecoration(color: KinrelColors.orange.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(KinrelRadius.lg), border: Border.all(color: KinrelColors.orange)),
-              child: Text(name, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.orange)))).toList(),
+              child: Text(name, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.orange)))).toList(),
           ),
         ]).animate().fadeIn(duration: 400.ms).scale(begin: const Offset(0.92, 0.92), end: const Offset(1.0, 1.0), duration: 400.ms, curve: Curves.easeOutBack),
         const SizedBox(height: KinrelSpacing.xl),
@@ -208,10 +208,10 @@ class _NameplaceResultsScreenState extends ConsumerState<NameplaceResultsScreen>
             ),
             child: Column(children: [
               Row(children: [
-                SizedBox(width: 30, child: Text(medal, style: TextStyle(fontSize: 16))),
+                SizedBox(width: 30, child: Text(medal, style: const TextStyle(fontSize: 16))),
                 DKAvatar(initials: PersonAvatar.initialsFor(p.userName)),
                 const SizedBox(width: KinrelSpacing.sm),
-                Expanded(child: Text(p.userId == myId ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
+                Expanded(child: Text(p.userId == myId ? '${p.userName} (You)' : p.userName, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
                 Text('${p.totalScore} pts', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 16, fontWeight: FontWeight.w800, color: isWinnerRow ? KinrelColors.gold : KinrelColors.orange)),
               ]),
               const SizedBox(height: KinrelSpacing.sm),
@@ -278,7 +278,7 @@ class _NameplaceResultsScreenState extends ConsumerState<NameplaceResultsScreen>
           DKAvatar(initials: PersonAvatar.initialsFor(p.userName)),
           const SizedBox(width: KinrelSpacing.sm),
           Expanded(child: Text(isMe ? '${p.userName} (You)' : p.userName,
-            style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textWhite, fontWeight: FontWeight.w600))),
+            style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textWhite, fontWeight: FontWeight.w600))),
           Text('${p.totalScore}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 16, fontWeight: FontWeight.w800, color: accent)),
         ]),
         const SizedBox(height: 6),
@@ -315,5 +315,5 @@ class _NameplaceResultsScreenState extends ConsumerState<NameplaceResultsScreen>
     }
   }
 
-  Widget _sectionLabel(String text) => Text(text, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textDim, letterSpacing: 0.5));
+  Widget _sectionLabel(String text) => Text(text, style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textDim, letterSpacing: 0.5));
 }

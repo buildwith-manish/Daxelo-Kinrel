@@ -593,8 +593,8 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
           });
         }
 
-        AuthChangeEvent? _lastAuthEvent;
-        String? _lastAuthUserId;
+        AuthChangeEvent? lastAuthEvent;
+        String? lastAuthUserId;
 
         client.auth.onAuthStateChange.listen((data) async {
           final event = data.event;
@@ -603,13 +603,13 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
           try {
             final userId = session?.user.id;
             if (event == AuthChangeEvent.signedIn &&
-                _lastAuthEvent == AuthChangeEvent.signedIn &&
-                _lastAuthUserId == userId) {
+                lastAuthEvent == AuthChangeEvent.signedIn &&
+                lastAuthUserId == userId) {
               debugPrint('⏭️ Auth listener: skipping duplicate signedIn event');
               return;
             }
-            _lastAuthEvent = event;
-            _lastAuthUserId = userId;
+            lastAuthEvent = event;
+            lastAuthUserId = userId;
 
             if (event == AuthChangeEvent.signedIn && session != null) {
               debugPrint('[ACCOUNT] Authentication successful — user=${session.user.id}, email=${session.user.email ?? "unknown"}');
@@ -1209,8 +1209,8 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
 /// (kinship_category_map.dart) is compiled into the binary and
 /// needs no I/O.
 class _KinshipInitializer extends StatefulWidget {
-  final Widget child;
   const _KinshipInitializer({required this.child});
+  final Widget child;
 
   @override
   State<_KinshipInitializer> createState() => _KinshipInitializerState();

@@ -283,10 +283,10 @@ class _PrimaryButtonState extends State<_PrimaryButton> {
                 : Border.all(color: KinrelColors.border),
             boxShadow: enabled
                 ? [
-                    BoxShadow(
+                    const BoxShadow(
                       color: KinrelColors.orangeGlow,
                       blurRadius: 16,
-                      offset: const Offset(0, 6),
+                      offset: Offset(0, 6),
                     ),
                   ]
                 : null,

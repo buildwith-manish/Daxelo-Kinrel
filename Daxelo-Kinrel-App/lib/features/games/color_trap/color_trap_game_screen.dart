@@ -35,7 +35,11 @@ class _ColorTrapGameScreenState extends ConsumerState<ColorTrapGameScreen> {
     final state = ref.read(colorTrapProvider(widget.familyId));
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     final shouldLeave = await LeaveGameDialog.show(context, isHost: state.game?.hostUserId == myId && state.game?.isWaiting == true, gameName: 'Color Trap');
-    if (shouldLeave == true) { await ref.read(colorTrapProvider(widget.familyId).notifier).leaveGame(); if (mounted) { if (context.canPop()) context.pop(); else context.go('/family/${widget.familyId}'); } }
+    if (shouldLeave == true) { await ref.read(colorTrapProvider(widget.familyId).notifier).leaveGame(); if (mounted) { if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/family/${widget.familyId}');
+    } } }
   }
 
   @override Widget build(BuildContext context) {
@@ -43,13 +47,17 @@ class _ColorTrapGameScreenState extends ConsumerState<ColorTrapGameScreen> {
     final game = state.game;
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     if (state.isLoading && game == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave), title: const Text('Color Trap'), backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite), body: const Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
-    if (game == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.go('/family/${widget.familyId}')), title: const Text('Color Trap'), backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite), body: Center(child: GamingEmptyCard(emoji: '🎨', title: 'Game not found', message: 'This game may have ended.')));
+    if (game == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.go('/family/${widget.familyId}')), title: const Text('Color Trap'), backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite), body: const Center(child: GamingEmptyCard(emoji: '🎨', title: 'Game not found', message: 'This game may have ended.')));
     return DKScaffold(backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
-        title: Text(game.roomName?.isNotEmpty == true ? game.roomName! : 'Color Trap', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: Text(game.roomName?.isNotEmpty == true ? game.roomName! : 'Color Trap', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [if (game.isInProgress) Padding(padding: const EdgeInsets.only(right: 14), child: Center(child: _RoundInfo(game: game))), if (game.hostUserId == ref.read(supabaseProvider)?.auth.currentUser?.id && game.isInProgress) IconButton(tooltip: 'Leave', icon: const Icon(Icons.logout, size: 20), onPressed: _confirmLeave)]),
-      body: game.isCompleted ? _ResultsView(game: game, familyId: widget.familyId, players: state.players, isHost: game.hostUserId == myId, onRematch: () => ref.read(colorTrapProvider(widget.familyId).notifier).rematch(), onExit: () { if (context.canPop()) context.pop(); else context.go('/family/${widget.familyId}'); })
+      body: game.isCompleted ? _ResultsView(game: game, familyId: widget.familyId, players: state.players, isHost: game.hostUserId == myId, onRematch: () => ref.read(colorTrapProvider(widget.familyId).notifier).rematch(), onExit: () { if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/family/${widget.familyId}');
+      } })
         : _GameView(state: state, familyId: widget.familyId, onMove: (r, c) => ref.read(colorTrapProvider(widget.familyId).notifier).movePlayer(r, c), onAdvance: () => ref.read(colorTrapProvider(widget.familyId).notifier).advancePhase()));
   }
 }
@@ -60,7 +68,7 @@ class _RoundInfo extends StatelessWidget {
     final board = game.boardState; final round = board?.currentRoundNumber ?? 1;
     final alive = board?.aliveCount ?? 0;
     return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: KinrelColors.orange.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
-      child: Text('R$round · $alive alive', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.orange)));
+      child: Text('R$round · $alive alive', style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.orange)));
   }
 }
 
@@ -111,7 +119,7 @@ class _PhaseBanner extends StatelessWidget {
         Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color, blurRadius: 6)])),
         const SizedBox(width: 10),
         Expanded(child: Text(label, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: round.phase == ColorTrapPhase.countdown ? 28 : 14, fontWeight: FontWeight.w800, color: KinrelColors.textWhite))),
-        Text('$aliveCount alive', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, color: KinrelColors.textDim)),
+        Text('$aliveCount alive', style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, color: KinrelColors.textDim)),
       ]));
   }
 }
@@ -186,11 +194,11 @@ class _EliminationView extends StatelessWidget {
           ])))),
       const SizedBox(height: 16),
       if (eliminated.isNotEmpty) ...[
-        Text('Eliminated this round:', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
-        for (final p in eliminated) Padding(padding: const EdgeInsets.only(top: 4), child: Text('${p.userName} fell!', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.error))),
+        const Text('Eliminated this round:', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
+        for (final p in eliminated) Padding(padding: const EdgeInsets.only(top: 4), child: Text('${p.userName} fell!', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.error))),
       ],
       const SizedBox(height: 12),
-      Text('${alive.length} players remaining', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.success)),
+      Text('${alive.length} players remaining', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.success)),
       const SizedBox(height: 16),
       if (board.aliveCount > 1)
         DKButton(label: 'Next Round →', variant: DKButtonVariant.primary, fullWidth: true, onPressed: onAdvance),
@@ -212,13 +220,13 @@ class _ResultsView extends StatelessWidget {
           child: Column(children: [
             const KinrelIcon(KinrelIconData.trophy, size: 40, color: KinrelColors.brightGold),
             const SizedBox(height: 8),
-            Text(winnerName.isNotEmpty ? '$winnerName survives!' : 'Match Complete', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 20, fontWeight: FontWeight.w800, color: KinrelColors.brightGold)),
+            Text(winnerName.isNotEmpty ? '$winnerName survives!' : 'Match Complete', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 20, fontWeight: FontWeight.w800, color: KinrelColors.brightGold)),
             const SizedBox(height: 4),
-            Text('Last player standing!', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver)),
+            const Text('Last player standing!', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver)),
           ])),
         const SizedBox(height: 18),
         if (board != null) ...[
-          GamingSectionHeader(title: 'Survival Stats', icon: Icons.timer_outlined),
+          const GamingSectionHeader(title: 'Survival Stats', icon: Icons.timer_outlined),
           Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(14)),
             child: Column(children: [
               _StatRow(label: 'Rounds Survived', value: '${board.currentRoundNumber}'),
@@ -245,5 +253,5 @@ class _ResultsView extends StatelessWidget {
 class _StatRow extends StatelessWidget {
   const _StatRow({required this.label, required this.value});
   final String label; final String value;
-  @override Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [Expanded(child: Text(label, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim))), Text(value, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))]));
+  @override Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [Expanded(child: Text(label, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim))), Text(value, style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))]));
 }

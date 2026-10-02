@@ -196,7 +196,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
             }
           },
         ),
-        title: Text(
+        title: const Text(
           'Bingo',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -259,7 +259,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
               const SizedBox(height: KinrelSpacing.sm),
               Text(
                 code,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 36,
                   fontWeight: FontWeight.w800,
@@ -273,7 +273,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
         const SizedBox(height: KinrelSpacing.lg),
         Text(
           'Players (${state.allCards.length}/${game.maxPlayers})',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 13,
             fontWeight: FontWeight.w600,
@@ -318,7 +318,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
           // Player's 5x5 card
           Expanded(
             child: card == null
-                ? Center(
+                ? const Center(
                     child: Text(
                       'No card generated yet',
                       style: TextStyle(
@@ -343,7 +343,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(
                 '${state.unmarkedCalledCount} called number${state.unmarkedCalledCount == 1 ? '' : 's'} waiting for your daub',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -376,12 +376,12 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
             padding: const EdgeInsets.symmetric(
                 horizontal: KinrelSpacing.base, vertical: KinrelSpacing.sm),
             color: KinrelColors.darkCard,
-            child: Row(
+            child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.visibility_outlined,
+                Icon(Icons.visibility_outlined,
                     size: 14, color: KinrelColors.textDim),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Text(
                   "You're watching — cheer them on!",
                   style: TextStyle(
@@ -437,7 +437,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                               card.playerId == myId
                                   ? '${card.playerName} (You)'
                                   : card.playerName,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
@@ -470,7 +470,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                       const SizedBox(width: KinrelSpacing.sm),
                       Text(
                         '$marked/$called',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -513,7 +513,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
         vertical: KinrelSpacing.md,
         horizontal: KinrelSpacing.base,
       ),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: KinrelColors.darkCard,
         border: Border(
           bottom: BorderSide(color: KinrelColors.border),
@@ -524,7 +524,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
+              const Text(
                 'LAST CALLED',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -553,7 +553,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                         _secondsToNextCall > 0
                             ? 'next in ${_secondsToNextCall}s'
                             : 'calling…',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
@@ -587,11 +587,11 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                 ),
                 boxShadow: lastNumber != null
                     ? [
-                        BoxShadow(
+                        const BoxShadow(
                           color: KinrelColors.orangeGlowIntense,
                           blurRadius: 22,
                           spreadRadius: 1,
-                          offset: const Offset(0, 4),
+                          offset: Offset(0, 4),
                         ),
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.35),
@@ -614,7 +614,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                 children: [
                   Text(
                     letter,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 48,
                       fontWeight: FontWeight.w800,
@@ -625,7 +625,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                   const SizedBox(width: 8),
                   Text(
                     lastNumber != null ? '$lastNumber' : '—',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 56,
                       fontWeight: FontWeight.w900,
@@ -672,10 +672,10 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
               ),
               boxShadow: isLatest
                   ? [
-                      BoxShadow(
+                      const BoxShadow(
                         color: KinrelColors.orangeGlowIntense,
                         blurRadius: 10,
-                        offset: const Offset(0, 2),
+                        offset: Offset(0, 2),
                       ),
                     ]
                   : null,
@@ -885,7 +885,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                             blurRadius: 5,
                             offset: const Offset(0, 2),
                           ),
-                          BoxShadow(
+                          const BoxShadow(
                             color: KinrelColors.orangeGlowIntense,
                             blurRadius: 7,
                           ),
@@ -975,7 +975,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
               child: Text(
                 'Invalid: ${state.lastClaimReason}',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.error,
@@ -1083,7 +1083,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
           Expanded(
             child: Text(
               isMe ? '${card.playerName} (You)' : card.playerName,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -1098,7 +1098,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                 color: KinrelColors.orange.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
+              child: const Text(
                 'HOST',
                 style: TextStyle(
                   fontFamily: KinrelTypography.monoFont,
@@ -1121,7 +1121,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
         border: Border.all(color: KinrelColors.border),
       ),
-      child: Row(
+      child: const Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SizedBox(
@@ -1132,7 +1132,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
               color: KinrelColors.orange,
             ),
           ),
-          const SizedBox(width: KinrelSpacing.sm),
+          SizedBox(width: KinrelSpacing.sm),
           Text(
             'Waiting for host to start the game…',
             style: TextStyle(
@@ -1159,7 +1159,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
       backgroundColor: isWinner ? null : KinrelColors.darkSurface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text(
+        title: const Text(
           'Results',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -1282,7 +1282,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
               : isWinner
                   ? 'You Won!'
                   : 'Winner!',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 32,
             fontWeight: FontWeight.w800,
@@ -1335,7 +1335,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             color: KinrelColors.textDim,
@@ -1343,7 +1343,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
         ),
         Text(
           value,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.monoFont,
             fontSize: 14,
             fontWeight: FontWeight.w700,

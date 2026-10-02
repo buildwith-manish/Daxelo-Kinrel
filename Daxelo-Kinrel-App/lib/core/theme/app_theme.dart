@@ -432,11 +432,11 @@ ElevatedButtonThemeData _elevatedButtonTheme(Brightness brightness) {
       elevation: 0,
       shadowColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
-      padding: EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: KinrelSpacing.xl,
         vertical: KinrelSpacing.md,
       ),
-      minimumSize: Size(0, 48),
+      minimumSize: const Size(0, 48),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(KinrelRadius.button),
       ),
@@ -459,11 +459,11 @@ OutlinedButtonThemeData _outlinedButtonTheme(Brightness brightness) {
       foregroundColor: primaryColor,
       disabledForegroundColor: disabledFg,
       side: BorderSide(color: primaryColor.withValues(alpha: 0.5)),
-      padding: EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: KinrelSpacing.xl,
         vertical: KinrelSpacing.md,
       ),
-      minimumSize: Size(0, 48),
+      minimumSize: const Size(0, 48),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(KinrelRadius.button),
       ),
@@ -485,11 +485,11 @@ TextButtonThemeData _textButtonTheme(Brightness brightness) {
     style: TextButton.styleFrom(
       foregroundColor: primaryColor,
       disabledForegroundColor: disabledFg,
-      padding: EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: KinrelSpacing.lg,
         vertical: KinrelSpacing.sm,
       ),
-      minimumSize: Size(0, 48),
+      minimumSize: const Size(0, 48),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(KinrelRadius.button),
       ),
@@ -540,11 +540,11 @@ InputDecorationTheme _inputDecorationTheme(Brightness brightness) {
     ),
     errorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(KinrelRadius.input),
-      borderSide: BorderSide(color: KinrelColors.error),
+      borderSide: const BorderSide(color: KinrelColors.error),
     ),
     focusedErrorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(KinrelRadius.input),
-      borderSide: BorderSide(color: KinrelColors.error, width: 2),
+      borderSide: const BorderSide(color: KinrelColors.error, width: 2),
     ),
     hintStyle: TextStyle(
       fontFamily: KinrelTypography.bodyFont,
@@ -646,14 +646,14 @@ BottomSheetThemeData _bottomSheetTheme(Brightness brightness) {
     backgroundColor: cardColor,
     surfaceTintColor: Colors.transparent,
     elevation: 0,
-    shape: RoundedRectangleBorder(
+    shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(
         top: Radius.circular(KinrelRadius.bottomSheet),
       ),
     ),
     showDragHandle: true,
     dragHandleColor: dragColor,
-    constraints: BoxConstraints(maxWidth: 640),
+    constraints: const BoxConstraints(maxWidth: 640),
   );
 }
 
@@ -687,7 +687,7 @@ ChipThemeData _chipTheme(Brightness brightness) {
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(KinrelRadius.chip),
     ),
-    padding: EdgeInsets.symmetric(
+    padding: const EdgeInsets.symmetric(
       horizontal: KinrelSpacing.md,
       vertical: KinrelSpacing.xs,
     ),
@@ -936,7 +936,7 @@ ThemeData getAppTheme(Brightness brightness, {DeviceTier deviceTier = DeviceTier
     primaryIconTheme: IconThemeData(color: primaryColor, size: 24),
 
     listTileTheme: ListTileThemeData(
-      contentPadding: EdgeInsets.symmetric(
+      contentPadding: const EdgeInsets.symmetric(
         horizontal: KinrelSpacing.lg,
         vertical: KinrelSpacing.xs,
       ),
@@ -958,7 +958,7 @@ ThemeData getAppTheme(Brightness brightness, {DeviceTier deviceTier = DeviceTier
       textStyle: KinrelTypography.bodySmall.copyWith(
         color: isDark ? KinrelColors.textWhite : KinrelColors.textDark,
       ),
-      waitDuration: Duration(milliseconds: 500),
+      waitDuration: const Duration(milliseconds: 500),
     ),
 
     popupMenuTheme: PopupMenuThemeData(

@@ -20,7 +20,7 @@ import '../../../features/kinrel_intelligence/widgets/role_glyph_badge.dart'
 /// renders nothing if Kinrel hasn't been computed or the member has no
 /// role row yet — keeps the existing node visuals untouched.
 class NodeRoleGlyphBadge extends ConsumerWidget {
-  const NodeRoleGlyphBadge({
+  const NodeRoleGlyphBadge({super.key, 
     required this.familyId,
     required this.memberId,
     required this.diameter,

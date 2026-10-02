@@ -187,7 +187,7 @@ class _PBv1SubmitQuestionSheetState extends ConsumerState<PBv1SubmitQuestionShee
               ),
             ),
           ),
-          Text(
+          const Text(
             'Suggest a question',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -197,7 +197,7 @@ class _PBv1SubmitQuestionSheetState extends ConsumerState<PBv1SubmitQuestionShee
             ),
           ),
           const SizedBox(height: 4),
-          Text(
+          const Text(
             'You\'ll earn 5 coins when your question is approved + used in a round.',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -208,12 +208,12 @@ class _PBv1SubmitQuestionSheetState extends ConsumerState<PBv1SubmitQuestionShee
           const SizedBox(height: 16),
 
           // Question text
-          _Label('Question *'),
+          const _Label('Question *'),
           TextField(
             controller: _questionController,
             maxLength: 200,
             maxLines: 2,
-            style: TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont),
+            style: const TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont),
             decoration: _inputDecoration('e.g., How many X are there?'),
           ),
           const SizedBox(height: 12),
@@ -226,11 +226,11 @@ class _PBv1SubmitQuestionSheetState extends ConsumerState<PBv1SubmitQuestionShee
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _Label('Correct answer *'),
+                    const _Label('Correct answer *'),
                     TextField(
                       controller: _answerController,
-                      keyboardType: TextInputType.numberWithOptions(decimal: true),
-                      style: TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: const TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont),
                       decoration: _inputDecoration('e.g., 42'),
                     ),
                   ],
@@ -242,11 +242,11 @@ class _PBv1SubmitQuestionSheetState extends ConsumerState<PBv1SubmitQuestionShee
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _Label('Unit'),
+                    const _Label('Unit'),
                     TextField(
                       controller: _unitController,
                       maxLength: 30,
-                      style: TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont),
+                      style: const TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont),
                       decoration: _inputDecoration('e.g., moons'),
                     ),
                   ],
@@ -257,11 +257,11 @@ class _PBv1SubmitQuestionSheetState extends ConsumerState<PBv1SubmitQuestionShee
           const SizedBox(height: 12),
 
           // Category dropdown
-          _Label('Category'),
+          const _Label('Category'),
           DropdownButtonFormField<String>(
-            value: _category,
+            initialValue: _category,
             dropdownColor: KinrelColors.darkCard,
-            style: TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont, fontSize: 14),
+            style: const TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont, fontSize: 14),
             items: _categories.map((c) => DropdownMenuItem(value: c.$1, child: Text(c.$2))).toList(),
             onChanged: (v) => setState(() => _category = v ?? 'general'),
             decoration: _inputDecoration(''),
@@ -269,12 +269,12 @@ class _PBv1SubmitQuestionSheetState extends ConsumerState<PBv1SubmitQuestionShee
           const SizedBox(height: 12),
 
           // Fun fact
-          _Label('Fun fact (optional)'),
+          const _Label('Fun fact (optional)'),
           TextField(
             controller: _funFactController,
             maxLength: 200,
             maxLines: 2,
-            style: TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont),
+            style: const TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont),
             decoration: _inputDecoration('Shown on the reveal screen when your question is used.'),
           ),
           const SizedBox(height: 20),
@@ -282,7 +282,7 @@ class _PBv1SubmitQuestionSheetState extends ConsumerState<PBv1SubmitQuestionShee
           if (_error != null) ...[
             Text(
               _error!,
-              style: TextStyle(color: Colors.red, fontSize: 12, fontFamily: KinrelTypography.bodyFont),
+              style: const TextStyle(color: Colors.red, fontSize: 12, fontFamily: KinrelTypography.bodyFont),
             ),
             const SizedBox(height: 12),
           ],
@@ -304,7 +304,7 @@ class _PBv1SubmitQuestionSheetState extends ConsumerState<PBv1SubmitQuestionShee
             ),
           ),
           const SizedBox(height: 4),
-          Text(
+          const Text(
             'An admin reviews every submission. You can track the status from the history screen.',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -320,17 +320,17 @@ class _PBv1SubmitQuestionSheetState extends ConsumerState<PBv1SubmitQuestionShee
   InputDecoration _inputDecoration(String hint) {
     return InputDecoration(
       hintText: hint.isEmpty ? null : hint,
-      hintStyle: TextStyle(color: KinrelColors.textDim, fontSize: 13),
-      counterStyle: TextStyle(color: KinrelColors.textDim, fontSize: 10),
+      hintStyle: const TextStyle(color: KinrelColors.textDim, fontSize: 13),
+      counterStyle: const TextStyle(color: KinrelColors.textDim, fontSize: 10),
       filled: true,
       fillColor: KinrelColors.darkCard,
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: KinrelColors.border),
+        borderSide: const BorderSide(color: KinrelColors.border),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: KinrelColors.orange, width: 1.2),
+        borderSide: const BorderSide(color: KinrelColors.orange, width: 1.2),
       ),
     );
   }
@@ -344,7 +344,7 @@ class _Label extends StatelessWidget {
     padding: const EdgeInsets.only(bottom: 4),
     child: Text(
       text,
-      style: TextStyle(
+      style: const TextStyle(
         fontFamily: KinrelTypography.monoFont,
         fontSize: 10,
         fontWeight: FontWeight.w800,

@@ -50,7 +50,7 @@ class _PlaceCalloutChip extends StatelessWidget {
     final meta = _calloutMeta(place.placeType);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
-      padding: EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: MapVisualConstants.calloutChipPaddingH,
         vertical: MapVisualConstants.calloutChipPaddingV,
       ),
@@ -86,7 +86,7 @@ class _PlaceCalloutChip extends StatelessWidget {
               place.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: MapVisualConstants.calloutFontSize,
                 fontWeight: FontWeight.w600,

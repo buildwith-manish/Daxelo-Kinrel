@@ -47,14 +47,14 @@ class CoinBalanceChip extends ConsumerWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
+              const Text(
                 '🪙',
                 style: TextStyle(fontSize: 13),
               ),
               const SizedBox(width: 4),
               Text(
                 '${balance.balance}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 13,
                   fontWeight: FontWeight.w800,

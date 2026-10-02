@@ -310,7 +310,7 @@ class DKCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLight = DKColors.isLight(context);
     final bgColor = backgroundColor ?? DKColors.cardColor(context);
-    final border = borderColor ?? (isLight ? null : Color(0xFF3A3A4A));
+    final border = borderColor ?? (isLight ? null : const Color(0xFF3A3A4A));
     final shadow = elevation > 0
         ? [
             BoxShadow(
@@ -324,7 +324,7 @@ class DKCard extends StatelessWidget {
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 8,
-              offset: Offset(0, 2),
+              offset: const Offset(0, 2),
             ),
           ]
         : null;
@@ -693,7 +693,7 @@ class DKAvatar extends StatelessWidget {
             ? DKColors.brandPurple.withValues(alpha: 0.1)
             : DKColors.brandDeepPurple.withValues(alpha: 0.3));
     final border =
-        borderColor ?? (isLight ? Colors.transparent : Color(0xFF3A3A4A));
+        borderColor ?? (isLight ? Colors.transparent : const Color(0xFF3A3A4A));
     final fg = isLight ? DKColors.brandPurple : Colors.white;
 
     Widget avatar;
@@ -893,7 +893,7 @@ class DKSearchField extends StatelessWidget {
         prefixIcon: Icon(Icons.search_rounded, color: iconColor, size: 22),
         filled: true,
         fillColor: inputFillColor,
-        contentPadding: EdgeInsets.symmetric(
+        contentPadding: const EdgeInsets.symmetric(
           horizontal: KinrelSpacing.lg,
           vertical: KinrelSpacing.md,
         ),
@@ -912,7 +912,7 @@ class DKSearchField extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.4),
                   width: 1.5,
                 )
-              : BorderSide(color: DKColors.brandPurple, width: 1.5),
+              : const BorderSide(color: DKColors.brandPurple, width: 1.5),
         ),
       ),
     );
@@ -1181,11 +1181,9 @@ class DKBottomNav extends StatelessWidget {
               onTap: () => onTap(index),
               // v5.189: per-item onLongPress wins; otherwise fall back to
               // the index-level callback from DKBottomNav.
-              onLongPress: item.onLongPress != null
-                  ? item.onLongPress
-                  : onLongPress != null
+              onLongPress: item.onLongPress ?? (onLongPress != null
                       ? () => onLongPress!(index)
-                      : null,
+                      : null),
             ),
           ),
         );
@@ -1395,7 +1393,7 @@ class DKChatBubble extends StatelessWidget {
                   height: 1.3,
                 ),
               ),
-              SizedBox(height: 2),
+              const SizedBox(height: 2),
             ],
             Text(
               message,
@@ -1408,7 +1406,7 @@ class DKChatBubble extends StatelessWidget {
               ),
             ),
             if (time != null) ...[
-              SizedBox(height: 4),
+              const SizedBox(height: 4),
               Text(
                 time!,
                 style: TextStyle(
@@ -1455,7 +1453,7 @@ class DKBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (count <= 0) return SizedBox.shrink();
+    if (count <= 0) return const SizedBox.shrink();
 
     final display = count > 99 ? '99+' : '$count';
 
@@ -1527,7 +1525,7 @@ class DKSuggestionChip extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: KinrelMotion.fast,
-        padding: EdgeInsets.symmetric(
+        padding: const EdgeInsets.symmetric(
           horizontal: KinrelSpacing.md,
           vertical: KinrelSpacing.sm,
         ),
@@ -1602,7 +1600,7 @@ class DKTabToggle extends StatelessWidget {
             onTap: () => onChanged(index),
             child: AnimatedContainer(
               duration: KinrelMotion.fast,
-              padding: EdgeInsets.symmetric(
+              padding: const EdgeInsets.symmetric(
                 horizontal: KinrelSpacing.lg,
                 vertical: KinrelSpacing.sm,
               ),
@@ -1742,7 +1740,7 @@ class DKStatChip extends StatelessWidget {
     final isLight = DKColors.isLight(context);
 
     return Container(
-      padding: EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: KinrelSpacing.md,
         vertical: KinrelSpacing.sm,
       ),
@@ -1754,7 +1752,7 @@ class DKStatChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: color),
-          SizedBox(width: 6),
+          const SizedBox(width: 6),
           Text(
             value,
             style: TextStyle(
@@ -1765,7 +1763,7 @@ class DKStatChip extends StatelessWidget {
               height: 1.2,
             ),
           ),
-          SizedBox(width: 4),
+          const SizedBox(width: 4),
           Text(
             label,
             style: TextStyle(
@@ -1829,7 +1827,7 @@ class DKEmptyState extends StatelessWidget {
     final iconColor = isLight ? DKColors.brandPurple : DKColors.brandPurple;
 
     return Padding(
-      padding: EdgeInsets.all(KinrelSpacing.xxl),
+      padding: const EdgeInsets.all(KinrelSpacing.xxl),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -1898,53 +1896,12 @@ class DKEmptyState extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// 15. DKLoadingShimmer
+// 15. DKLoadingShimmer — REMOVED
 // ═══════════════════════════════════════════════════════════════════════
-
-/// Animated shimmer placeholder for loading states.
-///
-/// Uses the `shimmer` package with theme-aware gradient animation.
-///
-/// ```dart
-/// DKLoadingShimmer(width: 200, height: 16)
-/// DKLoadingShimmer(width: double.infinity, height: 120, radius: 16)
-/// ```
-class DKLoadingShimmer extends StatelessWidget {
-  const DKLoadingShimmer({
-    super.key,
-    required this.width,
-    required this.height,
-    this.radius = KinrelRadius.md,
-  });
-
-  /// Width of the shimmer placeholder.
-  final double width;
-
-  /// Height of the shimmer placeholder.
-  final double height;
-
-  /// Border radius. Default 12.
-  final double radius;
-
-  @override
-  Widget build(BuildContext context) {
-    final isLight = DKColors.isLight(context);
-
-    return Shimmer.fromColors(
-      baseColor: isLight ? const Color(0xFFE0E0E0) : DKColors.darkElevated,
-      highlightColor: isLight ? const Color(0xFFF5F5F5) : DKColors.darkSurface,
-      period: const Duration(milliseconds: 1500),
-      child: Container(
-        width: width,
-        height: height,
-        decoration: BoxDecoration(
-          color: isLight ? Colors.white : DKColors.darkCard,
-          borderRadius: BorderRadius.circular(radius),
-        ),
-      ),
-    );
-  }
-}
+// DKLoadingShimmer has been removed. All call sites have been migrated
+// to KinrelSkeletonBox from kinrel_skeleton.dart, which is the more
+// complete implementation (includes card/row/list/screen variants +
+// reduce-motion support). See item 25 of the maintainability audit.
 
 // ═══════════════════════════════════════════════════════════════════════
 // 16. DKErrorState
@@ -2049,12 +2006,12 @@ class DKSuccessToast {
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.check_circle_rounded, color: DKColors.success, size: 20),
+            const Icon(Icons.check_circle_rounded, color: DKColors.success, size: 20),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 message,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: 'DM Sans',
                   fontSize: 14,
                   fontWeight: FontWeight.w500,

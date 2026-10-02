@@ -128,7 +128,7 @@ class AvatarMarkerGenerator {
   void _drawShadow(ui.Canvas canvas, double size) {
     final offset = MapVisualConstants.markerShadowOffset;
     final paint = ui.Paint()
-      ..color = Colors.black.withOpacity(MapVisualConstants.markerShadowOpacity)
+      ..color = Colors.black.withValues(alpha: MapVisualConstants.markerShadowOpacity)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
     final center = ui.Offset(size / 2 + offset, size / 2 + offset);
     canvas.drawCircle(center, size / 2, paint);
@@ -144,7 +144,7 @@ class AvatarMarkerGenerator {
         ? MapVisualConstants.markerGlowAlphaSelected
         : MapVisualConstants.markerGlowAlphaNormal;
     final paint = ui.Paint()
-      ..color = KinrelColors.orange.withOpacity(baseAlpha)
+      ..color = KinrelColors.orange.withValues(alpha: baseAlpha)
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur);
     final center = ui.Offset(size / 2, size / 2);
     canvas.drawCircle(center, size / 2 + 4, paint);
@@ -213,8 +213,8 @@ class AvatarMarkerGenerator {
         center: Alignment.center,
         radius: 1.0,
         colors: [
-          const ui.Color(0xFFE8612A).withOpacity(0.55),
-          const ui.Color(0xFFE8612A).withOpacity(0.20),
+          const ui.Color(0xFFE8612A).withValues(alpha: 0.55),
+          const ui.Color(0xFFE8612A).withValues(alpha: 0.20),
           const ui.Color(0x00E8612A),
         ],
         stops: const [0.55, 0.85, 1.0],
@@ -241,8 +241,8 @@ class AvatarMarkerGenerator {
         ..strokeWidth = 1.5;
       switch (liveTier) {
         case LocationTier.live:
-          pulsePaint.color = MapVisualConstants.livePulseRingColor.withOpacity(
-            MapVisualConstants.livePulseRingOpacity,
+          pulsePaint.color = MapVisualConstants.livePulseRingColor.withValues(
+            alpha: MapVisualConstants.livePulseRingOpacity,
           );
           canvas.drawCircle(
             ui.Offset(size / 2, size / 2),
@@ -252,7 +252,7 @@ class AvatarMarkerGenerator {
           break;
         case LocationTier.recent:
           pulsePaint.color = MapVisualConstants.markerSelectedRingColor
-              .withOpacity(MapVisualConstants.recentRingOpacity);
+              .withValues(alpha: MapVisualConstants.recentRingOpacity);
           canvas.drawCircle(
             ui.Offset(size / 2, size / 2),
             size / 2 + 1.5,
@@ -260,8 +260,8 @@ class AvatarMarkerGenerator {
           );
           break;
         case LocationTier.stale:
-          pulsePaint.color = MapVisualConstants.staleRingColor.withOpacity(
-            MapVisualConstants.staleRingOpacity,
+          pulsePaint.color = MapVisualConstants.staleRingColor.withValues(
+            alpha: MapVisualConstants.staleRingOpacity,
           );
           canvas.drawCircle(
             ui.Offset(size / 2, size / 2),
@@ -334,8 +334,8 @@ class AvatarMarkerGenerator {
       center,
       radius,
       ui.Paint()
-        ..color = KinrelColors.orange.withOpacity(
-          MapVisualConstants.markerInitialsBgOpacity,
+        ..color = KinrelColors.orange.withValues(
+          alpha: MapVisualConstants.markerInitialsBgOpacity,
         ),
     );
 

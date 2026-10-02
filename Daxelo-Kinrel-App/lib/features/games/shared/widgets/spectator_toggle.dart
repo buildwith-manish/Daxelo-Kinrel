@@ -43,7 +43,7 @@ class SpectatorToggle extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Allow spectators',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -57,7 +57,7 @@ class SpectatorToggle extends StatelessWidget {
                   value
                       ? 'Family members can watch read-only'
                       : 'Only players in this room can see the game',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10,
                     color: KinrelColors.textDim,

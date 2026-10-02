@@ -153,7 +153,7 @@ class ShareAppHelper {
                         ),
                       )
                     : null,
-                trailing: Icon(Icons.share_outlined, color: _orange, size: 20),
+                trailing: const Icon(Icons.share_outlined, color: _orange, size: 20),
                 onTap: () {
                   Navigator.of(ctx).pop();
                   share(familyUsername: family.username);

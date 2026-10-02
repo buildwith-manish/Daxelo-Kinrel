@@ -155,7 +155,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
           const SizedBox(height: 32.0),
 
           // Tagline
-          Text(
+          const Text(
             'Start your family tree.',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -171,9 +171,9 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
           const SizedBox(height: 12.0),
 
           // Subtitle
-          Text(
+          const Text(
             'Build your family graph by adding yourself first.',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 15.0,
               color: KinrelColors.textSilver,
@@ -199,7 +199,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
                 ),
                 elevation: 0,
               ),
-              child: Text(
+              child: const Text(
                 'Add Yourself',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
@@ -312,7 +312,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
                   ),
                 ],
               ),
-              child: Center(
+              child: const Center(
                 child: Icon(
                   Icons.person,
                   size: 36.0,
@@ -324,7 +324,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
 
           const SizedBox(height: 8.0),
 
-          Text(
+          const Text(
             'You',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -338,9 +338,9 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
           const SizedBox(height: 28.0),
 
           // Primary quick-action chips
-          Text(
+          const Text(
             'Add your first family member',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14.0,
               color: KinrelColors.textSilver,
@@ -411,7 +411,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
               borderRadius: BorderRadius.circular(12.0),
               border: Border.all(color: KinrelColors.border),
             ),
-            child: Row(
+            child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
@@ -419,7 +419,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
                   size: 18.0,
                   color: KinrelColors.orange,
                 ),
-                const SizedBox(width: 8.0),
+                SizedBox(width: 8.0),
                 Text(
                   'Add more family members',
                   style: TextStyle(
@@ -449,14 +449,14 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
                 color: KinrelColors.orange.withValues(alpha: 0.2),
               ),
             ),
-            child: Row(
+            child: const Row(
               children: [
                 Icon(
                   Icons.info_outline,
                   size: 16.0,
                   color: KinrelColors.orange,
                 ),
-                const SizedBox(width: 8.0),
+                SizedBox(width: 8.0),
                 Expanded(
                   child: Text(
                     'Tap any node to see details, or tap + to add members.',
@@ -528,7 +528,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
       avatar: Icon(icon, size: 16.0, color: color),
       label: Text(
         label,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 13.0,
           fontWeight: FontWeight.w500,
@@ -550,7 +550,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
       icon: Icon(icon, size: 16.0, color: KinrelColors.textDim),
       label: Text(
         label,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 13.0,
           color: KinrelColors.textDim,

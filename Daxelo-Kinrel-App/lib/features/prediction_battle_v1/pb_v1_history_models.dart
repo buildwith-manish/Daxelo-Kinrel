@@ -20,15 +20,15 @@ class PBv1Streak {
     this.updatedAt,
   });
 
-  final int currentStreak;
-  final int bestStreak;
-  final DateTime? updatedAt;
-
   factory PBv1Streak.fromJson(Map<String, dynamic> json) => PBv1Streak(
     currentStreak: (json['currentStreak'] ?? json['current_streak'] ?? 0) as int,
     bestStreak: (json['bestStreak'] ?? json['best_streak'] ?? 0) as int,
     updatedAt: DateTime.tryParse((json['updatedAt'] ?? json['updated_at'] ?? '').toString()),
   );
+
+  final int currentStreak;
+  final int bestStreak;
+  final DateTime? updatedAt;
 
   Map<String, dynamic> toJson() => {
     'current_streak': currentStreak,
@@ -48,13 +48,13 @@ class PBv1HistoryGuess {
     required this.distance,
   });
 
-  final double guessValue;
-  final double distance;
-
   factory PBv1HistoryGuess.fromJson(Map<String, dynamic> json) => PBv1HistoryGuess(
     guessValue: ((json['guessValue'] ?? json['guess_value'] ?? 0) as num).toDouble(),
     distance: ((json['distance'] ?? 0) as num).toDouble(),
   );
+
+  final double guessValue;
+  final double distance;
 
   Map<String, dynamic> toJson() => {
     'guess_value': guessValue,
@@ -81,21 +81,6 @@ class PBv1HistoryRound {
     this.myGuess,
   });
 
-  final String roundId;
-  final String questionId;
-  final DateTime opensAt;
-  final DateTime revealAt;
-  final String status;
-  final String questionText;
-  final double correctAnswer;
-  final String unitLabel;
-  final String category;
-  final String funFactText;
-  final List<String> winnerUserIds;
-  final int totalGuesses;
-  final bool iWon;
-  final PBv1HistoryGuess? myGuess;
-
   factory PBv1HistoryRound.fromJson(Map<String, dynamic> json) => PBv1HistoryRound(
     roundId: (json['roundId'] ?? json['round_id'] ?? '') as String,
     questionId: (json['questionId'] ?? json['question_id'] ?? '') as String,
@@ -118,6 +103,21 @@ class PBv1HistoryRound {
             ? PBv1HistoryGuess.fromJson(Map<String, dynamic>.from(json['my_guess'] as Map))
             : null),
   );
+
+  final String roundId;
+  final String questionId;
+  final DateTime opensAt;
+  final DateTime revealAt;
+  final String status;
+  final String questionText;
+  final double correctAnswer;
+  final String unitLabel;
+  final String category;
+  final String funFactText;
+  final List<String> winnerUserIds;
+  final int totalGuesses;
+  final bool iWon;
+  final PBv1HistoryGuess? myGuess;
 
   Map<String, dynamic> toJson() => {
     'round_id': roundId,
@@ -155,12 +155,6 @@ class PBv1LeaderboardEntry {
     required this.totalGuessesInWindow,
   });
 
-  final String userId;
-  final int currentStreak;
-  final int bestStreak;
-  final int totalWinsInWindow;
-  final int totalGuessesInWindow;
-
   factory PBv1LeaderboardEntry.fromJson(Map<String, dynamic> json) => PBv1LeaderboardEntry(
     userId: (json['userId'] ?? json['user_id'] ?? '') as String,
     currentStreak: (json['currentStreak'] ?? json['current_streak'] ?? 0) as int,
@@ -168,6 +162,12 @@ class PBv1LeaderboardEntry {
     totalWinsInWindow: (json['totalWinsInWindow'] ?? json['total_wins_in_window'] ?? 0) as int,
     totalGuessesInWindow: (json['totalGuessesInWindow'] ?? json['total_guesses_in_window'] ?? 0) as int,
   );
+
+  final String userId;
+  final int currentStreak;
+  final int bestStreak;
+  final int totalWinsInWindow;
+  final int totalGuessesInWindow;
 
   Map<String, dynamic> toJson() => {
     'user_id': userId,
@@ -192,15 +192,6 @@ class PBv1History {
     required this.cachedAt,
   });
 
-  final PBv1Streak streak;
-  final List<PBv1HistoryRound> rounds;
-  /// Family-wide leaderboard. Ordered by current_streak DESC, then
-  /// best_streak DESC. May be empty if no family member has ever won
-  /// (pb_v1_win_streaks is populated on first win — there's no row
-  /// until then).
-  final List<PBv1LeaderboardEntry> leaderboard;
-  final String cachedAt;
-
   factory PBv1History.fromJson(Map<String, dynamic> json) => PBv1History(
     streak: json['streak'] is Map
         ? PBv1Streak.fromJson(Map<String, dynamic>.from(json['streak'] as Map))
@@ -215,6 +206,15 @@ class PBv1History {
         .toList(),
     cachedAt: (json['cachedAt'] ?? '') as String,
   );
+
+  final PBv1Streak streak;
+  final List<PBv1HistoryRound> rounds;
+  /// Family-wide leaderboard. Ordered by current_streak DESC, then
+  /// best_streak DESC. May be empty if no family member has ever won
+  /// (pb_v1_win_streaks is populated on first win — there's no row
+  /// until then).
+  final List<PBv1LeaderboardEntry> leaderboard;
+  final String cachedAt;
 
   Map<String, dynamic> toJson() => {
     'streak': streak.toJson(),

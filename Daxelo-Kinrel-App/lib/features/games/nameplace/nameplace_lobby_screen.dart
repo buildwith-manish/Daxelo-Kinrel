@@ -68,11 +68,11 @@ class _NameplaceLobbyScreenState extends ConsumerState<NameplaceLobbyScreen> {
       builder: (_) => Padding(
         padding: const EdgeInsets.all(KinrelSpacing.xl),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('Share this code', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+          const Text('Share this code', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
           const SizedBox(height: KinrelSpacing.md),
-          Text(code, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 40, fontWeight: FontWeight.w700, color: KinrelColors.orange, letterSpacing: 6)),
+          Text(code, style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 40, fontWeight: FontWeight.w700, color: KinrelColors.orange, letterSpacing: 6)),
           const SizedBox(height: KinrelSpacing.md),
-          Text('Up to 19 family members can join. Categories: Name, Place, Animal, Thing, Movie.', textAlign: TextAlign.center,
+          const Text('Up to 19 family members can join. Categories: Name, Place, Animal, Thing, Movie.', textAlign: TextAlign.center,
             style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
           const SizedBox(height: KinrelSpacing.lg),
           DKButton(label: 'Done', variant: DKButtonVariant.primary, fullWidth: true, onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
@@ -105,7 +105,7 @@ class _NameplaceLobbyScreenState extends ConsumerState<NameplaceLobbyScreen> {
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
         title: hasGame
-            ? Text('Name, Place, Animal, Thing', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))
+            ? const Text('Name, Place, Animal, Thing', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))
             : null,
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [
@@ -191,7 +191,7 @@ class _NameplaceLobbyScreenState extends ConsumerState<NameplaceLobbyScreen> {
                   borderRadius: BorderRadius.circular(KinrelRadius.full),
                   border: Border.all(color: KinrelColors.border),
                 ),
-                child: Text(c, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textWhite, fontWeight: FontWeight.w600)),
+                child: Text(c, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textWhite, fontWeight: FontWeight.w600)),
               )).toList(),
             ),
           ),

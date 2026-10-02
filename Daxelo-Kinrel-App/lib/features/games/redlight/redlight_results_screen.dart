@@ -98,7 +98,7 @@ class RedlightResultsScreen extends ConsumerWidget {
               isWinnerView ? null : KinrelColors.darkSurface,
           appBar: AppBar(
             automaticallyImplyLeading: false,
-            title: Text(
+            title: const Text(
               'Results',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -136,7 +136,7 @@ class RedlightResultsScreen extends ConsumerWidget {
                       _podium(entries),
                     ],
                     const SizedBox(height: KinrelSpacing.xl),
-                    Text(
+                    const Text(
                       'Final Standings',
                       style: TextStyle(
                         fontFamily: KinrelTypography.displayFont,
@@ -278,7 +278,7 @@ class RedlightResultsScreen extends ConsumerWidget {
               entry.userName.split(' ').first,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -346,7 +346,7 @@ class RedlightResultsScreen extends ConsumerWidget {
               curve: Curves.elasticOut,
             ),
         const SizedBox(height: KinrelSpacing.sm),
-        Text(
+        const Text(
           'Winner!',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -359,7 +359,7 @@ class RedlightResultsScreen extends ConsumerWidget {
         const SizedBox(height: 4),
         Text(
           isMe ? '${winner.userName} (You)' : winner.userName,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 22,
             fontWeight: FontWeight.w600,
@@ -398,7 +398,7 @@ class RedlightResultsScreen extends ConsumerWidget {
             width: 40,
             child: Text(
               medal,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -409,7 +409,7 @@ class RedlightResultsScreen extends ConsumerWidget {
           Expanded(
             child: Text(
               isMe ? '${row.userName} (You)' : row.userName,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -419,7 +419,7 @@ class RedlightResultsScreen extends ConsumerWidget {
           ),
           Text(
             '${row.progress.toStringAsFixed(0)}%',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 13,
               fontWeight: FontWeight.w700,

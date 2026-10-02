@@ -45,7 +45,7 @@ class _TtSubmitScreenState extends ConsumerState<TtSubmitScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => context.pushReplacement('/family/${widget.familyId}/twotruths/results/${widget.gameId}'));
     }
 
-    if (game == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, body: const Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
+    if (game == null) return const DKScaffold(backgroundColor: KinrelColors.darkSurface, body: Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
 
     final isMyTurn = game.currentSubmitterId == myId;
     final isAiMode = game.mode == TtMode.aiLie;
@@ -54,7 +54,7 @@ class _TtSubmitScreenState extends ConsumerState<TtSubmitScreen> {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.close_rounded), onPressed: () { ref.read(ttProvider(widget.familyId).notifier).leaveGame(); if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
-        title: Text('Round ${game.currentRound}/${game.totalRounds}', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: Text('Round ${game.currentRound}/${game.totalRounds}', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),
       body: !isMyTurn ? _waitingView(state) : _submitView(game, isAiMode),
@@ -64,7 +64,7 @@ class _TtSubmitScreenState extends ConsumerState<TtSubmitScreen> {
   Widget _submitView(game, bool isAiMode) {
     return ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
       Text(isAiMode ? 'Write 2 true statements. AI will generate the lie!' : 'Write 3 statements. Mark which is the lie.',
-        style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
+        style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
       const SizedBox(height: 16),
       _statementCard(1, _c1, 'Statement 1', isAiMode ? false : _lieIndex == 1, () { GameMotionTokens.tap(); setState(() => _lieIndex = 1); }),
       const SizedBox(height: 10),
@@ -72,7 +72,7 @@ class _TtSubmitScreenState extends ConsumerState<TtSubmitScreen> {
       const SizedBox(height: 10),
       if (isAiMode)
         Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(16), border: Border.all(color: KinrelColors.info.withValues(alpha: 0.3)), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))]),
-          child: Row(children: [Container(width: 30, height: 30, decoration: BoxDecoration(shape: BoxShape.circle, color: KinrelColors.info.withValues(alpha: 0.14), border: Border.all(color: KinrelColors.info.withValues(alpha: 0.4))), child: Center(child: Icon(Icons.smart_toy, color: KinrelColors.info, size: 16))), const SizedBox(width: 10), Expanded(child: Text('Statement 3 (the lie) will be AI-generated', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.info)))]))
+          child: Row(children: [Container(width: 30, height: 30, decoration: BoxDecoration(shape: BoxShape.circle, color: KinrelColors.info.withValues(alpha: 0.14), border: Border.all(color: KinrelColors.info.withValues(alpha: 0.4))), child: const Center(child: Icon(Icons.smart_toy, color: KinrelColors.info, size: 16))), const SizedBox(width: 10), const Expanded(child: Text('Statement 3 (the lie) will be AI-generated', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.info)))]))
       else
         _statementCard(3, _c3, 'Statement 3', _lieIndex == 3, () { GameMotionTokens.tap(); setState(() => _lieIndex = 3); }),
       const SizedBox(height: 24),
@@ -114,16 +114,16 @@ class _TtSubmitScreenState extends ConsumerState<TtSubmitScreen> {
                 decoration: BoxDecoration(color: accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10), border: Border.all(color: accent.withValues(alpha: 0.45))),
                 child: Text('0$number', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 13, fontWeight: FontWeight.w800, color: accent))),
               const SizedBox(width: 10),
-              Expanded(child: TextField(controller: controller, maxLines: 2, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textWhite),
-                decoration: InputDecoration(hintText: '$label...', hintStyle: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim),
+              Expanded(child: TextField(controller: controller, maxLines: 2, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textWhite),
+                decoration: InputDecoration(hintText: '$label...', hintStyle: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim),
                   border: InputBorder.none, isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 10)))),
             ]),
             if (!isLie) Padding(padding: const EdgeInsets.only(top: 4), child: GestureDetector(onTap: onTap,
-              child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle_outlined, size: 14, color: KinrelColors.textDim), const SizedBox(width: 4),
+              child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle_outlined, size: 14, color: KinrelColors.textDim), SizedBox(width: 4),
                 Text('Mark as lie', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 10, color: KinrelColors.textDim))]))),
             if (isLie) Padding(padding: const EdgeInsets.only(top: 4), child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(color: KinrelColors.coral.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4)),
-              child: Text('THIS IS THE LIE', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 9, fontWeight: FontWeight.w700, color: KinrelColors.coral)))),
+              child: const Text('THIS IS THE LIE', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 9, fontWeight: FontWeight.w700, color: KinrelColors.coral)))),
           ])),
         ]),
       ),

@@ -48,15 +48,6 @@ const String _kActiveAccountKey = 'kinrel_active_account';
 /// [displayName] and [username] instead. See `AccountSwitcherSheet` for
 /// the canonical identity-focused rendering.
 class StoredAccount {
-  final String userId;
-  final String email;
-  final String? displayName;
-  final String? username;
-  final String? avatarUrl;
-  final String accessToken;
-  final String refreshToken;
-  final String? preferredLanguage;
-  final DateTime storedAt;
 
   StoredAccount({
     required this.userId,
@@ -69,18 +60,6 @@ class StoredAccount {
     this.preferredLanguage,
     required this.storedAt,
   });
-
-  Map<String, dynamic> toJson() => {
-    'userId': userId,
-    'email': email,
-    'displayName': displayName,
-    'username': username,
-    'avatarUrl': avatarUrl,
-    'accessToken': accessToken,
-    'refreshToken': refreshToken,
-    'preferredLanguage': preferredLanguage,
-    'storedAt': storedAt.toIso8601String(),
-  };
 
   factory StoredAccount.fromJson(Map<String, dynamic> json) => StoredAccount(
     userId: json['userId'] as String,
@@ -96,13 +75,34 @@ class StoredAccount {
     preferredLanguage: json['preferredLanguage'] as String?,
     storedAt: DateTime.parse(json['storedAt'] as String),
   );
+  final String userId;
+  final String email;
+  final String? displayName;
+  final String? username;
+  final String? avatarUrl;
+  final String accessToken;
+  final String refreshToken;
+  final String? preferredLanguage;
+  final DateTime storedAt;
+
+  Map<String, dynamic> toJson() => {
+    'userId': userId,
+    'email': email,
+    'displayName': displayName,
+    'username': username,
+    'avatarUrl': avatarUrl,
+    'accessToken': accessToken,
+    'refreshToken': refreshToken,
+    'preferredLanguage': preferredLanguage,
+    'storedAt': storedAt.toIso8601String(),
+  };
 }
 
 /// Multi-account manager service.
 class MultiAccountService {
+  MultiAccountService._();
   static final MultiAccountService _instance = MultiAccountService._();
   static MultiAccountService get instance => _instance;
-  MultiAccountService._();
 
   // Use conditional import for secure storage — flutter_secure_storage
   // with AndroidOptions doesn't compile on web.

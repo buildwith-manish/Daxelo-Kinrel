@@ -1,6 +1,7 @@
 /// A sealed class representing the result of an API call.
 ///
 /// Either [ApiSuccess] with data of type [T], or [ApiError] with a [Failure].
+library;
 import 'failures.dart';
 
 sealed class ApiResult<T> {}

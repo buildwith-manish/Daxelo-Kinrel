@@ -82,7 +82,7 @@ class _SecretHeistCardState extends ConsumerState<SecretHeistCard> {
                     children: [
                       Row(
                         children: [
-                          Expanded(
+                          const Expanded(
                             child: Text(
                               'Secret Heist',
                               style: TextStyle(
@@ -102,7 +102,7 @@ class _SecretHeistCardState extends ConsumerState<SecretHeistCard> {
                               border: Border.all(
                                   color: accent.withValues(alpha: 0.4)),
                             ),
-                            child: Text(
+                            child: const Text(
                               '3–8',
                               style: TextStyle(
                                 fontFamily: KinrelTypography.monoFont,
@@ -115,7 +115,7 @@ class _SecretHeistCardState extends ConsumerState<SecretHeistCard> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      const Text(
                         'Social strategy · Bluff, steal, outsmart',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
@@ -136,7 +136,7 @@ class _SecretHeistCardState extends ConsumerState<SecretHeistCard> {
                           ),
                         )
                       else
-                        Text(
+                        const Text(
                           'Secretly choose actions, lock in, resolve. Most coins wins.',
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
@@ -211,11 +211,11 @@ class _SecretHeistMotifPainter extends CustomPainter {
       center,
       coinRadius,
       Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(-0.4, -0.4),
+        ..shader = const RadialGradient(
+          center: Alignment(-0.4, -0.4),
           colors: [
-            const Color(0xFFFCD34D),
-            const Color(0xFFB45309),
+            Color(0xFFFCD34D),
+            Color(0xFFB45309),
           ],
         ).createShader(
             Rect.fromCircle(center: center, radius: coinRadius)),

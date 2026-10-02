@@ -261,7 +261,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Expanded(
+                const Expanded(
                   child: Text(
                     'This cannot be undone',
                     style: TextStyle(
@@ -291,23 +291,23 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
           ),
           const SizedBox(height: 12),
 
-          _DeletionItem(
+          const _DeletionItem(
             icon: Icons.person_outline,
             title: 'Your profile info',
             subtitle: 'Name, email, phone, avatar, and bio',
           ),
-          _DeletionItem(
+          const _DeletionItem(
             icon: Icons.account_tree_outlined,
             title: 'Family trees where you\'re the sole admin',
             subtitle: 'These trees will be permanently removed',
             isWarning: true,
           ),
-          _DeletionItem(
+          const _DeletionItem(
             icon: Icons.link_outlined,
             title: 'All relationships you\'ve created',
             subtitle: 'Connections between family members',
           ),
-          _DeletionItem(
+          const _DeletionItem(
             icon: Icons.history_outlined,
             title: 'Activity history',
             subtitle: 'All your past activity and interactions',
@@ -330,7 +330,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.warning_amber_rounded,
                         color: _dangerRed,
                         size: 18,
@@ -338,7 +338,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                       const SizedBox(width: 8),
                       Text(
                         'You are the sole admin of ${_soleAdminFamilies.length} ${_soleAdminFamilies.length == 1 ? 'family' : 'families'}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -439,15 +439,15 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: _dangerRed.withValues(alpha: 0.2)),
             ),
-            child: Column(
+            child: const Column(
               children: [
-                const Icon(
+                Icon(
                   Icons.dangerous_outlined,
                   color: _dangerRed,
                   size: 36,
                 ),
-                const SizedBox(height: 12),
-                const Text(
+                SizedBox(height: 12),
+                Text(
                   'You are about to permanently delete your account',
                   textAlign: TextAlign.center,
                   style: TextStyle(

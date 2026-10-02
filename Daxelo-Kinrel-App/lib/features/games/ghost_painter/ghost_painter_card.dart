@@ -58,20 +58,20 @@ class _GhostPainterCardState extends ConsumerState<GhostPainterCard> {
             Container(width: 36, height: 36, decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFFEC4899).withValues(alpha: 0.2)),
               child: const Icon(Icons.brush_rounded, color: Color(0xFFEC4899), size: 20)),
             const SizedBox(width: 12),
-            Expanded(child: Text('Ghost Painter', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
+            const Expanded(child: Text('Ghost Painter', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
             if (state.hasActiveRound)
               _LiveBadge(),
           ]),
           const SizedBox(height: 10),
           if (dlState.status != GameDownloadStatus.downloaded)
-            Text('Download in Games hub to play', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim))
+            const Text('Download in Games hub to play', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim))
           else if (state.hasActiveRound)
             Text('${state.activeRound!.drawerPersonName} is drawing — tap to guess!',
-              style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w500, color: KinrelColors.textWhite))
+              style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w500, color: KinrelColors.textWhite))
           else if (state.isLoading)
-            Text('Loading...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim))
+            const Text('Loading...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim))
           else
-            Text('No active round — tap to start drawing',
+            const Text('No active round — tap to start drawing',
               style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
         ])),
       )),

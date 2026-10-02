@@ -27,14 +27,14 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
       backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(
         backgroundColor: KinrelColors.darkBackground,
-        title: Text('Privacy', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+        title: const Text('Privacy', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
       ),
       body: ListView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         children: [
           // Profile Privacy
           Container(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: KinrelColors.elevation1,
               borderRadius: BorderRadius.circular(12),
@@ -45,7 +45,7 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
+                    const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -58,14 +58,14 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                       ),
                     ),
                     if (privacyState.isProfileLoading)
-                      SizedBox(
+                      const SizedBox(
                         width: 24, height: 24,
                         child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange),
                       )
                     else
                       Switch(
                         value: privacyState.isPrivate,
-                        activeColor: KinrelColors.orange,
+                        activeThumbColor: KinrelColors.orange,
                         onChanged: (value) async {
                           final success = await ref.read(privacyProvider.notifier).toggleProfilePrivacy(value);
                           if (mounted) {
@@ -82,18 +82,18 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                 ),
                 if (privacyState.profileError != null)
                   Padding(
-                    padding: EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.only(top: 8),
                     child: Text(privacyState.profileError!,
-                      style: TextStyle(color: KinrelColors.error, fontSize: 12)),
+                      style: const TextStyle(color: KinrelColors.error, fontSize: 12)),
                   ),
               ],
             ),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
 
           // Family Tree Visibility
           Container(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: KinrelColors.elevation1,
               borderRadius: BorderRadius.circular(12),
@@ -104,7 +104,7 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
+                    const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -117,14 +117,14 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                       ),
                     ),
                     if (privacyState.isGraphLoading)
-                      SizedBox(
+                      const SizedBox(
                         width: 24, height: 24,
                         child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange),
                       )
                     else
                       Switch(
                         value: privacyState.isFamilyGraphPublic,
-                        activeColor: KinrelColors.orange,
+                        activeThumbColor: KinrelColors.orange,
                         onChanged: (value) async {
                           final success = await ref.read(privacyProvider.notifier).toggleFamilyGraphVisibility(value);
                           if (mounted) {
@@ -141,9 +141,9 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                 ),
                 if (privacyState.graphError != null)
                   Padding(
-                    padding: EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.only(top: 8),
                     child: Text(privacyState.graphError!,
-                      style: TextStyle(color: KinrelColors.error, fontSize: 12)),
+                      style: const TextStyle(color: KinrelColors.error, fontSize: 12)),
                   ),
               ],
             ),

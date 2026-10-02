@@ -99,14 +99,14 @@ class _FeedPostHeader extends StatelessWidget {
           Container(
             width: 36,
             height: 36,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               shape: BoxShape.circle,
               gradient: KinrelGradients.igniteGradient,
             ),
             child: Center(
               child: Text(
                 (post.authorName ?? post.familyName ?? 'F')[0].toUpperCase(),
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -127,7 +127,7 @@ class _FeedPostHeader extends StatelessWidget {
                     Flexible(
                       child: Text(
                         post.authorName ?? 'Family Member',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
@@ -140,7 +140,7 @@ class _FeedPostHeader extends StatelessWidget {
                       const SizedBox(width: 4),
                       Text(
                         '@${post.authorUsername}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 11,
                           color: _cOrange,
@@ -166,7 +166,7 @@ class _FeedPostHeader extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.group_outlined,
                           size: 10,
                           color: _cOrange,
@@ -174,7 +174,7 @@ class _FeedPostHeader extends StatelessWidget {
                         const SizedBox(width: 3),
                         Text(
                           post.familyName!,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
@@ -191,7 +191,7 @@ class _FeedPostHeader extends StatelessWidget {
           // Timestamp
           Text(
             post.timeAgo,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 11,
               color: _cTextDim,
@@ -200,7 +200,7 @@ class _FeedPostHeader extends StatelessWidget {
 
           // Three-dot menu
           IconButton(
-            icon: Icon(Icons.more_horiz_rounded, size: 20, color: _cTextDim),
+            icon: const Icon(Icons.more_horiz_rounded, size: 20, color: _cTextDim),
             onPressed: () {},
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -242,11 +242,11 @@ class _FeedPostBody extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.celebration_outlined, size: 12, color: KinrelColors.gold),
+                  const Icon(Icons.celebration_outlined, size: 12, color: KinrelColors.gold),
                   const SizedBox(width: 4),
                   Text(
                     occasion,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
@@ -263,7 +263,7 @@ class _FeedPostBody extends StatelessWidget {
           if (text.isNotEmpty)
             Text(
               text,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 color: _cTextSecondary,
@@ -286,7 +286,7 @@ class _FeedPostBody extends StatelessWidget {
                   placeholder: (context, url) => Container(
                     height: 200,
                     color: _cElevated,
-                    child: Center(
+                    child: const Center(
                       child: SizedBox(
                         width: 24,
                         height: 24,
@@ -300,7 +300,7 @@ class _FeedPostBody extends StatelessWidget {
                   errorWidget: (context, url, error) => Container(
                     height: 120,
                     color: _cElevated,
-                    child: Center(
+                    child: const Center(
                       child: Icon(
                         Icons.broken_image_outlined,
                         color: _cTextDim,
@@ -329,14 +329,14 @@ class _FeedPostBody extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
+                  const Text(
                     '👨‍👩‍👧',
                     style: TextStyle(fontSize: 12),
                   ),
                   const SizedBox(width: 4),
                   Text(
                     'Member of ${post.familyName!} Family',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
                       color: _cTextDim,
@@ -439,7 +439,7 @@ class _FeedReactionRowState extends State<_FeedReactionRow> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(emoji, style: TextStyle(fontSize: 16)),
+                          Text(emoji, style: const TextStyle(fontSize: 16)),
                           if (count > 0 || isActive) ...[
                             const SizedBox(width: 3),
                             Text(
@@ -471,7 +471,7 @@ class _FeedReactionRowState extends State<_FeedReactionRow> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.chat_bubble_outline_rounded,
                       size: 14,
                       color: _cTextDim,
@@ -479,7 +479,7 @@ class _FeedReactionRowState extends State<_FeedReactionRow> {
                     const SizedBox(width: 4),
                     Text(
                       '${widget.post.commentCount}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
                         color: _cTextDim,
@@ -494,7 +494,7 @@ class _FeedReactionRowState extends State<_FeedReactionRow> {
               // Share button
               GestureDetector(
                 onTap: () {},
-                child: Icon(
+                child: const Icon(
                   Icons.send_outlined,
                   size: 18,
                   color: _cTextDim,

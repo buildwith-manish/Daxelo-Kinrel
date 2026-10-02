@@ -187,65 +187,6 @@ class FeedNotifier extends StateNotifier<FeedState> {
   final Ref _ref;
   static const int _pageSize = 10;
 
-  /// Load initial feed for a family
-  Future<void> loadFeed(String familyId) async {
-    state = state.copyWith(isLoading: true, error: null);
-
-    try {
-      final client = _ref.read(supabaseProvider);
-      if (client == null) {
-        state = state.copyWith(isLoading: false, error: 'Not connected');
-        return;
-      }
-
-      // Guard against no valid session — RLS will deny queries
-      final session = client.auth.currentSession;
-      if (session == null) {
-        state = state.copyWith(isLoading: false, posts: []);
-        return;
-      }
-
-      final response = await withRetry(
-        () => client
-            .from(_kFamilyPostTable)
-            .select('*, Family(name, username), Person(name, username)')
-            .eq('familyId', familyId)
-            .order('createdAt', ascending: false)
-            .range(0, _pageSize - 1),
-        operationName: 'Load feed',
-      );
-
-      final posts = (response as List)
-          .map(
-            (json) => FamilyPost.fromJson(
-              _flattenJoins(json as Map<String, dynamic>),
-            ),
-          )
-          .toList();
-
-      state = state.copyWith(
-        posts: posts,
-        isLoading: false,
-        hasMore: posts.length >= _pageSize,
-        page: 1,
-        cursor: posts.isNotEmpty ? posts.last.createdAt : null,
-      );
-    } catch (e) {
-      debugPrint('⚠️ Feed load error: $e');
-      // If the FamilyPost table doesn't exist yet in Supabase,
-      // show empty feed instead of an error — this is expected for new setups
-      final errMsg = e.toString();
-      final isTableMissing = errMsg.contains('does not exist') ||
-          errMsg.contains('not found') ||
-          errMsg.contains('relation');
-      state = state.copyWith(
-        isLoading: false,
-        error: isTableMissing ? null : errMsg,
-        posts: [],
-      );
-    }
-  }
-
   /// Load unified home feed (posts from ALL families the user belongs to)
   Future<void> loadHomeFeed() async {
     state = state.copyWith(isLoading: true, error: null);
@@ -762,12 +703,13 @@ final feedProvider = StateNotifierProvider<FeedNotifier, FeedState>((ref) {
   return FeedNotifier(ref);
 });
 
-/// Convenience provider that returns feed for a specific family
-final familyFeedProvider = Provider.family<FeedState, String>((ref, familyId) {
-  return ref.watch(feedProvider);
-});
-
-/// Home feed provider — loads posts from ALL families the user belongs to
+/// Home feed provider — loads posts from ALL families the user belongs to.
+///
+/// Note: a per-family `familyFeedProvider` previously existed here but was
+/// dead code — it watched the global `feedProvider` and ignored its
+/// `familyId` argument. The `loadFeed(familyId)` method on FeedNotifier
+/// was also dead code (zero callers). Both have been removed. The app
+/// uses a single cross-family home feed via `homeFeedProvider` + `loadHomeFeed()`.
 final homeFeedProvider = StateNotifierProvider<FeedNotifier, FeedState>((ref) {
   return FeedNotifier(ref);
 });

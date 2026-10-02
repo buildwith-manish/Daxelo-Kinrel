@@ -299,7 +299,7 @@ class _CelebrationOverlay extends StatelessWidget {
           Text(
             milestone.title,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 22,
               fontWeight: FontWeight.w700,
@@ -311,7 +311,7 @@ class _CelebrationOverlay extends StatelessWidget {
           Text(
             milestone.subtitle,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14,
               height: 1.5,
@@ -320,7 +320,7 @@ class _CelebrationOverlay extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           // Dismiss hint
-          Text(
+          const Text(
             'Tap to continue',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,

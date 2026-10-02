@@ -87,8 +87,7 @@ class _KinrelPullToRefreshState extends State<KinrelPullToRefresh> {
         }
         // Reset the flag when the user scrolls back up past the top,
         // so the next pull fires the haptic again.
-        if (notification is ScrollNotification &&
-            notification.metrics.pixels <= 0) {
+        if (notification.metrics.pixels <= 0) {
           _hasFiredThresholdHaptic = false;
         }
         return false; // don't consume — let RefreshIndicator handle it

@@ -205,7 +205,7 @@ class _MapSearchBarState extends State<MapSearchBar> {
                   offset: const Offset(0, 4),
                 ),
                 if (_expanded)
-                  BoxShadow(
+                  const BoxShadow(
                     color: KinrelColors.orangeGlow,
                     blurRadius: 14,
                     spreadRadius: 1,
@@ -214,7 +214,7 @@ class _MapSearchBarState extends State<MapSearchBar> {
             ),
             child: Row(
               children: [
-                SizedBox(width: KinrelSpacing.md),
+                const SizedBox(width: KinrelSpacing.md),
                 Icon(
                   _expanded ? Icons.arrow_back_rounded : Icons.search_rounded,
                   size: 20,
@@ -222,7 +222,7 @@ class _MapSearchBarState extends State<MapSearchBar> {
                       ? KinrelColors.orange
                       : KinrelColors.textDim,
                 ),
-                SizedBox(width: KinrelSpacing.sm),
+                const SizedBox(width: KinrelSpacing.sm),
                 Expanded(
                   child: _expanded
                       ? TextField(
@@ -230,7 +230,7 @@ class _MapSearchBarState extends State<MapSearchBar> {
                           focusNode: _focusNode,
                           textCapitalization: TextCapitalization.words,
                           textInputAction: TextInputAction.search,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 14,
                             color: KinrelColors.textWhite,
@@ -242,7 +242,7 @@ class _MapSearchBarState extends State<MapSearchBar> {
                             focusedBorder: InputBorder.none,
                             hintText: l10n?.familyMapSearchHint ??
                                 'Search city or family member',
-                            hintStyle: TextStyle(
+                            hintStyle: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 14,
                               color: KinrelColors.textDim,
@@ -262,7 +262,7 @@ class _MapSearchBarState extends State<MapSearchBar> {
                             child: Text(
                               l10n?.familyMapSearchCollapsed ??
                                   'Search city or family member',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 14,
                                 color: KinrelColors.textDim,
@@ -273,7 +273,7 @@ class _MapSearchBarState extends State<MapSearchBar> {
                 ),
                 if (_expanded)
                   IconButton(
-                    icon: Icon(
+                    icon: const Icon(
                       Icons.close_rounded,
                       size: 18,
                       color: KinrelColors.textDim,
@@ -288,7 +288,7 @@ class _MapSearchBarState extends State<MapSearchBar> {
                     padding: EdgeInsets.zero,
                   )
                 else
-                  SizedBox(width: KinrelSpacing.md),
+                  const SizedBox(width: KinrelSpacing.md),
               ],
             ),
           ),
@@ -297,7 +297,7 @@ class _MapSearchBarState extends State<MapSearchBar> {
           if (_expanded && _suggestions.isNotEmpty)
             Container(
               margin: const EdgeInsets.only(top: 6),
-              constraints: BoxConstraints(
+              constraints: const BoxConstraints(
                 maxHeight: 320,
               ),
               decoration: BoxDecoration(
@@ -316,7 +316,7 @@ class _MapSearchBarState extends State<MapSearchBar> {
                 shrinkWrap: true,
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 itemCount: _suggestions.length,
-                separatorBuilder: (_, __) => Divider(
+                separatorBuilder: (_, __) => const Divider(
                   color: KinrelColors.darkElevated,
                   height: 1,
                 ),
@@ -361,11 +361,11 @@ class _SuggestionTile extends StatelessWidget {
               Container(
                 width: 30,
                 height: 30,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   color: KinrelColors.orangeGlowSubtle,
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.location_city_rounded,
                   size: 16,
                   color: KinrelColors.orange,
@@ -379,7 +379,7 @@ class _SuggestionTile extends StatelessWidget {
                   children: [
                     Text(
                       _titleCase(c.cityName),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -388,7 +388,7 @@ class _SuggestionTile extends StatelessWidget {
                     ),
                     Text(
                       S.of(context)?.familyMapSearchCityHint ?? 'City',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
                         color: KinrelColors.textDim,
@@ -397,7 +397,7 @@ class _SuggestionTile extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(
+              const Icon(
                 Icons.north_east_rounded,
                 size: 16,
                 color: KinrelColors.textDim,
@@ -434,7 +434,7 @@ class _SuggestionTile extends StatelessWidget {
                   : Center(
                       child: Text(
                         initials(m.pin.name),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -452,7 +452,7 @@ class _SuggestionTile extends StatelessWidget {
                 children: [
                   Text(
                     m.pin.name,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -462,7 +462,7 @@ class _SuggestionTile extends StatelessWidget {
                   if (m.pin.city.isNotEmpty)
                     Text(
                       m.pin.city,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
                         color: KinrelColors.textDim,
@@ -471,7 +471,7 @@ class _SuggestionTile extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(
+            const Icon(
               Icons.north_east_rounded,
               size: 16,
               color: KinrelColors.textDim,

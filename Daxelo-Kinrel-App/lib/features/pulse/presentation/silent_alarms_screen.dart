@@ -45,7 +45,7 @@ class SilentAlarmsScreen extends ConsumerWidget {
                     const SizedBox(height: 8),
                     Text(
                       'No one in your family has gone quiet.\nAs the family bridge, you\'ll be notified\nhere if someone needs a check-in.',
-                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -65,9 +65,9 @@ class SilentAlarmsScreen extends ConsumerWidget {
 }
 
 class _AlarmCard extends ConsumerWidget {
-  final SilentAlarm alarm;
 
   const _AlarmCard({required this.alarm});
+  final SilentAlarm alarm;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -83,7 +83,7 @@ class _AlarmCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: severityColor.withOpacity(0.3)),
+        border: Border.all(color: severityColor.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -112,9 +112,9 @@ class _AlarmCard extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: severityColor.withOpacity(0.15),
+                  color: severityColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: severityColor.withOpacity(0.4)),
+                  border: Border.all(color: severityColor.withValues(alpha: 0.4)),
                 ),
                 child: Text(
                   alarm.severity.toUpperCase(),
@@ -128,7 +128,7 @@ class _AlarmCard extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: severityColor.withOpacity(0.08),
+              color: severityColor.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
@@ -141,7 +141,7 @@ class _AlarmCard extends ConsumerWidget {
             const SizedBox(height: 12),
             Text(
               'Suggestions:',
-              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11, fontWeight: FontWeight.w600),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 6),
             Wrap(
@@ -151,12 +151,12 @@ class _AlarmCard extends ConsumerWidget {
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
+                    color: Colors.white.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     s.toString(),
-                    style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11),
                   ),
                 );
               }).toList(),
@@ -188,17 +188,17 @@ class _AlarmCard extends ConsumerWidget {
                   child: const Text('I\'ll reach out', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 ),
               if (alarm.status == 'acknowledged') ...[
-                Icon(Icons.check_circle, color: KinrelColors.success, size: 16),
+                const Icon(Icons.check_circle, color: KinrelColors.success, size: 16),
                 const SizedBox(width: 6),
-                Text(
+                const Text(
                   'Acknowledged',
                   style: TextStyle(color: KinrelColors.success, fontSize: 12, fontWeight: FontWeight.w500),
                 ),
               ],
               if (alarm.status == 'resolved') ...[
-                Icon(Icons.check_circle, color: KinrelColors.success, size: 16),
+                const Icon(Icons.check_circle, color: KinrelColors.success, size: 16),
                 const SizedBox(width: 6),
-                Text(
+                const Text(
                   'Resolved — they\'re back!',
                   style: TextStyle(color: KinrelColors.success, fontSize: 12, fontWeight: FontWeight.w500),
                 ),

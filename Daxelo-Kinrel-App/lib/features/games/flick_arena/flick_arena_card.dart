@@ -81,7 +81,7 @@ class _FlickArenaCardState extends ConsumerState<FlickArenaCard> {
                     children: [
                       Row(
                         children: [
-                          Expanded(
+                          const Expanded(
                             child: Text(
                               'Flick Arena',
                               style: TextStyle(
@@ -101,7 +101,7 @@ class _FlickArenaCardState extends ConsumerState<FlickArenaCard> {
                               border: Border.all(
                                   color: accent.withValues(alpha: 0.4)),
                             ),
-                            child: Text(
+                            child: const Text(
                               '2–4',
                               style: TextStyle(
                                 fontFamily: KinrelTypography.monoFont,
@@ -114,7 +114,7 @@ class _FlickArenaCardState extends ConsumerState<FlickArenaCard> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      const Text(
                         'Physics strategy · 1v1 or 2v2',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
@@ -135,7 +135,7 @@ class _FlickArenaCardState extends ConsumerState<FlickArenaCard> {
                           ),
                         )
                       else
-                        Text(
+                        const Text(
                           'Flick discs into the goal — bank shots, momentum, and angle play.',
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
@@ -228,9 +228,9 @@ class _FlickArenaMotifPainter extends CustomPainter {
       Offset(center.dx + 10, h - 16),
       5,
       Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(-0.4, -0.4),
-          colors: const [
+        ..shader = const RadialGradient(
+          center: Alignment(-0.4, -0.4),
+          colors: [
             Color(0xFFF59E0B),
             Color(0xFFB45309),
           ],

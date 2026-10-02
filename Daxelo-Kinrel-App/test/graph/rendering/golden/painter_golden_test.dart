@@ -41,7 +41,7 @@ void main() {
 
     testGoldens('MemorialCandlePainter renders at flicker 0.0', (tester) async {
       await tester.pumpWidgetBuilder(
-        RepaintBoundary(
+        const RepaintBoundary(
           child: SizedBox(
             width: 80,
             height: 80,
@@ -57,7 +57,7 @@ void main() {
 
     testGoldens('MemorialCandlePainter renders at flicker 0.5', (tester) async {
       await tester.pumpWidgetBuilder(
-        RepaintBoundary(
+        const RepaintBoundary(
           child: SizedBox(
             width: 80,
             height: 80,
@@ -73,7 +73,7 @@ void main() {
 
     testGoldens('MemorialCandlePainter renders at flicker 1.0', (tester) async {
       await tester.pumpWidgetBuilder(
-        RepaintBoundary(
+        const RepaintBoundary(
           child: SizedBox(
             width: 80,
             height: 80,
@@ -90,12 +90,12 @@ void main() {
     testGoldens('MemorialCandlePainter reduced motion (static)',
         (tester) async {
       await tester.pumpWidgetBuilder(
-        RepaintBoundary(
+        const RepaintBoundary(
           child: SizedBox(
             width: 80,
             height: 80,
             child: CustomPaint(
-              painter: const MemorialCandlePainter(-1.0), // reduced motion
+              painter: MemorialCandlePainter(-1.0), // reduced motion
             ),
           ),
         ),
@@ -106,12 +106,12 @@ void main() {
 
     testGoldens('AmbientParticlePainter renders at t=0.0', (tester) async {
       await tester.pumpWidgetBuilder(
-        RepaintBoundary(
+        const RepaintBoundary(
           child: SizedBox(
             width: 200,
             height: 200,
             child: CustomPaint(
-              painter: const AmbientParticlePainter(
+              painter: AmbientParticlePainter(
                 t: 0.0,
                 anchorPosition: Offset(100, 100),
               ),
@@ -125,12 +125,12 @@ void main() {
 
     testGoldens('AmbientParticlePainter renders at t=0.5', (tester) async {
       await tester.pumpWidgetBuilder(
-        RepaintBoundary(
+        const RepaintBoundary(
           child: SizedBox(
             width: 200,
             height: 200,
             child: CustomPaint(
-              painter: const AmbientParticlePainter(
+              painter: AmbientParticlePainter(
                 t: 0.5,
                 anchorPosition: Offset(100, 100),
               ),
@@ -145,12 +145,12 @@ void main() {
     testGoldens('AmbientParticlePainter reduced motion (static)',
         (tester) async {
       await tester.pumpWidgetBuilder(
-        RepaintBoundary(
+        const RepaintBoundary(
           child: SizedBox(
             width: 200,
             height: 200,
             child: CustomPaint(
-              painter: const AmbientParticlePainter(
+              painter: AmbientParticlePainter(
                 t: 0.0,
                 anchorPosition: Offset(100, 100),
                 reducedMotion: true,

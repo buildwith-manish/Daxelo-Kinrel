@@ -217,7 +217,7 @@ class _CreateContentSheetState extends ConsumerState<CreateContentSheet> {
                 widget.gameType == 'twotruths'
                     ? 'Create Your Own Two Truths and a Lie'
                     : 'Create Your Own Truth or Dare',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
@@ -225,7 +225,7 @@ class _CreateContentSheetState extends ConsumerState<CreateContentSheet> {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
+              const Text(
                 'Your family will see this anonymously as "Someone in your family wrote this..."',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -249,7 +249,7 @@ class _CreateContentSheetState extends ConsumerState<CreateContentSheet> {
                   ),
                   child: Text(
                     _error!,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.error,
@@ -283,7 +283,7 @@ class _CreateContentSheetState extends ConsumerState<CreateContentSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Write two truths and one lie. Mark which one is the lie.',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -341,7 +341,7 @@ class _CreateContentSheetState extends ConsumerState<CreateContentSheet> {
           controller: _tdController,
           maxLength: 300,
           maxLines: 3,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 14,
             color: KinrelColors.textWhite,
@@ -362,7 +362,7 @@ class _CreateContentSheetState extends ConsumerState<CreateContentSheet> {
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(KinrelRadius.md),
-              borderSide: BorderSide(color: KinrelColors.border),
+              borderSide: const BorderSide(color: KinrelColors.border),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(KinrelRadius.md),
@@ -398,7 +398,7 @@ class _StatementField extends StatelessWidget {
           children: [
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -439,7 +439,7 @@ class _StatementField extends StatelessWidget {
         TextField(
           controller: controller,
           maxLength: 200,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 14,
             color: KinrelColors.textWhite,
@@ -452,7 +452,7 @@ class _StatementField extends StatelessWidget {
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(KinrelRadius.md),
-              borderSide: BorderSide(color: KinrelColors.border),
+              borderSide: const BorderSide(color: KinrelColors.border),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(KinrelRadius.md),

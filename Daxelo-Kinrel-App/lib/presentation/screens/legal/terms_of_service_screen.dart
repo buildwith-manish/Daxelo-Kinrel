@@ -24,9 +24,9 @@ class TermsOfServiceScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: KinrelColors.textPrimary),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
-        title: Text(
+        title: const Text(
           'Terms of Service',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 20,
             fontWeight: FontWeight.w700,
@@ -34,11 +34,11 @@ class TermsOfServiceScreen extends StatelessWidget {
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+      body: const SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(20, 8, 20, 40),
         child: SelectableText(
           _termsOfServiceText,
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 14,
             color: KinrelColors.textSecondary,

@@ -220,7 +220,7 @@ class _BlockedUsersScreenState extends ConsumerState<BlockedUsersScreen> {
       itemCount: 4,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
-        final _shimmerChild = Container(
+        final shimmerChild = Container(
           width: double.infinity,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -233,7 +233,7 @@ class _BlockedUsersScreenState extends ConsumerState<BlockedUsersScreen> {
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(color: _bg, shape: BoxShape.circle),
+                decoration: const BoxDecoration(color: _bg, shape: BoxShape.circle),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -265,14 +265,14 @@ class _BlockedUsersScreenState extends ConsumerState<BlockedUsersScreen> {
         );
 
         if (!DeviceTierCache.instance.shouldShimmer) {
-          return _shimmerChild;
+          return shimmerChild;
         }
 
         return Shimmer.fromColors(
           baseColor: const Color(0xFF202338),
           highlightColor: const Color(0xFF13141E),
           period: const Duration(milliseconds: 1500),
-          child: _shimmerChild,
+          child: shimmerChild,
         );
       },
     );
@@ -355,7 +355,7 @@ class _BlockedUserCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     '@${user.username}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 12,
                       color: _textDim,
@@ -368,7 +368,7 @@ class _BlockedUserCard extends StatelessWidget {
 
           // Unblock button
           isUnblocking
-              ? SizedBox(
+              ? const SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(

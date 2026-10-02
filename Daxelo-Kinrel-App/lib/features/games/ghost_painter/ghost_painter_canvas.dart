@@ -63,10 +63,10 @@ class _GhostCanvasPainter extends CustomPainter {
     canvas.drawRect(
       rect,
       Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(-0.2, -0.25),
+        ..shader = const RadialGradient(
+          center: Alignment(-0.2, -0.25),
           radius: 1.6,
-          colors: const [_deepA, _deepB],
+          colors: [_deepA, _deepB],
         ).createShader(rect),
     );
 

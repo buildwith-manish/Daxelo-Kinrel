@@ -60,7 +60,7 @@ void main() {
     });
 
     test('candle color is amber #F59240', () {
-      expect(const Color(0xFFF59240).value, equals(0xFFF59240));
+      expect(const Color(0xFFF59240).toARGB32(), equals(0xFFF59240));
     });
 
     test('painter shouldRepaint triggers on flicker value change', () {

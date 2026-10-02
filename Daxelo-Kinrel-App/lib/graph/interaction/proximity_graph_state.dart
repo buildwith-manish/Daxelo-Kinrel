@@ -626,9 +626,7 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
         if (byRank != 0) return byRank;
         return a.key.compareTo(b.key);
       });
-    return Set<String>.from(
-      [for (final r in ranked.take(maxNodes)) r.key],
-    );
+    return <String>{for (final r in ranked.take(maxNodes)) r.key};
   }
 
   /// v5.159: Keep-priority for one-level reveals — closer family first,

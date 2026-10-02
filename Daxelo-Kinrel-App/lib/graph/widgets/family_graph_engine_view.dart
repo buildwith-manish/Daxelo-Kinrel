@@ -2801,7 +2801,7 @@ class _IsolateConnectionsChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
+              const Icon(
                 Icons.filter_alt_rounded,
                 size: 16,
                 color: KinrelColors.orange,
@@ -2813,7 +2813,7 @@ class _IsolateConnectionsChip extends StatelessWidget {
                 ),
                 child: Text(
                   "Showing: $personName's connections",
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     color: KinrelColors.textWhite,
@@ -2825,7 +2825,7 @@ class _IsolateConnectionsChip extends StatelessWidget {
               const SizedBox(width: 8),
               // "Show all" text button — tapping anywhere on the chip
               // (including this text) triggers onShowAll.
-              Text(
+              const Text(
                 'Show all',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -2836,7 +2836,7 @@ class _IsolateConnectionsChip extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               // X icon — also triggers onShowAll (same action).
-              Icon(
+              const Icon(
                 Icons.close_rounded,
                 size: 16,
                 color: KinrelColors.textDim,
@@ -3024,7 +3024,7 @@ class _ViewerDebugBannerState extends State<_ViewerDebugBanner> {
         children: [
           Row(
             children: [
-              Text(
+              const Text(
                 'VIEWER DEBUG (v5.88)',
                 style: TextStyle(
                   color: KinrelColors.orange,

@@ -158,11 +158,11 @@ class _DisappearingMessagesSheetState
               ),
             ),
             // Title
-            Row(
+            const Row(
               children: [
                 Icon(Icons.timer_outlined,
                     size: 22, color: KinrelColors.ember),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Text(
                   'Disappearing messages',
                   style: TextStyle(
@@ -175,7 +175,7 @@ class _DisappearingMessagesSheetState
               ],
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Messages older than the selected duration are automatically removed from your view. The nightly cleanup runs at 03:00 UTC.',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -219,7 +219,7 @@ class _DisappearingMessagesSheetState
                       )
                     : Text(
                         _selectedHours == _currentHours ? 'Done' : 'Save',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
@@ -260,7 +260,7 @@ class _DisappearingMessagesSheetState
                       child: Container(
                         width: 10,
                         height: 10,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           shape: BoxShape.circle,
                           color: KinrelColors.ember,
                         ),
@@ -275,7 +275,7 @@ class _DisappearingMessagesSheetState
                 children: [
                   Text(
                     opt.label,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -284,7 +284,7 @@ class _DisappearingMessagesSheetState
                   ),
                   Text(
                     opt.description,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11.5,
                       color: KinrelColors.textDim,
@@ -294,7 +294,7 @@ class _DisappearingMessagesSheetState
               ),
             ),
             if (selected)
-              Icon(Icons.check_rounded,
+              const Icon(Icons.check_rounded,
                   size: 18, color: KinrelColors.ember),
           ],
         ),

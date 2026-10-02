@@ -50,7 +50,7 @@ void main() {
               'reset-to-center affordance for edge midpoint bows.');
 
       // Positive: the call is gated by rearrangeModeProvider.
-      expect(source.contains("ref.read(rearrangeModeProvider)"), true,
+      expect(source.contains('ref.read(rearrangeModeProvider)'), true,
           reason: 'The reset-to-center call must be gated by '
               'rearrangeModeProvider — only fire in Rearrange mode.');
 

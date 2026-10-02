@@ -613,7 +613,7 @@ final _demoEvents = <MemoryEvent>[
     description:
         'Arjun relocated to Bangalore for his new role at Infosys. The family gathered for a farewell dinner in Jaipur.',
     location: 'Bangalore, Karnataka',
-    members: [MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS')],
+    members: [const MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS')],
     isPinned: true,
   ),
 
@@ -626,10 +626,10 @@ final _demoEvents = <MemoryEvent>[
         'The whole Sharma family gathered for Diwali puja and fireworks. Little Aarav lit his first diya! 🪔',
     location: 'Sharma Haveli, Jaipur',
     members: [
-      MemoryMember(id: 'm6', name: 'Kamla Sharma', initials: 'KS'),
-      MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
-      MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
-      MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
+      const MemoryMember(id: 'm6', name: 'Kamla Sharma', initials: 'KS'),
+      const MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
+      const MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
+      const MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
     ],
     photoUrl: 'diwali_2024.jpg',
   ),
@@ -642,7 +642,7 @@ final _demoEvents = <MemoryEvent>[
     description:
         'Priya graduated with an MBA from IIM Ahmedabad. The family is so proud! 🎓',
     location: 'IIM Ahmedabad, Gujarat',
-    members: [MemoryMember(id: 'm2', name: 'Priya Sharma', initials: 'PS')],
+    members: [const MemoryMember(id: 'm2', name: 'Priya Sharma', initials: 'PS')],
   ),
 
   MemoryEvent(
@@ -654,8 +654,8 @@ final _demoEvents = <MemoryEvent>[
         'Ravi Sharma was honored with the Padma Shri for his contributions to education in rural Rajasthan. A proud moment for the entire family! 🏅',
     location: 'Rashtrapati Bhavan, New Delhi',
     members: [
-      MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
-      MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
+      const MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
+      const MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
     ],
     isPinned: true,
   ),
@@ -670,9 +670,9 @@ final _demoEvents = <MemoryEvent>[
         'Welcome to the family, Aarav! Born at 3:42 AM, 3.2 kg. The youngest Sharma has arrived! 👶',
     location: 'Fortis Hospital, Jaipur',
     members: [
-      MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
-      MemoryMember(id: 'm2', name: 'Priya Sharma', initials: 'PS'),
-      MemoryMember(id: 'm13', name: 'Aarav Sharma', initials: 'ArS'),
+      const MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
+      const MemoryMember(id: 'm2', name: 'Priya Sharma', initials: 'PS'),
+      const MemoryMember(id: 'm13', name: 'Aarav Sharma', initials: 'ArS'),
     ],
   ),
 
@@ -685,10 +685,10 @@ final _demoEvents = <MemoryEvent>[
         'A grand Gujarati-Rajasthani fusion wedding! Baraat with 12 bands, mehndi ceremony, and a 3-day celebration. 💍',
     location: 'JW Marriott, Jaipur',
     members: [
-      MemoryMember(id: 'm5', name: 'Rajesh Patel', initials: 'RP'),
-      MemoryMember(id: 'm4', name: 'Meera Patel', initials: 'MP'),
-      MemoryMember(id: 'm9', name: 'Saroj Devi', initials: 'SD'),
-      MemoryMember(id: 'm12', name: 'Dinesh Patel', initials: 'DP'),
+      const MemoryMember(id: 'm5', name: 'Rajesh Patel', initials: 'RP'),
+      const MemoryMember(id: 'm4', name: 'Meera Patel', initials: 'MP'),
+      const MemoryMember(id: 'm9', name: 'Saroj Devi', initials: 'SD'),
+      const MemoryMember(id: 'm12', name: 'Dinesh Patel', initials: 'DP'),
     ],
     photoUrl: 'wedding_rajesh_meera.jpg',
   ),
@@ -702,8 +702,8 @@ final _demoEvents = <MemoryEvent>[
         'Colors, thandai, and dancing! The annual Holi party at the Kukas farmhouse was unforgettable. 🎨',
     location: 'Sharma Farmhouse, Kukas',
     members: [
-      MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
-      MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
+      const MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
+      const MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
     ],
   ),
 
@@ -715,7 +715,7 @@ final _demoEvents = <MemoryEvent>[
     description:
         'Dr. Neha Sharma! Graduated from AIIMS New Delhi with top honors. The family celebrates the newest doctor! 🩺',
     location: 'AIIMS, New Delhi',
-    members: [MemoryMember(id: 'm14', name: 'Neha Sharma', initials: 'NS')],
+    members: [const MemoryMember(id: 'm14', name: 'Neha Sharma', initials: 'NS')],
   ),
 
   // ── 2022 ──────────────────────────────────────────────────────────
@@ -728,10 +728,10 @@ final _demoEvents = <MemoryEvent>[
         'Celebrating 35 years of love and togetherness! A surprise party organized by the kids. 💕',
     location: 'Sharma Residence, Jaipur',
     members: [
-      MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
-      MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
-      MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
-      MemoryMember(id: 'm14', name: 'Neha Sharma', initials: 'NS'),
+      const MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
+      const MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
+      const MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
+      const MemoryMember(id: 'm14', name: 'Neha Sharma', initials: 'NS'),
     ],
     photoUrl: 'anniversary_35.jpg',
   ),
@@ -744,7 +744,7 @@ final _demoEvents = <MemoryEvent>[
     description:
         'Dinesh moved to London for his software engineering role at Barclays. Missing his garba nights in Ahmedabad!',
     location: 'London, UK',
-    members: [MemoryMember(id: 'm12', name: 'Dinesh Patel', initials: 'DP')],
+    members: [const MemoryMember(id: 'm12', name: 'Dinesh Patel', initials: 'DP')],
   ),
 
   MemoryEvent(
@@ -756,8 +756,8 @@ final _demoEvents = <MemoryEvent>[
         'Housewarming puja at the new Sharma residence in Malviya Nagar. Vastu puja followed by lunch for 200 guests. 🏠🙏',
     location: 'Malviya Nagar, Jaipur',
     members: [
-      MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
-      MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
+      const MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
+      const MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
     ],
   ),
 
@@ -771,10 +771,10 @@ final _demoEvents = <MemoryEvent>[
         'An intimate Rajasthani wedding during challenging times. The pheras were livestreamed for family abroad. 💍',
     location: 'Jai Mahal Palace, Jaipur',
     members: [
-      MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
-      MemoryMember(id: 'm2', name: 'Priya Sharma', initials: 'PS'),
-      MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
-      MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
+      const MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
+      const MemoryMember(id: 'm2', name: 'Priya Sharma', initials: 'PS'),
+      const MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
+      const MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
     ],
     photoUrl: 'wedding_arjun_priya.jpg',
   ),
@@ -788,7 +788,7 @@ final _demoEvents = <MemoryEvent>[
     description:
         'Dr. Sunita Sharma opened "Sharma Wellness Clinic" in C-Scheme, Jaipur. 15 years of practice led to this dream! 🏥',
     location: 'C-Scheme, Jaipur',
-    members: [MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS')],
+    members: [const MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS')],
   ),
 
   // ── 2015 ──────────────────────────────────────────────────────────
@@ -801,9 +801,9 @@ final _demoEvents = <MemoryEvent>[
         'Dada left us peacefully at age 78, surrounded by family. His legacy of kindness and wisdom lives on in all of us. 🙏',
     location: 'Sharma Haveli, Jaipur',
     members: [
-      MemoryMember(id: 'm15', name: 'Suresh Kumar Sharma', initials: 'SKS'),
-      MemoryMember(id: 'm6', name: 'Kamla Sharma', initials: 'KS'),
-      MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
+      const MemoryMember(id: 'm15', name: 'Suresh Kumar Sharma', initials: 'SKS'),
+      const MemoryMember(id: 'm6', name: 'Kamla Sharma', initials: 'KS'),
+      const MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
     ],
   ),
 
@@ -817,8 +817,8 @@ final _demoEvents = <MemoryEvent>[
         'B.Tech in Computer Science from IIT Delhi. Dadi distributed mithai to the entire mohalla! 🎓',
     location: 'IIT Delhi',
     members: [
-      MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
-      MemoryMember(id: 'm6', name: 'Kamla Sharma', initials: 'KS'),
+      const MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
+      const MemoryMember(id: 'm6', name: 'Kamla Sharma', initials: 'KS'),
     ],
   ),
 
@@ -832,9 +832,9 @@ final _demoEvents = <MemoryEvent>[
         'Welcome Neha! The second child of Ravi and Sunita. Dada said she has her grandmother\'s eyes. 👶',
     location: 'SMS Hospital, Jaipur',
     members: [
-      MemoryMember(id: 'm14', name: 'Neha Sharma', initials: 'NS'),
-      MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
-      MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
+      const MemoryMember(id: 'm14', name: 'Neha Sharma', initials: 'NS'),
+      const MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
+      const MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
     ],
   ),
 
@@ -848,9 +848,9 @@ final _demoEvents = <MemoryEvent>[
         'The eldest son of Ravi and Sunita arrives! Dada performed the naming ceremony. 👶',
     location: 'SMS Hospital, Jaipur',
     members: [
-      MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
-      MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
-      MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
+      const MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
+      const MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
+      const MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
     ],
   ),
 
@@ -864,10 +864,10 @@ final _demoEvents = <MemoryEvent>[
         'An arranged marriage that became a love story. The baraat came from Jodhpur with 200 guests. 💍',
     location: 'Jodhpur, Rajasthan',
     members: [
-      MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
-      MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
-      MemoryMember(id: 'm15', name: 'Suresh Kumar Sharma', initials: 'SKS'),
-      MemoryMember(id: 'm6', name: 'Kamla Sharma', initials: 'KS'),
+      const MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
+      const MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
+      const MemoryMember(id: 'm15', name: 'Suresh Kumar Sharma', initials: 'SKS'),
+      const MemoryMember(id: 'm6', name: 'Kamla Sharma', initials: 'KS'),
     ],
     photoUrl: 'wedding_ravi_sunita_1987.jpg',
   ),
@@ -889,8 +889,8 @@ final _demoOnThisDay = <OnThisDayMemory>[
         'A quieter Diwali during the pandemic, but the family video call lit up the night! 🪔',
     groupBy: 'Festival',
     members: [
-      MemoryMember(id: 'm6', name: 'Kamla Sharma', initials: 'KS'),
-      MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
+      const MemoryMember(id: 'm6', name: 'Kamla Sharma', initials: 'KS'),
+      const MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
     ],
   ),
 
@@ -902,7 +902,7 @@ final _demoOnThisDay = <OnThisDayMemory>[
     description:
         'Beautiful mehndi designs and the ladies sang traditional wedding songs. 💕',
     groupBy: 'Priya Sharma',
-    members: [MemoryMember(id: 'm2', name: 'Priya Sharma', initials: 'PS')],
+    members: [const MemoryMember(id: 'm2', name: 'Priya Sharma', initials: 'PS')],
   ),
 
   OnThisDayMemory(
@@ -913,7 +913,7 @@ final _demoOnThisDay = <OnThisDayMemory>[
     description:
         'Nervous but excited — Arjun joined Infosys as a software engineer. The beginning of a great career! 💼',
     groupBy: 'Arjun Sharma',
-    members: [MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS')],
+    members: [const MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS')],
   ),
 
   OnThisDayMemory(
@@ -925,10 +925,10 @@ final _demoOnThisDay = <OnThisDayMemory>[
         'The whole Sharma clan at Lake Pichola. A magical sunset boat ride! 🏰',
     groupBy: 'Family Trip',
     members: [
-      MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
-      MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
-      MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
-      MemoryMember(id: 'm14', name: 'Neha Sharma', initials: 'NS'),
+      const MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
+      const MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
+      const MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
+      const MemoryMember(id: 'm14', name: 'Neha Sharma', initials: 'NS'),
     ],
   ),
 
@@ -941,8 +941,8 @@ final _demoOnThisDay = <OnThisDayMemory>[
         'A surprise party for Nani Saroj! She was so happy she cried. The cake had 70 candles! 🎂',
     groupBy: 'Saroj Devi',
     members: [
-      MemoryMember(id: 'm9', name: 'Saroj Devi', initials: 'SD'),
-      MemoryMember(id: 'm4', name: 'Meera Patel', initials: 'MP'),
+      const MemoryMember(id: 'm9', name: 'Saroj Devi', initials: 'SD'),
+      const MemoryMember(id: 'm4', name: 'Meera Patel', initials: 'MP'),
     ],
   ),
 ];

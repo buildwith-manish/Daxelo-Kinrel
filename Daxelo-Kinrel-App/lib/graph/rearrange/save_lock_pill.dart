@@ -155,8 +155,8 @@ class _SaveLockPillState extends State<SaveLockPill> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 4),
+              const Padding(
+                padding: EdgeInsets.only(right: 4),
                 child: Icon(
                   Icons.lock_outline,
                   size: 14,

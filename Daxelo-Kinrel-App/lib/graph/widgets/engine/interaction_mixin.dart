@@ -178,7 +178,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       }
       // v5.35: Debug logging (first move only — too noisy per frame otherwise).
       if (newMap.length == 1) {
-        debugPrint('[v5.35 Drag] first move — node ${_rearrangeDragId} → $graphPos, liveMap size=${newMap.length}');
+        debugPrint('[v5.35 Drag] first move — node $_rearrangeDragId → $graphPos, liveMap size=${newMap.length}');
       }
       // ignore: invalid_use_of_protected_member
       setState(() {});
@@ -200,9 +200,9 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     final Offset rawDelta = d.focalPoint - _lastFocal;
     if (rawDelta != Offset.zero) {
       if (rawDelta.distance > _kPanDeadZone) {
-        double dx = (rawDelta.dx * _kPanSensitivity)
+        final double dx = (rawDelta.dx * _kPanSensitivity)
             .clamp(-_kPanMaxDeltaPerFrame, _kPanMaxDeltaPerFrame);
-        double dy = (rawDelta.dy * _kPanSensitivity)
+        final double dy = (rawDelta.dy * _kPanSensitivity)
             .clamp(-_kPanMaxDeltaPerFrame, _kPanMaxDeltaPerFrame);
         _camera.panBy(dx, dy);
       }
@@ -1041,7 +1041,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // The heart symbol does NOT override this — heart is purely visual.
     // PART 17 / PART 21: heart-symbol semantic separation proof.
     final customColors = _currentEdgeCustomColors[e.id];
-    String relationshipKey = e.relationshipKey;
+    final String relationshipKey = e.relationshipKey;
     String? customRelationshipName;
     if (customColors != null) {
       // If the custom colors include a custom relationship name, use it.
@@ -1309,8 +1309,8 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       );
       final isAnchor = (personData['isAnchor'] as bool?) ?? false;
       // v99 (Phase 8): Resolve role from provider — not hardcoded.
-      final _role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
-      final _canRemove = _role == 'admin' || _role == 'owner';
+      final role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
+      final canRemove = role == 'admin' || role == 'owner';
 
       // v5.144: Show "Collapse this branch" ONLY when the node has
       // VISIBLE descendants currently rendered on the canvas — not
@@ -1365,7 +1365,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
         context,
         graphPersonData,
         familyId: widget.familyId,
-        isOwner: _canRemove,
+        isOwner: canRemove,
         isSelf: isAnchor,
         ref: ref,
         onFocusPerson: _onFocusPerson,
@@ -1489,13 +1489,13 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
         isDeceased: (personData['isDeceased'] as bool?) ?? false,
       );
       final isAnchor = (personData['isAnchor'] as bool?) ?? false;
-      final _role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
-      final _canRemove = _role == 'admin' || _role == 'owner';
+      final role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
+      final canRemove = role == 'admin' || role == 'owner';
       GraphQuickActions.show(
         context,
         graphPersonData,
         familyId: widget.familyId,
-        isOwner: _canRemove,
+        isOwner: canRemove,
         isSelf: isAnchor,
         ref: ref,
         onFocusPerson: _onFocusPerson,
@@ -1870,7 +1870,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
             const SizedBox(height: 8),
             Text(
               'They may be in different branches of the family.',
-              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -1918,7 +1918,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
               child: Container(
                 width: 40, height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1944,17 +1944,17 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
                 child: Row(
                   children: [
                     Icon(Icons.circle,
-                        size: 8, color: KinrelColors.orange.withOpacity(0.6)),
+                        size: 8, color: KinrelColors.orange.withValues(alpha: 0.6)),
                     const SizedBox(width: 12),
                     Text(stepName,
                         style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withValues(alpha: 0.8),
                             fontSize: 14)),
                     ...[
                     const Spacer(),
                     Text(step.relationshipType,
                         style: TextStyle(
-                            color: Colors.white.withOpacity(0.4),
+                            color: Colors.white.withValues(alpha: 0.4),
                             fontSize: 12)),
                   ],
                   ],
@@ -1980,7 +1980,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: KinrelColors.orange,
                       side: BorderSide(
-                          color: KinrelColors.orange.withOpacity(0.4)),
+                          color: KinrelColors.orange.withValues(alpha: 0.4)),
                     ),
                   ),
                 ),

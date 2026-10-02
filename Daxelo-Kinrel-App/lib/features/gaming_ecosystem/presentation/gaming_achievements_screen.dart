@@ -33,7 +33,7 @@ class GamingAchievementsScreen extends ConsumerWidget {
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.canPop() ? context.pop() : context.go('/home')),
-        title: Text('Achievements',
+        title: const Text('Achievements',
             style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontWeight: FontWeight.w700)),
@@ -44,7 +44,7 @@ class GamingAchievementsScreen extends ConsumerWidget {
       body: dashAsync.when(
         loading: () => const Center(
             child: CircularProgressIndicator(color: KinrelColors.orange)),
-        error: (e, _) => Center(
+        error: (e, _) => const Center(
           child: GamingEmptyCard(
             emoji: '🔌',
             title: 'Couldn\'t load achievements',
@@ -66,13 +66,13 @@ class GamingAchievementsScreen extends ConsumerWidget {
               children: [
                 _TrophyRoomHero(earned: earned, total: dash.allGameBadges.length),
                 const SizedBox(height: 18),
-                GamingSectionHeader(
+                const GamingSectionHeader(
                   title: 'Latest Badges',
                   subtitle: 'Your most recent family gaming moments',
                   icon: Icons.emoji_events_outlined,
                 ),
                 if (dash.myBadges.isEmpty)
-                  GamingEmptyCard(
+                  const GamingEmptyCard(
                     emoji: '🌱',
                     title: 'Your trophy room awaits',
                     message:
@@ -162,7 +162,7 @@ class _TrophyRoomHero extends StatelessWidget {
             color: KinrelColors.brightGold,
             child: Text(
               '${earned.length}/$total',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
@@ -175,7 +175,7 @@ class _TrophyRoomHero extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Trophy Room',
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
@@ -189,7 +189,7 @@ class _TrophyRoomHero extends StatelessWidget {
                   earned.isEmpty
                       ? 'Every game you play together brings a badge closer.'
                       : 'You\'ve unlocked ${earned.length} badges playing with your family. Keep the streak alive!',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     height: 1.4,

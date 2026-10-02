@@ -12,15 +12,6 @@ extension TttStatusX on TttStatus {
 
 class TttGame {
   const TttGame({required this.id, required this.familyId, required this.playerXId, required this.playerXName, required this.playerOId, required this.playerOName, required this.currentTurnPlayerId, required this.bestOf, required this.roundsWonX, required this.roundsWonO, required this.currentRound, required this.status, this.overallWinnerId, this.overallWinnerName, this.startedAt, this.completedAt, required this.createdAt, this.hostUserId, this.hostUserName, this.spectatorsEnabled = true, this.autoCloseDeadline});
-  final String id; final String familyId; final String playerXId; final String playerXName;
-
-  /// O's user id — EMPTY while the room is waiting for an opponent to
-  /// join (Create Room flow: the host creates the room first, the
-  /// first family member to join takes this slot).
-  final String playerOId; final String playerOName; final String currentTurnPlayerId; final int bestOf; final int roundsWonX; final int roundsWonO; final int currentRound; final TttStatus status; final String? overallWinnerId; final String? overallWinnerName; final DateTime? startedAt; final DateTime? completedAt; final DateTime createdAt;
-
-  /// Room-framework columns (Create Room flow).
-  final String? hostUserId; final String? hostUserName; final bool spectatorsEnabled; final DateTime? autoCloseDeadline;
 
   factory TttGame.fromJson(Map<String, dynamic> json) => TttGame(
     id: json['id'] ?? '', familyId: json['familyId'] ?? '', playerXId: json['playerXId'] ?? '', playerXName: json['playerXName'] ?? 'Player 1',
@@ -33,6 +24,15 @@ class TttGame {
     spectatorsEnabled: json['spectatorsEnabled'] == null ? true : json['spectatorsEnabled'] == true,
     autoCloseDeadline: json['autoCloseDeadline'] is String ? DateTime.tryParse(json['autoCloseDeadline'] as String) : null,
   );
+  final String id; final String familyId; final String playerXId; final String playerXName;
+
+  /// O's user id — EMPTY while the room is waiting for an opponent to
+  /// join (Create Room flow: the host creates the room first, the
+  /// first family member to join takes this slot).
+  final String playerOId; final String playerOName; final String currentTurnPlayerId; final int bestOf; final int roundsWonX; final int roundsWonO; final int currentRound; final TttStatus status; final String? overallWinnerId; final String? overallWinnerName; final DateTime? startedAt; final DateTime? completedAt; final DateTime createdAt;
+
+  /// Room-framework columns (Create Room flow).
+  final String? hostUserId; final String? hostUserName; final bool spectatorsEnabled; final DateTime? autoCloseDeadline;
 
   bool get isWaiting => status == TttStatus.waiting;
   bool get isInProgress => status == TttStatus.inProgress;
@@ -50,7 +50,6 @@ class TttGame {
 
 class TttRound {
   const TttRound({required this.id, required this.gameId, required this.roundNumber, required this.boardState, this.result, this.completedAt, required this.createdAt});
-  final String id; final String gameId; final int roundNumber; final List<String?> boardState; final RoundResult? result; final DateTime? completedAt; final DateTime createdAt;
 
   factory TttRound.fromJson(Map<String, dynamic> json) => TttRound(
     id: json['id'] ?? '', gameId: json['gameId'] ?? '', roundNumber: json['roundNumber'] ?? 1,
@@ -58,15 +57,16 @@ class TttRound {
     result: RoundResultX.fromString(json['result']), completedAt: json['completedAt'] != null ? DateTime.tryParse(json['completedAt']) : null,
     createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
   );
+  final String id; final String gameId; final int roundNumber; final List<String?> boardState; final RoundResult? result; final DateTime? completedAt; final DateTime createdAt;
 }
 
 class TttMoveRecord {
   const TttMoveRecord({required this.id, required this.roundId, required this.playerId, required this.playerName, required this.cellIndex, required this.mark, required this.moveNumber, required this.createdAt});
-  final String id; final String roundId; final String playerId; final String playerName; final int cellIndex; final String mark; final int moveNumber; final DateTime createdAt;
 
   factory TttMoveRecord.fromJson(Map<String, dynamic> json) => TttMoveRecord(
     id: json['id'] ?? '', roundId: json['roundId'] ?? '', playerId: json['playerId'] ?? '', playerName: json['playerName'] ?? 'Player',
     cellIndex: json['cellIndex'] ?? 0, mark: json['mark'] ?? 'X', moveNumber: json['moveNumber'] ?? 0,
     createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
   );
+  final String id; final String roundId; final String playerId; final String playerName; final int cellIndex; final String mark; final int moveNumber; final DateTime createdAt;
 }

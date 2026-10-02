@@ -78,7 +78,7 @@ class _CheckersCardState extends ConsumerState<CheckersCard> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
+                    const Expanded(
                       child: Text(
                         'Checkers',
                         style: TextStyle(
@@ -93,7 +93,7 @@ class _CheckersCardState extends ConsumerState<CheckersCard> {
                 ),
                 const SizedBox(height: 10),
                 if (dlState.status != GameDownloadStatus.downloaded)
-                  Text(
+                  const Text(
                     'Download in Games hub to play',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -102,7 +102,7 @@ class _CheckersCardState extends ConsumerState<CheckersCard> {
                     ),
                   )
                 else
-                  Text(
+                  const Text(
                     'Challenge a family member — 8×8 board, mandatory captures, kings',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,

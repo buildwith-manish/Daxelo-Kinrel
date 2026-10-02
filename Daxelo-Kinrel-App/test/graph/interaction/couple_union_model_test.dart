@@ -252,8 +252,8 @@ void main() {
     });
 
     test('TEST 9: union midpoint is the geometric midpoint', () {
-      final posA = Offset(0, 0);
-      final posB = Offset(100, 200);
+      final posA = const Offset(0, 0);
+      final posB = const Offset(100, 200);
 
       final mid = unionMidpoint(posA, posB);
 

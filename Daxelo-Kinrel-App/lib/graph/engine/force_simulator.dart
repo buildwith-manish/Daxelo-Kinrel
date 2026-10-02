@@ -33,6 +33,18 @@ import '../../core/services/graph_layout_service.dart';
 ///
 /// Default values are tuned for family graphs with 0–300 nodes.
 class SimulationConfig {
+
+  const SimulationConfig({
+    this.alpha = 1.0,
+    this.alphaMin = 0.001,
+    this.alphaDecay = 0.0228,
+    this.velocityDecay = 0.4,
+    this.tickIntervalMs = 16,
+    this.maxTicks = 10000,
+    this.watchdogTimeoutMs = 30000,
+    this.reheatAlpha = 0.3,
+    this.viewport = const Size(2000.0, 2000.0),
+  });
   /// Current simulation heat (1.0 = hot, 0.0 = cold).
   final double alpha;
 
@@ -60,18 +72,6 @@ class SimulationConfig {
 
   /// Viewport size for boundary clamping.
   final Size viewport;
-
-  const SimulationConfig({
-    this.alpha = 1.0,
-    this.alphaMin = 0.001,
-    this.alphaDecay = 0.0228,
-    this.velocityDecay = 0.4,
-    this.tickIntervalMs = 16,
-    this.maxTicks = 10000,
-    this.watchdogTimeoutMs = 30000,
-    this.reheatAlpha = 0.3,
-    this.viewport = const Size(2000.0, 2000.0),
-  });
 
   SimulationConfig copyWith({
     double? alpha,
@@ -120,6 +120,15 @@ abstract class ForceComponent {
 
 /// Mutable simulation node — wraps a [GraphPerson] with force state.
 class ForceNode {
+
+  ForceNode({
+    required this.person,
+    required this.x,
+    required this.y,
+    this.vx = 0.0,
+    this.vy = 0.0,
+    this.weight = 1.0,
+  });
   /// The graph person this node represents.
   final GraphPerson person;
 
@@ -137,15 +146,6 @@ class ForceNode {
 
   /// Fixed-weight for this node (higher = harder to move).
   double weight;
-
-  ForceNode({
-    required this.person,
-    required this.x,
-    required this.y,
-    this.vx = 0.0,
-    this.vy = 0.0,
-    this.weight = 1.0,
-  });
 }
 
 // ── CenterForce ─────────────────────────────────────────────────────
@@ -154,9 +154,9 @@ class ForceNode {
 ///
 /// Strength range: 0.01–0.1 (gentle nudge, not a stiff spring).
 class CenterForce extends ForceComponent {
-  final double strength;
 
   CenterForce({this.strength = 0.05});
+  final double strength;
 
   @override
   String get name => 'CenterForce';
@@ -192,15 +192,15 @@ class CenterForce extends ForceComponent {
 ///
 /// Strength range: 0.3–0.8 (moderate — keeps structure without rigidity).
 class GenerationForce extends ForceComponent {
-  final double strength;
-
-  /// Vertical spacing between generations (dp).
-  final double generationSpacing;
 
   GenerationForce({
     this.strength = 0.5,
     this.generationSpacing = 160.0,
   });
+  final double strength;
+
+  /// Vertical spacing between generations (dp).
+  final double generationSpacing;
 
   @override
   String get name => 'GenerationForce';
@@ -225,6 +225,11 @@ class GenerationForce extends ForceComponent {
 ///
 /// Strength range: 0.6–1.0 (strong — spouses should be adjacent).
 class SpousePairForce extends ForceComponent {
+
+  SpousePairForce({
+    this.strength = 0.8,
+    this.gap = 90.0,
+  });
   final double strength;
 
   /// Horizontal gap between spouse nodes (dp).
@@ -235,11 +240,6 @@ class SpousePairForce extends ForceComponent {
 
   /// Spouse relationship pairs (fromPersonId, toPersonId).
   List<({String from, String to})> _spousePairs = const [];
-
-  SpousePairForce({
-    this.strength = 0.8,
-    this.gap = 90.0,
-  });
 
   /// Must be called before [apply] to set up the spouse pairs and index.
   void configure(
@@ -299,15 +299,15 @@ class SpousePairForce extends ForceComponent {
 ///
 /// Strength range: 0.5–1.0.
 class CollisionForce extends ForceComponent {
-  final double strength;
-
-  /// Minimum distance between node centers (dp).
-  final double minimumDistance;
 
   CollisionForce({
     this.strength = 0.7,
     this.minimumDistance = 100.0,
   });
+  final double strength;
+
+  /// Minimum distance between node centers (dp).
+  final double minimumDistance;
 
   @override
   String get name => 'CollisionForce';
@@ -353,6 +353,12 @@ class CollisionForce extends ForceComponent {
 ///
 /// Strength range: 0.2–0.5.
 class BoundaryForce extends ForceComponent {
+
+  BoundaryForce({
+    this.strength = 0.3,
+    this.viewport = const Size(2000.0, 2000.0),
+    this.padding = 50.0,
+  });
   final double strength;
 
   /// Viewport dimensions for boundary clamping.
@@ -360,12 +366,6 @@ class BoundaryForce extends ForceComponent {
 
   /// Padding inside viewport boundary where force activates.
   final double padding;
-
-  BoundaryForce({
-    this.strength = 0.3,
-    this.viewport = const Size(2000.0, 2000.0),
-    this.padding = 50.0,
-  });
 
   @override
   String get name => 'BoundaryForce';
@@ -399,10 +399,6 @@ class BoundaryForce extends ForceComponent {
 
 /// Immutable snapshot of the simulation state at a given tick.
 class SimulationState {
-  final Map<String, Offset> positions;
-  final double alpha;
-  final int tick;
-  final bool converged;
 
   const SimulationState({
     required this.positions,
@@ -410,6 +406,10 @@ class SimulationState {
     required this.tick,
     required this.converged,
   });
+  final Map<String, Offset> positions;
+  final double alpha;
+  final int tick;
+  final bool converged;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -431,6 +431,10 @@ class SimulationState {
 /// simulator.stop();
 /// ```
 class ForceSimulator {
+
+  ForceSimulator({SimulationConfig? config})
+      : _config = config ?? const SimulationConfig(),
+        _alpha = config?.alpha ?? 1.0;
   SimulationConfig _config;
   List<ForceNode> _nodes = [];
   final List<ForceComponent> _forces = [];
@@ -451,10 +455,6 @@ class ForceSimulator {
 
   /// Spouse force reference — needs special configuration.
   SpousePairForce? _spouseForce;
-
-  ForceSimulator({SimulationConfig? config})
-      : _config = config ?? const SimulationConfig(),
-        _alpha = config?.alpha ?? 1.0;
 
   // ── Public API ────────────────────────────────────────────────────
 
@@ -756,10 +756,6 @@ class ForceSimulator {
 /// Uses (double, double) tuples instead of Offset to avoid
 /// dart:ui dependency in background isolates.
 class _IsolatePayload {
-  final List<GraphPerson> persons;
-  final List<GraphRelationship> relationships;
-  final SimulationConfig config;
-  final Map<String, (double, double)> initialPositions;
 
   const _IsolatePayload({
     required this.persons,
@@ -767,6 +763,10 @@ class _IsolatePayload {
     required this.config,
     required this.initialPositions,
   });
+  final List<GraphPerson> persons;
+  final List<GraphRelationship> relationships;
+  final SimulationConfig config;
+  final Map<String, (double, double)> initialPositions;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

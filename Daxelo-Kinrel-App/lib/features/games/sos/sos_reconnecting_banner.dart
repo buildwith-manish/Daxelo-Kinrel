@@ -99,7 +99,7 @@ class SosReconnectingBanner extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
                       friendlyError!,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
                         color: KinrelColors.textDim,

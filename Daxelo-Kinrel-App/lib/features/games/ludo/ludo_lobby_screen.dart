@@ -83,7 +83,7 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            const Text(
               'Share this code',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -95,7 +95,7 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
             const SizedBox(height: KinrelSpacing.md),
             Text(
               code,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 40,
                 fontWeight: FontWeight.w700,
@@ -107,7 +107,7 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
             Text(
               'Up to ${_playerCount - 1} family members can join. Colors are assigned in order: Red, Blue, Green, Yellow.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textDim,
@@ -160,7 +160,7 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
         title: hasGame
-            ? Text(
+            ? const Text(
                 'Ludo',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
@@ -371,7 +371,7 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
               const SizedBox(height: 4),
               Text(
                 c.name.toUpperCase(),
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 9,
                   color: KinrelColors.textDim,

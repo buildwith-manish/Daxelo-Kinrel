@@ -538,7 +538,7 @@ class _CountryCard extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.check_circle_rounded,
                         size: 10,
                         color: KinrelColors.success,
@@ -546,7 +546,7 @@ class _CountryCard extends StatelessWidget {
                       const SizedBox(width: 3),
                       Text(
                         '$_availableCount Available',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 9,
                           fontWeight: FontWeight.w600,
@@ -566,7 +566,7 @@ class _CountryCard extends StatelessWidget {
                     color: DKColors.brandGold.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
@@ -574,7 +574,7 @@ class _CountryCard extends StatelessWidget {
                         size: 10,
                         color: DKColors.brandGold,
                       ),
-                      const SizedBox(width: 3),
+                      SizedBox(width: 3),
                       Text(
                         'Coming Soon',
                         style: TextStyle(

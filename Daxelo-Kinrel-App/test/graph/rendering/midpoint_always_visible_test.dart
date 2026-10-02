@@ -75,7 +75,7 @@ void main() {
     'd': const Offset(100, 100),
   };
   final edges = <DedupedEdge>[
-    DedupedEdge(
+    const DedupedEdge(
       edge: GraphEdgeData(
         id: 'e1',
         sourceId: 'a',
@@ -85,7 +85,7 @@ void main() {
       lateralOffset: 0.0,
       parallelCount: 1,
     ),
-    DedupedEdge(
+    const DedupedEdge(
       edge: GraphEdgeData(
         id: 'e2',
         sourceId: 'c',

@@ -28,7 +28,7 @@ class FamilyActivityScreen extends ConsumerWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
-        title: Text(
+        title: const Text(
           'Activity',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -40,7 +40,7 @@ class FamilyActivityScreen extends ConsumerWidget {
         elevation: 0,
       ),
       body: detailAsync.when(
-        loading: () => Center(
+        loading: () => const Center(
           child: CircularProgressIndicator(color: KinrelColors.orange),
         ),
         error: (e, _) => DKErrorState(
@@ -135,7 +135,7 @@ class FamilyActivityScreen extends ConsumerWidget {
                         children: [
                           Text(
                             activity.description,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 14,
                               color: KinrelColors.textWhite,
@@ -144,7 +144,7 @@ class FamilyActivityScreen extends ConsumerWidget {
                           if (activity.timestamp != null)
                             Text(
                               _formatTime(activity.timestamp!),
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 11,
                                 color: KinrelColors.textDim,

@@ -62,19 +62,6 @@ class GraphData {
     this.totalCount = 0,
   });
 
-  /// Person nodes in the graph.
-  final List<GraphNodeData> nodes;
-
-  /// Relationship edges between nodes.
-  final List<GraphEdgeData> edges;
-
-  /// Whether the result was truncated due to size limits.
-  final bool isTruncated;
-
-  /// Total number of nodes in the full graph (may differ from
-  /// [nodes.length] if [isTruncated] is true).
-  final int totalCount;
-
   /// Deserializes from a JSON map.
   factory GraphData.fromJson(Map<String, dynamic> json) {
     return GraphData(
@@ -90,6 +77,19 @@ class GraphData {
       totalCount: json['total_count'] as int? ?? 0,
     );
   }
+
+  /// Person nodes in the graph.
+  final List<GraphNodeData> nodes;
+
+  /// Relationship edges between nodes.
+  final List<GraphEdgeData> edges;
+
+  /// Whether the result was truncated due to size limits.
+  final bool isTruncated;
+
+  /// Total number of nodes in the full graph (may differ from
+  /// [nodes.length] if [isTruncated] is true).
+  final int totalCount;
 
   /// Serializes to a JSON map.
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -118,6 +118,20 @@ class GraphNodeData {
     this.visibility,
   });
 
+  /// Deserializes from a JSON map.
+  factory GraphNodeData.fromJson(Map<String, dynamic> json) {
+    return GraphNodeData(
+      id: json['id'] as String,
+      name: json['name'] as String? ?? '',
+      avatarUrl: json['avatar_url'] as String?,
+      gender: json['gender'] as String?,
+      generationIndex: json['generation_index'] as int? ?? 0,
+      isAnchor: json['is_anchor'] as bool? ?? false,
+      isDeceased: json['is_deceased'] as bool? ?? false,
+      visibility: json['visibility'] as String?,
+    );
+  }
+
   /// Unique identifier for this person.
   final String id;
 
@@ -142,20 +156,6 @@ class GraphNodeData {
 
   /// Visibility level (e.g. "public", "family", "private").
   final String? visibility;
-
-  /// Deserializes from a JSON map.
-  factory GraphNodeData.fromJson(Map<String, dynamic> json) {
-    return GraphNodeData(
-      id: json['id'] as String,
-      name: json['name'] as String? ?? '',
-      avatarUrl: json['avatar_url'] as String?,
-      gender: json['gender'] as String?,
-      generationIndex: json['generation_index'] as int? ?? 0,
-      isAnchor: json['is_anchor'] as bool? ?? false,
-      isDeceased: json['is_deceased'] as bool? ?? false,
-      visibility: json['visibility'] as String?,
-    );
-  }
 
   /// Serializes to a JSON map.
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -195,6 +195,17 @@ class GraphEdgeData {
     this.isPrivate = false,
   });
 
+  /// Deserializes from a JSON map.
+  factory GraphEdgeData.fromJson(Map<String, dynamic> json) {
+    return GraphEdgeData(
+      id: json['id'] as String,
+      sourceId: json['source_id'] as String,
+      targetId: json['target_id'] as String,
+      relationshipKey: json['relationship_key'] as String,
+      isPrivate: json['is_private'] as bool? ?? false,
+    );
+  }
+
   /// Unique identifier for this edge.
   final String id;
 
@@ -217,17 +228,6 @@ class GraphEdgeData {
 
   /// Whether this relationship is marked private.
   final bool isPrivate;
-
-  /// Deserializes from a JSON map.
-  factory GraphEdgeData.fromJson(Map<String, dynamic> json) {
-    return GraphEdgeData(
-      id: json['id'] as String,
-      sourceId: json['source_id'] as String,
-      targetId: json['target_id'] as String,
-      relationshipKey: json['relationship_key'] as String,
-      isPrivate: json['is_private'] as bool? ?? false,
-    );
-  }
 
   /// Serializes to a JSON map.
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -258,12 +258,6 @@ class BranchData {
     required this.edges,
   });
 
-  /// Person nodes in this branch.
-  final List<GraphNodeData> nodes;
-
-  /// Relationship edges within this branch.
-  final List<GraphEdgeData> edges;
-
   /// Deserializes from a JSON map.
   factory BranchData.fromJson(Map<String, dynamic> json) {
     return BranchData(
@@ -277,6 +271,12 @@ class BranchData {
           .toList(),
     );
   }
+
+  /// Person nodes in this branch.
+  final List<GraphNodeData> nodes;
+
+  /// Relationship edges within this branch.
+  final List<GraphEdgeData> edges;
 
   /// Serializes to a JSON map.
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -293,13 +293,6 @@ class SearchResult {
     required this.total,
   });
 
-  /// Matching person nodes.
-  final List<GraphNodeData> results;
-
-  /// Total number of matches (may exceed [results.length] if
-  /// paginated).
-  final int total;
-
   /// Deserializes from a JSON map.
   factory SearchResult.fromJson(Map<String, dynamic> json) {
     return SearchResult(
@@ -310,6 +303,13 @@ class SearchResult {
       total: json['total'] as int? ?? 0,
     );
   }
+
+  /// Matching person nodes.
+  final List<GraphNodeData> results;
+
+  /// Total number of matches (may exceed [results.length] if
+  /// paginated).
+  final int total;
 
   /// Serializes to a JSON map.
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -334,6 +334,19 @@ class KinshipResult {
     this.isByMarriage = false,
   });
 
+  /// Deserializes from a JSON map.
+  factory KinshipResult.fromJson(Map<String, dynamic> json) {
+    return KinshipResult(
+      relationshipType: json['relationship_type'] as String,
+      displayLabel: json['display_label'] as String,
+      degreeOfSeparation: json['degree_of_separation'] as int? ?? 0,
+      culturalContext: json['cultural_context'] as String?,
+      isMatrilateral: json['is_matrilateral'] as bool? ?? false,
+      isPatrilateral: json['is_patrilateral'] as bool? ?? false,
+      isByMarriage: json['is_by_marriage'] as bool? ?? false,
+    );
+  }
+
   /// Machine-readable relationship type key.
   final String relationshipType;
 
@@ -356,19 +369,6 @@ class KinshipResult {
   /// Whether this relationship is established through marriage.
   final bool isByMarriage;
 
-  /// Deserializes from a JSON map.
-  factory KinshipResult.fromJson(Map<String, dynamic> json) {
-    return KinshipResult(
-      relationshipType: json['relationship_type'] as String,
-      displayLabel: json['display_label'] as String,
-      degreeOfSeparation: json['degree_of_separation'] as int? ?? 0,
-      culturalContext: json['cultural_context'] as String?,
-      isMatrilateral: json['is_matrilateral'] as bool? ?? false,
-      isPatrilateral: json['is_patrilateral'] as bool? ?? false,
-      isByMarriage: json['is_by_marriage'] as bool? ?? false,
-    );
-  }
-
   /// Serializes to a JSON map.
   Map<String, dynamic> toJson() => <String, dynamic>{
         'relationship_type': relationshipType,
@@ -390,16 +390,6 @@ class GraphRealtimeEvent {
     required this.timestamp,
   });
 
-  /// Event type (e.g. "relationship_added", "member_updated",
-  /// "permission_changed").
-  final String type;
-
-  /// Event payload data.
-  final Map<String, dynamic> payload;
-
-  /// When the event occurred.
-  final DateTime timestamp;
-
   /// Deserializes from a JSON map.
   factory GraphRealtimeEvent.fromJson(Map<String, dynamic> json) {
     return GraphRealtimeEvent(
@@ -411,6 +401,16 @@ class GraphRealtimeEvent {
           : DateTime.now(),
     );
   }
+
+  /// Event type (e.g. "relationship_added", "member_updated",
+  /// "permission_changed").
+  final String type;
+
+  /// Event payload data.
+  final Map<String, dynamic> payload;
+
+  /// When the event occurred.
+  final DateTime timestamp;
 
   /// Serializes to a JSON map.
   Map<String, dynamic> toJson() => <String, dynamic>{

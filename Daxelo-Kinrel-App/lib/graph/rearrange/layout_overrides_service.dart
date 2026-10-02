@@ -43,13 +43,13 @@ import '../../core/services/supabase_service.dart';
 ///
 /// Both maps default to empty when the viewer has no saved overrides.
 class PersonalLayoutOverrides {
-  final Map<String, Offset> nodePositions;
-  final Map<String, Offset> edgeWaypoints;
 
   const PersonalLayoutOverrides({
     this.nodePositions = const {},
     this.edgeWaypoints = const {},
   });
+  final Map<String, Offset> nodePositions;
+  final Map<String, Offset> edgeWaypoints;
 
   static const empty = PersonalLayoutOverrides();
 

@@ -20,9 +20,9 @@ import '../../services/supabase_service.dart';
 /// - **Write**: Write to API first (if online). If offline, queue
 ///   the operation for later sync and write optimistically to Drift.
 class OfflineProfileRepository {
-  final Ref _ref;
 
   OfflineProfileRepository(this._ref);
+  final Ref _ref;
 
   AppDatabase get _db => _ref.read(isarProvider);
   Dio get _dio => _ref.read(dioProvider);

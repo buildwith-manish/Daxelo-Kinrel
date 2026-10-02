@@ -33,11 +33,11 @@ void main() {
   // Each edge is a distinct (sourceId, targetId) pair so the dim
   // computation can be checked per-edge.
   final edges = <GraphEdgeData>[
-    GraphEdgeData(id: 'e1', sourceId: 'A', targetId: 'B', relationshipKey: 'spouse'),
-    GraphEdgeData(id: 'e2', sourceId: 'A', targetId: 'C', relationshipKey: 'father'),
-    GraphEdgeData(id: 'e3', sourceId: 'B', targetId: 'C', relationshipKey: 'mother'),
-    GraphEdgeData(id: 'e4', sourceId: 'C', targetId: 'D', relationshipKey: 'father'),
-    GraphEdgeData(id: 'e5', sourceId: 'D', targetId: 'E', relationshipKey: 'father'),
+    const GraphEdgeData(id: 'e1', sourceId: 'A', targetId: 'B', relationshipKey: 'spouse'),
+    const GraphEdgeData(id: 'e2', sourceId: 'A', targetId: 'C', relationshipKey: 'father'),
+    const GraphEdgeData(id: 'e3', sourceId: 'B', targetId: 'C', relationshipKey: 'mother'),
+    const GraphEdgeData(id: 'e4', sourceId: 'C', targetId: 'D', relationshipKey: 'father'),
+    const GraphEdgeData(id: 'e5', sourceId: 'D', targetId: 'E', relationshipKey: 'father'),
   ];
 
   group('v5.x (Feature 2) — Case 4: default-dim (nothing active)', () {
@@ -102,11 +102,11 @@ void main() {
       // Pick a node that touches every edge — none in this graph,
       // so use a smaller graph where one node touches every edge.
       final starEdges = <GraphEdgeData>[
-        GraphEdgeData(
+        const GraphEdgeData(
             id: 's1', sourceId: 'center', targetId: 'A', relationshipKey: 'p'),
-        GraphEdgeData(
+        const GraphEdgeData(
             id: 's2', sourceId: 'center', targetId: 'B', relationshipKey: 'p'),
-        GraphEdgeData(
+        const GraphEdgeData(
             id: 's3', sourceId: 'center', targetId: 'C', relationshipKey: 'p'),
       ];
       final dimmed = computeDimmedEdgeIdsFromEdges(

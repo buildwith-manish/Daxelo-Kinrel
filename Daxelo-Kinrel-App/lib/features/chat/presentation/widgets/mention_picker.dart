@@ -40,11 +40,6 @@ class MentionableMember {
     this.avatarUrl,
   });
 
-  final String userId;
-  final String name;
-  final String initials;
-  final String? avatarUrl;
-
   /// Build from an OnlineMember (the chat header's member model).
   factory MentionableMember.fromOnlineMember(OnlineMember m) =>
       MentionableMember(
@@ -52,6 +47,11 @@ class MentionableMember {
         name: m.name,
         initials: m.initials,
       );
+
+  final String userId;
+  final String name;
+  final String initials;
+  final String? avatarUrl;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

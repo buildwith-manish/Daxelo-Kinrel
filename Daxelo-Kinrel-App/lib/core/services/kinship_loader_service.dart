@@ -5,10 +5,10 @@ import '../networking/dio_client.dart';
 /// Service for lazy-loading kinship data from the API instead of bundling
 /// large JSON files in the APK. Reduces APK size from ~84MB to <30MB.
 class KinshipLoaderService {
-  final Dio _dio;
-  final Map<String, dynamic> _cache = {};
 
   KinshipLoaderService(this._dio);
+  final Dio _dio;
+  final Map<String, dynamic> _cache = {};
 
   Future<List<dynamic>> search({
     required String term,

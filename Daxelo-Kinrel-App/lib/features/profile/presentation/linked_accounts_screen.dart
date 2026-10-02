@@ -126,7 +126,7 @@ class _LinkedAccountsScreenState extends ConsumerState<LinkedAccountsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Header description ────────────────────────────────
-            Text(
+            const Text(
               'Manage your connected accounts for quick and secure sign-in.',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -167,11 +167,11 @@ class _LinkedAccountsScreenState extends ConsumerState<LinkedAccountsScreen> {
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
                 border: Border.all(color: _borderSubtle),
               ),
-              child: Row(
+              child: const Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(Icons.info_outline, color: _orange, size: 20),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'You must have at least one linked account to sign in. '
@@ -262,7 +262,7 @@ class _LinkedAccountsScreenState extends ConsumerState<LinkedAccountsScreen> {
         content: Text(
           'Are you sure you want to unlink $providerName? '
           'You will no longer be able to sign in with this provider.',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 14,
             color: _textSecondary,
@@ -401,13 +401,13 @@ class _ProviderCard extends StatelessWidget {
                     ),
                     if (isLinked) ...[
                       const SizedBox(width: 8),
-                      Icon(
+                      const Icon(
                         Icons.check_circle,
                         color: KinrelColors.success,
                         size: 16,
                       ),
                       const SizedBox(width: 4),
-                      Text(
+                      const Text(
                         'Connected',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,

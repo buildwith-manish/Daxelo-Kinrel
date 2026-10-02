@@ -376,7 +376,7 @@ class GraphPathFocusNotifier extends StateNotifier<GraphPathFocusState> {
     // This ensures `resolvedCategory` is non-null for single-hop paths
     // (spouse, parent, child, sibling) and multi-hop paths (grandparent,
     // aunt/uncle, cousin, etc.).
-    final _computedClassification = classification ??
+    final computedClassification = classification ??
         _computeClassification(pathSteps, persons, targetPersonId, viewerPersonId);
 
     final focus = GraphKinshipPathFocus(
@@ -390,9 +390,9 @@ class GraphPathFocusNotifier extends StateNotifier<GraphPathFocusState> {
       // was always null when no classification was passed — even though the
       // path was successfully resolved. This made the "How We're Connected"
       // feature show no category/label for the resolved relationship.
-      resolvedRelationshipKey: classification?.key ?? _computedClassification?.key,
-      resolvedRelationshipLabel: classification?.label ?? _computedClassification?.label,
-      resolvedCategory: classification?.category ?? _computedClassification?.category,
+      resolvedRelationshipKey: classification?.key ?? computedClassification?.key,
+      resolvedRelationshipLabel: classification?.label ?? computedClassification?.label,
+      resolvedCategory: classification?.category ?? computedClassification?.category,
       graphRevision: graphRevision,
     );
 

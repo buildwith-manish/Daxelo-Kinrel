@@ -192,7 +192,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
             }
           },
         ),
-        title: Text(
+        title: const Text(
           'Ludo',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -254,7 +254,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
               ),
               const SizedBox(height: KinrelSpacing.sm),
               Text(code,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 36,
                   fontWeight: FontWeight.w800,
@@ -267,7 +267,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
         ),
         const SizedBox(height: KinrelSpacing.lg),
         Text('Players (${state.players.length}/${game.playerCount})',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 13,
             fontWeight: FontWeight.w600,
@@ -296,7 +296,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
               Expanded(
                 child: Text(
                   p.userId == myId ? '${p.userName} (You)' : p.userName,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -397,7 +397,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
             isMyTurn
                 ? 'Your turn (${color.name.toUpperCase()})'
                 : '$name\'s turn (${color.name.toUpperCase()})',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               color: Colors.white,
@@ -408,7 +408,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
             const SizedBox(width: KinrelSpacing.sm),
             Text(
               '6×${game.consecutiveSixes}',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 11,
                 color: KinrelColors.warning,
@@ -517,7 +517,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
     if (isCenter) {
       // Center finish zone — original diamond/star pattern with gradient
       return Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: KinrelGradients.igniteGradient,
           shape: BoxShape.circle,
         ),
@@ -661,7 +661,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
               child: Text(
                 state.error!,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.warning,
@@ -675,7 +675,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
               child: Text(
                 'Captured ${state.lastCapture}\'s token!',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   color: KinrelColors.error,
@@ -693,7 +693,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (isMyTurn && !hasRolled)
-                    Text(
+                    const Text(
                       'Tap the dice to roll!',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -717,7 +717,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
                       ),
                     )
                   else
-                    Text(
+                    const Text(
                       'Waiting for opponent…',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -742,7 +742,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
                         const SizedBox(width: 4),
                         Text(
                           '${p.tokensFinished}/4',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.monoFont,
                             fontSize: 10,
                             color: KinrelColors.textDim,
@@ -790,7 +790,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
           ),
           boxShadow: [
             if (canRoll)
-              BoxShadow(
+              const BoxShadow(
                 color: KinrelColors.orangeGlowIntense,
                 blurRadius: 10,
                 spreadRadius: 2,
@@ -914,7 +914,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
         border: Border.all(color: KinrelColors.border),
       ),
-      child: Row(
+      child: const Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SizedBox(
@@ -925,7 +925,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
               color: KinrelColors.orange,
             ),
           ),
-          const SizedBox(width: KinrelSpacing.sm),
+          SizedBox(width: KinrelSpacing.sm),
           Text(
             'Waiting for host to start the game…',
             style: TextStyle(
@@ -951,7 +951,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
       backgroundColor: isWinner ? null : KinrelColors.darkSurface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text('Results',
+        title: const Text('Results',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
@@ -983,7 +983,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
                   const SizedBox(height: KinrelSpacing.sm),
                   Text(
                     isWinner ? 'You Won!' : 'Winner!',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 32,
                       fontWeight: FontWeight.w800,
@@ -994,7 +994,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
                   const SizedBox(height: 4),
                   Text(
                     isWinner ? '$winnerName (You)' : winnerName,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 22,
                       fontWeight: FontWeight.w600,

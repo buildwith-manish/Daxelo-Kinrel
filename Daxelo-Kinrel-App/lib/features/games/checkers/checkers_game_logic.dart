@@ -21,16 +21,16 @@
 class CheckersPiece {
   const CheckersPiece({required this.player, required this.isKing});
 
+  factory CheckersPiece.fromJson(Map<String, dynamic> json) => CheckersPiece(
+    player: json['player'] as int,
+    isKing: json['isKing'] as bool? ?? false,
+  );
+
   /// 1 = red (bottom, moves up), 2 = black (top, moves down)
   final int player;
   final bool isKing;
 
   Map<String, dynamic> toJson() => {'player': player, 'isKing': isKing};
-
-  factory CheckersPiece.fromJson(Map<String, dynamic> json) => CheckersPiece(
-    player: json['player'] as int,
-    isKing: json['isKing'] as bool? ?? false,
-  );
 
   CheckersPiece copyWith({bool? isKing}) => CheckersPiece(
     player: player,

@@ -103,6 +103,19 @@ class WordForgePlayer {
     required this.correctGuesses,
   });
 
+  factory WordForgePlayer.fromJson(Map<String, dynamic> json) =>
+      WordForgePlayer(
+        idx: (json['idx'] as num?)?.toInt() ?? 0,
+        userId: (json['userId'] ?? '') as String,
+        name: (json['name'] ?? 'Player') as String,
+        score: (json['score'] as num?)?.toInt() ?? 0,
+        lastRoundPoints:
+            (json['lastRoundPoints'] as num?)?.toInt() ?? 0,
+        foolCount: (json['foolCount'] as num?)?.toInt() ?? 0,
+        correctGuesses:
+            (json['correctGuesses'] as num?)?.toInt() ?? 0,
+      );
+
   final int idx;
   final String userId;
   final String name;
@@ -136,19 +149,6 @@ class WordForgePlayer {
         'foolCount': foolCount,
         'correctGuesses': correctGuesses,
       };
-
-  factory WordForgePlayer.fromJson(Map<String, dynamic> json) =>
-      WordForgePlayer(
-        idx: (json['idx'] as num?)?.toInt() ?? 0,
-        userId: (json['userId'] ?? '') as String,
-        name: (json['name'] ?? 'Player') as String,
-        score: (json['score'] as num?)?.toInt() ?? 0,
-        lastRoundPoints:
-            (json['lastRoundPoints'] as num?)?.toInt() ?? 0,
-        foolCount: (json['foolCount'] as num?)?.toInt() ?? 0,
-        correctGuesses:
-            (json['correctGuesses'] as num?)?.toInt() ?? 0,
-      );
 }
 
 /// A single definition entry (real or fake) shown after reveal.
@@ -161,6 +161,16 @@ class WordForgeDefinition {
     required this.voteCount,
     required this.displayIndex,
   });
+
+  factory WordForgeDefinition.fromJson(Map<String, dynamic> json) =>
+      WordForgeDefinition(
+        userId: (json['userId'] ?? '') as String,
+        userName: (json['userName'] ?? 'Dictionary') as String,
+        definition: (json['definition'] ?? '') as String,
+        isReal: (json['isReal'] as bool?) ?? false,
+        voteCount: (json['voteCount'] as num?)?.toInt() ?? 0,
+        displayIndex: (json['displayIndex'] as num?)?.toInt() ?? 0,
+      );
 
   /// The userId of the player who wrote this fake def.
   /// Empty/null for the real definition.
@@ -191,16 +201,6 @@ class WordForgeDefinition {
         'voteCount': voteCount,
         'displayIndex': displayIndex,
       };
-
-  factory WordForgeDefinition.fromJson(Map<String, dynamic> json) =>
-      WordForgeDefinition(
-        userId: (json['userId'] ?? '') as String,
-        userName: (json['userName'] ?? 'Dictionary') as String,
-        definition: (json['definition'] ?? '') as String,
-        isReal: (json['isReal'] as bool?) ?? false,
-        voteCount: (json['voteCount'] as num?)?.toInt() ?? 0,
-        displayIndex: (json['displayIndex'] as num?)?.toInt() ?? 0,
-      );
 }
 
 /// Points awarded to a single player for a round.
@@ -214,6 +214,18 @@ class WordForgePointsAwarded {
     required this.votedForUserId,
     required this.votedForReal,
   });
+
+  factory WordForgePointsAwarded.fromJson(Map<String, dynamic> json) =>
+      WordForgePointsAwarded(
+        playerIndex:
+            (json['playerIndex'] as num?)?.toInt() ?? 0,
+        points: (json['points'] as num?)?.toInt() ?? 0,
+        guessedReal: (json['guessedReal'] as bool?) ?? false,
+        foolCount: (json['foolCount'] as num?)?.toInt() ?? 0,
+        closeBonus: (json['closeBonus'] as bool?) ?? false,
+        votedForUserId: (json['votedForUserId'] ?? '') as String,
+        votedForReal: (json['votedForReal'] as bool?) ?? false,
+      );
 
   final int playerIndex;
   final int points;
@@ -232,18 +244,6 @@ class WordForgePointsAwarded {
         'votedForUserId': votedForUserId,
         'votedForReal': votedForReal,
       };
-
-  factory WordForgePointsAwarded.fromJson(Map<String, dynamic> json) =>
-      WordForgePointsAwarded(
-        playerIndex:
-            (json['playerIndex'] as num?)?.toInt() ?? 0,
-        points: (json['points'] as num?)?.toInt() ?? 0,
-        guessedReal: (json['guessedReal'] as bool?) ?? false,
-        foolCount: (json['foolCount'] as num?)?.toInt() ?? 0,
-        closeBonus: (json['closeBonus'] as bool?) ?? false,
-        votedForUserId: (json['votedForUserId'] ?? '') as String,
-        votedForReal: (json['votedForReal'] as bool?) ?? false,
-      );
 }
 
 /// One round's snapshot.
@@ -259,28 +259,6 @@ class WordForgeRound {
     required this.voteCount,
     required this.submittedCount,
   });
-
-  final int roundNumber;
-  final WordForgePhase phase;
-  final String word;
-  final String realDefinition;
-  final String category;
-  final List<WordForgeDefinition> definitions;
-  final List<WordForgePointsAwarded> pointsAwarded;
-  final int voteCount;
-  final int submittedCount;
-
-  Map<String, dynamic> toJson() => {
-        'roundNumber': roundNumber,
-        'phase': phase.wire,
-        'word': word,
-        'realDefinition': realDefinition,
-        'category': category,
-        'definitions': definitions.map((d) => d.toJson()).toList(),
-        'pointsAwarded': pointsAwarded.map((p) => p.toJson()).toList(),
-        'voteCount': voteCount,
-        'submittedCount': submittedCount,
-      };
 
   factory WordForgeRound.fromJson(Map<String, dynamic> json) {
     final defsList = <WordForgeDefinition>[];
@@ -316,6 +294,28 @@ class WordForgeRound {
       submittedCount: (json['submittedCount'] as num?)?.toInt() ?? 0,
     );
   }
+
+  final int roundNumber;
+  final WordForgePhase phase;
+  final String word;
+  final String realDefinition;
+  final String category;
+  final List<WordForgeDefinition> definitions;
+  final List<WordForgePointsAwarded> pointsAwarded;
+  final int voteCount;
+  final int submittedCount;
+
+  Map<String, dynamic> toJson() => {
+        'roundNumber': roundNumber,
+        'phase': phase.wire,
+        'word': word,
+        'realDefinition': realDefinition,
+        'category': category,
+        'definitions': definitions.map((d) => d.toJson()).toList(),
+        'pointsAwarded': pointsAwarded.map((p) => p.toJson()).toList(),
+        'voteCount': voteCount,
+        'submittedCount': submittedCount,
+      };
 }
 
 /// The full boardState JSONB from the games row, parsed.
@@ -330,6 +330,41 @@ class WordForgeBoardState {
     required this.status,
     required this.winnerIndex,
   });
+
+  factory WordForgeBoardState.fromJson(Map<String, dynamic> json) {
+    final roundsList = <WordForgeRound>[];
+    final rawRounds = json['rounds'];
+    if (rawRounds is List) {
+      for (final r in rawRounds) {
+        if (r is Map) {
+          roundsList.add(
+              WordForgeRound.fromJson(Map<String, dynamic>.from(r)));
+        }
+      }
+    }
+    final playersList = <WordForgePlayer>[];
+    final rawPlayers = json['players'];
+    if (rawPlayers is List) {
+      for (final p in rawPlayers) {
+        if (p is Map) {
+          playersList.add(
+              WordForgePlayer.fromJson(Map<String, dynamic>.from(p)));
+        }
+      }
+    }
+    return WordForgeBoardState(
+      playerCount: (json['playerCount'] as num?)?.toInt() ?? 3,
+      totalRounds: (json['totalRounds'] as num?)?.toInt() ?? 10,
+      answerSeconds: (json['answerSeconds'] as num?)?.toInt() ??
+          kWordForgeDefaultAnswerSeconds,
+      currentRoundNumber:
+          (json['currentRound'] as num?)?.toInt() ?? 1,
+      rounds: roundsList,
+      players: playersList,
+      status: (json['status'] as String?) ?? 'in_progress',
+      winnerIndex: (json['winner'] as num?)?.toInt() ?? -1,
+    );
+  }
 
   final int playerCount;
   final int totalRounds;
@@ -376,41 +411,6 @@ class WordForgeBoardState {
         'status': status,
         'winner': winnerIndex,
       };
-
-  factory WordForgeBoardState.fromJson(Map<String, dynamic> json) {
-    final roundsList = <WordForgeRound>[];
-    final rawRounds = json['rounds'];
-    if (rawRounds is List) {
-      for (final r in rawRounds) {
-        if (r is Map) {
-          roundsList.add(
-              WordForgeRound.fromJson(Map<String, dynamic>.from(r)));
-        }
-      }
-    }
-    final playersList = <WordForgePlayer>[];
-    final rawPlayers = json['players'];
-    if (rawPlayers is List) {
-      for (final p in rawPlayers) {
-        if (p is Map) {
-          playersList.add(
-              WordForgePlayer.fromJson(Map<String, dynamic>.from(p)));
-        }
-      }
-    }
-    return WordForgeBoardState(
-      playerCount: (json['playerCount'] as num?)?.toInt() ?? 3,
-      totalRounds: (json['totalRounds'] as num?)?.toInt() ?? 10,
-      answerSeconds: (json['answerSeconds'] as num?)?.toInt() ??
-          kWordForgeDefaultAnswerSeconds,
-      currentRoundNumber:
-          (json['currentRound'] as num?)?.toInt() ?? 1,
-      rounds: roundsList,
-      players: playersList,
-      status: (json['status'] as String?) ?? 'in_progress',
-      winnerIndex: (json['winner'] as num?)?.toInt() ?? -1,
-    );
-  }
 }
 
 /// Pure-Dart engine — client-side validation + display helpers.

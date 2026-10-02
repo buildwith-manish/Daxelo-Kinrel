@@ -524,8 +524,8 @@ class RecentMomentsSection extends StatelessWidget {
                 color: KinrelColors.orange,
               ),
               const SizedBox(width: 8),
-              Expanded(
-                child: const Text(
+              const Expanded(
+                child: Text(
                   'Recent Moments',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,

@@ -328,7 +328,7 @@ class PermissionService {
         ),
         duration: const Duration(seconds: 4),
         behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
+        action: const SnackBarAction(
           label: 'Settings',
           textColor: KinrelColors.orange,
           onPressed: openAppSettings,

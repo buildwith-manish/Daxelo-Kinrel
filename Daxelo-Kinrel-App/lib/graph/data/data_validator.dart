@@ -75,8 +75,7 @@ class DataValidationResult {
 /// metadata for the UI to show error indicators.
 class DataValidator {
   /// Creates a data validator.
-  DataValidator({AnalyticsTracker? analyticsTracker})
-      : _analyticsTracker = analyticsTracker;
+  DataValidator({this._analyticsTracker});
 
   /// Optional analytics tracker for logging validation errors.
   final AnalyticsTracker? _analyticsTracker;

@@ -178,7 +178,7 @@ class _MindMatchGameScreenState
           backgroundColor: KinrelColors.darkCard,
           foregroundColor: KinrelColors.textWhite,
         ),
-        body: Center(
+        body: const Center(
           child: GamingEmptyCard(
             emoji: '🧠',
             title: 'Game not found',
@@ -207,7 +207,7 @@ class _MindMatchGameScreenState
             icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
         title: Text(
           game.roomName?.isNotEmpty == true ? game.roomName! : 'Mind Match',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
             color: KinrelColors.textWhite,
@@ -281,11 +281,11 @@ class _RoundInfo extends StatelessWidget {
       ),
       child: Text(
         'R$round/${game.totalRounds}',
-        style: TextStyle(
+        style: const TextStyle(
             fontFamily: KinrelTypography.monoFont,
             fontSize: 11,
             fontWeight: FontWeight.w700,
-            color: const Color(0xFFF472B6)),
+            color: Color(0xFFF472B6)),
       ),
     );
   }
@@ -400,7 +400,7 @@ class _TopHud extends StatelessWidget {
         seconds <= 5 ? KinrelColors.error : KinrelColors.textWhite;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: KinrelColors.darkCard,
         border: Border(bottom: BorderSide(color: KinrelColors.border)),
       ),
@@ -409,11 +409,11 @@ class _TopHud extends StatelessWidget {
           Expanded(
             child: Text(
               'Round ${board.currentRoundNumber}/${board.totalRounds}',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
-                color: const Color(0xFFF472B6),
+                color: Color(0xFFF472B6),
               ),
             ),
           ),
@@ -487,7 +487,7 @@ class _QuestionCard extends StatelessWidget {
           Text(
             round.questionPrompt,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 24,
               fontWeight: FontWeight.w800,
@@ -531,7 +531,7 @@ class _AnswerInputCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Your answer',
+          const Text('Your answer',
               style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 14,
@@ -542,7 +542,7 @@ class _AnswerInputCard extends StatelessWidget {
             controller: controller,
             maxLength: kMindMatchMaxAnswerLength,
             textCapitalization: TextCapitalization.sentences,
-            style: TextStyle(
+            style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 16,
                 color: KinrelColors.textWhite),
@@ -559,7 +559,7 @@ class _AnswerInputCard extends StatelessWidget {
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
-                borderSide: BorderSide(color: KinrelColors.border),
+                borderSide: const BorderSide(color: KinrelColors.border),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
@@ -580,12 +580,12 @@ class _AnswerInputCard extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              Icon(Icons.lock_outline,
+              const Icon(Icons.lock_outline,
                   size: 12, color: KinrelColors.textDim),
               const SizedBox(width: 6),
               Text(
                 '$lockedCount / $playerCount answers submitted',
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,
                     color: KinrelColors.textDim),
@@ -635,7 +635,7 @@ class _SubmittedCard extends StatelessWidget {
           const Icon(Icons.lock_outline,
               color: KinrelColors.success, size: 28),
           const SizedBox(height: 8),
-          Text('Answer locked in!',
+          const Text('Answer locked in!',
               style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 16,
@@ -653,17 +653,17 @@ class _SubmittedCard extends StatelessWidget {
             ),
             child: Text(
               myAnswer,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFFF472B6)),
+                  color: Color(0xFFF472B6)),
             ),
           ),
           const SizedBox(height: 12),
           Text(
               'Waiting for other players... ($lockedCount/$playerCount submitted)',
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim)),
@@ -685,7 +685,7 @@ class _Leaderboard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GamingSectionHeader(
+        const GamingSectionHeader(
             title: 'Standings', icon: Icons.leaderboard_outlined),
         for (final p in sorted)
           Padding(
@@ -729,12 +729,12 @@ class _PlayerRow extends StatelessWidget {
                             : KinrelColors.textWhite)),
                 if (isMe) ...[
                   const SizedBox(width: 6),
-                  Text('YOU',
+                  const Text('YOU',
                       style: TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFFF472B6))),
+                          color: Color(0xFFF472B6))),
                 ],
                 if (player.streak >= 2) ...[
                   const SizedBox(width: 6),
@@ -746,7 +746,7 @@ class _PlayerRow extends StatelessWidget {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text('🔥${player.streak}',
-                        style: TextStyle(
+                        style: const TextStyle(
                             fontFamily: KinrelTypography.monoFont,
                             fontSize: 9,
                             fontWeight: FontWeight.w800,
@@ -757,7 +757,7 @@ class _PlayerRow extends StatelessWidget {
             ),
           ),
           Text('${player.score}',
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
@@ -802,11 +802,11 @@ class _RevealView extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text('Round ${round.roundNumber} Results',
-                    style: TextStyle(
+                    style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        color: const Color(0xFFF472B6))),
+                        color: Color(0xFFF472B6))),
               ),
             ],
           ),
@@ -825,7 +825,7 @@ class _RevealView extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(round.questionPrompt,
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -847,11 +847,11 @@ class _RevealView extends StatelessWidget {
                     color: KinrelColors.brightGold
                         .withValues(alpha: 0.5)),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  const Icon(Icons.celebration_rounded,
+                  Icon(Icons.celebration_rounded,
                       size: 18, color: KinrelColors.brightGold),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text('PERFECT MATCH! Everyone said the same thing! +20 bonus',
                         style: TextStyle(
@@ -866,7 +866,7 @@ class _RevealView extends StatelessWidget {
           ],
           const SizedBox(height: 14),
           // Answer groups
-          Text('Answers',
+          const Text('Answers',
               style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 13,
@@ -967,7 +967,7 @@ class _AnswerGroupRow extends StatelessWidget {
                         .withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Text('CROWD FAV',
+                  child: const Text('CROWD FAV',
                       style: TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 8,
@@ -991,7 +991,7 @@ class _AnswerGroupRow extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(name,
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -1073,14 +1073,14 @@ class _ResultsView extends StatelessWidget {
                   winnerName.isNotEmpty
                       ? '$winnerName wins!'
                       : 'Match Complete',
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
                       color: KinrelColors.brightGold),
                 ),
                 const SizedBox(height: 4),
-                Text('Thinker-who-matched-most wins!',
+                const Text('Thinker-who-matched-most wins!',
                     style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
@@ -1090,7 +1090,7 @@ class _ResultsView extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           if (board != null) ...[
-            GamingSectionHeader(
+            const GamingSectionHeader(
                 title: 'Final Standings', icon: Icons.leaderboard_outlined),
             for (final p in board.players
                 .toList()
@@ -1116,14 +1116,14 @@ class _ResultsView extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(p.name,
-                                style: TextStyle(
+                                style: const TextStyle(
                                     fontFamily: KinrelTypography.bodyFont,
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
                                     color: KinrelColors.textWhite)),
                             Text(
                                 '${p.perfectMatches} perfect · best streak ${p.streak}',
-                                style: TextStyle(
+                                style: const TextStyle(
                                     fontFamily: KinrelTypography.bodyFont,
                                     fontSize: 10,
                                     color: KinrelColors.textDim)),
@@ -1131,18 +1131,18 @@ class _ResultsView extends StatelessWidget {
                         ),
                       ),
                       Text('${p.score} pts',
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontFamily: KinrelTypography.monoFont,
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
-                              color: const Color(0xFFF472B6))),
+                              color: Color(0xFFF472B6))),
                     ],
                   ),
                 ),
               ),
             const SizedBox(height: 18),
             // Match stats
-            GamingSectionHeader(
+            const GamingSectionHeader(
                 title: 'Match Stats', icon: Icons.insights_outlined),
             _StatRow(
                 label: 'Total rounds',
@@ -1221,13 +1221,13 @@ class _StatRow extends StatelessWidget {
           children: [
             Expanded(
               child: Text(label,
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.textDim)),
             ),
             Text(value,
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,

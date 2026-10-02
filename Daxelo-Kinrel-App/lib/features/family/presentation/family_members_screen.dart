@@ -125,7 +125,7 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
             }
           },
         ),
-        title: Text(
+        title: const Text(
           'Members',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -138,7 +138,7 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
       ),
       bottomNavigationBar: FamilySpaceFloatingNav(familyId: widget.familyId),
       body: detailAsync.when(
-        loading: () => Center(
+        loading: () => const Center(
           child: CircularProgressIndicator(color: KinrelColors.orange),
         ),
         error: (e, _) => DKErrorState(
@@ -271,7 +271,7 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                           color: KinrelColors.darkElevated,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Icon(Icons.sort_rounded,
+                        child: const Icon(Icons.sort_rounded,
                             color: KinrelColors.textSilver, size: 20),
                       ),
                     ),
@@ -286,7 +286,7 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     '${filtered.length} ${filtered.length == 1 ? "member" : "members"}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
                       color: KinrelColors.textDim,
@@ -298,7 +298,7 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
               // Member list
               Expanded(
                 child: filtered.isEmpty
-                    ? Center(
+                    ? const Center(
                         child: Text(
                           'No members found',
                           style: TextStyle(color: KinrelColors.textDim),
@@ -342,7 +342,7 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                                   backgroundColor: KinrelColors.darkCard,
                                   title: Text(
                                     'Delete ${person.name}?',
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       color: KinrelColors.textWhite,
                                       fontFamily: KinrelTypography.displayFont,
                                     ),
@@ -350,7 +350,7 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                                   content: Text(
                                     'This will permanently remove ${person.name} from the family. '
                                     'This action cannot be undone.',
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       color: KinrelColors.textDim,
                                       fontFamily: KinrelTypography.bodyFont,
                                     ),
@@ -359,7 +359,7 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                                     TextButton(
                                       onPressed: () =>
                                           Navigator.of(ctx).pop(false),
-                                      child: Text('Cancel',
+                                      child: const Text('Cancel',
                                           style: TextStyle(
                                               color: KinrelColors.textDim)),
                                     ),
@@ -532,7 +532,7 @@ class _MemberRow extends StatelessWidget {
                               ? person.name[0]
                                   .toUpperCase()
                               : '?',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography
                                 .displayFont,
                             fontSize: 18,
@@ -569,7 +569,7 @@ class _MemberRow extends StatelessWidget {
                 children: [
                   Text(
                     person.name,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography
                           .displayFont,
                       fontSize: 15,
@@ -580,7 +580,7 @@ class _MemberRow extends StatelessWidget {
                   if (person.gender != null)
                     Text(
                       person.gender!,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography
                             .bodyFont,
                         fontSize: 12,
@@ -608,7 +608,7 @@ class _MemberRow extends StatelessWidget {
               ),
             ),
             if (person.isAnchor)
-              Icon(Icons.star_rounded,
+              const Icon(Icons.star_rounded,
                   color: KinrelColors.gold, size: 18),
             // v5.204: Linked/Manual badge — distinguishes members
             // added via "Find on Kinrel" (real registered accounts,

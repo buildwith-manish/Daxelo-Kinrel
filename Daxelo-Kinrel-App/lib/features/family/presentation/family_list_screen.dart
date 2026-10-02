@@ -11,7 +11,6 @@ import '../../../core/constants/feature_flags.dart';
 import '../../../core/constants/supported_languages.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
-import '../../../core/family/drift_stream_providers.dart';
 import '../../../core/family/pagination_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/haptic_service.dart';
@@ -115,7 +114,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
                     HapticService.tap();
                     context.push('/families/create');
                   },
-                  icon: Icon(Icons.add_rounded, size: 28),
+                  icon: const Icon(Icons.add_rounded, size: 28),
                   color: DKColors.brandPurple,
                   tooltip: 'Create family',
                 ),
@@ -140,7 +139,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
       },
       child: CustomScrollView(
         controller: _scrollController,
-        scrollCacheExtent: ScrollCacheExtent.pixels(500),
+        scrollCacheExtent: const ScrollCacheExtent.pixels(500),
         physics: const BouncingScrollPhysics(),
         slivers: [
           // Header
@@ -150,7 +149,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
               onArchivedTap: () => _showArchivedFamilies(context),
             ),
           ),
-          SliverToBoxAdapter(child: SizedBox(height: 16)),
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
           // Join Family card
           SliverToBoxAdapter(
@@ -158,7 +157,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
               onJoin: () => _showJoinFamilyDialog(context),
             ),
           ),
-          SliverToBoxAdapter(child: SizedBox(height: 20)),
+          const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
           // Family cards or empty state
           if (families.isEmpty)
@@ -236,7 +235,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
                 shape: BoxShape.circle,
                 color: DKColors.brandPurple.withValues(alpha: 0.15),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.link_rounded,
                 color: DKColors.brandPurple,
                 size: 20,
@@ -310,7 +309,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
                 _showJoinOptionsBottomSheet(context);
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Join family coming soon!')),
+                  const SnackBar(content: Text('Join family coming soon!')),
                 );
               }
             },
@@ -344,16 +343,16 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
             ),
             const SizedBox(height: 20),
             ListTile(
-              leading: Icon(Icons.qr_code_scanner_rounded,
+              leading: const Icon(Icons.qr_code_scanner_rounded,
                   color: KinrelColors.orange, size: 28),
-              title: Text('Scan QR Code',
+              title: const Text('Scan QR Code',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: KinrelColors.textWhite,
                   )),
-              subtitle: Text('Scan a family QR code to join instantly',
+              subtitle: const Text('Scan a family QR code to join instantly',
                   style: TextStyle(
                     fontSize: 13,
                     color: KinrelColors.textSilver,
@@ -376,16 +375,16 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
               },
             ),
             ListTile(
-              leading: Icon(Icons.keyboard_rounded,
+              leading: const Icon(Icons.keyboard_rounded,
                   color: KinrelColors.textSilver, size: 28),
-              title: Text('Enter Family ID',
+              title: const Text('Enter Family ID',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: KinrelColors.textWhite,
                   )),
-              subtitle: Text('Enter a family code manually',
+              subtitle: const Text('Enter a family code manually',
                   style: TextStyle(
                     fontSize: 13,
                     color: KinrelColors.textSilver,
@@ -409,7 +408,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: KinrelColors.darkCard,
-        title: Text('Enter Family ID',
+        title: const Text('Enter Family ID',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 18,
@@ -419,20 +418,20 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
           controller: controller,
           decoration: InputDecoration(
             hintText: 'e.g., kin-family-abc123',
-            hintStyle: TextStyle(color: KinrelColors.textDim),
+            hintStyle: const TextStyle(color: KinrelColors.textDim),
             filled: true,
             fillColor: KinrelColors.darkElevated,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: KinrelColors.orange),
+              borderSide: const BorderSide(color: KinrelColors.orange),
             ),
           ),
-          style: TextStyle(color: KinrelColors.textWhite),
+          style: const TextStyle(color: KinrelColors.textWhite),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
+            child: const Text('Cancel',
                 style: TextStyle(color: KinrelColors.textSilver)),
           ),
           DKButton(
@@ -461,7 +460,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: DKColors.cardColor(context),
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.bottomSheet),
         ),
@@ -520,7 +519,7 @@ class _Header extends StatelessWidget {
                 ),
                 child: Text(
                   '$familyCount',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -544,7 +543,7 @@ class _Header extends StatelessWidget {
                       color: DKColors.brandPurple.withValues(alpha: 0.2),
                     ),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
@@ -552,7 +551,7 @@ class _Header extends StatelessWidget {
                         size: 16,
                         color: DKColors.brandPurple,
                       ),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Text(
                         'Archived',
                         style: TextStyle(
@@ -598,7 +597,7 @@ class _JoinFamilyCard extends StatelessWidget {
                     shape: BoxShape.circle,
                     color: DKColors.brandGold.withValues(alpha: 0.15),
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.mail_outline_rounded,
                     color: DKColors.brandGold,
                     size: 20,
@@ -630,7 +629,7 @@ class _JoinFamilyCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Icon(
+                const Icon(
                   Icons.arrow_forward_ios_rounded,
                   size: 16,
                   color: DKColors.brandGold,
@@ -736,7 +735,7 @@ class _FamilyCard extends ConsumerWidget {
                                 color: KinrelColors.gold.withValues(alpha: 0.3),
                               ),
                             ),
-                            child: Row(
+                            child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
@@ -744,7 +743,7 @@ class _FamilyCard extends ConsumerWidget {
                                   size: 10,
                                   color: KinrelColors.gold,
                                 ),
-                                const SizedBox(width: 2),
+                                SizedBox(width: 2),
                                 Text(
                                   'Creator',
                                   style: TextStyle(
@@ -835,7 +834,7 @@ class _FamilyCard extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: DKColors.cardColor(context),
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.bottomSheet),
         ),
@@ -870,7 +869,7 @@ class _FamilyCard extends ConsumerWidget {
                 ],
               ),
             ),
-            Divider(color: KinrelColors.border, height: 1),
+            const Divider(color: KinrelColors.border, height: 1),
             ListTile(
               leading: Icon(
                 Icons.visibility_outlined,
@@ -892,12 +891,12 @@ class _FamilyCard extends ConsumerWidget {
             ),
             // Delete option — moves family to archive
             ListTile(
-              leading: Icon(
+              leading: const Icon(
                 Icons.delete_outline_rounded,
                 color: KinrelColors.error,
                 size: 20,
               ),
-              title: Text(
+              title: const Text(
                 'Delete Family',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -911,8 +910,8 @@ class _FamilyCard extends ConsumerWidget {
               },
             ),
             // Info: deleted families go to archive where they can be restored or permanently deleted
-            Padding(
-              padding: const EdgeInsets.symmetric(
+            const Padding(
+              padding: EdgeInsets.symmetric(
                 horizontal: KinrelSpacing.base,
                 vertical: KinrelSpacing.sm,
               ),
@@ -923,7 +922,7 @@ class _FamilyCard extends ConsumerWidget {
                     size: 16,
                     color: KinrelColors.textDim,
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Deleted families are moved to archive. You can restore or permanently delete them from there.',
@@ -954,7 +953,7 @@ class _FamilyCard extends ConsumerWidget {
         ),
         title: Row(
           children: [
-            Icon(
+            const Icon(
               Icons.delete_outline_rounded,
               color: KinrelColors.error,
               size: 24,
@@ -995,10 +994,10 @@ class _FamilyCard extends ConsumerWidget {
                   color: KinrelColors.error.withValues(alpha: 0.2),
                 ),
               ),
-              child: Row(
+              child: const Row(
                 children: [
                   Icon(Icons.info_outline, size: 18, color: KinrelColors.error),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Archived families are automatically deleted after 30 days if not restored.',
@@ -1031,7 +1030,7 @@ class _FamilyCard extends ConsumerWidget {
               Navigator.of(ctx).pop();
               await _performDeleteFamily(context, ref);
             },
-            child: Text(
+            child: const Text(
               'Delete',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -1148,7 +1147,7 @@ class _ArchivedFamiliesSheetState
               ),
               child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.archive_outlined,
                     color: DKColors.brandPurple,
                     size: 22,
@@ -1169,9 +1168,9 @@ class _ArchivedFamiliesSheetState
                     data: (families) => families.isNotEmpty
                         ? TextButton.icon(
                             onPressed: () => _deleteAllArchived(context, ref, families),
-                            icon: Icon(Icons.delete_sweep_rounded,
+                            icon: const Icon(Icons.delete_sweep_rounded,
                                 size: 18, color: KinrelColors.error),
-                            label: Text(
+                            label: const Text(
                               'Delete All',
                               style: TextStyle(
                                 fontSize: 13,
@@ -1198,7 +1197,7 @@ class _ArchivedFamiliesSheetState
             // Content
             Expanded(
               child: archivedAsync.when(
-                loading: () => Center(
+                loading: () => const Center(
                   child: CircularProgressIndicator(
                     color: DKColors.brandPurple,
                     strokeWidth: 2,
@@ -1210,7 +1209,7 @@ class _ArchivedFamiliesSheetState
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.error_outline,
                           size: 40,
                           color: KinrelColors.error,
@@ -1314,7 +1313,7 @@ class _ArchivedFamiliesSheetState
         ),
         title: Row(
           children: [
-            Icon(Icons.warning_amber_rounded,
+            const Icon(Icons.warning_amber_rounded,
                 color: KinrelColors.error, size: 24),
             const SizedBox(width: 10),
             Expanded(
@@ -1347,7 +1346,7 @@ class _ArchivedFamiliesSheetState
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text('Delete All',
+            child: const Text('Delete All',
                 style: TextStyle(
                     fontWeight: FontWeight.w600, color: KinrelColors.error)),
           ),
@@ -1560,7 +1559,7 @@ class _ArchivedFamilyCard extends ConsumerWidget {
         ),
         title: Row(
           children: [
-            Icon(
+            const Icon(
               Icons.warning_amber_rounded,
               color: KinrelColors.error,
               size: 24,
@@ -1601,10 +1600,10 @@ class _ArchivedFamilyCard extends ConsumerWidget {
                   color: KinrelColors.error.withValues(alpha: 0.3),
                 ),
               ),
-              child: Row(
+              child: const Row(
                 children: [
                   Icon(Icons.info_outline, size: 18, color: KinrelColors.error),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'This action cannot be undone.',
@@ -1634,7 +1633,7 @@ class _ArchivedFamilyCard extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
+            child: const Text(
               'Delete Forever',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,

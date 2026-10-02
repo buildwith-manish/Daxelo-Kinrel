@@ -25,7 +25,9 @@ class _SharedListScreenState extends ConsumerState<SharedListScreen> {
   @override
   void dispose() {
     _newListController.dispose();
-    for (final c in _newItemControllers.values) c.dispose();
+    for (final c in _newItemControllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 

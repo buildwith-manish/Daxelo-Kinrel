@@ -24,11 +24,8 @@ import 'package:image_picker/image_picker.dart' show XFile;
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/services/celebration_service.dart';
-import '../../../core/services/smart_defaults_service.dart';
 import '../../../core/services/premium_service.dart';
 import '../../../core/database/sync/offline_queue.dart';
-import '../../../core/database/sync/connectivity_service.dart';
-import '../../../core/family/family_provider.dart' show familyMembersProvider;
 import '../../../shared/widgets/paywall_sheet.dart';
 import 'services/photo_picker_service.dart';
 import 'providers/family_graph_provider.dart'
@@ -123,7 +120,7 @@ class AddPersonSheet extends ConsumerStatefulWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: KinrelColors.darkBackground,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.bottomSheet),
         ),
@@ -446,7 +443,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
           ),
-          title: Text(
+          title: const Text(
             'Already in family',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -458,7 +455,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           content: Text(
             '${user.name} is already a member of this family. '
             'You cannot add them again.',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14,
               color: KinrelColors.textSilver,
@@ -472,7 +469,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   Navigator.of(context).pop();
                 }
               },
-              child: Text(
+              child: const Text(
                 'OK',
                 style: TextStyle(color: KinrelColors.orange),
               ),
@@ -513,7 +510,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(
+            colorScheme: const ColorScheme.dark(
               primary: KinrelColors.orange,
               surface: KinrelColors.darkElevated,
               onSurface: KinrelColors.textWhite,
@@ -541,7 +538,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(
+            colorScheme: const ColorScheme.dark(
               primary: KinrelColors.orange,
               surface: KinrelColors.darkElevated,
               onSurface: KinrelColors.textWhite,
@@ -602,7 +599,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
           ),
-          title: Text(
+          title: const Text(
             'Add Your Own Kinship',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -618,13 +615,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               children: [
                 // Kinship Name
                 Text('Kinship Name', style: _labelStyle),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 TextField(
                   controller: nameController,
-                  style: TextStyle(color: KinrelColors.textWhite, fontSize: 14),
+                  style: const TextStyle(color: KinrelColors.textWhite, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'e.g. Guru, Godfather, Chacha...',
-                    hintStyle: TextStyle(color: KinrelColors.textDim),
+                    hintStyle: const TextStyle(color: KinrelColors.textDim),
                     filled: true,
                     fillColor: KinrelColors.darkBackground,
                     border: OutlineInputBorder(
@@ -633,52 +630,52 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: KinrelColors.orange),
+                      borderSide: const BorderSide(color: KinrelColors.orange),
                     ),
                   ),
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
 
                 // Node Color
                 Text('Node Color', style: _labelStyle),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 _buildColorPicker(setDialogState, () => nodeColor, (c) {
                   nodeColor = c;
                   setDialogState(() {});
                 }),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
 
                 // Connection Line Color
                 Text('Connection Line Color', style: _labelStyle),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 _buildColorPicker(setDialogState, () => lineColor, (c) {
                   lineColor = c;
                   setDialogState(() {});
                 }),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
 
                 // Connection Line Type
                 Text('Connection Line Type', style: _labelStyle),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 _buildSegmentedChoice(setDialogState, () => lineType, [
                   ('Solid', 'solid'),
                   ('Dashed', 'dashed'),
                 ], (v) { lineType = v; setDialogState(() {}); }),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
 
                 // Relationship Dot
                 Text('Relationship Dot', style: _labelStyle),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 _buildSegmentedChoice(setDialogState, () => dotType, [
                   ('Dot', 'dot'),
                   ('Heart', 'heart'),
                   ('None', 'none'),
                 ], (v) { dotType = v; setDialogState(() {}); }),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
 
                 // Preview
                 Container(
-                  padding: EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: KinrelColors.darkBackground,
                     borderRadius: BorderRadius.circular(10),
@@ -698,9 +695,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                       // Line preview
                       Expanded(
                         child: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: CustomPaint(
-                            size: Size(double.infinity, 40),
+                            size: const Size(double.infinity, 40),
                             painter: _LinePreviewPainter(
                               color: Color(lineColor),
                               isDashed: lineType == 'dashed',
@@ -727,7 +724,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Cancel', style: TextStyle(color: KinrelColors.textDim)),
+              child: const Text('Cancel', style: TextStyle(color: KinrelColors.textDim)),
             ),
             TextButton(
               onPressed: () {
@@ -741,7 +738,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   });
                 }
               },
-              child: Text('Save', style: TextStyle(color: KinrelColors.orange, fontWeight: FontWeight.w600)),
+              child: const Text('Save', style: TextStyle(color: KinrelColors.orange, fontWeight: FontWeight.w600)),
             ),
           ],
         ),
@@ -772,7 +769,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     nameController.dispose();
   }
 
-  TextStyle get _labelStyle => TextStyle(
+  TextStyle get _labelStyle => const TextStyle(
     fontFamily: KinrelTypography.bodyFont,
     fontSize: 13,
     fontWeight: FontWeight.w600,
@@ -811,7 +808,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               ),
             ),
             child: isSelected
-                ? Icon(Icons.check, color: Colors.white, size: 18)
+                ? const Icon(Icons.check, color: Colors.white, size: 18)
                 : null,
           ),
         );
@@ -835,7 +832,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         return GestureDetector(
           onTap: () => onSelect(value),
           child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
               color: isSelected
                   ? KinrelColors.orange.withValues(alpha: 0.15)
@@ -945,11 +942,15 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     // Step-parent
     if (k == 'step_father' || k == 'step_mother' ||
         k == 'stepfather' || k == 'stepmother' ||
-        k == 'step_parent') return 'step_parent';
+        k == 'step_parent') {
+      return 'step_parent';
+    }
 
     // Adoptive parent
     if (k == 'adoptive_father' || k == 'adoptive_mother' ||
-        k == 'adoptive_parent') return 'adoptive_parent';
+        k == 'adoptive_parent') {
+      return 'adoptive_parent';
+    }
 
     // Everything else (father, mother, parent, son, daughter, child,
     // brother, sister, sibling, grandfather, grandmother, uncle, aunt,
@@ -1848,37 +1849,37 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                     barrierDismissible: false,
                     builder: (ctx) => AlertDialog(
                       backgroundColor: KinrelColors.darkCard,
-                      title: Text('DEBUG: Relationship Inputs',
+                      title: const Text('DEBUG: Relationship Inputs',
                         style: TextStyle(color: KinrelColors.orange, fontSize: 16, fontWeight: FontWeight.w700)),
                       content: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('relKey: "$relKey"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('result.id: "$resultId"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('result.name: "$resultName"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('linkToPersonId: "$linkToPersonId"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('widget.fromGraph: ${widget.fromGraph}', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('edgeInput.from: "${edgeInput.fromPersonId}"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('edgeInput.to: "${edgeInput.toPersonId}"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('edgeInput.key: "${edgeInput.relationshipKey}"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('edgeInput.label: "${edgeInput.specificLabelAtoB}"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('familyId: "${widget.familyId}"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          Text('relKey: "$relKey"', style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          const SizedBox(height: 6),
+                          Text('result.id: "$resultId"', style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          const SizedBox(height: 6),
+                          Text('result.name: "$resultName"', style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          const SizedBox(height: 6),
+                          Text('linkToPersonId: "$linkToPersonId"', style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          const SizedBox(height: 6),
+                          Text('widget.fromGraph: ${widget.fromGraph}', style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          const SizedBox(height: 6),
+                          Text('edgeInput.from: "${edgeInput.fromPersonId}"', style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          const SizedBox(height: 6),
+                          Text('edgeInput.to: "${edgeInput.toPersonId}"', style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          const SizedBox(height: 6),
+                          Text('edgeInput.key: "${edgeInput.relationshipKey}"', style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          const SizedBox(height: 6),
+                          Text('edgeInput.label: "${edgeInput.specificLabelAtoB}"', style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          const SizedBox(height: 6),
+                          Text('familyId: "${widget.familyId}"', style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
                         ],
                       ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.of(ctx).pop(),
-                          child: Text('Continue', style: TextStyle(color: KinrelColors.orange)),
+                          child: const Text('Continue', style: TextStyle(color: KinrelColors.orange)),
                         ),
                       ],
                     ),
@@ -1915,16 +1916,16 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                             barrierDismissible: false,
                             builder: (ctx) => AlertDialog(
                               backgroundColor: KinrelColors.darkCard,
-                              title: Text('DEBUG: createRelationship()',
+                              title: const Text('DEBUG: createRelationship()',
                                 style: TextStyle(color: KinrelColors.orange, fontSize: 14, fontWeight: FontWeight.w700)),
                               content: SingleChildScrollView(
                                 child: Text(message,
-                                  style: TextStyle(color: KinrelColors.textWhite, fontSize: 12, fontFamily: 'monospace')),
+                                  style: const TextStyle(color: KinrelColors.textWhite, fontSize: 12, fontFamily: 'monospace')),
                               ),
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.of(ctx).pop(),
-                                  child: Text('Continue', style: TextStyle(color: KinrelColors.orange)),
+                                  child: const Text('Continue', style: TextStyle(color: KinrelColors.orange)),
                                 ),
                               ],
                             ),
@@ -2077,7 +2078,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 errorDetail = e.toString();
               }
               final shortError = errorDetail.length > 200
-                  ? errorDetail.substring(0, 200) + '...'
+                  ? '${errorDetail.substring(0, 200)}...'
                   : errorDetail;
               debugPrint('[ADD-MEMBER] v5.50: Relationship error detail: $errorDetail');
               context.showSnackBar(
@@ -2105,19 +2106,19 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               barrierDismissible: false,
               builder: (ctx) => AlertDialog(
                 backgroundColor: KinrelColors.darkCard,
-                title: Text('DEBUG: Relationship SKIPPED',
+                title: const Text('DEBUG: Relationship SKIPPED',
                   style: TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.w700)),
                 content: Text(
                   'relKey is NULL — no relationship was selected.\n\n'
                   'result: ${result?.id ?? "NULL"}\n'
                   'fromGraph: ${widget.fromGraph}\n\n'
                   'The Person was created WITHOUT a relationship edge.',
-                  style: TextStyle(color: KinrelColors.textWhite, fontSize: 13),
+                  style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13),
                 ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(ctx).pop(),
-                    child: Text('OK', style: TextStyle(color: KinrelColors.orange)),
+                    child: const Text('OK', style: TextStyle(color: KinrelColors.orange)),
                   ),
                 ],
               ),
@@ -2420,11 +2421,11 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               children: [
                 // Handle bar
                 _buildHandleBar(),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
 
                 // Title (no step indicators for quick-add)
                 _buildHeader(),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
 
                 // Content
                 Expanded(
@@ -2488,7 +2489,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
     return Text(
       title,
-      style: TextStyle(
+      style: const TextStyle(
         fontFamily: KinrelTypography.displayFont,
         fontSize: 22,
         fontWeight: FontWeight.w700,
@@ -2634,8 +2635,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // ── #2: Full Name (required, first field, no photo above) ──
-          _SectionLabel('Full Name *'),
-          SizedBox(height: 6),
+          const _SectionLabel('Full Name *'),
+          const SizedBox(height: 6),
           _buildTextField(
             controller: _nameController,
             hint: 'Enter full name',
@@ -2652,23 +2653,23 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           // Family" button stay disabled with no explanation.
           if (nameValidator(_nameController.text) != null &&
               _nameController.text.trim().isNotEmpty) ...[
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               nameValidator(_nameController.text) ?? '',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.orange,
               ),
             ),
           ],
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
 
           // ── #2: Gender (unchanged) ──
-          _SectionLabel('Gender'),
-          SizedBox(height: 10),
+          const _SectionLabel('Gender'),
+          const SizedBox(height: 10),
           _buildGenderCards(),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
 
           // ── "Related to" anchor selector ──
           // v5.202: The "Related to" field is now ALWAYS visible when
@@ -2685,15 +2686,15 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           // The debug logging for the role check is in the method body
           // above (before the return statement).
           if (familyHasMembers && showTargetPicker) ...[
-            _SectionLabel('Related to'),
-            SizedBox(height: 8),
+            const _SectionLabel('Related to'),
+            const SizedBox(height: 8),
             _buildTargetPersonPicker(),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
           ] else if (widget.anchorPerson != null) ...[
-            _SectionLabel('Related to'),
-            SizedBox(height: 8),
+            const _SectionLabel('Related to'),
+            const SizedBox(height: 8),
             Container(
-              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 color: KinrelColors.darkCard,
                 borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
@@ -2703,11 +2704,11 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               ),
               child: Row(
                 children: [
-                  Icon(Icons.person, color: KinrelColors.orange, size: 20),
-                  SizedBox(width: 10),
+                  const Icon(Icons.person, color: KinrelColors.orange, size: 20),
+                  const SizedBox(width: 10),
                   Text(
                     widget.anchorPerson!.name,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -2717,45 +2718,45 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 ],
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
           ] else if (familyHasMembers && !isAdminOrCreator && !_isEditMode) ...[
             // v5.202: Locked "Related to" for regular members.
-            _SectionLabel('Related to'),
-            SizedBox(height: 8),
+            const _SectionLabel('Related to'),
+            const SizedBox(height: 8),
             _buildLockedTargetPersonPicker(),
             if (_showLockedTooltip) ...[
-              SizedBox(height: 6),
+              const SizedBox(height: 6),
               _buildLockedTooltip(),
             ],
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
           ],
 
           // ── #2 + #3: Relationship Type (2x3 chip grid) ──
           if (familyHasMembers || widget.anchorPerson != null) ...[
-            _SectionLabel('Relationship Type'),
-            SizedBox(height: 8),
+            const _SectionLabel('Relationship Type'),
+            const SizedBox(height: 8),
             if (anchor != null)
               Text(
                 'How is $newName related to ${anchor.name}?',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: KinrelColors.textSilver,
                   height: 1.4,
                 ),
               ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
 
             // #3: The 2x3 chip grid (same component as Find on Kinrel).
             _buildQuickAddChipGrid(),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Sibling sub-type (Elder / Younger) — shown when the
             // Sibling chip is selected. Kept from the old design since
             // it's a useful refinement for the most common sibling case.
             if (_selectedRelType == 'sibling') ...[
-              _SectionLabel('Elder or Younger?'),
-              SizedBox(height: 10),
+              const _SectionLabel('Elder or Younger?'),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(
@@ -2767,7 +2768,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                       onTap: () => setState(() => _selectedSubType = 'elder'),
                     ),
                   ),
-                  SizedBox(width: 10),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: _SelectableCard(
                       label: 'Younger',
@@ -2779,7 +2780,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   ),
                 ],
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
             ],
 
             // #4: "More" section — Search all kinship terms + Add Your
@@ -2788,14 +2789,14 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             // selected instead.
             if (_showMoreKinship) ...[
               _buildMoreKinshipSection(),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
             ],
 
             // Visual preview (kept — useful feedback when a rel type
             // is selected).
             if (_relationshipPreview.isNotEmpty) ...[
               Container(
-                padding: EdgeInsets.all(12),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: KinrelColors.orange.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
@@ -2805,13 +2806,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.visibility_outlined,
+                    const Icon(Icons.visibility_outlined,
                         color: KinrelColors.orange, size: 18),
-                    SizedBox(width: 10),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         _relationshipPreview,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 14,
                           color: KinrelColors.textWhite,
@@ -2822,14 +2823,14 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   ],
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
             ],
 
             // #5: REMOVED the orange/teal error banner. The disabled
             // "Add to Family" button now communicates the validation
             // state on its own.
           ] else if (!familyHasMembers) ...[
-            Text(
+            const Text(
               'This is the first member of the family. No relationship needed yet.',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -2839,7 +2840,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             ),
           ],
 
-          SizedBox(height: 24),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -2871,27 +2872,27 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     // Primary chips in the exact 2x3 order: Parent, Child, Sibling,
     // Spouse, Grandparent. The "More" chip is the 6th item.
     final primaryCategories = <_RelChipDef>[
-      _RelChipDef(
+      const _RelChipDef(
         type: 'parent',
         label: 'Parent',
         icon: Icons.family_restroom,
       ),
-      _RelChipDef(
+      const _RelChipDef(
         type: 'child',
         label: 'Child',
         icon: Icons.child_care,
       ),
-      _RelChipDef(
+      const _RelChipDef(
         type: 'sibling',
         label: 'Sibling',
         icon: Icons.people,
       ),
-      _RelChipDef(
+      const _RelChipDef(
         type: 'spouse',
         label: 'Spouse',
         icon: Icons.favorite,
       ),
-      _RelChipDef(
+      const _RelChipDef(
         type: 'grandparent',
         label: 'Grandparent',
         icon: Icons.elderly,
@@ -2987,7 +2988,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'More kinship terms',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -3014,7 +3015,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               ),
               child: Row(
                 children: [
-                  Icon(Icons.search, color: KinrelColors.orange, size: 20),
+                  const Icon(Icons.search, color: KinrelColors.orange, size: 20),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -3028,7 +3029,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                       ),
                     ),
                   ),
-                  Icon(Icons.chevron_right,
+                  const Icon(Icons.chevron_right,
                       color: KinrelColors.textDim, size: 18),
                 ],
               ),
@@ -3052,7 +3053,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               ),
               child: Row(
                 children: [
-                  Icon(Icons.palette_outlined,
+                  const Icon(Icons.palette_outlined,
                       color: KinrelColors.purple, size: 20),
                   const SizedBox(width: 10),
                   Expanded(
@@ -3067,7 +3068,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                       ),
                     ),
                   ),
-                  Icon(Icons.chevron_right,
+                  const Icon(Icons.chevron_right,
                       color: KinrelColors.textDim, size: 18),
                 ],
               ),
@@ -3163,13 +3164,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         'name="${_nameController.text}", '
         'nameValid=$nameValid, '
         'isFirstMember=$isFirstMember, '
-        'hasRelationship=$hasRelationship (key=${_effectiveRelationshipKey}), '
+        'hasRelationship=$hasRelationship (key=$_effectiveRelationshipKey), '
         'selectedRelType=$_selectedRelType, '
         'selectedGender=$_selectedGender, '
         'canSubmit=$canSubmit');
 
     return Padding(
-      padding: EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.only(top: 12),
       child: _buildIgniteButton(
         label: _isSubmitting ? '' : 'Add to Family',
         onPressed: _isSubmitting || !canSubmit ? null : _submit,
@@ -3188,8 +3189,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Name
-            _SectionLabel('Full Name *'),
-            SizedBox(height: 6),
+            const _SectionLabel('Full Name *'),
+            const SizedBox(height: 6),
             _buildTextField(
               controller: _nameController,
               hint: 'Full name',
@@ -3199,53 +3200,53 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               textCapitalization: TextCapitalization.words,
               validator: (v) => nameValidator(v),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Gender
-            _SectionLabel('Gender'),
-            SizedBox(height: 8),
+            const _SectionLabel('Gender'),
+            const SizedBox(height: 8),
             _buildGenderCards(),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // DOB
-            _SectionLabel('Date of Birth'),
-            SizedBox(height: 6),
+            const _SectionLabel('Date of Birth'),
+            const SizedBox(height: 6),
             _buildDateField(),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Anniversary (optional)
-            _SectionLabel('Anniversary Date (optional)'),
-            SizedBox(height: 6),
+            const _SectionLabel('Anniversary Date (optional)'),
+            const SizedBox(height: 6),
             _buildAnniversaryField(),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // City
-            _SectionLabel('City / Village'),
-            SizedBox(height: 6),
+            const _SectionLabel('City / Village'),
+            const SizedBox(height: 6),
             _buildTextField(
               controller: _cityController,
               hint: 'City or village',
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Gotra
-            _SectionLabel('Gotra'),
-            SizedBox(height: 6),
+            const _SectionLabel('Gotra'),
+            const SizedBox(height: 6),
             _buildTextField(controller: _gotraController, hint: 'Gotra'),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Occupation
-            _SectionLabel('Occupation'),
-            SizedBox(height: 6),
+            const _SectionLabel('Occupation'),
+            const SizedBox(height: 6),
             _buildTextField(
               controller: _occupationController,
               hint: 'Occupation',
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Deceased
             _buildDeceasedToggle(),
-            SizedBox(height: 28),
+            const SizedBox(height: 28),
 
             // Save button
             _buildIgniteButton(
@@ -3289,7 +3290,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             onTap: () => setState(() => _selectedGender = 'male'),
           ),
         ),
-        SizedBox(width: 10),
+        const SizedBox(width: 10),
         Expanded(
           child: _GenderCard(
             label: 'Female',
@@ -3298,7 +3299,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             onTap: () => setState(() => _selectedGender = 'female'),
           ),
         ),
-        SizedBox(width: 10),
+        const SizedBox(width: 10),
         Expanded(
           child: _GenderCard(
             label: 'Other',
@@ -3320,13 +3321,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           keyboardType: TextInputType.datetime,
           textInputAction: TextInputAction.next,
           textCapitalization: TextCapitalization.none,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 15,
             color: KinrelColors.textWhite,
           ),
           decoration: _inputDecoration('YYYY-MM-DD').copyWith(
-            suffixIcon: Icon(
+            suffixIcon: const Icon(
               Icons.calendar_today_outlined,
               color: KinrelColors.textDim,
               size: 18,
@@ -3346,13 +3347,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           keyboardType: TextInputType.datetime,
           textInputAction: TextInputAction.next,
           textCapitalization: TextCapitalization.none,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 15,
             color: KinrelColors.textWhite,
           ),
           decoration: _inputDecoration('YYYY-MM-DD (optional)').copyWith(
-            suffixIcon: Icon(
+            suffixIcon: const Icon(
               Icons.favorite_outline,
               color: KinrelColors.textDim,
               size: 18,
@@ -3375,7 +3376,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     return GestureDetector(
       onTap: _pickTargetPerson,
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
           color: KinrelColors.darkCard,
           borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
@@ -3403,7 +3404,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 size: 18,
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             // Name or prompt
             Expanded(
               child: Column(
@@ -3421,7 +3422,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                     ),
                   ),
                   if (hasSelection && target.isAnchor)
-                    Text(
+                    const Text(
                       'Family anchor',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -3482,7 +3483,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         });
       },
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
           color: KinrelColors.darkCard.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
@@ -3506,7 +3507,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 size: 18,
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             // Name (greyed out)
             Expanded(
               child: Text(
@@ -3537,7 +3538,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   /// auto-dismissed after 4 seconds.
   Widget _buildLockedTooltip() {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: KinrelColors.darkElevated,
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
@@ -3545,7 +3546,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           color: KinrelColors.textDim.withValues(alpha: 0.2),
         ),
       ),
-      child: Row(
+      child: const Row(
         children: [
           Icon(
             Icons.info_outline,
@@ -3624,8 +3625,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               ),
             ),
             // Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -3659,13 +3660,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                     ),
                     title: Text(
                       p.name,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         color: KinrelColors.textWhite,
                       ),
                     ),
                     subtitle: p.isAnchor
-                        ? Text(
+                        ? const Text(
                             'Family anchor',
                             style: TextStyle(
                               fontSize: 11,
@@ -3674,14 +3675,14 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                           )
                         : null,
                     trailing: isSelected
-                        ? Icon(Icons.check_circle, color: KinrelColors.orange, size: 20)
+                        ? const Icon(Icons.check_circle, color: KinrelColors.orange, size: 20)
                         : null,
                     onTap: () => Navigator.pop(ctx, p),
                   );
                 },
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -3707,26 +3708,26 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               shape: BoxShape.circle,
               color: KinrelColors.orange.withValues(alpha: 0.15),
             ),
-            child: Icon(
+            child: const Icon(
               Icons.check_circle,
               color: KinrelColors.orange,
               size: 48,
             ),
           ),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           Text(
             _successMessage ?? 'Welcome to the family!',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 20,
               fontWeight: FontWeight.w700,
               color: KinrelColors.textWhite,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             '${_nameController.text.trim()} has been added',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14,
               color: KinrelColors.textSilver,
@@ -3741,7 +3742,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
   Widget _buildDeceasedToggle() {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
@@ -3749,7 +3750,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       ),
       child: Row(
         children: [
-          Expanded(
+          const Expanded(
             child: Text(
               'Deceased',
               style: TextStyle(
@@ -3790,10 +3791,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           onTap: onPressed,
           borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
           child: Container(
-            padding: EdgeInsets.symmetric(vertical: 14),
+            padding: const EdgeInsets.symmetric(vertical: 14),
             alignment: Alignment.center,
             child: isLoading
-                ? SizedBox(
+                ? const SizedBox(
                     height: 20,
                     width: 20,
                     child: CircularProgressIndicator(
@@ -3803,7 +3804,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   )
                 : Text(
                     label,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -3858,7 +3859,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   InputDecoration _inputDecoration(String hint) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: TextStyle(
+      hintStyle: const TextStyle(
         color: KinrelColors.textDim, // #8A7A72 per spec
         fontFamily: KinrelTypography.bodyFont,
       ),
@@ -3876,13 +3877,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
-        borderSide: BorderSide(color: KinrelColors.orange), // #E8612A focus
+        borderSide: const BorderSide(color: KinrelColors.orange), // #E8612A focus
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
-        borderSide: BorderSide(color: KinrelColors.error),
+        borderSide: const BorderSide(color: KinrelColors.error),
       ),
-      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     );
   }
 }
@@ -3899,7 +3900,7 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: TextStyle(
+      style: const TextStyle(
         fontFamily: KinrelTypography.bodyFont,
         fontSize: 13,
         fontWeight: FontWeight.w500,
@@ -3929,7 +3930,7 @@ class _GenderCard extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
         decoration: BoxDecoration(
           color: selected
               ? KinrelColors.orange.withValues(alpha: 0.1)
@@ -3949,7 +3950,7 @@ class _GenderCard extends StatelessWidget {
               color: selected ? KinrelColors.orange : KinrelColors.textDim,
               size: 22,
             ),
-            SizedBox(height: 6),
+            const SizedBox(height: 6),
             Text(
               label,
               style: TextStyle(
@@ -3988,7 +3989,7 @@ class _SelectableCard extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
         decoration: BoxDecoration(
           color: selected
               ? KinrelColors.orange.withValues(alpha: 0.08)
@@ -4011,7 +4012,7 @@ class _SelectableCard extends StatelessWidget {
                   color: selected ? KinrelColors.orange : KinrelColors.textDim,
                   size: 18,
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     label,
@@ -4027,10 +4028,10 @@ class _SelectableCard extends StatelessWidget {
                 ),
               ],
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               subtitle,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
                 color: KinrelColors.textDim,
@@ -4252,15 +4253,15 @@ class _ConfettiPainter extends CustomPainter {
 
 /// v80: Preview painter for the custom kinship line + dot
 class _LinePreviewPainter extends CustomPainter {
-  final Color color;
-  final bool isDashed;
-  final String dotType;
 
   _LinePreviewPainter({
     required this.color,
     required this.isDashed,
     required this.dotType,
   });
+  final Color color;
+  final bool isDashed;
+  final String dotType;
 
   @override
   void paint(Canvas canvas, Size size) {

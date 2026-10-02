@@ -119,7 +119,7 @@ void main() {
       // math breaks invisibly.
 
       final relationships = [
-        GraphRelationship(
+        const GraphRelationship(
             id: 'r1',
             fromPersonId: 'p1',
             toPersonId: 'p2',
@@ -158,7 +158,7 @@ void main() {
       // contract when the edgeId is in controlPoints.
 
       final relationships = [
-        GraphRelationship(
+        const GraphRelationship(
             id: 'r-spouse',
             fromPersonId: 'p1',
             toPersonId: 'p2',

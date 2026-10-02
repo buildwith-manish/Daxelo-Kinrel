@@ -58,7 +58,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context, initialDate: _selectedDate, firstDate: DateTime(1900), lastDate: DateTime(2100),
-      builder: (context, child) => Theme(data: Theme.of(context).copyWith(colorScheme: ColorScheme.dark(primary: KinrelColors.orange, surface: KinrelColors.darkElevated, onSurface: KinrelColors.textWhite)), child: child!),
+      builder: (context, child) => Theme(data: Theme.of(context).copyWith(colorScheme: const ColorScheme.dark(primary: KinrelColors.orange, surface: KinrelColors.darkElevated, onSurface: KinrelColors.textWhite)), child: child!),
     );
     if (picked != null) setState(() => _selectedDate = picked);
   }
@@ -100,34 +100,34 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.close), onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
-        title: Text(isEditing ? 'Edit Event' : 'New Event', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600)),
+        title: Text(isEditing ? 'Edit Event' : 'New Event', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
-        actions: [TextButton(onPressed: _isSaving ? null : _save, child: Text('Save', style: TextStyle(color: KinrelColors.orange, fontWeight: FontWeight.w700)))],
+        actions: [TextButton(onPressed: _isSaving ? null : _save, child: const Text('Save', style: TextStyle(color: KinrelColors.orange, fontWeight: FontWeight.w700)))],
       ),
       body: SingleChildScrollView(padding: const EdgeInsets.all(KinrelSpacing.base), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Title
-        TextField(controller: _titleController, style: TextStyle(color: KinrelColors.textWhite, fontSize: 18, fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600),
-          decoration: InputDecoration(hintText: 'Event title', hintStyle: TextStyle(color: KinrelColors.textDim), filled: true, fillColor: KinrelColors.darkCard, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.all(16))),
+        TextField(controller: _titleController, style: const TextStyle(color: KinrelColors.textWhite, fontSize: 18, fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600),
+          decoration: InputDecoration(hintText: 'Event title', hintStyle: const TextStyle(color: KinrelColors.textDim), filled: true, fillColor: KinrelColors.darkCard, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.all(16))),
         const SizedBox(height: 16),
         // Category picker
-        Text('Category', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textDim)),
+        const Text('Category', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textDim)),
         const SizedBox(height: 8),
         Wrap(spacing: 8, runSpacing: 8, children: EventCategory.values.map((cat) => GestureDetector(
           onTap: () => setState(() => _category = cat),
           child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(color: _category == cat ? Color(cat.colorValue).withValues(alpha: 0.2) : KinrelColors.darkCard, borderRadius: BorderRadius.circular(10),
               border: Border.all(color: _category == cat ? Color(cat.colorValue) : Colors.transparent, width: 1.5)),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [Text(cat.icon, style: TextStyle(fontSize: 14)), const SizedBox(width: 6), Text(cat.label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _category == cat ? Color(cat.colorValue) : KinrelColors.textDim))]),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [Text(cat.icon, style: const TextStyle(fontSize: 14)), const SizedBox(width: 6), Text(cat.label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _category == cat ? Color(cat.colorValue) : KinrelColors.textDim))]),
           ),
         )).toList()),
         const SizedBox(height: 16),
         // Date
-        Text('Date', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textDim)),
+        const Text('Date', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textDim)),
         const SizedBox(height: 8),
         GestureDetector(onTap: _pickDate, child: AbsorbPointer(child: Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12)),
-          child: Row(children: [Icon(Icons.calendar_today_outlined, color: KinrelColors.orange, size: 20), const SizedBox(width: 12),
-            Text('${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year}', style: TextStyle(fontSize: 15, color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont)),
-            const Spacer(), Icon(Icons.chevron_right, color: KinrelColors.textDim, size: 20)])))),
+          child: Row(children: [const Icon(Icons.calendar_today_outlined, color: KinrelColors.orange, size: 20), const SizedBox(width: 12),
+            Text('${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year}', style: const TextStyle(fontSize: 15, color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont)),
+            const Spacer(), const Icon(Icons.chevron_right, color: KinrelColors.textDim, size: 20)])))),
         const SizedBox(height: 16),
         // All day toggle
         _ToggleRow(label: 'All Day', value: _isAllDay, onChanged: (v) => setState(() => _isAllDay = v)),
@@ -141,15 +141,15 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
         ],
         const SizedBox(height: 16),
         // Location
-        TextField(controller: _locationController, style: TextStyle(color: KinrelColors.textWhite, fontSize: 15),
-          decoration: InputDecoration(hintText: 'Location (optional)', hintStyle: TextStyle(color: KinrelColors.textDim), filled: true, fillColor: KinrelColors.darkCard,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.all(16), prefixIcon: Icon(Icons.location_on_outlined, color: KinrelColors.textDim, size: 20))),
+        TextField(controller: _locationController, style: const TextStyle(color: KinrelColors.textWhite, fontSize: 15),
+          decoration: InputDecoration(hintText: 'Location (optional)', hintStyle: const TextStyle(color: KinrelColors.textDim), filled: true, fillColor: KinrelColors.darkCard,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.all(16), prefixIcon: const Icon(Icons.location_on_outlined, color: KinrelColors.textDim, size: 20))),
         const SizedBox(height: 16),
         // Description
-        TextField(controller: _descController, maxLines: 3, style: TextStyle(color: KinrelColors.textWhite, fontSize: 15),
-          decoration: InputDecoration(hintText: 'Notes (optional)', hintStyle: TextStyle(color: KinrelColors.textDim), filled: true, fillColor: KinrelColors.darkCard,
+        TextField(controller: _descController, maxLines: 3, style: const TextStyle(color: KinrelColors.textWhite, fontSize: 15),
+          decoration: InputDecoration(hintText: 'Notes (optional)', hintStyle: const TextStyle(color: KinrelColors.textDim), filled: true, fillColor: KinrelColors.darkCard,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.all(16))),
-        if (_isSaving) ...[const SizedBox(height: 20), Center(child: CircularProgressIndicator(color: KinrelColors.orange))],
+        if (_isSaving) ...[const SizedBox(height: 20), const Center(child: CircularProgressIndicator(color: KinrelColors.orange))],
       ])),
     );
   }
@@ -162,5 +162,5 @@ class _ToggleRow extends StatelessWidget {
   final ValueChanged<bool> onChanged;
   @override
   Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12)),
-    child: Row(children: [Text(label, style: TextStyle(fontSize: 15, color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont)), const Spacer(), Switch(value: value, onChanged: onChanged, activeColor: KinrelColors.orange)]));
+    child: Row(children: [Text(label, style: const TextStyle(fontSize: 15, color: KinrelColors.textWhite, fontFamily: KinrelTypography.bodyFont)), const Spacer(), Switch(value: value, onChanged: onChanged, activeThumbColor: KinrelColors.orange)]));
 }

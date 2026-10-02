@@ -13,10 +13,10 @@ import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
 
 class MemorialsScreen extends ConsumerWidget {
-  final bool embedded;
-  final String familyId;
 
   const MemorialsScreen({super.key, this.embedded = false, this.familyId = ''});
+  final bool embedded;
+  final String familyId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -50,7 +50,7 @@ class MemorialsScreen extends ConsumerWidget {
                     const SizedBox(height: 8),
                     Text(
                       'When a family member passes, their memorial\nappears here with all their voice memories.\nTheir stories live on.',
-                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -70,9 +70,9 @@ class MemorialsScreen extends ConsumerWidget {
 }
 
 class _MemorialCard extends StatelessWidget {
-  final MemorialProfile memorial;
 
   const _MemorialCard({required this.memorial});
+  final MemorialProfile memorial;
 
   @override
   Widget build(BuildContext context) {
@@ -83,12 +83,12 @@ class _MemorialCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            KinrelColors.extendedPurple.withOpacity(0.12),
+            KinrelColors.extendedPurple.withValues(alpha: 0.12),
             KinrelColors.darkCard,
           ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: KinrelColors.extendedPurple.withOpacity(0.25)),
+        border: Border.all(color: KinrelColors.extendedPurple.withValues(alpha: 0.25)),
       ),
       child: Material(
         color: Colors.transparent,
@@ -107,9 +107,9 @@ class _MemorialCard extends StatelessWidget {
                       width: 64,
                       height: 64,
                       decoration: BoxDecoration(
-                        color: KinrelColors.extendedPurple.withOpacity(0.15),
+                        color: KinrelColors.extendedPurple.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(32),
-                        border: Border.all(color: KinrelColors.extendedPurple.withOpacity(0.4), width: 2),
+                        border: Border.all(color: KinrelColors.extendedPurple.withValues(alpha: 0.4), width: 2),
                       ),
                       child: memorial.person.photoThumb != null
                           ? ClipOval(
@@ -143,13 +143,13 @@ class _MemorialCard extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               '${memorial.birthDate ?? '?'} — ${memorial.deathDate ?? '?'}',
-                              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                              style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
                             ),
                           ],
                         ],
                       ),
                     ),
-                    Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.3)),
+                    Icon(Icons.chevron_right, color: Colors.white.withValues(alpha: 0.3)),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -157,7 +157,7 @@ class _MemorialCard extends StatelessWidget {
                 if (memorial.memorialTitle != null)
                   Text(
                     memorial.memorialTitle!,
-                    style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13, fontStyle: FontStyle.italic),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13, fontStyle: FontStyle.italic),
                     textAlign: TextAlign.center,
                   ),
                 const SizedBox(height: 16),
@@ -171,9 +171,9 @@ class _MemorialCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: KinrelColors.gold.withOpacity(0.15),
+                          color: KinrelColors.gold.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: KinrelColors.gold.withOpacity(0.3)),
+                          border: Border.all(color: KinrelColors.gold.withValues(alpha: 0.3)),
                         ),
                         child: const Text('AI Persona', style: TextStyle(color: KinrelColors.gold, fontSize: 10, fontWeight: FontWeight.w600)),
                       ),
@@ -189,10 +189,10 @@ class _MemorialCard extends StatelessWidget {
 }
 
 class _Stat extends StatelessWidget {
+  const _Stat({required this.icon, required this.label, required this.value});
   final String icon;
   final String label;
   final int value;
-  const _Stat({required this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -201,7 +201,7 @@ class _Stat extends StatelessWidget {
         Text(icon, style: const TextStyle(fontSize: 18)),
         const SizedBox(height: 4),
         Text('$value', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
-        Text(label, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 10)),
+        Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 10)),
       ],
     );
   }

@@ -52,22 +52,6 @@ class LudoGame {
     required this.createdAt,
   });
 
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final LudoStatus status;
-  final int playerCount;
-  final String? currentTurnPlayerId;
-  final int? lastDiceRoll;
-  final int consecutiveSixes;
-  final bool extraTurnPending;
-  final String? winnerId;
-  final String? winnerName;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final DateTime createdAt;
-
   factory LudoGame.fromJson(Map<String, dynamic> json) => LudoGame(
     id: json['id'] ?? '',
     familyId: json['familyId'] ?? '',
@@ -91,6 +75,22 @@ class LudoGame {
         DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
   );
 
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final LudoStatus status;
+  final int playerCount;
+  final String? currentTurnPlayerId;
+  final int? lastDiceRoll;
+  final int consecutiveSixes;
+  final bool extraTurnPending;
+  final String? winnerId;
+  final String? winnerName;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final DateTime createdAt;
+
   bool get isWaiting => status == LudoStatus.waiting;
   bool get isInProgress => status == LudoStatus.inProgress;
   bool get isCompleted => status == LudoStatus.completed;
@@ -110,18 +110,6 @@ class LudoPlayer {
     this.readyAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final LudoColor color;
-  final int turnOrder;
-  final int tokensFinished;
-  final DateTime joinedAt;
-  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
-  final bool isReady;
-  final DateTime? readyAt;
-
   factory LudoPlayer.fromJson(Map<String, dynamic> json) => LudoPlayer(
     id: json['id'] ?? '',
     gameId: json['gameId'] ?? '',
@@ -137,6 +125,18 @@ class LudoPlayer {
         ? DateTime.tryParse(json['readyAt'])
         : null,
   );
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final LudoColor color;
+  final int turnOrder;
+  final int tokensFinished;
+  final DateTime joinedAt;
+  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
+  final bool isReady;
+  final DateTime? readyAt;
 }
 
 class LudoTokenModel {
@@ -148,13 +148,6 @@ class LudoTokenModel {
     required this.position,
     required this.color,
   });
-
-  final String id;
-  final String gameId;
-  final String playerId;
-  final int tokenIndex;
-  final int position;
-  final LudoColor color;
 
   factory LudoTokenModel.fromJson(Map<String, dynamic> json) =>
       LudoTokenModel(
@@ -169,6 +162,13 @@ class LudoTokenModel {
           json['color'],
         ),
       );
+
+  final String id;
+  final String gameId;
+  final String playerId;
+  final int tokenIndex;
+  final int position;
+  final LudoColor color;
 
   /// Convert to the logic-layer LudoToken (which has the color).
   LudoToken toLogicToken() => LudoToken(
@@ -206,20 +206,6 @@ class LudoMoveRecord {
     required this.createdAt,
   });
 
-  final String id;
-  final String gameId;
-  final String playerId;
-  final String playerName;
-  final String? tokenId;
-  final int? tokenIndex;
-  final int diceValue;
-  final int fromPosition;
-  final int toPosition;
-  final String? capturedTokenId;
-  final String? capturedPlayerName;
-  final int moveNumber;
-  final DateTime createdAt;
-
   factory LudoMoveRecord.fromJson(Map<String, dynamic> json) =>
       LudoMoveRecord(
         id: json['id'] ?? '',
@@ -237,4 +223,18 @@ class LudoMoveRecord {
         createdAt:
             DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
       );
+
+  final String id;
+  final String gameId;
+  final String playerId;
+  final String playerName;
+  final String? tokenId;
+  final int? tokenIndex;
+  final int diceValue;
+  final int fromPosition;
+  final int toPosition;
+  final String? capturedTokenId;
+  final String? capturedPlayerName;
+  final int moveNumber;
+  final DateTime createdAt;
 }

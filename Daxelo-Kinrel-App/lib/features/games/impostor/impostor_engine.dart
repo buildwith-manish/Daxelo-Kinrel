@@ -169,14 +169,14 @@ class ImpostorClue {
     required this.playerIndex,
     required this.text,
   });
-  final int playerIndex;
-  final String text;
-
-  Map<String, dynamic> toJson() => {'player': playerIndex, 'text': text};
   factory ImpostorClue.fromJson(Map<String, dynamic> json) => ImpostorClue(
         playerIndex: (json['player'] as num?)?.toInt() ?? 0,
         text: (json['text'] as String?) ?? '',
       );
+  final int playerIndex;
+  final String text;
+
+  Map<String, dynamic> toJson() => {'player': playerIndex, 'text': text};
 }
 
 class ImpostorVote {
@@ -184,15 +184,15 @@ class ImpostorVote {
     required this.voterIndex,
     required this.targetIndex,
   });
+  factory ImpostorVote.fromJson(Map<String, dynamic> json) => ImpostorVote(
+        voterIndex: (json['voter'] as num?)?.toInt() ?? 0,
+        targetIndex: (json['target'] as num?)?.toInt() ?? 0,
+      );
   final int voterIndex;
   final int targetIndex;
 
   Map<String, dynamic> toJson() =>
       {'voter': voterIndex, 'target': targetIndex};
-  factory ImpostorVote.fromJson(Map<String, dynamic> json) => ImpostorVote(
-        voterIndex: (json['voter'] as num?)?.toInt() ?? 0,
-        targetIndex: (json['target'] as num?)?.toInt() ?? 0,
-      );
 }
 
 class ImpostorRound {
@@ -202,37 +202,6 @@ class ImpostorRound {
     required this.impostorIndex,
     required this.wordPackId,
   });
-
-  final int roundNumber;
-  final String word;
-  final int impostorIndex;
-  final String wordPackId;
-
-  ImpostorPhase phase = ImpostorPhase.roleReveal;
-  int currentCluePlayerIndex = 0;
-  List<ImpostorClue> clues = [];
-  List<ImpostorVote> votes = [];
-  ImpostorRoundWinner? winner;
-
-  /// Map of playerIndex → role for this round.
-  Map<int, ImpostorRole> get roles {
-    final m = <int, ImpostorRole>{};
-    // We don't store all roles — only the impostor is special.
-    // The crew role is the default for everyone else.
-    return m;
-  }
-
-  Map<String, dynamic> toJson() => {
-        'roundNumber': roundNumber,
-        'word': word,
-        'impostorIndex': impostorIndex,
-        'wordPackId': wordPackId,
-        'phase': phase.wire,
-        'currentCluePlayer': currentCluePlayerIndex,
-        'clues': clues.map((c) => c.toJson()).toList(),
-        'votes': votes.map((v) => v.toJson()).toList(),
-        'winner': winner?.name,
-      };
 
   factory ImpostorRound.fromJson(Map<String, dynamic> json) {
     final round = ImpostorRound(
@@ -264,6 +233,37 @@ class ImpostorRound {
     if (rawWinner == 'tie') round.winner = ImpostorRoundWinner.tie;
     return round;
   }
+
+  final int roundNumber;
+  final String word;
+  final int impostorIndex;
+  final String wordPackId;
+
+  ImpostorPhase phase = ImpostorPhase.roleReveal;
+  int currentCluePlayerIndex = 0;
+  List<ImpostorClue> clues = [];
+  List<ImpostorVote> votes = [];
+  ImpostorRoundWinner? winner;
+
+  /// Map of playerIndex → role for this round.
+  Map<int, ImpostorRole> get roles {
+    final m = <int, ImpostorRole>{};
+    // We don't store all roles — only the impostor is special.
+    // The crew role is the default for everyone else.
+    return m;
+  }
+
+  Map<String, dynamic> toJson() => {
+        'roundNumber': roundNumber,
+        'word': word,
+        'impostorIndex': impostorIndex,
+        'wordPackId': wordPackId,
+        'phase': phase.wire,
+        'currentCluePlayer': currentCluePlayerIndex,
+        'clues': clues.map((c) => c.toJson()).toList(),
+        'votes': votes.map((v) => v.toJson()).toList(),
+        'winner': winner?.name,
+      };
 
   ImpostorRound copy() {
     final r = ImpostorRound(
@@ -297,35 +297,6 @@ class ImpostorGameState {
     this.clueSeconds = kImpostorDefaultClueSeconds,
     this.voteSeconds = kImpostorDefaultVoteSeconds,
   });
-
-  int playerCount;
-  int totalRounds;
-  int currentRoundNumber;
-  List<ImpostorRound> rounds;
-  Map<int, int> scores; // playerIndex → cumulative score
-  String status; // 'in_progress' | 'completed'
-  String wordPackId;
-  int clueSeconds;
-  int voteSeconds;
-
-  ImpostorRound? get currentRound =>
-      rounds.isNotEmpty && currentRoundNumber <= rounds.length
-          ? rounds[currentRoundNumber - 1]
-          : null;
-
-  bool get isFinished => status == 'completed';
-
-  Map<String, dynamic> toJson() => {
-        'playerCount': playerCount,
-        'totalRounds': totalRounds,
-        'currentRound': currentRoundNumber,
-        'rounds': rounds.map((r) => r.toJson()).toList(),
-        'scores': scores.map((k, v) => MapEntry(k.toString(), v)),
-        'status': status,
-        'wordPackId': wordPackId,
-        'clueSeconds': clueSeconds,
-        'voteSeconds': voteSeconds,
-      };
 
   factory ImpostorGameState.fromJson(Map<String, dynamic> json) {
     final roundsList = <ImpostorRound>[];
@@ -361,6 +332,35 @@ class ImpostorGameState {
           kImpostorDefaultVoteSeconds,
     );
   }
+
+  int playerCount;
+  int totalRounds;
+  int currentRoundNumber;
+  List<ImpostorRound> rounds;
+  Map<int, int> scores; // playerIndex → cumulative score
+  String status; // 'in_progress' | 'completed'
+  String wordPackId;
+  int clueSeconds;
+  int voteSeconds;
+
+  ImpostorRound? get currentRound =>
+      rounds.isNotEmpty && currentRoundNumber <= rounds.length
+          ? rounds[currentRoundNumber - 1]
+          : null;
+
+  bool get isFinished => status == 'completed';
+
+  Map<String, dynamic> toJson() => {
+        'playerCount': playerCount,
+        'totalRounds': totalRounds,
+        'currentRound': currentRoundNumber,
+        'rounds': rounds.map((r) => r.toJson()).toList(),
+        'scores': scores.map((k, v) => MapEntry(k.toString(), v)),
+        'status': status,
+        'wordPackId': wordPackId,
+        'clueSeconds': clueSeconds,
+        'voteSeconds': voteSeconds,
+      };
 
   ImpostorGameState copy() {
     final s = ImpostorGameState(

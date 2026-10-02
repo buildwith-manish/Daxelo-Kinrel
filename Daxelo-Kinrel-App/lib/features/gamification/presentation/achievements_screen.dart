@@ -157,7 +157,7 @@ class _AchievementsScreenState extends ConsumerState<AchievementsScreen>
           const SliverToBoxAdapter(child: SizedBox(height: 28)),
 
           // ── Suggested Next Steps ────────────────────────────────────
-          SliverToBoxAdapter(
+          const SliverToBoxAdapter(
             child: _SectionHeader(
               title: 'Suggested Next Steps',
               count: null,
@@ -223,10 +223,10 @@ class _AchievementsScreenState extends ConsumerState<AchievementsScreen>
                 gradient: KinrelGradients.igniteGradient,
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
                 boxShadow: [
-                  BoxShadow(
+                  const BoxShadow(
                     color: KinrelColors.orangeGlow,
                     blurRadius: 12,
-                    offset: const Offset(0, 4),
+                    offset: Offset(0, 4),
                   ),
                 ],
               ),
@@ -362,7 +362,7 @@ class _CircularProgressRing extends StatelessWidget {
         child: Center(
           child: Text(
             '${percentage.round()}%',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 20,
               fontWeight: FontWeight.w800,
@@ -463,10 +463,10 @@ class _StreakCard extends StatelessWidget {
             end: Alignment.bottomRight,
           ),
           boxShadow: [
-            BoxShadow(
+            const BoxShadow(
               color: KinrelColors.orangeGlow,
               blurRadius: 20,
-              offset: const Offset(0, 4),
+              offset: Offset(0, 4),
             ),
           ],
         ),
@@ -479,7 +479,7 @@ class _StreakCard extends StatelessWidget {
                 Container(
                   width: 48,
                   height: 48,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     gradient: KinrelGradients.igniteGradient,
                     shape: BoxShape.circle,
                     boxShadow: [
@@ -544,10 +544,10 @@ class _StreakCard extends StatelessWidget {
                       boxShadow: streak.todayCheckedIn
                           ? null
                           : [
-                              BoxShadow(
+                              const BoxShadow(
                                 color: KinrelColors.orangeGlow,
                                 blurRadius: 8,
-                                offset: const Offset(0, 2),
+                                offset: Offset(0, 2),
                               ),
                             ],
                     ),
@@ -594,7 +594,7 @@ class _StreakCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.auto_awesome_rounded,
                     size: 16,
                     color: KinrelColors.amber,
@@ -637,7 +637,7 @@ class _StreakCard extends StatelessWidget {
                               ),
                         boxShadow: isFilled
                             ? [
-                                BoxShadow(
+                                const BoxShadow(
                                   color: KinrelColors.orangeGlow,
                                   blurRadius: 6,
                                   spreadRadius: 1,
@@ -724,7 +724,7 @@ class _TreeCompletenessCard extends StatelessWidget {
                 ),
                 Text(
                   '${completeness.percentage.round()}%',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
@@ -759,7 +759,7 @@ class _TreeCompletenessCard extends StatelessWidget {
                             KinrelRadius.full,
                           ),
                           boxShadow: [
-                            BoxShadow(
+                            const BoxShadow(
                               color: KinrelColors.orangeGlow,
                               blurRadius: 6,
                               spreadRadius: 1,
@@ -806,7 +806,7 @@ class _TreeCompletenessCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.tips_and_updates_outlined,
                     size: 16,
                     color: KinrelColors.amber,
@@ -843,7 +843,7 @@ class _TreeStat extends StatelessWidget {
       children: [
         Text(
           value,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 18,
             fontWeight: FontWeight.w800,
@@ -965,10 +965,10 @@ class _UnlockedBadgeCard extends StatelessWidget {
                   width: 1,
                 ),
                 boxShadow: [
-                  BoxShadow(
+                  const BoxShadow(
                     color: KinrelColors.orangeGlow,
                     blurRadius: 12,
-                    offset: const Offset(0, 4),
+                    offset: Offset(0, 4),
                   ),
                 ],
               ),
@@ -990,7 +990,7 @@ class _UnlockedBadgeCard extends StatelessWidget {
                         Container(
                           width: 56,
                           height: 56,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             shape: BoxShape.circle,
                             gradient: KinrelGradients.achievementGradient,
                             boxShadow: [
@@ -1003,7 +1003,7 @@ class _UnlockedBadgeCard extends StatelessWidget {
                           ),
                           child: Container(
                             margin: const EdgeInsets.all(3),
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               shape: BoxShape.circle,
                               color: KinrelColors.darkCard,
                             ),
@@ -1077,7 +1077,7 @@ class _UnlockedBadgeCard extends StatelessWidget {
             Container(
               width: 80,
               height: 80,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: KinrelGradients.achievementGradient,
                 boxShadow: [
@@ -1090,7 +1090,7 @@ class _UnlockedBadgeCard extends StatelessWidget {
               ),
               child: Container(
                 margin: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   color: KinrelColors.darkCard,
                 ),

@@ -107,13 +107,13 @@ class UpcomingOccasionsRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
+          const Icon(
             Icons.event_rounded,
             size: 18,
             color: KinrelColors.orange,
           ),
           const SizedBox(width: KinrelSpacing.xs + 2),
-          Text(
+          const Text(
             'Upcoming Occasions',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -135,7 +135,7 @@ class UpcomingOccasionsRow extends StatelessWidget {
             ),
             child: Text(
               '${occasions.length}',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -176,7 +176,7 @@ class _UpcomingOccasionCard extends StatelessWidget {
       padding: KinrelSpacing.md,
       onTap: onTap,
       semanticLabel:
-          '${occasion.name}, ${_occasionTypeLabel}, ${_buildDaysLabel()}',
+          '${occasion.name}, $_occasionTypeLabel, ${_buildDaysLabel()}',
       child: SizedBox(
         width: 140,
         child: Column(
@@ -231,7 +231,7 @@ class _UpcomingOccasionCard extends StatelessWidget {
             // Name
             Text(
               occasion.name,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,

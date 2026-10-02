@@ -197,7 +197,7 @@ void main() {
 
   group('P3.5 — Mote color contract', () {
     test('mote color is warm gold #917520', () {
-      expect(const Color(0xFF917520).value, equals(0xFF917520));
+      expect(const Color(0xFF917520).toARGB32(), equals(0xFF917520));
     });
   });
 

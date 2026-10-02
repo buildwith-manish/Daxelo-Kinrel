@@ -11,11 +11,6 @@
 
 /// A suggested connection.
 class SuggestedConnection {
-  final String personId;
-  final String personName;
-  final String? photoUrl;
-  final int commonNeighborCount;
-  final List<String> commonNeighborNames;
 
   const SuggestedConnection({
     required this.personId,
@@ -24,6 +19,11 @@ class SuggestedConnection {
     required this.commonNeighborCount,
     required this.commonNeighborNames,
   });
+  final String personId;
+  final String personName;
+  final String? photoUrl;
+  final int commonNeighborCount;
+  final List<String> commonNeighborNames;
 }
 
 /// Computes "People You May Know" suggestions for the viewer in a family.

@@ -56,6 +56,11 @@ class Connect4Move {
     required this.column,
   });
 
+  factory Connect4Move.fromJson(Map<String, dynamic> json) => Connect4Move(
+        playerIndex: (json['player'] as num?)?.toInt() ?? 0,
+        column: (json['col'] as num?)?.toInt() ?? 0,
+      );
+
   /// Which player made the move (0 = Red, 1 = Yellow).
   final int playerIndex;
 
@@ -66,11 +71,6 @@ class Connect4Move {
         'player': playerIndex,
         'col': column,
       };
-
-  factory Connect4Move.fromJson(Map<String, dynamic> json) => Connect4Move(
-        playerIndex: (json['player'] as num?)?.toInt() ?? 0,
-        column: (json['col'] as num?)?.toInt() ?? 0,
-      );
 
   @override
   String toString() => 'Connect4Move(player=$playerIndex, col=$column)';
@@ -113,43 +113,6 @@ class Connect4GameState {
     required this.winner,
     required this.status,
   });
-
-  /// 6×7 grid. board[row][col] = 0 (Red), 1 (Yellow), or -1 (empty).
-  /// Row 0 = top, row 5 = bottom. Discs "fall" to the highest row index
-  /// that's empty in a column.
-  List<List<int>> board;
-
-  /// Whose turn it is (0 = Red, 1 = Yellow).
-  int currentPlayerIndex;
-
-  /// The complete move history (for replay + determinism verification).
-  List<Connect4Move> moveHistory;
-
-  /// The winner, if the game is finished.
-  Connect4Winner winner;
-
-  /// 'waiting' | 'in_progress' | 'completed'.
-  String status;
-
-  /// The total number of discs placed so far.
-  int get discCount => moveHistory.length;
-
-  /// Whether the board is completely full.
-  bool get isBoardFull => discCount >= kConnect4Columns * kConnect4Rows;
-
-  /// Whether the game is over (win or draw).
-  bool get isFinished => winner.isFinished || status == 'completed';
-
-  Map<String, dynamic> toJson() => {
-        'board': board,
-        'currentPlayer': currentPlayerIndex,
-        'moves': moveHistory.map((m) => m.toJson()).toList(),
-        'winner': winner.playerIndex,
-        'isDraw': winner.isDraw,
-        'winningCells':
-            winner.winningCells.map((c) => [c.$1, c.$2]).toList(),
-        'status': status,
-      };
 
   factory Connect4GameState.fromJson(Map<String, dynamic> json) {
     var board = <List<int>>[];
@@ -198,6 +161,43 @@ class Connect4GameState {
       status: (json['status'] as String?) ?? 'waiting',
     );
   }
+
+  /// 6×7 grid. board[row][col] = 0 (Red), 1 (Yellow), or -1 (empty).
+  /// Row 0 = top, row 5 = bottom. Discs "fall" to the highest row index
+  /// that's empty in a column.
+  List<List<int>> board;
+
+  /// Whose turn it is (0 = Red, 1 = Yellow).
+  int currentPlayerIndex;
+
+  /// The complete move history (for replay + determinism verification).
+  List<Connect4Move> moveHistory;
+
+  /// The winner, if the game is finished.
+  Connect4Winner winner;
+
+  /// 'waiting' | 'in_progress' | 'completed'.
+  String status;
+
+  /// The total number of discs placed so far.
+  int get discCount => moveHistory.length;
+
+  /// Whether the board is completely full.
+  bool get isBoardFull => discCount >= kConnect4Columns * kConnect4Rows;
+
+  /// Whether the game is over (win or draw).
+  bool get isFinished => winner.isFinished || status == 'completed';
+
+  Map<String, dynamic> toJson() => {
+        'board': board,
+        'currentPlayer': currentPlayerIndex,
+        'moves': moveHistory.map((m) => m.toJson()).toList(),
+        'winner': winner.playerIndex,
+        'isDraw': winner.isDraw,
+        'winningCells':
+            winner.winningCells.map((c) => [c.$1, c.$2]).toList(),
+        'status': status,
+      };
 
   Connect4GameState copy() => Connect4GameState(
         board: board.map((row) => List<int>.from(row)).toList(),
@@ -344,7 +344,9 @@ class Connect4Engine {
         if (r < 0 ||
             r >= kConnect4Rows ||
             c < 0 ||
-            c >= kConnect4Columns) break;
+            c >= kConnect4Columns) {
+          break;
+        }
         if (board[r][c] != playerIndex) break;
         cells.add((r, c));
       }
@@ -356,7 +358,9 @@ class Connect4Engine {
         if (r < 0 ||
             r >= kConnect4Rows ||
             c < 0 ||
-            c >= kConnect4Columns) break;
+            c >= kConnect4Columns) {
+          break;
+        }
         if (board[r][c] != playerIndex) break;
         cells.insert(0, (r, c));
       }

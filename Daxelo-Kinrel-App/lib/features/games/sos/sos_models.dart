@@ -130,20 +130,6 @@ class SosGame {
     required this.createdAt,
   });
 
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final SosMode mode;
-  final int gridSize;
-  final SosGameStatus status;
-  final int currentTurnOrder;
-  final SosTeam? winnerTeam;
-  final String? winnerUserId;
-  final DateTime? startedAt;
-  final DateTime? finishedAt;
-  final DateTime createdAt;
-
   factory SosGame.fromJson(Map<String, dynamic> json) => SosGame(
     id: json['id'] ?? '',
     familyId: json['familyId'] ?? '',
@@ -164,6 +150,20 @@ class SosGame {
     createdAt:
         DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
   );
+
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final SosMode mode;
+  final int gridSize;
+  final SosGameStatus status;
+  final int currentTurnOrder;
+  final SosTeam? winnerTeam;
+  final String? winnerUserId;
+  final DateTime? startedAt;
+  final DateTime? finishedAt;
+  final DateTime createdAt;
 
   static SosGameStatus _parseStatus(String? s) {
     switch (s) {
@@ -197,18 +197,6 @@ class SosPlayer {
     this.readyAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final SosTeam? team; // NULL in 2-player mode
-  final int turnOrder;
-  final int score;
-  final DateTime joinedAt;
-  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
-  final bool isReady;
-  final DateTime? readyAt;
-
   factory SosPlayer.fromJson(Map<String, dynamic> json) => SosPlayer(
     id: json['id'] ?? '',
     gameId: json['gameId'] ?? '',
@@ -224,6 +212,18 @@ class SosPlayer {
         ? DateTime.tryParse(json['readyAt'])
         : null,
   );
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final SosTeam? team; // NULL in 2-player mode
+  final int turnOrder;
+  final int score;
+  final DateTime joinedAt;
+  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
+  final bool isReady;
+  final DateTime? readyAt;
 
   SosPlayer copyWith({int? score}) => SosPlayer(
     id: id,
@@ -254,18 +254,6 @@ class SosMove {
     required this.playedAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final int rowIdx;
-  final int colIdx;
-  final SosLetter letter;
-  final SosTeam? team;
-  final bool sequenced;
-  final int sequenceCount;
-  final DateTime playedAt;
-
   factory SosMove.fromJson(Map<String, dynamic> json) => SosMove(
     id: json['id'] ?? '',
     gameId: json['gameId'] ?? '',
@@ -280,6 +268,18 @@ class SosMove {
     playedAt:
         DateTime.tryParse(json['playedAt'] ?? '') ?? DateTime.now(),
   );
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final int rowIdx;
+  final int colIdx;
+  final SosLetter letter;
+  final SosTeam? team;
+  final bool sequenced;
+  final int sequenceCount;
+  final DateTime playedAt;
 }
 
 class SosScore {
@@ -292,13 +292,6 @@ class SosScore {
     required this.updatedAt,
   });
 
-  final String id;
-  final String gameId;
-  final String? userId;
-  final SosTeam? team;
-  final int score;
-  final DateTime updatedAt;
-
   factory SosScore.fromJson(Map<String, dynamic> json) => SosScore(
     id: json['id'] ?? '',
     gameId: json['gameId'] ?? '',
@@ -308,6 +301,13 @@ class SosScore {
     updatedAt:
         DateTime.tryParse(json['updatedAt'] ?? '') ?? DateTime.now(),
   );
+
+  final String id;
+  final String gameId;
+  final String? userId;
+  final SosTeam? team;
+  final int score;
+  final DateTime updatedAt;
 }
 
 /// A completed SOS sequence — used for highlighting on the grid.

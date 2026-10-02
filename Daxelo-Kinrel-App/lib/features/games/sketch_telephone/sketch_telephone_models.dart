@@ -63,16 +63,6 @@ class SketchTelephonePlayerWire {
     this.leftAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final DateTime joinedAt;
-  final bool isReady;
-  final DateTime? leftAt;
-
-  bool get isActive => leftAt == null;
-
   factory SketchTelephonePlayerWire.fromJson(Map<String, dynamic> json) =>
       SketchTelephonePlayerWire(
         id: (json['id'] ?? '') as String,
@@ -86,6 +76,16 @@ class SketchTelephonePlayerWire {
             ? DateTime.tryParse(json['leftAt'] as String)
             : null,
       );
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final DateTime joinedAt;
+  final bool isReady;
+  final DateTime? leftAt;
+
+  bool get isActive => leftAt == null;
 }
 
 class SketchTelephoneGame {
@@ -110,38 +110,6 @@ class SketchTelephoneGame {
     this.spectatorsEnabled = true,
     this.drawingSeconds = 90,
   });
-
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final SketchTelephoneStatus status;
-  final int maxPlayers;
-  final DateTime createdAt;
-  final String? roomName;
-  final List<String> playerOrder;
-  final String? currentPlayerId;
-  final int currentTurnIndex;
-  final DateTime? turnEndsAt;
-  final SketchBoardState? boardState;
-  final List<String> winnerUserIds;
-  final String? endReason;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final bool spectatorsEnabled;
-
-  // Game-specific config
-  final int drawingSeconds;
-
-  bool get isWaiting => status == SketchTelephoneStatus.waiting;
-  bool get isInProgress => status == SketchTelephoneStatus.inProgress;
-  bool get isCompleted => status == SketchTelephoneStatus.completed;
-
-  int? get turnSecondsRemaining {
-    if (!isInProgress || turnEndsAt == null) return null;
-    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
-    return left < 0 ? 0 : left;
-  }
 
   factory SketchTelephoneGame.fromJson(Map<String, dynamic> json) {
     final order = <String>[];
@@ -189,6 +157,38 @@ class SketchTelephoneGame {
           (json['drawingSeconds'] as num?)?.toInt() ?? 90,
     );
   }
+
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final SketchTelephoneStatus status;
+  final int maxPlayers;
+  final DateTime createdAt;
+  final String? roomName;
+  final List<String> playerOrder;
+  final String? currentPlayerId;
+  final int currentTurnIndex;
+  final DateTime? turnEndsAt;
+  final SketchBoardState? boardState;
+  final List<String> winnerUserIds;
+  final String? endReason;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final bool spectatorsEnabled;
+
+  // Game-specific config
+  final int drawingSeconds;
+
+  bool get isWaiting => status == SketchTelephoneStatus.waiting;
+  bool get isInProgress => status == SketchTelephoneStatus.inProgress;
+  bool get isCompleted => status == SketchTelephoneStatus.completed;
+
+  int? get turnSecondsRemaining {
+    if (!isInProgress || turnEndsAt == null) return null;
+    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
+    return left < 0 ? 0 : left;
+  }
 }
 
 /// One row from sketch_telephone_chains (RLS lets every family member
@@ -208,16 +208,6 @@ class SketchChainWire {
     required this.submittedAt,
   });
 
-  final String id;
-  final String gameId;
-  final int chainIndex;
-  final int stepIndex;
-  final SketchStepType stepType;
-  final String content;
-  final String authorUserId;
-  final String authorUserName;
-  final DateTime submittedAt;
-
   factory SketchChainWire.fromJson(Map<String, dynamic> json) =>
       SketchChainWire(
         id: (json['id'] ?? '') as String,
@@ -231,4 +221,14 @@ class SketchChainWire {
         submittedAt: DateTime.tryParse(json['submittedAt'] ?? '') ??
             DateTime.now(),
       );
+
+  final String id;
+  final String gameId;
+  final int chainIndex;
+  final int stepIndex;
+  final SketchStepType stepType;
+  final String content;
+  final String authorUserId;
+  final String authorUserName;
+  final DateTime submittedAt;
 }

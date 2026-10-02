@@ -70,7 +70,7 @@ class AppEmptyState extends StatelessWidget {
           Container(
             width: 64,
             height: 64,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               shape: BoxShape.circle,
               color: AppColor.orangeTint,
             ),
@@ -353,7 +353,7 @@ class _RetryButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.refresh_rounded, size: 16, color: AppColor.orange),
+            const Icon(Icons.refresh_rounded, size: 16, color: AppColor.orange),
             const SizedBox(width: AppSpacing.xxs),
             Text(
               'Try again',

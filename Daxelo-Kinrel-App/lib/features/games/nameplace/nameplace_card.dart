@@ -56,7 +56,7 @@ class _NameplaceCardState extends ConsumerState<NameplaceCard> {
                   decoration: BoxDecoration(shape: BoxShape.circle, color: accent.withValues(alpha: 0.2)),
                   child: const Icon(Icons.abc_rounded, color: accent, size: 20)),
                 const SizedBox(width: 12),
-                Expanded(child: Text('Name, Place, Animal, Thing', style: TextStyle(
+                const Expanded(child: Text('Name, Place, Animal, Thing', style: TextStyle(
                   fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
               ]),
               const SizedBox(height: 10),
@@ -64,7 +64,7 @@ class _NameplaceCardState extends ConsumerState<NameplaceCard> {
                 dlState.status != GameDownloadStatus.downloaded
                   ? 'Download in Games hub to play'
                   : 'Pick a letter, fill categories, score unique answers!',
-                style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim),
+                style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim),
               ),
             ]),
           ),

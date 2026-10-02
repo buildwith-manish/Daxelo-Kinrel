@@ -24,12 +24,12 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/haptic_service.dart';
-import '../../../core/services/celebration_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../features/kinrel_intelligence/providers/kinrel_provider.dart';
 import '../../../features/kinrel_intelligence/widgets/kinrel_symbol_widget.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../../shared/widgets/kinrel_skeleton.dart';
 import '../../../shared/widgets/kinrel_empty_state.dart';
 import 'widgets/continue_with_family_card.dart';
 import 'widgets/streak_badge.dart';
@@ -130,7 +130,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         backgroundColor: _cOrange,
         elevation: 4,
         shape: const CircleBorder(),
-        child: Icon(Icons.add, size: 28, color: Colors.white),
+        child: const Icon(Icons.add, size: 28, color: Colors.white),
       ),
     );
   }
@@ -138,14 +138,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // ── Loading state — shimmer placeholders ──────────────────────
   Widget _buildLoadingState() {
     return SingleChildScrollView(
-      physics: NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(height: 24),
+          const SizedBox(height: 24),
           // Header shimmer
-          Row(
+          const Row(
             children: [
               KinrelIcon(size: 20),
               SizedBox(width: 12),
@@ -153,41 +153,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    DKLoadingShimmer(width: 80, height: 12),
+                    KinrelSkeletonBox(width: 80, height: 12),
                     SizedBox(height: 6),
-                    DKLoadingShimmer(width: 140, height: 18),
+                    KinrelSkeletonBox(width: 140, height: 18),
                   ],
                 ),
               ),
-              DKLoadingShimmer(width: 36, height: 36, radius: 18),
+              KinrelSkeletonBox(width: 36, height: 36, radius: 18),
             ],
           ),
-          SizedBox(height: 24),
+          const SizedBox(height: 24),
           // Family switcher shimmer
           SizedBox(
             height: 76,
             child: Row(
               children: List.generate(
                 5,
-                (_) => Padding(
+                (_) => const Padding(
                   padding: EdgeInsets.only(right: 14),
-                  child: DKLoadingShimmer(width: 52, height: 52, radius: 26),
+                  child: KinrelSkeletonBox(width: 52, height: 52, radius: 26),
                 ),
               ),
             ),
           ),
-          SizedBox(height: 24),
+          const SizedBox(height: 24),
           // Hero card shimmer
-          DKLoadingShimmer(width: double.infinity, height: 160, radius: 18),
-          SizedBox(height: 20),
+          const KinrelSkeletonBox(width: double.infinity, height: 160, radius: 18),
+          const SizedBox(height: 20),
           // Feed shimmer
-          DKLoadingShimmer(width: 120, height: 18),
-          SizedBox(height: 12),
+          const KinrelSkeletonBox(width: 120, height: 18),
+          const SizedBox(height: 12),
           ...List.generate(
             2,
-            (_) => Padding(
+            (_) => const Padding(
               padding: EdgeInsets.only(bottom: 12),
-              child: DKLoadingShimmer(
+              child: KinrelSkeletonBox(
                 width: double.infinity,
                 height: 280,
                 radius: 18,
@@ -202,7 +202,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // ── No families — empty state ─────────────────────────────────
   Widget _buildNoFamiliesView(dynamic user) {
     return SingleChildScrollView(
-      physics: BouncingScrollPhysics(),
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       child: Column(
         children: [
@@ -222,12 +222,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             secondaryLabel: 'Join by Code',
             onSecondary: () => _showJoinFamilyDialog(context),
           ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           semanticLink(
             label: 'Join an existing family with a code',
             child: TextButton(
               onPressed: () => _showJoinFamilyDialog(context),
-              child: Text(
+              child: const Text(
                 'Or join an existing family with a code',
                 style: TextStyle(
                   color: _cOrange,
@@ -259,7 +259,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       },
       child: CustomScrollView(
         controller: _feedScrollController,
-        physics: BouncingScrollPhysics(),
+        physics: const BouncingScrollPhysics(),
         slivers: [
           // Sticky Header
           SliverPersistentHeader(
@@ -278,7 +278,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     .fadeIn(duration: 350.ms, delay: 50.ms)
                     .slideX(begin: -0.05, end: 0),
 
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
 
                 // ── Continue with {Family} card ──────────────────────────
                 // Returning-user shortcut. Reads SmartDefaultsService to
@@ -288,7 +288,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 // chat" pattern.
                 ContinueWithFamilyCard(families: families),
 
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
 
                 // KIN-04/KIN-13 FIX: Home reduced from 7 sections to 3.
                 // Removed: Sparq row, Stories row, Memory Vault tile,
@@ -307,7 +307,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     .fadeIn(duration: 400.ms, delay: 100.ms)
                     .slideY(begin: 0.08, end: 0),
 
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
 
                 // Upcoming Occasions row (only when there are occasions within 7 days)
                 Builder(builder: (context) {
@@ -328,7 +328,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   );
                 }),
 
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
 
                 // Feed section header
                 Padding(
@@ -337,14 +337,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ),
                   child: semanticHeader(
                     label: 'Home Feed',
-                    child: Row(
+                    child: const Row(
                       children: [
                         Icon(
                           Icons.auto_awesome_rounded,
                           size: 18,
                           color: _cOrange,
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Text(
                           'Home Feed',
                           style: TextStyle(
@@ -359,7 +359,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ),
                 ).animate().fadeIn(duration: 350.ms, delay: 200.ms),
 
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
               ],
             ),
           ),
@@ -406,14 +406,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                             end: KinrelGradients.igniteGradient.end,
                           ),
                         ),
-                        child: Icon(
+                        child: const Icon(
                           Icons.auto_awesome_rounded,
                           size: 36,
                           color: _cOrange,
                         ),
                       ),
                       const SizedBox(height: 20),
-                      Text(
+                      const Text(
                         'No family moments yet',
                         style: TextStyle(
                           fontFamily: KinrelTypography.displayFont,
@@ -423,7 +423,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      const Text(
                         'Share your first post to start the conversation!',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
@@ -445,8 +445,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   if (index == feedState.posts.length) {
                     // Loading more indicator
                     if (feedState.isLoadingMore) {
-                      return Padding(
-                        padding: const EdgeInsets.all(16),
+                      return const Padding(
+                        padding: EdgeInsets.all(16),
                         child: Center(
                           child: SizedBox(
                             width: 24,
@@ -502,8 +502,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
+              const Padding(
+                padding: EdgeInsets.all(16),
                 child: Text(
                   'Quick Add',
                   style: TextStyle(
@@ -518,17 +518,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ListTile(
                 leading: CircleAvatar(
                   backgroundColor: _cOrange.withValues(alpha: 0.15),
-                  child: Icon(Icons.person_add_alt_1_rounded,
+                  child: const Icon(Icons.person_add_alt_1_rounded,
                       color: _cOrange, size: 22),
                 ),
-                title: Text('Add Family Member',
+                title: const Text('Add Family Member',
                   style: TextStyle(fontFamily: KinrelTypography.bodyFont,
                     fontWeight: FontWeight.w600, color: _cTextPrimary)),
                 subtitle: Text(
                   hasFamily
                       ? 'Add a relative to ${families.first.name}'
                       : 'Create a family first',
-                  style: TextStyle(fontFamily: KinrelTypography.bodyFont,
+                  style: const TextStyle(fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12, color: _cTextDim)),
                 enabled: hasFamily,
                 onTap: () {
@@ -541,13 +541,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ListTile(
                 leading: CircleAvatar(
                   backgroundColor: KinrelColors.gold.withValues(alpha: 0.15),
-                  child: Icon(Icons.photo_library_outlined,
+                  child: const Icon(Icons.photo_library_outlined,
                       color: KinrelColors.gold, size: 22),
                 ),
-                title: Text('Add Memory',
+                title: const Text('Add Memory',
                   style: TextStyle(fontFamily: KinrelTypography.bodyFont,
                     fontWeight: FontWeight.w600, color: _cTextPrimary)),
-                subtitle: Text('Save a photo to Family Vault',
+                subtitle: const Text('Save a photo to Family Vault',
                   style: TextStyle(fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12, color: _cTextDim)),
                 onTap: () {
@@ -558,13 +558,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ListTile(
                 leading: CircleAvatar(
                   backgroundColor: KinrelColors.purple.withValues(alpha: 0.15),
-                  child: Icon(Icons.edit_note_rounded,
+                  child: const Icon(Icons.edit_note_rounded,
                       color: KinrelColors.purple, size: 22),
                 ),
-                title: Text('Post to Family Wall',
+                title: const Text('Post to Family Wall',
                   style: TextStyle(fontFamily: KinrelTypography.bodyFont,
                     fontWeight: FontWeight.w600, color: _cTextPrimary)),
-                subtitle: Text('Share an update with your family',
+                subtitle: const Text('Share an update with your family',
                   style: TextStyle(fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12, color: _cTextDim)),
                 onTap: () {
@@ -589,7 +589,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           borderRadius: BorderRadius.circular(KinrelRadius.dialog),
           side: BorderSide(color: _cOrange.withValues(alpha: 0.15)),
         ),
-        title: Text(
+        title: const Text(
           'Join Family',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -599,7 +599,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            const Text(
               'Enter the family code shared with you',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -609,13 +609,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             const SizedBox(height: 16),
             TextField(
               controller: codeController,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 color: _cTextPrimary,
               ),
               decoration: InputDecoration(
                 hintText: 'e.g., sharma-family-2a3b',
-                hintStyle: TextStyle(color: _cTextDim),
+                hintStyle: const TextStyle(color: _cTextDim),
                 filled: true,
                 fillColor: _cElevated,
                 border: OutlineInputBorder(
@@ -629,7 +629,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: _cTextSecondary)),
+            child: const Text('Cancel', style: TextStyle(color: _cTextSecondary)),
           ),
           FilledButton(
             onPressed: () {
@@ -637,7 +637,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               Navigator.pop(ctx);
               if (id.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Please enter a Family ID')),
+                  const SnackBar(content: Text('Please enter a Family ID')),
                 );
                 return;
               }
@@ -704,7 +704,7 @@ class _StickyHeader extends StatelessWidget {
       child: Row(
         children: [
           // K-graph mini icon (20px)
-          KinrelIcon(size: 20),
+          const KinrelIcon(size: 20),
           const SizedBox(width: 12),
           // Greeting with @username
           Expanded(
@@ -716,7 +716,7 @@ class _StickyHeader extends StatelessWidget {
                 children: [
                   Text(
                     '${_greetingPrefix()} ${_greetingEmoji()}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: _cTextDim,
@@ -727,7 +727,7 @@ class _StickyHeader extends StatelessWidget {
                     Flexible(
                       child: Text(
                         userName,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -740,7 +740,7 @@ class _StickyHeader extends StatelessWidget {
                       const SizedBox(width: 6),
                       Text(
                         '@$userUsername',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
                           color: _cOrange,
@@ -796,7 +796,7 @@ class _HomeNotificationBell extends ConsumerWidget {
           child: Container(
             width: 36,
             height: 36,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               shape: BoxShape.circle,
               color: _cElevated,
             ),
@@ -893,7 +893,7 @@ class _FamilySwitcherRow extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
         itemCount: families.length + 1, // +1 for "Add" button
-        separatorBuilder: (_, __) => SizedBox(width: 14),
+        separatorBuilder: (_, __) => const SizedBox(width: 14),
         itemBuilder: (context, index) {
           if (index == 0) {
             return _AddFamilyCircle(
@@ -940,14 +940,14 @@ class _AddFamilyCircle extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CustomPaint(
-              size: Size(52, 52),
+              size: const Size(52, 52),
               painter: _DashedCirclePainter(
                 color: _cOrange.withValues(alpha: 0.5),
                 dashWidth: 4,
                 dashGap: 4,
                 strokeWidth: 2,
               ),
-              child: SizedBox(
+              child: const SizedBox(
                 width: 52,
                 height: 52,
                 child: Center(
@@ -956,7 +956,7 @@ class _AddFamilyCircle extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
+            const Text(
               'Add',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -1015,18 +1015,18 @@ class _FamilySwitchAvatar extends StatelessWidget {
                       ]
                     : null,
               ),
-              padding: isActive ? EdgeInsets.all(2) : EdgeInsets.zero,
+              padding: isActive ? const EdgeInsets.all(2) : EdgeInsets.zero,
               child: Container(
                 width: isActive ? 46 : 52,
                 height: isActive ? 46 : 52,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: KinrelGradients.igniteGradient,
                 ),
                 child: Center(
                   child: Text(
                     family.name.isNotEmpty ? family.name[0].toUpperCase() : 'F',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -1126,7 +1126,7 @@ class _HeroFamilyCard extends ConsumerWidget {
     final hasStories = storiesAsync.valueOrNull?.isNotEmpty ?? false;
 
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       child: semanticButton(
         label: '${family.name} family card',
         hint: 'Double tap to open ${family.name} family details',
@@ -1162,7 +1162,7 @@ class _HeroFamilyCard extends ConsumerWidget {
                   // (username, stats) is taller than the fixed 160px
                   constraints: const BoxConstraints(minHeight: 160),
                   width: double.infinity,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     gradient: RadialGradient(
                       center: Alignment.topRight,
                       radius: 1.2,
@@ -1256,7 +1256,7 @@ class _HeroFamilyCard extends ConsumerWidget {
                                         family.name.isNotEmpty
                                             ? family.name[0].toUpperCase()
                                             : 'F',
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           fontFamily: KinrelTypography.displayFont,
                                           fontSize: 22,
                                           fontWeight: FontWeight.w700,
@@ -1281,7 +1281,7 @@ class _HeroFamilyCard extends ConsumerWidget {
                                             width: 1.5,
                                           ),
                                         ),
-                                        child: Icon(
+                                        child: const Icon(
                                           Icons.visibility_rounded,
                                           size: 10,
                                           color: Colors.white,
@@ -1295,7 +1295,7 @@ class _HeroFamilyCard extends ConsumerWidget {
                               // Family name (Heading Large, #F5F0EE)
                               Text(
                                 family.name,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: KinrelTypography.displayFont,
                                   fontSize: 22,
                                   fontWeight: FontWeight.w700,
@@ -1308,7 +1308,7 @@ class _HeroFamilyCard extends ConsumerWidget {
                                 const SizedBox(height: 2),
                                 Text(
                                   '@${family.familyCode}',
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontFamily: KinrelTypography.bodyFont,
                                     fontSize: 12,
                                     color: _cOrange,
@@ -1328,14 +1328,14 @@ class _HeroFamilyCard extends ConsumerWidget {
                                   final generations = family.generationCount;
                                   return Text(
                                     '$members Members · $links Links · $generations Generations',
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       fontFamily: KinrelTypography.bodyFont,
                                       fontSize: 12,
                                       color: _cTextSecondary,
                                     ),
                                   );
                                 },
-                                loading: () => SizedBox(
+                                loading: () => const SizedBox(
                                   height: 18,
                                   child: Center(
                                     child: SizedBox(
@@ -1348,7 +1348,7 @@ class _HeroFamilyCard extends ConsumerWidget {
                                     ),
                                   ),
                                 ),
-                                error: (_, __) => SizedBox.shrink(),
+                                error: (_, __) => const SizedBox.shrink(),
                               ),
                             ],
                           ),
@@ -1435,7 +1435,7 @@ class _QuickActionChip extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,

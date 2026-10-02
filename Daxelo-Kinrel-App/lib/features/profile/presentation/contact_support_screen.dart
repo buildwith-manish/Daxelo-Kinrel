@@ -177,10 +177,10 @@ class _ContactSupportScreenState extends ConsumerState<ContactSupportScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: _orange.withValues(alpha: 0.2)),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
                     Icon(Icons.info_outline, color: _orange, size: 20),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         "We'll get back to you within 24 hours.",
@@ -219,7 +219,7 @@ class _ContactSupportScreenState extends ConsumerState<ContactSupportScreen> {
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
                     'Minimum 20 characters (${_messageController.text.trim().length}/20)',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
                       color: _orange,
@@ -346,7 +346,7 @@ class _ContactSupportScreenState extends ConsumerState<ContactSupportScreen> {
               color: _textDim.withValues(alpha: 0.7),
             ),
           ),
-          icon: Icon(Icons.arrow_drop_down, color: _textDim),
+          icon: const Icon(Icons.arrow_drop_down, color: _textDim),
           isExpanded: true,
           dropdownColor: _cardBg,
           style: const TextStyle(

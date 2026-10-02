@@ -150,7 +150,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
             color: Colors.white,
             size: 22,
           ),
-          label: Text(
+          label: const Text(
             'Upload Document',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -217,7 +217,7 @@ class _VaultHeader extends StatelessWidget {
             child: const Icon(Icons.shield_rounded, color: _cOrange, size: 22),
           ),
           const SizedBox(width: 14),
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -231,7 +231,7 @@ class _VaultHeader extends StatelessWidget {
                     letterSpacing: 0.3,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   'Secure family document storage',
                   style: TextStyle(
@@ -247,7 +247,7 @@ class _VaultHeader extends StatelessWidget {
           GestureDetector(
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
+                const SnackBar(
                   content: Text('All documents are encrypted with AES-256'),
                   backgroundColor: _cCard,
                 ),
@@ -255,11 +255,11 @@ class _VaultHeader extends StatelessWidget {
             },
             child: Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: _cElevated,
                 shape: BoxShape.circle,
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.info_outline_rounded,
                 color: _cTextSecondary,
                 size: 20,
@@ -289,19 +289,19 @@ class _SearchBar extends StatelessWidget {
       child: TextField(
         controller: controller,
         onChanged: onChanged,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 14,
           color: _cTextPrimary,
         ),
         decoration: InputDecoration(
           hintText: 'Search documents, members...',
-          hintStyle: TextStyle(
+          hintStyle: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 14,
             color: _cTextDim,
           ),
-          prefixIcon: Icon(Icons.search_rounded, color: _cOrange, size: 22),
+          prefixIcon: const Icon(Icons.search_rounded, color: _cOrange, size: 22),
           filled: true,
           fillColor: _cElevated, // #202338
           contentPadding: const EdgeInsets.symmetric(
@@ -318,7 +318,7 @@ class _SearchBar extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(KinrelRadius.xl),
-            borderSide: BorderSide(color: _cOrange, width: 1.5),
+            borderSide: const BorderSide(color: _cOrange, width: 1.5),
           ),
         ),
       ),
@@ -517,15 +517,15 @@ class _SecuritySection extends StatelessWidget {
                     gradient: KinrelGradients.igniteGradient,
                     borderRadius: BorderRadius.circular(KinrelRadius.full),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.shield_rounded,
                         size: 13,
                         color: Colors.white,
                       ),
-                      const SizedBox(width: 5),
+                      SizedBox(width: 5),
                       Text(
                         'Encrypted with AES-256',
                         style: TextStyle(
@@ -543,7 +543,7 @@ class _SecuritySection extends StatelessWidget {
                 // Encrypted count
                 Text(
                   '$encryptedCount/$totalDocuments encrypted',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
@@ -564,7 +564,7 @@ class _SecuritySection extends StatelessWidget {
                   color: _cOrange.withValues(alpha: 0.7),
                 ),
                 const SizedBox(width: 6),
-                Expanded(
+                const Expanded(
                   child: Text(
                     'Only authorized family members can access these documents',
                     style: TextStyle(
@@ -590,10 +590,10 @@ class _SecuritySection extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    const Row(
                       children: [
                         Icon(Icons.history_rounded, size: 13, color: _cOrange),
-                        const SizedBox(width: 5),
+                        SizedBox(width: 5),
                         Text(
                           'Recent Access',
                           style: TextStyle(
@@ -652,7 +652,7 @@ class _AuditLogItem extends StatelessWidget {
             alignment: Alignment.center,
             child: Text(
               entry.displayInitials,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 8,
                 fontWeight: FontWeight.w700,
@@ -668,7 +668,7 @@ class _AuditLogItem extends StatelessWidget {
                 children: [
                   TextSpan(
                     text: entry.memberName,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -687,7 +687,7 @@ class _AuditLogItem extends StatelessWidget {
                     text: entry.documentTitle.length > 25
                         ? '${entry.documentTitle.substring(0, 25)}...'
                         : entry.documentTitle,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
                       color: _cTextDim,
@@ -702,7 +702,7 @@ class _AuditLogItem extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             entry.formattedTime,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 9,
               color: _cTextDim,
@@ -820,7 +820,7 @@ class _DocumentCard extends ConsumerWidget {
                     // ── Title ────────────────────────────────────────
                     Text(
                       document.title,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -859,7 +859,7 @@ class _DocumentCard extends ConsumerWidget {
                         Expanded(
                           child: Text(
                             document.memberName,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 11,
                               color: _cTextSecondary,
@@ -876,7 +876,7 @@ class _DocumentCard extends ConsumerWidget {
                     // ── Bottom row: Upload date + File size ──────────
                     Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.schedule_rounded,
                           size: 10,
                           color: _cTextDim,
@@ -885,7 +885,7 @@ class _DocumentCard extends ConsumerWidget {
                         Expanded(
                           child: Text(
                             document.formattedDate,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.monoFont,
                               fontSize: 9,
                               color: _cTextDim,
@@ -901,7 +901,7 @@ class _DocumentCard extends ConsumerWidget {
 
                     Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.insert_drive_file_rounded,
                           size: 10,
                           color: _cTextDim,
@@ -909,7 +909,7 @@ class _DocumentCard extends ConsumerWidget {
                         const SizedBox(width: 3),
                         Text(
                           document.formattedFileSize,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.monoFont,
                             fontSize: 9,
                             color: _cTextDim,
@@ -934,7 +934,7 @@ class _DocumentCard extends ConsumerWidget {
                               color: _cElevated,
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: Icon(
+                            child: const Icon(
                               Icons.download_rounded,
                               size: 12,
                               color: _cTextSecondary,
@@ -951,7 +951,7 @@ class _DocumentCard extends ConsumerWidget {
                               color: _cElevated,
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: Icon(
+                            child: const Icon(
                               Icons.share_rounded,
                               size: 12,
                               color: _cTextSecondary,
@@ -1019,7 +1019,7 @@ class _DocumentCard extends ConsumerWidget {
               children: [
                 Icon(Icons.share_rounded, color: accentColor, size: 20),
                 const SizedBox(width: 8),
-                Text(
+                const Text(
                   'Share Document',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -1044,10 +1044,10 @@ class _DocumentCard extends ConsumerWidget {
                   width: 1,
                 ),
               ),
-              child: Row(
+              child: const Row(
                 children: [
                   Icon(Icons.shield_rounded, size: 16, color: _cOrange),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Sharing requires family admin permission. Only authorized members can access shared documents.',
@@ -1066,7 +1066,7 @@ class _DocumentCard extends ConsumerWidget {
             const SizedBox(height: 16),
 
             // Family member list
-            Text(
+            const Text(
               'Select family members to share with:',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -1122,23 +1122,23 @@ class _DocumentCard extends ConsumerWidget {
                   onTap: () {
                     Navigator.of(ctx).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
+                      const SnackBar(
                         content: Text('Document shared successfully'),
                         backgroundColor: _cCard,
                       ),
                     );
                   },
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  child: Center(
+                  child: const Center(
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.share_rounded,
                           color: Colors.white,
                           size: 18,
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Text(
                           'Share with Permission',
                           style: TextStyle(
@@ -1217,7 +1217,7 @@ class _ShareMemberOptionState extends State<_ShareMemberOption> {
             Expanded(
               child: Text(
                 widget.name,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: _cTextPrimary,
@@ -1328,11 +1328,11 @@ class _ThumbnailPreview extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.group_rounded, size: 9, color: _cTextDim),
+                    const Icon(Icons.group_rounded, size: 9, color: _cTextDim),
                     const SizedBox(width: 2),
                     Text(
                       '${document.sharedCount}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 8,
                         fontWeight: FontWeight.w600,
@@ -1467,7 +1467,7 @@ class _EmptyState extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            Text(
+            const Text(
               'No documents yet',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -1479,7 +1479,7 @@ class _EmptyState extends StatelessWidget {
 
             const SizedBox(height: 10),
 
-            Text(
+            const Text(
               'Securely store your family\'s important documents.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -1492,7 +1492,7 @@ class _EmptyState extends StatelessWidget {
 
             const SizedBox(height: 6),
 
-            Text(
+            const Text(
               'Birth certificates, property deeds, legal documents — all encrypted with AES-256.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -1526,15 +1526,15 @@ class _EmptyState extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.cloud_upload_rounded,
                       color: Colors.white,
                       size: 18,
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Text(
                       'Upload First Document',
                       style: TextStyle(
@@ -1605,7 +1605,7 @@ class _DocumentDetailSheet extends StatelessWidget {
                   children: [
                     Text(
                       document.title,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -1702,12 +1702,12 @@ class _DocumentDetailSheet extends StatelessWidget {
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              icon: Icon(
+              icon: const Icon(
                 Icons.delete_outline_rounded,
                 size: 16,
                 color: KinrelColors.error,
               ),
-              label: Text(
+              label: const Text(
                 'Delete Document',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -1750,7 +1750,7 @@ class _DetailRow extends StatelessWidget {
           const SizedBox(width: 10),
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               color: _cTextDim,
@@ -1914,7 +1914,7 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
             const SizedBox(height: 20),
 
             // Title
-            Text(
+            const Text(
               'Upload Document',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -1927,7 +1927,7 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
 
             const SizedBox(height: 4),
 
-            Text(
+            const Text(
               'Securely add documents to the family vault',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -1939,7 +1939,7 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
             const SizedBox(height: 20),
 
             // ── Document Type Selector ───────────────────────────────
-            Text(
+            const Text(
               'Document Type',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -2010,7 +2010,7 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
             const SizedBox(height: 20),
 
             // ── Title Input ──────────────────────────────────────────
-            Text(
+            const Text(
               'Document Title',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -2023,14 +2023,14 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
 
             TextField(
               controller: _titleController,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 color: _cTextPrimary,
               ),
               decoration: InputDecoration(
                 hintText: 'e.g., Birth Certificate — Arjun Sharma',
-                hintStyle: TextStyle(
+                hintStyle: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: _cTextDim,
@@ -2047,7 +2047,7 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  borderSide: BorderSide(color: _cOrange, width: 1.5),
+                  borderSide: const BorderSide(color: _cOrange, width: 1.5),
                 ),
               ),
             ),
@@ -2055,7 +2055,7 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
             const SizedBox(height: 16),
 
             // ── Associate Member Picker ─────────────────────────────
-            Text(
+            const Text(
               'Associate Family Member',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -2068,14 +2068,14 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
 
             TextField(
               controller: _memberController,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 color: _cTextPrimary,
               ),
               decoration: InputDecoration(
                 hintText: 'e.g., Arjun Sharma',
-                hintStyle: TextStyle(
+                hintStyle: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: _cTextDim,
@@ -2086,7 +2086,7 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
                   horizontal: 14,
                   vertical: 12,
                 ),
-                suffixIcon: Icon(
+                suffixIcon: const Icon(
                   Icons.person_search_rounded,
                   color: _cOrange,
                   size: 20,
@@ -2097,7 +2097,7 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  borderSide: BorderSide(color: _cOrange, width: 1.5),
+                  borderSide: const BorderSide(color: _cOrange, width: 1.5),
                 ),
               ),
             ),
@@ -2105,7 +2105,7 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
             const SizedBox(height: 16),
 
             // ── File Picker Placeholder ──────────────────────────────
-            Text(
+            const Text(
               'Select File',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -2119,7 +2119,7 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
             GestureDetector(
               onTap: () {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
+                  const SnackBar(
                     content: Text('File picker will open here'),
                     backgroundColor: _cCard,
                   ),
@@ -2145,7 +2145,7 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
                       color: _cOrange.withValues(alpha: 0.6),
                     ),
                     const SizedBox(height: 4),
-                    Text(
+                    const Text(
                       'Tap to select PDF, Image, or Document',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -2182,7 +2182,7 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
                   child: Center(
                     child: _isUploading
-                        ? SizedBox(
+                        ? const SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
@@ -2192,15 +2192,15 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
                               ),
                             ),
                           )
-                        : Row(
+                        : const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.cloud_upload_rounded,
                                 color: Colors.white,
                                 size: 20,
                               ),
-                              const SizedBox(width: 8),
+                              SizedBox(width: 8),
                               Text(
                                 'Upload & Encrypt',
                                 style: TextStyle(
@@ -2228,7 +2228,7 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
                   color: _cOrange.withValues(alpha: 0.6),
                 ),
                 const SizedBox(width: 4),
-                Text(
+                const Text(
                   'Document will be encrypted with AES-256 before storage',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -2247,7 +2247,7 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
   void _handleUpload() {
     if (_selectedType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Please select a document type'),
           backgroundColor: _cCard,
         ),
@@ -2257,7 +2257,7 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
 
     if (_titleController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Please enter a document title'),
           backgroundColor: _cCard,
         ),
@@ -2291,7 +2291,7 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
       Navigator.of(context).pop();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Document uploaded and encrypted successfully'),
           backgroundColor: _cCard,
         ),

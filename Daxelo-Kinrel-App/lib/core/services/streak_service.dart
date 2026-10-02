@@ -46,7 +46,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'celebration_service.dart';
 import 'haptic_service.dart';
 
 /// Tracks the user's daily app-open streak.

@@ -103,7 +103,7 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen>
     // challenge lobby that attached the RoomController is replaced by
     // this route; without a watch the autoDispose controller dies and
     // the server-side reaper auto-closes the room ~60-75s in.
-    Widget view = RoomKeepAlive(
+    final Widget view = RoomKeepAlive(
       roomKey: RoomControllerKey(RoomConfig.carrom, widget.familyId),
       child: DKScaffold(
         backgroundColor: KinrelColors.darkSurface,
@@ -121,7 +121,7 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen>
               }
             },
           ),
-          title: Text(
+          title: const Text(
             'Carrom',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -510,7 +510,7 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen>
             Text(
               state.error!,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.warning,
@@ -533,8 +533,8 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen>
               ),
             ),
           if (state.isSimulating)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -546,7 +546,7 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen>
                       color: KinrelColors.orange,
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6),
                   Text(
                     'Simulating…',
                     style: TextStyle(
@@ -585,7 +585,7 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen>
       backgroundColor: isWinner ? null : KinrelColors.darkSurface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text(
+        title: const Text(
           'Results',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -618,7 +618,7 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen>
                       const SizedBox(height: KinrelSpacing.sm),
                       Text(
                         isWinner ? 'You Won!' : 'Winner!',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 32,
                           fontWeight: FontWeight.w800,
@@ -629,7 +629,7 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen>
                       const SizedBox(height: 4),
                       Text(
                         isWinner ? '$winnerName (You)' : winnerName,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 22,
                           fontWeight: FontWeight.w600,
@@ -756,7 +756,7 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen>
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
+              const Text(
                 'COINS',
                 style: TextStyle(
                   fontFamily: KinrelTypography.monoFont,
@@ -1025,15 +1025,15 @@ class CarromBoardPainter extends CustomPainter {
 
       // Dark bore with depth.
       final bore = Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(0.1, 0.15),
+        ..shader = const RadialGradient(
+          center: Alignment(0.1, 0.15),
           radius: 1.1,
           colors: [
-            const Color(0xFF040302),
-            const Color(0xFF1C1108),
-            const Color(0xFF33200F),
+            Color(0xFF040302),
+            Color(0xFF1C1108),
+            Color(0xFF33200F),
           ],
-          stops: const [0.0, 0.65, 1.0],
+          stops: [0.0, 0.65, 1.0],
         ).createShader(Rect.fromCircle(center: pos, radius: r));
       canvas.drawCircle(pos, r, bore);
 

@@ -69,6 +69,104 @@ class FlickArenaGame {
     this.spectatorsEnabled = true,
   });
 
+  factory FlickArenaGame.fromJson(Map<String, dynamic> json) {
+    final turnOrderList = <int>[];
+    final rawTurnOrder = json['turnOrder'];
+    if (rawTurnOrder is List) {
+      for (final v in rawTurnOrder) {
+        if (v is num) turnOrderList.add(v.toInt());
+      }
+    }
+    if (turnOrderList.isEmpty) {
+      turnOrderList.addAll(const [1, 2]);
+    }
+
+    final teamAssignmentMap = <int, int>{};
+    final rawTeamAssignment = json['teamAssignment'];
+    if (rawTeamAssignment is Map) {
+      for (final entry in rawTeamAssignment.entries) {
+        final slot = int.tryParse(entry.key.toString());
+        final team = entry.value is num ? (entry.value as num).toInt() : null;
+        if (slot != null && team != null) {
+          teamAssignmentMap[slot] = team;
+        }
+      }
+    }
+    if (teamAssignmentMap.isEmpty) {
+      teamAssignmentMap[1] = 1;
+      teamAssignmentMap[2] = 2;
+      teamAssignmentMap[3] = 1;
+      teamAssignmentMap[4] = 2;
+    }
+
+    final winnerIds = <String>[];
+    final rawWinners = json['winnerUserIds'];
+    if (rawWinners is List) {
+      for (final v in rawWinners) {
+        if (v is String && v.isNotEmpty) winnerIds.add(v);
+      }
+    }
+
+    final rawBoard = json['boardState'];
+    final boardState = rawBoard is Map<String, dynamic>
+        ? FlickArenaState.fromJson(rawBoard)
+        : createInitialBoard(
+            FlickArenaMatchTypeX.fromString(json['matchType'] as String?),
+          );
+
+    return FlickArenaGame(
+      id: (json['id'] ?? '') as String,
+      familyId: (json['familyId'] ?? '') as String,
+      matchType: FlickArenaMatchTypeX.fromString(
+        json['matchType'] as String?,
+      ),
+      maxPlayers: (json['maxPlayers'] as num?)?.toInt() ?? 2,
+      status: FlickArenaStatusX.fromString(json['status'] as String?),
+      teamOneScore: (json['teamOneScore'] as num?)?.toInt() ?? 0,
+      teamTwoScore: (json['teamTwoScore'] as num?)?.toInt() ?? 0,
+      boardState: boardState,
+      currentTurnSlot: (json['currentTurnSlot'] as num?)?.toInt() ?? 1,
+      currentTurnPlayerId:
+          (json['currentTurnPlayerId'] ?? '') as String,
+      currentTurnPlayerName:
+          (json['currentTurnPlayerName'] ?? '') as String,
+      turnEndsAt: json['turnEndsAt'] is String
+          ? DateTime.tryParse(json['turnEndsAt'] as String)
+          : null,
+      turnOrder: turnOrderList,
+      teamAssignment: teamAssignmentMap,
+      hostUserId: json['hostUserId'] as String?,
+      hostUserName: json['hostUserName'] as String?,
+      roomName: json['roomName'] as String?,
+      playerOneId: (json['playerOneId'] ?? '') as String,
+      playerOneName: (json['playerOneName'] ?? 'Player 1') as String,
+      playerTwoId: (json['playerTwoId'] ?? '') as String,
+      playerTwoName: (json['playerTwoName'] ?? 'Player 2') as String,
+      playerThreeId: (json['playerThreeId'] ?? '') as String,
+      playerThreeName: (json['playerThreeName'] ?? 'Player 3') as String,
+      playerFourId: (json['playerFourId'] ?? '') as String,
+      playerFourName: (json['playerFourName'] ?? 'Player 4') as String,
+      winningTeam: (json['winningTeam'] as num?)?.toInt(),
+      winnerUserIds: winnerIds,
+      endReason: json['endReason'] as String?,
+      lastTurnSummary:
+          json['lastTurnSummary'] as Map<String, dynamic>?,
+      startedAt: json['startedAt'] is String
+          ? DateTime.tryParse(json['startedAt'] as String)
+          : null,
+      completedAt: json['completedAt'] is String
+          ? DateTime.tryParse(json['completedAt'] as String)
+          : null,
+      createdAt:
+          DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
+      autoCloseDeadline: json['autoCloseDeadline'] is String
+          ? DateTime.tryParse(json['autoCloseDeadline'] as String)
+          : null,
+      spectatorsEnabled:
+          (json['spectatorsEnabled'] as bool?) ?? true,
+    );
+  }
+
   final String id;
   final String familyId;
   final FlickArenaMatchType matchType;
@@ -170,104 +268,6 @@ class FlickArenaGame {
     final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
     return left < 0 ? 0 : left;
   }
-
-  factory FlickArenaGame.fromJson(Map<String, dynamic> json) {
-    final turnOrderList = <int>[];
-    final rawTurnOrder = json['turnOrder'];
-    if (rawTurnOrder is List) {
-      for (final v in rawTurnOrder) {
-        if (v is num) turnOrderList.add(v.toInt());
-      }
-    }
-    if (turnOrderList.isEmpty) {
-      turnOrderList.addAll(const [1, 2]);
-    }
-
-    final teamAssignmentMap = <int, int>{};
-    final rawTeamAssignment = json['teamAssignment'];
-    if (rawTeamAssignment is Map) {
-      for (final entry in rawTeamAssignment.entries) {
-        final slot = int.tryParse(entry.key.toString());
-        final team = entry.value is num ? (entry.value as num).toInt() : null;
-        if (slot != null && team != null) {
-          teamAssignmentMap[slot] = team;
-        }
-      }
-    }
-    if (teamAssignmentMap.isEmpty) {
-      teamAssignmentMap[1] = 1;
-      teamAssignmentMap[2] = 2;
-      teamAssignmentMap[3] = 1;
-      teamAssignmentMap[4] = 2;
-    }
-
-    final winnerIds = <String>[];
-    final rawWinners = json['winnerUserIds'];
-    if (rawWinners is List) {
-      for (final v in rawWinners) {
-        if (v is String && v.isNotEmpty) winnerIds.add(v);
-      }
-    }
-
-    final rawBoard = json['boardState'];
-    final boardState = rawBoard is Map<String, dynamic>
-        ? FlickArenaState.fromJson(rawBoard)
-        : createInitialBoard(
-            FlickArenaMatchTypeX.fromString(json['matchType'] as String?),
-          );
-
-    return FlickArenaGame(
-      id: (json['id'] ?? '') as String,
-      familyId: (json['familyId'] ?? '') as String,
-      matchType: FlickArenaMatchTypeX.fromString(
-        json['matchType'] as String?,
-      ),
-      maxPlayers: (json['maxPlayers'] as num?)?.toInt() ?? 2,
-      status: FlickArenaStatusX.fromString(json['status'] as String?),
-      teamOneScore: (json['teamOneScore'] as num?)?.toInt() ?? 0,
-      teamTwoScore: (json['teamTwoScore'] as num?)?.toInt() ?? 0,
-      boardState: boardState,
-      currentTurnSlot: (json['currentTurnSlot'] as num?)?.toInt() ?? 1,
-      currentTurnPlayerId:
-          (json['currentTurnPlayerId'] ?? '') as String,
-      currentTurnPlayerName:
-          (json['currentTurnPlayerName'] ?? '') as String,
-      turnEndsAt: json['turnEndsAt'] is String
-          ? DateTime.tryParse(json['turnEndsAt'] as String)
-          : null,
-      turnOrder: turnOrderList,
-      teamAssignment: teamAssignmentMap,
-      hostUserId: json['hostUserId'] as String?,
-      hostUserName: json['hostUserName'] as String?,
-      roomName: json['roomName'] as String?,
-      playerOneId: (json['playerOneId'] ?? '') as String,
-      playerOneName: (json['playerOneName'] ?? 'Player 1') as String,
-      playerTwoId: (json['playerTwoId'] ?? '') as String,
-      playerTwoName: (json['playerTwoName'] ?? 'Player 2') as String,
-      playerThreeId: (json['playerThreeId'] ?? '') as String,
-      playerThreeName: (json['playerThreeName'] ?? 'Player 3') as String,
-      playerFourId: (json['playerFourId'] ?? '') as String,
-      playerFourName: (json['playerFourName'] ?? 'Player 4') as String,
-      winningTeam: (json['winningTeam'] as num?)?.toInt(),
-      winnerUserIds: winnerIds,
-      endReason: json['endReason'] as String?,
-      lastTurnSummary:
-          json['lastTurnSummary'] as Map<String, dynamic>?,
-      startedAt: json['startedAt'] is String
-          ? DateTime.tryParse(json['startedAt'] as String)
-          : null,
-      completedAt: json['completedAt'] is String
-          ? DateTime.tryParse(json['completedAt'] as String)
-          : null,
-      createdAt:
-          DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
-      autoCloseDeadline: json['autoCloseDeadline'] is String
-          ? DateTime.tryParse(json['autoCloseDeadline'] as String)
-          : null,
-      spectatorsEnabled:
-          (json['spectatorsEnabled'] as bool?) ?? true,
-    );
-  }
 }
 
 class FlickArenaTurnRecord {
@@ -291,24 +291,6 @@ class FlickArenaTurnRecord {
     required this.createdAt,
   });
 
-  final String id;
-  final String gameId;
-  final String playerId;
-  final String playerName;
-  final int slotNumber;
-  final int teamNumber;
-  final String discId;
-  final double discStartX;
-  final double discStartY;
-  final double angle;
-  final double force;
-  final double shotDistance;
-  final bool scoredGoal;
-  final int? goalForTeam;
-  final bool wasAutoSkipped;
-  final int turnNumber;
-  final DateTime createdAt;
-
   factory FlickArenaTurnRecord.fromJson(Map<String, dynamic> json) =>
       FlickArenaTurnRecord(
         id: (json['id'] ?? '') as String,
@@ -330,4 +312,22 @@ class FlickArenaTurnRecord {
         createdAt:
             DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
       );
+
+  final String id;
+  final String gameId;
+  final String playerId;
+  final String playerName;
+  final int slotNumber;
+  final int teamNumber;
+  final String discId;
+  final double discStartX;
+  final double discStartY;
+  final double angle;
+  final double force;
+  final double shotDistance;
+  final bool scoredGoal;
+  final int? goalForTeam;
+  final bool wasAutoSkipped;
+  final int turnNumber;
+  final DateTime createdAt;
 }

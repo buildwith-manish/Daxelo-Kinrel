@@ -179,7 +179,7 @@ class _CoinHistoryBodyState extends State<_CoinHistoryBody> {
             ),
           ),
         const SizedBox(height: 16),
-        Text(
+        const Text(
           'Recent activity',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -354,7 +354,7 @@ class _BalanceHero extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             'Lifetime earned: ${balance.lifetimeEarned}',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
               color: KinrelColors.textSilver,
@@ -379,11 +379,11 @@ class _EmptyHistoryState extends StatelessWidget {
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Column(
+      child: const Column(
         children: [
-          const Text('🪙', style: TextStyle(fontSize: 36)),
-          const SizedBox(height: 12),
-          const Text(
+          Text('🪙', style: TextStyle(fontSize: 36)),
+          SizedBox(height: 12),
+          Text(
             'No coins yet',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -392,8 +392,8 @@ class _EmptyHistoryState extends StatelessWidget {
               color: KinrelColors.textWhite,
             ),
           ),
-          const SizedBox(height: 6),
-          const Text(
+          SizedBox(height: 6),
+          Text(
             'Win today\'s Prediction Battle to earn your first 10 coins. Close guesses also earn 2 consolation coins.',
             textAlign: TextAlign.center,
             style: TextStyle(
@@ -441,7 +441,7 @@ class _CoinHistoryRow extends StatelessWidget {
               children: [
                 Text(
                   entry.reasonLabel,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -451,7 +451,7 @@ class _CoinHistoryRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   _formatTimestamp(entry.createdAt),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,
                     color: KinrelColors.textDim,

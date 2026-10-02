@@ -60,36 +60,6 @@ class CheckersGame {
     this.autoCloseDeadline,
   });
 
-  final String id;
-  final String familyId;
-  final String playerOneId; // red (bottom)
-  final String playerOneName;
-
-  /// Black's user id — EMPTY while the room is waiting for an opponent
-  /// to join (Create Room flow: host creates the room first, the first
-  /// family member to join takes this slot).
-  final String playerTwoId; // black (top)
-  final String playerTwoName;
-  final String currentTurnPlayerId;
-  final CheckersBoard boardState;
-  final CheckersStatus status;
-  final String? winnerId;
-  final String? winnerName;
-  final bool mandatoryCapturePending;
-  final int? multiJumpPieceRow;
-  final int? multiJumpPieceCol;
-  final int playerOneCaptured;
-  final int playerTwoCaptured;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final DateTime createdAt;
-
-  /// Room-framework columns (Create Room flow).
-  final String? hostUserId;
-  final String? hostUserName;
-  final bool spectatorsEnabled;
-  final DateTime? autoCloseDeadline;
-
   factory CheckersGame.fromJson(Map<String, dynamic> json) => CheckersGame(
     id: json['id'] ?? '',
     familyId: json['familyId'] ?? '',
@@ -124,6 +94,36 @@ class CheckersGame {
         ? DateTime.tryParse(json['autoCloseDeadline'] as String)
         : null,
   );
+
+  final String id;
+  final String familyId;
+  final String playerOneId; // red (bottom)
+  final String playerOneName;
+
+  /// Black's user id — EMPTY while the room is waiting for an opponent
+  /// to join (Create Room flow: host creates the room first, the first
+  /// family member to join takes this slot).
+  final String playerTwoId; // black (top)
+  final String playerTwoName;
+  final String currentTurnPlayerId;
+  final CheckersBoard boardState;
+  final CheckersStatus status;
+  final String? winnerId;
+  final String? winnerName;
+  final bool mandatoryCapturePending;
+  final int? multiJumpPieceRow;
+  final int? multiJumpPieceCol;
+  final int playerOneCaptured;
+  final int playerTwoCaptured;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final DateTime createdAt;
+
+  /// Room-framework columns (Create Room flow).
+  final String? hostUserId;
+  final String? hostUserName;
+  final bool spectatorsEnabled;
+  final DateTime? autoCloseDeadline;
 
   bool get isWaiting => status == CheckersStatus.waiting;
   bool get isInProgress => status == CheckersStatus.inProgress;
@@ -182,21 +182,6 @@ class CheckersMoveRecord {
     required this.createdAt,
   });
 
-  final String id;
-  final String gameId;
-  final String playerId;
-  final String playerName;
-  final int fromRow;
-  final int fromCol;
-  final int toRow;
-  final int toCol;
-  final bool wasCapture;
-  final int? capturedRow;
-  final int? capturedCol;
-  final bool becameKing;
-  final int moveNumber;
-  final DateTime createdAt;
-
   factory CheckersMoveRecord.fromJson(Map<String, dynamic> json) =>
       CheckersMoveRecord(
         id: json['id'] ?? '',
@@ -215,4 +200,19 @@ class CheckersMoveRecord {
         createdAt:
             DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
       );
+
+  final String id;
+  final String gameId;
+  final String playerId;
+  final String playerName;
+  final int fromRow;
+  final int fromCol;
+  final int toRow;
+  final int toCol;
+  final bool wasCapture;
+  final int? capturedRow;
+  final int? capturedCol;
+  final bool becameKing;
+  final int moveNumber;
+  final DateTime createdAt;
 }

@@ -104,27 +104,6 @@ class CalendarEvent {
     required this.updatedAt,
   });
 
-  final String id;
-  final String familyId;
-  final String createdBy;
-  final String? personId;
-  final String title;
-  final String? description;
-  final EventCategory category;
-  final DateTime eventDate;
-  final DateTime? endDate;
-  final String? location;
-  final String? locationUrl;
-  final bool isAllDay;
-  final bool isRecurring;
-  final String? recurrenceRule;
-  final DateTime? recurrenceEndDate;
-  final String? notes;
-  final List<EventAttachment> attachments;
-  final Map<String, dynamic> metadata;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-
   factory CalendarEvent.fromJson(Map<String, dynamic> json) {
     return CalendarEvent(
       id: json['id'] ?? '',
@@ -149,6 +128,27 @@ class CalendarEvent {
       updatedAt: DateTime.tryParse(json['updatedAt'] ?? '') ?? DateTime.now(),
     );
   }
+
+  final String id;
+  final String familyId;
+  final String createdBy;
+  final String? personId;
+  final String title;
+  final String? description;
+  final EventCategory category;
+  final DateTime eventDate;
+  final DateTime? endDate;
+  final String? location;
+  final String? locationUrl;
+  final bool isAllDay;
+  final bool isRecurring;
+  final String? recurrenceRule;
+  final DateTime? recurrenceEndDate;
+  final String? notes;
+  final List<EventAttachment> attachments;
+  final Map<String, dynamic> metadata;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -209,15 +209,15 @@ class CalendarEvent {
 
 class EventAttachment {
   const EventAttachment({required this.type, required this.url, required this.name});
-  final String type; // photo, document, link
-  final String url;
-  final String name;
 
   factory EventAttachment.fromJson(Map<String, dynamic> json) => EventAttachment(
     type: json['type'] ?? 'link',
     url: json['url'] ?? '',
     name: json['name'] ?? '',
   );
+  final String type; // photo, document, link
+  final String url;
+  final String name;
 
   Map<String, dynamic> toJson() => {'type': type, 'url': url, 'name': name};
 }
@@ -231,12 +231,6 @@ class EventRSVP {
     required this.status,
     required this.respondedAt,
   });
-  final String id;
-  final String eventId;
-  final String userId;
-  final String userName;
-  final RSVPStatus status;
-  final DateTime respondedAt;
 
   factory EventRSVP.fromJson(Map<String, dynamic> json) => EventRSVP(
     id: json['id'] ?? '',
@@ -246,6 +240,12 @@ class EventRSVP {
     status: _parseStatus(json['status']),
     respondedAt: DateTime.tryParse(json['respondedAt'] ?? '') ?? DateTime.now(),
   );
+  final String id;
+  final String eventId;
+  final String userId;
+  final String userName;
+  final RSVPStatus status;
+  final DateTime respondedAt;
 
   static RSVPStatus _parseStatus(String? s) {
     return RSVPStatus.values.firstWhere(
@@ -264,12 +264,6 @@ class EventComment {
     required this.comment,
     required this.createdAt,
   });
-  final String id;
-  final String eventId;
-  final String userId;
-  final String userName;
-  final String comment;
-  final DateTime createdAt;
 
   factory EventComment.fromJson(Map<String, dynamic> json) => EventComment(
     id: json['id'] ?? '',
@@ -279,4 +273,10 @@ class EventComment {
     comment: json['comment'] ?? '',
     createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
   );
+  final String id;
+  final String eventId;
+  final String userId;
+  final String userName;
+  final String comment;
+  final DateTime createdAt;
 }

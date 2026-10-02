@@ -46,12 +46,12 @@ class _FollowersScreenState extends ConsumerState<FollowersScreen>
       backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(
         backgroundColor: KinrelColors.darkBackground,
-        title: Text('Follow', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+        title: const Text('Follow', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
         bottom: TabBar(
           controller: _tabController,
           tabs: [
-            Tab(text: 'Followers'),
-            Tab(text: 'Following'),
+            const Tab(text: 'Followers'),
+            const Tab(text: 'Following'),
           ],
           labelColor: KinrelColors.orange,
           unselectedLabelColor: KinrelColors.textSilver,
@@ -74,11 +74,11 @@ class _FollowersScreenState extends ConsumerState<FollowersScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.people_outline, size: 48, color: KinrelColors.textDim),
-            SizedBox(height: 12),
-            Text(emptyTitle, style: TextStyle(color: KinrelColors.textSilver, fontSize: 16)),
-            SizedBox(height: 4),
-            Text(emptySubtitle, style: TextStyle(color: KinrelColors.textDim, fontSize: 13)),
+            const Icon(Icons.people_outline, size: 48, color: KinrelColors.textDim),
+            const SizedBox(height: 12),
+            Text(emptyTitle, style: const TextStyle(color: KinrelColors.textSilver, fontSize: 16)),
+            const SizedBox(height: 4),
+            Text(emptySubtitle, style: const TextStyle(color: KinrelColors.textDim, fontSize: 13)),
           ],
         ),
       );
@@ -94,7 +94,7 @@ class _FollowersScreenState extends ConsumerState<FollowersScreen>
         }
       },
       child: ListView.builder(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         itemCount: follows.length,
         itemBuilder: (context, index) {
           final follow = follows[index];
@@ -103,16 +103,16 @@ class _FollowersScreenState extends ConsumerState<FollowersScreen>
               ? follow.followerId
               : follow.followingId;
           return Padding(
-            padding: EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.only(bottom: 12),
             child: Row(
               children: [
-                CircleAvatar(
+                const CircleAvatar(
                   radius: 24,
                   backgroundColor: KinrelColors.elevation2,
                   child: Icon(Icons.person, color: KinrelColors.textSilver),
                 ),
-                SizedBox(width: 12),
-                Expanded(
+                const SizedBox(width: 12),
+                const Expanded(
                   child: Text(
                     'User',
                     style: TextStyle(color: KinrelColors.textWhite, fontFamily: 'DM Sans'),

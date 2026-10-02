@@ -114,7 +114,7 @@ void main() {
     test('filters by validFrom / validTo', () {
       controller.setYear(1995);
       final places = <FamilyPlace>[
-        FamilyPlace(
+        const FamilyPlace(
           id: 'p1',
           familyId: 'f',
           name: 'Always Valid',

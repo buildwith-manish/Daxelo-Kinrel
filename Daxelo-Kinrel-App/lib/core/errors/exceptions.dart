@@ -2,6 +2,7 @@
 ///
 /// These provide structured error handling with optional error codes,
 /// status codes, and field-level validation errors.
+library;
 
 /// Base exception class for all Kinrel application errors.
 ///
@@ -9,11 +10,11 @@
 /// programmatic error identification, and optional [statusCode] for
 /// HTTP-related errors.
 class KinrelException implements Exception {
+
+  const KinrelException(this.message, {this.code, this.statusCode});
   final String message;
   final String? code;
   final int? statusCode;
-
-  const KinrelException(this.message, {this.code, this.statusCode});
 
   @override
   String toString() => 'KinrelException($code): $message';
@@ -40,9 +41,9 @@ class AuthException extends KinrelException {
 /// Includes [fieldErrors] map for per-field error messages,
 /// making it easy to display inline validation feedback.
 class ValidationException extends KinrelException {
-  final Map<String, String> fieldErrors;
 
   const ValidationException(super.message, {required this.fieldErrors});
+  final Map<String, String> fieldErrors;
 
   @override
   String toString() =>

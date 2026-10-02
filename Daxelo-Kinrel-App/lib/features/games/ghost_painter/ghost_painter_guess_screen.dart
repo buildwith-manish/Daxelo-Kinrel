@@ -71,7 +71,7 @@ class _GhostPainterGuessScreenState
             }
           },
         ),
-        title: Text(
+        title: const Text(
           'Ghost Painter',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -83,7 +83,7 @@ class _GhostPainterGuessScreenState
         elevation: 0,
       ),
       body: round == null
-          ? Center(
+          ? const Center(
               child: Text(
                 'No active round',
                 style: TextStyle(
@@ -110,7 +110,7 @@ class _GhostPainterGuessScreenState
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
-                GhostMedallion(emoji: '🖌️', size: 38),
+                const GhostMedallion(emoji: '🖌️', size: 38),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -118,7 +118,7 @@ class _GhostPainterGuessScreenState
                     children: [
                       Text(
                         '${round.drawerPersonName} is drawing…',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -126,7 +126,7 @@ class _GhostPainterGuessScreenState
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      const Text(
                         'Watch the glowing ink and name it first!',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
@@ -151,7 +151,7 @@ class _GhostPainterGuessScreenState
                   ),
                   child: Text(
                     '${state.guesses.length}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
@@ -221,7 +221,7 @@ class _GhostPainterGuessScreenState
                 child: TextField(
                   controller: _guessController,
                   focusNode: _focusNode,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     color: Colors.white,
                     fontSize: 16,
@@ -229,7 +229,7 @@ class _GhostPainterGuessScreenState
                   ),
                   decoration: InputDecoration(
                     hintText: 'Type your guess…',
-                    hintStyle: TextStyle(
+                    hintStyle: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       color: KinrelColors.textDim,
                     ),
@@ -259,8 +259,8 @@ class _GhostPainterGuessScreenState
                     ),
                     suffixIcon: Container(
                       margin: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
                           colors: [Color(0xFFEC4899), Color(0xFFB14DB8)],
                         ),
                         shape: BoxShape.circle,
@@ -281,13 +281,13 @@ class _GhostPainterGuessScreenState
             ),
           ),
         if (state.myGuess?.isCorrect == false)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 14),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.close_rounded, size: 14, color: KinrelColors.error),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Text(
                   'Not it — keep watching the ink and try again!',
                   style: TextStyle(
@@ -348,7 +348,7 @@ class _GhostPainterGuessScreenState
             Text(
               iWon ? 'You Guessed It!' : 'Round Complete!',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 24,
                 fontWeight: FontWeight.w800,
@@ -359,7 +359,7 @@ class _GhostPainterGuessScreenState
             GhostGlassCard(
               child: Column(
                 children: [
-                  Text(
+                  const Text(
                     'THE WORD WAS',
                     style: TextStyle(
                       fontFamily: KinrelTypography.monoFont,
@@ -372,7 +372,7 @@ class _GhostPainterGuessScreenState
                   const SizedBox(height: 6),
                   Text(
                     round.promptWord,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 26,
                       fontWeight: FontWeight.w800,
@@ -385,7 +385,7 @@ class _GhostPainterGuessScreenState
             ),
             const SizedBox(height: 18),
             if (correctGuessers.isNotEmpty) ...[
-              Text(
+              const Text(
                 'SHARPEST EYES',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -431,7 +431,7 @@ class _GhostPainterGuessScreenState
                           const SizedBox(width: 8),
                           Text(
                             correctGuessers[i].userName,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -444,7 +444,7 @@ class _GhostPainterGuessScreenState
                 ],
               ),
             ] else
-              GhostGlassCard(
+              const GhostGlassCard(
                 accent: KinrelColors.amber,
                 child: Text(
                   'Nobody guessed it this time — the ghost keeps its secret! 🤫',
@@ -468,12 +468,12 @@ class _GhostPainterGuessScreenState
           ],
         ),
         if (correctGuessers.isNotEmpty)
-          GameConfetti(
+          const GameConfetti(
             colors: [
               kGhostAccent,
-              const Color(0xFFB14DB8),
+              Color(0xFFB14DB8),
               KinrelColors.success,
-              const Color(0xFFFDF4FF),
+              Color(0xFFFDF4FF),
             ],
           ),
       ],

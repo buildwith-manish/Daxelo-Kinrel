@@ -48,7 +48,7 @@ void main() {
         // in parallel, but the FamilyMapResult always includes pins even
         // when places is empty. Verify that a result with pins + empty
         // places is valid (pins not blocked by Place loading).
-        final result = FamilyMapResult(
+        final result = const FamilyMapResult(
           pins: [
             MapPin(
               personId: 'p1',
@@ -60,11 +60,11 @@ void main() {
               locationSource: MapLocationSource.cityCentroid,
             ),
           ],
-          unpinnedMembers: const [],
+          unpinnedMembers: [],
           unpinnedCount: 0,
-          edges: const [],
+          edges: [],
           familyId: 'fam1',
-          places: const [], // Places still loading → empty
+          places: [], // Places still loading → empty
         );
         expect(result.pins, hasLength(1));
         expect(result.places, isEmpty);
@@ -77,7 +77,7 @@ void main() {
         () {
           // Relationships are fetched AFTER pins. A result with pins + empty
           // edges is valid (pins not blocked by relationship loading).
-          final result = FamilyMapResult(
+          final result = const FamilyMapResult(
             pins: [
               MapPin(
                 personId: 'p1',
@@ -96,11 +96,11 @@ void main() {
                 lng: 72.8777,
               ),
             ],
-            unpinnedMembers: const [],
+            unpinnedMembers: [],
             unpinnedCount: 0,
-            edges: const [], // Relationships still loading → empty
+            edges: [], // Relationships still loading → empty
             familyId: 'fam1',
-            places: const [],
+            places: [],
           );
           expect(result.pins, hasLength(2));
           expect(result.edges, isEmpty);
@@ -110,7 +110,7 @@ void main() {
       test('Place failure does not fail the whole map', () {
         // If the Place fetch fails, the provider catches the error and
         // returns an empty places list. The map still renders pins.
-        final result = FamilyMapResult(
+        final result = const FamilyMapResult(
           pins: [
             MapPin(
               personId: 'p1',
@@ -121,11 +121,11 @@ void main() {
               lng: 72.8777,
             ),
           ],
-          unpinnedMembers: const [],
+          unpinnedMembers: [],
           unpinnedCount: 0,
-          edges: const [],
+          edges: [],
           familyId: 'fam1',
-          places: const [], // Place fetch failed → empty (not error)
+          places: [], // Place fetch failed → empty (not error)
         );
         expect(result.pins, isNotEmpty);
         expect(result.places, isEmpty);
@@ -135,7 +135,7 @@ void main() {
       test('relationship failure does not fail the whole map', () {
         // If the relationship fetch fails, the provider catches the error
         // and returns an empty edges list. The map still renders pins.
-        final result = FamilyMapResult(
+        final result = const FamilyMapResult(
           pins: [
             MapPin(
               personId: 'p1',
@@ -146,11 +146,11 @@ void main() {
               lng: 72.8777,
             ),
           ],
-          unpinnedMembers: const [],
+          unpinnedMembers: [],
           unpinnedCount: 0,
-          edges: const [], // Relationship fetch failed → empty (not error)
+          edges: [], // Relationship fetch failed → empty (not error)
           familyId: 'fam1',
-          places: const [],
+          places: [],
         );
         expect(result.pins, isNotEmpty);
         expect(result.edges, isEmpty);
@@ -160,7 +160,7 @@ void main() {
         // When the provider refreshes, it returns a NEW FamilyMapResult.
         // The old result's pins/places are still valid until the new one
         // arrives. Verify that a "stale" result is still usable.
-        final staleResult = FamilyMapResult(
+        final staleResult = const FamilyMapResult(
           pins: [
             MapPin(
               personId: 'p1',
@@ -171,11 +171,11 @@ void main() {
               lng: 72.8777,
             ),
           ],
-          unpinnedMembers: const [],
+          unpinnedMembers: [],
           unpinnedCount: 0,
-          edges: const [],
+          edges: [],
           familyId: 'fam1',
-          places: const [],
+          places: [],
         );
         // The stale result is still a valid object — its pins haven't
         // been mutated or cleared.
@@ -313,7 +313,7 @@ void main() {
   // ═══════════════════════════════════════════════════════════════════════
   group('P12 Multi-family — no stale pins across family switch', () {
     test('Family A result contains Family A pins', () {
-      final resultA = FamilyMapResult(
+      final resultA = const FamilyMapResult(
         pins: [
           MapPin(
             personId: 'a1',
@@ -324,11 +324,11 @@ void main() {
             lng: 72.8777,
           ),
         ],
-        unpinnedMembers: const [],
+        unpinnedMembers: [],
         unpinnedCount: 0,
-        edges: const [],
+        edges: [],
         familyId: 'familyA',
-        places: const [],
+        places: [],
       );
       expect(resultA.familyId, equals('familyA'));
       expect(resultA.pins, hasLength(1));
@@ -336,7 +336,7 @@ void main() {
     });
 
     test('Family B result contains Family B pins (not Family A)', () {
-      final resultB = FamilyMapResult(
+      final resultB = const FamilyMapResult(
         pins: [
           MapPin(
             personId: 'b1',
@@ -355,11 +355,11 @@ void main() {
             lng: 77.1025,
           ),
         ],
-        unpinnedMembers: const [],
+        unpinnedMembers: [],
         unpinnedCount: 0,
-        edges: const [],
+        edges: [],
         familyId: 'familyB',
-        places: const [],
+        places: [],
       );
       expect(resultB.familyId, equals('familyB'));
       expect(resultB.pins, hasLength(2));
@@ -373,7 +373,7 @@ void main() {
       // When switching from Family A to Family B, the provider returns
       // a NEW result. The old result is NOT mutated. Verify that the
       // two results are independent objects with different family IDs.
-      final resultA = FamilyMapResult(
+      final resultA = const FamilyMapResult(
         pins: [
           MapPin(
             personId: 'a1',
@@ -384,13 +384,13 @@ void main() {
             lng: 72.0,
           ),
         ],
-        unpinnedMembers: const [],
+        unpinnedMembers: [],
         unpinnedCount: 0,
-        edges: const [],
+        edges: [],
         familyId: 'familyA',
-        places: const [],
+        places: [],
       );
-      final resultB = FamilyMapResult(
+      final resultB = const FamilyMapResult(
         pins: [
           MapPin(
             personId: 'b1',
@@ -401,11 +401,11 @@ void main() {
             lng: 77.0,
           ),
         ],
-        unpinnedMembers: const [],
+        unpinnedMembers: [],
         unpinnedCount: 0,
-        edges: const [],
+        edges: [],
         familyId: 'familyB',
-        places: const [],
+        places: [],
       );
 
       // Family A result is unchanged after Family B loads
@@ -451,21 +451,21 @@ void main() {
       const familyIdA = 'family-a-uuid';
       const familyIdB = 'family-b-uuid';
 
-      final resultA = FamilyMapResult(
-        pins: const [],
-        unpinnedMembers: const [],
+      final resultA = const FamilyMapResult(
+        pins: [],
+        unpinnedMembers: [],
         unpinnedCount: 0,
-        edges: const [],
+        edges: [],
         familyId: familyIdA,
-        places: const [],
+        places: [],
       );
-      final resultB = FamilyMapResult(
-        pins: const [],
-        unpinnedMembers: const [],
+      final resultB = const FamilyMapResult(
+        pins: [],
+        unpinnedMembers: [],
         unpinnedCount: 0,
-        edges: const [],
+        edges: [],
         familyId: familyIdB,
-        places: const [],
+        places: [],
       );
 
       expect(resultA.familyId, isNot(equals(resultB.familyId)));
@@ -497,7 +497,7 @@ void main() {
       }
       // 1 invalid pin (NaN latitude)
       rawPins.add(
-        MapPin(
+        const MapPin(
           personId: 'p-bad',
           name: 'Bad Pin',
           city: 'Nowhere',
@@ -524,7 +524,7 @@ void main() {
       // An empty person ID, NaN coordinates, and infinite coordinates
       // must all be filtered out without throwing.
       final malformedPins = <MapPin>[
-        MapPin(
+        const MapPin(
           personId: '',
           name: 'Empty ID',
           city: 'X',
@@ -532,7 +532,7 @@ void main() {
           lat: 19.0,
           lng: 72.0,
         ),
-        MapPin(
+        const MapPin(
           personId: 'nan',
           name: 'NaN lat',
           city: 'X',
@@ -540,7 +540,7 @@ void main() {
           lat: double.nan,
           lng: 72.0,
         ),
-        MapPin(
+        const MapPin(
           personId: 'inf',
           name: 'Inf lng',
           city: 'X',
@@ -548,7 +548,7 @@ void main() {
           lat: 19.0,
           lng: double.infinity,
         ),
-        MapPin(
+        const MapPin(
           personId: 'oor',
           name: 'Out of range',
           city: 'X',
@@ -683,7 +683,7 @@ void main() {
     });
 
     test('exact eligible FamilyPlace beats city centroid', () {
-      final place = FamilyPlace(
+      final place = const FamilyPlace(
         id: 'place1',
         familyId: 'fam1',
         name: 'Home',
@@ -702,7 +702,7 @@ void main() {
     });
 
     test('historical/ineligible Place does not replace city centroid', () {
-      final place = FamilyPlace(
+      final place = const FamilyPlace(
         id: 'place2',
         familyId: 'fam1',
         name: 'Birthplace',
@@ -725,7 +725,7 @@ void main() {
     });
 
     test('invalid Place coordinates (0,0) fall through to city centroid', () {
-      final place = FamilyPlace(
+      final place = const FamilyPlace(
         id: 'place3',
         familyId: 'fam1',
         name: 'Home at null island',
@@ -767,7 +767,7 @@ void main() {
   group('P12 Households — no false city-centroid clusters', () {
     test('two city-centroid pins at same point do NOT cluster', () {
       final pins = [
-        MapPin(
+        const MapPin(
           personId: 'a',
           name: 'A',
           city: 'Pune',
@@ -776,7 +776,7 @@ void main() {
           lng: 73.85,
           locationSource: MapLocationSource.cityCentroid,
         ),
-        MapPin(
+        const MapPin(
           personId: 'b',
           name: 'B',
           city: 'Pune',
@@ -796,7 +796,7 @@ void main() {
 
     test('two exact-place pins at same point CAN cluster', () {
       final pins = [
-        MapPin(
+        const MapPin(
           personId: 'a',
           name: 'A',
           city: 'Pune',
@@ -805,7 +805,7 @@ void main() {
           lng: 73.85,
           locationSource: MapLocationSource.exactPlace,
         ),
-        MapPin(
+        const MapPin(
           personId: 'b',
           name: 'B',
           city: 'Pune',
@@ -825,7 +825,7 @@ void main() {
       'mixed: 1 exact + 1 city-centroid → only 1 household (the exact one)',
       () {
         final pins = [
-          MapPin(
+          const MapPin(
             personId: 'a',
             name: 'A',
             city: 'Pune',
@@ -834,7 +834,7 @@ void main() {
             lng: 73.85,
             locationSource: MapLocationSource.exactPlace,
           ),
-          MapPin(
+          const MapPin(
             personId: 'b',
             name: 'B',
             city: 'Pune',
@@ -858,7 +858,7 @@ void main() {
 
     test('single member remains a single household', () {
       final pins = [
-        MapPin(
+        const MapPin(
           personId: 'a',
           name: 'A',
           city: 'Pune',
@@ -875,7 +875,7 @@ void main() {
 
     test('household ID is stable (deterministic by rounded coordinates)', () {
       final pins = [
-        MapPin(
+        const MapPin(
           personId: 'a',
           name: 'A',
           city: 'Pune',

@@ -41,13 +41,12 @@ class EdgePathCache {
   /// Creates an empty edge path cache.
   ///
   /// [quantizationGranularity] controls position quantization for
-  /// cache keys (default: 2.0 px). [moveThreshold] is the minimum
+  /// cache keys (default: 2.0 px). [_moveThreshold] is the minimum
   /// pixel displacement that triggers a recomputation (default: 2.0 px).
   EdgePathCache({
     double quantizationGranularity = 2.0,
-    double moveThreshold = 2.0,
-  })  : _quantization = quantizationGranularity,
-        _moveThreshold = moveThreshold;
+    this._moveThreshold = 2.0,
+  })  : _quantization = quantizationGranularity;
 
   final double _quantization;
   final double _moveThreshold;

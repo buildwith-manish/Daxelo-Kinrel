@@ -40,7 +40,9 @@ class DbNotifier extends StateNotifier<DbState> {
       await client.from('dotsboxes_players').insert({'gameId': game.id, 'userId': myId, 'userName': _myName, 'turnOrder': 0, 'playerColor': 0, 'boxesCaptured': 0});
       // Pre-create all boxes
       final boxRows = <Map<String, dynamic>>[];
-      for (int r = 0; r < gridSize; r++) for (int c = 0; c < gridSize; c++) boxRows.add({'gameId': game.id, 'boxRow': r, 'boxCol': c});
+      for (int r = 0; r < gridSize; r++) for (int c = 0; c < gridSize; c++) {
+        boxRows.add({'gameId': game.id, 'boxRow': r, 'boxCol': c});
+      }
       await client.from('dotsboxes_boxes').insert(boxRows);
       state = state.copyWith(game: game, isLoading: false); _subscribeToRealtime(game.id); await _refreshPlayers(game.id); await _refreshLines(game.id); await _refreshBoxes(game.id);
       return game.id;

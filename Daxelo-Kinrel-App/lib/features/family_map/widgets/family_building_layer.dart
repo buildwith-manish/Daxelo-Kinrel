@@ -79,7 +79,7 @@ Color buildingColorFor(PlaceType type) {
 /// Hex string used in the map style `match` expression.
 String buildingHexFor(PlaceType type) {
   final c = buildingColorFor(type);
-  return '#${c.value.toRadixString(16).toUpperCase().padLeft(8, '0').substring(2)}';
+  return '#${c.toARGB32().toRadixString(16).toUpperCase().padLeft(8, '0').substring(2)}';
 }
 
 /// Builds the GeoJSON FeatureCollection for the `family-places` source.
@@ -501,7 +501,7 @@ class FamilyBuildingBottomSheet extends ConsumerWidget {
               label: Text(place.placeType.semanticLabel),
               backgroundColor: buildingColorFor(
                 place.placeType,
-              ).withOpacity(MapVisualConstants.buildingChipBgOpacity),
+              ).withValues(alpha: MapVisualConstants.buildingChipBgOpacity),
               labelStyle: TextStyle(color: buildingColorFor(place.placeType)),
               side: BorderSide.none,
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),

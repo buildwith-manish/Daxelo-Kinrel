@@ -163,7 +163,7 @@ class OccasionRemindersNotifier extends AsyncNotifier<OccasionRemindersState> {
       final families = familiesAsync.valueOrNull ?? [];
 
       if (families.isEmpty) {
-        state = AsyncData(const OccasionRemindersState());
+        state = const AsyncData(OccasionRemindersState());
         return;
       }
 
@@ -232,7 +232,7 @@ class OccasionRemindersNotifier extends AsyncNotifier<OccasionRemindersState> {
       ));
     } catch (e) {
       debugPrint('⚠️ OccasionRemindersNotifier.loadOccasions error: $e');
-      state = AsyncData(OccasionRemindersState(
+      state = const AsyncData(OccasionRemindersState(
         isLoading: false,
         error: 'Failed to load occasions. Please try again.',
       ));

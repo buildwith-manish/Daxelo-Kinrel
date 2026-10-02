@@ -377,14 +377,6 @@ class StoryReply {
     required this.createdAt,
   });
 
-  final String id;
-  final String storyId;
-  final String userId;
-  final String userName;
-  final String? userAvatarUrl;
-  final String content;
-  final DateTime createdAt;
-
   factory StoryReply.fromJson(Map<String, dynamic> json) {
     return StoryReply(
       id: json['id'] as String? ?? '',
@@ -397,6 +389,14 @@ class StoryReply {
           DateTime.now(),
     );
   }
+
+  final String id;
+  final String storyId;
+  final String userId;
+  final String userName;
+  final String? userAvatarUrl;
+  final String content;
+  final DateTime createdAt;
 }
 
 /// Sends a text reply to a story. Inserts into the Supabase

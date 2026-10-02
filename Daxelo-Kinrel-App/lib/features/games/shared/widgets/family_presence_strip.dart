@@ -36,14 +36,6 @@ class FamilyPresence {
     this.onlineMembers = const [],
   });
 
-  final int onlineCount;
-  final int playingCount;
-  final int spectatingCount;
-  final int totalMembers;
-  final List<FamilyPresenceMember> onlineMembers;
-
-  bool get isActive => onlineCount > 0 || playingCount > 0 || spectatingCount > 0;
-
   factory FamilyPresence.fromJson(Map<String, dynamic> json) {
     final members = (json['onlineMembers'] as List? ?? [])
         .map((e) => FamilyPresenceMember.fromJson(Map<String, dynamic>.from(e as Map)))
@@ -56,6 +48,14 @@ class FamilyPresence {
       onlineMembers: members,
     );
   }
+
+  final int onlineCount;
+  final int playingCount;
+  final int spectatingCount;
+  final int totalMembers;
+  final List<FamilyPresenceMember> onlineMembers;
+
+  bool get isActive => onlineCount > 0 || playingCount > 0 || spectatingCount > 0;
 }
 
 class FamilyPresenceMember {
@@ -63,11 +63,7 @@ class FamilyPresenceMember {
     required this.userId,
     required this.userName,
     required this.status,
-  });
-
-  final String userId;
-  final String userName;
-  final String status; // 'online' | 'playing' | 'spectating'
+  }); // 'online' | 'playing' | 'spectating'
 
   factory FamilyPresenceMember.fromJson(Map<String, dynamic> json) {
     return FamilyPresenceMember(
@@ -76,6 +72,10 @@ class FamilyPresenceMember {
       status: (json['status'] ?? 'online') as String,
     );
   }
+
+  final String userId;
+  final String userName;
+  final String status;
 }
 
 /// Riverpod FutureProvider.family that fetches family presence.
@@ -185,7 +185,7 @@ class _StripContent extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.nightlight_outlined,
+            const Icon(Icons.nightlight_outlined,
                 size: 18, color: KinrelColors.textDim),
             const SizedBox(width: KinrelSpacing.sm),
             Expanded(
@@ -193,7 +193,7 @@ class _StripContent extends StatelessWidget {
                 presence.totalMembers > 0
                     ? 'No family members online right now'
                     : 'Invite family members to start playing together',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim,
@@ -232,7 +232,7 @@ class _StripContent extends StatelessWidget {
               children: [
                 Text(
                   _statsLine(presence),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -242,7 +242,7 @@ class _StripContent extends StatelessWidget {
                 const SizedBox(height: 1),
                 Text(
                   _activityLine(presence),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10,
                     color: KinrelColors.textDim,
@@ -294,7 +294,7 @@ class _StripContent extends StatelessWidget {
               child: Center(
                 child: Text(
                   m.userName.isNotEmpty ? m.userName[0].toUpperCase() : '?',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,

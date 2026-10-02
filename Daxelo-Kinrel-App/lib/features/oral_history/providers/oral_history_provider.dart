@@ -1078,7 +1078,7 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
       if (transcriptionText == null || transcriptionText.isEmpty) {
         // No recording available or empty result — show error
         state = state.copyWith(
-          transcriptionState: TranscriptionState(
+          transcriptionState: const TranscriptionState(
             isTranscribing: false,
             progress: 0.0,
             text: '',

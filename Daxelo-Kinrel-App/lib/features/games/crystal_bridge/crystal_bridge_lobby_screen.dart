@@ -132,7 +132,7 @@ class _CrystalBridgeLobbyScreenState
                 state.game?.roomName?.isNotEmpty == true
                     ? state.game!.roomName!
                     : 'Crystal Bridge',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontWeight: FontWeight.w600,
                   color: KinrelColors.textWhite,
@@ -202,7 +202,7 @@ class _CrystalBridgeLobbyScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Share this code',
+            const Text('Share this code',
                 style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 18,
@@ -210,7 +210,7 @@ class _CrystalBridgeLobbyScreenState
                     color: KinrelColors.textWhite)),
             const SizedBox(height: KinrelSpacing.md),
             Text(code,
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 40,
                     fontWeight: FontWeight.w700,
@@ -220,7 +220,7 @@ class _CrystalBridgeLobbyScreenState
             Text(
               'Up to ${_maxPlayers - 1} members. Cross the bridge — last survivor or first to finish wins!',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim),
@@ -246,7 +246,7 @@ class _CrystalBridgeLobbyScreenState
       title: 'Crystal Bridge',
       tagline: 'Cross the bridge — one crystal saves you, one shatters you',
       facts: [
-        LobbyFact(icon: Icons.groups_2_outlined, label: '2–8 players'),
+        const LobbyFact(icon: Icons.groups_2_outlined, label: '2–8 players'),
         LobbyFact(
             icon: Icons.layers_outlined, label: '$_totalRows rows'),
         LobbyFact(icon: Icons.timer_outlined, label: '$_turnSeconds s/turn'),
@@ -259,7 +259,7 @@ class _CrystalBridgeLobbyScreenState
             child: TextField(
               controller: _roomNameController,
               maxLength: 24,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: KinrelColors.textWhite),
@@ -276,7 +276,7 @@ class _CrystalBridgeLobbyScreenState
                     horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  borderSide: BorderSide(color: KinrelColors.border),
+                  borderSide: const BorderSide(color: KinrelColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
@@ -320,19 +320,19 @@ class _CrystalBridgeLobbyScreenState
               selected: _teamMode,
               onSelect: (v) => setState(() => _teamMode = v),
               options: [
-                LobbyOption(
+                const LobbyOption(
                     value: CrystalBridgeTeamMode.solo,
                     label: 'Solo',
                     caption: 'FFA'),
-                LobbyOption(
+                const LobbyOption(
                     value: CrystalBridgeTeamMode.twoVTwo,
                     label: '2v2',
                     caption: 'Teams'),
-                LobbyOption(
+                const LobbyOption(
                     value: CrystalBridgeTeamMode.threeVThree,
                     label: '3v3',
                     caption: 'Teams'),
-                LobbyOption(
+                const LobbyOption(
                     value: CrystalBridgeTeamMode.fourVFour,
                     label: '4v4',
                     caption: 'Teams'),
@@ -368,13 +368,13 @@ class _CrystalBridgeLobbyScreenState
         ],
       ),
       rules: [
-        LobbyRule('Each row of the bridge has two crystals — left & right.'),
-        LobbyRule('Players take turns choosing one. Only one is safe.'),
-        LobbyRule('Wrong crystal shatters — you\'re eliminated.'),
-        LobbyRule('Shield power saves you once; Leap skips a row entirely.'),
-        LobbyRule('Reveal + Scanner expose safe sides; Swap shifts turn order.'),
-        LobbyRule('Reach the final row OR be the last survivor to win.'),
-        LobbyRule('Timer out = auto-eliminated. Choose fast, choose wise.'),
+        const LobbyRule('Each row of the bridge has two crystals — left & right.'),
+        const LobbyRule('Players take turns choosing one. Only one is safe.'),
+        const LobbyRule('Wrong crystal shatters — you\'re eliminated.'),
+        const LobbyRule('Shield power saves you once; Leap skips a row entirely.'),
+        const LobbyRule('Reveal + Scanner expose safe sides; Swap shifts turn order.'),
+        const LobbyRule('Reach the final row OR be the last survivor to win.'),
+        const LobbyRule('Timer out = auto-eliminated. Choose fast, choose wise.'),
       ],
       rulesFootnote:
           'Quick = 10 rows · Standard = 20 · Marathon = 30. Powers are random — one use per match per player.',
@@ -506,7 +506,7 @@ class _BridgeTypePill extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       type.description,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
                         color: KinrelColors.textDim,

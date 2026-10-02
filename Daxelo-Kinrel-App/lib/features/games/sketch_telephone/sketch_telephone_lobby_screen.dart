@@ -118,7 +118,7 @@ class _SketchTelephoneLobbyScreenState
                 state.game?.roomName?.isNotEmpty == true
                     ? state.game!.roomName!
                     : 'Sketch Telephone',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontWeight: FontWeight.w600,
                   color: KinrelColors.textWhite,
@@ -188,7 +188,7 @@ class _SketchTelephoneLobbyScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Share this code',
+            const Text('Share this code',
                 style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 18,
@@ -196,7 +196,7 @@ class _SketchTelephoneLobbyScreenState
                     color: KinrelColors.textWhite)),
             const SizedBox(height: KinrelSpacing.md),
             Text(code,
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 40,
                     fontWeight: FontWeight.w700,
@@ -206,7 +206,7 @@ class _SketchTelephoneLobbyScreenState
             Text(
               'Up to ${_maxPlayers - 1} members. Draw, describe, draw again — the chain mutates!',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim),
@@ -232,7 +232,7 @@ class _SketchTelephoneLobbyScreenState
       title: 'Sketch Telephone',
       tagline: 'Write → draw → describe → draw → reveal the chaos',
       facts: [
-        LobbyFact(icon: Icons.groups_2_outlined, label: '4–8 players'),
+        const LobbyFact(icon: Icons.groups_2_outlined, label: '4–8 players'),
         LobbyFact(
             icon: Icons.brush_outlined, label: '$_maxPlayers steps/chain'),
         LobbyFact(icon: Icons.timer_outlined, label: '$_drawingSeconds s/step'),
@@ -245,7 +245,7 @@ class _SketchTelephoneLobbyScreenState
             child: TextField(
               controller: _roomNameController,
               maxLength: 24,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: KinrelColors.textWhite),
@@ -262,11 +262,11 @@ class _SketchTelephoneLobbyScreenState
                     horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  borderSide: BorderSide(color: KinrelColors.border),
+                  borderSide: const BorderSide(color: KinrelColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  borderSide: BorderSide(
+                  borderSide: const BorderSide(
                       color: kSketchTelephoneAccent, width: 1.4),
                 ),
               ),
@@ -301,12 +301,12 @@ class _SketchTelephoneLobbyScreenState
         ],
       ),
       rules: [
-        LobbyRule('Each player writes a secret prompt to start their chain.'),
-        LobbyRule('Chains rotate — you draw the prompt you receive, then pass it on.'),
-        LobbyRule('The next player describes your drawing (no peeking at the original!).'),
-        LobbyRule('Then the next player draws that description. And so on.'),
-        LobbyRule('After everyone has contributed to every chain, the chains are revealed.'),
-        LobbyRule('Watch how a "cat riding a skateboard" became "a tornado with eyes."'),
+        const LobbyRule('Each player writes a secret prompt to start their chain.'),
+        const LobbyRule('Chains rotate — you draw the prompt you receive, then pass it on.'),
+        const LobbyRule('The next player describes your drawing (no peeking at the original!).'),
+        const LobbyRule('Then the next player draws that description. And so on.'),
+        const LobbyRule('After everyone has contributed to every chain, the chains are revealed.'),
+        const LobbyRule('Watch how a "cat riding a skateboard" became "a tornado with eyes."'),
       ],
       rulesFootnote:
           'Each chain has one step per player. Drawing time applies to drawing steps only — writing prompts and descriptions is untimed.',

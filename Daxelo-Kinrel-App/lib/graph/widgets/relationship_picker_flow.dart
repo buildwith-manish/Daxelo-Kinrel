@@ -184,7 +184,7 @@ Future<void> showRelationshipPickerFlow({
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
+                const Text(
                   'Tap a family member — we\'ll auto-detect the relationship.',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -221,7 +221,7 @@ Future<void> showRelationshipPickerFlow({
                   subtitle: label.isNotEmpty
                       ? Text(
                           'Already: $label',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 12,
                             color: KinrelColors.amber,
@@ -342,41 +342,41 @@ Future<void> showRelationshipPickerFlow({
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
           backgroundColor: KinrelColors.darkCard,
-          title: Text('DEBUG: Link Button Inputs',
+          title: const Text('DEBUG: Link Button Inputs',
             style: TextStyle(color: KinrelColors.orange, fontSize: 16, fontWeight: FontWeight.w700)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('relationshipKey: "$relationshipKey"',
-                style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-              SizedBox(height: 6),
+                style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+              const SizedBox(height: 6),
               Text('sourcePerson.id: "${sourcePerson.id}"',
-                style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-              SizedBox(height: 6),
+                style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+              const SizedBox(height: 6),
               Text('selectedPerson.id: "${selectedPerson.id}"',
-                style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-              SizedBox(height: 6),
+                style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+              const SizedBox(height: 6),
               Text('edgeInput.from: "${edgeInput.fromPersonId}"',
-                style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-              SizedBox(height: 6),
+                style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+              const SizedBox(height: 6),
               Text('edgeInput.to: "${edgeInput.toPersonId}"',
-                style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-              SizedBox(height: 6),
+                style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+              const SizedBox(height: 6),
               Text('edgeInput.key: "${edgeInput.relationshipKey}"',
-                style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-              SizedBox(height: 6),
+                style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+              const SizedBox(height: 6),
               Text('edgeInput.label: "${edgeInput.specificLabelAtoB}"',
-                style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-              SizedBox(height: 6),
+                style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+              const SizedBox(height: 6),
               Text('familyId: "$familyId"',
-                style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: Text('Continue', style: TextStyle(color: KinrelColors.orange)),
+              child: const Text('Continue', style: TextStyle(color: KinrelColors.orange)),
             ),
           ],
         ),
@@ -400,16 +400,16 @@ Future<void> showRelationshipPickerFlow({
                 barrierDismissible: false,
                 builder: (ctx) => AlertDialog(
                   backgroundColor: KinrelColors.darkCard,
-                  title: Text('DEBUG: Link createRelationship()',
+                  title: const Text('DEBUG: Link createRelationship()',
                     style: TextStyle(color: KinrelColors.orange, fontSize: 14, fontWeight: FontWeight.w700)),
                   content: SingleChildScrollView(
                     child: Text(message,
-                      style: TextStyle(color: KinrelColors.textWhite, fontSize: 12, fontFamily: 'monospace')),
+                      style: const TextStyle(color: KinrelColors.textWhite, fontSize: 12, fontFamily: 'monospace')),
                   ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.of(ctx).pop(),
-                      child: Text('Continue', style: TextStyle(color: KinrelColors.orange)),
+                      child: const Text('Continue', style: TextStyle(color: KinrelColors.orange)),
                     ),
                   ],
                 ),

@@ -177,7 +177,7 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
                     ),
                     child: Text(
                       '${state.playerCount} of ${config.maxPlayers} Players Joined',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -190,7 +190,7 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
               const SizedBox(height: KinrelSpacing.sm),
               Text(
                 code,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 36,
                   fontWeight: FontWeight.w800,
@@ -280,7 +280,7 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
                 Expanded(
                   child: Text(
                     state.friendlyError!,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.textWhite,
@@ -373,7 +373,7 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
 
   Widget _sectionLabel(String text) => Text(
         text,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.displayFont,
           fontSize: 13,
           fontWeight: FontWeight.w600,
@@ -391,7 +391,7 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
         border: Border.all(color: KinrelColors.border, width: 1),
       ),
       child: state.participants.isEmpty
-          ? Text(
+          ? const Text(
               'No players yet',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -426,7 +426,7 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
             child: Center(
               child: Text(
                 (p.userName ?? '?')[0].toUpperCase(),
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -442,7 +442,7 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
               children: [
                 Text(
                   p.userName ?? 'Player',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -456,7 +456,7 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
                         : isHost
                             ? 'Host'
                             : 'You',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 10,
                       color: KinrelColors.textDim,
@@ -475,12 +475,12 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
                 color: KinrelColors.tealAccent.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.check_circle,
                       color: KinrelColors.tealAccent, size: 10),
-                  const SizedBox(width: 3),
+                  SizedBox(width: 3),
                   Text(
                     'Ready',
                     style: TextStyle(
@@ -501,7 +501,7 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
                 color: KinrelColors.textDim.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
+              child: const Text(
                 'Not Ready',
                 style: TextStyle(
                   fontFamily: KinrelTypography.monoFont,
@@ -540,11 +540,11 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
         border: Border.all(
             color: KinrelColors.orange.withValues(alpha: 0.3), width: 1),
       ),
-      child: Row(
+      child: const Row(
         children: [
           Icon(Icons.visibility_outlined,
               color: KinrelColors.orange, size: 18),
-          const SizedBox(width: KinrelSpacing.sm),
+          SizedBox(width: KinrelSpacing.sm),
           Expanded(
             child: Text(
               'You\'re watching. Spectators can\'t move, vote, or chat as players.',
@@ -609,7 +609,7 @@ class _LobbyHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Family Game Night',
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
@@ -621,7 +621,7 @@ class _LobbyHeader extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,
                     color: KinrelColors.textDim,
@@ -641,7 +641,7 @@ class _LobbyHeader extends StatelessWidget {
             ),
             child: Text(
               '$playerCount/$maxPlayers',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -698,7 +698,7 @@ class _PresenceAvatarRow extends StatelessWidget {
                 child: Center(
                   child: Text(
                     '+$overflow',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
@@ -712,7 +712,7 @@ class _PresenceAvatarRow extends StatelessWidget {
           Expanded(
             child: Text(
               _summary,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
                 color: KinrelColors.textDim,
@@ -756,7 +756,7 @@ class _PresenceAvatar extends StatelessWidget {
           child: Center(
             child: Text(
               (participant.userName ?? '?')[0].toUpperCase(),
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,

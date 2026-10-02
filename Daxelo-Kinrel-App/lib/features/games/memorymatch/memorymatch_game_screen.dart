@@ -236,7 +236,7 @@ class _TopBar extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   pack.label,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -265,7 +265,7 @@ class _TopBar extends StatelessWidget {
                 const SizedBox(width: 5),
                 Text(
                   '${game.matchedPairs}/${game.totalPairs} pairs',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -281,7 +281,7 @@ class _TopBar extends StatelessWidget {
               child: Text(
                 game.roomName!,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim,
@@ -342,10 +342,10 @@ class _TurnBanner extends StatelessWidget {
               : Border.all(color: KinrelColors.border),
           boxShadow: isMyTurn && !revealing
               ? [
-                  BoxShadow(
+                  const BoxShadow(
                     color: KinrelColors.orangeGlow,
                     blurRadius: 14,
-                    offset: const Offset(0, 4),
+                    offset: Offset(0, 4),
                   ),
                 ]
               : null,
@@ -761,10 +761,10 @@ class _MemoryCardTileState extends State<_MemoryCardTile>
         ),
         boxShadow: widget.enabled
             ? [
-                BoxShadow(
+                const BoxShadow(
                   color: KinrelColors.orangeGlowSubtle,
                   blurRadius: 8,
-                  offset: const Offset(0, 3),
+                  offset: Offset(0, 3),
                 ),
               ]
             : null,
@@ -910,12 +910,12 @@ class _SpectatorBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
+          const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.visibility_outlined,
+              Icon(Icons.visibility_outlined,
                   size: 14, color: KinrelColors.textDim),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text(
                 'Watching — cheer with a reaction!',
                 style: TextStyle(
@@ -974,19 +974,19 @@ class _ResultsView extends ConsumerWidget {
             _winnerBanner(game, iWon),
             const SizedBox(height: KinrelSpacing.lg),
             if (game.placements.isNotEmpty) ...[
-              _SectionLabel('Final Standings'),
+              const _SectionLabel('Final Standings'),
               const SizedBox(height: KinrelSpacing.sm),
               ...game.placements.map((p) => _PlacementRow(
                     placement: p,
                     seatColor: MemorySeatColors.forSeat(
-                        game.playerOrder.indexOf(p.userId) < 0
+                        !game.playerOrder.contains(p.userId)
                             ? 0
                             : game.playerOrder.indexOf(p.userId)),
                     isMe: p.userId == myUserId,
                   )),
               const SizedBox(height: KinrelSpacing.lg),
             ],
-            _SectionLabel('Match Stats'),
+            const _SectionLabel('Match Stats'),
             const SizedBox(height: KinrelSpacing.sm),
             _StatsTable(game: game),
             const SizedBox(height: KinrelSpacing.lg),
@@ -1056,10 +1056,10 @@ class _ResultsView extends ConsumerWidget {
         ),
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
         boxShadow: [
-          BoxShadow(
+          const BoxShadow(
             color: KinrelColors.orangeGlow,
             blurRadius: 18,
-            offset: const Offset(0, 6),
+            offset: Offset(0, 6),
           ),
         ],
       ),
@@ -1083,7 +1083,7 @@ class _ResultsView extends ConsumerWidget {
           Text(
             label,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -1115,7 +1115,7 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label.toUpperCase(),
-      style: TextStyle(
+      style: const TextStyle(
         fontFamily: KinrelTypography.displayFont,
         fontSize: 11,
         fontWeight: FontWeight.w700,
@@ -1171,7 +1171,7 @@ class _PlacementRow extends StatelessWidget {
                   isMe ? 'You' : placement.userName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -1182,7 +1182,7 @@ class _PlacementRow extends StatelessWidget {
                   '${placement.pairs} ${placement.pairs == 1 ? 'pair' : 'pairs'}'
                   ' · ${placement.accuracy.toStringAsFixed(0)}% accuracy'
                   ' · avg ${placement.avgMatchLabel}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,
                     color: KinrelColors.textDim,
@@ -1279,7 +1279,7 @@ class _StatsTable extends StatelessWidget {
           borderRadius: BorderRadius.circular(KinrelRadius.md),
           border: Border.all(color: KinrelColors.border),
         ),
-        child: Text(
+        child: const Text(
           'No stats recorded for this game.',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -1309,11 +1309,11 @@ class _StatsTable extends StatelessWidget {
   }
 
   Widget _statsHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          const Expanded(flex: 3, child: _StatCell('Player', header: true)),
+          Expanded(flex: 3, child: _StatCell('Player', header: true)),
           Expanded(child: _StatCell('Pairs', header: true, center: true)),
           Expanded(child: _StatCell('Acc.', header: true, center: true)),
           Expanded(child: _StatCell('Avg', header: true, center: true)),
@@ -1333,7 +1333,7 @@ class _StatsTable extends StatelessWidget {
             child: _StatCell(
               p.userName,
               color: MemorySeatColors.forSeat(
-                  game.playerOrder.indexOf(p.userId) < 0
+                  !game.playerOrder.contains(p.userId)
                       ? 0
                       : game.playerOrder.indexOf(p.userId)),
             ),

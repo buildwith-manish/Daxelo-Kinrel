@@ -27,10 +27,10 @@ class _FollowRequestsScreenState extends ConsumerState<FollowRequestsScreen> {
       backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(
         backgroundColor: KinrelColors.darkBackground,
-        title: Text('Follow Requests', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+        title: const Text('Follow Requests', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
       ),
       body: followState.pendingRequests.isEmpty
-          ? Center(
+          ? const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -43,9 +43,9 @@ class _FollowRequestsScreenState extends ConsumerState<FollowRequestsScreen> {
               ),
             )
           : ListView.separated(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               itemCount: followState.pendingRequests.length,
-              separatorBuilder: (_, __) => Divider(color: KinrelColors.elevation1),
+              separatorBuilder: (_, __) => const Divider(color: KinrelColors.elevation1),
               itemBuilder: (context, index) {
                 final request = followState.pendingRequests[index];
                 return Dismissible(
@@ -53,14 +53,14 @@ class _FollowRequestsScreenState extends ConsumerState<FollowRequestsScreen> {
                   background: Container(
                     color: KinrelColors.success,
                     alignment: Alignment.centerLeft,
-                    padding: EdgeInsets.only(left: 16),
-                    child: Icon(Icons.check, color: Colors.white),
+                    padding: const EdgeInsets.only(left: 16),
+                    child: const Icon(Icons.check, color: Colors.white),
                   ),
                   secondaryBackground: Container(
                     color: KinrelColors.error,
                     alignment: Alignment.centerRight,
-                    padding: EdgeInsets.only(right: 16),
-                    child: Icon(Icons.close, color: Colors.white),
+                    padding: const EdgeInsets.only(right: 16),
+                    child: const Icon(Icons.close, color: Colors.white),
                   ),
                   confirmDismiss: (direction) async {
                     if (direction == DismissDirection.startToEnd) {
@@ -73,24 +73,24 @@ class _FollowRequestsScreenState extends ConsumerState<FollowRequestsScreen> {
                     return true;
                   },
                   child: ListTile(
-                    leading: CircleAvatar(
+                    leading: const CircleAvatar(
                       backgroundColor: KinrelColors.elevation2,
                       child: Icon(Icons.person, color: KinrelColors.textSilver),
                     ),
                     title: Text(
                       'User ${request.followerId.substring(0, 6)}...',
-                      style: TextStyle(color: KinrelColors.textWhite, fontFamily: 'DM Sans'),
+                      style: const TextStyle(color: KinrelColors.textWhite, fontFamily: 'DM Sans'),
                     ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: Icon(Icons.check_circle, color: KinrelColors.success),
+                          icon: const Icon(Icons.check_circle, color: KinrelColors.success),
                           onPressed: () => ref.read(followProvider.notifier)
                               .acceptRequest(request.id, request.followerId),
                         ),
                         IconButton(
-                          icon: Icon(Icons.cancel, color: KinrelColors.error),
+                          icon: const Icon(Icons.cancel, color: KinrelColors.error),
                           onPressed: () => ref.read(followProvider.notifier)
                               .rejectRequest(request.id, request.followerId),
                         ),

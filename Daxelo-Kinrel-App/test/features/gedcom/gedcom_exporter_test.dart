@@ -10,14 +10,14 @@ void main() {
   group('P12.6 GEDCOM exporter — default-deny allowlist', () {
     test('exports valid GEDCOM 5.5.1 structure', () {
       final persons = [
-        Person(
+        const Person(
           id: 'p1',
           familyId: 'fam1',
           name: 'John Doe',
           gender: 'male',
           birthYear: 1950,
         ),
-        Person(
+        const Person(
           id: 'p2',
           familyId: 'fam1',
           name: 'Jane Doe',
@@ -26,7 +26,7 @@ void main() {
         ),
       ];
       final rels = [
-        GedcomRelationship(
+        const GedcomRelationship(
           fromPersonId: 'p1',
           toPersonId: 'p2',
           relationshipKey: 'spouse',
@@ -53,7 +53,7 @@ void main() {
 
     test('exports birth year only (not full date)', () {
       final persons = [
-        Person(id: 'p1', familyId: 'fam1', name: 'John', birthYear: 1950),
+        const Person(id: 'p1', familyId: 'fam1', name: 'John', birthYear: 1950),
       ];
       final gedcom = GedcomExporter.export(
         persons: persons,
@@ -66,14 +66,14 @@ void main() {
 
     test('excludes private persons (privacy filter)', () {
       final persons = [
-        Person(id: 'p1', familyId: 'fam1', name: 'Public'),
-        Person(
+        const Person(id: 'p1', familyId: 'fam1', name: 'Public'),
+        const Person(
           id: 'p2',
           familyId: 'fam1',
           name: 'Private',
           privacyLevel: 'private',
         ),
-        Person(
+        const Person(
           id: 'p3',
           familyId: 'fam1',
           name: 'Hidden',
@@ -92,7 +92,7 @@ void main() {
 
     test('viewer can always export their own data', () {
       final persons = [
-        Person(id: 'me', familyId: 'fam1', name: 'Me', privacyLevel: 'private'),
+        const Person(id: 'me', familyId: 'fam1', name: 'Me', privacyLevel: 'private'),
       ];
       final gedcom = GedcomExporter.export(
         persons: persons,
@@ -104,7 +104,7 @@ void main() {
 
     test('excludes auth identifiers (linkedUserId, username)', () {
       final persons = [
-        Person(
+        const Person(
           id: 'p1',
           familyId: 'fam1',
           name: 'John',
@@ -123,7 +123,7 @@ void main() {
 
     test('excludes operational metadata', () {
       final persons = [
-        Person(
+        const Person(
           id: 'p1',
           familyId: 'fam1',
           name: 'John',
@@ -147,22 +147,22 @@ void main() {
 
     test('handles parent-child relationships', () {
       final persons = [
-        Person(id: 'p1', familyId: 'fam1', name: 'Father', gender: 'male'),
-        Person(id: 'p2', familyId: 'fam1', name: 'Mother', gender: 'female'),
-        Person(id: 'p3', familyId: 'fam1', name: 'Child', gender: 'male'),
+        const Person(id: 'p1', familyId: 'fam1', name: 'Father', gender: 'male'),
+        const Person(id: 'p2', familyId: 'fam1', name: 'Mother', gender: 'female'),
+        const Person(id: 'p3', familyId: 'fam1', name: 'Child', gender: 'male'),
       ];
       final rels = [
-        GedcomRelationship(
+        const GedcomRelationship(
           fromPersonId: 'p1',
           toPersonId: 'p2',
           relationshipKey: 'spouse',
         ),
-        GedcomRelationship(
+        const GedcomRelationship(
           fromPersonId: 'p1',
           toPersonId: 'p3',
           relationshipKey: 'father',
         ),
-        GedcomRelationship(
+        const GedcomRelationship(
           fromPersonId: 'p2',
           toPersonId: 'p3',
           relationshipKey: 'mother',
@@ -178,7 +178,7 @@ void main() {
 
     test('handles deceased persons', () {
       final persons = [
-        Person(id: 'p1', familyId: 'fam1', name: 'John', isDeceased: true),
+        const Person(id: 'p1', familyId: 'fam1', name: 'John', isDeceased: true),
       ];
       final gedcom = GedcomExporter.export(
         persons: persons,
@@ -190,11 +190,11 @@ void main() {
 
     test('excludes inactive relationships', () {
       final persons = [
-        Person(id: 'p1', familyId: 'fam1', name: 'A'),
-        Person(id: 'p2', familyId: 'fam1', name: 'B'),
+        const Person(id: 'p1', familyId: 'fam1', name: 'A'),
+        const Person(id: 'p2', familyId: 'fam1', name: 'B'),
       ];
       final rels = [
-        GedcomRelationship(
+        const GedcomRelationship(
           fromPersonId: 'p1',
           toPersonId: 'p2',
           relationshipKey: 'spouse',
@@ -211,7 +211,7 @@ void main() {
 
     test('escapes @ in names', () {
       final persons = [
-        Person(id: 'p1', familyId: 'fam1', name: 'John@Example'),
+        const Person(id: 'p1', familyId: 'fam1', name: 'John@Example'),
       ];
       final gedcom = GedcomExporter.export(
         persons: persons,
@@ -223,7 +223,7 @@ void main() {
 
     test('handles unknown gender', () {
       final persons = [
-        Person(id: 'p1', familyId: 'fam1', name: 'John', gender: null),
+        const Person(id: 'p1', familyId: 'fam1', name: 'John', gender: null),
       ];
       final gedcom = GedcomExporter.export(
         persons: persons,
@@ -245,11 +245,11 @@ void main() {
 
     test('single parent with child', () {
       final persons = [
-        Person(id: 'p1', familyId: 'fam1', name: 'Mom', gender: 'female'),
-        Person(id: 'p2', familyId: 'fam1', name: 'Child', gender: 'male'),
+        const Person(id: 'p1', familyId: 'fam1', name: 'Mom', gender: 'female'),
+        const Person(id: 'p2', familyId: 'fam1', name: 'Child', gender: 'male'),
       ];
       final rels = [
-        GedcomRelationship(
+        const GedcomRelationship(
           fromPersonId: 'p1',
           toPersonId: 'p2',
           relationshipKey: 'mother',

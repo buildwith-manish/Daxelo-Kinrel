@@ -40,9 +40,9 @@ class SosResultsScreen extends ConsumerWidget {
     final game = state.game;
 
     if (game == null) {
-      return DKScaffold(
+      return const DKScaffold(
         backgroundColor: KinrelColors.darkSurface,
-        body: const Center(
+        body: Center(
           child: CircularProgressIndicator(color: KinrelColors.orange),
         ),
       );
@@ -72,7 +72,7 @@ class SosResultsScreen extends ConsumerWidget {
           isMyWin ? null : KinrelColors.darkSurface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text(
+        title: const Text(
           'Results',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -112,7 +112,7 @@ class SosResultsScreen extends ConsumerWidget {
           // Standings
           Text(
             isTeamMode ? 'Team Standings' : 'Final Standings',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -214,11 +214,11 @@ class SosResultsScreen extends ConsumerWidget {
     required bool isMyWin,
   }) {
     if (isTie) {
-      return Column(
+      return const Column(
         children: [
-          const KinrelIcon(KinrelIconData.handshake,
+          KinrelIcon(KinrelIconData.handshake,
             size: 64, color: KinrelColors.tealAccent),
-          const SizedBox(height: KinrelSpacing.sm),
+          SizedBox(height: KinrelSpacing.sm),
           Text(
             "It's a tie!",
             style: TextStyle(
@@ -250,7 +250,7 @@ class SosResultsScreen extends ConsumerWidget {
           const SizedBox(height: KinrelSpacing.sm),
           Text(
             isMyWin ? 'Your team won!' : 'Winner!',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 28,
               fontWeight: FontWeight.w800,
@@ -288,7 +288,7 @@ class SosResultsScreen extends ConsumerWidget {
               curve: Curves.elasticOut,
             ),
         const SizedBox(height: KinrelSpacing.sm),
-        Text(
+        const Text(
           'Winner!',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -301,7 +301,7 @@ class SosResultsScreen extends ConsumerWidget {
         const SizedBox(height: 4),
         Text(
           isMyWin ? '$winnerName (You)' : winnerName,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 24,
             fontWeight: FontWeight.w800,
@@ -345,7 +345,7 @@ class SosResultsScreen extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     teams[i].label,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -397,7 +397,7 @@ class SosResultsScreen extends ConsumerWidget {
             width: 40,
             child: Text(
               medal,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -408,7 +408,7 @@ class SosResultsScreen extends ConsumerWidget {
           Expanded(
             child: Text(
               isMe ? '${player.userName} (You)' : player.userName,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -418,7 +418,7 @@ class SosResultsScreen extends ConsumerWidget {
           ),
           Text(
             '${player.score} SOS',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 16,
               fontWeight: FontWeight.w800,

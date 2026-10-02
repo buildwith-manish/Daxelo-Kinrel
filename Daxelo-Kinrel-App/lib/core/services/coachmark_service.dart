@@ -326,7 +326,7 @@ class _Tooltip extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.lightbulb_outline_rounded,
                   color: KinrelColors.orange,
                   size: 18,
@@ -334,7 +334,7 @@ class _Tooltip extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   title,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -346,7 +346,7 @@ class _Tooltip extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               body,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 height: 1.5,
@@ -354,7 +354,7 @@ class _Tooltip extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Align(
+            const Align(
               alignment: Alignment.centerRight,
               child: Text(
                 'Got it',

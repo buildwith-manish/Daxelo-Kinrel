@@ -73,10 +73,10 @@ void main() {
   });
 
   group('P10.6 GraphFocusState.tierOf', () {
-    final state = GraphFocusState(
+    final state = const GraphFocusState(
       focusedPersonId: 'p1',
-      firstDegreeIds: const {'p2', 'p3'},
-      secondDegreeIds: const {'p4'},
+      firstDegreeIds: {'p2', 'p3'},
+      secondDegreeIds: {'p4'},
     );
 
     test('returns focused for the focused person', () {

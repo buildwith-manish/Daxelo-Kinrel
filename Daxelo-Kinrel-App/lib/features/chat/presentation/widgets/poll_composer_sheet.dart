@@ -138,7 +138,7 @@ class _PollComposerSheetState extends ConsumerState<PollComposerSheet> {
                 ),
               ),
             ),
-            Text(
+            const Text(
               'Create a poll',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -150,7 +150,7 @@ class _PollComposerSheetState extends ConsumerState<PollComposerSheet> {
             const SizedBox(height: 16),
 
             // Question field
-            Text(
+            const Text(
               'Question',
               style: TextStyle(
                 fontFamily: KinrelTypography.monoFont,
@@ -165,7 +165,7 @@ class _PollComposerSheetState extends ConsumerState<PollComposerSheet> {
               controller: _questionController,
               maxLength: 140,
               textCapitalization: TextCapitalization.sentences,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 15,
                 color: KinrelColors.textWhite,
@@ -189,7 +189,7 @@ class _PollComposerSheetState extends ConsumerState<PollComposerSheet> {
             // Options header + Add button
             Row(
               children: [
-                Text(
+                const Text(
                   'OPTIONS',
                   style: TextStyle(
                     fontFamily: KinrelTypography.monoFont,
@@ -237,7 +237,7 @@ class _PollComposerSheetState extends ConsumerState<PollComposerSheet> {
                           controller: _optionControllers[i],
                           maxLength: 80,
                           textCapitalization: TextCapitalization.sentences,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 14,
                             color: KinrelColors.textWhite,
@@ -265,7 +265,7 @@ class _PollComposerSheetState extends ConsumerState<PollComposerSheet> {
                             _optionControllers[i].dispose();
                             _optionControllers.removeAt(i);
                           }),
-                          icon: Icon(
+                          icon: const Icon(
                             Icons.close_rounded,
                             size: 18,
                             color: KinrelColors.textDim,
@@ -308,7 +308,7 @@ class _PollComposerSheetState extends ConsumerState<PollComposerSheet> {
                           color: Colors.white,
                         ),
                       )
-                    : Text(
+                    : const Text(
                         'Post poll',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,

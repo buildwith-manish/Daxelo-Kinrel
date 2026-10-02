@@ -52,6 +52,19 @@ class QueuedInvite {
     this.lastError,
   });
 
+  factory QueuedInvite.fromJson(Map<String, dynamic> json) {
+    return QueuedInvite(
+      id: (json['id'] ?? '') as String,
+      toUserId: (json['toUserId'] ?? '') as String,
+      invite: GameInvite.fromJson(
+          Map<String, dynamic>.from(json['invite'] as Map? ?? {})),
+      queuedAt: DateTime.tryParse(json['queuedAt'] as String? ?? '') ??
+          DateTime.now(),
+      attempts: (json['attempts'] ?? 0) as int,
+      lastError: json['lastError'] as String?,
+    );
+  }
+
   final String id;
   final String toUserId;
   final GameInvite invite;
@@ -80,19 +93,6 @@ class QueuedInvite {
         'attempts': attempts,
         'lastError': lastError,
       };
-
-  factory QueuedInvite.fromJson(Map<String, dynamic> json) {
-    return QueuedInvite(
-      id: (json['id'] ?? '') as String,
-      toUserId: (json['toUserId'] ?? '') as String,
-      invite: GameInvite.fromJson(
-          Map<String, dynamic>.from(json['invite'] as Map? ?? {})),
-      queuedAt: DateTime.tryParse(json['queuedAt'] as String? ?? '') ??
-          DateTime.now(),
-      attempts: (json['attempts'] ?? 0) as int,
-      lastError: json['lastError'] as String?,
-    );
-  }
 }
 
 /// Persistent queue of game invites waiting for socket reconnection.

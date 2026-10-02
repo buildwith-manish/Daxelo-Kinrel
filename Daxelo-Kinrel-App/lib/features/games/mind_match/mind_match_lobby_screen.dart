@@ -135,7 +135,7 @@ class _MindMatchLobbyScreenState
                 state.game?.roomName?.isNotEmpty == true
                     ? state.game!.roomName!
                     : 'Mind Match',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontWeight: FontWeight.w600,
                   color: KinrelColors.textWhite,
@@ -204,7 +204,7 @@ class _MindMatchLobbyScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Share this code',
+            const Text('Share this code',
                 style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 18,
@@ -212,7 +212,7 @@ class _MindMatchLobbyScreenState
                     color: KinrelColors.textWhite)),
             const SizedBox(height: KinrelSpacing.md),
             Text(code,
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 40,
                     fontWeight: FontWeight.w700,
@@ -222,7 +222,7 @@ class _MindMatchLobbyScreenState
             Text(
               'Up to ${_maxPlayers - 1} members. Think like the group!',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim),
@@ -248,7 +248,7 @@ class _MindMatchLobbyScreenState
       title: 'Mind Match',
       tagline: 'Think like everyone else — match answers, earn points',
       facts: [
-        LobbyFact(icon: Icons.groups_2_outlined, label: '2–8 players'),
+        const LobbyFact(icon: Icons.groups_2_outlined, label: '2–8 players'),
         LobbyFact(
             icon: Icons.quiz_outlined, label: '$_totalRounds rounds'),
         LobbyFact(icon: Icons.timer_outlined, label: '$_answerSeconds s/round'),
@@ -261,7 +261,7 @@ class _MindMatchLobbyScreenState
             child: TextField(
               controller: _roomNameController,
               maxLength: 24,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: KinrelColors.textWhite),
@@ -278,7 +278,7 @@ class _MindMatchLobbyScreenState
                     horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  borderSide: BorderSide(color: KinrelColors.border),
+                  borderSide: const BorderSide(color: KinrelColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
@@ -371,7 +371,7 @@ class _MindMatchLobbyScreenState
             ),
             child: Row(
               children: [
-                Expanded(
+                const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -381,7 +381,7 @@ class _MindMatchLobbyScreenState
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
                               color: KinrelColors.textWhite)),
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       Text(
                         'Include family-themed questions (holidays, traditions).',
                         style: TextStyle(
@@ -406,12 +406,12 @@ class _MindMatchLobbyScreenState
         ],
       ),
       rules: [
-        LobbyRule('Each round, a question appears (e.g. "Name a fruit").'),
-        LobbyRule('Submit your answer privately — others can\'t see it.'),
-        LobbyRule('When all answers are locked, they\'re revealed + grouped.'),
-        LobbyRule('Matching the most popular answer earns the most points.'),
-        LobbyRule('Perfect Match (everyone same): +20 bonus to all.'),
-        LobbyRule('Crowd Favorite bonus + streak bonuses for consecutive matches.'),
+        const LobbyRule('Each round, a question appears (e.g. "Name a fruit").'),
+        const LobbyRule('Submit your answer privately — others can\'t see it.'),
+        const LobbyRule('When all answers are locked, they\'re revealed + grouped.'),
+        const LobbyRule('Matching the most popular answer earns the most points.'),
+        const LobbyRule('Perfect Match (everyone same): +20 bonus to all.'),
+        const LobbyRule('Crowd Favorite bonus + streak bonuses for consecutive matches.'),
       ],
       rulesFootnote:
           'Quick = 5 rounds · Standard = 10 · Party = 15. Questions never repeat within 365 days per family.',

@@ -54,7 +54,7 @@ class PersonDetailSheet extends ConsumerStatefulWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: KinrelColors.darkBackground,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.bottomSheet),
         ),
@@ -319,19 +319,19 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
           children: [
             // Handle bar
             _buildHandleBar(),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Hero section
             _buildHeroSection(person, kinshipName),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Stats row
             _buildStatsRow(person),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
             // Tab bar
             _buildTabBar(),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
 
             // Tab content
             Expanded(
@@ -347,7 +347,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
             ),
 
             // Actions
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             _buildActions(person),
           ],
         ),
@@ -382,14 +382,14 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: person.isDeceased
-                ? LinearGradient(
+                ? const LinearGradient(
                     colors: [KinrelColors.textDim, KinrelColors.darkSurface],
                   )
                 : KinrelGradients.igniteGradient,
           ),
           child: Container(
-            margin: EdgeInsets.all(4),
-            decoration: BoxDecoration(
+            margin: const EdgeInsets.all(4),
+            decoration: const BoxDecoration(
               shape: BoxShape.circle,
               color: KinrelColors.darkCard,
             ),
@@ -413,7 +413,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                 : _buildInitials(person),
           ),
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 12),
 
         // Name — Display Small
         Text(
@@ -429,33 +429,33 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
           ),
           textAlign: TextAlign.center,
         ),
-        SizedBox(height: 4),
+        const SizedBox(height: 4),
 
         // Kinship name in orange
         if (kinshipName != null) ...[
           Text(
             'Your $kinshipName',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 15,
               fontWeight: FontWeight.w600,
               color: KinrelColors.orange,
             ),
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
         ],
 
         // Age / DOB
         if (_ageText != null || person.dateOfBirth != null) ...[
           Text(
             _ageText ?? person.dateOfBirth!,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               color: KinrelColors.textSilver, // #C9B4A8
             ),
           ),
-          SizedBox(height: 2),
+          const SizedBox(height: 2),
         ],
 
         // Location
@@ -463,15 +463,15 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
+              const Icon(
                 Icons.location_on_outlined,
                 size: 14,
                 color: KinrelColors.textDim,
               ), // #8A7A72
-              SizedBox(width: 4),
+              const SizedBox(width: 4),
               Text(
                 person.city!,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   color: KinrelColors.textDim, // #8A7A72
@@ -482,14 +482,14 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
 
         // Deceased badge
         if (person.isDeceased) ...[
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
             decoration: BoxDecoration(
               color: KinrelColors.textDim.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Row(
+            child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.cloud, size: 12, color: KinrelColors.textDim),
@@ -514,7 +514,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
     return Center(
       child: Text(
         PersonAvatar.initialsFor(person.name),
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.displayFont,
           fontSize: 40,
           fontWeight: FontWeight.w700,
@@ -544,21 +544,21 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
             label: 'Connections',
             icon: Icons.people_outline,
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           _StatCard(
             value: generation > 0 ? 'Gen $generation' : '—',
             label: 'Generation',
             icon: Icons.account_tree_outlined,
           ),
           if (kinshipPath != null) ...[
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             _StatCard(
               value: kinshipPath,
               label: 'Path to You',
               icon: Icons.route_outlined,
               isWide: true,
             ),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             // ── Share button: lets the user share this kinship discovery ──
             // as a beautiful PNG card to WhatsApp/Instagram. This is the
             // viral growth lever — every share is a free acquisition.
@@ -570,7 +570,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
               familyName: person.name,
             ),
           ],
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           _StatCard(
             value: (person.gender ?? 'unknown').capitalized,
             label: 'Gender',
@@ -611,16 +611,16 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
           border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3)),
         ),
         indicatorSize: TabBarIndicatorSize.tab,
-        indicatorPadding: EdgeInsets.all(3),
+        indicatorPadding: const EdgeInsets.all(3),
         dividerColor: Colors.transparent,
         labelColor: KinrelColors.orange,
         unselectedLabelColor: KinrelColors.textDim,
-        labelStyle: TextStyle(
+        labelStyle: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 13,
           fontWeight: FontWeight.w600,
         ),
-        unselectedLabelStyle: TextStyle(
+        unselectedLabelStyle: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 13,
           fontWeight: FontWeight.w500,
@@ -695,7 +695,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
             ],
           ),
 
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
 
           // Location card
           if (person.city != null && person.city!.isNotEmpty)
@@ -712,7 +712,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
             ),
 
           if (person.city != null && person.city!.isNotEmpty)
-            SizedBox(height: 10),
+            const SizedBox(height: 10),
 
           // Family details card
           if (person.gotra != null && person.gotra!.isNotEmpty ||
@@ -746,7 +746,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
     final relatedMembers = _getRelatedMembers();
 
     if (relatedMembers.isEmpty) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -802,7 +802,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
   /// and life events. Gated behind kEnableProfileEditing.
   Widget _buildTimelineTab() {
     if (!kEnableProfileEditing) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -874,7 +874,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
     }
 
     if (widget.person.isDeceased) {
-      events.add(_TimelineEntry(
+      events.add(const _TimelineEntry(
         date: '',
         title: 'Passed away',
         icon: Icons.star_outline,
@@ -892,7 +892,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
     }
 
     if (events.isEmpty) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -912,7 +912,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
     }
 
     return ListView.builder(
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       itemCount: events.length,
       itemBuilder: (context, index) {
         final event = events[index];
@@ -944,7 +944,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                 ],
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             // Event content
             Expanded(
               child: Padding(
@@ -955,16 +955,16 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                     if (event.date.isNotEmpty)
                       Text(
                         event.date,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 11,
                           color: KinrelColors.textDim,
                         ),
                       ),
-                    SizedBox(height: 2),
+                    const SizedBox(height: 2),
                     Text(
                       event.title,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -989,7 +989,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
         padding: EdgeInsets.zero,
         child: Container(
           width: double.infinity,
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: KinrelColors.darkCard,
             borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
@@ -999,7 +999,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
           ),
           child: Text(
             person.notes!,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14,
               color: KinrelColors.textSilver,
@@ -1010,7 +1010,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
       );
     }
 
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -1053,16 +1053,16 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                     existingPerson: person,
                   );
                 },
-                icon: Icon(Icons.edit_outlined, size: 16),
-                label: Text('Edit'),
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                label: const Text('Edit'),
                 style: FilledButton.styleFrom(
                   backgroundColor: KinrelColors.orange,
                   foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 10),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
                   ),
-                  textStyle: TextStyle(
+                  textStyle: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -1070,7 +1070,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                 ),
               ),
             ),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
 
             // Add relative
             // v90 FIX: Keep this as an OUTLINED button with a softer
@@ -1085,18 +1085,18 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                     anchorPerson: person,
                   );
                 },
-                icon: Icon(Icons.person_add_outlined, size: 16),
-                label: Text('Add Relative'),
+                icon: const Icon(Icons.person_add_outlined, size: 16),
+                label: const Text('Add Relative'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: KinrelColors.orange.withValues(alpha: 0.85),
                   side: BorderSide(
                     color: KinrelColors.orange.withValues(alpha: 0.4),
                   ),
-                  padding: EdgeInsets.symmetric(vertical: 10),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
                   ),
-                  textStyle: TextStyle(
+                  textStyle: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -1104,7 +1104,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                 ),
               ),
             ),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
 
             // Find path
             SizedBox(
@@ -1127,7 +1127,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                     context.showSnackBar('Find path coming soon');
                   }
                 },
-                icon: Icon(Icons.route_outlined, size: 18),
+                icon: const Icon(Icons.route_outlined, size: 18),
                 color: KinrelColors.orange,
                 padding: EdgeInsets.zero,
                 style: IconButton.styleFrom(
@@ -1140,7 +1140,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                 ),
               ),
             ),
-            SizedBox(width: 6),
+            const SizedBox(width: 6),
 
             // Share
             SizedBox(
@@ -1160,7 +1160,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                     context.showSnackBar('Share coming soon');
                   }
                 },
-                icon: Icon(Icons.share_outlined, size: 18),
+                icon: const Icon(Icons.share_outlined, size: 18),
                 color: KinrelColors.textSilver,
                 padding: EdgeInsets.zero,
                 style: IconButton.styleFrom(
@@ -1175,7 +1175,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
             ),
           ],
         ),
-        SizedBox(height: 8),
+        const SizedBox(height: 8),
 
         // Secondary actions row
         Row(
@@ -1186,17 +1186,17 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                 onPressed: person.isDeceased
                     ? null
                     : () => _markAsDeceased(person),
-                icon: Icon(Icons.cloud_outlined, size: 16),
+                icon: const Icon(Icons.cloud_outlined, size: 16),
                 label: Text(
                   person.isDeceased ? 'Marked Deceased' : 'Mark Deceased',
                 ),
                 style: TextButton.styleFrom(
                   foregroundColor: KinrelColors.textDim,
-                  padding: EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
                   ),
-                  textStyle: TextStyle(
+                  textStyle: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                   ),
@@ -1208,15 +1208,15 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
             Expanded(
               child: TextButton.icon(
                 onPressed: () => _confirmDelete(person),
-                icon: Icon(Icons.delete_outline, size: 16),
-                label: Text('Delete'),
+                icon: const Icon(Icons.delete_outline, size: 16),
+                label: const Text('Delete'),
                 style: TextButton.styleFrom(
                   foregroundColor: KinrelColors.error,
-                  padding: EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
                   ),
-                  textStyle: TextStyle(
+                  textStyle: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                   ),
@@ -1241,11 +1241,11 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
         ),
         title: Row(
           children: [
-            Icon(Icons.warning_amber, color: KinrelColors.error, size: 22),
-            SizedBox(width: 10),
+            const Icon(Icons.warning_amber, color: KinrelColors.error, size: 22),
+            const SizedBox(width: 10),
             Text(
               'Delete ${person.name}?',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 18,
                 color: KinrelColors.textWhite,
@@ -1253,7 +1253,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
             ),
           ],
         ),
-        content: Text(
+        content: const Text(
           'This person will be removed from the family tree. This action cannot be undone.',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -1263,7 +1263,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
+            child: const Text(
               'Cancel',
               style: TextStyle(color: KinrelColors.textSilver),
             ),
@@ -1292,7 +1292,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                 }
               }
             },
-            child: Text(
+            child: const Text(
               'Delete',
               style: TextStyle(
                 color: KinrelColors.error,
@@ -1317,13 +1317,13 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
         ),
         title: Text(
           'Mark ${person.name} as deceased?',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 18,
             color: KinrelColors.textWhite,
           ),
         ),
-        content: Text(
+        content: const Text(
           'This will update their status in the family tree.',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -1333,14 +1333,14 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(
+            child: const Text(
               'Cancel',
               style: TextStyle(color: KinrelColors.textSilver),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
+            child: const Text(
               'Mark Deceased',
               style: TextStyle(color: KinrelColors.orange),
             ),
@@ -1417,7 +1417,7 @@ class _ShareKinshipButton extends StatelessWidget {
           color: KinrelColors.orange.withValues(alpha: 0.12),
           shape: BoxShape.circle,
         ),
-        child: Icon(
+        child: const Icon(
           Icons.ios_share_rounded,
           color: KinrelColors.orange,
           size: 20,
@@ -1471,7 +1471,7 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: isWide ? 180 : 110,
-      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: KinrelColors.darkCard, // #191B2C
         borderRadius: BorderRadius.circular(12),
@@ -1484,11 +1484,11 @@ class _StatCard extends StatelessWidget {
           Row(
             children: [
               Icon(icon, size: 14, color: KinrelColors.textDim),
-              SizedBox(width: 6),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   label,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10,
                     color: KinrelColors.textDim,
@@ -1498,10 +1498,10 @@ class _StatCard extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
             value,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont, // Outfit Bold
               fontSize: 16,
               fontWeight: FontWeight.w700,
@@ -1532,7 +1532,7 @@ class _InfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: KinrelColors.darkCard, // #191B2C
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
@@ -1544,10 +1544,10 @@ class _InfoCard extends StatelessWidget {
           Row(
             children: [
               Icon(icon, size: 18, color: KinrelColors.orange),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Text(
                 title,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -1556,7 +1556,7 @@ class _InfoCard extends StatelessWidget {
               ),
             ],
           ),
-          if (children.isNotEmpty) ...[SizedBox(height: 12), ...children],
+          if (children.isNotEmpty) ...[const SizedBox(height: 12), ...children],
         ],
       ),
     );
@@ -1580,15 +1580,15 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: [
           Icon(icon, size: 16, color: KinrelColors.textDim),
-          SizedBox(width: 10),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textDim,
@@ -1628,7 +1628,7 @@ class _RelationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Material(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
@@ -1636,7 +1636,7 @@ class _RelationTile extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
           child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
               border: Border.all(
@@ -1652,7 +1652,7 @@ class _RelationTile extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: person.isDeceased
-                        ? LinearGradient(
+                        ? const LinearGradient(
                             colors: [
                               KinrelColors.textDim,
                               KinrelColors.darkSurface,
@@ -1665,7 +1665,7 @@ class _RelationTile extends StatelessWidget {
                       person.name.isNotEmpty
                           ? person.name[0].toUpperCase()
                           : '?',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -1674,7 +1674,7 @@ class _RelationTile extends StatelessWidget {
                     ),
                   ),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
 
                 // Name + kinship
                 Expanded(
@@ -1683,17 +1683,17 @@ class _RelationTile extends StatelessWidget {
                     children: [
                       Text(
                         person.name,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: KinrelColors.textWhite,
                         ),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
                         kinship,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
                           color: KinrelColors.orange,
@@ -1704,7 +1704,7 @@ class _RelationTile extends StatelessWidget {
                 ),
 
                 // Chevron
-                Icon(
+                const Icon(
                   Icons.chevron_right,
                   color: KinrelColors.textDim,
                   size: 18,
@@ -1772,8 +1772,8 @@ class _InlineAddBirthdayRow extends StatelessWidget {
         );
       },
       borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+      child: const Padding(
+        padding: EdgeInsets.symmetric(vertical: 10, horizontal: 4),
         child: Row(
           children: [
             Icon(
@@ -1781,7 +1781,7 @@ class _InlineAddBirthdayRow extends StatelessWidget {
               size: 18,
               color: KinrelColors.orange,
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1795,7 +1795,7 @@ class _InlineAddBirthdayRow extends StatelessWidget {
                       color: KinrelColors.textDim,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   Text(
                     'Add birthday',
                     style: TextStyle(

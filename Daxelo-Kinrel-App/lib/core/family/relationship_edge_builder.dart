@@ -109,9 +109,13 @@ String mapToFundamentalEdge(String? specificKey) {
   if (k == 'husband' || k == 'wife' || k == 'spouse') return 'spouse';
   if (k == 'step_father' || k == 'step_mother' ||
       k == 'stepfather' || k == 'stepmother' ||
-      k == 'step_parent') return 'step_parent';
+      k == 'step_parent') {
+    return 'step_parent';
+  }
   if (k == 'adoptive_father' || k == 'adoptive_mother' ||
-      k == 'adoptive_parent') return 'adoptive_parent';
+      k == 'adoptive_parent') {
+    return 'adoptive_parent';
+  }
   // Everything else (father, mother, parent, son, daughter, child,
   // brother, sister, sibling, grandfather, etc.) → 'parent'
   return 'parent';

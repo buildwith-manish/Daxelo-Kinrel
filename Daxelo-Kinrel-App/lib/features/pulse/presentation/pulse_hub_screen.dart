@@ -123,6 +123,15 @@ class PulseHubScreen extends ConsumerWidget {
 /// type system — not runtime duck-typing — guarantees the value is an
 /// `AsyncValue` before any method is called on it.
 class _HubCard extends ConsumerWidget {
+
+  const _HubCard({
+    required this.emoji,
+    required this.title,
+    required this.subtitle,
+    required this.route,
+    required this.color,
+    this.badgeResolver,
+  });
   final String emoji;
   final String title;
   final String subtitle;
@@ -135,15 +144,6 @@ class _HubCard extends ConsumerWidget {
   ///   `(ref) => ref.watch(blessingsForMeProvider).whenData((l) => l.length)
   /// This keeps the `AsyncValue` chain intact end-to-end.
   final AsyncValue<int?> Function(WidgetRef ref)? badgeResolver;
-
-  const _HubCard({
-    required this.emoji,
-    required this.title,
-    required this.subtitle,
-    required this.route,
-    required this.color,
-    this.badgeResolver,
-  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -166,7 +166,7 @@ class _HubCard extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withOpacity(0.2)),
+            border: Border.all(color: color.withValues(alpha: 0.2)),
           ),
           child: Row(
             children: [
@@ -175,7 +175,7 @@ class _HubCard extends ConsumerWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.15),
+                  color: color.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Center(child: Text(emoji, style: const TextStyle(fontSize: 22))),
@@ -198,7 +198,7 @@ class _HubCard extends ConsumerWidget {
                     Text(
                       subtitle,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.5),
+                        color: Colors.white.withValues(alpha: 0.5),
                         fontSize: 12,
                       ),
                     ),
@@ -224,7 +224,7 @@ class _HubCard extends ConsumerWidget {
                 ),
               ],
               const SizedBox(width: 4),
-              Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.3), size: 20),
+              Icon(Icons.chevron_right, color: Colors.white.withValues(alpha: 0.3), size: 20),
             ],
           ),
         ),

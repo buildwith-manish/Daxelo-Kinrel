@@ -226,7 +226,7 @@ class _BlessingRecordSheetState extends ConsumerState<BlessingRecordSheet> {
               'Record a voice blessing for a family member. '
               'They will receive it on the date you choose.',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
                 fontSize: 13,
               ),
             ),
@@ -296,7 +296,7 @@ class _BlessingRecordSheetState extends ConsumerState<BlessingRecordSheet> {
                   color: (isRecording
                           ? Colors.red.shade400
                           : KinrelColors.gold)
-                      .withOpacity(0.3),
+                      .withValues(alpha: 0.3),
                   blurRadius: 20,
                   spreadRadius: 2,
                 ),
@@ -333,7 +333,7 @@ class _BlessingRecordSheetState extends ConsumerState<BlessingRecordSheet> {
             Text(
               'Recipient',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
@@ -350,7 +350,7 @@ class _BlessingRecordSheetState extends ConsumerState<BlessingRecordSheet> {
                   value: _selectedRecipientId,
                   hint: Text(
                     'Choose a family member',
-                    style: TextStyle(color: Colors.white.withOpacity(0.4)),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
                   ),
                   dropdownColor: KinrelColors.darkCard,
                   isExpanded: true,
@@ -382,7 +382,7 @@ class _BlessingRecordSheetState extends ConsumerState<BlessingRecordSheet> {
         Text(
           'Deliver on',
           style: TextStyle(
-            color: Colors.white.withOpacity(0.7),
+            color: Colors.white.withValues(alpha: 0.7),
             fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
@@ -457,13 +457,13 @@ class _BlessingRecordSheetState extends ConsumerState<BlessingRecordSheet> {
         Switch(
           value: _isRecurring,
           onChanged: (v) => setState(() => _isRecurring = v),
-          activeColor: KinrelColors.gold,
+          activeThumbColor: KinrelColors.gold,
         ),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             'Deliver every year on this date',
-            style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13),
           ),
         ),
       ],
@@ -527,7 +527,7 @@ class _BlessingRecordSheetState extends ConsumerState<BlessingRecordSheet> {
           Text(
             'Your blessing will be delivered on '
             '${_triggerDate.day}/${_triggerDate.month}/${_triggerDate.year}.',
-            style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),

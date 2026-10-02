@@ -18,7 +18,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -155,15 +154,15 @@ class _EmptyState extends StatelessWidget {
         ),
       );
     }
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.history, size: 48, color: KinrelColors.textDim),
-            const SizedBox(height: 12),
-            const Text(
+            Icon(Icons.history, size: 48, color: KinrelColors.textDim),
+            SizedBox(height: 12),
+            Text(
               'No rounds revealed yet',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -172,8 +171,8 @@ class _EmptyState extends StatelessWidget {
                 color: KinrelColors.textWhite,
               ),
             ),
-            const SizedBox(height: 6),
-            const Text(
+            SizedBox(height: 6),
+            Text(
               'Once your family reveals its first prediction, the round will show up here along with your win streak.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -225,7 +224,7 @@ class _HistoryBody extends StatelessWidget {
           ),
           const SizedBox(height: 20),
         ],
-        Text(
+        const Text(
           'Recent rounds',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -338,7 +337,7 @@ class _StreakTile extends StatelessWidget {
             children: [
               Text(
                 '$value',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
@@ -348,7 +347,7 @@ class _StreakTile extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 subtitle,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
                   color: KinrelColors.textDim,
@@ -378,7 +377,7 @@ class _QuickStatsRow extends StatelessWidget {
       ),
       child: Text(
         'Wins: ${history.winsCount} of ${history.participatedCount} participated · ${history.totalRounds} rounds shown',
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 12,
           fontWeight: FontWeight.w600,
@@ -429,7 +428,7 @@ class _HistoryRoundCard extends StatelessWidget {
             children: [
               Text(
                 dateStr,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
@@ -444,7 +443,7 @@ class _HistoryRoundCard extends StatelessWidget {
           // Question text
           Text(
             round.questionText,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 14,
               fontWeight: FontWeight.w700,
@@ -456,7 +455,7 @@ class _HistoryRoundCard extends StatelessWidget {
           // Correct answer
           Text(
             'Answer: ${_formatAnswer(round.correctAnswer)} ${round.unitLabel}',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 13,
               fontWeight: FontWeight.w800,
@@ -466,10 +465,10 @@ class _HistoryRoundCard extends StatelessWidget {
           const SizedBox(height: 8),
           // My guess row
           if (round.myGuess == null)
-            Row(
+            const Row(
               children: [
-                const Icon(Icons.visibility_off, size: 14, color: KinrelColors.textDim),
-                const SizedBox(width: 6),
+                Icon(Icons.visibility_off, size: 14, color: KinrelColors.textDim),
+                SizedBox(width: 6),
                 Text(
                   'You missed this round',
                   style: TextStyle(
@@ -509,7 +508,7 @@ class _HistoryRoundCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'Tied winners: ${_formatWinnerNames(round.winnerUserIds)}',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
                 color: KinrelColors.textDim,
@@ -620,7 +619,7 @@ class _FamilyLeaderboardSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Family Leaderboard',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -706,10 +705,10 @@ class _LeaderboardGapLine extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: KinrelColors.border, width: 0.5),
         ),
-        child: Row(
+        child: const Row(
           children: [
-            const Icon(Icons.emoji_events_outlined, size: 14, color: KinrelColors.brightGold),
-            const SizedBox(width: 8),
+            Icon(Icons.emoji_events_outlined, size: 14, color: KinrelColors.brightGold),
+            SizedBox(width: 8),
             Expanded(
               child: Text(
                 'Win your first round to join the leaderboard!',
@@ -741,7 +740,7 @@ class _LeaderboardGapLine extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               'You lead with a ${myEntry.currentStreak}-day streak!',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -773,7 +772,7 @@ class _LeaderboardGapLine extends StatelessWidget {
               gap > 0
                   ? "You're $gap win${gap == 1 ? '' : 's'} behind $leaderName — win today to catch up!"
                   : "You're tied with $leaderName at ${myEntry.currentStreak} wins!",
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -839,7 +838,7 @@ class _PodiumTile extends StatelessWidget {
                 ),
               ),
               if (isMe)
-                Text(
+                const Text(
                   'YOU',
                   style: TextStyle(
                     fontFamily: KinrelTypography.monoFont,
@@ -865,7 +864,7 @@ class _PodiumTile extends StatelessWidget {
           ),
           Text(
             'current · best ${entry.bestStreak}',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 10,
               color: KinrelColors.textDim,
@@ -915,7 +914,7 @@ class _LeaderboardRow extends StatelessWidget {
             width: 24,
             child: Text(
               '#$rank',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -938,7 +937,7 @@ class _LeaderboardRow extends StatelessWidget {
           // Window stats — wins / participated
           Text(
             '${entry.totalWinsInWindow}/${entry.totalGuessesInWindow} in window',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 11,
               color: KinrelColors.textDim,

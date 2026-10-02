@@ -33,6 +33,13 @@ import '../engine/edge_dedup.dart' show DedupedEdge;
 /// All fields are nullable so the caller can pass `null` for any
 /// inactive state — the helper treats `null` as "this state is off".
 class EdgeDimHierarchyInput {
+
+  const EdgeDimHierarchyInput({
+    this.searchMatchNodeIds,
+    this.searchIsActive = false,
+    this.focusedPersonId,
+    this.selectedNodeId,
+  });
   /// The set of edge IDs that match the active search (if any).
   /// When non-empty AND [searchIsActive] is true, edges NOT connected
   /// to any node in this set are dimmed.
@@ -50,13 +57,6 @@ class EdgeDimHierarchyInput {
   /// when no node is selected. When non-null AND no focus/search is
   /// active, edges NOT directly incident to this node are dimmed.
   final String? selectedNodeId;
-
-  const EdgeDimHierarchyInput({
-    this.searchMatchNodeIds,
-    this.searchIsActive = false,
-    this.focusedPersonId,
-    this.selectedNodeId,
-  });
 }
 
 /// Computes the set of edge IDs that should be rendered at the

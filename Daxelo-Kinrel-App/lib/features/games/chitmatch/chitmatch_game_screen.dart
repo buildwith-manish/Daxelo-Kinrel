@@ -106,7 +106,7 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
             }
           },
         ),
-        title: Text('TripleMatch', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: const Text('TripleMatch', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),
       body: state.isLoading && state.game == null
@@ -156,12 +156,12 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
                         borderRadius: BorderRadius.circular(KinrelRadius.lg),
                         border: Border.all(color: KinrelColors.success, width: 2),
                       ),
-                      child: Text('Three of a Kind!', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w700, color: KinrelColors.success)),
+                      child: const Text('Three of a Kind!', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w700, color: KinrelColors.success)),
                     ),
-                  Text('YOUR HAND', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
+                  const Text('YOUR HAND', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
                   const SizedBox(height: KinrelSpacing.md),
                   if (hand.isEmpty)
-                    Text('Waiting for chits...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim))
+                    const Text('Waiting for chits...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim))
                   else
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -172,12 +172,12 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
                   const SizedBox(height: KinrelSpacing.xl),
                   // Status
                   if (isResolving)
-                    GameTurnPill(label: 'Resolving round…', color: KinrelColors.orange, active: true,
-                      trailing: const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange)))
+                    const GameTurnPill(label: 'Resolving round…', color: KinrelColors.orange, active: true,
+                      trailing: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange)))
                   else if (selectedIndex != null)
-                    GameTurnPill(label: 'Chit selected — waiting for others…', color: KinrelColors.orange, active: true)
+                    const GameTurnPill(label: 'Chit selected — waiting for others…', color: KinrelColors.orange, active: true)
                   else if (game.isInProgress)
-                    GameTurnPill(label: 'Tap a chit to pass it!', color: KinrelColors.orange, active: true),
+                    const GameTurnPill(label: 'Tap a chit to pass it!', color: KinrelColors.orange, active: true),
                 ],
               ),
             ),
@@ -229,8 +229,8 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
     return Column(mainAxisSize: MainAxisSize.min, children: [
       Icon(icon, size: 16, color: KinrelColors.textDim),
       const SizedBox(height: 2),
-      Text(value, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
-      Text(label, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 9, color: KinrelColors.textDim)),
+      Text(value, style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
+      Text(label, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 9, color: KinrelColors.textDim)),
     ]);
   }
 
@@ -251,7 +251,7 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
         margin: const EdgeInsets.symmetric(horizontal: 6),
         transform: Matrix4.translationValues(0, isSelected ? -2 : 0, 0),
         decoration: BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [KinrelColors.darkElevated, KinrelColors.darkCard]),
+          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [KinrelColors.darkElevated, KinrelColors.darkCard]),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isSelected ? KinrelColors.orange : (isThreeOfAKind ? KinrelColors.success.withValues(alpha: 0.7) : KinrelColors.border),
@@ -292,7 +292,7 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
               ),
               if (isSelected) ...[
                 const SizedBox(height: 4),
-                Icon(Icons.arrow_forward, size: 12, color: Colors.white),
+                const Icon(Icons.arrow_forward, size: 12, color: Colors.white),
               ],
             ]),
           ]),
@@ -357,37 +357,37 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
       gradient: isMyWin ? KinrelGradients.deepFireGradient : null,
       backgroundColor: isMyWin ? null : KinrelColors.darkSurface,
       appBar: AppBar(automaticallyImplyLeading: false,
-        title: Text('Results', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: const Text('Results', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: Colors.transparent, foregroundColor: KinrelColors.textWhite, elevation: 0),
       body: Stack(children: [
         ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
         const SizedBox(height: KinrelSpacing.lg),
         Column(children: [
-          KinrelIcon(KinrelIconData.trophy, size: 64, color: KinrelColors.brightGold).animate(onPlay: (c) => c.forward()).fadeIn(duration: 500.ms).scale(begin: const Offset(0.5, 0.5), end: const Offset(1.0, 1.0), duration: 500.ms, curve: Curves.elasticOut),
+          const KinrelIcon(KinrelIconData.trophy, size: 64, color: KinrelColors.brightGold).animate(onPlay: (c) => c.forward()).fadeIn(duration: 500.ms).scale(begin: const Offset(0.5, 0.5), end: const Offset(1.0, 1.0), duration: 500.ms, curve: Curves.elasticOut),
           const SizedBox(height: KinrelSpacing.sm),
           Text(isMyWin ? (isJointWin ? 'Joint Winners!' : 'You Won!') : (isJointWin ? 'Joint Winners!' : 'Winner!'),
-            style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 28, fontWeight: FontWeight.w800, color: KinrelColors.textWhite, letterSpacing: 2)),
+            style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 28, fontWeight: FontWeight.w800, color: KinrelColors.textWhite, letterSpacing: 2)),
           const SizedBox(height: KinrelSpacing.sm),
           Wrap(spacing: KinrelSpacing.sm, runSpacing: KinrelSpacing.sm, alignment: WrapAlignment.center,
             children: winnerNames.map((name) => Container(
               padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.md, vertical: KinrelSpacing.sm),
               decoration: BoxDecoration(color: KinrelColors.orange.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(KinrelRadius.lg), border: Border.all(color: KinrelColors.orange, width: 1)),
-              child: Text(name, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.orange)),
+              child: Text(name, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.orange)),
             )).toList(),
           ),
         ]).animate().fadeIn(duration: 400.ms).scale(begin: const Offset(0.92, 0.92), end: const Offset(1.0, 1.0), duration: 400.ms, curve: Curves.easeOutBack),
         const SizedBox(height: KinrelSpacing.xl),
         // Round history
         if (state.passes.isNotEmpty) ...[
-          Text('Last Round Passes', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w600, color: KinrelColors.textDim)),
+          const Text('Last Round Passes', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w600, color: KinrelColors.textDim)),
           const SizedBox(height: KinrelSpacing.sm),
           ...state.passes.where((p) => p.roundNumber == game.roundNumber - 1 || p.roundNumber == game.roundNumber).take(12).map((p) => Container(
             margin: const EdgeInsets.only(bottom: KinrelSpacing.sm),
             padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.md, vertical: KinrelSpacing.sm),
             decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(KinrelRadius.md), border: Border.all(color: KinrelColors.border)),
             child: Row(children: [
-              Expanded(child: Text('${p.fromPlayerName} → ${p.toPlayerName}', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textWhite))),
-              Text(p.chitPassed, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.orange)),
+              Expanded(child: Text('${p.fromPlayerName} → ${p.toPlayerName}', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textWhite))),
+              Text(p.chitPassed, style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.orange)),
             ]),
           )),
         MatchEcosystemSummary(

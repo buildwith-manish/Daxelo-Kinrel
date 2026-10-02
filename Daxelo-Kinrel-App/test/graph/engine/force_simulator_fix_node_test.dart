@@ -39,8 +39,8 @@ void main() {
         'integration step is skipped)', () {
       final sim = ForceSimulator(config: const SimulationConfig());
       final persons = [
-        GraphPerson(id: 'fixed', name: 'Fixed', generationIndex: 0),
-        GraphPerson(id: 'free', name: 'Free', generationIndex: 0),
+        const GraphPerson(id: 'fixed', name: 'Fixed', generationIndex: 0),
+        const GraphPerson(id: 'free', name: 'Free', generationIndex: 0),
       ];
       sim.initialize(persons, const []);
 
@@ -82,7 +82,7 @@ void main() {
         'fixed mid-flight', () {
       final sim = ForceSimulator(config: const SimulationConfig());
       final persons = [
-        GraphPerson(id: 'n1', name: 'n1', generationIndex: 0),
+        const GraphPerson(id: 'n1', name: 'n1', generationIndex: 0),
       ];
       sim.initialize(persons, const []);
 
@@ -102,8 +102,8 @@ void main() {
     test('unfixNode releases the node so it can move again', () {
       final sim = ForceSimulator();
       final persons = [
-        GraphPerson(id: 'n1', name: 'n1', generationIndex: 0),
-        GraphPerson(id: 'n2', name: 'n2', generationIndex: 1),
+        const GraphPerson(id: 'n1', name: 'n1', generationIndex: 0),
+        const GraphPerson(id: 'n2', name: 'n2', generationIndex: 1),
       ];
       sim.initialize(persons, const []);
       sim.fixNode('n1', const Offset(200.0, 200.0));
@@ -132,9 +132,9 @@ void main() {
     test('fixing one node does not freeze other nodes', () {
       final sim = ForceSimulator();
       final persons = [
-        GraphPerson(id: 'fixed', name: 'Fixed', generationIndex: 0),
-        GraphPerson(id: 'free1', name: 'Free1', generationIndex: 0),
-        GraphPerson(id: 'free2', name: 'Free2', generationIndex: 1),
+        const GraphPerson(id: 'fixed', name: 'Fixed', generationIndex: 0),
+        const GraphPerson(id: 'free1', name: 'Free1', generationIndex: 0),
+        const GraphPerson(id: 'free2', name: 'Free2', generationIndex: 1),
       ];
       sim.initialize(persons, const []);
       sim.fixNode('fixed', const Offset(50.0, 50.0));

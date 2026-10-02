@@ -195,10 +195,6 @@ class SparqRingAvatar extends ConsumerWidget {
 
 /// Custom painter for the Sparq ring around avatars
 class _RingPainter extends CustomPainter {
-  final Color ringColor;
-  final double ringWidth;
-  final double gap;
-  final bool dashed;
 
   _RingPainter({
     required this.ringColor,
@@ -206,6 +202,10 @@ class _RingPainter extends CustomPainter {
     required this.gap,
     this.dashed = false,
   });
+  final Color ringColor;
+  final double ringWidth;
+  final double gap;
+  final bool dashed;
 
   @override
   void paint(Canvas canvas, Size size) {

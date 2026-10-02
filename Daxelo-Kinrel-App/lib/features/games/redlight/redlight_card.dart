@@ -85,7 +85,7 @@ class _RedlightCardState extends ConsumerState<RedlightCard> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
+                    const Expanded(
                       child: Text(
                         'Freeze & Dash',
                         style: TextStyle(
@@ -100,7 +100,7 @@ class _RedlightCardState extends ConsumerState<RedlightCard> {
                 ),
                 const SizedBox(height: 10),
                 if (dlState.status != GameDownloadStatus.downloaded)
-                  Text(
+                  const Text(
                     'Download in Games hub to play',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -109,7 +109,7 @@ class _RedlightCardState extends ConsumerState<RedlightCard> {
                     ),
                   )
                 else
-                  Text(
+                  const Text(
                     'Race to the finish — but freeze when the Caller calls RED!',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,

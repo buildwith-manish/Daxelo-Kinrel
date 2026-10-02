@@ -98,7 +98,7 @@ extension _RelationshipViewMethods on _FamilyGraphEngineViewState {
     if (viewerPersonId == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Could not resolve your family identity. Please try again.'),
             backgroundColor: Colors.red,
           ),

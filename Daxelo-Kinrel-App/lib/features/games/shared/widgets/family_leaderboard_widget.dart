@@ -99,20 +99,20 @@ class _FamilyLeaderboardWidgetState
         padding: const EdgeInsets.all(16),
         child: Text(
           'Couldn\'t load leaderboard: $_error',
-          style: TextStyle(color: KinrelColors.error, fontSize: 12),
+          style: const TextStyle(color: KinrelColors.error, fontSize: 12),
         ),
       );
     }
     if (_rows.isEmpty) {
-      return Center(
+      return const Center(
         child: Padding(
-          padding: const EdgeInsets.all(KinrelSpacing.xl),
+          padding: EdgeInsets.all(KinrelSpacing.xl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.emoji_events_outlined,
                   color: KinrelColors.textDim, size: 48),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Text(
                 'No games completed yet',
                 style: TextStyle(
@@ -122,7 +122,7 @@ class _FamilyLeaderboardWidgetState
                   color: KinrelColors.textWhite,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 'Play a few games — winners will appear here.',
                 style: TextStyle(
@@ -175,7 +175,7 @@ class _FamilyLeaderboardWidgetState
                 ? Text(medal, style: const TextStyle(fontSize: 18))
                 : Text(
                     '$rank',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -194,7 +194,7 @@ class _FamilyLeaderboardWidgetState
             child: Center(
               child: Text(
                 PersonAvatar.initialsFor(name),
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -212,7 +212,7 @@ class _FamilyLeaderboardWidgetState
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -222,7 +222,7 @@ class _FamilyLeaderboardWidgetState
                 const SizedBox(height: 2),
                 Text(
                   '$gamesPlayed games · $wins W · $losses L${draws > 0 ? ' · $draws D' : ''}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10,
                     color: KinrelColors.textDim,

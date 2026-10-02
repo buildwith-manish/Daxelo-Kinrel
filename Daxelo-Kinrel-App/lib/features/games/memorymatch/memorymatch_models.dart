@@ -299,13 +299,6 @@ class MemoryMatchCard {
     this.ownerId,
   });
 
-  final int index;
-  final int pairId;
-  final String symbolKey;
-  final String? ownerId;
-
-  bool get isMatched => ownerId != null && ownerId!.isNotEmpty;
-
   factory MemoryMatchCard.fromJson(int index, Map<String, dynamic> json) {
     return MemoryMatchCard(
       index: index,
@@ -314,6 +307,13 @@ class MemoryMatchCard {
       ownerId: json['o'] as String?,
     );
   }
+
+  final int index;
+  final int pairId;
+  final String symbolKey;
+  final String? ownerId;
+
+  bool get isMatched => ownerId != null && ownerId!.isNotEmpty;
 }
 
 /// Per-player live stats tracked server-side.
@@ -324,10 +324,6 @@ class MemoryPlayerStats {
     this.matchMs = 0,
   });
 
-  final int flips;
-  final int misses;
-  final int matchMs;
-
   factory MemoryPlayerStats.fromJson(Map<String, dynamic> json) {
     return MemoryPlayerStats(
       flips: (json['flips'] ?? 0) as int,
@@ -335,6 +331,10 @@ class MemoryPlayerStats {
       matchMs: (json['matchMs'] ?? 0) as int,
     );
   }
+
+  final int flips;
+  final int misses;
+  final int matchMs;
 }
 
 /// Final ranking entry (computed server-side at completion).
@@ -350,19 +350,6 @@ class MemoryPlacement {
     this.avgMatchMs,
   });
 
-  final String userId;
-  final String userName;
-  final int place;
-  final int pairs;
-  final int flips;
-  final int misses;
-
-  /// 0–100, one decimal.
-  final double accuracy;
-
-  /// Average milliseconds to find each pair (null when no pairs).
-  final double? avgMatchMs;
-
   factory MemoryPlacement.fromJson(Map<String, dynamic> json) {
     return MemoryPlacement(
       userId: (json['userId'] ?? '') as String,
@@ -377,6 +364,19 @@ class MemoryPlacement {
           : ((json['avgMatchMs']) as num).toDouble(),
     );
   }
+
+  final String userId;
+  final String userName;
+  final int place;
+  final int pairs;
+  final int flips;
+  final int misses;
+
+  /// 0–100, one decimal.
+  final double accuracy;
+
+  /// Average milliseconds to find each pair (null when no pairs).
+  final double? avgMatchMs;
 
   String get medal {
     switch (place) {
@@ -411,16 +411,6 @@ class MemoryMatchPlayer {
     this.leftAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final DateTime joinedAt;
-  final bool isReady;
-  final DateTime? leftAt;
-
-  bool get isActive => leftAt == null;
-
   factory MemoryMatchPlayer.fromJson(Map<String, dynamic> json) {
     return MemoryMatchPlayer(
       id: (json['id'] ?? '') as String,
@@ -434,6 +424,16 @@ class MemoryMatchPlayer {
           : null,
     );
   }
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final DateTime joinedAt;
+  final bool isReady;
+  final DateTime? leftAt;
+
+  bool get isActive => leftAt == null;
 }
 
 class MemoryMatchGame {
@@ -467,70 +467,6 @@ class MemoryMatchGame {
     this.completedAt,
     this.spectatorsEnabled = true,
   });
-
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final MemoryMatchStatus status;
-  final MemoryMatchDifficulty difficulty;
-  final int turnSeconds;
-  final int maxPlayers;
-  final DateTime createdAt;
-  final String? roomName;
-  final String? cardPack;
-  final List<MemoryMatchCard> cards;
-  final List<String> playerOrder;
-  final String? currentPlayerId;
-  final int currentTurnIndex;
-  final DateTime? turnEndsAt;
-  final MemoryMatchPhase phase;
-  final List<int> flippedCardIds;
-  final DateTime? revealEndsAt;
-  final bool? pendingIsMatch;
-  final Map<String, int> scores;
-  final Map<String, MemoryPlayerStats> stats;
-  final List<MemoryPlacement> placements;
-  final List<String> winnerUserIds;
-  final String? endReason;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final bool spectatorsEnabled;
-
-  bool get isWaiting => status == MemoryMatchStatus.waiting;
-  bool get isInProgress => status == MemoryMatchStatus.inProgress;
-  bool get isCompleted => status == MemoryMatchStatus.completed;
-
-  bool get isReveal => phase == MemoryMatchPhase.reveal;
-
-  int get totalPairs => cards.length ~/ 2;
-
-  int get matchedPairs => cards.where((c) => c.isMatched).length ~/ 2;
-
-  /// Seconds left in the current turn (null when not running).
-  int? get turnSecondsRemaining {
-    if (!isInProgress || turnEndsAt == null) return null;
-    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
-    return left < 0 ? 0 : left;
-  }
-
-  /// Seconds until the reveal window closes (null when not revealing).
-  int? get revealSecondsRemaining {
-    if (!isInProgress || !isReveal || revealEndsAt == null) return null;
-    final left = revealEndsAt!.difference(DateTime.now()).inMilliseconds;
-    return left < 0 ? 0 : (left / 1000).ceil();
-  }
-
-  String get endReasonLabel {
-    switch (endReason) {
-      case 'all_found':
-        return 'Every pair was found!';
-      case 'walkover':
-        return 'The others left — last memory standing';
-      default:
-        return 'Game complete';
-    }
-  }
 
   factory MemoryMatchGame.fromJson(Map<String, dynamic> json) {
     final cardsList = <MemoryMatchCard>[];
@@ -633,5 +569,69 @@ class MemoryMatchGame {
           : null,
       spectatorsEnabled: (json['spectatorsEnabled'] ?? true) as bool,
     );
+  }
+
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final MemoryMatchStatus status;
+  final MemoryMatchDifficulty difficulty;
+  final int turnSeconds;
+  final int maxPlayers;
+  final DateTime createdAt;
+  final String? roomName;
+  final String? cardPack;
+  final List<MemoryMatchCard> cards;
+  final List<String> playerOrder;
+  final String? currentPlayerId;
+  final int currentTurnIndex;
+  final DateTime? turnEndsAt;
+  final MemoryMatchPhase phase;
+  final List<int> flippedCardIds;
+  final DateTime? revealEndsAt;
+  final bool? pendingIsMatch;
+  final Map<String, int> scores;
+  final Map<String, MemoryPlayerStats> stats;
+  final List<MemoryPlacement> placements;
+  final List<String> winnerUserIds;
+  final String? endReason;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final bool spectatorsEnabled;
+
+  bool get isWaiting => status == MemoryMatchStatus.waiting;
+  bool get isInProgress => status == MemoryMatchStatus.inProgress;
+  bool get isCompleted => status == MemoryMatchStatus.completed;
+
+  bool get isReveal => phase == MemoryMatchPhase.reveal;
+
+  int get totalPairs => cards.length ~/ 2;
+
+  int get matchedPairs => cards.where((c) => c.isMatched).length ~/ 2;
+
+  /// Seconds left in the current turn (null when not running).
+  int? get turnSecondsRemaining {
+    if (!isInProgress || turnEndsAt == null) return null;
+    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
+    return left < 0 ? 0 : left;
+  }
+
+  /// Seconds until the reveal window closes (null when not revealing).
+  int? get revealSecondsRemaining {
+    if (!isInProgress || !isReveal || revealEndsAt == null) return null;
+    final left = revealEndsAt!.difference(DateTime.now()).inMilliseconds;
+    return left < 0 ? 0 : (left / 1000).ceil();
+  }
+
+  String get endReasonLabel {
+    switch (endReason) {
+      case 'all_found':
+        return 'Every pair was found!';
+      case 'walkover':
+        return 'The others left — last memory standing';
+      default:
+        return 'Game complete';
+    }
   }
 }

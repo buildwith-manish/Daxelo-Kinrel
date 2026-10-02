@@ -15,7 +15,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -34,7 +33,7 @@ class PBv1WidgetSettingsScreen extends ConsumerStatefulWidget {
 class _PBv1WidgetSettingsScreenState
     extends ConsumerState<PBv1WidgetSettingsScreen> {
   List<_FamilyRow> _families = const [];
-  Set<String> _excluded = {};
+  final Set<String> _excluded = {};
   bool _loading = true;
   bool _saving = false;
 
@@ -121,7 +120,7 @@ class _PBv1WidgetSettingsScreenState
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(
+        const Text(
           'Families to show in the widget',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -131,7 +130,7 @@ class _PBv1WidgetSettingsScreenState
           ),
         ),
         const SizedBox(height: 4),
-        Text(
+        const Text(
           'If you\'re in many families, narrow this to the 1-2 you care about so the cycle chip doesn\'t have to page through all of them.',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -154,7 +153,7 @@ class _PBv1WidgetSettingsScreenState
             },
             title: Text(
               family.name,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 color: KinrelColors.textWhite,
@@ -189,11 +188,11 @@ class _PBv1WidgetSettingsScreenState
             color: KinrelColors.darkCard,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Row(
+          child: const Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.info_outline, size: 16, color: KinrelColors.textDim),
-              const SizedBox(width: 8),
+              Icon(Icons.info_outline, size: 16, color: KinrelColors.textDim),
+              SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'To add the widget: long-press an empty area on your home screen → Widgets → Daxelo Kinrel → Prediction Battle.',
@@ -218,15 +217,15 @@ class _EmptyFamiliesState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.family_restroom_outlined, size: 48, color: KinrelColors.textDim),
-            const SizedBox(height: 12),
-            const Text(
+            Icon(Icons.family_restroom_outlined, size: 48, color: KinrelColors.textDim),
+            SizedBox(height: 12),
+            Text(
               'No families yet',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -235,8 +234,8 @@ class _EmptyFamiliesState extends StatelessWidget {
                 color: KinrelColors.textWhite,
               ),
             ),
-            const SizedBox(height: 6),
-            const Text(
+            SizedBox(height: 6),
+            Text(
               'Join or create a family first, then come back here to configure the widget.',
               textAlign: TextAlign.center,
               style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim),

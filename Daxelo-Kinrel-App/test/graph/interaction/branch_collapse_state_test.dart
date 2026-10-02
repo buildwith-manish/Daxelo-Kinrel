@@ -271,8 +271,8 @@ void main() {
     test('TEST 7: collapse state is separate from graph data', () {
       // BranchCollapseState has NO mutation methods on graph data.
       // It only holds: collapsedBranches, expandedBranchRoots, revision.
-      final state = BranchCollapseState(
-        collapsedBranches: const [],
+      final state = const BranchCollapseState(
+        collapsedBranches: [],
         expandedBranchRoots: {'A'},
         revision: 1,
       );

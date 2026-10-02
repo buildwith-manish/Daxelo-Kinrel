@@ -6,6 +6,22 @@ import '../repositories/sparq_repository.dart';
 // ── State ────────────────────────────────────────────────────────────
 
 class SparqState {
+
+  const SparqState({
+    this.feed = const [],
+    this.isLoading = false,
+    this.error,
+    this.isCreating = false,
+    this.createProgress = 0.0,
+    this.selectedMood = 'happy',
+    this.selectedIntensity = 0.5,
+    this.isTimeCapsule = false,
+    this.revealAt,
+    this.allowChain = false,
+    this.allowReplies = true,
+    this.echoedSparqs = const {},
+    this.echoCounts = const {},
+  });
   final List<UserSparqGroup> feed;
   final bool isLoading;
   final String? error;
@@ -25,22 +41,6 @@ class SparqState {
 
   // ── Echo counts: sparqId → echoCount ────────────────────────────
   final Map<String, int> echoCounts;
-
-  const SparqState({
-    this.feed = const [],
-    this.isLoading = false,
-    this.error,
-    this.isCreating = false,
-    this.createProgress = 0.0,
-    this.selectedMood = 'happy',
-    this.selectedIntensity = 0.5,
-    this.isTimeCapsule = false,
-    this.revealAt,
-    this.allowChain = false,
-    this.allowReplies = true,
-    this.echoedSparqs = const {},
-    this.echoCounts = const {},
-  });
 
   /// Maps intensity slider value (0.0-1.0) to string label
   String get intensityLabel {

@@ -11,6 +11,7 @@
 ///   - Security: Permission validation
 ///   - Analytics: Event tracking and performance monitoring
 ///   - Widgets: FamilyGraph, GraphNode, RelationshipEdge, etc.
+library;
 
 // ── Engine Layer ──────────────────────────────────────────────────────────────
 export 'engine/force_simulator.dart';

@@ -185,9 +185,9 @@ class _PendingInvitationsSheetState
               ),
             ),
             // Header
-            Padding(
+            const Padding(
               padding:
-                  const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+                  EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -195,7 +195,7 @@ class _PendingInvitationsSheetState
                     children: [
                       Icon(Icons.mail_outline,
                           size: 20, color: KinrelColors.tealAccent),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Pending Invitations',
@@ -209,7 +209,7 @@ class _PendingInvitationsSheetState
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     'People you\'ve invited from the graph. They\'ll appear '
                     'in the graph once they accept.',
@@ -232,9 +232,9 @@ class _PendingInvitationsSheetState
                     child: CircularProgressIndicator(color: KinrelColors.tealAccent),
                   ),
                 ),
-                error: (e, _) => Center(
+                error: (e, _) => const Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(32),
+                    padding: EdgeInsets.all(32),
                     child: Text(
                       'Could not load invitations.\nPlease try again later.',
                       textAlign: TextAlign.center,
@@ -247,15 +247,15 @@ class _PendingInvitationsSheetState
                 ),
                 data: (invitations) {
                   if (invitations.isEmpty) {
-                    return Center(
+                    return const Center(
                       child: Padding(
-                        padding: const EdgeInsets.all(32),
+                        padding: EdgeInsets.all(32),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.check_circle_outline,
                                 size: 48, color: KinrelColors.tealAccent),
-                            const SizedBox(height: 12),
+                            SizedBox(height: 12),
                             Text(
                               'No pending invitations',
                               style: TextStyle(
@@ -265,7 +265,7 @@ class _PendingInvitationsSheetState
                                 color: KinrelColors.textWhite,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: 4),
                             Text(
                               'Invite someone from the graph by long-pressing '
                               'a node and tapping "Invite".',
@@ -353,7 +353,7 @@ class _InvitationTile extends StatelessWidget {
                 children: [
                   Text(
                     invitation.recipientDisplayName,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -363,7 +363,7 @@ class _InvitationTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     invitation.relationshipDescription,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.tealAccent,
@@ -373,7 +373,7 @@ class _InvitationTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       _formatDate(invitation.createdAt!),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
                         color: KinrelColors.textDim,
@@ -387,7 +387,7 @@ class _InvitationTile extends StatelessWidget {
             // v5.44: Show both Cancel and Resend buttons.
             // If an action is in progress, show a spinner instead.
             if (isCancelling || isResending)
-              SizedBox(
+              const SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(

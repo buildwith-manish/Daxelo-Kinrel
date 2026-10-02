@@ -285,18 +285,6 @@ class GameInvite {
     this.timestamp,
   });
 
-  final String inviteId;
-  final GameType gameType;
-  final String gameId;
-  final String roomCode;
-  final String familyId;
-  final String fromUserId;
-  final String fromName;
-  final int maxPlayers;
-  final int currentPlayers;
-  final String? message;
-  final DateTime? timestamp;
-
   factory GameInvite.fromJson(Map<String, dynamic> json) {
     final rawGameType = json['gameType'] as String?;
     final gameType = GameTypeX.fromRouteSegment(rawGameType ?? '') ??
@@ -327,6 +315,18 @@ class GameInvite {
       timestamp: ts,
     );
   }
+
+  final String inviteId;
+  final GameType gameType;
+  final String gameId;
+  final String roomCode;
+  final String familyId;
+  final String fromUserId;
+  final String fromName;
+  final int maxPlayers;
+  final int currentPlayers;
+  final String? message;
+  final DateTime? timestamp;
 
   Map<String, dynamic> toJson() => {
         'inviteId': inviteId,

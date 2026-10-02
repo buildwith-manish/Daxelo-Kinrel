@@ -58,9 +58,8 @@ final dioProvider = Provider<Dio>((ref) {
 /// throws a [DioException] with [DioExceptionType.connectionError] immediately
 /// instead of waiting for the connect timeout (8 s).
 class ConnectivityInterceptor extends Interceptor {
-  ConnectivityInterceptor({Connectivity? connectivity, Ref? ref})
-      : _connectivity = connectivity ?? Connectivity(),
-        _ref = ref;
+  ConnectivityInterceptor({Connectivity? connectivity, this._ref})
+      : _connectivity = connectivity ?? Connectivity();
 
   final Connectivity _connectivity;
   final Ref? _ref;
@@ -128,9 +127,8 @@ class ConnectivityInterceptor extends Interceptor {
 ///   - HTTP 400, 401, 403, 404, 422
 ///   - Any other non-retryable DioException
 class RetryInterceptor extends Interceptor {
-  RetryInterceptor(this._dio, {int maxRetries = 3})
-      : _maxRetries = maxRetries,
-        _delays = const [
+  RetryInterceptor(this._dio, {this._maxRetries = 3})
+      : _delays = const [
           Duration(seconds: 1),
           Duration(seconds: 2),
           Duration(seconds: 4),

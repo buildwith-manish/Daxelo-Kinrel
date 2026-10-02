@@ -102,7 +102,7 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            const Text(
               'Share this code',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -114,7 +114,7 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
             const SizedBox(height: KinrelSpacing.md),
             Text(
               code,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 40,
                 fontWeight: FontWeight.w700,
@@ -128,7 +128,7 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
                   ? '3 family members can join. Teams are assigned automatically: 1st & 3rd joiner → Team S, 2nd & 4th → Team O.'
                   : '1 family member can join to start a 2-player game.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textDim,
@@ -183,7 +183,7 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
         // app bar stays clean; once a room exists it shows the game
         // name + invite/share actions.
         title: hasGame
-            ? Text(
+            ? const Text(
                 'SOS',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
@@ -280,12 +280,12 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
             label: 'Game Mode',
             child: LobbyChoiceGrid<SosMode>(
               options: [
-                LobbyOption(
+                const LobbyOption(
                   value: SosMode.twoPlayer,
                   label: '2 Players',
                   icon: Icons.person_outline,
                 ),
-                LobbyOption(
+                const LobbyOption(
                   value: SosMode.fourPlayerTeams,
                   label: '4 Player Teams',
                   icon: Icons.groups_outlined,

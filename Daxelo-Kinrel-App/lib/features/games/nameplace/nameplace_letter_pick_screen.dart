@@ -58,7 +58,7 @@ class _NameplaceLetterPickScreenState extends ConsumerState<NameplaceLetterPickS
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.close_rounded), onPressed: () { ref.read(nameplaceProvider(widget.familyId).notifier).leaveGame(); if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
-        title: Text('Round ${game?.currentRound ?? 1}', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: Text('Round ${game?.currentRound ?? 1}', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),
       body: state.isLoading && game == null
@@ -74,11 +74,11 @@ class _NameplaceLetterPickScreenState extends ConsumerState<NameplaceLetterPickS
   Widget _letterPickerView(state) {
     final game = state.game!;
     return ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
-      Text('You\'re picking the letter!', textAlign: TextAlign.center,
+      const Text('You\'re picking the letter!', textAlign: TextAlign.center,
         style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
       const SizedBox(height: 4),
       Text('Pick a letter for Round ${game.currentRound} of ${game.totalRounds}', textAlign: TextAlign.center,
-        style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
+        style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
       const SizedBox(height: KinrelSpacing.xl),
       GridView.builder(
         shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
@@ -132,9 +132,9 @@ class _NameplaceLetterPickScreenState extends ConsumerState<NameplaceLetterPickS
     final game = state.game!;
     final chooser = state.players.where((p) => p.userId == game.currentLetterChooserId).firstOrNull;
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange)),
+      const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange)),
       const SizedBox(height: KinrelSpacing.md),
-      Text('${chooser?.userName ?? 'Player'} is picking a letter...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)),
+      Text('${chooser?.userName ?? 'Player'} is picking a letter...', style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)),
     ]));
   }
 }

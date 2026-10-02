@@ -254,12 +254,12 @@ class _StickerPanelState extends State<StickerPanel>
               ),
               child: TextField(
                 controller: _searchController,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   color: KinrelColors.textWhite,
                 ),
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: 'Search stickers…',
                   hintStyle: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -271,7 +271,7 @@ class _StickerPanelState extends State<StickerPanel>
                     size: 18,
                     color: KinrelColors.textDim,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  contentPadding: EdgeInsets.symmetric(vertical: 0),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
@@ -290,7 +290,7 @@ class _StickerPanelState extends State<StickerPanel>
                 color: const Color(0xFF202338),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.keyboard_rounded,
                 size: 20,
                 color: KinrelColors.textSilver,
@@ -332,7 +332,7 @@ class _StickerPanelState extends State<StickerPanel>
   Widget _buildGrid() {
     if (_isSearching) {
       if (_searchResults.isEmpty) {
-        return Center(
+        return const Center(
           child: Text(
             'No stickers found',
             style: TextStyle(

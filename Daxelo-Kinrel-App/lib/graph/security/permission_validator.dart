@@ -43,6 +43,12 @@ import '../data/graph_data_models.dart' show GraphNodeData, GraphEdgeData, Graph
 /// - [blockedIds]: IDs of completely excluded members (never revealed to UI;
 ///   used internally for indirect connection detection)
 class VisibilityResult {
+
+  const VisibilityResult({
+    required this.visible,
+    required this.anonymous,
+    required this.blockedIds,
+  });
   /// Nodes visible to the viewer with full details.
   final List<GraphNodeData> visible;
 
@@ -53,12 +59,6 @@ class VisibilityResult {
   /// IDs of completely blocked/excluded members. Used internally only;
   /// count is NEVER exposed to prevent inference attacks.
   final Set<String> blockedIds;
-
-  const VisibilityResult({
-    required this.visible,
-    required this.anonymous,
-    required this.blockedIds,
-  });
 }
 
 // GraphRealtimeEvent imported from graph_data_models.dart
@@ -69,10 +69,10 @@ class VisibilityResult {
 
 /// A single cached permission check result with timestamp.
 class _CacheEntry {
-  final bool allowed;
-  final DateTime cachedAt;
 
   const _CacheEntry({required this.allowed, required this.cachedAt});
+  final bool allowed;
+  final DateTime cachedAt;
 
   /// Whether this cache entry is still valid (within 30-minute TTL).
   bool get isValid {

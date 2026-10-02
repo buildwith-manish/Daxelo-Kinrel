@@ -253,16 +253,16 @@ class _RelationshipPopupWidgetState extends State<RelationshipPopupWidget>
       padding: const EdgeInsets.fromLTRB(16.0, 12.0, 8.0, 12.0),
       child: Row(
         children: [
-          Text('Relationship', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 13.0, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+          const Text('Relationship', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 13.0, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
           const Spacer(),
           GestureDetector(
             onTap: widget.onClose,
             behavior: HitTestBehavior.opaque,
             child: Container(
               width: 28.0, height: 28.0,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: KinrelColors.darkElevated),
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: KinrelColors.darkElevated),
               alignment: Alignment.center,
-              child: Icon(Icons.close, size: 14.0, color: KinrelColors.textDim),
+              child: const Icon(Icons.close, size: 14.0, color: KinrelColors.textDim),
             ),
           ),
         ],
@@ -289,19 +289,19 @@ class _RelationshipPopupWidgetState extends State<RelationshipPopupWidget>
             children: [
               _buildMiniAvatar(personFrom, personFromGender),
               const SizedBox(width: 6.0),
-              Flexible(child: Text(personFrom, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 12.0, fontWeight: FontWeight.w600, color: KinrelColors.textWhite), overflow: TextOverflow.ellipsis, maxLines: 1)),
+              Flexible(child: Text(personFrom, style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 12.0, fontWeight: FontWeight.w600, color: KinrelColors.textWhite), overflow: TextOverflow.ellipsis, maxLines: 1)),
               const SizedBox(width: 4.0),
               Icon(Icons.arrow_forward, size: 14.0, color: arrowColor),
               const SizedBox(width: 4.0),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
                 decoration: BoxDecoration(color: arrowColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6.0)),
-                child: Text(label, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11.0, fontWeight: FontWeight.w500, color: KinrelColors.textSecondaryDark)),
+                child: Text(label, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11.0, fontWeight: FontWeight.w500, color: KinrelColors.textSecondaryDark)),
               ),
               const SizedBox(width: 4.0),
               Icon(Icons.arrow_forward, size: 14.0, color: arrowColor),
               const SizedBox(width: 4.0),
-              Flexible(child: Text(personTo, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 12.0, fontWeight: FontWeight.w600, color: KinrelColors.textWhite), overflow: TextOverflow.ellipsis, maxLines: 1)),
+              Flexible(child: Text(personTo, style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 12.0, fontWeight: FontWeight.w600, color: KinrelColors.textWhite), overflow: TextOverflow.ellipsis, maxLines: 1)),
               const SizedBox(width: 6.0),
               _buildMiniAvatar(personTo, personToGender),
             ],
@@ -331,7 +331,7 @@ class _RelationshipPopupWidgetState extends State<RelationshipPopupWidget>
       alignment: Alignment.center,
       child: Text(
         initials,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.displayFont,
           fontSize: 9.0,
           fontWeight: FontWeight.w600,

@@ -281,17 +281,17 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: KinrelColors.elevation3,
-        title: Text('Revoke All Links', style: TextStyle(color: KinrelColors.textWhite)),
-        content: Text('This will deactivate all active invite links. Existing links will stop working.',
+        title: const Text('Revoke All Links', style: TextStyle(color: KinrelColors.textWhite)),
+        content: const Text('This will deactivate all active invite links. Existing links will stop working.',
             style: TextStyle(color: KinrelColors.textSilver)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: TextStyle(color: KinrelColors.textSilver)),
+            child: const Text('Cancel', style: TextStyle(color: KinrelColors.textSilver)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Revoke All', style: TextStyle(color: KinrelColors.error)),
+            child: const Text('Revoke All', style: TextStyle(color: KinrelColors.error)),
           ),
         ],
       ),
@@ -302,13 +302,13 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
         setState(() => _activeInvite = null);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('All invites revoked'), backgroundColor: KinrelColors.success),
+            const SnackBar(content: Text('All invites revoked'), backgroundColor: KinrelColors.success),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to revoke'), backgroundColor: KinrelColors.error),
+            const SnackBar(content: Text('Failed to revoke'), backgroundColor: KinrelColors.error),
           );
         }
       }
@@ -326,33 +326,33 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
       backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(
         backgroundColor: KinrelColors.darkBackground,
-        title: Text('Invite Members', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+        title: const Text('Invite Members', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: KinrelColors.orange))
+          ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
           : SingleChildScrollView(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (_activeInvite != null) ...[
                     // Invite link display
                     Container(
-                      padding: EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: KinrelColors.elevation1,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Column(
                         children: [
-                          Text('Invite Link', style: TextStyle(color: KinrelColors.textSilver, fontSize: 12)),
-                          SizedBox(height: 8),
+                          const Text('Invite Link', style: TextStyle(color: KinrelColors.textSilver, fontSize: 12)),
+                          const SizedBox(height: 8),
                           SelectableText(
                             _inviteUrl,
-                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 14, fontFamily: 'DMMono'),
+                            style: const TextStyle(color: KinrelColors.textWhite, fontSize: 14, fontFamily: 'DMMono'),
                             textAlign: TextAlign.center,
                           ),
-                          SizedBox(height: 12),
+                          const SizedBox(height: 12),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -360,21 +360,21 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                 onPressed: () {
                                   // Copy to clipboard logic
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Link copied!'), backgroundColor: KinrelColors.success),
+                                    const SnackBar(content: Text('Link copied!'), backgroundColor: KinrelColors.success),
                                   );
                                 },
-                                icon: Icon(Icons.copy, size: 16),
-                                label: Text('Copy'),
+                                icon: const Icon(Icons.copy, size: 16),
+                                label: const Text('Copy'),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: KinrelColors.orange,
-                                  side: BorderSide(color: KinrelColors.orange),
+                                  side: const BorderSide(color: KinrelColors.orange),
                                 ),
                               ),
-                              SizedBox(width: 12),
+                              const SizedBox(width: 12),
                               ElevatedButton.icon(
                                 onPressed: () => Share.share(_inviteUrl),
-                                icon: Icon(Icons.share, size: 16),
-                                label: Text('Share'),
+                                icon: const Icon(Icons.share, size: 16),
+                                label: const Text('Share'),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: KinrelColors.orange,
                                   foregroundColor: Colors.white,
@@ -385,11 +385,11 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                         ],
                       ),
                     ),
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
                     // QR Code
                     Container(
-                      padding: EdgeInsets.all(24),
+                      padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
@@ -403,11 +403,11 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                         ),
                       ),
                     ),
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
                     // Invite details
                     Container(
-                      padding: EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: KinrelColors.elevation1,
                         borderRadius: BorderRadius.circular(8),
@@ -421,14 +421,14 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                         ],
                       ),
                     ),
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
                   ],
 
                   // ── Direct invite by Kinrel username search ──────────
                   // Search for existing Kinrel users by username, select
                   // one, then send them an in-app invite notification.
                   Container(
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: KinrelColors.elevation1,
                       borderRadius: BorderRadius.circular(12),
@@ -439,7 +439,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        const Row(
                           children: [
                             Icon(Icons.person_add_outlined,
                                 size: 18, color: KinrelColors.orange),
@@ -454,20 +454,20 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                             ),
                           ],
                         ),
-                        SizedBox(height: 4),
-                        Text(
+                        const SizedBox(height: 4),
+                        const Text(
                           'Search for a Kinrel user by username',
                           style: TextStyle(
                             color: KinrelColors.textDim,
                             fontSize: 12,
                           ),
                         ),
-                        SizedBox(height: 12),
+                        const SizedBox(height: 12),
 
                         // ── Selected user chip (shown after selection) ──
                         if (_selectedUser != null) ...[
                           Container(
-                            padding: EdgeInsets.symmetric(
+                            padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
                               color: KinrelColors.orange
@@ -496,13 +496,13 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                               ? _selectedUser!.name[0]
                                                   .toUpperCase()
                                               : '?',
-                                          style: TextStyle(
+                                          style: const TextStyle(
                                               color: KinrelColors.orange,
                                               fontSize: 14),
                                         )
                                       : null,
                                 ),
-                                SizedBox(width: 10),
+                                const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -510,7 +510,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                     children: [
                                       Text(
                                         _selectedUser!.name,
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           color: KinrelColors.textWhite,
                                           fontSize: 13,
                                           fontWeight: FontWeight.w600,
@@ -519,7 +519,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                       if (_selectedUser!.username != null)
                                         Text(
                                           '@${_selectedUser!.username}',
-                                          style: TextStyle(
+                                          style: const TextStyle(
                                             color: KinrelColors.textDim,
                                             fontSize: 11,
                                           ),
@@ -527,7 +527,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                       else
                                         Text(
                                           _selectedUser!.displayId,
-                                          style: TextStyle(
+                                          style: const TextStyle(
                                             color: KinrelColors.textDim,
                                             fontSize: 11,
                                             fontFamily: 'DMMono',
@@ -540,14 +540,14 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                   onTap: () => setState(() {
                                     _selectedUser = null;
                                   }),
-                                  child: Icon(Icons.close,
+                                  child: const Icon(Icons.close,
                                       size: 18,
                                       color: KinrelColors.textDim),
                                 ),
                               ],
                             ),
                           ),
-                          SizedBox(height: 12),
+                          const SizedBox(height: 12),
                         ] else ...[
                           // ── Search field ──────────────────────────────
                           TextField(
@@ -555,9 +555,9 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                             onChanged: (_) => _onSearchChanged(),
                             decoration: InputDecoration(
                               hintText: '@username or name',
-                              hintStyle: TextStyle(
+                              hintStyle: const TextStyle(
                                   color: KinrelColors.textDim),
-                              prefixIcon: Icon(Icons.search,
+                              prefixIcon: const Icon(Icons.search,
                                   size: 18,
                                   color: KinrelColors.textDim),
                               filled: true,
@@ -566,17 +566,17 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide: BorderSide.none,
                               ),
-                              contentPadding: EdgeInsets.symmetric(
+                              contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 12, vertical: 10),
                             ),
-                            style: TextStyle(
+                            style: const TextStyle(
                                 color: KinrelColors.textWhite,
                                 fontSize: 14),
                           ),
 
                           // ── Search results list ──────────────────────
                           if (_isSearching)
-                            Padding(
+                            const Padding(
                               padding: EdgeInsets.only(top: 8),
                               child: Center(
                                 child: SizedBox(
@@ -591,7 +591,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                             )
                           else if (_hasSearched &&
                               _searchResults.isEmpty)
-                            Padding(
+                            const Padding(
                               padding: EdgeInsets.only(top: 12),
                               child: Center(
                                 child: Text(
@@ -605,8 +605,8 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                             )
                           else if (_searchResults.isNotEmpty)
                             Container(
-                              margin: EdgeInsets.only(top: 8),
-                              constraints: BoxConstraints(maxHeight: 200),
+                              margin: const EdgeInsets.only(top: 8),
+                              constraints: const BoxConstraints(maxHeight: 200),
                               decoration: BoxDecoration(
                                 color: KinrelColors.darkBackground,
                                 borderRadius: BorderRadius.circular(8),
@@ -631,7 +631,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                     },
                                     borderRadius: BorderRadius.circular(8),
                                     child: Padding(
-                                      padding: EdgeInsets.symmetric(
+                                      padding: const EdgeInsets.symmetric(
                                           horizontal: 12, vertical: 8),
                                       child: Row(
                                         children: [
@@ -652,14 +652,14 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                                         ? user.name[0]
                                                             .toUpperCase()
                                                         : '?',
-                                                    style: TextStyle(
+                                                    style: const TextStyle(
                                                         color: KinrelColors
                                                             .orange,
                                                         fontSize: 14),
                                                   )
                                                 : null,
                                           ),
-                                          SizedBox(width: 10),
+                                          const SizedBox(width: 10),
                                           Expanded(
                                             child: Column(
                                               crossAxisAlignment:
@@ -668,7 +668,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                               children: [
                                                 Text(
                                                   user.name,
-                                                  style: TextStyle(
+                                                  style: const TextStyle(
                                                     color: KinrelColors
                                                         .textWhite,
                                                     fontSize: 13,
@@ -680,7 +680,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                                     null)
                                                   Text(
                                                     '@${user.username}',
-                                                    style: TextStyle(
+                                                    style: const TextStyle(
                                                       color: KinrelColors
                                                           .textDim,
                                                       fontSize: 11,
@@ -693,7 +693,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                                   // are distinguishable.
                                                   Text(
                                                     user.displayId,
-                                                    style: TextStyle(
+                                                    style: const TextStyle(
                                                       color: KinrelColors
                                                           .textDim,
                                                       fontSize: 11,
@@ -711,7 +711,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                 },
                               ),
                             ),
-                          SizedBox(height: 12),
+                          const SizedBox(height: 12),
                         ],
 
                         // ── Send Invite button ──────────────────────────
@@ -723,7 +723,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                 ? null
                                 : _sendDirectInvite,
                             icon: _isSendingDirect
-                                ? SizedBox(
+                                ? const SizedBox(
                                     width: 16,
                                     height: 16,
                                     child: CircularProgressIndicator(
@@ -731,14 +731,14 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                       color: Colors.white,
                                     ),
                                   )
-                                : Icon(Icons.send, size: 16),
+                                : const Icon(Icons.send, size: 16),
                             label: Text(_isSendingDirect
                                 ? 'Sending...'
                                 : 'Send Invite'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: KinrelColors.orange,
                               foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
@@ -748,11 +748,11 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                       ],
                     ),
                   ),
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
                   // Generate new link with options
-                  Text('New Link Options', style: TextStyle(color: KinrelColors.textSilver, fontSize: 13)),
-                  SizedBox(height: 8),
+                  const Text('New Link Options', style: TextStyle(color: KinrelColors.textSilver, fontSize: 13)),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
                       Expanded(
@@ -761,34 +761,34 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
                             labelText: 'Expiry (days)',
-                            labelStyle: TextStyle(color: KinrelColors.textDim),
+                            labelStyle: const TextStyle(color: KinrelColors.textDim),
                             filled: true,
                             fillColor: KinrelColors.elevation1,
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           ),
-                          style: TextStyle(color: KinrelColors.textWhite),
+                          style: const TextStyle(color: KinrelColors.textWhite),
                           onChanged: (v) => _expiryDays = int.tryParse(v),
                         ),
                       ),
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: TextField(
                           controller: _maxUsesController,
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
                             labelText: 'Max uses',
-                            labelStyle: TextStyle(color: KinrelColors.textDim),
+                            labelStyle: const TextStyle(color: KinrelColors.textDim),
                             filled: true,
                             fillColor: KinrelColors.elevation1,
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           ),
-                          style: TextStyle(color: KinrelColors.textWhite),
+                          style: const TextStyle(color: KinrelColors.textWhite),
                           onChanged: (v) => _maxUses = int.tryParse(v),
                         ),
                       ),
                     ],
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: _generateInvite,
                     style: ElevatedButton.styleFrom(
@@ -796,17 +796,17 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                     ),
-                    child: Text('Generate New Link'),
+                    child: const Text('Generate New Link'),
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
                   OutlinedButton(
                     onPressed: _revokeInvites,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: KinrelColors.error,
-                      side: BorderSide(color: KinrelColors.error),
+                      side: const BorderSide(color: KinrelColors.error),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                     ),
-                    child: Text('Revoke All Links'),
+                    child: const Text('Revoke All Links'),
                   ),
                 ],
               ),
@@ -816,12 +816,12 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
 
   Widget _buildDetailRow(String label, String value) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: KinrelColors.textDim, fontSize: 13)),
-          Text(value, style: TextStyle(color: KinrelColors.textWhite, fontSize: 13)),
+          Text(label, style: const TextStyle(color: KinrelColors.textDim, fontSize: 13)),
+          Text(value, style: const TextStyle(color: KinrelColors.textWhite, fontSize: 13)),
         ],
       ),
     );

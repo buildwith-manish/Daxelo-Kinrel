@@ -119,9 +119,6 @@ class NotYetPlayedMember {
     required this.userName,
     this.avatarUrl,
   });
-  final String userId;
-  final String userName;
-  final String? avatarUrl;
 
   factory NotYetPlayedMember.fromJson(Map<String, dynamic> json) {
     return NotYetPlayedMember(
@@ -130,6 +127,9 @@ class NotYetPlayedMember {
       avatarUrl: json['avatarUrl'] as String?,
     );
   }
+  final String userId;
+  final String userName;
+  final String? avatarUrl;
 }
 
 final participationLeaderboardProvider = FutureProvider.autoDispose

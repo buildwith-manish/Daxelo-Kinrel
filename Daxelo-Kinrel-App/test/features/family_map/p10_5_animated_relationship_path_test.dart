@@ -169,8 +169,8 @@ void main() {
 
     test('excludes edges outside the viewport', () {
       final edges = <MapRelationshipEdge>[
-        MapRelationshipEdge(
-          pinA: const MapPin(
+        const MapRelationshipEdge(
+          pinA: MapPin(
             personId: 'a',
             name: 'A',
             city: 'X',
@@ -178,7 +178,7 @@ void main() {
             lat: 0,
             lng: 0,
           ),
-          pinB: const MapPin(
+          pinB: MapPin(
             personId: 'b',
             name: 'B',
             city: 'Y',

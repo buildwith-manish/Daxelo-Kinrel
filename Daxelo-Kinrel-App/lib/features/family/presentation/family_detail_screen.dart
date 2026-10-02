@@ -4,13 +4,10 @@ import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
@@ -20,21 +17,16 @@ import '../../../core/constants/feature_flags.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
-import '../../../core/family/optimistic_provider.dart';
-import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/networking/dio_client.dart';
 import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/smart_defaults_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/member_list_skeleton.dart';
-import '../../../graph/widgets/family_graph_engine_view.dart';
 import 'widgets/family_insights_dashboard.dart';
 import 'family_space_floating_nav.dart';
 import 'add_person_sheet.dart';
-import 'person_detail_sheet.dart';
 // v5.15: kept for route compat but no longer called directly
-import 'add_member_options_sheet.dart';
 // Phase (invite-direct-find-on-kinrel): the space-detail Invite button
 // now navigates directly to KinrelUserSearchScreen (skipping the
 // two-option sheet). The sheet is still used by the Graph view's
@@ -44,7 +36,6 @@ import 'kinrel_user_search_screen.dart';
 import 'add_member_source.dart' show KinrelUser;
 import 'relationship_quick_pick_sheet.dart' show RelationshipQuickPickSheet;
 
-import '../../../core/utils/smart_preloader.dart';
 import '../../../core/utils/share_helper.dart';
 import '../../prediction_battle_v1/pb_v1_card.dart';
 import '../../prediction_battle_v1/pb_v1_fun_fact_card.dart';
@@ -54,7 +45,6 @@ import '../../games/shared/icons/game_icons.dart';
 import '../../games/shared/widgets/active_games_provider.dart';
 import '../../presence/presentation/presence_widget.dart';
 import '../../pulse/providers/cross_feature_moments_provider.dart';
-import '../../shared_list/presentation/shared_list_screen.dart';
 import 'premium/family_hub_sections.dart';
 import 'premium/family_hub_highlights.dart';
 import 'premium/hero_section.dart';
@@ -1754,7 +1744,7 @@ class _FamilyStrengthCloser extends StatelessWidget {
           Text(
             '🧡 Your family is $memberCount member${memberCount == 1 ? '' : 's'} strong',
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 16,
               fontWeight: FontWeight.w800,
@@ -1763,7 +1753,7 @@ class _FamilyStrengthCloser extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          Text(
+          const Text(
             'Every photo, story and game you share makes it stronger.',
             textAlign: TextAlign.center,
             style: TextStyle(
@@ -2014,14 +2004,14 @@ class _GamesRow extends ConsumerWidget {
                 onTap: () =>
                     context.push('/family/$familyId/gaming/all-games'),
                 behavior: HitTestBehavior.opaque,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(
                     horizontal: 4,
                     vertical: 2,
                   ),
-                  child: const Text(
+                  child: Text(
                     'See All',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: KinrelColors.orange,
@@ -2034,7 +2024,7 @@ class _GamesRow extends ConsumerWidget {
           ),
         ),
         // ── Hick's Law: 3 chunked groups, each with a time hint ──────
-        _GameGroupHeader(
+        const _GameGroupHeader(
           emoji: '⚡',
           label: 'Quick Play',
           hint: 'under 2 min',
@@ -2043,7 +2033,7 @@ class _GamesRow extends ConsumerWidget {
           games: _quickPlayGames,
           familyId: familyId,
         ),
-        _GameGroupHeader(
+        const _GameGroupHeader(
           emoji: '♟️',
           label: 'Classic Board',
           hint: '5+ min',
@@ -2052,7 +2042,7 @@ class _GamesRow extends ConsumerWidget {
           games: _classicBoardGames,
           familyId: familyId,
         ),
-        _GameGroupHeader(
+        const _GameGroupHeader(
           emoji: '🎉',
           label: 'Family Fun',
           hint: 'creative & party',
@@ -2276,7 +2266,7 @@ class _CompactGameCard extends ConsumerWidget {
                   if (game.durationLabel != null)
                     Text(
                       game.durationLabel!,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 8.5,
                         color: KinrelColors.textDim,
@@ -2315,7 +2305,7 @@ class _CompactGameCard extends ConsumerWidget {
                   socialLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 8.5,
                     fontWeight: FontWeight.w600,

@@ -64,7 +64,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             backgroundColor: Colors.grey[900],
-            body: Center(
+            body: const Center(
               child: AvatarMarkerWidget(
                 pin: pin,
                 selected: false,
@@ -94,7 +94,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             backgroundColor: Colors.grey[900],
-            body: Center(
+            body: const Center(
               child: AvatarMarkerWidget(
                 pin: pin,
                 selected: true,

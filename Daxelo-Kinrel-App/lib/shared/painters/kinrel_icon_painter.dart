@@ -205,7 +205,7 @@ class KinrelIconPainter extends CustomPainter {
       // Radial gradient background
       final bgPaint = Paint()
         ..shader = RadialGradient(
-          center: Alignment(-0.3, 0.0),
+          center: const Alignment(-0.3, 0.0),
           radius: 0.65,
           colors: [pc.bgInner, pc.bg],
         ).createShader(Rect.fromCenter(center: center, width: s, height: s));
@@ -310,7 +310,7 @@ class KinrelIconPainter extends CustomPainter {
       if (pc.showGlow) {
         final glowPaint = Paint()
           ..color = n.color.withValues(alpha: 0.12)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4);
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
         canvas.drawCircle(offset, n.r + s * 0.035, glowPaint);
       }
 
@@ -330,7 +330,7 @@ class KinrelIconPainter extends CustomPainter {
       if (pc.showGlow) {
         final highlightPaint = Paint()
           ..color = Colors.white.withValues(alpha: 0.38)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 1);
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1);
         canvas.drawCircle(
           Offset(n.x - n.r * 0.25, n.y - n.r * 0.25),
           n.r * 0.35,

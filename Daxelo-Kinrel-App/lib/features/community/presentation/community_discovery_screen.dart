@@ -60,7 +60,7 @@ class _CommunityDiscoveryScreenState extends ConsumerState<CommunityDiscoveryScr
     return Scaffold(
       backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           'Communities',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -79,11 +79,11 @@ class _CommunityDiscoveryScreenState extends ConsumerState<CommunityDiscoveryScr
             padding: const EdgeInsets.all(KinrelSpacing.base),
             child: TextField(
               controller: _searchController,
-              style: TextStyle(color: _cTextPrimary, fontSize: 16),
+              style: const TextStyle(color: _cTextPrimary, fontSize: 16),
               decoration: InputDecoration(
                 hintText: 'Search communities...',
-                hintStyle: TextStyle(color: _cTextDim),
-                prefixIcon: Icon(Icons.search_rounded, color: _cTextSecondary),
+                hintStyle: const TextStyle(color: _cTextDim),
+                prefixIcon: const Icon(Icons.search_rounded, color: _cTextSecondary),
                 filled: true,
                 fillColor: _cElevated,
                 border: OutlineInputBorder(
@@ -142,22 +142,22 @@ class _CommunityDiscoveryScreenState extends ConsumerState<CommunityDiscoveryScr
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.error_outline_rounded, size: 48, color: _cTextDim),
+                    const Icon(Icons.error_outline_rounded, size: 48, color: _cTextDim),
                     const SizedBox(height: 12),
-                    Text('Failed to load communities', style: TextStyle(color: _cTextSecondary)),
+                    const Text('Failed to load communities', style: TextStyle(color: _cTextSecondary)),
                     const SizedBox(height: 8),
-                    Text('$e', style: TextStyle(color: _cTextDim, fontSize: 12), textAlign: TextAlign.center),
+                    Text('$e', style: const TextStyle(color: _cTextDim, fontSize: 12), textAlign: TextAlign.center),
                   ],
                 ),
               ),
               data: (communities) {
                 if (communities.isEmpty) {
-                  return Center(
+                  return const Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.groups_rounded, size: 48, color: _cTextDim),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                         Text('No communities found', style: TextStyle(color: _cTextSecondary)),
                       ],
                     ),
@@ -202,7 +202,7 @@ class _CommunityDiscoveryScreenState extends ConsumerState<CommunityDiscoveryScr
     final success = await action.joinCommunity(communityId);
     if (mounted && !success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Failed to join community'),
           backgroundColor: KinrelColors.error,
           behavior: SnackBarBehavior.floating,
@@ -251,7 +251,7 @@ class _CommunityCard extends StatelessWidget {
                   ? Center(
                       child: Text(
                         community.name.substring(0, 1).toUpperCase(),
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: _cOrange,
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
@@ -268,7 +268,7 @@ class _CommunityCard extends StatelessWidget {
                 children: [
                   Text(
                     community.name,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: _cTextPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -287,19 +287,19 @@ class _CommunityCard extends StatelessWidget {
                         ),
                         child: Text(
                           community.type.toUpperCase(),
-                          style: TextStyle(color: _cOrange, fontSize: 10, fontWeight: FontWeight.w600),
+                          style: const TextStyle(color: _cOrange, fontSize: 10, fontWeight: FontWeight.w600),
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Icon(Icons.people_outline_rounded, size: 14, color: _cTextDim),
+                      const Icon(Icons.people_outline_rounded, size: 14, color: _cTextDim),
                       const SizedBox(width: 4),
                       Text(
                         '${community.memberCount}',
-                        style: TextStyle(color: _cTextDim, fontSize: 12),
+                        style: const TextStyle(color: _cTextDim, fontSize: 12),
                       ),
                       if (!community.isPublic) ...[
                         const SizedBox(width: 8),
-                        Icon(Icons.lock_outline_rounded, size: 14, color: _cTextDim),
+                        const Icon(Icons.lock_outline_rounded, size: 14, color: _cTextDim),
                       ],
                     ],
                   ),
@@ -307,7 +307,7 @@ class _CommunityCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       community.description!,
-                      style: TextStyle(color: _cTextSecondary, fontSize: 13),
+                      style: const TextStyle(color: _cTextSecondary, fontSize: 13),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -327,7 +327,7 @@ class _CommunityCard extends StatelessWidget {
                   ),
                   child: Text(
                     community.isPublic ? 'Join' : 'Request',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -344,7 +344,7 @@ class _CommunityCard extends StatelessWidget {
                 ),
                 child: Text(
                   community.myRole?.toUpperCase() ?? 'JOINED',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: _cTextSecondary,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,

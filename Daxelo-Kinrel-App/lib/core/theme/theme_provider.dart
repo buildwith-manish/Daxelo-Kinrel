@@ -106,15 +106,15 @@ final appThemeProvider = Provider<ThemeData>((ref) {
     final isDark = brightness == Brightness.dark;
     theme = theme.copyWith(
       colorScheme: colorScheme.copyWith(
-        surface: isDark ? Color(0xFF000000) : Color(0xFFFFFFFF),
-        onSurface: isDark ? Color(0xFFFFFFFF) : Color(0xFF000000),
+        surface: isDark ? const Color(0xFF000000) : const Color(0xFFFFFFFF),
+        onSurface: isDark ? const Color(0xFFFFFFFF) : const Color(0xFF000000),
         onSurfaceVariant: isDark
             ? const Color(0xFFE0E0E0)
             : const Color(0xFF1A1A1A),
         outline: isDark ? const Color(0xFFBBBBBB) : const Color(0xFF444444),
       ),
       dividerTheme: theme.dividerTheme.copyWith(
-        color: isDark ? Color(0xFF888888) : Color(0xFF666666),
+        color: isDark ? const Color(0xFF888888) : const Color(0xFF666666),
       ),
     );
   }
@@ -162,7 +162,7 @@ final darkThemeProvider = Provider<ThemeData>((ref) {
         onSurfaceVariant: const Color(0xFFE0E0E0),
         outline: const Color(0xFFBBBBBB),
       ),
-      dividerTheme: theme.dividerTheme.copyWith(color: Color(0xFF888888)),
+      dividerTheme: theme.dividerTheme.copyWith(color: const Color(0xFF888888)),
     );
   }
 

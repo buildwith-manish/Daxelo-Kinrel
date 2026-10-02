@@ -117,7 +117,7 @@ class _WordForgeLobbyScreenState
                 state.game?.roomName?.isNotEmpty == true
                     ? state.game!.roomName!
                     : 'Word Forge',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontWeight: FontWeight.w600,
                   color: KinrelColors.textWhite,
@@ -186,7 +186,7 @@ class _WordForgeLobbyScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Share this code',
+            const Text('Share this code',
                 style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 18,
@@ -194,17 +194,17 @@ class _WordForgeLobbyScreenState
                     color: KinrelColors.textWhite)),
             const SizedBox(height: KinrelSpacing.md),
             Text(code,
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 40,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF8B5CF6),
+                    color: Color(0xFF8B5CF6),
                     letterSpacing: 6)),
             const SizedBox(height: KinrelSpacing.md),
             Text(
               'Up to ${_maxPlayers - 1} members. Forge definitions. Fool the family.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim),
@@ -230,7 +230,7 @@ class _WordForgeLobbyScreenState
       title: 'Word Forge',
       tagline: 'Forge fake definitions · Fool your family · Guess the real one',
       facts: [
-        LobbyFact(icon: Icons.groups_2_outlined, label: '3–8 players'),
+        const LobbyFact(icon: Icons.groups_2_outlined, label: '3–8 players'),
         LobbyFact(
             icon: Icons.menu_book_outlined, label: '$_totalRounds rounds'),
         LobbyFact(icon: Icons.timer_outlined, label: '$_answerSeconds s/round'),
@@ -243,7 +243,7 @@ class _WordForgeLobbyScreenState
             child: TextField(
               controller: _roomNameController,
               maxLength: 24,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: KinrelColors.textWhite),
@@ -260,7 +260,7 @@ class _WordForgeLobbyScreenState
                     horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  borderSide: BorderSide(color: KinrelColors.border),
+                  borderSide: const BorderSide(color: KinrelColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
@@ -312,13 +312,13 @@ class _WordForgeLobbyScreenState
         ],
       ),
       rules: [
-        LobbyRule('Each round, an obscure real word is revealed (e.g. "petrichor").'),
-        LobbyRule('Everyone secretly writes a fake definition.'),
-        LobbyRule('All definitions + the real one are shuffled and shown.'),
-        LobbyRule('Vote for which definition you think is real.'),
-        LobbyRule('Guess the real definition: +10 points.'),
-        LobbyRule('Each vote your fake definition gets: +5 points.'),
-        LobbyRule('Close-match bonus: +15 if your def mirrors the real one.'),
+        const LobbyRule('Each round, an obscure real word is revealed (e.g. "petrichor").'),
+        const LobbyRule('Everyone secretly writes a fake definition.'),
+        const LobbyRule('All definitions + the real one are shuffled and shown.'),
+        const LobbyRule('Vote for which definition you think is real.'),
+        const LobbyRule('Guess the real definition: +10 points.'),
+        const LobbyRule('Each vote your fake definition gets: +5 points.'),
+        const LobbyRule('Close-match bonus: +15 if your def mirrors the real one.'),
       ],
       rulesFootnote:
           'Quick = 5 rounds · Standard = 10 · Marathon = 15. Words never repeat within 365 days per family.',

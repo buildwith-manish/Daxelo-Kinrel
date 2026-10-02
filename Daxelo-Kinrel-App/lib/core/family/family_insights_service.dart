@@ -35,7 +35,6 @@
 //   • No network calls, no Supabase queries.
 //   • Gated behind premium (canViewInsights) — soft paywall.
 
-import '../constants/brand_colors.dart';
 import 'family_provider.dart';
 
 /// Aggregated insights about a family, computed from FamilyDetail.
@@ -124,7 +123,7 @@ class FamilyInsightsService {
     // ── Generation count: find the max generation index among members.
     int generationCount = 1;
     for (final m in members) {
-      if (m.generationIndex != null && (m.generationIndex ?? 0) + 1 > generationCount) {
+      if ((m.generationIndex ?? 0) + 1 > generationCount) {
         generationCount = (m.generationIndex ?? 0) + 1;
       }
     }

@@ -80,8 +80,8 @@ void main() {
           _makePerson('c1', 'Child', generationIndex: 1),
         ];
         final relationships = [
-          GraphRelationship(id: 'r1', fromPersonId: 'p1', toPersonId: 'self', relationshipKey: 'parent'),
-          GraphRelationship(id: 'r2', fromPersonId: 'self', toPersonId: 'c1', relationshipKey: 'child'),
+          const GraphRelationship(id: 'r1', fromPersonId: 'p1', toPersonId: 'self', relationshipKey: 'parent'),
+          const GraphRelationship(id: 'r2', fromPersonId: 'self', toPersonId: 'c1', relationshipKey: 'child'),
         ];
 
         simulator.initialize(persons, relationships);

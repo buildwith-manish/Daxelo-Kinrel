@@ -153,7 +153,7 @@ class _Connect4GameScreenState extends ConsumerState<Connect4GameScreen> {
           backgroundColor: KinrelColors.darkCard,
           foregroundColor: KinrelColors.textWhite,
         ),
-        body: Center(
+        body: const Center(
           child: GamingEmptyCard(
             emoji: '🔴',
             title: 'Game not found',
@@ -203,7 +203,7 @@ class _Connect4GameScreenState extends ConsumerState<Connect4GameScreen> {
       ),
       title: Text(
         game.roomName?.isNotEmpty == true ? game.roomName! : 'Connect 4',
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.displayFont,
           fontWeight: FontWeight.w600,
           color: KinrelColors.textWhite,
@@ -376,7 +376,7 @@ class _TurnBanner extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -603,7 +603,7 @@ class _ResultsView extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   game.endReasonLabel,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     color: KinrelColors.textSilver,
@@ -617,7 +617,7 @@ class _ResultsView extends StatelessWidget {
 
           // Show the final board if available
           if (game.boardState != null) ...[
-            GamingSectionHeader(
+            const GamingSectionHeader(
               title: 'Final Board',
               icon: Icons.grid_view_outlined,
             ),

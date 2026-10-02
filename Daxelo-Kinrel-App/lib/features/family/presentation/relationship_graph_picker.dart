@@ -96,7 +96,7 @@ class _RelationshipGraphPickerState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Select Relationship',
                     style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
@@ -108,7 +108,7 @@ class _RelationshipGraphPickerState
                   if (widget.anchorName != null)
                     Text(
                       'How are they related to ${widget.anchorName}?',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         color: Colors.white54,
                         fontSize: 14,
@@ -190,7 +190,7 @@ class _RelationshipGraphPickerState
                     color: KinrelColors.orange,
                   ),
                 ),
-                error: (e, _) => Center(
+                error: (e, _) => const Center(
                   child: Text(
                     'Could not load relationships',
                     style: TextStyle(color: Colors.white54),
@@ -209,7 +209,7 @@ class _RelationshipGraphPickerState
                   }).toList();
 
                   if (filtered.isEmpty) {
-                    return Center(
+                    return const Center(
                       child: Text(
                         'No relationships found',
                         style: TextStyle(color: Colors.white38),

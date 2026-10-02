@@ -377,11 +377,11 @@ class KinrelGradients {
   /// Note: RadialGradient can't be const with this pattern, use factory method.
   static RadialGradient glowCoreGradient({double opacity = 0.28}) {
     return RadialGradient(
-      center: Alignment(-0.4, -0.4), // 30% 30%
+      center: const Alignment(-0.4, -0.4), // 30% 30%
       radius: 0.7,
       colors: [
-        Color(0xFFE8612A).withValues(alpha: opacity),
-        Color(0xFF13141E),
+        const Color(0xFFE8612A).withValues(alpha: opacity),
+        const Color(0xFF13141E),
       ],
     );
   }

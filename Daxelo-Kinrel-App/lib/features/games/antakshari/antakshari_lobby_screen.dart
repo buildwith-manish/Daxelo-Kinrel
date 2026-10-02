@@ -97,7 +97,7 @@ class _AntakshariLobbyScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            const Text(
               'Share this code',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -109,7 +109,7 @@ class _AntakshariLobbyScreenState
             const SizedBox(height: KinrelSpacing.md),
             Text(
               code,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 40,
                 fontWeight: FontWeight.w700,
@@ -121,7 +121,7 @@ class _AntakshariLobbyScreenState
             Text(
               'Up to ${_maxPlayers - 1} family members can join. Turn order is randomized when the host starts the game.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textDim,
@@ -173,7 +173,7 @@ class _AntakshariLobbyScreenState
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
         title: hasGame
-            ? Text(
+            ? const Text(
                 'Antakshari',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
@@ -255,13 +255,13 @@ class _AntakshariLobbyScreenState
             label: 'Game Mode',
             child: LobbyChoiceGrid<AntakshariGameMode>(
               options: [
-                LobbyOption(
+                const LobbyOption(
                   value: AntakshariGameMode.standard,
                   label: 'Standard',
                   icon: Icons.person_outline,
                   caption: 'Last player standing wins',
                 ),
-                LobbyOption(
+                const LobbyOption(
                   value: AntakshariGameMode.roundLimited,
                   label: 'Round Limited',
                   icon: Icons.groups_outlined,

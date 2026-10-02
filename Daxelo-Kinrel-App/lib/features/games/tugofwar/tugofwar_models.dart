@@ -130,27 +130,6 @@ class TugOfWarGame {
     this.spectatorsEnabled = true,
   });
 
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final TugOfWarStatus status;
-  final TugOfWarTeamMode teamMode;
-  final int matchDurationSec; // 30 | 60 | 90 | 0 = unlimited
-  final int maxPlayers;
-  final double ropePosition; // -1 .. +1 (+ = Team A lead)
-  final DateTime createdAt;
-  final String? roomName;
-  final int teamATaps;
-  final int teamBTaps;
-  final String? winnerTeam; // 'A' | 'B' | null (draw / none yet)
-  final List<String> winnerUserIds;
-  final String? endReason; // victory_line | time_up | walkover
-  final DateTime? startedAt;
-  final DateTime? endsAt;
-  final DateTime? completedAt;
-  final bool spectatorsEnabled;
-
   factory TugOfWarGame.fromJson(Map<String, dynamic> json) {
     final winnerIds = <String>[];
     final rawWinners = json['winnerUserIds'];
@@ -189,6 +168,27 @@ class TugOfWarGame {
       spectatorsEnabled: (json['spectatorsEnabled'] ?? true) as bool,
     );
   }
+
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final TugOfWarStatus status;
+  final TugOfWarTeamMode teamMode;
+  final int matchDurationSec; // 30 | 60 | 90 | 0 = unlimited
+  final int maxPlayers;
+  final double ropePosition; // -1 .. +1 (+ = Team A lead)
+  final DateTime createdAt;
+  final String? roomName;
+  final int teamATaps;
+  final int teamBTaps;
+  final String? winnerTeam; // 'A' | 'B' | null (draw / none yet)
+  final List<String> winnerUserIds;
+  final String? endReason; // victory_line | time_up | walkover
+  final DateTime? startedAt;
+  final DateTime? endsAt;
+  final DateTime? completedAt;
+  final bool spectatorsEnabled;
 
   bool get isWaiting => status == TugOfWarStatus.waiting;
   bool get isInProgress => status == TugOfWarStatus.inProgress;
@@ -232,16 +232,6 @@ class TugOfWarPlayer {
     this.readyAt,
   });
 
-  final String id;
-  final String gameId;
-  final String userId;
-  final String userName;
-  final DateTime joinedAt;
-  final TugTeam? team;
-  final int pullCount;
-  final bool isReady;
-  final DateTime? readyAt;
-
   factory TugOfWarPlayer.fromJson(Map<String, dynamic> json) {
     return TugOfWarPlayer(
       id: (json['id'] ?? '') as String,
@@ -258,6 +248,16 @@ class TugOfWarPlayer {
           : null,
     );
   }
+
+  final String id;
+  final String gameId;
+  final String userId;
+  final String userName;
+  final DateTime joinedAt;
+  final TugTeam? team;
+  final int pullCount;
+  final bool isReady;
+  final DateTime? readyAt;
 
   TugOfWarPlayer copyWith({
     TugTeam? team,

@@ -84,7 +84,7 @@ class DropdownSetting extends QuickStartSetting {
             ],
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -169,7 +169,7 @@ class SliderSetting extends QuickStartSetting {
             ],
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -179,7 +179,7 @@ class SliderSetting extends QuickStartSetting {
             const Spacer(),
             Text(
               labelBuilder(value),
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -232,7 +232,7 @@ class ToggleSetting extends QuickStartSetting {
             children: [
               Text(
                 label,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -337,7 +337,7 @@ class _CreateGameQuickStartState extends State<CreateGameQuickStart> {
         Center(
           child: Text(
             widget.gameName,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 24,
               fontWeight: FontWeight.w800,
@@ -353,7 +353,7 @@ class _CreateGameQuickStartState extends State<CreateGameQuickStart> {
           child: Text(
             widget.gameDescription,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               color: KinrelColors.textDim,
@@ -405,13 +405,13 @@ class _CreateGameQuickStartState extends State<CreateGameQuickStart> {
               ),
               child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.tune,
                     size: 14,
                     color: KinrelColors.textDim,
                   ),
                   const SizedBox(width: 6),
-                  Text(
+                  const Text(
                     'Advanced Settings',
                     style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,

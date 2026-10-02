@@ -11,23 +11,19 @@ import '../../../core/services/graph_layout_service.dart' show GraphPerson;
 
 /// The result of an ambiguity check.
 class AmbiguityResult {
-  final bool isAmbiguous;
-  final List<AmbiguityPath> paths;
 
   const AmbiguityResult({
     required this.isAmbiguous,
     required this.paths,
   });
+  final bool isAmbiguous;
+  final List<AmbiguityPath> paths;
 
   static const AmbiguityResult empty = AmbiguityResult(isAmbiguous: false, paths: []);
 }
 
 /// A single valid path through the graph.
 class AmbiguityPath {
-  final List<TraversePrimitive> path;
-  final List<String> visitedNodes;
-  final String pathPattern;
-  final String description;
 
   const AmbiguityPath({
     required this.path,
@@ -35,6 +31,10 @@ class AmbiguityPath {
     required this.pathPattern,
     required this.description,
   });
+  final List<TraversePrimitive> path;
+  final List<String> visitedNodes;
+  final String pathPattern;
+  final String description;
 }
 
 class AmbiguityEngine {
@@ -59,7 +59,7 @@ class AmbiguityEngine {
     final allPaths = _findAllShortestPaths(fromId, toId, adjacency, maxDepth);
 
     if (allPaths.length <= 1) {
-      return AmbiguityResult(isAmbiguous: false, paths: []);
+      return const AmbiguityResult(isAmbiguous: false, paths: []);
     }
 
     // Multiple paths exist — build descriptions
@@ -200,13 +200,13 @@ class AmbiguityEngine {
 }
 
 class _AdjEntry {
+  const _AdjEntry({required this.nodeId, required this.primitive});
   final String nodeId;
   final TraversePrimitive primitive;
-  const _AdjEntry({required this.nodeId, required this.primitive});
 }
 
 class _PathResult {
+  const _PathResult({required this.path, required this.visited});
   final List<TraversePrimitive> path;
   final List<String> visited;
-  const _PathResult({required this.path, required this.visited});
 }

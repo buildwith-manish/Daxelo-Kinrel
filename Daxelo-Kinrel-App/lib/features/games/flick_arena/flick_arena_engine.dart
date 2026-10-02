@@ -35,6 +35,14 @@ class FlickDisc {
     this.isPotted = false,
   });
 
+  factory FlickDisc.fromJson(Map<String, dynamic> json) => FlickDisc(
+        id: (json['id'] ?? '') as String,
+        ownerSlot: (json['ownerSlot'] as num?)?.toInt() ?? 1,
+        x: (json['x'] as num?)?.toDouble() ?? 0,
+        y: (json['y'] as num?)?.toDouble() ?? 0,
+        isPotted: (json['isPotted'] as bool?) ?? false,
+      );
+
   final String id;
   final int ownerSlot;
   final double x;
@@ -56,19 +64,16 @@ class FlickDisc {
         'y': y,
         'isPotted': isPotted,
       };
-
-  factory FlickDisc.fromJson(Map<String, dynamic> json) => FlickDisc(
-        id: (json['id'] ?? '') as String,
-        ownerSlot: (json['ownerSlot'] as num?)?.toInt() ?? 1,
-        x: (json['x'] as num?)?.toDouble() ?? 0,
-        y: (json['y'] as num?)?.toDouble() ?? 0,
-        isPotted: (json['isPotted'] as bool?) ?? false,
-      );
 }
 
 /// The ball — what you flick into the goal to score.
 class FlickBall {
   const FlickBall({required this.x, required this.y});
+
+  factory FlickBall.fromJson(Map<String, dynamic> json) => FlickBall(
+        x: (json['x'] as num?)?.toDouble() ?? 0,
+        y: (json['y'] as num?)?.toDouble() ?? 0,
+      );
 
   final double x;
   final double y;
@@ -77,11 +82,6 @@ class FlickBall {
       FlickBall(x: x ?? this.x, y: y ?? this.y);
 
   Map<String, dynamic> toJson() => {'x': x, 'y': y};
-
-  factory FlickBall.fromJson(Map<String, dynamic> json) => FlickBall(
-        x: (json['x'] as num?)?.toDouble() ?? 0,
-        y: (json['y'] as num?)?.toDouble() ?? 0,
-      );
 }
 
 /// Snapshot of the entire board — discs + ball + last shooter.
@@ -91,27 +91,6 @@ class FlickArenaState {
     required this.ball,
     this.lastShooterSlot,
   });
-
-  final List<FlickDisc> discs;
-  final FlickBall ball;
-  final int? lastShooterSlot;
-
-  FlickArenaState copyWith({
-    List<FlickDisc>? discs,
-    FlickBall? ball,
-    int? lastShooterSlot,
-  }) =>
-      FlickArenaState(
-        discs: discs ?? this.discs,
-        ball: ball ?? this.ball,
-        lastShooterSlot: lastShooterSlot ?? this.lastShooterSlot,
-      );
-
-  Map<String, dynamic> toJson() => {
-        'discs': discs.map((d) => d.toJson()).toList(),
-        'ball': ball.toJson(),
-        if (lastShooterSlot != null) 'lastShooterSlot': lastShooterSlot,
-      };
 
   factory FlickArenaState.fromJson(Map<String, dynamic> json) {
     final rawDiscs = json['discs'];
@@ -134,6 +113,27 @@ class FlickArenaState {
       lastShooterSlot: lastShooter is num ? lastShooter.toInt() : null,
     );
   }
+
+  final List<FlickDisc> discs;
+  final FlickBall ball;
+  final int? lastShooterSlot;
+
+  FlickArenaState copyWith({
+    List<FlickDisc>? discs,
+    FlickBall? ball,
+    int? lastShooterSlot,
+  }) =>
+      FlickArenaState(
+        discs: discs ?? this.discs,
+        ball: ball ?? this.ball,
+        lastShooterSlot: lastShooterSlot ?? this.lastShooterSlot,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'discs': discs.map((d) => d.toJson()).toList(),
+        'ball': ball.toJson(),
+        if (lastShooterSlot != null) 'lastShooterSlot': lastShooterSlot,
+      };
 }
 
 /// Build the initial board for a match type.
@@ -302,7 +302,7 @@ FlickTurnResult evaluateTurn({
   final goalsToWin = matchType.goalsToWin;
   bool gameOver = false;
   int? winningTeam;
-  List<String> winnerUserIds = const [];
+  final List<String> winnerUserIds = const [];
 
   if (newTeamOne >= goalsToWin) {
     gameOver = true;

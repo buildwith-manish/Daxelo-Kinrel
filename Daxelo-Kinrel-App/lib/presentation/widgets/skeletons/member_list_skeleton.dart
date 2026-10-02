@@ -139,7 +139,7 @@ class MemberListSkeleton extends ConsumerWidget {
             Container(
               width: 16,
               height: 16,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white,
               ),

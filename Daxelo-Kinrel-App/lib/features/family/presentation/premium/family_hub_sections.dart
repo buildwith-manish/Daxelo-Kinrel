@@ -33,7 +33,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/family/family_provider.dart';
-import '../../../shared_list/presentation/shared_list_screen.dart';
 import '../../../games/shared/widgets/active_games_list.dart';
 import '../../../games/shared/widgets/family_leaderboard_widget.dart';
 import '../../../occasions/providers/occasion_reminders_provider.dart';
@@ -272,7 +271,7 @@ class FamilyPulseSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        KolamSectionHeader(
+        const KolamSectionHeader(
           glyph: KolamGlyph.spiral,
           title: 'Family Pulse',
         ),
@@ -358,8 +357,8 @@ class FamilyPulseSection extends ConsumerWidget {
 
               // ── Activity log ──────────────────────────────────────────
               if (hasActivity) ...[
-                Padding(
-                  padding: const EdgeInsets.only(
+                const Padding(
+                  padding: EdgeInsets.only(
                       left: FamilyHubSpace.sm, top: FamilyHubSpace.sm),
                   child: Text(
                     'Recent',
@@ -388,7 +387,7 @@ class FamilyPulseSection extends ConsumerWidget {
                       alignment: Alignment.centerRight,
                       child: GestureDetector(
                         onTap: () => context.push('/family/$familyId/activity'),
-                        child: Text(
+                        child: const Text(
                           'View all',
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,

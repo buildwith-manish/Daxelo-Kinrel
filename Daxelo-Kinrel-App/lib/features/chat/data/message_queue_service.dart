@@ -44,6 +44,20 @@ class QueuedMessage {
     this.senderInitials,
   });
 
+  factory QueuedMessage.fromJson(Map<String, dynamic> json) {
+    return QueuedMessage(
+      tempId: json['tempId'] as String,
+      familyId: json['familyId'] as String,
+      content: json['content'] as String,
+      messageType: json['messageType'] as String? ?? 'text',
+      replyToId: json['replyToId'] as String?,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      retryCount: json['retryCount'] as int? ?? 0,
+      senderPersonId: json['senderPersonId'] as String?,
+      senderInitials: json['senderInitials'] as String?,
+    );
+  }
+
   /// Client-generated optimistic ID. Used to match the queued message
   /// back to the optimistic message in the chat_provider's state.
   final String tempId;
@@ -68,20 +82,6 @@ class QueuedMessage {
         'senderPersonId': senderPersonId,
         'senderInitials': senderInitials,
       };
-
-  factory QueuedMessage.fromJson(Map<String, dynamic> json) {
-    return QueuedMessage(
-      tempId: json['tempId'] as String,
-      familyId: json['familyId'] as String,
-      content: json['content'] as String,
-      messageType: json['messageType'] as String? ?? 'text',
-      replyToId: json['replyToId'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      retryCount: json['retryCount'] as int? ?? 0,
-      senderPersonId: json['senderPersonId'] as String?,
-      senderInitials: json['senderInitials'] as String?,
-    );
-  }
 
   QueuedMessage copyWith({int? retryCount}) {
     return QueuedMessage(

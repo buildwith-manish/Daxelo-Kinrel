@@ -17,9 +17,6 @@ extension ImpostorStatusX on ImpostorStatus {
 
 class ImpostorPlayer {
   const ImpostorPlayer({required this.id, required this.gameId, required this.userId, required this.userName, required this.joinedAt, this.isReady = false, this.leftAt});
-  final String id; final String gameId; final String userId; final String userName;
-  final DateTime joinedAt; final bool isReady; final DateTime? leftAt;
-  bool get isActive => leftAt == null;
   factory ImpostorPlayer.fromJson(Map<String, dynamic> json) => ImpostorPlayer(
     id: (json['id'] ?? '') as String, gameId: (json['gameId'] ?? '') as String,
     userId: (json['userId'] ?? '') as String, userName: (json['userName'] ?? 'Player') as String,
@@ -27,25 +24,13 @@ class ImpostorPlayer {
     isReady: (json['isReady'] ?? false) as bool,
     leftAt: json['leftAt'] != null ? DateTime.tryParse(json['leftAt'] as String) : null,
   );
+  final String id; final String gameId; final String userId; final String userName;
+  final DateTime joinedAt; final bool isReady; final DateTime? leftAt;
+  bool get isActive => leftAt == null;
 }
 
 class ImpostorGame {
   const ImpostorGame({required this.id, required this.familyId, required this.hostUserId, required this.hostUserName, required this.status, required this.maxPlayers, required this.createdAt, this.roomName, this.playerOrder = const [], this.currentPlayerId, this.currentTurnIndex = 0, this.turnEndsAt, this.boardState, this.winnerUserIds = const [], this.endReason, this.startedAt, this.completedAt, this.spectatorsEnabled = true, this.totalRounds = 3, this.wordPackId = 'food', this.clueSeconds = 30, this.voteSeconds = 30});
-  final String id; final String familyId; final String hostUserId; final String hostUserName;
-  final ImpostorStatus status; final int maxPlayers; final DateTime createdAt;
-  final String? roomName; final List<String> playerOrder; final String? currentPlayerId;
-  final int currentTurnIndex; final DateTime? turnEndsAt; final ImpostorGameState? boardState;
-  final List<String> winnerUserIds; final String? endReason; final DateTime? startedAt;
-  final DateTime? completedAt; final bool spectatorsEnabled; final int totalRounds;
-  final String wordPackId; final int clueSeconds; final int voteSeconds;
-  bool get isWaiting => status == ImpostorStatus.waiting;
-  bool get isInProgress => status == ImpostorStatus.inProgress;
-  bool get isCompleted => status == ImpostorStatus.completed;
-  int? get turnSecondsRemaining {
-    if (!isInProgress || turnEndsAt == null) return null;
-    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
-    return left < 0 ? 0 : left;
-  }
   factory ImpostorGame.fromJson(Map<String, dynamic> json) {
     final order = <String>[];
     final rawOrder = json['playerOrder'];
@@ -76,5 +61,20 @@ class ImpostorGame {
       clueSeconds: (json['clueSeconds'] as num?)?.toInt() ?? 30,
       voteSeconds: (json['voteSeconds'] as num?)?.toInt() ?? 30,
     );
+  }
+  final String id; final String familyId; final String hostUserId; final String hostUserName;
+  final ImpostorStatus status; final int maxPlayers; final DateTime createdAt;
+  final String? roomName; final List<String> playerOrder; final String? currentPlayerId;
+  final int currentTurnIndex; final DateTime? turnEndsAt; final ImpostorGameState? boardState;
+  final List<String> winnerUserIds; final String? endReason; final DateTime? startedAt;
+  final DateTime? completedAt; final bool spectatorsEnabled; final int totalRounds;
+  final String wordPackId; final int clueSeconds; final int voteSeconds;
+  bool get isWaiting => status == ImpostorStatus.waiting;
+  bool get isInProgress => status == ImpostorStatus.inProgress;
+  bool get isCompleted => status == ImpostorStatus.completed;
+  int? get turnSecondsRemaining {
+    if (!isInProgress || turnEndsAt == null) return null;
+    final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
+    return left < 0 ? 0 : left;
   }
 }

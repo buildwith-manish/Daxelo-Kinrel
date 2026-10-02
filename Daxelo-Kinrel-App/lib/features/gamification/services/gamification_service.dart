@@ -24,15 +24,6 @@ class BadgeModel {
     this.iconUrl,
   });
 
-  final String id;
-  final String slug;
-  final String name;
-  final String description;
-  final String tier; // bronze, silver, gold
-  final String category; // tree_builder, connector, historian, social
-  final int? threshold;
-  final String? iconUrl;
-
   factory BadgeModel.fromJson(Map<String, dynamic> json) {
     return BadgeModel(
       id: json['id'] as String,
@@ -45,6 +36,15 @@ class BadgeModel {
       iconUrl: json['iconUrl'] as String?,
     );
   }
+
+  final String id;
+  final String slug;
+  final String name;
+  final String description;
+  final String tier; // bronze, silver, gold
+  final String category; // tree_builder, connector, historian, social
+  final int? threshold;
+  final String? iconUrl;
 }
 
 class UserBadgeModel {
@@ -55,12 +55,6 @@ class UserBadgeModel {
     required this.earnedAt,
     this.badge,
   });
-
-  final String id;
-  final String userId;
-  final String badgeId;
-  final DateTime earnedAt;
-  final BadgeModel? badge;
 
   factory UserBadgeModel.fromJson(Map<String, dynamic> json) {
     return UserBadgeModel(
@@ -73,6 +67,12 @@ class UserBadgeModel {
           : null,
     );
   }
+
+  final String id;
+  final String userId;
+  final String badgeId;
+  final DateTime earnedAt;
+  final BadgeModel? badge;
 }
 
 class ContributionModel {
@@ -88,17 +88,6 @@ class ContributionModel {
     this.level,
     this.totalPoints,
   });
-
-  final String id;
-  final String userId;
-  final String type;
-  final int points;
-  final String? familyId;
-  final DateTime createdAt;
-  final int? streakCount;
-  final DateTime? lastCheckIn;
-  final int? level;
-  final int? totalPoints;
 
   factory ContributionModel.fromJson(Map<String, dynamic> json) {
     return ContributionModel(
@@ -116,6 +105,17 @@ class ContributionModel {
       totalPoints: json['totalPoints'] as int?,
     );
   }
+
+  final String id;
+  final String userId;
+  final String type;
+  final int points;
+  final String? familyId;
+  final DateTime createdAt;
+  final int? streakCount;
+  final DateTime? lastCheckIn;
+  final int? level;
+  final int? totalPoints;
 }
 
 class CheckInResult {
@@ -127,13 +127,6 @@ class CheckInResult {
     this.newBadges = const [],
     this.message,
   });
-
-  final bool checkedIn;
-  final int? streakCount;
-  final int? longestStreak;
-  final int? pointsEarned;
-  final List<String> newBadges;
-  final String? message;
 
   factory CheckInResult.fromJson(Map<String, dynamic> json) {
     return CheckInResult(
@@ -148,6 +141,13 @@ class CheckInResult {
       message: json['message'] as String?,
     );
   }
+
+  final bool checkedIn;
+  final int? streakCount;
+  final int? longestStreak;
+  final int? pointsEarned;
+  final List<String> newBadges;
+  final String? message;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

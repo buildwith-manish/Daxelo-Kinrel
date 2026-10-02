@@ -324,7 +324,7 @@ RelationshipValidationResult validateRelationship({
         final sameGender = existingLabel == key;
         final bothNeutral = key == 'child' && existingLabel == 'parent';
         if (sameGender || bothNeutral) {
-          return RelationshipValidationResult(
+          return const RelationshipValidationResult(
             severity: ValidationSeverity.error,
             message: 'This person already has a parent. Remove the existing '
                 'one before adding a new one.',
@@ -341,7 +341,7 @@ RelationshipValidationResult validateRelationship({
           final sameGender = inverseLabel == key;
           final bothNeutral = key == 'child' && inverseLabel == 'parent';
           if (sameGender || bothNeutral) {
-            return RelationshipValidationResult(
+            return const RelationshipValidationResult(
               severity: ValidationSeverity.error,
               message: 'This person already has a parent. Remove the existing '
                   'one before adding a new one.',
@@ -383,7 +383,7 @@ RelationshipValidationResult validateRelationship({
         // If the existing edge's inverse doesn't match the new key,
         // there may be an incompatibility.
         if (existingInverse != null && existingInverse != key && expectedInverse != existingLabel) {
-          return RelationshipValidationResult(
+          return const RelationshipValidationResult(
             severity: ValidationSeverity.warning,
             message: 'An existing relationship between these members '
                 'may be incompatible with the new one. Please verify.',

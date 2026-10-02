@@ -113,6 +113,19 @@ int turnOffIndex(int entryIndex) => (entryIndex - 1 + kLoopLength) % kLoopLength
 /// A cowrie shell throw. `upShells` is 0..4; `value` is the play value.
 class AshtaChammaDice {
   const AshtaChammaDice({required this.upShells, required this.value});
+
+  /// Generate a random throw (for client-side preview only; the server
+  /// is authoritative for actual play).
+  factory AshtaChammaDice.random([Random? rng]) {
+    final r = rng ?? Random();
+    final up = r.nextInt(5); // 0..4
+    return AshtaChammaDice(upShells: up, value: valueForUpShells(up));
+  }
+  factory AshtaChammaDice.fromJson(Map<String, dynamic> json) =>
+      AshtaChammaDice(
+        upShells: (json['up'] as num?)?.toInt() ?? 0,
+        value: (json['value'] as num?)?.toInt() ?? 0,
+      );
   final int upShells; // 0..4
   final int value;    // 1, 2, 3, 4, or 8
 
@@ -146,20 +159,7 @@ class AshtaChammaDice {
     }
   }
 
-  /// Generate a random throw (for client-side preview only; the server
-  /// is authoritative for actual play).
-  factory AshtaChammaDice.random([Random? rng]) {
-    final r = rng ?? Random();
-    final up = r.nextInt(5); // 0..4
-    return AshtaChammaDice(upShells: up, value: valueForUpShells(up));
-  }
-
   Map<String, dynamic> toJson() => {'up': upShells, 'value': value};
-  factory AshtaChammaDice.fromJson(Map<String, dynamic> json) =>
-      AshtaChammaDice(
-        upShells: (json['up'] as num?)?.toInt() ?? 0,
-        value: (json['value'] as num?)?.toInt() ?? 0,
-      );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -189,6 +189,30 @@ class AshtaChammaPiece {
     this.loopPosition = -1,
     this.homeColumnPosition = -1,
   });
+
+  factory AshtaChammaPiece.fromJson(Map<String, dynamic> json) {
+    AshtaChammaPieceZone zone;
+    switch (json['zone'] as String?) {
+      case 'loop':
+        zone = AshtaChammaPieceZone.loop;
+        break;
+      case 'homeColumn':
+        zone = AshtaChammaPieceZone.homeColumn;
+        break;
+      case 'finished':
+        zone = AshtaChammaPieceZone.finished;
+        break;
+      default:
+        zone = AshtaChammaPieceZone.base;
+    }
+    return AshtaChammaPiece(
+      index: (json['index'] as num?)?.toInt() ?? 0,
+      ownerPlayerIndex: (json['owner'] as num?)?.toInt() ?? 0,
+      zone: zone,
+      loopPosition: (json['loop'] as num?)?.toInt() ?? -1,
+      homeColumnPosition: (json['home'] as num?)?.toInt() ?? -1,
+    );
+  }
 
   /// 0..3 — which of the owner's 4 pieces this is.
   final int index;
@@ -234,30 +258,6 @@ class AshtaChammaPiece {
         'home': homeColumnPosition,
       };
 
-  factory AshtaChammaPiece.fromJson(Map<String, dynamic> json) {
-    AshtaChammaPieceZone zone;
-    switch (json['zone'] as String?) {
-      case 'loop':
-        zone = AshtaChammaPieceZone.loop;
-        break;
-      case 'homeColumn':
-        zone = AshtaChammaPieceZone.homeColumn;
-        break;
-      case 'finished':
-        zone = AshtaChammaPieceZone.finished;
-        break;
-      default:
-        zone = AshtaChammaPieceZone.base;
-    }
-    return AshtaChammaPiece(
-      index: (json['index'] as num?)?.toInt() ?? 0,
-      ownerPlayerIndex: (json['owner'] as num?)?.toInt() ?? 0,
-      zone: zone,
-      loopPosition: (json['loop'] as num?)?.toInt() ?? -1,
-      homeColumnPosition: (json['home'] as num?)?.toInt() ?? -1,
-    );
-  }
-
   AshtaChammaPiece copy() => AshtaChammaPiece(
         index: index,
         ownerPlayerIndex: ownerPlayerIndex,
@@ -281,6 +281,16 @@ class AshtaChammaMove {
     this.capturedPieceIndex = -1,
     this.grantedExtraTurn = false,
   });
+
+  factory AshtaChammaMove.fromJson(Map<String, dynamic> json) =>
+      AshtaChammaMove(
+        playerIndex: (json['player'] as num?)?.toInt() ?? 0,
+        pieceIndex: (json['piece'] as num?)?.toInt() ?? 0,
+        diceValue: (json['dice'] as num?)?.toInt() ?? 0,
+        capturedPieceOwnerIndex: (json['capturedOwner'] as num?)?.toInt() ?? -1,
+        capturedPieceIndex: (json['capturedPiece'] as num?)?.toInt() ?? -1,
+        grantedExtraTurn: (json['extra'] as bool?) ?? false,
+      );
 
   /// Which player made the move (0..3).
   final int playerIndex;
@@ -312,16 +322,6 @@ class AshtaChammaMove {
         'capturedPiece': capturedPieceIndex,
         'extra': grantedExtraTurn,
       };
-
-  factory AshtaChammaMove.fromJson(Map<String, dynamic> json) =>
-      AshtaChammaMove(
-        playerIndex: (json['player'] as num?)?.toInt() ?? 0,
-        pieceIndex: (json['piece'] as num?)?.toInt() ?? 0,
-        diceValue: (json['dice'] as num?)?.toInt() ?? 0,
-        capturedPieceOwnerIndex: (json['capturedOwner'] as num?)?.toInt() ?? -1,
-        capturedPieceIndex: (json['capturedPiece'] as num?)?.toInt() ?? -1,
-        grantedExtraTurn: (json['extra'] as bool?) ?? false,
-      );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -339,6 +339,39 @@ class AshtaChammaGameState {
     required this.winnerPlayerIndex,
     required this.status,
   });
+
+  factory AshtaChammaGameState.fromJson(Map<String, dynamic> json) {
+    final piecesList = <AshtaChammaPiece>[];
+    final rawPieces = json['pieces'];
+    if (rawPieces is List) {
+      for (final p in rawPieces) {
+        if (p is Map) {
+          piecesList.add(AshtaChammaPiece.fromJson(
+              Map<String, dynamic>.from(p)));
+        }
+      }
+    }
+    final movesList = <AshtaChammaMove>[];
+    final rawMoves = json['moves'];
+    if (rawMoves is List) {
+      for (final m in rawMoves) {
+        if (m is Map) {
+          movesList.add(AshtaChammaMove.fromJson(
+              Map<String, dynamic>.from(m)));
+        }
+      }
+    }
+    return AshtaChammaGameState(
+      playerCount: (json['playerCount'] as num?)?.toInt() ?? 2,
+      pieces: piecesList,
+      currentPlayerIndex: (json['currentPlayer'] as num?)?.toInt() ?? 0,
+      lastDiceValue: (json['lastDice'] as num?)?.toInt() ?? 0,
+      hasRolled: (json['hasRolled'] as bool?) ?? false,
+      moveHistory: movesList,
+      winnerPlayerIndex: (json['winner'] as num?)?.toInt() ?? -1,
+      status: (json['status'] as String?) ?? 'waiting',
+    );
+  }
 
   /// 2, 3, or 4.
   int playerCount;
@@ -390,39 +423,6 @@ class AshtaChammaGameState {
         'winner': winnerPlayerIndex,
         'status': status,
       };
-
-  factory AshtaChammaGameState.fromJson(Map<String, dynamic> json) {
-    final piecesList = <AshtaChammaPiece>[];
-    final rawPieces = json['pieces'];
-    if (rawPieces is List) {
-      for (final p in rawPieces) {
-        if (p is Map) {
-          piecesList.add(AshtaChammaPiece.fromJson(
-              Map<String, dynamic>.from(p)));
-        }
-      }
-    }
-    final movesList = <AshtaChammaMove>[];
-    final rawMoves = json['moves'];
-    if (rawMoves is List) {
-      for (final m in rawMoves) {
-        if (m is Map) {
-          movesList.add(AshtaChammaMove.fromJson(
-              Map<String, dynamic>.from(m)));
-        }
-      }
-    }
-    return AshtaChammaGameState(
-      playerCount: (json['playerCount'] as num?)?.toInt() ?? 2,
-      pieces: piecesList,
-      currentPlayerIndex: (json['currentPlayer'] as num?)?.toInt() ?? 0,
-      lastDiceValue: (json['lastDice'] as num?)?.toInt() ?? 0,
-      hasRolled: (json['hasRolled'] as bool?) ?? false,
-      moveHistory: movesList,
-      winnerPlayerIndex: (json['winner'] as num?)?.toInt() ?? -1,
-      status: (json['status'] as String?) ?? 'waiting',
-    );
-  }
 
   AshtaChammaGameState copy() => AshtaChammaGameState(
         playerCount: playerCount,

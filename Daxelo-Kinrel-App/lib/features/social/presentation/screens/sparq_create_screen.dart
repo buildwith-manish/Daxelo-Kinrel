@@ -22,7 +22,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
   File? _mediaFile;
   int? _duration;
   bool _isRecording = false;
-  String _timeCapsuleDuration = '1 Day';
+  final String _timeCapsuleDuration = '1 Day';
   bool _showSuccess = false;
   bool _isSubmitting = false;
 
@@ -129,7 +129,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
 
   Future<void> _pickVideo() async {
     final picker = ImagePicker();
-    final video = await picker.pickVideo(source: ImageSource.gallery, maxDuration: Duration(seconds: 60));
+    final video = await picker.pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 60));
     if (video != null) {
       setState(() {
         _mediaFile = File(video.path);
@@ -186,7 +186,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.warning_amber_rounded, size: 48, color: KinrelColors.warning),
+            const Icon(Icons.warning_amber_rounded, size: 48, color: KinrelColors.warning),
             const SizedBox(height: 16),
             Text(
               _errorTitle(errorCode),
@@ -200,7 +200,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
             const SizedBox(height: 8),
             Text(
               _errorExplanation(errorCode),
-              style: TextStyle(
+              style: const TextStyle(
                 color: KinrelColors.textSilver,
                 fontFamily: 'DM Sans',
                 fontSize: 14,
@@ -230,7 +230,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
                 Navigator.pop(ctx);
                 context.pop();
               },
-              child: Text(
+              child: const Text(
                 'Save as Draft',
                 style: TextStyle(color: KinrelColors.textSilver, fontFamily: 'DM Sans'),
               ),
@@ -296,7 +296,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
         backgroundColor: const Color(0xFF080808),
         elevation: 0,
         centerTitle: false,
-        title: Text(
+        title: const Text(
           'Create Sparq',
           style: TextStyle(
             fontFamily: 'DM Sans',
@@ -306,7 +306,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
           ),
         ),
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new, color: KinrelColors.textSilver, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new, color: KinrelColors.textSilver, size: 20),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
       ),
@@ -530,7 +530,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
                 color: Colors.black.withValues(alpha: 0.6),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.close, color: Colors.white, size: 16),
+              child: const Icon(Icons.close, color: Colors.white, size: 16),
             ),
           ),
         ),
@@ -556,7 +556,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
             ),
-            child: Icon(Icons.play_arrow, color: Colors.white, size: 28),
+            child: const Icon(Icons.play_arrow, color: Colors.white, size: 28),
           ),
         ),
         // Duration badge
@@ -571,7 +571,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
             ),
             child: Text(
               '${_duration ?? 0}s',
-              style: TextStyle(color: Colors.white70, fontSize: 11, fontFamily: 'DM Sans'),
+              style: const TextStyle(color: Colors.white70, fontSize: 11, fontFamily: 'DM Sans'),
             ),
           ),
         ),
@@ -588,7 +588,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
                 color: Colors.black.withValues(alpha: 0.6),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.close, color: Colors.white, size: 16),
+              child: const Icon(Icons.close, color: Colors.white, size: 16),
             ),
           ),
         ),
@@ -609,7 +609,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
               onChanged: (v) => setState(() => _text = v),
               maxLines: null,
               expands: true,
-              style: TextStyle(
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 22,
                 fontWeight: FontWeight.w600,
@@ -689,7 +689,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
           ),
           if (_isRecording) ...[
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Max 60s',
               style: TextStyle(
                 color: KinrelColors.textDim,
@@ -755,7 +755,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
               color: KinrelColors.error.withValues(alpha: 0.15),
               border: Border.all(color: KinrelColors.error, width: 1.5),
             ),
-            child: Icon(Icons.mic, color: KinrelColors.error, size: 28),
+            child: const Icon(Icons.mic, color: KinrelColors.error, size: 28),
           ),
         ],
       ),
@@ -833,7 +833,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
           const SizedBox(height: 8),
 
           // ── Expiry Hint ───────────────────────────────────────
-          Center(
+          const Center(
             child: Text(
               'Expires in 24h',
               style: TextStyle(
@@ -963,7 +963,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
+            const Text(
               'Subtle',
               style: TextStyle(
                 color: KinrelColors.textDim,
@@ -993,9 +993,9 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
 
   Widget _buildAudienceSelector() {
     final segments = [
-      _SegmentData(key: 'PUBLIC', label: 'Everyone'),
-      _SegmentData(key: 'FAMILY_ONLY', label: 'Family'),
-      _SegmentData(key: 'VIP', label: 'VIP'),
+      const _SegmentData(key: 'PUBLIC', label: 'Everyone'),
+      const _SegmentData(key: 'FAMILY_ONLY', label: 'Family'),
+      const _SegmentData(key: 'VIP', label: 'VIP'),
     ];
 
     final descriptions = {
@@ -1052,7 +1052,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
           child: Text(
             descriptions[_audience] ?? '',
             key: ValueKey(_audience),
-            style: TextStyle(
+            style: const TextStyle(
               color: KinrelColors.textDim,
               fontFamily: 'DM Sans',
               fontSize: 11,
@@ -1202,7 +1202,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
             ),
             child: Center(
               child: _isSubmitting
-                  ? SizedBox(
+                  ? const SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
@@ -1210,7 +1210,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
-                  : Text(
+                  : const Text(
                       'Ignite Sparq',
                       style: TextStyle(
                         color: Colors.white,
@@ -1232,12 +1232,6 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
 // ══════════════════════════════════════════════════════════════════════
 
 class _MoodOption {
-  final String key;
-  final String label;
-  final Color accent;
-  final Color gradientStart;
-  final Color gradientEnd;
-  final Color chipBorder;
 
   const _MoodOption({
     required this.key,
@@ -1247,11 +1241,17 @@ class _MoodOption {
     required this.gradientEnd,
     required this.chipBorder,
   });
+  final String key;
+  final String label;
+  final Color accent;
+  final Color gradientStart;
+  final Color gradientEnd;
+  final Color chipBorder;
 }
 
 class _SegmentData {
-  final String key;
-  final String label;
 
   const _SegmentData({required this.key, required this.label});
+  final String key;
+  final String label;
 }

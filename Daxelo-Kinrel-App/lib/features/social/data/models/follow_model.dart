@@ -1,11 +1,5 @@
 // FollowModel — represents a follow relationship between users
 class FollowModel {
-  final String id;
-  final String followerId;
-  final String followingId;
-  final String status; // 'PENDING', 'ACCEPTED', 'REJECTED'
-  final DateTime createdAt;
-  final DateTime updatedAt;
 
   const FollowModel({
     required this.id,
@@ -30,6 +24,12 @@ class FollowModel {
           : DateTime.now(),
     );
   }
+  final String id;
+  final String followerId;
+  final String followingId;
+  final String status; // 'PENDING', 'ACCEPTED', 'REJECTED'
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   Map<String, dynamic> toJson() => {
     'id': id,

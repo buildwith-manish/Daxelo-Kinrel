@@ -129,7 +129,7 @@ class GraphLegend extends ConsumerWidget {
                             color: Color(0xFF0D9488),
                           ),
                           const SizedBox(width: 6),
-                          Text(
+                          const Text(
                             'Legend',
                             style: TextStyle(
                               fontFamily: KinrelTypography.displayFont,
@@ -165,7 +165,7 @@ class GraphLegend extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             // Section title
-                            Text(
+                            const Text(
                               'V2.1 Sections',
                               style: TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
@@ -197,7 +197,7 @@ class GraphLegend extends ConsumerWidget {
                             const SizedBox(height: 8),
 
                             // Footer note
-                            Text(
+                            const Text(
                               'Dot opacity reflects edge alpha. '
                               'Core has no edge — it\'s the ego node '
                               'every other section radiates from.',
@@ -293,7 +293,7 @@ class GraphLegend extends ConsumerWidget {
           // Row 3: hex color
           Text(
             _colorToHex(section.nodeColor),
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 9,
               color: KinrelColors.textDim,
@@ -303,7 +303,7 @@ class GraphLegend extends ConsumerWidget {
           if (section.edgeLabel != null)
             Text(
               section.edgeLabel!,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 9,
                 color: KinrelColors.border,
@@ -316,7 +316,7 @@ class GraphLegend extends ConsumerWidget {
 
   /// Builds the spouse cross-section row (full-width card below the grid).
   Widget _buildSpouseRow() {
-    final spouseSection = _LegendSection(
+    final spouseSection = const _LegendSection(
       name: 'spouse',
       category: KinshipEdgeCategory.spouse,
       nodeColor: KinrelColors.nodeSpouse,
@@ -344,12 +344,12 @@ class GraphLegend extends ConsumerWidget {
       child: Row(
         children: [
           // Label
-          Column(
+          const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'spouse',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
@@ -381,7 +381,7 @@ class GraphLegend extends ConsumerWidget {
           ),
           const SizedBox(width: 8),
           // Hex label
-          Text(
+          const Text(
             '#F97316 · #EC4899',
             style: TextStyle(
               fontFamily: KinrelTypography.monoFont,
@@ -447,11 +447,11 @@ class _LegendSection {
 
 /// The 8 sections per the V2.1 spec.
 List<_LegendSection> get _sections => [
-      _LegendSection(
+      const _LegendSection(
         name: 'core',
         category: KinshipEdgeCategory.self,
         nodeColor: KinrelColors.nodeSelf,
-        edgeColor: const Color(0xFF475569),
+        edgeColor: Color(0xFF475569),
         edgeOpacity: 1.0,
         strokeWidth: 1.2,
         isDashed: true,
@@ -460,11 +460,11 @@ List<_LegendSection> get _sections => [
         isStraight: false,
         isCore: true,
         isHeart: false,
-        midpointColor: const Color(0xFF475569),
+        midpointColor: Color(0xFF475569),
         midpointOpacity: 1.0,
         edgeLabel: null,
       ),
-      _LegendSection(
+      const _LegendSection(
         name: 'ancestors',
         category: KinshipEdgeCategory.grandparent,
         nodeColor: KinrelColors.nodeGrandparent,
@@ -477,10 +477,10 @@ List<_LegendSection> get _sections => [
         isHeart: false,
         midpointColor: KinrelColors.nodeGrandparent,
         midpointOpacity: 0.90,
-        controlPoint: const Offset(70, 2),
+        controlPoint: Offset(70, 2),
         edgeLabel: 'solidExtendedBezier',
       ),
-      _LegendSection(
+      const _LegendSection(
         name: 'descendants',
         category: KinshipEdgeCategory.child,
         nodeColor: KinrelColors.nodeChild,
@@ -493,10 +493,10 @@ List<_LegendSection> get _sections => [
         isHeart: false,
         midpointColor: KinrelColors.nodeChild,
         midpointOpacity: 1.0,
-        controlPoint: const Offset(70, 8),
+        controlPoint: Offset(70, 8),
         edgeLabel: 'solidBezier',
       ),
-      _LegendSection(
+      const _LegendSection(
         name: 'paternal',
         category: KinshipEdgeCategory.parent,
         nodeColor: KinrelColors.nodeParent,
@@ -509,10 +509,10 @@ List<_LegendSection> get _sections => [
         isHeart: false,
         midpointColor: KinrelColors.nodeParent,
         midpointOpacity: 1.0,
-        controlPoint: const Offset(70, 8),
+        controlPoint: Offset(70, 8),
         edgeLabel: 'solidBezier',
       ),
-      _LegendSection(
+      const _LegendSection(
         name: 'maternal',
         category: KinshipEdgeCategory.parent,
         nodeColor: KinrelColors.nodeParent,
@@ -525,10 +525,10 @@ List<_LegendSection> get _sections => [
         isHeart: false,
         midpointColor: KinrelColors.nodeParent,
         midpointOpacity: 1.0,
-        controlPoint: const Offset(70, 8),
+        controlPoint: Offset(70, 8),
         edgeLabel: 'solidBezier',
       ),
-      _LegendSection(
+      const _LegendSection(
         name: 'inlaws',
         category: KinshipEdgeCategory.inLaw,
         nodeColor: KinrelColors.nodeInLaw,
@@ -545,7 +545,7 @@ List<_LegendSection> get _sections => [
         midpointOpacity: 0.85,
         edgeLabel: 'dashedStraight',
       ),
-      _LegendSection(
+      const _LegendSection(
         name: 'cousins',
         category: KinshipEdgeCategory.cousin,
         nodeColor: KinrelColors.nodeCousin,
@@ -558,10 +558,10 @@ List<_LegendSection> get _sections => [
         isHeart: false,
         midpointColor: KinrelColors.nodeCousin,
         midpointOpacity: 0.85,
-        controlPoint: const Offset(70, -12),
+        controlPoint: Offset(70, -12),
         edgeLabel: 'wideArcBezier',
       ),
-      _LegendSection(
+      const _LegendSection(
         name: 'step_adoptive',
         category: KinshipEdgeCategory.extended,
         nodeColor: KinrelColors.nodeExtended,

@@ -134,7 +134,7 @@ class _SketchTelephoneGameScreenState
           backgroundColor: KinrelColors.darkCard,
           foregroundColor: KinrelColors.textWhite,
         ),
-        body: Center(
+        body: const Center(
           child: GamingEmptyCard(
             emoji: '🎨',
             title: 'Game not found',
@@ -153,7 +153,7 @@ class _SketchTelephoneGameScreenState
           game.roomName?.isNotEmpty == true
               ? game.roomName!
               : 'Sketch Telephone',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
             color: KinrelColors.textWhite,
@@ -221,7 +221,7 @@ class _StepInfo extends StatelessWidget {
       ),
       child: Text(
         'Step $step/$total',
-        style: TextStyle(
+        style: const TextStyle(
             fontFamily: KinrelTypography.monoFont,
             fontSize: 11,
             fontWeight: FontWeight.w700,
@@ -304,7 +304,7 @@ class _TopHud extends StatelessWidget {
         seconds <= 5 ? KinrelColors.error : KinrelColors.textWhite;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: KinrelColors.darkCard,
         border: Border(bottom: BorderSide(color: KinrelColors.border)),
       ),
@@ -313,7 +313,7 @@ class _TopHud extends StatelessWidget {
           Expanded(
             child: Text(
               'Step ${board.currentStep + 1}/${board.totalSteps} · ${board.currentStepType.label}',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
@@ -474,11 +474,11 @@ class _PromptInputCardState extends State<_PromptInputCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.edit_note_rounded,
+              Icon(Icons.edit_note_rounded,
                   size: 22, color: kSketchTelephoneAccent),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text('Write a prompt',
                   style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
@@ -488,7 +488,7 @@ class _PromptInputCardState extends State<_PromptInputCard> {
             ],
           ),
           const SizedBox(height: 6),
-          Text(
+          const Text(
             'Your prompt will rotate to the next player, who has to draw it. Be creative — but drawable!',
             style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -501,7 +501,7 @@ class _PromptInputCardState extends State<_PromptInputCard> {
             controller: _controller,
             maxLength: kSketchTelephoneMaxPromptLength,
             textCapitalization: TextCapitalization.sentences,
-            style: TextStyle(
+            style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 16,
                 color: KinrelColors.textWhite),
@@ -517,7 +517,7 @@ class _PromptInputCardState extends State<_PromptInputCard> {
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
-                borderSide: BorderSide(color: KinrelColors.border),
+                borderSide: const BorderSide(color: KinrelColors.border),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
@@ -605,11 +605,11 @@ class _DescriptionInputCardState extends State<_DescriptionInputCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.visibility_outlined,
+              Icon(Icons.visibility_outlined,
                   size: 22, color: kSketchTelephoneAccent),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text('Describe this drawing',
                   style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
@@ -619,7 +619,7 @@ class _DescriptionInputCardState extends State<_DescriptionInputCard> {
             ],
           ),
           const SizedBox(height: 6),
-          Text(
+          const Text(
             'Your description will rotate to the next player, who has to draw it from your words alone. Be specific!',
             style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -639,7 +639,7 @@ class _DescriptionInputCardState extends State<_DescriptionInputCard> {
             const SizedBox(height: 8),
             Text(
               'Drawn by ${widget.drawing!.authorUserName}',
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
                   color: KinrelColors.textDim),
@@ -650,7 +650,7 @@ class _DescriptionInputCardState extends State<_DescriptionInputCard> {
             controller: _controller,
             maxLength: kSketchTelephoneMaxDescriptionLength,
             textCapitalization: TextCapitalization.sentences,
-            style: TextStyle(
+            style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 16,
                 color: KinrelColors.textWhite),
@@ -666,7 +666,7 @@ class _DescriptionInputCardState extends State<_DescriptionInputCard> {
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
-                borderSide: BorderSide(color: KinrelColors.border),
+                borderSide: const BorderSide(color: KinrelColors.border),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
@@ -813,7 +813,7 @@ class _DrawingCardState extends State<_DrawingCard> {
             ),
             child: Row(
               children: [
-                Icon(Icons.brush_rounded,
+                const Icon(Icons.brush_rounded,
                     size: 18, color: kSketchTelephoneAccent),
                 const SizedBox(width: 8),
                 Expanded(
@@ -821,7 +821,7 @@ class _DrawingCardState extends State<_DrawingCard> {
                     widget.prompt.isEmpty
                         ? 'Draw something!'
                         : 'Draw: ${widget.prompt}',
-                    style: TextStyle(
+                    style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -917,7 +917,7 @@ class _DrawingCardState extends State<_DrawingCard> {
                         child: Container(
                           width: s,
                           height: s,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             color: KinrelColors.textWhite,
                             shape: BoxShape.circle,
                           ),
@@ -989,7 +989,7 @@ class _SubmittedCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             'Step $stepNumber submitted!',
-            style: TextStyle(
+            style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
@@ -999,7 +999,7 @@ class _SubmittedCard extends StatelessWidget {
           Text(
             'Waiting for the rest of the family to finish ${stepType.verb}.',
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textDim),
@@ -1044,7 +1044,7 @@ class _SpectatorView extends ConsumerWidget {
               Expanded(
                 child: Text(
                   'You\'re spectating — step $step/$total in progress.',
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
                       color: KinrelColors.textSilver),
@@ -1053,15 +1053,15 @@ class _SpectatorView extends ConsumerWidget {
             ],
           ),
         ),
-        Expanded(
+        const Expanded(
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.all(32),
+              padding: EdgeInsets.all(32),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('🎨', style: TextStyle(fontSize: 64)),
-                  const SizedBox(height: 16),
+                  Text('🎨', style: TextStyle(fontSize: 64)),
+                  SizedBox(height: 16),
                   Text(
                     'Sketch Telephone in progress',
                     style: TextStyle(
@@ -1070,7 +1070,7 @@ class _SpectatorView extends ConsumerWidget {
                         fontWeight: FontWeight.w800,
                         color: KinrelColors.textWhite),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     'You\'ll see all the chains when the game finishes.',
                     textAlign: TextAlign.center,
@@ -1132,7 +1132,7 @@ class _RevealViewState extends ConsumerState<_RevealView> {
         // Header
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: KinrelColors.darkCard,
             border: Border(bottom: BorderSide(color: KinrelColors.border)),
           ),
@@ -1144,7 +1144,7 @@ class _RevealViewState extends ConsumerState<_RevealView> {
               Expanded(
                 child: Text(
                   'Revealing chains · step $_revealCount/$total',
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
@@ -1208,7 +1208,7 @@ class _RevealViewState extends ConsumerState<_RevealView> {
               canRevealMore
                   ? 'Waiting for host to reveal the next step…'
                   : 'Waiting for host to finish the reveal…',
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim),
@@ -1250,7 +1250,7 @@ class _ChainRevealCard extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 'Chain ${chain.chainIndex + 1} · started by ${chain.ownerName}',
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
@@ -1276,7 +1276,7 @@ class _ChainRevealCard extends StatelessWidget {
             Center(
               child: Text(
                 '… ${totalSteps - visibleSteps.length} more step(s) to reveal',
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,
                     fontStyle: FontStyle.italic,
@@ -1322,7 +1322,7 @@ class _RevealStepCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(label,
-                    style: TextStyle(
+                    style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 9,
                         fontWeight: FontWeight.w800,
@@ -1332,7 +1332,7 @@ class _RevealStepCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'by ${step.authorUserName}',
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,
                     color: KinrelColors.textDim),
@@ -1353,7 +1353,7 @@ class _RevealStepCard extends StatelessWidget {
           else
             Text(
               step.content,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
@@ -1412,10 +1412,10 @@ class _ResultsView extends StatelessWidget {
                     color:
                         kSketchTelephoneAccent.withValues(alpha: 0.45)),
               ),
-              child: Column(
+              child: const Column(
                 children: [
-                  const Text('🎨', style: TextStyle(fontSize: 40)),
-                  const SizedBox(height: 8),
+                  Text('🎨', style: TextStyle(fontSize: 40)),
+                  SizedBox(height: 8),
                   Text(
                     'Chains Complete!',
                     style: TextStyle(
@@ -1424,7 +1424,7 @@ class _ResultsView extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         color: KinrelColors.textWhite),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     'Behold the chaos your family hath wrought.',
                     textAlign: TextAlign.center,
@@ -1561,10 +1561,10 @@ class _SketchCanvasPainter extends CustomPainter {
     canvas.drawRect(
       rect,
       Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(-0.2, -0.25),
+        ..shader = const RadialGradient(
+          center: Alignment(-0.2, -0.25),
           radius: 1.6,
-          colors: const [_deepA, _deepB],
+          colors: [_deepA, _deepB],
         ).createShader(rect),
     );
 

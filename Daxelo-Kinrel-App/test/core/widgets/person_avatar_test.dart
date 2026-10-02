@@ -10,7 +10,7 @@ void main() {
   group('v5.15 PersonAvatar', () {
     testWidgets('TEST 1: Shows initial when no photoUrl', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: PersonAvatar(name: 'Alice', size: 40),
           ),
@@ -21,7 +21,7 @@ void main() {
 
     testWidgets('TEST 2: Shows ? for empty name', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: PersonAvatar(name: '', size: 40),
           ),
@@ -32,7 +32,7 @@ void main() {
 
     testWidgets('TEST 3: Custom colors render', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: PersonAvatar(
               name: 'Bob',
@@ -48,7 +48,7 @@ void main() {
 
     testWidgets('TEST 4: Custom size affects font', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: PersonAvatar(name: 'Charlie', size: 64),
           ),

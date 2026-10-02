@@ -70,7 +70,7 @@ void main() {
     }
 
     test('TEST 1: correctly identifies isolated persons (2 connected, 2 unlinked)', () {
-      final graph = FlatGraphResult(
+      final graph = const FlatGraphResult(
         persons: [
           {'id': 'A', 'name': 'Alice'},
           {'id': 'B', 'name': 'Bob'},
@@ -91,7 +91,7 @@ void main() {
     });
 
     test('TEST 2: family of 1 → empty unlinked set (edge case)', () {
-      final graph = FlatGraphResult(
+      final graph = const FlatGraphResult(
         persons: [
           {'id': 'A', 'name': 'Alice'},
         ],
@@ -104,7 +104,7 @@ void main() {
     });
 
     test('TEST 3: inactive relationships do NOT count as connected', () {
-      final graph = FlatGraphResult(
+      final graph = const FlatGraphResult(
         persons: [
           {'id': 'A', 'name': 'Alice'},
           {'id': 'B', 'name': 'Bob'},
@@ -120,7 +120,7 @@ void main() {
     });
 
     test('TEST 4: all persons connected → empty unlinked set', () {
-      final graph = FlatGraphResult(
+      final graph = const FlatGraphResult(
         persons: [
           {'id': 'A', 'name': 'Alice'},
           {'id': 'B', 'name': 'Bob'},
@@ -144,7 +144,7 @@ void main() {
     });
 
     test('TEST 6: person connected via toPersonId only is NOT unlinked', () {
-      final graph = FlatGraphResult(
+      final graph = const FlatGraphResult(
         persons: [
           {'id': 'A', 'name': 'Alice'},
           {'id': 'B', 'name': 'Bob'},

@@ -134,12 +134,12 @@ class StatsPanel extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.list_alt,
+                    const Icon(Icons.list_alt,
                         size: 12, color: KinrelColors.orange),
                     const SizedBox(width: 4),
                     Text(
                       'View all $fullFamilyMembers',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 9,
                         fontWeight: FontWeight.w600,
@@ -190,7 +190,7 @@ class _StatRow extends StatelessWidget {
         // value inline), so this matches the shipped visual exactly.
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.monoFont,
             fontSize: 9,
             fontWeight: FontWeight.w600,
@@ -231,7 +231,7 @@ class _TruncatedWarning extends StatelessWidget {
         color: KinrelColors.warning.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Row(
+      child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
@@ -239,7 +239,7 @@ class _TruncatedWarning extends StatelessWidget {
             size: 12,
             color: KinrelColors.warning,
           ),
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           Text(
             'TRUNCATED',
             style: TextStyle(

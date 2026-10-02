@@ -95,7 +95,7 @@ class _SosBoardScreenState extends ConsumerState<SosBoardScreen> {
             }
           },
         ),
-        title: Text(
+        title: const Text(
           'SOS',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -174,7 +174,7 @@ class _SosBoardScreenState extends ConsumerState<SosBoardScreen> {
               const SizedBox(height: KinrelSpacing.sm),
               Text(
                 code,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 36,
                   fontWeight: FontWeight.w800,
@@ -199,7 +199,7 @@ class _SosBoardScreenState extends ConsumerState<SosBoardScreen> {
         const SizedBox(height: KinrelSpacing.lg),
         Text(
           'Players (${state.players.length}/${game.mode.maxPlayers})',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 13,
             fontWeight: FontWeight.w600,
@@ -234,7 +234,7 @@ class _SosBoardScreenState extends ConsumerState<SosBoardScreen> {
                   Expanded(
                     child: Text(
                       p.userId == myId ? '${p.userName} (You)' : p.userName,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -284,7 +284,7 @@ class _SosBoardScreenState extends ConsumerState<SosBoardScreen> {
               borderRadius: BorderRadius.circular(KinrelRadius.lg),
               border: Border.all(color: KinrelColors.border),
             ),
-            child: Row(
+            child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 SizedBox(
@@ -295,7 +295,7 @@ class _SosBoardScreenState extends ConsumerState<SosBoardScreen> {
                     color: KinrelColors.orange,
                   ),
                 ),
-                const SizedBox(width: KinrelSpacing.sm),
+                SizedBox(width: KinrelSpacing.sm),
                 Text(
                   'Waiting for host to start the game…',
                   style: TextStyle(
@@ -535,7 +535,7 @@ class _SosBoardScreenState extends ConsumerState<SosBoardScreen> {
                 : (currentPlayer.team != null
                     ? "${currentPlayer.userName}'s turn (Team ${currentPlayer.team!.name})"
                     : "${currentPlayer.userName}'s turn"),
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               color: KinrelColors.textWhite,
@@ -620,7 +620,7 @@ class _SosBoardScreenState extends ConsumerState<SosBoardScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            const Text(
               'Choose a letter',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -670,7 +670,7 @@ class _SosBoardScreenState extends ConsumerState<SosBoardScreen> {
         child: Center(
           child: Text(
             letter.char,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 40,
               fontWeight: FontWeight.w800,
@@ -684,8 +684,8 @@ class _SosBoardScreenState extends ConsumerState<SosBoardScreen> {
 
   Widget _letterChoiceRow(SosState state, String? myId) {
     // Fallback — usually we use the popup, but this shows a hint
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       child: Text(
         'Tap an empty cell to place S or O',
         textAlign: TextAlign.center,
@@ -714,7 +714,7 @@ class _SosBoardScreenState extends ConsumerState<SosBoardScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
+          const Text(
             'You are ',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -733,7 +733,7 @@ class _SosBoardScreenState extends ConsumerState<SosBoardScreen> {
           ),
           Text(
             ' — placing ${team.name}',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               color: KinrelColors.textWhite,

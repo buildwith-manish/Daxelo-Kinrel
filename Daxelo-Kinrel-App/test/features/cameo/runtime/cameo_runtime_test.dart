@@ -44,9 +44,9 @@ class MockCameoRenderer implements CameoRenderer {
   @override
   Future<CameoRendererInitResult> initialize() async {
     _initialized = true;
-    return CameoRendererInitResult(
+    return const CameoRendererInitResult(
       success: true,
-      capabilities: const CameoRendererCapabilities(
+      capabilities: CameoRendererCapabilities(
         morphTargets: true,
         skeletalAnimation: true,
         pbrMaterials: true,

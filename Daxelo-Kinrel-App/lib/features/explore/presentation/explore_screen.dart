@@ -30,6 +30,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/kinship/kinship_models.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../../shared/widgets/kinrel_skeleton.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // DESIGN TOKENS
@@ -1434,7 +1435,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
     final terms = _filteredTerms;
 
     if (terms.isEmpty) {
-      return SliverToBoxAdapter(
+      return const SliverToBoxAdapter(
         child: _EmptyState(
           title: 'No terms found',
           subtitle: 'Try a different category or language filter',
@@ -1480,7 +1481,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
             results.isEmpty && kinshipResults.isEmpty && sampleResults.isEmpty;
 
         if (hasNoResults) {
-          return SliverToBoxAdapter(
+          return const SliverToBoxAdapter(
             child: _EmptyState(
               title: 'No results found',
               subtitle: 'Try a different term or filter',
@@ -1588,11 +1589,11 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
           ]),
         );
       },
-      loading: () => SliverToBoxAdapter(
+      loading: () => const SliverToBoxAdapter(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 40),
-            child: DKLoadingShimmer(width: 200, height: 16),
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: KinrelSkeletonBox(width: 200, height: 16),
           ),
         ),
       ),
@@ -1648,7 +1649,7 @@ class _SearchSection extends StatelessWidget {
         children: [
           const SizedBox(height: 8),
           // Title
-          Text(
+          const Text(
             'Kinship Dictionary',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -1658,7 +1659,7 @@ class _SearchSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
+          const Text(
             'Explore 52 base terms across 15 languages',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -1683,19 +1684,19 @@ class _SearchSection extends StatelessWidget {
             child: Row(
               children: [
                 const SizedBox(width: 14),
-                Icon(Icons.search_rounded, size: 22, color: _Tokens.orange),
+                const Icon(Icons.search_rounded, size: 22, color: _Tokens.orange),
                 const SizedBox(width: 10),
                 Expanded(
                   child: TextField(
                     controller: controller,
                     focusNode: focusNode,
                     onChanged: onChanged,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 15,
                       color: _Tokens.textPrimary,
                     ),
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       hintText: 'Search relationships (bua, chacha, mama...)',
                       hintStyle: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -1713,8 +1714,8 @@ class _SearchSection extends StatelessWidget {
                 if (isSearching)
                   GestureDetector(
                     onTap: onClear,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8),
                       child: Icon(
                         Icons.close_rounded,
                         size: 20,
@@ -1733,7 +1734,7 @@ class _SearchSection extends StatelessWidget {
                       color: _Tokens.orange.withValues(alpha: 0.15),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(
+                    child: const Icon(
                       Icons.mic_rounded,
                       size: 18,
                       color: _Tokens.orange,
@@ -1899,7 +1900,7 @@ class _KinshipCard extends StatelessWidget {
                       // Native script
                       Text(
                         term.nativeScript,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
@@ -1914,7 +1915,7 @@ class _KinshipCard extends StatelessWidget {
                       _GenerationBadge(generation: term.generation),
                       const SizedBox(width: 4),
                       // Speaker icon
-                      Icon(
+                      const Icon(
                         Icons.volume_up_rounded,
                         size: 16,
                         color: _Tokens.orange,
@@ -1925,7 +1926,7 @@ class _KinshipCard extends StatelessWidget {
                   // Row 2: Transliteration (white)
                   Text(
                     term.transliteration,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -1936,7 +1937,7 @@ class _KinshipCard extends StatelessWidget {
                   // Row 3: English definition (secondary)
                   Text(
                     term.englishTerm,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
@@ -1962,7 +1963,7 @@ class _KinshipCard extends StatelessWidget {
                         ),
                         child: Text(
                           lang.toUpperCase(),
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.monoFont,
                             fontSize: 8,
                             fontWeight: FontWeight.w500,
@@ -1977,7 +1978,7 @@ class _KinshipCard extends StatelessWidget {
             ),
             // Chevron
             const SizedBox(width: 8),
-            Icon(Icons.chevron_right_rounded, size: 20, color: _Tokens.textDim),
+            const Icon(Icons.chevron_right_rounded, size: 20, color: _Tokens.textDim),
           ],
         ),
       ),
@@ -2047,7 +2048,7 @@ class _GenerationBadge extends StatelessWidget {
       child: Center(
         child: Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 10,
             color: _Tokens.orange,
             fontWeight: FontWeight.w700,
@@ -2077,7 +2078,7 @@ class _SectionLabel extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -2093,7 +2094,7 @@ class _SectionLabel extends StatelessWidget {
             ),
             child: Text(
               '$count',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -2150,7 +2151,7 @@ class _JsonKinshipResultCard extends ConsumerWidget {
                   ),
                   child: Text(
                     rel.relationshipCategory.replaceAll('_', ' ').toUpperCase(),
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
@@ -2167,7 +2168,7 @@ class _JsonKinshipResultCard extends ConsumerWidget {
                       : _KinshipGender.female,
                 ),
                 const SizedBox(width: 4),
-                Icon(Icons.volume_up_rounded, size: 16, color: _Tokens.orange),
+                const Icon(Icons.volume_up_rounded, size: 16, color: _Tokens.orange),
               ],
             ),
             const SizedBox(height: 8),
@@ -2177,7 +2178,7 @@ class _JsonKinshipResultCard extends ConsumerWidget {
                 if (translation == null) return const SizedBox.shrink();
                 return Text(
                   translation.native,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
@@ -2186,14 +2187,14 @@ class _JsonKinshipResultCard extends ConsumerWidget {
                 );
               },
               loading: () =>
-                  DKLoadingShimmer(width: 120, height: 24, radius: 4),
+                  const KinrelSkeletonBox(width: 120, height: 24, radius: 4),
               error: (_, __) => const SizedBox.shrink(),
             ),
             const SizedBox(height: 4),
             // English term
             Text(
               rel.englishTerm,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -2204,7 +2205,7 @@ class _JsonKinshipResultCard extends ConsumerWidget {
             // Relationship key
             Text(
               rel.relationshipKey.replaceAll('_', ' → '),
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: _Tokens.textSecondary,
@@ -2256,7 +2257,7 @@ class _SearchResultCard extends StatelessWidget {
                 children: [
                   Text(
                     item.title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -2265,7 +2266,7 @@ class _SearchResultCard extends StatelessWidget {
                   ),
                   Text(
                     item.subtitle,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: _Tokens.textSecondary,
@@ -2274,7 +2275,7 @@ class _SearchResultCard extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, size: 20, color: _Tokens.textDim),
+            const Icon(Icons.chevron_right_rounded, size: 20, color: _Tokens.textDim),
           ],
         ),
       ),
@@ -2303,11 +2304,11 @@ class _EmptyState extends StatelessWidget {
             Container(
               width: 80,
               height: 80,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: _Tokens.elevated,
                 shape: BoxShape.circle,
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.search_rounded,
                 size: 36,
                 color: _Tokens.textDim,
@@ -2316,7 +2317,7 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 20),
             Text(
               title,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -2326,7 +2327,7 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               subtitle,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 color: _Tokens.textSecondary,
@@ -2355,7 +2356,7 @@ class _EmptyState extends StatelessWidget {
                       ),
                       child: Text(
                         term,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
                           color: _Tokens.orange,
@@ -2443,7 +2444,7 @@ class _KinshipDetailSheet extends StatelessWidget {
                           child: Center(
                             child: Text(
                               term.nativeScript.characters.first,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 32,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.white,
@@ -2459,7 +2460,7 @@ class _KinshipDetailSheet extends StatelessWidget {
                           ).createShader(bounds),
                           child: Text(
                             term.nativeScript,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 36,
                               fontWeight: FontWeight.w700,
@@ -2471,7 +2472,7 @@ class _KinshipDetailSheet extends StatelessWidget {
                         // Transliteration
                         Text(
                           term.transliteration,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 18,
                             fontWeight: FontWeight.w500,
@@ -2518,14 +2519,14 @@ class _KinshipDetailSheet extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        const Row(
                           children: [
                             Icon(
                               Icons.menu_book_rounded,
                               size: 16,
                               color: _Tokens.orange,
                             ),
-                            const SizedBox(width: 6),
+                            SizedBox(width: 6),
                             Text(
                               'Definition',
                               style: TextStyle(
@@ -2540,7 +2541,7 @@ class _KinshipDetailSheet extends StatelessWidget {
                         const SizedBox(height: 8),
                         Text(
                           term.englishTerm,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -2550,7 +2551,7 @@ class _KinshipDetailSheet extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           term.definition,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 13,
                             color: _Tokens.textSecondary,
@@ -2575,7 +2576,7 @@ class _KinshipDetailSheet extends StatelessWidget {
                               ),
                               child: Text(
                                 term.category,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: KinrelTypography.bodyFont,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
@@ -2604,14 +2605,14 @@ class _KinshipDetailSheet extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                          const Row(
                             children: [
                               Icon(
                                 Icons.auto_stories_rounded,
                                 size: 16,
                                 color: _Tokens.orange,
                               ),
-                              const SizedBox(width: 6),
+                              SizedBox(width: 6),
                               Text(
                                 'Cultural Context',
                                 style: TextStyle(
@@ -2626,7 +2627,7 @@ class _KinshipDetailSheet extends StatelessWidget {
                           const SizedBox(height: 8),
                           Text(
                             term.culturalNote!,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 13,
                               color: _Tokens.textSecondary,
@@ -2651,14 +2652,14 @@ class _KinshipDetailSheet extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        const Row(
                           children: [
                             Icon(
                               Icons.translate_rounded,
                               size: 16,
                               color: _Tokens.orange,
                             ),
-                            const SizedBox(width: 6),
+                            SizedBox(width: 6),
                             Text(
                               'Translations',
                               style: TextStyle(
@@ -2690,7 +2691,7 @@ class _KinshipDetailSheet extends StatelessWidget {
                               ),
                               child: Text(
                                 lang.toUpperCase(),
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: KinrelTypography.monoFont,
                                   fontSize: 10,
                                   fontWeight: FontWeight.w500,
@@ -2721,7 +2722,7 @@ class _KinshipDetailSheet extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.swap_horiz_rounded,
                             size: 18,
                             color: _Tokens.orange,
@@ -2730,16 +2731,16 @@ class _KinshipDetailSheet extends StatelessWidget {
                           Expanded(
                             child: RichText(
                               text: TextSpan(
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: KinrelTypography.bodyFont,
                                   fontSize: 13,
                                   color: _Tokens.textSecondary,
                                 ),
                                 children: [
-                                  TextSpan(text: 'They call you: '),
+                                  const TextSpan(text: 'They call you: '),
                                   TextSpan(
                                     text: term.reciprocalTerm,
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       fontWeight: FontWeight.w600,
                                       color: _Tokens.orange,
                                     ),
@@ -2778,14 +2779,14 @@ class _KinshipDetailSheet extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
+                            const Row(
                               children: [
                                 Icon(
                                   Icons.family_restroom_rounded,
                                   size: 16,
                                   color: _Tokens.orange,
                                 ),
-                                const SizedBox(width: 6),
+                                SizedBox(width: 6),
                                 Text(
                                   'Related Terms',
                                   style: TextStyle(
@@ -2822,7 +2823,7 @@ class _KinshipDetailSheet extends StatelessWidget {
                                     children: [
                                       Text(
                                         t.nativeScript,
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           fontFamily: KinrelTypography.bodyFont,
                                           fontSize: 14,
                                           fontWeight: FontWeight.w600,
@@ -2831,7 +2832,7 @@ class _KinshipDetailSheet extends StatelessWidget {
                                       ),
                                       Text(
                                         t.transliteration,
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           fontFamily: KinrelTypography.bodyFont,
                                           fontSize: 11,
                                           color: _Tokens.textSecondary,

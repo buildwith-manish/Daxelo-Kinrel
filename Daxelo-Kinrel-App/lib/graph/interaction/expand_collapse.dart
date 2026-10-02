@@ -303,8 +303,7 @@ class ExpandCollapseState {
 class ExpandCollapseController extends StateNotifier<ExpandCollapseState> {
   /// Creates an expand/collapse controller with the given initial
   /// [state].
-  ExpandCollapseController(ExpandCollapseState state)
-      : super(state);
+  ExpandCollapseController(super.state);
 
   /// Callback invoked when a branch needs data fetched.
   /// The caller should provide the fetch function that loads branch
@@ -628,9 +627,8 @@ final disclosureLevelProvider = Provider<int>((Ref ref) {
 class BranchExpandSpring {
   /// Creates a branch-expand fade-in spring.
   ///
-  /// [reducedMotion] — when true, [progressAt] always returns 1.0.
-  BranchExpandSpring({bool reducedMotion = false})
-      : _reducedMotion = reducedMotion {
+  /// [_reducedMotion] — when true, [progressAt] always returns 1.0.
+  BranchExpandSpring({this._reducedMotion = false}) {
     _simulation = SpringSimulation(
       SpringPalette.branch,
       0.0,

@@ -341,7 +341,7 @@ class _NavTabButton extends StatelessWidget {
               color: color,
               size: FamilySpaceFloatingNav._iconSize,
             ),
-            SizedBox(height: FamilySpaceFloatingNav._iconLabelGap),
+            const SizedBox(height: FamilySpaceFloatingNav._iconLabelGap),
             // ── Label ──
             Text(
               tab.label,
@@ -358,7 +358,7 @@ class _NavTabButton extends StatelessWidget {
             // Renders ONLY when selected — no transparent placeholder when
             // inactive. Mirrors _DKNavItemWidget's `if (isSelected) ...[...]`.
             if (isSelected) ...[
-              SizedBox(height: FamilySpaceFloatingNav._indicatorLabelGap),
+              const SizedBox(height: FamilySpaceFloatingNav._indicatorLabelGap),
               Container(
                 width: FamilySpaceFloatingNav._indicatorWidth,
                 height: FamilySpaceFloatingNav._indicatorHeight,

@@ -84,7 +84,9 @@ class TtNotifier extends StateNotifier<TtState> {
     final playerIds = sorted.map((p) => p.userId).toList();
     final submitterId = nextSubmitterId(playerIdsInOrder: playerIds, roundNumber: roundNumber);
     await client.from('twotruths_games').update({'status': 'in_progress', 'currentRound': roundNumber, 'currentSubmitterId': submitterId, 'roundEndsAt': null, 'allGuessesSubmitted': false, 'roundResolved': false, 'startedAt': roundNumber == 1 ? DateTime.now().toIso8601String() : null}).eq('id', gameId);
-    for (final p in state.players) await client.from('twotruths_players').update({'hasGuessed': false}).eq('id', p.id);
+    for (final p in state.players) {
+      await client.from('twotruths_players').update({'hasGuessed': false}).eq('id', p.id);
+    }
   }
 
   /// Submitter: submit 3 statements (or 2 + AI lie).
@@ -158,8 +160,11 @@ class TtNotifier extends StateNotifier<TtState> {
       final scoreUpdates = <Future<void>>[];
       for (final p in state.players) {
         int delta = 0;
-        if (p.userId == round.submitterId) delta = result.submitterScore;
-        else delta = result.guesserScores[p.userId] ?? 0;
+        if (p.userId == round.submitterId) {
+          delta = result.submitterScore;
+        } else {
+          delta = result.guesserScores[p.userId] ?? 0;
+        }
         if (delta > 0) {
           scoreUpdates.add(
             client.from('twotruths_players').update({'totalScore': p.totalScore + delta}).eq('id', p.id),

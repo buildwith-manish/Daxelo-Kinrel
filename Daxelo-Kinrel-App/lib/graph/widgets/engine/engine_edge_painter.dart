@@ -26,6 +26,74 @@ import '../../../core/constants/brand_colors.dart' show KinrelColors;
 import '../../data/graph_data_models.dart' show GraphEdgeData;
 
 class EngineEdgePainter extends CustomPainter {
+
+  EngineEdgePainter({
+    required this.positions,
+    required this.edges,
+    required this.edgeCategories,
+    required this.edgeCustomColors,
+    required this.coupleUnions,
+    required this.cache,
+    required this.edgeQuality,
+    required this.graphRevision,
+    required this.layoutRevision,
+    required this.edgeVisualRevision,
+    this.selectedEdgeId,
+    this.dimmedEdgeIds,
+    this.sweepEdgeId,
+    this.sweepProgress = 0.0,
+    this.sweepActive = false,
+    this.pathFocusedEdgeIds,
+    this.pathFocusActive = false,
+    this.traceEdgeId,
+    this.traceProgress = 0.0,
+    this.traceActive = false,
+    this.completedTraceEdgeIds,
+    this.edgeWaypoints = const {},
+    this.connectOnOpenActive = false,
+    this.connectOnOpenCurrentEdgeId,
+    this.connectOnOpenProgress = 0.0,
+    this.connectOnOpenRevealedEdgeIds = const <String>{},
+    this.connectOnOpenCurrentEdgeIds = const <String>{},
+    this.connectOnOpenEdgeDelays = const <String, double>{},
+    this.zoom = 1.0,
+    // v5.125 (Step 6): anchor geometry for the bow-around-the-anchor
+    // routing + sector fan-out. Null (the default) keeps the exact
+    // pre-v5.125 geometry — backward compatible for every existing
+    // construction site and test.
+    this.anchorId,
+    this.anchorCenter,
+    // v5.x (Feature 3 — labels on demand): when non-null AND
+    // [pathFocusActive] is true, the painter renders a small
+    // relationship-type label near the midpoint of every path-focused
+    // edge (e.g. "father", "sister", "uncle"). The label is NOT
+    // rendered by default — only when the user has selected a node
+    // AND a path has been resolved. This is the "labels on demand,
+    // not always-on" behavior the user asked for. Null (the default)
+    // keeps the exact pre-v5.x behavior — no labels are rendered.
+    this.pathFocusLabels,
+    // v5.x (perf fix — pinch-zoom GPU-transform): gesture flag and
+    // commit revision. See the doc block on the fields below.
+    this.painterActiveGesture = false,
+    this.zoomCommitRevision = 0,
+    // v5.141 (LOW-END PERF): Profile-driven edge pass toggles. When
+    // false, the painter skips the corresponding pass entirely —
+    // even if edgeQuality would normally allow it. This lets low-end
+    // devices drop the shadow + ridge passes (the two most expensive
+    // operations) while keeping edgeQuality at chip tier for the
+    // body pass.
+    this.allowShadowPass = true,
+    this.allowRidgePass = true,
+    // PERF v5.175 (60fps PAN/ZOOM): graph-space viewport rect for
+    // painter-side edge culling. When non-null, edges whose cached
+    // Path bounds do not overlap the (inflated) viewport are skipped
+    // entirely — no style resolution, no 3-pass stroke, no midpoint
+    // glyph. This is a massive win in the "Show All Branches" state
+    // where all 950 edges pass the data-level filter but only a
+    // fraction intersect the screen. Null (default) preserves the
+    // exact pre-v5.175 behaviour (no culling) for tests/legacy calls.
+    this.graphViewport,
+  });
   /// v5.98: Static cache of pre-rendered midpoint bead images.
   /// Keyed by a signature string of (radius, color, isDimmed, isSelected,
   /// edgeQuality). On first use, the bead is rendered once via
@@ -180,74 +248,6 @@ class EngineEdgePainter extends CustomPainter {
   static double _perEdgeMidpointT(String edgeId) {
     return 0.5 + _perEdgePhase(edgeId) * 0.1;
   }
-
-  EngineEdgePainter({
-    required this.positions,
-    required this.edges,
-    required this.edgeCategories,
-    required this.edgeCustomColors,
-    required this.coupleUnions,
-    required this.cache,
-    required this.edgeQuality,
-    required this.graphRevision,
-    required this.layoutRevision,
-    required this.edgeVisualRevision,
-    this.selectedEdgeId,
-    this.dimmedEdgeIds,
-    this.sweepEdgeId,
-    this.sweepProgress = 0.0,
-    this.sweepActive = false,
-    this.pathFocusedEdgeIds,
-    this.pathFocusActive = false,
-    this.traceEdgeId,
-    this.traceProgress = 0.0,
-    this.traceActive = false,
-    this.completedTraceEdgeIds,
-    this.edgeWaypoints = const {},
-    this.connectOnOpenActive = false,
-    this.connectOnOpenCurrentEdgeId,
-    this.connectOnOpenProgress = 0.0,
-    this.connectOnOpenRevealedEdgeIds = const <String>{},
-    this.connectOnOpenCurrentEdgeIds = const <String>{},
-    this.connectOnOpenEdgeDelays = const <String, double>{},
-    this.zoom = 1.0,
-    // v5.125 (Step 6): anchor geometry for the bow-around-the-anchor
-    // routing + sector fan-out. Null (the default) keeps the exact
-    // pre-v5.125 geometry — backward compatible for every existing
-    // construction site and test.
-    this.anchorId,
-    this.anchorCenter,
-    // v5.x (Feature 3 — labels on demand): when non-null AND
-    // [pathFocusActive] is true, the painter renders a small
-    // relationship-type label near the midpoint of every path-focused
-    // edge (e.g. "father", "sister", "uncle"). The label is NOT
-    // rendered by default — only when the user has selected a node
-    // AND a path has been resolved. This is the "labels on demand,
-    // not always-on" behavior the user asked for. Null (the default)
-    // keeps the exact pre-v5.x behavior — no labels are rendered.
-    this.pathFocusLabels,
-    // v5.x (perf fix — pinch-zoom GPU-transform): gesture flag and
-    // commit revision. See the doc block on the fields below.
-    this.painterActiveGesture = false,
-    this.zoomCommitRevision = 0,
-    // v5.141 (LOW-END PERF): Profile-driven edge pass toggles. When
-    // false, the painter skips the corresponding pass entirely —
-    // even if edgeQuality would normally allow it. This lets low-end
-    // devices drop the shadow + ridge passes (the two most expensive
-    // operations) while keeping edgeQuality at chip tier for the
-    // body pass.
-    this.allowShadowPass = true,
-    this.allowRidgePass = true,
-    // PERF v5.175 (60fps PAN/ZOOM): graph-space viewport rect for
-    // painter-side edge culling. When non-null, edges whose cached
-    // Path bounds do not overlap the (inflated) viewport are skipped
-    // entirely — no style resolution, no 3-pass stroke, no midpoint
-    // glyph. This is a massive win in the "Show All Branches" state
-    // where all 950 edges pass the data-level filter but only a
-    // fraction intersect the screen. Null (default) preserves the
-    // exact pre-v5.175 behaviour (no culling) for tests/legacy calls.
-    this.graphViewport,
-  });
 
   final Map<String, Offset> positions;
   final List<DedupedEdge> edges;
@@ -926,9 +926,7 @@ class EngineEdgePainter extends CustomPainter {
     // this rect produce zero visible pixels, so culling them is
     // visually a no-op — it just skips the 3-pass stroke + midpoint
     // glyph work.
-    final Rect? edgeCullRect = graphViewport == null
-        ? null
-        : graphViewport!.inflate(400.0);
+    final Rect? edgeCullRect = graphViewport?.inflate(400.0);
     // v5.141 (LOW-END PERF): If the profile disabled the shadow or
     // ridge pass, force the corresponding sigma/alpha to 0 so the
     // paint methods skip that pass entirely. This compounds with
@@ -1255,7 +1253,7 @@ class EngineEdgePainter extends CustomPainter {
       final KinshipMidpointSymbol midpointSymbol;
 
       if (customColors != null) {
-        edgeColor = Color(customColors['lineColor'] as int? ?? style.color.value);
+        edgeColor = Color(customColors['lineColor'] as int? ?? style.color.toARGB32());
         edgeAlpha = 1.0;
         dashPattern = customColors['lineType'] == 'dashed' ? [6.0, 4.0] : [];
         final dotType = customColors['dotType'] as String? ?? 'dot';
@@ -1657,7 +1655,7 @@ class EngineEdgePainter extends CustomPainter {
       canvas.save();
       canvas.translate(GraphLighting.shadowOffset.dx, GraphLighting.shadowOffset.dy);
       final shadowPaint = _cachedBlurPaint(
-        color: Colors.black.value,
+        color: Colors.black.toARGB32(),
         alpha: GraphLighting.shadowAlpha,
         sigma: shadowSigma,
         strokeWidth: bodyWidth + 2.4,
@@ -1729,7 +1727,7 @@ class EngineEdgePainter extends CustomPainter {
       canvas.save();
       canvas.translate(GraphLighting.shadowOffset.dx, GraphLighting.shadowOffset.dy);
       final shadowPaint = _cachedBlurPaint(
-        color: Colors.black.value,
+        color: Colors.black.toARGB32(),
         alpha: GraphLighting.shadowAlpha,
         sigma: shadowSigma,
         strokeWidth: bodyWidth + 2.0,
@@ -1801,7 +1799,7 @@ class EngineEdgePainter extends CustomPainter {
     // v5.x (perf fix): cached blur paint for the orange aura.
     if (shadowSigma > 0) {
       final auraPaint = _cachedBlurPaint(
-        color: KinrelColors.orange.value,
+        color: KinrelColors.orange.toARGB32(),
         alpha: GraphLighting.selectedAuraAlpha,
         sigma: GraphLighting.selectedAuraSigma,
         strokeWidth: bodyWidth + GraphLighting.selectedAuraWidthDelta,
@@ -1815,7 +1813,7 @@ class EngineEdgePainter extends CustomPainter {
       canvas.save();
       canvas.translate(GraphLighting.shadowOffset.dx, GraphLighting.shadowOffset.dy);
       final shadowPaint = _cachedBlurPaint(
-        color: Colors.black.value,
+        color: Colors.black.toARGB32(),
         alpha: GraphLighting.selectedShadowAlpha,
         sigma: shadowSigma,
         strokeWidth: bodyWidth + 2.8,
@@ -2130,7 +2128,7 @@ class EngineEdgePainter extends CustomPainter {
       // Build cache key. Quantize radius to 0.5px steps to limit
       // cache entries (beadR varies continuously with zoom/LOD).
       final String cacheKey =
-          '${beadR.roundToDouble()}_${effectiveMidpointColor.value}_'
+          '${beadR.roundToDouble()}_${effectiveMidpointColor.toARGB32()}_'
           '${isDimmed}_${isSelected}_${edgeQuality.name}';
 
       ui.Image? cachedImage = _midpointImageCache[cacheKey];

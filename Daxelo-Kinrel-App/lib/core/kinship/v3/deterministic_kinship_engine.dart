@@ -28,19 +28,14 @@ typedef AdjacencyEntry = ({String nodeId, TraversePrimitive primitive});
 
 /// A single step in the BFS traversal path.
 class BfsStep {
-  final String nodeId;
-  final TraversePrimitive primitive;
 
   const BfsStep({required this.nodeId, required this.primitive});
+  final String nodeId;
+  final TraversePrimitive primitive;
 }
 
 /// The result of a kinship resolution.
-class KinshipResult {
-  final String term;           // Human-readable term (e.g. "Grandfather")
-  final String? fundamentalEdge; // The edge to store (e.g. "parent") or null if derived
-  final KinshipSignature signature;
-  final bool isDerived;        // True if the term is derived (not a fundamental edge)
-  final bool isSuggested;      // True if this is an inference (e.g. spouse from shared child) requiring user confirmation
+class KinshipResult {      // True if this is an inference (e.g. spouse from shared child) requiring user confirmation
 
   const KinshipResult({
     required this.term,
@@ -49,6 +44,11 @@ class KinshipResult {
     required this.isDerived,
     this.isSuggested = false,
   });
+  final String term;           // Human-readable term (e.g. "Grandfather")
+  final String? fundamentalEdge; // The edge to store (e.g. "parent") or null if derived
+  final KinshipSignature signature;
+  final bool isDerived;        // True if the term is derived (not a fundamental edge)
+  final bool isSuggested;
 }
 
 class DeterministicKinshipEngine {
@@ -686,21 +686,21 @@ class DeterministicKinshipEngine {
 
 /// Internal BFS state.
 class _BfsState {
-  final String nodeId;
-  final List<TraversePrimitive> path;
-  final List<String> visited;
 
   const _BfsState({
     required this.nodeId,
     required this.path,
     required this.visited,
   });
+  final String nodeId;
+  final List<TraversePrimitive> path;
+  final List<String> visited;
 }
 
 /// Internal BFS result.
 class _BfsResult {
-  final List<TraversePrimitive> path;
-  final List<String> visitedNodes;
 
   const _BfsResult({required this.path, required this.visitedNodes});
+  final List<TraversePrimitive> path;
+  final List<String> visitedNodes;
 }

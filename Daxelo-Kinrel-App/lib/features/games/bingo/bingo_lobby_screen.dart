@@ -90,7 +90,7 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            const Text(
               'Share this code',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -102,7 +102,7 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
             const SizedBox(height: KinrelSpacing.md),
             Text(
               code,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 40,
                 fontWeight: FontWeight.w700,
@@ -111,7 +111,7 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
               ),
             ),
             const SizedBox(height: KinrelSpacing.md),
-            Text(
+            const Text(
               'Up to 29 family members can join. Each player gets a random 5×5 card.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -168,7 +168,7 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
         title: hasGame
-            ? Text(
+            ? const Text(
                 'Bingo',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,

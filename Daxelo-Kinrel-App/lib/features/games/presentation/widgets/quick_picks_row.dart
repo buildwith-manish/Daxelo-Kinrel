@@ -43,17 +43,6 @@ class QuickPick {
     required this.playCountLast30d,
   });
 
-  /// Supabase table name (e.g. 'tictactoe_games') — used as the unique key
-  /// for de-duplication against the Play With row.
-  final String gameTable;
-
-  /// Catalog game ID (e.g. 'tictactoe') — used to resolve the lobby route
-  /// and the GameIcon widget.
-  final String gameId;
-  final String name;
-  final String playerCountRange;
-  final int playCountLast30d;
-
   factory QuickPick.fromJson(Map<String, dynamic> json) {
     final rawGameTable = (json['game_id'] as String?) ?? '';
     final catalogEntry = gameByTable(rawGameTable);
@@ -65,6 +54,17 @@ class QuickPick {
       playCountLast30d: (json['play_count_last_30d'] as num?)?.toInt() ?? 0,
     );
   }
+
+  /// Supabase table name (e.g. 'tictactoe_games') — used as the unique key
+  /// for de-duplication against the Play With row.
+  final String gameTable;
+
+  /// Catalog game ID (e.g. 'tictactoe') — used to resolve the lobby route
+  /// and the GameIcon widget.
+  final String gameId;
+  final String name;
+  final String playerCountRange;
+  final int playCountLast30d;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

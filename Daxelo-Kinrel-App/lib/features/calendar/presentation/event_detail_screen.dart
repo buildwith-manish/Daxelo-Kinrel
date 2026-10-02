@@ -28,7 +28,7 @@ class EventDetailScreen extends ConsumerWidget {
           leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } }),
           actions: [IconButton(icon: const Icon(Icons.edit_outlined, color: Colors.white), onPressed: () => context.push('/family/$familyId/calendar/new', extra: event))],
           flexibleSpace: FlexibleSpaceBar(
-            title: Text(event.title, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w700, color: Colors.white, fontSize: 16)),
+            title: Text(event.title, style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w700, color: Colors.white, fontSize: 16)),
             background: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [color.withValues(alpha: 0.4), KinrelColors.darkCard]))),
           ),
         ),
@@ -36,7 +36,7 @@ class EventDetailScreen extends ConsumerWidget {
           // Category + countdown
           Row(children: [
             Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
-              child: Row(children: [Text(event.category.icon, style: TextStyle(fontSize: 14)), const SizedBox(width: 6), Text(event.category.label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color))])),
+              child: Row(children: [Text(event.category.icon, style: const TextStyle(fontSize: 14)), const SizedBox(width: 6), Text(event.category.label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color))])),
             const Spacer(),
             if (event.isUpcoming)
               Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: event.isToday ? color : color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
@@ -48,14 +48,14 @@ class EventDetailScreen extends ConsumerWidget {
           if (event.location != null && event.location!.isNotEmpty) ...[const SizedBox(height: 12), _DetailRow(icon: Icons.location_on_outlined, label: 'Location', value: event.location!)],
           if (event.isRecurring) ...[const SizedBox(height: 12), _DetailRow(icon: Icons.repeat_rounded, label: 'Repeats', value: event.recurrenceRule ?? 'Custom')],
           if (event.description != null && event.description!.isNotEmpty) ...[const SizedBox(height: 20),
-            Text('Notes', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textDim)),
+            const Text('Notes', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textDim)),
             const SizedBox(height: 8),
             Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12)),
-              child: Text(event.description!, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textSilver, height: 1.5))),
+              child: Text(event.description!, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textSilver, height: 1.5))),
           ],
           const SizedBox(height: 20),
           // RSVP
-          Text('RSVP', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textDim)),
+          const Text('RSVP', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textDim)),
           const SizedBox(height: 8),
           Row(children: [
             _RSVPButton(label: 'Going', color: KinrelColors.success, onTap: () => ref.read(calendarProvider(familyId).notifier).submitRSVP(event.id, RSVPStatus.going)),
@@ -78,8 +78,8 @@ class _DetailRow extends StatelessWidget {
     Icon(icon, size: 18, color: KinrelColors.orange),
     const SizedBox(width: 10),
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: TextStyle(fontSize: 11, color: KinrelColors.textDim, fontWeight: FontWeight.w500)),
-      Text(value, style: TextStyle(fontSize: 14, color: KinrelColors.textWhite, fontWeight: FontWeight.w500)),
+      Text(label, style: const TextStyle(fontSize: 11, color: KinrelColors.textDim, fontWeight: FontWeight.w500)),
+      Text(value, style: const TextStyle(fontSize: 14, color: KinrelColors.textWhite, fontWeight: FontWeight.w500)),
     ]),
   ]);
 }

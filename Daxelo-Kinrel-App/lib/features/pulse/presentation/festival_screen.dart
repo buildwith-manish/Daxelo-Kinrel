@@ -11,8 +11,8 @@ import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
 
 class FestivalScreen extends ConsumerWidget {
-  final bool embedded;
   const FestivalScreen({super.key, this.embedded = false});
+  final bool embedded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -71,7 +71,7 @@ class FestivalScreen extends ConsumerWidget {
               child: Center(
                 child: Text(
                   'No upcoming festivals in the next 90 days.',
-                  style: TextStyle(color: Colors.white.withOpacity(0.5)),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -94,8 +94,8 @@ class FestivalScreen extends ConsumerWidget {
 }
 
 class _TodayFestivalCard extends StatelessWidget {
-  final Festival festival;
   const _TodayFestivalCard({required this.festival});
+  final Festival festival;
 
   @override
   Widget build(BuildContext context) {
@@ -107,12 +107,12 @@ class _TodayFestivalCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            KinrelColors.brightGold.withOpacity(0.15),
-            KinrelColors.orange.withOpacity(0.1),
+            KinrelColors.brightGold.withValues(alpha: 0.15),
+            KinrelColors.orange.withValues(alpha: 0.1),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: KinrelColors.brightGold.withOpacity(0.4)),
+        border: Border.all(color: KinrelColors.brightGold.withValues(alpha: 0.4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -138,7 +138,7 @@ class _TodayFestivalCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               festival.description!,
-              style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12, height: 1.4),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12, height: 1.4),
             ),
           ],
         ],
@@ -148,8 +148,8 @@ class _TodayFestivalCard extends StatelessWidget {
 }
 
 class _FestivalCard extends StatelessWidget {
-  final Festival festival;
   const _FestivalCard({required this.festival});
+  final Festival festival;
 
   @override
   Widget build(BuildContext context) {
@@ -165,7 +165,7 @@ class _FestivalCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: KinrelColors.amber.withOpacity(0.15)),
+        border: Border.all(color: KinrelColors.amber.withValues(alpha: 0.15)),
       ),
       child: Row(
         children: [
@@ -174,7 +174,7 @@ class _FestivalCard extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: KinrelColors.amber.withOpacity(0.12),
+              color: KinrelColors.amber.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -186,7 +186,7 @@ class _FestivalCard extends StatelessWidget {
                 ),
                 Text(
                   'days',
-                  style: TextStyle(color: KinrelColors.amber.withOpacity(0.7), fontSize: 9),
+                  style: TextStyle(color: KinrelColors.amber.withValues(alpha: 0.7), fontSize: 9),
                 ),
               ],
             ),
@@ -205,19 +205,19 @@ class _FestivalCard extends StatelessWidget {
                   children: [
                     Text(
                       festival.festivalDate,
-                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
                     ),
                     const SizedBox(width: 8),
                     if (festival.region != 'all')
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.08),
+                          color: Colors.white.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           festival.region,
-                          style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 10),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 10),
                         ),
                       ),
                   ],
@@ -225,7 +225,7 @@ class _FestivalCard extends StatelessWidget {
               ],
             ),
           ),
-          Text(daysWord, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
+          Text(daysWord, style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11)),
         ],
       ),
     );

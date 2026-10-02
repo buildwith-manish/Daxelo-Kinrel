@@ -5,9 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 
 class RiddleOption {
+  const RiddleOption(this.text, this.isCorrect);
   final String text;
   final bool isCorrect;
-  const RiddleOption(this.text, this.isCorrect);
 }
 
 class RelationRiddleState {
@@ -45,7 +45,7 @@ class RelationRiddleNotifier extends StateNotifier<RelationRiddleState> {
       final today = DateTime.now();
       final todayStr = '${today.year}-${today.month.toString().padLeft(2,'0')}-${today.day.toString().padLeft(2,'0')}';
 
-      var riddleResp = await client.from('relation_riddle_daily').select().eq('familyId', familyId).eq('assignedDate', todayStr).limit(1);
+      final riddleResp = await client.from('relation_riddle_daily').select().eq('familyId', familyId).eq('assignedDate', todayStr).limit(1);
       Map<String, dynamic>? riddleRow;
       if (riddleResp.isNotEmpty) {
         riddleRow = riddleResp.first;

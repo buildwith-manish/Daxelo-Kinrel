@@ -31,6 +31,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Configuration for the [CollisionDetector].
 class CollisionDetectorConfig {
+
+  const CollisionDetectorConfig({
+    this.minGapLowZoom = 4.0,
+    this.minGapHighZoom = 12.0,
+    this.maxIterations = 3,
+    this.defaultNodeRadius = 40.0,
+    this.viewportPadding = 20.0,
+    this.zoomThreshold = 1.0,
+  });
   /// Minimum gap between nodes at low zoom levels (pt).
   final double minGapLowZoom;
 
@@ -49,15 +58,6 @@ class CollisionDetectorConfig {
   /// Zoom level threshold for switching between low/high gap.
   /// Below this threshold → low zoom gap, above → high zoom gap.
   final double zoomThreshold;
-
-  const CollisionDetectorConfig({
-    this.minGapLowZoom = 4.0,
-    this.minGapHighZoom = 12.0,
-    this.maxIterations = 3,
-    this.defaultNodeRadius = 40.0,
-    this.viewportPadding = 20.0,
-    this.zoomThreshold = 1.0,
-  });
 
   CollisionDetectorConfig copyWith({
     double? minGapLowZoom,
@@ -84,6 +84,15 @@ class CollisionDetectorConfig {
 
 /// Result of collision detection and resolution.
 class CollisionResult {
+
+  const CollisionResult({
+    required this.positions,
+    this.initialOverlapCount = 0,
+    this.remainingOverlapCount = 0,
+    this.iterationsPerformed = 0,
+    this.budgetExhausted = false,
+    this.warningMessage,
+  });
   /// Adjusted positions after overlap resolution.
   final Map<String, Offset> positions;
 
@@ -101,15 +110,6 @@ class CollisionResult {
 
   /// Warning message to display if budget was exhausted.
   final String? warningMessage;
-
-  const CollisionResult({
-    required this.positions,
-    this.initialOverlapCount = 0,
-    this.remainingOverlapCount = 0,
-    this.iterationsPerformed = 0,
-    this.budgetExhausted = false,
-    this.warningMessage,
-  });
 
   /// Whether all overlaps were successfully resolved.
   bool get allResolved => remainingOverlapCount == 0;
@@ -142,10 +142,10 @@ class CollisionResult {
 /// }
 /// ```
 class CollisionDetector {
-  CollisionDetectorConfig _config;
 
   CollisionDetector({CollisionDetectorConfig? config})
       : _config = config ?? const CollisionDetectorConfig();
+  final CollisionDetectorConfig _config;
 
   /// Current configuration.
   CollisionDetectorConfig get config => _config;
@@ -378,6 +378,13 @@ class CollisionDetector {
 
 /// Represents the displacement needed to resolve an overlap between two nodes.
 class _OverlapVector {
+
+  const _OverlapVector({
+    required this.idA,
+    required this.idB,
+    required this.overlapDx,
+    required this.overlapDy,
+  });
   /// ID of the first node.
   final String idA;
 
@@ -389,13 +396,6 @@ class _OverlapVector {
 
   /// Y component of the overlap displacement (direction from A to B).
   final double overlapDy;
-
-  const _OverlapVector({
-    required this.idA,
-    required this.idB,
-    required this.overlapDx,
-    required this.overlapDy,
-  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════

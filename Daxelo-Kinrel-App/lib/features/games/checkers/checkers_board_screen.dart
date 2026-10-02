@@ -116,7 +116,7 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
           // confirmation dialog first.
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
-        title: Text(
+        title: const Text(
           'Checkers',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -200,7 +200,7 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
               child: Text(
                 state.error!,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.warning,
@@ -208,8 +208,8 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
               ),
             ),
           if (game.mandatoryCapturePending)
-            Padding(
-              padding: const EdgeInsets.only(bottom: KinrelSpacing.sm),
+            const Padding(
+              padding: EdgeInsets.only(bottom: KinrelSpacing.sm),
               child: Text(
                 'Multi-jump in progress — continue capturing!',
                 style: TextStyle(
@@ -272,7 +272,7 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
             isMyTurn
                 ? 'Your turn (Player ${myPlayerNumber == 1 ? "Ivory" : "Black"})'
                 : '$turnPlayerName\'s turn (${turnPlayerNumber == 1 ? "Ivory" : "Black"})',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               color: Colors.white,
@@ -323,7 +323,7 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 10,
             color: KinrelColors.textDim,
@@ -337,7 +337,7 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
             const SizedBox(width: 4),
             Text(
               '$count',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -621,7 +621,7 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
       backgroundColor: isWinner ? null : KinrelColors.darkSurface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text(
+        title: const Text(
           'Results',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -655,7 +655,7 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
                   const SizedBox(height: KinrelSpacing.sm),
                   Text(
                     isWinner ? 'You Won!' : 'Winner!',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 32,
                       fontWeight: FontWeight.w800,
@@ -666,7 +666,7 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
                   const SizedBox(height: 4),
                   Text(
                     isWinner ? '$winnerName (You)' : winnerName,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 22,
                       fontWeight: FontWeight.w600,
@@ -689,7 +689,7 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
               const SizedBox(height: KinrelSpacing.xl),
               // Move history (last 10 moves)
               if (state.moves.isNotEmpty) ...[
-                Text(
+                const Text(
                   'Move History',
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
@@ -811,7 +811,7 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             color: KinrelColors.textDim,
@@ -848,7 +848,7 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
             width: 30,
             child: Text(
               '${move.moveNumber}.',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 12,
                 color: KinrelColors.textDim,
@@ -858,7 +858,7 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
           Expanded(
             child: Text(
               move.playerName,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textWhite,

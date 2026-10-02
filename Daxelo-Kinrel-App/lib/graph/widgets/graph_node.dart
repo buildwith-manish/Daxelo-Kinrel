@@ -605,8 +605,9 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   // ── Relationship Color ─────────────────────────────────────────────
 
   Color get _borderColor {
-    if (widget.isAnonymous)
+    if (widget.isAnonymous) {
       return _highContrast ? Colors.grey : KinrelColors.textDim;
+    }
     if (widget.isAnchor) return KinshipEdgeColors.kSelfNodeColor;
     // v69: Prefer the AUTHORITATIVE category — no lossy string round-trip.
     // styleForCategory() is always correct and never falls through to
@@ -876,13 +877,13 @@ class _GraphNodeState extends ConsumerState<GraphNode>
             fit: BoxFit.scaleDown,
             child: Text(
               widget.name,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 14.0,
                 fontWeight: FontWeight.w600,
                 color: KinrelColors.textWhite,
                 letterSpacing: 0.25, // §5: subtle letter-spacing for hierarchy
-                shadows: const [
+                shadows: [
                   // §5: text-shadow for legibility over busy bg
                   Shadow(blurRadius: 5, color: Colors.black87),
                 ],
@@ -1231,7 +1232,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                   color: KinrelColors.amber,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
+                child: const Text(
                   'Pending',
                   style: TextStyle(
                     fontSize: 8,
@@ -1258,7 +1259,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                     width: 1.5,
                   ),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.link_off,
                   size: 12,
                   color: KinrelColors.darkCard,

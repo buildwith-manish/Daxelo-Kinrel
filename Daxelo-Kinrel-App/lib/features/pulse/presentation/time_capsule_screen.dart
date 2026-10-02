@@ -57,7 +57,7 @@ class TimeCapsuleScreen extends ConsumerWidget {
                     const SizedBox(height: 8),
                     Text(
                       'Lock a message for a future date —\nyour child\'s 18th birthday, a wedding,\nor after you\'re gone.',
-                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 20),
@@ -106,10 +106,10 @@ class TimeCapsuleScreen extends ConsumerWidget {
 }
 
 class _TimeCapsuleCreateSheet extends StatefulWidget {
-  final BuildContext parentContext;
-  final WidgetRef ref;
 
   const _TimeCapsuleCreateSheet({required this.parentContext, required this.ref});
+  final BuildContext parentContext;
+  final WidgetRef ref;
 
   @override
   State<_TimeCapsuleCreateSheet> createState() => _TimeCapsuleCreateSheetState();
@@ -291,9 +291,9 @@ class _TimeCapsuleCreateSheetState extends State<_TimeCapsuleCreateSheet> {
 }
 
 class _CapsuleCard extends ConsumerWidget {
-  final TimeCapsule capsule;
 
   const _CapsuleCard({required this.capsule});
+  final TimeCapsule capsule;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -308,8 +308,8 @@ class _CapsuleCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isLocked
-              ? KinrelColors.tealAccent.withOpacity(0.2)
-              : (isRevealed ? KinrelColors.success.withOpacity(0.3) : Colors.white.withOpacity(0.08)),
+              ? KinrelColors.tealAccent.withValues(alpha: 0.2)
+              : (isRevealed ? KinrelColors.success.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.08)),
         ),
       ),
       child: Column(
@@ -342,7 +342,7 @@ class _CapsuleCard extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: KinrelColors.tealAccent.withOpacity(0.08),
+                color: KinrelColors.tealAccent.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
@@ -364,7 +364,7 @@ class _CapsuleCard extends ConsumerWidget {
               const SizedBox(height: 8),
               Text(
                 'Purpose: ${capsule.revealReason}',
-                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12, fontStyle: FontStyle.italic),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12, fontStyle: FontStyle.italic),
               ),
             ],
           ] else ...[
@@ -373,7 +373,7 @@ class _CapsuleCard extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -401,7 +401,7 @@ class _CapsuleCard extends ConsumerWidget {
                             .toInt(),
                         errorWidget: (_, __, ___) => Container(
                             height: 120,
-                            color: Colors.white.withOpacity(0.05),
+                            color: Colors.white.withValues(alpha: 0.05),
                             child: const Center(
                                 child: Icon(Icons.broken_image,
                                     color: Colors.white30))),
@@ -419,7 +419,7 @@ class _CapsuleCard extends ConsumerWidget {
                 if (capsule.creator != null)
                   Text(
                     'From ${capsule.creator!.name}',
-                    style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
                   ),
                 const Spacer(),
                 if (capsule.status == 'revealed')

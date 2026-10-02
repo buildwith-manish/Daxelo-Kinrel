@@ -90,7 +90,7 @@ class _GraphTutorialOverlayState extends State<GraphTutorialOverlay> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Family Graph',
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
@@ -100,7 +100,7 @@ class _GraphTutorialOverlayState extends State<GraphTutorialOverlay> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
+                const Text(
                   'Quick guide to get started',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -182,7 +182,7 @@ class _GraphTutorialOverlayState extends State<GraphTutorialOverlay> {
             children: [
               Text(
                 title,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -192,7 +192,7 @@ class _GraphTutorialOverlayState extends State<GraphTutorialOverlay> {
               const SizedBox(height: 2),
               Text(
                 subtitle,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   color: KinrelColors.textSilver,

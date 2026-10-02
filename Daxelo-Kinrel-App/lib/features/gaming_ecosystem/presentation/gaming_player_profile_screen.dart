@@ -38,7 +38,7 @@ class GamingPlayerProfileScreen extends ConsumerWidget {
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.canPop() ? context.pop() : context.go('/home')),
-        title: Text('Player Profile',
+        title: const Text('Player Profile',
             style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontWeight: FontWeight.w700)),
@@ -49,7 +49,7 @@ class GamingPlayerProfileScreen extends ConsumerWidget {
       body: profileAsync.when(
         loading: () => const Center(
             child: CircularProgressIndicator(color: KinrelColors.orange)),
-        error: (e, _) => Center(
+        error: (e, _) => const Center(
           child: GamingEmptyCard(
             emoji: '🔌',
             title: 'Couldn\'t load this profile',
@@ -140,7 +140,7 @@ class GamingPlayerProfileScreen extends ConsumerWidget {
                           Expanded(
                             child: Text(
                               m.gameName,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -167,7 +167,7 @@ class GamingPlayerProfileScreen extends ConsumerWidget {
                           const SizedBox(width: 8),
                           Text(
                             gamingTimeAgo(m.finishedAt),
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.monoFont,
                               fontSize: 10,
                               color: KinrelColors.textDim,
@@ -216,7 +216,7 @@ class _ProfileHero extends StatelessWidget {
                       profile.userName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 19,
                         fontWeight: FontWeight.w800,
@@ -227,7 +227,7 @@ class _ProfileHero extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         '@${profile.username}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.monoFont,
                           fontSize: 11,
                           color: KinrelColors.amber,
@@ -263,7 +263,7 @@ class _ProfileHero extends StatelessWidget {
             children: [
               Text(
                 'LVL ${profile.level}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
@@ -281,7 +281,7 @@ class _ProfileHero extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 '${100 - profile.pointsIntoLevel} to L${profile.level + 1}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 10,
                   color: KinrelColors.textDim,
@@ -319,7 +319,7 @@ class _HeroChip extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 10,
               color: KinrelColors.textSilver,
@@ -342,7 +342,7 @@ class _Avatar extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         shape: BoxShape.circle,
         gradient: KinrelGradients.achievementGradient,
       ),
@@ -476,7 +476,7 @@ class _FavoriteGameCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'FAVORITE GAME',
                   style: TextStyle(
                     fontFamily: KinrelTypography.monoFont,
@@ -490,7 +490,7 @@ class _FavoriteGameCard extends StatelessWidget {
                   favorite.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -499,7 +499,7 @@ class _FavoriteGameCard extends StatelessWidget {
                 ),
                 Text(
                   subtitle,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,
                     color: KinrelColors.textDim,
@@ -518,7 +518,7 @@ class _FavoriteGameCard extends StatelessWidget {
                   gradient: KinrelGradients.ignite,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
+                child: const Text(
                   'Play',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -565,7 +565,7 @@ class _PerGameList extends StatelessWidget {
                           g.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -601,7 +601,7 @@ class _PerGameList extends StatelessWidget {
                     profile.isSelf
                         ? '${g.wins}W / ${g.matches}M'
                         : '${g.matches} played',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 11,
                       color: KinrelColors.textSilver,

@@ -87,31 +87,31 @@ void main() {
     'cousin': const Offset(200, 200),
   };
   final edges = <DedupedEdge>[
-    DedupedEdge(
+    const DedupedEdge(
       edge: GraphEdgeData(
           id: 'e1', sourceId: 'viewer', targetId: 'parent', relationshipKey: 'father'),
       lateralOffset: 0.0,
       parallelCount: 1,
     ),
-    DedupedEdge(
+    const DedupedEdge(
       edge: GraphEdgeData(
           id: 'e2', sourceId: 'parent', targetId: 'grandparent', relationshipKey: 'father'),
       lateralOffset: 0.0,
       parallelCount: 1,
     ),
-    DedupedEdge(
+    const DedupedEdge(
       edge: GraphEdgeData(
           id: 'e3', sourceId: 'grandparent', targetId: 'uncle', relationshipKey: 'father'),
       lateralOffset: 0.0,
       parallelCount: 1,
     ),
-    DedupedEdge(
+    const DedupedEdge(
       edge: GraphEdgeData(
           id: 'e4', sourceId: 'viewer', targetId: 'sibling', relationshipKey: 'brother'),
       lateralOffset: 0.0,
       parallelCount: 1,
     ),
-    DedupedEdge(
+    const DedupedEdge(
       edge: GraphEdgeData(
           id: 'e5', sourceId: 'uncle', targetId: 'cousin', relationshipKey: 'father'),
       lateralOffset: 0.0,

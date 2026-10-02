@@ -85,22 +85,6 @@ class BingoGame {
     required this.createdAt,
   });
 
-  final String id;
-  final String familyId;
-  final String hostUserId;
-  final String hostUserName;
-  final BingoStatus status;
-  final BingoWinPattern winPattern;
-  final int callIntervalSeconds;
-  final List<int> numbersCalled;
-  final String? winnerPlayerId;
-  final String? winnerPlayerName;
-  final int maxPlayers;
-  final DateTime? lastCallAt;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final DateTime createdAt;
-
   factory BingoGame.fromJson(Map<String, dynamic> json) => BingoGame(
     id: json['id'] ?? '',
     familyId: json['familyId'] ?? '',
@@ -128,6 +112,22 @@ class BingoGame {
     createdAt:
         DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
   );
+
+  final String id;
+  final String familyId;
+  final String hostUserId;
+  final String hostUserName;
+  final BingoStatus status;
+  final BingoWinPattern winPattern;
+  final int callIntervalSeconds;
+  final List<int> numbersCalled;
+  final String? winnerPlayerId;
+  final String? winnerPlayerName;
+  final int maxPlayers;
+  final DateTime? lastCallAt;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final DateTime createdAt;
 
   bool get isWaiting => status == BingoStatus.waiting;
   bool get isInProgress => status == BingoStatus.inProgress;
@@ -162,15 +162,6 @@ class BingoCard {
     required this.createdAt,
   });
 
-  final String id;
-  final String gameId;
-  final String playerId;
-  final String playerName;
-  final List<List<int?>> cardNumbers; // 5x5 grid, center is null (free)
-  final List<int> markedNumbers;
-  final bool hasClaimed;
-  final DateTime createdAt;
-
   factory BingoCard.fromJson(Map<String, dynamic> json) {
     final rawGrid = json['cardNumbers'] as List? ?? [];
     final grid = rawGrid
@@ -194,6 +185,15 @@ class BingoCard {
           DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
     );
   }
+
+  final String id;
+  final String gameId;
+  final String playerId;
+  final String playerName;
+  final List<List<int?>> cardNumbers; // 5x5 grid, center is null (free)
+  final List<int> markedNumbers;
+  final bool hasClaimed;
+  final DateTime createdAt;
 
   /// Is the given number on this card (excluding the free center)?
   bool hasNumber(int number) {
@@ -229,15 +229,6 @@ class BingoClaim {
     this.verifiedAt,
   });
 
-  final String id;
-  final String gameId;
-  final String playerId;
-  final String playerName;
-  final DateTime claimedAt;
-  final bool? isValid;
-  final String? invalidReason;
-  final DateTime? verifiedAt;
-
   factory BingoClaim.fromJson(Map<String, dynamic> json) => BingoClaim(
     id: json['id'] ?? '',
     gameId: json['gameId'] ?? '',
@@ -251,6 +242,15 @@ class BingoClaim {
         ? DateTime.tryParse(json['verifiedAt'])
         : null,
   );
+
+  final String id;
+  final String gameId;
+  final String playerId;
+  final String playerName;
+  final DateTime claimedAt;
+  final bool? isValid;
+  final String? invalidReason;
+  final DateTime? verifiedAt;
 }
 
 /// Generates a standard 5x5 Bingo card with numbers 1-75.

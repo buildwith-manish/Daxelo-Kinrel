@@ -244,7 +244,7 @@ class KinrelTypography {
 
   /// Returns a [TextTheme] populated with every style in the scale.
   /// Useful for `ThemeData(textTheme: KinrelTypography.textTheme)`.
-  static TextTheme get textTheme => TextTheme(
+  static TextTheme get textTheme => const TextTheme(
     displayLarge: displayLarge,
     displayMedium: displayMedium,
     displaySmall: displaySmall,

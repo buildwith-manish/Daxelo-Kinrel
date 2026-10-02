@@ -123,7 +123,7 @@ class _CodeCluesLobbyScreenState
                 state.game?.roomName?.isNotEmpty == true
                     ? state.game!.roomName!
                     : 'Code Clues',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontWeight: FontWeight.w600,
                   color: KinrelColors.textWhite,
@@ -193,7 +193,7 @@ class _CodeCluesLobbyScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Share this code',
+            const Text('Share this code',
                 style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 18,
@@ -201,7 +201,7 @@ class _CodeCluesLobbyScreenState
                     color: KinrelColors.textWhite)),
             const SizedBox(height: KinrelSpacing.md),
             Text(code,
-                style: TextStyle(
+                style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 40,
                     fontWeight: FontWeight.w700,
@@ -211,7 +211,7 @@ class _CodeCluesLobbyScreenState
             Text(
               'Up to ${_maxPlayers - 1} members. Find your team\'s words first!',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   color: KinrelColors.textDim),
@@ -237,8 +237,8 @@ class _CodeCluesLobbyScreenState
       title: 'Code Clues',
       tagline: 'Codenames-style word association — find your team\'s words first',
       facts: [
-        LobbyFact(icon: Icons.groups_2_outlined, label: '4–8 players'),
-        LobbyFact(
+        const LobbyFact(icon: Icons.groups_2_outlined, label: '4–8 players'),
+        const LobbyFact(
             icon: Icons.grid_on_outlined, label: '5×5 word grid'),
         LobbyFact(
             icon: Icons.timer_outlined,
@@ -252,7 +252,7 @@ class _CodeCluesLobbyScreenState
             child: TextField(
               controller: _roomNameController,
               maxLength: 24,
-              style: TextStyle(
+              style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   color: KinrelColors.textWhite),
@@ -269,7 +269,7 @@ class _CodeCluesLobbyScreenState
                     horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  borderSide: BorderSide(color: KinrelColors.border),
+                  borderSide: const BorderSide(color: KinrelColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
@@ -323,12 +323,12 @@ class _CodeCluesLobbyScreenState
         ],
       ),
       rules: [
-        LobbyRule('Two teams (Red vs Blue). Each picks one Spymaster.'),
-        LobbyRule('A 5×5 grid of 25 words appears: 9 Red, 8 Blue, 7 neutral, 1 assassin.'),
-        LobbyRule('The Spymaster gives a one-word clue + a number (how many words it relates to).'),
-        LobbyRule('Field agents tap words. Finding your team\'s word keeps the turn going.'),
-        LobbyRule('Hitting a neutral or opponent\'s word ends your turn.'),
-        LobbyRule(
+        const LobbyRule('Two teams (Red vs Blue). Each picks one Spymaster.'),
+        const LobbyRule('A 5×5 grid of 25 words appears: 9 Red, 8 Blue, 7 neutral, 1 assassin.'),
+        const LobbyRule('The Spymaster gives a one-word clue + a number (how many words it relates to).'),
+        const LobbyRule('Field agents tap words. Finding your team\'s word keeps the turn going.'),
+        const LobbyRule('Hitting a neutral or opponent\'s word ends your turn.'),
+        const LobbyRule(
             'Find all your team\'s words first to win. But hit the assassin — instant loss!',
             highlight: true),
       ],
@@ -431,11 +431,11 @@ class _TeamBoard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.people_alt_outlined,
+              Icon(Icons.people_alt_outlined,
                   size: 14, color: KinrelColors.textDim),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text('TEAMS',
                   style: TextStyle(
                       fontFamily: KinrelTypography.monoFont,
@@ -535,7 +535,7 @@ class _TeamColumn extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           if (players.isEmpty)
-            Text('No one yet',
+            const Text('No one yet',
                 style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10,

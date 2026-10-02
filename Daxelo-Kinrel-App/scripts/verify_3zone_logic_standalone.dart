@@ -129,7 +129,7 @@ void main() {
   print('=== PlayWithRow.playWithSubtextFor — subtext contract ===');
 
   // Contract 5: new pairing → "New — say hi with Tic-Tac-Toe"
-  final newS = Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 0);
+  final newS = const Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 0);
   check(
     'New pairing → contains "New — say hi with Tic-Tac-Toe"',
     playWithSubtextFor(newS).contains('New — say hi with Tic-Tac-Toe'),
@@ -137,7 +137,7 @@ void main() {
   );
 
   // Contract 6: returning pairing with last game → "Play {Game} again"
-  final retS = Suggestion(
+  final retS = const Suggestion(
       userName: 'A',
       isOnline: false,
       sharedGamesCount: 3,
@@ -149,7 +149,7 @@ void main() {
   );
 
   // Contract 7: defensive branch (no last game but count > 0)
-  final defS = Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 5);
+  final defS = const Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 5);
   check(
     'Defensive branch (no last game, count=5) → "Played 5 games together"',
     playWithSubtextFor(defS) == 'Played 5 games together',
@@ -159,10 +159,10 @@ void main() {
   // Contract 8: subtext never mentions wins/losses/win%
   var subLeakCount = 0;
   for (final s in [
-    Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 0),
-    Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 5, lastSharedGameName: 'Chess'),
-    Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 1, lastSharedGameName: 'Tic-Tac-Toe'),
-    Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 99),
+    const Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 0),
+    const Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 5, lastSharedGameName: 'Chess'),
+    const Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 1, lastSharedGameName: 'Tic-Tac-Toe'),
+    const Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 99),
   ]) {
     final line = playWithSubtextFor(s).toLowerCase();
     if (line.contains('win') ||
@@ -181,8 +181,8 @@ void main() {
   print('=== PlayWithRow ordering contract (mirrors server-side ORDER BY) ===');
 
   // Contract 9: online members come before offline members
-  final offline = Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 99);
-  final online = Suggestion(userName: 'B', isOnline: true, sharedGamesCount: 0);
+  final offline = const Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 99);
+  final online = const Suggestion(userName: 'B', isOnline: true, sharedGamesCount: 0);
   final sorted1 = [offline, online]..sort(serverStyleCompare);
   check(
     'Online members sort before offline members (even with 0 shared games)',
@@ -191,8 +191,8 @@ void main() {
   );
 
   // Contract 10: higher shared count sorts first at equal online state
-  final less = Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 1);
-  final more = Suggestion(userName: 'B', isOnline: false, sharedGamesCount: 5);
+  final less = const Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 1);
+  final more = const Suggestion(userName: 'B', isOnline: false, sharedGamesCount: 5);
   final sorted2 = [less, more]..sort(serverStyleCompare);
   check(
     'At equal online state, higher shared-games-count sorts first',
@@ -201,8 +201,8 @@ void main() {
   );
 
   // Contract 11: alphabetical at equal online + equal shared
-  final z = Suggestion(userName: 'Zara', isOnline: false, sharedGamesCount: 3);
-  final a = Suggestion(userName: 'Anita', isOnline: false, sharedGamesCount: 3);
+  final z = const Suggestion(userName: 'Zara', isOnline: false, sharedGamesCount: 3);
+  final a = const Suggestion(userName: 'Anita', isOnline: false, sharedGamesCount: 3);
   final sorted3 = [z, a]..sort(serverStyleCompare);
   check(
     'At equal online + equal shared, alphabetical by name',
@@ -211,8 +211,8 @@ void main() {
   );
 
   // Contract 12: never-played members sort AFTER returning pairings
-  final returning = Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 2);
-  final fresh = Suggestion(userName: 'B', isOnline: false, sharedGamesCount: 0);
+  final returning = const Suggestion(userName: 'A', isOnline: false, sharedGamesCount: 2);
+  final fresh = const Suggestion(userName: 'B', isOnline: false, sharedGamesCount: 0);
   final sorted4 = [fresh, returning]..sort(serverStyleCompare);
   check(
     'Never-played members sort AFTER returning pairings',
