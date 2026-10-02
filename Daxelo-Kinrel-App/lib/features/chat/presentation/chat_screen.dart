@@ -95,6 +95,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.showFamilyNav = true,
     this.groupId,
     this.groupName,
+    this.hideAppBar = false,
   });
 
   /// The family ID for this chat.
@@ -122,6 +123,14 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// v139: Display name for the group (used in the AppBar when
   /// [groupId] is set). Falls back to [familyName] if null.
   final String? groupName;
+
+  /// v140 Family-Centric Chat Navigation: when true, the ChatScreen's
+  /// own AppBar is suppressed. Used when the ChatScreen is embedded
+  /// inside a parent Scaffold (e.g. the redesigned FamilyChatListScreen
+  /// which provides its own header with [Family] [Direct] tab switcher).
+  /// The parent screen is responsible for rendering the family name +
+  /// member count header in this case.
+  final bool hideAppBar;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -700,7 +709,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // v126: Explicitly enable keyboard resizing so the input bar
       // moves above the keyboard (WhatsApp-style).
       resizeToAvoidBottomInset: true,
-      appBar: _buildAppBar(chatState),
+      // v140 Family-Centric Chat Navigation: hideAppBar lets the parent
+      // (e.g. FamilyChatListScreen with [Family]/[Direct] tabs) provide
+      // its own header without a double-AppBar.
+      appBar: widget.hideAppBar ? null : _buildAppBar(chatState),
       // v115: Only show the Family Space bottom nav when this screen
       // is the tab destination (showFamilyNav=true). When opened as a
       // pushed conversation from the chat list, the bottom nav is
