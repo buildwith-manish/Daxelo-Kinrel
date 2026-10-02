@@ -889,8 +889,13 @@ final notificationsProvider =
     );
 
 /// Convenience: unread count provider (can be watched independently).
+/// Uses Provider.select so widgets watching this ONLY rebuild when
+/// the unread count actually changes — not when the notifications list
+/// grows/shrinks (e.g., during pagination or markAllRead).
 final unreadCountProvider = Provider<int>((ref) {
-  return ref.watch(notificationsProvider).unreadCount;
+  return ref.watch(
+    notificationsProvider.select((s) => s.unreadCount),
+  );
 });
 
 /// Convenience: notification preferences provider.

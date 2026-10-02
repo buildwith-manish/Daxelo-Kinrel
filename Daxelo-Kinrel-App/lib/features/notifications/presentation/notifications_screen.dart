@@ -123,9 +123,26 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required by AutomaticKeepAliveClientMixin
-    final notifState = ref.watch(notificationsProvider);
-    final filtered = notifState.filtered;
-    final unreadCount = notifState.unreadCount;
+    // ── Narrowed watches via Provider.select:
+    // - `filtered` list → rebuilds when notifications list OR selectedCategory changes
+    //   (both legitimately affect the filtered list, so this is the broad watch)
+    // - `unreadCount` → rebuilds ONLY when unreadCount changes (not on every
+    //   notification insert/markAllRead). Used by the header badge.
+    // - `selectedCategory` → rebuilds ONLY when the filter changes. Used by
+    //   the segmented control.
+    final filtered = ref.watch(
+      notificationsProvider.select((s) => s.filtered),
+    );
+    final unreadCount = ref.watch(
+      notificationsProvider.select((s) => s.unreadCount),
+    );
+    final selectedCategory = ref.watch(
+      notificationsProvider.select((s) => s.selectedCategory),
+    );
+    // Watch isLoadingMore for the pagination skeleton at the list end.
+    final isLoadingMore = ref.watch(
+      notificationsProvider.select((s) => s.isLoadingMore),
+    );
 
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
@@ -135,7 +152,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
           _buildHeader(unreadCount),
 
           // ── Segmented Control ───────────────────────────────────
-          _buildSegmentedControl(notifState.selectedCategory),
+          _buildSegmentedControl(selectedCategory),
 
           // ── Upcoming Occasions Preview ────────────────────────────
           Builder(builder: (context) {

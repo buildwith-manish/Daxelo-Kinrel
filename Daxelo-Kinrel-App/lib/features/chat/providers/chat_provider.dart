@@ -2461,8 +2461,12 @@ final chatProvider =
     ).autoDispose;
 
 /// Convenience: online member count for a family chat.
+/// Uses Provider.select so widgets watching this ONLY rebuild when
+/// onlineCount changes — not when messages are inserted/updated.
 final chatOnlineCountProvider = Provider.family<int, String>((ref, familyId) {
-  return ref.watch(chatProvider(familyId)).onlineCount;
+  return ref.watch(
+    chatProvider(familyId).select((s) => s.onlineCount),
+  );
 });
 
 /// Convenience: the current user's ID for chat (so the UI can compare
