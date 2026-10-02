@@ -1,17 +1,15 @@
 // test/features/family/family_state_aware_home_screen_test.dart
 //
-// Phase (family-state-aware-home-screen): widget tests for the
-// secondary effects of the dynamic-home-screen change.
+// Layout-restoration brief: widget tests for the Family Space home
+// screen's secondary effects.
 //
 // Verifies:
 //   1. HighlightsRow shortcut order: Memories and Activity are the
-//      FIRST two tiles (per the "group by usage tier" rule).
-//   2. HeroSection accepts the new `compact` flag and builds without
-//      throwing (smoke test — the test verifies the flag is wired,
-//      not pixel-perfect heights, to keep the test non-brittle).
-//   3. MiniFamilyGraphPreview renders its "Family Graph" label and
-//      "View Full Graph →" action footer even while the graph data
-//      is loading (the card chrome is independent of the data fetch).
+//      FIRST two tiles (per the "group by usage tier" rule from the
+//      prior pass — this is unchanged by the layout restoration).
+//   2. HeroSection builds without throwing in its default (full-size)
+//      mode — the compact flag is still accepted but no longer used
+//      by the Family Space screen.
 //
 // The pure-function tests (sectionOrderFor + classifyEngagementState)
 // live in family_engagement_state_test.dart.
@@ -22,10 +20,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kinrel/features/family/presentation/premium/family_hub_highlights.dart';
 import 'package:kinrel/features/family/presentation/premium/hero_section.dart';
-import 'package:kinrel/features/family/presentation/widgets/mini_family_graph_preview.dart';
 
 void main() {
-  group('HighlightsRow — Phase (family-state-aware-home-screen) ordering', () {
+  group('HighlightsRow — shortcut ordering (unchanged by layout restore)', () {
     testWidgets(
         'Memories and Activity are the FIRST two tiles (grouped by '
         'usage tier)', (WidgetTester tester) async {
@@ -76,12 +73,11 @@ void main() {
     });
   });
 
-  group('HeroSection — compact flag wiring (smoke test)', () {
-    // The `compact` flag controls the hero's expanded height + symbol
-    // size. We don't assert pixel heights (layout-dependent and brittle);
-    // we just verify the flag is accepted and the widget still renders
-    // the family name in both modes.
-    testWidgets('builds without throwing with compact: true',
+  group('HeroSection — full-size mode (layout-restoration brief)', () {
+    // The layout-restoration brief restored the header to its full
+    // size. The Family Space screen no longer passes compact: true.
+    // We verify the default (full-size) mode builds without throwing.
+    testWidgets('builds without throwing in default (full-size) mode',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         ProviderScope(
@@ -94,7 +90,6 @@ void main() {
                     familyName: 'Test Family',
                     memberCount: 4,
                     relationshipCount: 3,
-                    compact: true,
                   ),
                 ],
               ),
@@ -107,71 +102,8 @@ void main() {
       await tester.pump();
 
       expect(find.text('Test Family'), findsOneWidget,
-          reason: 'HeroSection must still render the family name in '
-              'compact mode.');
-    });
-
-    testWidgets('builds without throwing with compact: false (default)',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            home: Scaffold(
-              body: ListView(
-                children: [
-                  const HeroSection(
-                    familyId: 'test-fam',
-                    familyName: 'Test Family',
-                    memberCount: 4,
-                    relationshipCount: 3,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-
-      expect(find.text('Test Family'), findsOneWidget);
-    });
-  });
-
-  group('MiniFamilyGraphPreview — card chrome renders while loading', () {
-    // The preview watches familyGraphProvider + graphLayoutProvider,
-    // which will be loading in a test environment without Supabase.
-    // The card chrome (header label + footer action) should render
-    // regardless of the data state.
-    testWidgets(
-        'renders "Family Graph" label and "View Full Graph →" action '
-        'while data is loading', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            home: Scaffold(
-              body: ListView(
-                children: const [
-                  MiniFamilyGraphPreview(
-                    familyId: 'test-fam',
-                    familyName: 'Test Family',
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-      // Pump once to start; don't pumpAndSettle because the graph
-      // providers never resolve in the test environment.
-      await tester.pump();
-
-      expect(find.text('Family Graph'), findsOneWidget,
-          reason: 'MiniFamilyGraphPreview card must show a "Family Graph" '
-              'label in its header, even while the graph data is loading.');
-      expect(find.text('View Full Graph →'), findsOneWidget,
-          reason: 'MiniFamilyGraphPreview card must show a "View Full Graph →" '
-              'action below the preview, even while the graph data is '
-              'loading.');
+          reason: 'HeroSection must render the family name in its '
+              'default (full-size) mode.');
     });
   });
 }

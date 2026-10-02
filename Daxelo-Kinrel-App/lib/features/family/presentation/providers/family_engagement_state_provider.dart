@@ -88,20 +88,15 @@ enum FamilySection {
   /// Thinking of You ring (time-of-day greeting + tappable avatar).
   thinkingOfYou,
 
-  /// Time-sensitive Prediction Battle card.
+  /// Time-sensitive Prediction Battle card (includes its own Coin Pool
+  /// progress strip — no separate Coin Pool section needed).
   predictionBattle,
-
-  /// Family Coin Pool slim status strip.
-  coinPool,
 
   /// Family Pulse (recent activity + nudges).
   familyPulse,
 
   /// Cross-feature recent moments (oral history / memory vault / quiz).
   recentMoments,
-
-  /// Live mini family graph preview card.
-  miniGraphPreview,
 
   /// Premium Insights paywall (locked preview + "Unlock" CTA).
   premiumInsights,
@@ -199,71 +194,49 @@ final familyEngagementStateProvider =
   return FamilyEngagementState.establishedLowActivity;
 });
 
-/// Returns the ordered list of content sections for a given engagement
-/// state. This is the SINGLE source of truth for the Family Space
-/// detail screen's content order — the screen maps each enum value to
-/// its widget and renders them in this order.
+/// Returns the ordered list of content sections for the Family Space
+/// detail screen. This is the SINGLE source of truth for the screen's
+/// content order — the screen maps each enum value to its widget and
+/// renders them in this order.
+///
+/// FIXED ORDER (per the layout-restoration brief):
+/// The order is no longer dynamic. Prediction Battle is ALWAYS the
+/// first content card below the header — it is the most engaging and
+/// interactive feature and earns top placement consistently. The
+/// full order is:
+///
+///   1. Prediction Battle (first content card, includes its own Coin
+///      Pool progress strip)
+///   2. Family Pulse (recent activity + nudges)
+///   3. Premium Insights (paywall — after all free-value content)
+///   4. Invite (remaining content)
+///   5. Thinking of You (remaining content)
+///   6. Recent Moments (remaining content)
 ///
 /// INVARIANTS enforced by this function:
-///   1. Invite is ALWAYS present and ALWAYS in the first 1–2 positions
-///      (never demoted far down regardless of state).
-///   2. Premium Insights is ALWAYS last (after every free-value section).
-///   3. The first content section matches the design brief:
-///      - newSmall                → Invite
-///      - establishedLowActivity  → FamilyPulse
-///      - establishedActive       → PredictionBattle
-///   4. MiniGraphPreview is positioned reasonably after
-///      Memories/Activity content (here: RecentMoments) and before
-///      Premium Insights.
+///   1. Prediction Battle is ALWAYS first — the most engaging feature
+///      earns top placement regardless of family state.
+///   2. Premium Insights renders AFTER Family Pulse (free-value
+///      content comes before the paywall).
+///   3. No standalone Coin Pool section (the Coin Pool is part of the
+///      Prediction Battle card).
+///   4. No standalone Family Graph preview card (the Graph is
+///      accessible from the hero's flanking Graph icon).
+///
+/// The [state] parameter is accepted for API continuity but does not
+/// affect the order — the order is fixed. The engagement state is
+/// still computed by [familyEngagementStateProvider] for analytics
+/// and future use, but the layout is now deterministic.
 List<FamilySection> sectionOrderFor(FamilyEngagementState state) {
-  switch (state) {
-    case FamilyEngagementState.newSmall:
-      // Brand-new / tiny family: Invite is the FIRST thing they see,
-      // then the time-sensitive Prediction Battle to give them
-      // something to do today, then Pulse (which may be near-empty),
-      // then the rest. Invite stays within the first 1–2 sections.
-      return const [
-        FamilySection.invite,
-        FamilySection.predictionBattle,
-        FamilySection.thinkingOfYou,
-        FamilySection.coinPool,
-        FamilySection.familyPulse,
-        FamilySection.recentMoments,
-        FamilySection.miniGraphPreview,
-        FamilySection.premiumInsights,
-      ];
-
-    case FamilyEngagementState.establishedLowActivity:
-      // Quiet established family: surface Recent Activity FIRST so
-      // they remember what's been happening, then invite (to grow),
-      // then the time-sensitive Prediction Battle.
-      return const [
-        FamilySection.familyPulse,
-        FamilySection.invite,
-        FamilySection.thinkingOfYou,
-        FamilySection.predictionBattle,
-        FamilySection.coinPool,
-        FamilySection.recentMoments,
-        FamilySection.miniGraphPreview,
-        FamilySection.premiumInsights,
-      ];
-
-    case FamilyEngagementState.establishedActive:
-      // Active established family: time-sensitive Prediction Battle
-      // earns the top spot, then the rest of the free-value content.
-      // Invite stays in position 2 so it's still within the first
-      // 1–2 screen scrolls.
-      return const [
-        FamilySection.predictionBattle,
-        FamilySection.invite,
-        FamilySection.thinkingOfYou,
-        FamilySection.coinPool,
-        FamilySection.familyPulse,
-        FamilySection.recentMoments,
-        FamilySection.miniGraphPreview,
-        FamilySection.premiumInsights,
-      ];
-  }
+  // Fixed order — the same for all engagement states.
+  return const [
+    FamilySection.predictionBattle,
+    FamilySection.familyPulse,
+    FamilySection.premiumInsights,
+    FamilySection.invite,
+    FamilySection.thinkingOfYou,
+    FamilySection.recentMoments,
+  ];
 }
 
 /// Pure helper used by widget tests. Computes the engagement state from

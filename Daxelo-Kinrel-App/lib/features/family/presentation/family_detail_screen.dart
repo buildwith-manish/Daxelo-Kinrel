@@ -50,7 +50,6 @@ import 'premium/family_hub_highlights.dart';
 import 'premium/hero_section.dart';
 import 'providers/family_engagement_state_provider.dart';
 import 'widgets/image_crop_editor.dart';
-import 'widgets/mini_family_graph_preview.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
   FamilyDetailScreen({super.key, required this.familyId});
@@ -252,29 +251,29 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           }
 
           // ════════════════════════════════════════════════════════════
-          // PREMIUM FAMILY SPACE — DYNAMIC, FAMILY-STATE-AWARE ORDERING
+          // PREMIUM FAMILY SPACE — FIXED LAYOUT ORDER
           //
-          // Phase (family-state-aware-home-screen): the content section
-          // order is no longer hardcoded. It is derived from the
-          // family's engagement state (newSmall / establishedLowActivity
-          // / establishedActive) via [familyEngagementStateProvider] +
-          // [sectionOrderFor]. The state is computed from data already
-          // being fetched for other parts of this screen (member count,
-          // relationship timestamps, Prediction Battle history, active
-          // games, cross-feature moments) — no new expensive query.
+          // Layout-restoration brief: the content section order is FIXED.
+          // Prediction Battle is ALWAYS the first content card below the
+          // header — it is the most engaging and interactive feature and
+          // earns top placement consistently.
           //
-          // INVARIANTS enforced by [sectionOrderFor]:
-          //   • Invite is always within the first 1–2 sections.
-          //   • Premium Insights is always LAST (after every free-value
-          //     section, including the new mini graph preview).
-          //   • The first content section matches the design brief:
-          //     - newSmall                → Invite
-          //     - establishedLowActivity  → Family Pulse
-          //     - establishedActive       → Prediction Battle
+          // The full order is:
+          //   1. Family Header (restored full size — not compact)
+          //   2. Highlights Row (shortcuts)
+          //   3. Prediction Battle (includes its own Coin Pool)
+          //   4. Family Pulse (recent activity)
+          //   5. Premium Insights (paywall — after free-value content)
+          //   6. Remaining content (Invite, Thinking of You, Recent Moments)
+          //   7. Family Strength Closer
           //
-          // The compact header (HeroSection with compact: true) trims
-          // ~124px of vertical real estate so an additional content
-          // card fits above the fold on a standard phone viewport.
+          // Changes from the prior dynamic-ordering pass:
+          //   • Header restored to full prominence (compact mode removed)
+          //   • Prediction Battle always first (no longer state-dependent)
+          //   • Duplicate standalone Coin Pool section removed (kept only
+          //     the one that belongs to the Prediction Battle card)
+          //   • Standalone Family Graph preview card removed (Graph is
+          //     accessible from the hero's flanking Graph icon)
           // ════════════════════════════════════════════════════════════
           final engagementState =
               ref.watch(familyEngagementStateProvider(widget.familyId));
@@ -282,16 +281,17 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
           return Stack(
             children: [
-              // ── Scrollable content (compact hero + dynamic sections) ──
+              // ── Scrollable content (full-size hero + fixed sections) ──
               CustomScrollView(
                 controller: _hubScrollController,
                 slivers: [
-                  // ── 1. COMPACT HERO (parallax collapse) ─────────────────
-                  // Phase (family-state-aware-home-screen): compact: true
-                  // reduces the expanded hero from 280→156px and the
-                  // avatar/symbol from 140→72px. Graph + Map flanking
-                  // icons are retained at their established position +
-                  // style (only the surrounding header's height changes).
+                  // ── 1. HERO (parallax collapse) ─────────────────────────
+                  // Restored to full size (not compact) per the layout-
+                  // restoration brief: the header should clearly
+                  // establish context — family avatar, family name,
+                  // member count, and primary family actions — before
+                  // the content feed begins. Graph + Map flanking icons
+                  // are retained at their established position + style.
                   SliverToBoxAdapter(
                     child: staggerFade(
                       HeroSection(
@@ -309,8 +309,6 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                         avatarUrl: avatarUrl,
                         onAvatarTap: () => _onAvatarInteraction(),
                         onAvatarLongPress: () => _onAvatarInteraction(),
-                        // Compact header mode — see HeroSection docs.
-                        compact: true,
                       ),
                       0,
                     ),
@@ -458,24 +456,10 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               3,
             ),
           ),
-          // Family coin pool — slim horizontal progress strip. Moves
-          // together with PB to maintain their existing relative order.
-          SliverToBoxAdapter(
-            child: staggerFade(
-              FamilyCoinPoolCard(familyId: widget.familyId),
-              3,
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 18)),
-        ];
-
-      case FamilySection.coinPool:
-        // CoinPool is rendered alongside PredictionBattle (above) —
-        // when the ordering function lists it as a separate section,
-        // we emit just the slim strip. This branch is hit only if the
-        // ordering function ever splits them (currently it always
-        // pairs them via the predictionBattle case).
-        return [
+          // Family Coin Pool — slim horizontal progress strip, rendered
+          // as part of the Prediction Battle section (it belongs to the
+          // PB feature). This is the ONLY Coin Pool on the page — the
+          // prior duplicate standalone Coin Pool section has been removed.
           SliverToBoxAdapter(
             child: staggerFade(
               FamilyCoinPoolCard(familyId: widget.familyId),
@@ -510,26 +494,11 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
         ];
 
-      case FamilySection.miniGraphPreview:
-        return [
-          SliverToBoxAdapter(
-            child: staggerFade(
-              MiniFamilyGraphPreview(
-                familyId: widget.familyId,
-                familyName: detail.family.name,
-              ),
-              4,
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 16)),
-        ];
-
       case FamilySection.premiumInsights:
-        // Phase (family-state-aware-home-screen): relocated from its
-        // prior early position (interrupting the path to Invite /
-        // Prediction / Pulse) to the LAST free-value section before
-        // the Family Strength closer. The existing blurred-preview
-        // teaser treatment is preserved — only the position changes.
+        // Premium Insights paywall — renders AFTER all free-value
+        // content (Prediction Battle, Family Pulse) per the layout-
+        // restoration brief. The existing blurred-preview teaser
+        // treatment is preserved.
         return [
           SliverToBoxAdapter(
             child: staggerFade(
