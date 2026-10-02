@@ -435,10 +435,13 @@ class GraphPendingInvitationsNotifier
 }
 
 /// Provider family — keyed by familyId.
+/// autoDispose: tears down the pending-invitations realtime channel when
+/// the graph screen is no longer watched, preventing per-family channel
+/// accumulation.
 final graphPendingInvitationsProvider = AsyncNotifierProvider.family<
     GraphPendingInvitationsNotifier, List<GraphPendingInvitation>, String>(
   GraphPendingInvitationsNotifier.new,
-);
+).autoDispose;
 
 /// Convenience provider — returns the count of pending invitations.
 final pendingGraphInvitationCountProvider =

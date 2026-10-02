@@ -2375,10 +2375,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Family chat provider — parameterized by family ID.
+/// autoDispose: tears down the realtime channel (chat:$familyId) when
+/// the chat screen is no longer watched, preventing channel accumulation
+/// across navigation.
 final chatProvider =
     StateNotifierProvider.family<ChatNotifier, ChatState, String>(
       (ref, familyId) => ChatNotifier(familyId: familyId, ref: ref),
-    );
+    ).autoDispose;
 
 /// Convenience: online member count for a family chat.
 final chatOnlineCountProvider = Provider.family<int, String>((ref, familyId) {

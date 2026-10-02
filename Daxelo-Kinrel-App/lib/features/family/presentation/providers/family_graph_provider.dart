@@ -2773,6 +2773,8 @@ final highlightedGenerationProvider = StateProvider<int?>((ref) => null);
 ///    trigger a full RPC + isolate layout). The graphLayoutProvider
 ///    is NOT invalidated because positions don't change for a name
 ///    update.
+/// autoDispose: tears down the realtime channel when the graph screen
+/// is no longer watched, preventing per-family channel accumulation.
 final graphRealtimeProvider =
     Provider.family<void, String>((ref, familyId) {
   final client = ref.read(supabaseProvider);
@@ -2930,7 +2932,7 @@ final graphRealtimeProvider =
     _debounceTimer?.cancel();
     client.removeChannel(channel);
   });
-});
+}).autoDispose;
 
 // ═══════════════════════════════════════════════════════════════════════
 // 7. GRAPH DRIFT STREAM PROVIDER — Reactive local DB watcher

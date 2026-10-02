@@ -4340,30 +4340,48 @@ Future<List<String>> _runKinshipInference({
 
   if (newEdges.isEmpty) return [];
 
-  // 4. Bulk-insert the inferred edges
+  // 4. Bulk-insert the inferred edges (single round-trip, not N)
+  // Previously this was a per-edge sequential INSERT loop (N round-trips
+  // for N inferred edges). Now we collect all edges into a list and
+  // issue one bulk insert. onConflict('id').doNothing() handles the
+  // rare case of a duplicate generated ID gracefully — the rest of the
+  // edges still insert, preserving the "non-fatal per-edge" semantics
+  // of the original loop.
   final summary = <String>[];
-  for (final edge in newEdges) {
+  final bulkPayload = newEdges.map((edge) {
     final fundamentalKey = _mapToFundamentalDbType(edge.labelAtoB);
     final edgeId = _generateId();
-    try {
-      await client.from('Relationship').insert({
-        'id': edgeId,
-        'familyId': familyId,
-        'fromPersonId': edge.fromPersonId,
-        'toPersonId': edge.toPersonId,
-        'relationshipKey': fundamentalKey,
-        'relationshipType': fundamentalKey,
-        'labelAtoB': edge.labelAtoB,
-        'direction': 'inferred',
-        'isActive': true,
-        'createdAt': now,
-        'updatedAt': now,
-      }).timeout(const Duration(seconds: 5));
+    return <String, dynamic>{
+      'id': edgeId,
+      'familyId': familyId,
+      'fromPersonId': edge.fromPersonId,
+      'toPersonId': edge.toPersonId,
+      'relationshipKey': fundamentalKey,
+      'relationshipType': fundamentalKey,
+      'labelAtoB': edge.labelAtoB,
+      'direction': 'inferred',
+      'isActive': true,
+      'createdAt': now,
+      'updatedAt': now,
+    };
+  }).toList();
+
+  try {
+    await client
+        .from('Relationship')
+        .insert(bulkPayload)
+        .onConflict('id')
+        .doNothing()
+        .timeout(const Duration(seconds: 15));
+    // All edges inserted successfully — build the summary.
+    for (final edge in newEdges) {
       summary.add('${edge.labelAtoB}: ${edge.reason}');
       debugPrint('[CREATE-REL] v5.11: Inferred edge: ${edge.fromPersonId} → ${edge.toPersonId} (${edge.labelAtoB})');
-    } catch (e) {
-      debugPrint('[CREATE-REL] v5.11: Inferred edge INSERT failed (non-fatal): $e');
     }
+  } catch (e) {
+    debugPrint('[CREATE-REL] v5.11: Bulk inferred-edge INSERT failed (non-fatal): $e');
+    // If the bulk insert fails entirely, we still return an empty summary
+    // — same as the original loop would have if every per-edge insert failed.
   }
 
   return summary;

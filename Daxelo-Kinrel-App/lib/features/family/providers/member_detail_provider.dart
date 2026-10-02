@@ -358,14 +358,20 @@ Future<MemberDetailModel> _fetchFromSupabase(
   final personData = personResponse;
   final familyId = personData['familyId']?.toString() ?? '';
 
-  // 2. Fetch relationships involving this person in the same family
+  // 2. Fetch relationships involving this person (scoped — not the whole family)
+  // Previously this fetched ALL active relationships for the entire family
+  // and filtered client-side, downloading the full family graph per member
+  // detail open. Now we query only relationships where fromPersonId OR
+  // toPersonId equals this person. Uses the composite indexes
+  // (familyId, fromPersonId) and (familyId, toPersonId) via BitmapOr.
   List<Map<String, dynamic>> relationshipRows = [];
   try {
     final relResponse = await client
         .from(_kRelationshipTable)
         .select()
         .eq('familyId', familyId)
-        .eq('isActive', true);
+        .eq('isActive', true)
+        .or('fromPersonId.eq.$personId,toPersonId.eq.$personId');
     relationshipRows = (relResponse as List)
         .map((r) => r as Map<String, dynamic>)
         .toList();

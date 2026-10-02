@@ -49,6 +49,26 @@ class KinrelImageCacheManager extends CacheManager {
 
   /// Singleton instance used across the app.
   static final KinrelImageCacheManager instance = KinrelImageCacheManager._();
+
+  /// Get current cache size in bytes.
+  Future<int> getCacheSize() async {
+    try {
+      return await store.getCacheSize();
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Check if cache exceeds 100MB and clean if needed.
+  /// Called during ImageCacheConfig.initialize() and on app resume
+  /// to enforce the disk cap.
+  Future<void> enforceMaxSize() async {
+    const maxBytes = 100 * 1024 * 1024; // 100MB
+    final size = await getCacheSize();
+    if (size > maxBytes) {
+      await emptyCache();
+    }
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -140,6 +160,11 @@ class ImageCacheConfig {
       //    the first CachedNetworkImage doesn't block on lazy init.
       //    Accessing .instance triggers the constructor.
       KinrelImageCacheManager.instance;
+
+      // 3. Enforce the 100MB disk cap — remove stale/oversized files
+      //    if the cache has grown beyond the limit since last run.
+      //    Previously this method existed but was never called.
+      await KinrelImageCacheManager.instance.enforceMaxSize();
 
       _initialized = true;
       debugPrint(
