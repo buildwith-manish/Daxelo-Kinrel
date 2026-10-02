@@ -161,9 +161,12 @@ void main() {
   });
 
   group('sectionOrderFor — removed sections (no duplicates)', () {
-    // The layout-restoration brief removed two sections:
+    // The invite-UX refinement removed three sections from the body
+    // feed:
     //   • coinPool (duplicate — kept only the one with Prediction Battle)
     //   • miniGraphPreview (standalone Family Graph card removed)
+    //   • invite (large InviteButton card removed — Invite now lives
+    //     in the AppBar as a compact icon next to Settings)
     for (final state in FamilyEngagementState.values) {
       test('${state.name}: no standalone Coin Pool section in the order',
           () {
@@ -182,17 +185,25 @@ void main() {
             reason: 'Standalone Family Graph preview card was removed. '
                 'State $state produced order: $order');
       });
+
+      test('${state.name}: no standalone Invite section in the order', () {
+        final order = sectionOrderFor(state);
+        expect(order.any((s) => s.name == 'invite'), isFalse,
+            reason: 'Standalone Invite section was removed from the body '
+                'feed. Invite now lives in the AppBar as a compact icon '
+                'next to Settings. State $state produced order: $order');
+      });
     }
   });
 
   group('sectionOrderFor — all expected sections are present', () {
     // Sanity check: every ordering function output must contain ALL
-    // six content sections exactly once (no missing sections, no
+    // five content sections exactly once (no missing sections, no
     // duplicates). The expected sections are: predictionBattle,
-    // familyPulse, premiumInsights, invite, thinkingOfYou,
-    // recentMoments.
+    // thinkingOfYou, familyPulse, premiumInsights, recentMoments.
+    // (invite was removed — it's now an AppBar icon, not a body section.)
     for (final state in FamilyEngagementState.values) {
-      test('${state.name}: contains all 6 sections exactly once', () {
+      test('${state.name}: contains all 5 sections exactly once', () {
         final order = sectionOrderFor(state);
         expect(order.length, FamilySection.values.length,
             reason: 'Every section must be present exactly once. '
@@ -204,15 +215,14 @@ void main() {
 
       test('${state.name}: order is identical across all states (fixed)', () {
         // The order is fixed — all states produce the same order.
-        // Content-hierarchy refinement: PB → Thinking of You → Pulse
-        // → Premium Insights → Invite → Recent Moments.
+        // Invite-UX refinement: PB → Thinking of You → Pulse
+        // → Premium Insights → Recent Moments (no Invite section).
         final order = sectionOrderFor(state);
         const expectedOrder = [
           FamilySection.predictionBattle,
           FamilySection.thinkingOfYou,
           FamilySection.familyPulse,
           FamilySection.premiumInsights,
-          FamilySection.invite,
           FamilySection.recentMoments,
         ];
         expect(order, orderedEquals(expectedOrder),

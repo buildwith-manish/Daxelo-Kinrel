@@ -81,10 +81,13 @@ enum FamilyEngagementState {
 /// The set of content sections the Family Space detail screen renders,
 /// in the abstract. The actual widget order is produced by
 /// [sectionOrderFor] from this set.
+///
+/// Note: Invite is intentionally NOT in this enum. The Invite action
+/// was moved out of the body feed into the AppBar as a compact icon
+/// (next to Settings) to reduce visual clutter on the home screen.
+/// The full Invite experience is still available inside the Members
+/// section. See `_openInviteFlow` in family_detail_screen.dart.
 enum FamilySection {
-  /// Standalone full-width "Invite family member" CTA.
-  invite,
-
   /// Thinking of You ring (time-of-day greeting + tappable avatar).
   thinkingOfYou,
 
@@ -199,7 +202,7 @@ final familyEngagementStateProvider =
 /// content order — the screen maps each enum value to its widget and
 /// renders them in this order.
 ///
-/// FIXED ORDER (per the content-hierarchy refinement):
+/// FIXED ORDER (per the invite-UX refinement):
 /// The order is no longer dynamic. The full order is:
 ///
 ///   1. Prediction Battle — drives interaction (first content card,
@@ -208,15 +211,14 @@ final familyEngagementStateProvider =
 ///      warmth immediately after the engaging PB card)
 ///   3. Family Pulse — provides updates and activity history
 ///   4. Premium Insights — paywall, after all free-value content
-///   5. Invite — remaining content
-///   6. Recent Moments — remaining content
+///   5. Recent Moments — remaining content
 ///
 /// The flow is: PB (engagement) → Thinking of You (emotion) → Pulse
-/// (updates) → Insights (premium) → remaining. This creates a better
-/// emotional + engagement cadence than the prior PB → Pulse → Insights
-/// ordering: the warm "Thinking of You" gesture sits between the
-/// high-energy PB card and the informational Pulse feed, so the user
-/// experiences interaction → connection → updates rather than
+/// (updates) → Insights (premium) → Recent Moments. This creates a
+/// better emotional + engagement cadence than the prior PB → Pulse →
+/// Insights ordering: the warm "Thinking of You" gesture sits between
+/// the high-energy PB card and the informational Pulse feed, so the
+/// user experiences interaction → connection → updates rather than
 /// interaction → updates → connection.
 ///
 /// INVARIANTS enforced by this function:
@@ -230,6 +232,9 @@ final familyEngagementStateProvider =
 ///      Prediction Battle card).
 ///   5. No standalone Family Graph preview card (the Graph is
 ///      accessible from the hero's flanking Graph icon).
+///   6. No standalone Invite section — Invite lives in the AppBar as
+///      a compact icon next to Settings, and the full experience is
+///      also available inside the Members section.
 ///
 /// The [state] parameter is accepted for API continuity but does not
 /// affect the order — the order is fixed. The engagement state is
@@ -242,7 +247,6 @@ List<FamilySection> sectionOrderFor(FamilyEngagementState state) {
     FamilySection.thinkingOfYou,
     FamilySection.familyPulse,
     FamilySection.premiumInsights,
-    FamilySection.invite,
     FamilySection.recentMoments,
   ];
 }

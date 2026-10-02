@@ -25,13 +25,18 @@ void main() {
         'HeroSection is the single identity header',
         (WidgetTester tester) async {
       // Render an AppBar with the same shape FamilyDetailScreen uses
-      // post-fix: back button + empty title + 3 action icons (Kinrel
-      // gated to kEnableKinrel so omitted here, Governance, Settings).
+      // post-fix: back button + empty title + 4 action icons (Kinrel
+      // gated to kEnableKinrel so omitted here, Governance, Invite,
+      // Settings).
       //
-      // Phase 2 (this pass): Settings moved INTO the AppBar (was
-      // previously in the deprecated QuickActionsRow middle action
-      // row). The AppBar now has 3 icon-only actions: Kinrel (when
-      // enabled), Governance, Settings.
+      // Phase 2: Settings moved INTO the AppBar (was previously in the
+      // deprecated QuickActionsRow middle action row).
+      //
+      // Invite-UX refinement: Invite moved INTO the AppBar as a compact
+      // icon next to Settings, replacing the large InviteButton card
+      // that used to dominate the body feed. The AppBar now has 4
+      // icon-only actions: Kinrel (when enabled), Governance, Invite,
+      // Settings.
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -48,6 +53,10 @@ void main() {
                 ),
                 IconButton(
                   icon: Icon(Icons.gavel_outlined),
+                  onPressed: null,
+                ),
+                IconButton(
+                  icon: Icon(Icons.person_add_outlined),
                   onPressed: null,
                 ),
                 IconButton(
@@ -84,15 +93,20 @@ void main() {
       expect(titleWidget.width, 0.0);
       expect(titleWidget.height, 0.0);
 
-      // The AppBar should have its 3 action icons (Kinrel, Governance,
-      // Settings) — all icon-only, consistent sizing. Settings was
-      // added in Phase 2 (this pass) — moved from the deprecated
-      // QuickActionsRow.
+      // The AppBar should have its 4 action icons (Kinrel, Governance,
+      // Invite, Settings) — all icon-only, consistent sizing. The
+      // Invite icon was added in the invite-UX refinement pass,
+      // replacing the large InviteButton card that used to dominate
+      // the body feed.
       expect(find.byIcon(Icons.auto_awesome_outlined), findsOneWidget,
           reason: 'Kinrel icon must be present (gated by kEnableKinrel '
               'in production, but the AppBar structure reserves the slot).');
       expect(find.byIcon(Icons.gavel_outlined), findsOneWidget,
           reason: 'Governance icon must be present.');
+      expect(find.byIcon(Icons.person_add_outlined), findsOneWidget,
+          reason: 'Invite icon must be present in the AppBar — it was '
+              'moved here from the body feed (large InviteButton card '
+              'removed) in the invite-UX refinement pass.');
       expect(find.byIcon(Icons.settings_outlined), findsOneWidget,
           reason: 'Settings icon must be present in the AppBar — it was '
               'moved here from the deprecated QuickActionsRow middle '

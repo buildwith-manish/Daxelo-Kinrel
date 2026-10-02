@@ -163,21 +163,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
         actions: [
           // ── AppBar actions — all icon-only, consistent sizing.
           //
-          // Phase 1 (duplicate-space-home fix): slimmed from 4 to 2
-          // actions. Family Chat moved to the persistent bottom nav.
-          //
-          // Phase 2 (this pass): Settings moved INTO the AppBar (was
-          // previously in the now-deprecated QuickActionsRow middle
-          // action row). Family Chat is NOT here — its only entry
-          // point on this screen is the bottom nav item.
-          //
           // The AppBar reads as "secondary power features" (Kinrel
-          // when enabled, Governance, Settings) — all low-emphasis
-          // icon-only. The primary action (Invite) lives in the body
-          // as a standalone prominent button below the Highlights
-          // row. This matches WhatsApp/Telegram/Instagram discipline
-          // where the AppBar carries icon-only actions and the
-          // primary CTA lives in the body.
+          // when enabled, Governance, Invite, Settings) — all low-
+          // emphasis icon-only. The large InviteButton card was
+          // REMOVED from the body feed to reduce visual clutter; the
+          // invite action now lives here as a compact icon next to
+          // Settings, reusing the same _openInviteFlow handler.
+          // The full Invite experience is also still available inside
+          // the Members section.
 
           // Kinrel — Family Relationship Intelligence. Gated by
           // kEnableKinrel so it ships dark and can be flipped on per build.
@@ -205,6 +198,17 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
             onPressed: () {
               context.push('/family/${widget.familyId}/governance');
             },
+          ),
+          // ── Invite Member — compact icon action next to Settings.
+          // Replaces the large full-width InviteButton card that used
+          // to dominate the body feed. Uses Icons.person_add_outlined
+          // (the same icon the prior InviteButton used internally) so
+          // the icon language stays consistent. Tapping launches the
+          // existing "Find on Kinrel" invite flow via _openInviteFlow.
+          IconButton(
+            icon: const Icon(Icons.person_add_outlined),
+            tooltip: 'Invite member',
+            onPressed: () => _openInviteFlow(context),
           ),
           // ── Settings — moved here from the deprecated QuickActionsRow.
           // Icon-only, consistent with the Kinrel + Governance icons
@@ -253,26 +257,27 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           // ════════════════════════════════════════════════════════════
           // PREMIUM FAMILY SPACE — FIXED LAYOUT ORDER
           //
-          // Content-hierarchy refinement: the content section order is
-          // FIXED. The flow is engagement → emotion → updates → premium
-          // → remaining, so the user experiences:
+          // Invite-UX refinement: the content section order is FIXED.
+          // The flow is engagement → emotion → updates → premium →
+          // remaining, so the user experiences:
           //   1. Prediction Battle (drives interaction)
           //   2. Thinking of You (reinforces family connection)
           //   3. Family Pulse (provides updates and activity history)
           //   4. Premium Insights (paywall — after free-value content)
-          //   5. Remaining content (Invite, Recent Moments)
+          //   5. Recent Moments (remaining content)
           //
           // The full screen order is:
           //   1. Family Header (full size — not compact)
+          //      [back]  [Kinrel] [Governance] [Invite] [Settings]
           //   2. Highlights Row (shortcuts)
           //   3. Prediction Battle (includes its own Coin Pool)
-          //   4. Thinking of You (moved up — directly below PB)
+          //   4. Thinking of You (directly below PB)
           //   5. Family Pulse (recent activity)
           //   6. Premium Insights (paywall — after free-value content)
-          //   7. Remaining content (Invite, Recent Moments)
+          //   7. Recent Moments (remaining content)
           //   8. Family Strength Closer
           //
-          // Changes from the prior dynamic-ordering pass:
+          // Changes from prior passes:
           //   • Header restored to full prominence (compact mode removed)
           //   • Prediction Battle always first (no longer state-dependent)
           //   • Thinking of You moved to position 2 (above Family Pulse)
@@ -281,6 +286,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           //     the one that belongs to the Prediction Battle card)
           //   • Standalone Family Graph preview card removed (Graph is
           //     accessible from the hero's flanking Graph icon)
+          //   • Large InviteButton card REMOVED from the body feed —
+          //     Invite now lives in the AppBar as a compact icon next to
+          //     Settings. Full Invite experience still in Members section.
           // ════════════════════════════════════════════════════════════
           final engagementState =
               ref.watch(familyEngagementStateProvider(widget.familyId));
@@ -414,36 +422,6 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
     required BuildContext context,
   }) {
     switch (section) {
-      case FamilySection.invite:
-        return [
-          SliverToBoxAdapter(
-            child: staggerFade(
-              InviteButton(
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => KinrelUserSearchScreen(
-                        familyId: widget.familyId,
-                        onUserSelected: (KinrelUser user) {
-                          RelationshipQuickPickSheet.show(
-                            context,
-                            familyId: widget.familyId,
-                            selectedUser: user,
-                            fromGraph: false,
-                          );
-                        },
-                      ),
-                      fullscreenDialog: true,
-                    ),
-                  );
-                },
-              ),
-              1,
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 18)),
-        ];
-
       case FamilySection.thinkingOfYou:
         return [
           SliverToBoxAdapter(
@@ -522,6 +500,34 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
     final detailAsync = ref.read(familyDetailProvider(widget.familyId));
     final familyName = detailAsync.valueOrNull?.family.name ?? 'Family';
     ShareHelper.shareFamily(familyId: widget.familyId, familyName: familyName);
+  }
+
+  /// Opens the existing "Find on Kinrel" invite flow.
+  ///
+  /// Reused by both the AppBar's compact Invite icon (next to Settings)
+  /// and any other invite entry points. This is the SAME flow the
+  /// removed large InviteButton card used — no new invitation system.
+  ///
+  /// Flow: pushes KinrelUserSearchScreen → on user selected, opens the
+  /// RelationshipQuickPickSheet so the inviter can pick how the new
+  /// member relates to existing family members.
+  void _openInviteFlow(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => KinrelUserSearchScreen(
+          familyId: widget.familyId,
+          onUserSelected: (KinrelUser user) {
+            RelationshipQuickPickSheet.show(
+              context,
+              familyId: widget.familyId,
+              selectedUser: user,
+              fromGraph: false,
+            );
+          },
+        ),
+        fullscreenDialog: true,
+      ),
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════
