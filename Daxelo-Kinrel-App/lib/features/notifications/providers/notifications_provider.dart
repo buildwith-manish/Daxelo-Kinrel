@@ -277,6 +277,8 @@ class NotificationsState {
     this.selectedCategory,
     this.notificationPreferences = const {},
     this.isLoadingPreferences = false,
+    this.hasMore = true,
+    this.isLoadingMore = false,
   });
 
   /// All notifications (unfiltered).
@@ -290,6 +292,14 @@ class NotificationsState {
 
   /// Whether preferences are currently loading from the server.
   final bool isLoadingPreferences;
+
+  /// Whether there are more (older) notifications to load via
+  /// scroll-down pagination. Defaults to true; set to false when
+  /// a loadMore query returns fewer than the page size (50).
+  final bool hasMore;
+
+  /// Whether an older-notifications fetch is in progress.
+  final bool isLoadingMore;
 
   /// Unread count.
   int get unreadCount => notifications.where((n) => !n.isRead).length;
@@ -333,6 +343,8 @@ class NotificationsState {
     NotificationCategory? Function()? selectedCategory,
     Map<NotificationType, NotificationPreference>? notificationPreferences,
     bool? isLoadingPreferences,
+    bool? hasMore,
+    bool? isLoadingMore,
   }) {
     return NotificationsState(
       notifications: notifications ?? this.notifications,
@@ -343,6 +355,8 @@ class NotificationsState {
           notificationPreferences ?? this.notificationPreferences,
       isLoadingPreferences:
           isLoadingPreferences ?? this.isLoadingPreferences,
+      hasMore: hasMore ?? this.hasMore,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
     );
   }
 }
@@ -429,6 +443,58 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         } catch (retryError) {
           debugPrint('⚠️ Notification retry failed (${delay}ms): $retryError');
         }
+      }
+    }
+  }
+
+  // ── Load more notifications (cursor pagination) ───────────────────
+  //
+  // Called when the user scrolls to the bottom of the currently-loaded
+  // notification list. Fetches the next page of older notifications
+  // using the oldest-loaded notification's createdAt as the cursor.
+  static const int _notificationsPageSize = 50;
+
+  Future<void> loadMoreNotifications() async {
+    final client = _ref.read(supabaseProvider);
+    if (client == null || client.auth.currentUser == null) return;
+    if (state.isLoadingMore || !state.hasMore) return;
+    if (state.notifications.isEmpty) return;
+
+    state = state.copyWith(isLoadingMore: true);
+
+    try {
+      final userId = client.auth.currentUser!.id;
+      // The notifications list is sorted newest-first. The oldest
+      // loaded notification is the LAST element. Use its createdAt
+      // as the cursor for fetching older notifications.
+      final oldestNotification = state.notifications.last;
+      final cursor = oldestNotification.createdAt;
+
+      final response = await client
+          .from('Notification')
+          .select()
+          .eq('userId', userId)
+          .order('createdAt', ascending: false)
+          .lt('createdAt', cursor)
+          .limit(_notificationsPageSize)
+          .timeout(const Duration(seconds: 10));
+
+      final olderNotifications = response
+          .map((e) => _mapNotification(e))
+          .toList();
+
+      if (mounted) {
+        final allNotifications = [...state.notifications, ...olderNotifications];
+        state = state.copyWith(
+          notifications: allNotifications,
+          isLoadingMore: false,
+          hasMore: olderNotifications.length >= _notificationsPageSize,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        state = state.copyWith(isLoadingMore: false);
+        debugPrint('⚠️ loadMoreNotifications failed: $e');
       }
     }
   }

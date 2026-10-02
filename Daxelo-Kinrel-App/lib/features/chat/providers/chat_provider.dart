@@ -693,6 +693,8 @@ class ChatState {
     this.replyToMessage,
     this.isLoading = false,
     this.error,
+    this.hasMoreMessages = true,
+    this.isLoadingMoreMessages = false,
   });
 
   /// All messages in the chat, sorted newest-first (UI displays with
@@ -717,6 +719,15 @@ class ChatState {
   /// Error message if fetch failed (null = no error).
   final String? error;
 
+  /// Whether there are more (older) messages to load via scroll-up
+  /// pagination. Defaults to true; set to false when a loadOlder
+  /// query returns fewer than the page size (200).
+  final bool hasMoreMessages;
+
+  /// Whether an older-messages fetch is in progress (shows a skeleton
+  /// at the top of the message list).
+  final bool isLoadingMoreMessages;
+
   /// Number of online members.
   int get onlineCount => members.where((m) => m.isOnline).length;
 
@@ -733,6 +744,8 @@ class ChatState {
     bool clearReplyTo = false,
     String? error,
     bool clearError = false,
+    bool? hasMoreMessages,
+    bool? isLoadingMoreMessages,
   }) {
     return ChatState(
       messages: messages ?? this.messages,
@@ -744,6 +757,8 @@ class ChatState {
           : (replyToMessage ?? this.replyToMessage),
       isLoading: isLoading,
       error: clearError ? null : (error ?? this.error),
+      hasMoreMessages: hasMoreMessages ?? this.hasMoreMessages,
+      isLoadingMoreMessages: isLoadingMoreMessages ?? this.isLoadingMoreMessages,
     );
   }
 }
@@ -983,6 +998,68 @@ class ChatNotifier extends StateNotifier<ChatState> {
           isLoading: false,
           error: 'Failed to load messages: $e',
         );
+      }
+    }
+  }
+
+  // ── Load older messages (scroll-up cursor pagination) ─────────────
+  //
+  // Called when the user scrolls to the top of the currently-loaded
+  // message list. Fetches the next page of older messages using the
+  // oldest-loaded message's createdAt as the cursor. Preserves the
+  // initial 200-message load behavior — this is additive pagination
+  // for history, not a change to the initial load.
+  static const int _olderMessagesPageSize = 100;
+
+  Future<void> loadOlderMessages() async {
+    final client = _client;
+    if (client == null) return;
+
+    // Guard against concurrent loads + no-more-messages.
+    if (state.isLoadingMoreMessages || !state.hasMoreMessages) return;
+    if (state.messages.isEmpty) return;
+
+    state = state.copyWith(isLoadingMoreMessages: true);
+
+    try {
+      // The messages list is sorted newest-first (UI uses reverse: true).
+      // The oldest loaded message is the LAST element. Use its createdAt
+      // as the cursor for fetching older messages.
+      final oldestMessage = state.messages.last;
+      final cursor = oldestMessage.createdAt;
+
+      final olderResponse = await client
+          .from('ChatMessage')
+          .select()
+          .eq('familyId', familyId)
+          .order('createdAt', ascending: false)
+          .lt('createdAt', cursor.toIso8601String())
+          .limit(_olderMessagesPageSize)
+          .timeout(const Duration(seconds: 15));
+
+      final olderMessages = <ChatMessage>[];
+      for (final row in olderResponse as List) {
+        final msg = ChatMessage.fromJson(row as Map<String, dynamic>);
+        if (msg.id.isNotEmpty) olderMessages.add(msg);
+      }
+
+      // Reverse to match the newest-first ordering, then prepend to
+      // the existing messages (older messages go at the end of the list).
+      olderMessages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      if (mounted) {
+        final allMessages = [...state.messages, ...olderMessages];
+        state = state.copyWith(
+          messages: allMessages,
+          isLoadingMoreMessages: false,
+          // If we got fewer than the page size, there are no more.
+          hasMoreMessages: olderMessages.length >= _olderMessagesPageSize,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        state = state.copyWith(isLoadingMoreMessages: false);
+        debugPrint('⚠️ loadOlderMessages failed: $e');
       }
     }
   }

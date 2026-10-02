@@ -108,12 +108,15 @@ final ambientParticleControllerProvider =
 
   final binding = WidgetsBinding.instance;
   onLifecycleStateChanged(binding.lifecycleState);
-  binding.addObserver(
-    _LifecycleObserver(onLifecycleStateChanged),
-  );
+  // ── Leak fix: store the observer instance and reuse the SAME instance
+  // for removeObserver. Previously two separate _LifecycleObserver
+  // instances were constructed — removeObserver uses identity ==, so
+  // the remove was a no-op and the observer stayed registered forever.
+  final observer = _LifecycleObserver(onLifecycleStateChanged);
+  binding.addObserver(observer);
 
   ref.onDispose(() {
-    binding.removeObserver(_LifecycleObserver(onLifecycleStateChanged));
+    binding.removeObserver(observer);
     controller.dispose();
   });
   return controller;

@@ -1034,6 +1034,7 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
         .eq('familyId', familyId)
         .filter('deletedAt', 'is', null)
         .order('createdAt', ascending: true)
+        .limit(5000)
         .timeout(const Duration(seconds: 15));
 
     final list = response as List;
@@ -1108,6 +1109,7 @@ final familyRelationshipsProvider =
             .eq('familyId', familyId)
             .eq('isActive', true)
             .order('createdAt', ascending: true)
+            .limit(5000)
             .timeout(const Duration(seconds: 15));
 
         final list = response as List;

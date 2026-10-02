@@ -766,6 +766,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         _showMoreKinship = false;
       });
     }
+    // ── Leak fix: dispose the local TextEditingController after the
+    // dialog closes. Previously it was created per call and never
+    // disposed, accumulating listener references.
+    nameController.dispose();
   }
 
   TextStyle get _labelStyle => TextStyle(

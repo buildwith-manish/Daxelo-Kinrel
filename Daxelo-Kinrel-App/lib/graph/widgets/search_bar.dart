@@ -180,6 +180,10 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
 
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+  // ── Leak fix: KeyboardListener needs a FocusNode, but constructing it
+  // inline in build() leaks a new FocusNode on every rebuild. Store it as
+  // a State field + dispose it properly.
+  final FocusNode _keyboardFocusNode = FocusNode();
 
   // ── State ──────────────────────────────────────────────────────────
 
@@ -224,6 +228,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
     _debounceTimer?.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _keyboardFocusNode.dispose();
     _searchStopwatch.stop();
     super.dispose();
   }
@@ -460,7 +465,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
   @override
   Widget build(BuildContext context) {
     return KeyboardListener(
-      focusNode: FocusNode(),
+      focusNode: _keyboardFocusNode,
       onKeyEvent: (event) {
         // Ctrl/Cmd+K to toggle search
         final isCmdOrCtrl = HardwareKeyboard.instance.isControlPressed ||

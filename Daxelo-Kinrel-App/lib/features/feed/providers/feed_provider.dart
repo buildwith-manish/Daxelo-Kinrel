@@ -140,7 +140,10 @@ class FeedState {
     this.isLoading = false,
     this.isLoadingMore = false,
     this.hasMore = true,
+    // page field retained for backward compat with copyWith callers,
+    // but no longer used for OFFSET pagination — cursor replaces it.
     this.page = 1,
+    this.cursor,
     this.error,
   });
 
@@ -148,7 +151,10 @@ class FeedState {
   final bool isLoading;
   final bool isLoadingMore;
   final bool hasMore;
-  final int page;
+  final int page; // retained for backward compat, unused for pagination
+  /// Cursor for the next page: the createdAt of the OLDEST loaded post.
+  /// The next loadMore fetches posts with createdAt < cursor.
+  final DateTime? cursor;
   final String? error;
 
   FeedState copyWith({
@@ -157,6 +163,8 @@ class FeedState {
     bool? isLoadingMore,
     bool? hasMore,
     int? page,
+    DateTime? cursor,
+    bool clearCursor = false,
     String? error,
   }) {
     return FeedState(
@@ -165,6 +173,7 @@ class FeedState {
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
       hasMore: hasMore ?? this.hasMore,
       page: page ?? this.page,
+      cursor: clearCursor ? null : (cursor ?? this.cursor),
       error: error,
     );
   }
@@ -219,6 +228,7 @@ class FeedNotifier extends StateNotifier<FeedState> {
         isLoading: false,
         hasMore: posts.length >= _pageSize,
         page: 1,
+        cursor: posts.isNotEmpty ? posts.last.createdAt : null,
       );
     } catch (e) {
       debugPrint('⚠️ Feed load error: $e');
@@ -286,6 +296,7 @@ class FeedNotifier extends StateNotifier<FeedState> {
         isLoading: false,
         hasMore: posts.length >= _pageSize,
         page: 1,
+        cursor: posts.isNotEmpty ? posts.last.createdAt : null,
       );
     } catch (e) {
       debugPrint('⚠️ Home feed load error: $e');
@@ -318,16 +329,31 @@ class FeedNotifier extends StateNotifier<FeedState> {
       }
 
       final familyIds = families.map((f) => f.id).toList();
-      final nextPage = state.page + 1;
-      final offset = state.page * _pageSize;
+
+      // ── Cursor-based pagination (replaces OFFSET).
+      // Previously: .range(offset, offset + _pageSize - 1)
+      //   which causes skip/duplicate bugs on a realtime feed where
+      //   new posts shift the underlying row positions.
+      // Now: .lt('createdAt', cursor) using the oldest loaded post's
+      //   createdAt as the cursor. Consistent with the cursor pattern
+      //   used in pagination_provider.dart + paginated_members_provider.
+      final cursor = state.cursor;
+      if (cursor == null) {
+        state = state.copyWith(isLoadingMore: false);
+        return;
+      }
+
+      var query = client
+          .from(_kFamilyPostTable)
+          .select('*, Family(name, username), Person(name, username)')
+          .inFilter('familyId', familyIds)
+          .order('createdAt', ascending: false);
+
+      // Apply the cursor filter — fetch posts OLDER than the cursor.
+      query = query.lt('createdAt', cursor.toIso8601String());
 
       final response = await withRetry(
-        () => client
-            .from(_kFamilyPostTable)
-            .select('*, Family(name, username), Person(name, username)')
-            .inFilter('familyId', familyIds)
-            .order('createdAt', ascending: false)
-            .range(offset, offset + _pageSize - 1),
+        () => query.limit(_pageSize),
         operationName: 'Load more home feed',
       );
 
@@ -343,7 +369,9 @@ class FeedNotifier extends StateNotifier<FeedState> {
         posts: [...state.posts, ...newPosts],
         isLoadingMore: false,
         hasMore: newPosts.length >= _pageSize,
-        page: nextPage,
+        // Update the cursor to the new oldest post (or keep the old
+        // one if no new posts arrived).
+        cursor: newPosts.isNotEmpty ? newPosts.last.createdAt : cursor,
       );
     } catch (e) {
       debugPrint('⚠️ Home feed load more error: $e');

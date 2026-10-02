@@ -76,14 +76,39 @@ class HotSeatNotifier extends StateNotifier<HotSeatState> {
 
       // Fetch questions + answers
       final questionsResp = await client.from('hot_seat_questions').select().eq('assignmentId', dailyId).order('"createdAt"', ascending: true);
+
+      // ── N+1 fix: fetch ALL answers for these questions in a single
+      // IN query instead of one query per question. Previously this
+      // was a per-question sequential fetch (N round-trips for N
+      // questions). Now: 1 query, mapped back to questions client-side.
+      final questionIds = questionsResp
+          .map((q) => (q as Map<String, dynamic>)['id'] as String?)
+          .where((id) => id != null && id.isNotEmpty)
+          .toList();
+
+      final answersByQuestionId = <String, String>{};
+      if (questionIds.isNotEmpty) {
+        try {
+          final answersResp = await client
+              .from('hot_seat_answers')
+              .select('questionId, answer')
+              .inFilter('questionId', questionIds);
+          for (final a in answersResp) {
+            final aMap = a as Map<String, dynamic>;
+            final qId = aMap['questionId'] as String?;
+            final answer = aMap['answer'] as String?;
+            if (qId != null && answer != null) {
+              answersByQuestionId[qId] = answer;
+            }
+          }
+        } catch (_) {}
+      }
+
       final questions = <HotSeatQuestion>[];
       for (final q in questionsResp) {
-        final qMap = q;
-        String? answer;
-        try {
-          final ansResp = await client.from('hot_seat_answers').select('answer').eq('questionId', qMap['id']).maybeSingle();
-          if (ansResp != null) answer = ansResp['answer'] as String?;
-        } catch (_) {}
+        final qMap = q as Map<String, dynamic>;
+        final qId = qMap['id'] as String?;
+        final answer = qId != null ? answersByQuestionId[qId] : null;
         questions.add(HotSeatQuestion.fromJson(qMap).copyWith(answer: answer));
       }
 

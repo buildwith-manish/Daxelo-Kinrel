@@ -355,20 +355,34 @@ class NameplaceNotifier extends StateNotifier<NameplaceState> {
       // Score
       final result = scoreRound(answers: logicAnswers, categories: game.categories);
 
-      // Update answers with points
+      // ── Bulk update: previously two sequential per-row UPDATE loops
+      // (N round-trips for N players). Now uses Supabase's batch
+      // upsert via a single RPC call would be ideal, but for a
+      // minimal-risk change we use parallel Future.wait on the
+      // updates — all fire concurrently, reducing wall-clock time
+      // from N×latency to 1×latency. The semantics are identical
+      // to the original sequential loop.
+      final answerUpdates = <Future<void>>[];
       for (final scored in result.scoredAnswers) {
-        await client.from('nameplace_answers').update({
-          'pointsAwarded': scored.pointsAwarded,
-        }).eq('roundId', roundId).eq('playerId', scored.playerId).eq('category', scored.category);
+        answerUpdates.add(
+          client.from('nameplace_answers').update({
+            'pointsAwarded': scored.pointsAwarded,
+          }).eq('roundId', roundId).eq('playerId', scored.playerId).eq('category', scored.category),
+        );
       }
+      await Future.wait(answerUpdates);
 
-      // Update player total scores
+      // Update player total scores — parallel for the same reason.
+      final scoreUpdates = <Future<void>>[];
       for (final entry in result.playerRoundScores.entries) {
         final player = state.players.firstWhere((p) => p.userId == entry.key);
-        await client.from('nameplace_players').update({
-          'totalScore': player.totalScore + entry.value,
-        }).eq('id', player.id);
+        scoreUpdates.add(
+          client.from('nameplace_players').update({
+            'totalScore': player.totalScore + entry.value,
+          }).eq('id', player.id),
+        );
       }
+      await Future.wait(scoreUpdates);
 
       // Mark round as scored
       await client.from('nameplace_games').update({

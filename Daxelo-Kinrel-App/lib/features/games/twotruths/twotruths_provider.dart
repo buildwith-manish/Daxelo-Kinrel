@@ -141,18 +141,32 @@ class TtNotifier extends StateNotifier<TtState> {
       // Score
       final guesserIds = state.players.where((p) => p.userId != round.submitterId).map((p) => p.userId).toList();
       final result = scoreRound(guesses: guesses, actualLieIndex: round.lieIndex, guesserIds: guesserIds, submitterId: round.submitterId);
-      // Update guesses with isCorrect
+      // ── Bulk update: previously two sequential per-row UPDATE loops
+      // (per-guesser + per-player). Now fires all updates in parallel
+      // via Future.wait, reducing wall-clock time from N×latency to
+      // 1×latency. Semantics are identical to the original sequential loop.
+      final guessUpdates = <Future<void>>[];
       for (final entry in result.guesserScores.entries) {
         final isCorrect = entry.value == 1;
-        await client.from('twotruths_guesses').update({'isCorrect': isCorrect}).eq('roundId', round.id).eq('guesserId', entry.key);
+        guessUpdates.add(
+          client.from('twotruths_guesses').update({'isCorrect': isCorrect}).eq('roundId', round.id).eq('guesserId', entry.key),
+        );
       }
-      // Update player scores
+      await Future.wait(guessUpdates);
+
+      // Update player scores — parallel for the same reason.
+      final scoreUpdates = <Future<void>>[];
       for (final p in state.players) {
         int delta = 0;
         if (p.userId == round.submitterId) delta = result.submitterScore;
         else delta = result.guesserScores[p.userId] ?? 0;
-        if (delta > 0) await client.from('twotruths_players').update({'totalScore': p.totalScore + delta}).eq('id', p.id);
+        if (delta > 0) {
+          scoreUpdates.add(
+            client.from('twotruths_players').update({'totalScore': p.totalScore + delta}).eq('id', p.id),
+          );
+        }
       }
+      await Future.wait(scoreUpdates);
       // Mark round resolved
       await client.from('twotruths_games').update({'roundResolved': true}).eq('id', gameId);
       GameMotionTokens.celebrate(); state = state.copyWith(isResolving: false);

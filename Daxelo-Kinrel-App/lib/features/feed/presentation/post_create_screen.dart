@@ -379,7 +379,10 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
           icon: Icons.location_on_outlined,
           label: 'Location',
           onTap: () {
-            FocusScope.of(context).requestFocus(FocusNode());
+            // ── Leak fix: previously FocusScope.of(context).requestFocus(FocusNode())
+            // created a new FocusNode per tap that was never disposed. Use unfocus()
+            // to dismiss the keyboard without leaking a FocusNode.
+            FocusScope.of(context).unfocus();
           },
         ),
         const SizedBox(width: 12),

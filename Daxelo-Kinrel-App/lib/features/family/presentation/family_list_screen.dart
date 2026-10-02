@@ -43,6 +43,15 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
     super.initState();
     _scrollController = ScrollController();
     _scrollController.addListener(_onScroll);
+    // ── Load the first page of families via the paginated provider.
+    // Previously this screen watched hybridFamilyListProvider (which
+    // fetches ALL families in one call). Now we use paginatedFamilyProvider
+    // which loads 20 at a time (kFamilyPageSize = 20) via cursor-based
+    // pagination. The scroll listener below triggers loadMore() when
+    // the user scrolls within 500px of the bottom.
+    Future.microtask(() {
+      ref.read(paginatedFamilyProvider.notifier).loadFirstPage();
+    });
   }
 
   @override
@@ -70,119 +79,25 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required by AutomaticKeepAliveClientMixin
-    final familiesAsync = ref.watch(hybridFamilyListProvider);
+    // ── Switched from hybridFamilyListProvider (unbounded fetch) to
+    // paginatedFamilyProvider (cursor-based, 20 per page). The scroll
+    // listener triggers loadMore() when near the bottom. This prevents
+    // downloading all 50+ families at once for power users.
+    final pagState = ref.watch(paginatedFamilyProvider);
+    final families = pagState.families;
+    final isLoadingFirst = pagState.isLoadingFirst;
+    final error = pagState.error;
 
     return DKScaffold(
-      body: familiesAsync.when(
-        loading: () => const _FamilyListLoadingWidget(),
-        error: (error, _) => DKErrorState(
-          message: error.toString(),
-          onRetry: () => ref.invalidate(familyListProvider),
-        ),
-        data: (families) {
-          // ── Pull-to-refresh wrapper: haptic at threshold + on refresh. ──
-          // iOS users expect this gesture on every list. The haptic at
-          // the threshold lets them release without looking.
-          return KinrelPullToRefresh(
-            onRefresh: () async {
-              ref.invalidate(familyListProvider);
-              // Wait for the refresh to complete so the spinner stays
-              // visible until the data is ready.
-              await ref.read(familyListProvider.future);
-            },
-            child: CustomScrollView(
-            controller: _scrollController,
-            scrollCacheExtent: ScrollCacheExtent.pixels(500),
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              // Header
-              SliverToBoxAdapter(
-                child: _Header(
-                  familyCount: families.length,
-                  onArchivedTap: () => _showArchivedFamilies(context),
-                ),
-              ),
-              SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-              // Join Family card
-              SliverToBoxAdapter(
-                child: _JoinFamilyCard(
-                  onJoin: () => _showJoinFamilyDialog(context),
-                ),
-              ),
-              SliverToBoxAdapter(child: SizedBox(height: 20)),
-
-              // Family cards or empty state
-              if (families.isEmpty)
-                SliverToBoxAdapter(
-                  // ── Migrated to KinrelEmptyState ──
-                  // KinrelEmptyState adds: BounceButton (iOS scale-on-press),
-                  // haptic on tap, teaching subtitle, and a secondary CTA
-                  // option. The DKEmptyState was functional but didn't have
-                  // the tactile/teaching layer that drives activation.
-                  child: KinrelEmptyState(
-                    icon: Icons.family_restroom_rounded,
-                    title: 'No Families Yet',
-                    subtitle:
-                        'Create your first family tree to start exploring relationships and kinship terms.',
-                    actionLabel: 'Create Family',
-                    onAction: () => context.push('/families/create'),
-                    secondaryLabel: 'Join by Code',
-                    onSecondary: () => _showJoinFamilyDialog(context),
-                  ),
+      body: isLoadingFirst && families.isEmpty
+          ? const _FamilyListLoadingWidget()
+          : error != null && families.isEmpty
+              ? DKErrorState(
+                  message: error,
+                  onRetry: () =>
+                      ref.read(paginatedFamilyProvider.notifier).loadFirstPage(),
                 )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: KinrelSpacing.base,
-                  ),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      // Last item: skeleton loading for pagination
-                      if (index == families.length) {
-                        final pagState = ref.watch(paginatedFamilyProvider);
-                        if (pagState.isLoadingMore) {
-                          // ── Migrated from CircularProgressIndicator to
-                          // KinrelSkeletonCardRow ──
-                          // A skeleton matches the shape of the real
-                          // card that's about to load, which reduces
-                          // perceived wait (Status Quo Bias) and
-                          // eliminates layout shift when the data
-                          // arrives.
-                          return const Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: KinrelSpacing.base,
-                              vertical: 8,
-                            ),
-                            child: KinrelSkeletonCardRow(),
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      }
-                      final family = families[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _FamilyCard(
-                          family: family,
-                          index: index,
-                          // ── Haptic on card tap — confirms the tap
-                          // registered before the push animation starts.
-                          onTap: () {
-                            HapticService.tap();
-                            context.push('/family/${family.id}');
-                          },
-                        ),
-                      );
-                    }, childCount: families.length + 1),
-                  ),
-                ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
-            ],
-          ),
-          ); // close CustomScrollView + KinrelPullToRefresh
-        },
-      ),
+              : _buildPaginatedList(families),
       floatingActionButton:
           Container(
                 width: 56,
@@ -213,6 +128,92 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
                 duration: 400.ms,
                 curve: Curves.easeOutBack,
               ),
+    );
+  }
+
+  /// Builds the paginated family list with pull-to-refresh + scroll-to-load.
+  Widget _buildPaginatedList(List<Family> families) {
+    return KinrelPullToRefresh(
+      onRefresh: () async {
+        // Reset to the first page on pull-to-refresh.
+        await ref.read(paginatedFamilyProvider.notifier).loadFirstPage();
+      },
+      child: CustomScrollView(
+        controller: _scrollController,
+        scrollCacheExtent: ScrollCacheExtent.pixels(500),
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          // Header
+          SliverToBoxAdapter(
+            child: _Header(
+              familyCount: families.length,
+              onArchivedTap: () => _showArchivedFamilies(context),
+            ),
+          ),
+          SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+          // Join Family card
+          SliverToBoxAdapter(
+            child: _JoinFamilyCard(
+              onJoin: () => _showJoinFamilyDialog(context),
+            ),
+          ),
+          SliverToBoxAdapter(child: SizedBox(height: 20)),
+
+          // Family cards or empty state
+          if (families.isEmpty)
+            SliverToBoxAdapter(
+              child: KinrelEmptyState(
+                icon: Icons.family_restroom_rounded,
+                title: 'No Families Yet',
+                subtitle:
+                    'Create your first family tree to start exploring relationships and kinship terms.',
+                actionLabel: 'Create Family',
+                onAction: () => context.push('/families/create'),
+                secondaryLabel: 'Join by Code',
+                onSecondary: () => _showJoinFamilyDialog(context),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: KinrelSpacing.base,
+              ),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  // Last item: skeleton loading for pagination
+                  if (index == families.length) {
+                    final pagState = ref.watch(paginatedFamilyProvider);
+                    if (pagState.isLoadingMore) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: KinrelSpacing.base,
+                          vertical: 8,
+                        ),
+                        child: KinrelSkeletonCardRow(),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  }
+                  final family = families[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _FamilyCard(
+                      family: family,
+                      index: index,
+                      onTap: () {
+                        HapticService.tap();
+                        context.push('/family/${family.id}');
+                      },
+                    ),
+                  );
+                }, childCount: families.length + 1),
+              ),
+            ),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+        ],
+      ),
     );
   }
 

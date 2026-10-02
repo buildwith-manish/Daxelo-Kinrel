@@ -300,12 +300,19 @@ class ChitmatchNotifier extends StateNotifier<ChitmatchState> {
       }
       await client.from('chitmatch_chits').insert(chitRows);
 
-      // Update each player's hand
+      // ── Bulk update: previously a sequential per-player UPDATE loop
+      // (N round-trips for N players). Now fires all updates in parallel
+      // via Future.wait, reducing wall-clock time from N×latency to
+      // 1×latency. Semantics are identical to the original sequential loop.
+      final playerHandUpdates = <Future<void>>[];
       for (final p in logicPlayers) {
-        await client.from('chitmatch_players').update({
-          'currentHand': p.hand,
-        }).eq('gameId', gameId).eq('userId', p.userId);
+        playerHandUpdates.add(
+          client.from('chitmatch_players').update({
+            'currentHand': p.hand,
+          }).eq('gameId', gameId).eq('userId', p.userId),
+        );
       }
+      await Future.wait(playerHandUpdates);
 
       // Start round 1
       final roundEnds = DateTime.now().add(Duration(seconds: game.roundTimerSeconds));
