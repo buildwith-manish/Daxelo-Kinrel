@@ -1602,7 +1602,8 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       } catch (colError) {
         debugPrint('[EDGE-DEBUG] Primary relationship query failed: $colError. Trying select(*)');
         try {
-          // Fallback A: select all columns with isActive filter
+          // Fallback A: select all columns with isActive + familyId filter
+          // (still family-scoped — safe)
           rawRelationships = await client
               .from('Relationship')
               .select('*')
@@ -1610,17 +1611,17 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
               .eq('isActive', true)
               .timeout(const Duration(seconds: 15));
         } catch (activeError) {
-          debugPrint('[EDGE-DEBUG] Fallback A failed: $activeError. Last resort: unfiltered select(*)');
-          try {
-            // Fallback B: drop the familyId filter too (will be filtered client-side)
-            rawRelationships = await client
-                .from('Relationship')
-                .select('*')
-                .timeout(const Duration(seconds: 15));
-          } catch (e2) {
-            debugPrint('[EDGE-DEBUG] All relationship queries failed: $e2');
-            rawRelationships = [];
-          }
+          // ── SECURITY: Fail closed. Previously this fallback dropped the
+          // familyId filter and fetched the ENTIRE Relationship table
+          // across ALL families ("will be filtered client-side"). That
+          // leaked cross-family data into memory + onto the wire even
+          // though it was filtered before render. Now we return an empty
+          // list immediately — the UI shows an error state (via the
+          // AsyncValue.error path) rather than ever fetching unfiltered
+          // cross-family data.
+          debugPrint('[EDGE-DEBUG] Fallback A also failed: $activeError. '
+              'FAILING CLOSED — returning empty list. No cross-family fetch.');
+          rawRelationships = [];
         }
       }
 
