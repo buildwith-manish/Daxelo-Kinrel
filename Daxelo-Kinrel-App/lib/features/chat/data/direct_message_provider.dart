@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/family/family_provider.dart';
 import '../../../core/services/supabase_service.dart';
 // Step 4 — shared timezone-aware time utility. DirectMessage timestamps
 // are PERSONAL — each viewer sees their own device-local time.
@@ -686,4 +687,220 @@ String _invitePreview(String content) {
 extension _StringTruncate on String {
   String truncateTo(int maxLen) =>
       length <= maxLen ? this : '${substring(0, maxLen)}…';
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// v140 Family-Centric Chat Navigation — family-scoped DM inbox + members
+// ═══════════════════════════════════════════════════════════════════════
+
+/// A direct-message partner who belongs to the currently-selected family.
+///
+/// Returned by [familyDmPartnersProvider] for the Direct tab inside
+/// FamilyChatListScreen. The list is split into two buckets:
+///   1. "Recent Conversations" — partners with at least one DM already
+///      exchanged (sorted by latest activity).
+///   2. "Available Family Members" — family members who are Kinrel users
+///      (linkedUserId set) but have NOT yet started a DM thread.
+///
+/// Family isolation: only members of [familyId] are returned. The user's
+/// own id is excluded from both buckets. Switching the familyId parameter
+/// re-runs this provider against the new family's roster.
+class FamilyDmPartner {
+  const FamilyDmPartner({
+    required this.userId,
+    required this.displayName,
+    this.avatarUrl,
+    this.lastMessage = '',
+    this.lastMessageTime,
+    this.unreadCount = 0,
+    this.hasConversation = false,
+  });
+
+  final String userId;
+  final String displayName;
+  final String? avatarUrl;
+  final String lastMessage;
+  final DateTime? lastMessageTime;
+  final int unreadCount;
+  final bool hasConversation;
+
+  String get initials {
+    final parts = displayName.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return '?';
+    if (parts.length == 1) return parts.first[0].toUpperCase();
+    return (parts.first[0] + parts[1][0]).toUpperCase();
+  }
+}
+
+/// Family-scoped DM partners: combines the global [dmInboxProvider] with
+/// the family roster from [familyLinkedUserIdsProvider] so the Direct tab
+/// only ever shows members of the currently-selected family.
+///
+/// Watches [dmInboxTickProvider] so new DMs refresh the list in real time.
+final familyDmPartnersProvider =
+    FutureProvider.family<FamilyDmPartnersResult, String>((ref, familyId) async {
+  // Live refresh — refetch whenever a new DM addressed to me lands.
+  ref.watch(dmInboxTickProvider);
+
+  final client = Supabase.instance.client;
+  final myUserId = client.auth.currentUser?.id;
+  if (myUserId == null) {
+    return const FamilyDmPartnersResult(recent: [], available: []);
+  }
+
+  // 1. Load the global DM inbox (already handles RPC + fallback).
+  final inbox = await ref.read(dmInboxProvider.future);
+
+  // 2. Load the family roster — we need both the linked-user-id set
+  //    (for membership filtering) AND display info for members without
+  //    a conversation yet. unifiedFamilyRosterProvider dedupes
+  //    FamilyMember rows + Person nodes by linkedUserId.
+  //
+  //    We watch the underlying FutureProvider directly so that this
+  //    provider re-runs when the roster finishes loading AND so the
+  //    AsyncValue's loading/error state propagates correctly to the
+  //    Direct tab's .when() wrapper.
+  final rosterAsync = ref.watch(unifiedFamilyRosterProvider(familyId));
+  final roster = rosterAsync.valueOrNull ?? const [];
+
+  // Build a userId → roster entry lookup (Kinrel users only).
+  // We keep the UnifiedFamilyMember reference so the Available Members
+  // loop below can reuse the same display info (avatar, name) without
+  // an extra pass.
+  final rosterByUserId = <String, UnifiedFamilyMember>{};
+  for (final m in roster) {
+    final uid = m.userId;
+    if (uid == null || uid.isEmpty) continue;
+    if (uid == myUserId) continue;
+    rosterByUserId[uid] = m;
+  }
+
+  // 3. Split into recent-conversations vs available-members.
+  final recent = <FamilyDmPartner>[];
+  final seenUserIds = <String>{};
+
+  for (final dm in inbox) {
+    if (dm.isArchived) continue;
+    final entry = rosterByUserId[dm.otherUserId];
+    // Only include DMs whose other party is in THIS family's roster.
+    if (entry == null) continue;
+
+    recent.add(FamilyDmPartner(
+      userId: dm.otherUserId,
+      displayName: dm.otherUserName.isNotEmpty
+          ? dm.otherUserName
+          : entry.displayName,
+      avatarUrl: dm.otherUserAvatar ?? entry.avatarUrl,
+      lastMessage: dm.lastMessage,
+      lastMessageTime: dm.lastMessageTime,
+      unreadCount: dm.unreadCount,
+      hasConversation: true,
+    ));
+    seenUserIds.add(dm.otherUserId);
+  }
+  // Sort recent by lastMessageTime descending (newest first).
+  recent.sort((a, b) {
+    final at = a.lastMessageTime ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final bt = b.lastMessageTime ?? DateTime.fromMillisecondsSinceEpoch(0);
+    return bt.compareTo(at);
+  });
+
+  // 4. Available family members — Kinrel users in this family with no DM yet.
+  //
+  //    The roster's displayName may fall back to "Member" when the
+  //    FamilyMembership doesn't carry an embedded User profile (which
+  //    happens when familyMembershipsProvider queries the FamilyMember
+  //    table without joining to User). To avoid showing "Member" for
+  //    every available contact, we lazy-fetch each one's public profile
+  //    via the same SECURITY DEFINER RPC the DM inbox uses
+  //    (fn_get_user_public_profile). This is bounded by the family
+  //    size (typically 5–30 members) and runs in parallel.
+  final unknownNameUids = <String>[];
+  for (final entry in roster) {
+    final uid = entry.userId;
+    if (uid == null || uid.isEmpty) continue;
+    if (uid == myUserId) continue;
+    if (seenUserIds.contains(uid)) continue;
+    // If the roster already has a real name (not the "Member" fallback),
+    // skip the extra RPC. We detect this by checking that displayName is
+    // non-empty AND not the literal "Member" fallback used by
+    // UnifiedFamilyMember.fromMembership.
+    if (entry.displayName.isEmpty || entry.displayName == 'Member') {
+      unknownNameUids.add(uid);
+    }
+  }
+
+  final profileByUid = <String, _UserProfile>{};
+  if (unknownNameUids.isNotEmpty) {
+    await Future.wait(unknownNameUids.map((uid) async {
+      try {
+        final response = await client
+            .rpc('fn_get_user_public_profile', params: {'p_user_id': uid})
+            .timeout(const Duration(seconds: 5));
+        if (response is Map<String, dynamic>) {
+          profileByUid[uid] = _UserProfile(
+            name: response['name'] as String? ?? '',
+            avatarUrl: response['avatarUrl'] as String?,
+          );
+        }
+      } catch (_) {
+        // Best-effort — fall back to the roster displayName below.
+      }
+    }));
+  }
+
+  final available = <FamilyDmPartner>[];
+  for (final entry in roster) {
+    final uid = entry.userId;
+    if (uid == null || uid.isEmpty) continue;
+    if (uid == myUserId) continue;
+    if (seenUserIds.contains(uid)) continue;
+
+    final profile = profileByUid[uid];
+    // Resolution order: explicit profile RPC → roster displayName → fallback.
+    final displayName = (profile?.name != null && profile!.name.isNotEmpty)
+        ? profile.name
+        : (entry.displayName.isNotEmpty && entry.displayName != 'Member'
+            ? entry.displayName
+            : 'Member');
+    final avatarUrl = profile?.avatarUrl ?? entry.avatarUrl;
+
+    available.add(FamilyDmPartner(
+      userId: uid,
+      displayName: displayName,
+      avatarUrl: avatarUrl,
+      hasConversation: false,
+    ));
+  }
+
+  // Sort available alphabetically for a stable, predictable list.
+  available.sort((a, b) =>
+      a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
+
+  return FamilyDmPartnersResult(recent: recent, available: available);
+});
+
+/// Container returned by [familyDmPartnersProvider].
+class FamilyDmPartnersResult {
+  const FamilyDmPartnersResult({
+    required this.recent,
+    required this.available,
+  });
+
+  /// DM partners in THIS family with an existing conversation, newest first.
+  final List<FamilyDmPartner> recent;
+
+  /// Kinrel users in THIS family with no DM thread yet, alphabetical.
+  final List<FamilyDmPartner> available;
+}
+
+/// Lightweight user-profile snapshot fetched via fn_get_user_public_profile
+/// for available family members whose roster displayName is the "Member"
+/// fallback. Keeping this private avoids leaking a half-defined model
+/// outside this file.
+class _UserProfile {
+  const _UserProfile({required this.name, this.avatarUrl});
+
+  final String name;
+  final String? avatarUrl;
 }
