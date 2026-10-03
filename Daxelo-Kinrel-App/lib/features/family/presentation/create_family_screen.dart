@@ -20,7 +20,6 @@ import '../../../core/services/haptic_service.dart';
 import '../../../core/services/celebration_service.dart';
 import '../../../core/services/premium_service.dart';
 import '../../../core/family/family_provider.dart' show familyListProvider;
-import '../../../shared/widgets/paywall_sheet.dart';
 import 'providers/family_graph_provider.dart' show familyGraphProvider;
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
@@ -274,25 +273,36 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   Future<void> _submit() async {
     if (!_canProceedStep1) return;
 
-    // ── Soft paywall: check free-tier family limit before creating.
-    // Free users are limited to maxFreeFamilies (default 1). If they've
-    // hit the limit, show the paywall instead of creating. Premium users
-    // always pass.
+    // ── Family-count technical ceiling (NOT a paywall) ─────────────
+    // Multiple families are FREE on the free tier — there is no
+    // monetization gate here. We enforce only a HIGH technical
+    // ceiling (default 10) as an abuse/safety backstop. If a user
+    // ever hits this (vanishingly unlikely in practice), show a
+    // neutral informational message, NOT an upsell — this is a
+    // backstop, not a monetization point.
+    //
+    // Premium (Kinrel Plus) users always pass.
     try {
       final families = ref.read(familyListProvider).valueOrNull ?? [];
       final canAdd = await PremiumService.canAddFamily(families.length);
       if (!canAdd && mounted) {
-        PaywallSheet.show(
-          context: context,
-          trigger: PaywallTrigger.familyLimit,
-          currentCount: families.length,
-          maxFree: PremiumService.maxFreeFamilies,
+        // Informational message, NOT a paywall — this is a backstop.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'You\'ve reached the technical family limit '
+              '(${families.length} families). Kinrel Plus removes this '
+              'limit — tap the Premium badge to learn more.',
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+          ),
         );
         return;
       }
     } catch (_) {
       // If the premium check fails, proceed — never block creation on
-      // an error in the paywall logic.
+      // an error in the ceiling logic.
     }
 
     setState(() => _isSubmitting = true);

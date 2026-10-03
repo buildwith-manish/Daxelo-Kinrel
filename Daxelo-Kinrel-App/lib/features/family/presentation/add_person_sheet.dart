@@ -1405,11 +1405,15 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     if (_isSubmitting) return;
     if (_nameController.text.trim().isEmpty) return;
 
-    // ── Soft paywall: check free-tier member limit before adding.
-    // Free users are limited to maxFreeMembers (default 15). If they've
-    // hit the limit, show the paywall instead of adding. Premium users
-    // always pass. This is the natural upsell moment — right when the
-    // user is trying to add their 16th family member.
+    // ── Member-cap paywall: check free-tier member limit before adding.
+    // Free users are limited to maxFreeMembers (default 100,
+    // calibrated for Indian joint-family households) per family.
+    // This cap applies to a family's TOTAL size/growth on the
+    // INVITING side — when a family admin attempts to add a NEW
+    // member to a family that is already at the cap. Premium (Kinrel
+    // Plus) users always pass. Note: accepting an invitation to an
+    // EXISTING family is never gated here — see join_family_screen
+    // and the comment in PremiumService.canAddMember.
     if (!_isEditMode) {
       try {
         final membersAsync = ref.read(familyMembersProvider(widget.familyId));

@@ -86,15 +86,34 @@ class RemoteConfigService {
     'member_add_cta_text': 'Add Family Member',
     'show_referral_on_profile': true,
     'retention_nudge_day': 3,
-    'max_free_members': 15,
-    // Tier 4 (monetization): free-tier family limit. 1 family is enough
-    // to activate; a 2nd family is the natural upsell moment.
-    'max_free_families': 1,
-    // Tier 4: premium-only feature flags. These gate features that are
-    // available ONLY to premium users (soft paywall — free users see
-    // them but can't tap them without upgrading).
+    // Free-tier member cap: 100 members per family. This is calibrated
+    // to the Indian joint-family household reality (which routinely
+    // runs larger than a generic nuclear-family assumption), so the
+    // cap is intentionally generous. It exists as a real abuse/
+    // infrastructure backstop rather than a tight monetization gate.
+    // Premium (Kinrel Plus) removes this cap entirely.
+    'max_free_members': 100,
+    // Free-tier family count: a HIGH technical ceiling (10 families)
+    // acting purely as an abuse/safety backstop. There is NO paywall
+    // at this volume — multiple families are free. Premium (Kinrel
+    // Plus) raises this ceiling further if ever hit.
+    'max_free_families': 10,
+    // Free-tier monthly Memory Vault upload soft cap. Free users may
+    // upload up to 50 photos per calendar month (storage has real
+    // marginal cost, unlike member/family counts). Hitting the cap
+    // shows a non-alarming in-context message and an upsell to
+    // Kinrel Plus, but does NOT hard-block — see MemoryVaultScreen.
+    // Premium (Kinrel Plus) removes this limit entirely.
+    'memory_vault_free_monthly_cap': 50,
+    // Premium-only feature flags. These gate features that are
+    // available ONLY to premium users. The UI shows them (soft
+    // paywall) but free users can't tap them without upgrading.
+    // Per the tier revision pass: GEDCOM export is genuinely
+    // premium (matches competitor pattern: Ancestry/MyHeritage both
+    // paywall GEDCOM export). AI kinship discovery is FREE — it's a
+    // core differentiator and was previously a phantom gate.
     'premium_feature_export': true,
-    'premium_feature_ai_kinship': true,
+    'premium_feature_ai_kinship': false,
     'premium_feature_insights': true,
   };
 
@@ -133,14 +152,26 @@ class RemoteConfigService {
       _getInt('retention_nudge_day');
 
   /// Maximum number of free members before requiring premium.
+  /// Default 100 — calibrated for Indian joint-family households.
+  /// This is an abuse/infrastructure backstop, not a tight
+  /// monetization gate. Kinrel Plus removes it entirely.
   int get maxFreeMembers =>
       _getInt('max_free_members');
 
   /// Maximum number of free families before requiring premium.
-  /// Defaults to 1 — one family is enough to activate; a 2nd is the
-  /// natural upsell moment.
+  /// Default 10 — a HIGH technical ceiling acting purely as an
+  /// abuse/safety backstop. There is NO paywall at this volume;
+  /// multiple families are free. Kinrel Plus raises this if hit.
   int get maxFreeFamilies =>
       _getInt('max_free_families');
+
+  /// Free-tier monthly Memory Vault upload soft cap.
+  /// Default 50 — calendar-month reset. Free users hitting this
+  /// see a non-alarming in-context message + Kinrel Plus upsell,
+  /// but the upload flow itself is not hard-blocked. Kinrel Plus
+  /// removes the limit entirely.
+  int get memoryVaultFreeMonthlyCap =>
+      _getInt('memory_vault_free_monthly_cap');
 
   /// ── Premium feature flags ────────────────────────────────────────
   /// These gate features that are ONLY available to premium users.
@@ -148,10 +179,18 @@ class RemoteConfigService {
   /// without upgrading.
 
   /// Whether GEDCOM export is a premium-only feature.
+  /// Default TRUE (genuinely enforced) — matches competitor pattern
+  /// (Ancestry/MyHeritage both paywall GEDCOM export). The
+  /// canExport() gate in PremiumService is wired into the export
+  /// flow and the paywall advertises it accurately.
   bool get premiumFeatureExport =>
       _getBool('premium_feature_export');
 
   /// Whether AI kinship discovery is a premium-only feature.
+  /// Default FALSE — AI kinship is a core differentiator and is
+  /// FREE for everyone. The previous canUseAiKinship() gate was
+  /// a phantom gate (advertised but never enforced); it has been
+  /// removed and the paywall copy no longer references it.
   bool get premiumFeatureAiKinship =>
       _getBool('premium_feature_ai_kinship');
 

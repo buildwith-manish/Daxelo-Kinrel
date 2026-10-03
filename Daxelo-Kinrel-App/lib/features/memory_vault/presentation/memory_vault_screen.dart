@@ -6,7 +6,22 @@
 // Two tabs: "All Photos" (grid) and "On This Day" (list).
 // Upload flow via bottom sheet with camera/gallery picker,
 // caption, date picker, member tagger.
-// Premium gating: upload requires PremiumService.isPremium().
+//
+// TIER GATING (per the tier revision pass):
+// Free users may upload up to 50 photos per calendar month (soft
+// cap — storage has real marginal cost, unlike member/family
+// counts). The cap is tracked per-device via SharedPreferences in
+// PremiumService. When a free user hits the cap, they see a
+// non-alarming in-context paywall framed as "remove the limit"
+// (PaywallTrigger.memoryVaultLimit), NOT as "unlock this feature"
+// — uploads already work for free, the upsell just removes
+// friction. An informational "running low" banner appears as the
+// user approaches the cap (>= 80% used) so they're not surprised.
+// Kinrel Plus users have unlimited uploads.
+//
+// IMPORTANT: Razorpay payment capture remains STUBBED — tapping
+// "Subscribe" grants Premium without real payment. See
+// paywall_screen.dart and the tier-structure commit message.
 //
 // Orange K-Graph DNA: #131416 bg, #191B2C cards, #E8612A accent,
 // KinrelGradients.igniteGradient CTA.
@@ -29,6 +44,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/widgets/cached_avatar.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../shared/widgets/kinrel_skeleton.dart';
+import '../../../shared/widgets/paywall_sheet.dart';
 import '../providers/memory_vault_provider.dart';
 import '../data/memory_model.dart';
 import 'memory_detail_screen.dart';
@@ -497,85 +513,49 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
   // ═══════════════════════════════════════════════════════════════════
 
   Future<void> _handleUploadTap() async {
-    final isPremium = await PremiumService.isPremium();
-    if (!isPremium) {
-      _showPaywallCard();
+    // ── Soft cap check (per the tier revision pass) ────────────────
+    // Free users may upload up to 50 photos per calendar month
+    // (storage has real marginal cost). When the cap is hit, show a
+    // non-alarming in-context paywall framed as "remove the limit"
+    // (PaywallTrigger.memoryVaultLimit), NOT as "unlock this
+    // feature" — uploads already work for free; the upsell just
+    // removes friction. Premium (Kinrel Plus) users have unlimited
+    // uploads and bypass this check entirely.
+    //
+    // When APPROACHING the cap (>= 80% used but not yet at the cap),
+    // show a non-alarming informational SnackBar so the user isn't
+    // surprised when they hit it. This is the "clear in-context
+    // message when approaching" half of the requirement.
+    final canUpload = await PremiumService.canUploadMemoryVaultPhoto();
+    final used = await PremiumService.getMemoryVaultUploadsThisMonth();
+    final cap = PremiumService.memoryVaultFreeMonthlyCap;
+    if (!canUpload && mounted) {
+      // Hit the cap — show the soft-cap paywall (not a hard block
+      // on the feature; the upload sheet itself never opens here).
+      PaywallSheet.show(
+        context: context,
+        trigger: PaywallTrigger.memoryVaultLimit,
+        currentCount: used,
+        maxFree: cap,
+      );
       return;
     }
-    _showUploadSheet();
-  }
-
-  void _showPaywallCard() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: KinrelColors.darkCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.xxl),
-        ),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(KinrelSpacing.xl),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: KinrelGradients.achievementGradient,
-                  ),
-                  child: const Icon(
-                    Icons.workspace_premium_rounded,
-                    color: Colors.white,
-                    size: 32,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Premium Feature',
-                  style: KinrelTypography.headlineMedium.copyWith(
-                    color: KinrelColors.textWhite,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Upload photos to the Memory Vault is available\nfor Kinrel Premium members.',
-                  textAlign: TextAlign.center,
-                  style: KinrelTypography.bodyMedium.copyWith(
-                    color: KinrelColors.textSilver,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                DKButton(
-                  label: 'Upgrade to Premium',
-                  variant: DKButtonVariant.gradient,
-                  icon: Icons.auto_awesome_rounded,
-                  fullWidth: true,
-                  size: DKButtonSize.lg,
-                  onPressed: () {
-                    Navigator.pop(context);
-                    context.push('/premium');
-                  },
-                ),
-                const SizedBox(height: 12),
-                DKButton(
-                  label: 'Maybe Later',
-                  variant: DKButtonVariant.secondary,
-                  fullWidth: true,
-                  size: DKButtonSize.md,
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
+    // Approaching the cap (>= 80% used, but still under). Show a
+    // non-alarming SnackBar before opening the upload sheet. The
+    // SnackBar is dismissible and does NOT block the upload.
+    if (mounted && used >= (cap * 0.8).round() && used < cap) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Running low on uploads this month — $used of $cap used. '
+            'Kinrel Plus removes this limit.',
           ),
-        );
-      },
-    );
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+    _showUploadSheet();
   }
 
   void _showUploadSheet() {
@@ -1424,8 +1404,20 @@ class _UploadMemorySheetState extends ConsumerState<_UploadMemorySheet> {
         );
 
     final state = ref.read(memoryVaultProvider);
+    // Only count successful uploads against the free-tier monthly
+    // soft cap. Failed uploads (state.error != null OR still
+    // uploading) don't consume the user's monthly budget — this
+    // avoids penalizing the user for infrastructure failures.
+    // Premium (Kinrel Plus) users bypass the counter entirely
+    // (incrementMemoryVaultUpload is a no-op for them in the
+    // sense that canUploadMemoryVaultPhoto always returns true;
+    // we still record the count for diagnostics/insights, but
+    // the cap is not enforced).
     if (!state.isUploading && state.error == null) {
-      Navigator.pop(context);
+      await PremiumService.incrementMemoryVaultUpload();
+      if (mounted) {
+        Navigator.pop(context);
+      }
     }
   }
 

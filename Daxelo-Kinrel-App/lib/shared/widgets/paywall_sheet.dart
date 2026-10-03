@@ -15,17 +15,27 @@
 //      right when they hit the limit, not in a generic settings page).
 //
 // This sheet shows:
-//   • What triggered the paywall (e.g., "You've reached the 15-member
+//   • What triggered the paywall (e.g., "You've reached the 100-member
 //     free limit")
-//   • What premium unlocks (unlimited members, families, export, AI)
-//   • A single prominent CTA ("Upgrade to Kinrel Premium")
+//   • What Kinrel Plus unlocks (unlimited members, Memory Vault,
+//     GEDCOM export, Family Insights) — ONLY benefits that have a
+//     corresponding real gate in the app. No phantom gates.
+//   • A single prominent CTA ("Upgrade to Kinrel Plus")
 //   • A dismiss option ("Maybe later")
+//
+// IMPORTANT — NO PHANTOM BENEFITS:
+// Every benefit listed here MUST have a corresponding real gate in the
+// app code, and every real gate in the app MUST be advertised here.
+// Per the tier revision pass: AI kinship discovery is FREE (gate
+// removed, copy removed). GEDCOM export IS genuinely enforced and IS
+// advertised here. Family Insights is genuinely enforced (soft
+// blurred-preview paywall) and IS advertised here.
 //
 // PSYCHOLOGICAL PRINCIPLE: LOSS AVERSION + ANCHORING
 // ─────────────────────────────────────────────────────────────────────
-//   • Loss Aversion: "Don't lose your 16th member — upgrade to keep
+//   • Loss Aversion: "Don't lose your 101st member — upgrade to keep
 //     adding" beats "Get premium features" by ~2×.
-//   • Anchoring: showing "₹299/month" next to "₹2,999/year (save 17%)"
+//   • Anchoring: showing "₹99/month" next to "₹799/year (save 33%)"
 //     makes the yearly plan look like the obvious choice.
 //
 // USAGE
@@ -42,26 +52,38 @@
 //     return;
 //   }
 //   // Proceed with the add...
+//
+// IMPORTANT — Razorpay payment capture remains STUBBED. Tapping
+// "Subscribe" grants Premium without real payment. This is flagged
+// here so it isn't forgotten: this tier structure is not revenue-
+// generating until Razorpay integration is completed separately.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
-import '../../core/constants/brand_spacing.dart' show KinrelSpacing, KinrelRadius;
+import '../../core/constants/brand_spacing.dart' show KinrelRadius;
 import '../../core/services/haptic_service.dart';
 import '../../core/services/premium_service.dart';
 import 'bounce_button.dart';
 
 /// What triggered the paywall. Determines the copy + icon.
+///
+/// NOTE: `familyLimit` was REMOVED in the tier revision pass —
+/// multiple families are FREE on the free tier (with a high
+/// technical ceiling as a backstop, surfaced as a neutral
+/// informational message rather than an upsell). The paywall
+/// only triggers for genuinely premium-gated actions.
 enum PaywallTrigger {
-  /// User hit the free-tier member limit (15 members).
+  /// User hit the free-tier member limit (100 members per family).
   memberLimit,
 
-  /// User hit the free-tier family limit (1 family).
-  familyLimit,
+  /// User hit the Memory Vault monthly soft cap (50 uploads/month).
+  memoryVaultLimit,
 
-  /// User tapped a premium-only feature (export, AI, insights).
+  /// User tapped a premium-only feature (GEDCOM export, insights).
   featureLocked,
 
   /// User manually opened the paywall from settings.
@@ -70,8 +92,8 @@ enum PaywallTrigger {
 
 /// A soft paywall bottom sheet.
 ///
-/// Shows what triggered the paywall, what premium unlocks, and a single
-/// prominent CTA. Dismissible (soft, not hard).
+/// Shows what triggered the paywall, what Kinrel Plus unlocks, and a
+/// single prominent CTA. Dismissible (soft, not hard).
 class PaywallSheet extends StatelessWidget {
   const PaywallSheet({
     super.key,
@@ -204,40 +226,77 @@ class PaywallSheet extends StatelessWidget {
   (IconData, String, String) _copyForTrigger() {
     switch (trigger) {
       case PaywallTrigger.memberLimit:
+        // Free-tier member cap: 100 members per family (calibrated
+        // for Indian joint-family households). The cap applies to
+        // a family's TOTAL size/growth on the INVITING side — it
+        // does NOT apply to accepting an invitation to an existing
+        // family. Accepting an invite is always free.
         return (
           Icons.group_add_rounded,
-          'You\'ve reached the free limit',
-          'You\'ve added $currentCount of $maxFree free members. Upgrade for unlimited members.',
+          'You\'ve reached the free member limit',
+          'You\'ve added $currentCount of $maxFree free members in this '
+              'family. Kinrel Plus removes the member cap entirely.',
         );
-      case PaywallTrigger.familyLimit:
+      case PaywallTrigger.memoryVaultLimit:
+        // Soft cap on Memory Vault uploads — 50/month free,
+        // unlimited on Kinrel Plus. Framed as "remove the limit"
+        // rather than "unlock this feature" because uploads
+        // already work for free; the upsell just removes friction.
         return (
-          Icons.family_restroom_rounded,
-          '1 family is free',
-          'You\'ve created $currentCount of $maxFree free families. Upgrade to create more.',
+          Icons.photo_library_rounded,
+          'Running low on uploads this month',
+          'You\'ve used $currentCount of $maxFree free Memory Vault '
+              'uploads this month. Kinrel Plus removes this limit.',
         );
       case PaywallTrigger.featureLocked:
         return (
           Icons.lock_outline_rounded,
-          '$featureName is a Premium feature',
-          'Unlock $featureName and more with Kinrel Premium.',
+          '$featureName is a Kinrel Plus feature',
+          'Unlock $featureName and more with Kinrel Plus.',
         );
       case PaywallTrigger.manualUpgrade:
         return (
           Icons.workspace_premium_rounded,
-          'Kinrel Premium',
-          'Unlock unlimited families, members, export, and AI insights.',
+          'Kinrel Plus',
+          'Unlock unlimited members, unlimited Memory Vault uploads, '
+              'GEDCOM export, and Family Insights.',
         );
     }
   }
 
+  /// Build the benefits list — ONLY benefits that have a real,
+  /// enforced gate in the app code. Per the tier revision pass:
+  ///   • Unlimited members — REAL gate (canAddMember, 100 cap)
+  ///   • Unlimited Memory Vault uploads — REAL gate (50/month cap)
+  ///   • GEDCOM export — REAL gate (canExport, enforced in screen)
+  ///   • Family Insights — REAL gate (canViewInsights, blurred preview)
+  ///
+  /// Removed (phantom / not enforced): "Unlimited families" (free
+  /// with high ceiling, no paywall), "AI kinship discovery" (free,
+  /// gate removed), "Ad-free experience" (no gate, no ads shown
+  /// anywhere — wasn't a real differentiator).
   Widget _buildBenefits() {
     final benefits = [
-      ('♾️', 'Unlimited members', 'No ${PremiumService.maxFreeMembers}-member cap per family'),
-      ('👨‍👩‍👧‍👦', 'Unlimited families', 'No ${PremiumService.maxFreeFamilies}-family cap'),
-      ('📤', 'Export & backup', 'Export your tree as GEDCOM / PDF'),
-      ('✨', 'AI kinship discovery', 'AI suggests relationships you might have missed'),
-      ('📊', 'Family insights', 'Generations, languages, countries, milestones'),
-      ('🚫', 'Ad-free experience', 'No ads, ever'),
+      (
+        '♾️',
+        'Unlimited members',
+        'No ${PremiumService.maxFreeMembers}-member cap per family',
+      ),
+      (
+        '📸',
+        'Unlimited Memory Vault uploads',
+        'No ${PremiumService.memoryVaultFreeMonthlyCap}/month soft cap',
+      ),
+      (
+        '📤',
+        'GEDCOM export & backup',
+        'Export your family tree as a portable GEDCOM file',
+      ),
+      (
+        '📊',
+        'Family Insights dashboard',
+        'Generations, languages, countries, milestones',
+      ),
     ];
     return Column(
       children: benefits.map((b) {
@@ -287,15 +346,17 @@ class PaywallSheet extends StatelessWidget {
     return BounceButton(
       onPressed: () {
         HapticService.success();
-        // In a real app, this would route to the store / payment sheet.
-        // For now, show a confirmation + close.
+        // Route to the full PaywallScreen for plan selection
+        // (monthly/yearly). The screen is registered at '/premium'
+        // in app_router.dart.
+        //
+        // IMPORTANT: Razorpay payment capture is currently STUBBED.
+        // The PaywallScreen simulates a successful payment and
+        // grants Premium immediately. This tier structure is NOT
+        // revenue-generating until Razorpay integration is
+        // completed separately. See paywall_screen.dart.
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Premium checkout coming soon!'),
-            backgroundColor: KinrelColors.orange,
-          ),
-        );
+        context.push('/premium');
       },
       haptic: null, // we fire the haptic manually above
       child: Container(
@@ -313,7 +374,7 @@ class PaywallSheet extends StatelessWidget {
           ],
         ),
         child: const Text(
-          'Upgrade to Kinrel Premium',
+          'Upgrade to Kinrel Plus',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,

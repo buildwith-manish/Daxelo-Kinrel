@@ -178,7 +178,9 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen>
         const SizedBox(height: 10),
 
         const Text(
-          'Add unlimited members, get AI suggestions,\nand unlock premium features.',
+          'Add unlimited members, upload unlimited photos to the\n'
+          'Memory Vault, export your tree as GEDCOM, and unlock\n'
+          'Family Insights.',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 14,
@@ -196,12 +198,25 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen>
   // ═══════════════════════════════════════════════════════════════════
 
   Widget _buildFeatureList() {
+    // IMPORTANT — NO PHANTOM BENEFITS:
+    // Every feature listed here MUST correspond to a real, enforced
+    // gate in the app code. Per the tier revision pass:
+    //   • Unlimited family members — REAL gate (canAddMember, 100 cap)
+    //   • Unlimited Memory Vault uploads — REAL gate (50/month cap)
+    //   • GEDCOM export & backup — REAL gate (canExport, enforced in
+    //     gedcom_export_screen.dart)
+    //   • Family Insights dashboard — REAL gate (canViewInsights,
+    //     blurred preview in family_insights_dashboard.dart)
+    // Removed (phantom / not enforced): "AI kinship discovery" (free
+    // for everyone, gate removed), "Ad-free experience" (no ads
+    // shown anywhere), "Unlimited families" (free with high ceiling,
+    // no paywall).
     const features = [
       (Icons.group_add_rounded, 'Unlimited family members'),
-      (Icons.auto_awesome_rounded, 'AI-powered relationship suggestions'),
-      (Icons.qr_code_2_rounded, 'Custom QR codes for invites'),
+      (Icons.photo_library_rounded, 'Unlimited Memory Vault uploads'),
+      (Icons.file_download_outlined, 'GEDCOM export & backup'),
+      (Icons.insights_rounded, 'Family Insights dashboard'),
       (Icons.history_rounded, 'Full family history & timeline'),
-      (Icons.card_giftcard_rounded, 'Exclusive festival card templates'),
       (Icons.support_agent_rounded, 'Priority support'),
     ];
 
