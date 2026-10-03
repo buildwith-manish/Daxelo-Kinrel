@@ -33,6 +33,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/family/family_provider.dart';
+import '../../../../core/widgets/person_avatar.dart';
 import '../../../games/shared/widgets/active_games_list.dart';
 import '../../../games/shared/widgets/family_leaderboard_widget.dart';
 import '../../../occasions/providers/occasion_reminders_provider.dart';
@@ -232,6 +233,13 @@ class FamilyPulseSection extends ConsumerWidget {
         .toList();
 
     // Build activity items from relationships + members.
+    //
+    // Phase (family-state-aware-home-screen): each activity row now
+    // carries the relevant family member's avatar + name + action +
+    // relative timestamp, matching a scannable pattern rather than a
+    // dense text-only log line. The "actor" for a relationship event
+    // is the fromPerson (the one who added the link); for a member
+    // join, it's the member themselves.
     final activities = <_PulseActivity>[];
     for (final rel in detail.relationships) {
       final fromPerson =
@@ -239,16 +247,18 @@ class FamilyPulseSection extends ConsumerWidget {
       final toPerson =
           detail.members.where((p) => p.id == rel.toPersonId).firstOrNull;
       activities.add(_PulseActivity(
-        icon: Icons.link_outlined,
-        text:
-            '${fromPerson?.name ?? "Someone"} added ${toPerson?.name ?? "a family member"} as ${rel.relationshipKey.replaceAll("_", " ")}',
+        actorName: fromPerson?.name ?? 'Someone',
+        actorPhotoUrl: fromPerson?.photoUrl,
+        action: 'added ${toPerson?.name ?? "a family member"} as '
+            '${rel.relationshipKey.replaceAll("_", " ")}',
         timestamp: rel.createdAt,
       ));
     }
     for (final member in detail.members) {
       activities.add(_PulseActivity(
-        icon: Icons.person_add_outlined,
-        text: '${member.name} joined the family',
+        actorName: member.name,
+        actorPhotoUrl: member.photoUrl,
+        action: 'joined the family',
         timestamp: member.createdAt,
       ));
     }
@@ -372,8 +382,9 @@ class FamilyPulseSection extends ConsumerWidget {
                   ),
                 ),
                 ...recentActivities.map((activity) => _PulseActivityRow(
-                      icon: activity.icon,
-                      text: activity.text,
+                      actorName: activity.actorName,
+                      actorPhotoUrl: activity.actorPhotoUrl,
+                      action: activity.action,
                       timestamp: activity.timestamp,
                     )),
                 if (activities.length > 4)
@@ -516,17 +527,22 @@ class _PulseNudgeRow extends StatelessWidget {
 
 class _PulseActivityRow extends StatelessWidget {
   const _PulseActivityRow({
-    required this.icon,
-    required this.text,
+    required this.actorName,
+    required this.actorPhotoUrl,
+    required this.action,
     required this.timestamp,
   });
 
-  final IconData icon;
-  final String text;
+  final String actorName;
+  final String? actorPhotoUrl;
+  final String action;
   final DateTime? timestamp;
 
   @override
   Widget build(BuildContext context) {
+    // Phase (family-state-aware-home-screen): avatar + bold name +
+    // regular-weight action + relative timestamp — a scannable pattern
+    // rather than the prior dense text-only log line.
     return Container(
       padding: const EdgeInsets.symmetric(
           horizontal: FamilyHubSpace.sm, vertical: FamilyHubSpace.sm + 2),
@@ -540,35 +556,87 @@ class _PulseActivityRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: FamilyHubSurface.iconMuted),
+          // Avatar (small, circular) — uses the shared PersonAvatar
+          // widget so the styling is consistent with avatars elsewhere
+          // in the app. 26px diameter fits the row's vertical rhythm.
+          PersonAvatar(
+            name: actorName,
+            photoUrl: actorPhotoUrl,
+            size: 26,
+            borderColor: KinrelColors.orange.withValues(alpha: 0.25),
+            borderWidth: 0.8,
+          ),
           const SizedBox(width: FamilyHubSpace.sm + 2),
           Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 13,
-                color: KinrelColors.textSilver,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Name (bold) + action (regular) — single line, ellided.
+                RichText(
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  text: TextSpan(
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 13,
+                      color: KinrelColors.textSilver,
+                      height: 1.3,
+                    ),
+                    children: [
+                      TextSpan(
+                        text: actorName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: KinrelColors.textWhite,
+                        ),
+                      ),
+                      const TextSpan(text: ' '),
+                      TextSpan(text: action),
+                    ],
+                  ),
+                ),
+                if (timestamp != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    _formatTimeAgo(timestamp!),
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.monoFont,
+                      fontSize: 10,
+                      color: KinrelColors.textDim,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ],
       ),
     );
   }
+
+  /// Compact relative timestamp ("just now", "5m", "3h", "2d", "M/d").
+  String _formatTimeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m';
+    if (diff.inHours < 24) return '${diff.inHours}h';
+    if (diff.inDays < 7) return '${diff.inDays}d';
+    return '${dt.month}/${dt.day}';
+  }
 }
 
 class _PulseActivity {
   const _PulseActivity({
-    required this.icon,
-    required this.text,
+    required this.actorName,
+    required this.actorPhotoUrl,
+    required this.action,
     required this.timestamp,
   });
 
-  final IconData icon;
-  final String text;
+  final String actorName;
+  final String? actorPhotoUrl;
+  final String action;
   final DateTime? timestamp;
 }
 

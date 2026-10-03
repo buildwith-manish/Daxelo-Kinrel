@@ -50,6 +50,7 @@ class HeroSection extends ConsumerWidget {
     this.avatarUrl,
     this.onAvatarTap,
     this.onAvatarLongPress,
+    this.compact = false,
   });
 
   final String familyId;
@@ -75,6 +76,23 @@ class HeroSection extends ConsumerWidget {
   /// Same role-based behaviour as onAvatarTap.
   final VoidCallback? onAvatarLongPress;
 
+  /// Compact-header mode (Phase: family-state-aware-home-screen).
+  ///
+  /// When true, the hero renders at a reduced footprint so an
+  /// additional content card fits above the fold on a standard phone
+  /// viewport. Specifically:
+  ///   • Expanded hero height: 280 → 156 (saves ~124px)
+  ///   • Avatar/symbol size:   140 → 72  (preserved as a smaller,
+  ///     secondary element rather than removed entirely)
+  ///   • Collapsed hero height: 80 → 72 (the pinned bar still works)
+  ///   • Graph/Map flanking icons are retained at their established
+  ///     position + style (only the surrounding header's height
+  ///     changes).
+  ///
+  /// The default (false) preserves the prior large-hero behavior for
+  /// any other call sites that haven't opted in.
+  final bool compact;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final kinrelState = ref.watch(kinrelProvider(familyId));
@@ -83,11 +101,25 @@ class HeroSection extends ConsumerWidget {
     // Collapse progress: 0 = expanded, 1 = collapsed.
     final collapse = (scrollOffset / 200).clamp(0.0, 1.0);
 
-    // Hero height: 280 expanded → 80 collapsed.
-    final heroHeight = 280 - (collapse * 200);
+    // ── Phase (family-state-aware-home-screen): compact header ──
+    // The hero's expanded height + symbol size now scale with the
+    // `compact` flag. Compact mode trims ~124px of vertical real
+    // estate, freeing enough space for an additional content card
+    // above the fold on a standard phone viewport. The collapsed
+    // (pinned bar) height also shrinks slightly (80 → 72) but keeps
+    // the same layout — back-arrow + tiny initial + family name +
+    // caption.
+    final double expandedHeight = compact ? 156 : 280;
+    final double collapsedHeight = compact ? 72 : 80;
+    final double expandedSymbol = compact ? 72 : 140;
 
-    // Symbol size: 140 expanded → 0 (hidden) collapsed.
-    final symbolSize = (140 * (1 - collapse)).clamp(0.0, 140.0);
+    // Hero height: expandedHeight → collapsedHeight as collapse → 1.
+    final heroHeight =
+        expandedHeight - (collapse * (expandedHeight - collapsedHeight));
+
+    // Symbol size: expandedSymbol → 0 (hidden) collapsed.
+    final symbolSize =
+        (expandedSymbol * (1 - collapse)).clamp(0.0, expandedSymbol);
 
     // Name opacity: 1 expanded → 0 collapsed (in the hero position).
     final nameOpacity = 1.0 - collapse;
@@ -279,7 +311,10 @@ class HeroSection extends ConsumerWidget {
                           onLongPress: onAvatarLongPress,
                           child: _FamilyInitialAvatar(
                             familyName: familyName,
-                            size: 40,
+                            // Compact mode uses a slightly smaller
+                            // collapsed avatar to match the reduced
+                            // pinned-bar height.
+                            size: compact ? 36 : 40,
                             avatarUrl: avatarUrl,
                           ),
                         ),
@@ -287,14 +322,21 @@ class HeroSection extends ConsumerWidget {
                     ),
 
                   if (symbolSize > 10) ...[
-                    const SizedBox(height: FamilyHubSpace.md),
-                    // Family name — Display type
+                    // Compact mode uses a tighter gap between the
+                    // avatar and the family name.
+                    SizedBox(height: compact ? FamilyHubSpace.sm : FamilyHubSpace.md),
+                    // Family name — Display type in full mode, Heading
+                    // type in compact mode (smaller footprint).
                     Opacity(
                       opacity: nameOpacity,
                       child: Text(
                         familyName,
-                        style: FamilyHubType.display,
+                        style: compact
+                            ? FamilyHubType.heading.copyWith(fontSize: 22)
+                            : FamilyHubType.display,
                         textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(height: FamilyHubSpace.xs),
@@ -306,6 +348,8 @@ class HeroSection extends ConsumerWidget {
                         '  ·  '
                         '$relationshipCount ${relationshipCount == 1 ? "relationship" : "relationships"}',
                         style: FamilyHubType.caption,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     // ── Today's Prediction teaser ────────────────────────
