@@ -396,11 +396,18 @@ class OnThisDayMemory {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Filter options for the timeline.
+///
+/// `showPinnedOnly` is a separate toggle from the year/type/member filters
+/// — it is wired to the pin-count badge in the screen header (tapping the
+/// badge flips this to true and filters the timeline to pinned memories
+/// only). It's tracked separately so that tapping the badge again restores
+/// the user's prior year/type/member filter context.
 class MemoriesFilter {
   const MemoriesFilter({
     this.selectedYear,
     this.selectedType,
     this.selectedMember,
+    this.showPinnedOnly = false,
   });
 
   /// Filter by year (null = all years).
@@ -412,17 +419,41 @@ class MemoriesFilter {
   /// Filter by family member name (null = all members).
   final String? selectedMember;
 
-  /// Whether no filters are active.
+  /// Toggle: show only pinned memories.
+  /// Driven by the pin-count badge tap on the screen header.
+  final bool showPinnedOnly;
+
+  /// Whether no filters are active (including pinned-only).
   bool get isClear =>
-      selectedYear == null && selectedType == null && selectedMember == null;
+      selectedYear == null &&
+      selectedType == null &&
+      selectedMember == null &&
+      !showPinnedOnly;
+
+  /// Whether any of the three "pill" filters (year/type/member) is active.
+  /// Used by the screen to decide whether to show the "Clear filters" link.
+  /// `showPinnedOnly` is treated separately (it has its own "view all"
+  /// affordance next to the badge).
+  bool get pillsActive =>
+      selectedYear != null ||
+      selectedType != null ||
+      selectedMember != null;
+
+  /// Count of active pill filters (0–3). Used for the badge counter.
+  int get activePillCount =>
+      (selectedYear != null ? 1 : 0) +
+      (selectedType != null ? 1 : 0) +
+      (selectedMember != null ? 1 : 0);
 
   MemoriesFilter copyWith({
     int? selectedYear,
     MemoryEventType? selectedType,
     String? selectedMember,
+    bool? showPinnedOnly,
     bool clearYear = false,
     bool clearType = false,
     bool clearMember = false,
+    bool clearPinnedOnly = false,
   }) {
     return MemoriesFilter(
       selectedYear: clearYear ? null : (selectedYear ?? this.selectedYear),
@@ -430,6 +461,7 @@ class MemoriesFilter {
       selectedMember: clearMember
           ? null
           : (selectedMember ?? this.selectedMember),
+      showPinnedOnly: clearPinnedOnly ? false : (showPinnedOnly ?? this.showPinnedOnly),
     );
   }
 }
@@ -478,6 +510,13 @@ class MemoriesState {
   List<MemoryEvent> get filteredEvents {
     var result = events.toList();
 
+    // ── Pinned-only filter (driven by the pin-count badge tap) ──────
+    // Applied BEFORE the year/type/member filters so the user can
+    // combine "show pinned only" with, say, a year filter.
+    if (filter.showPinnedOnly) {
+      result = result.where((e) => e.isPinned).toList();
+    }
+
     if (filter.selectedYear != null) {
       result = result.where((e) => e.year == filter.selectedYear).toList();
     }
@@ -498,6 +537,21 @@ class MemoriesState {
 
     return result;
   }
+
+  /// Whether the family has ANY memories at all (regardless of filters).
+  /// Used by the screen to decide between two distinct empty states:
+  ///   • `events.isEmpty` → "No memories yet — add your family's first moment"
+  ///   • `events.isNotEmpty && filteredEvents.isEmpty` → "No memories
+  ///     match your filters — try adjusting or clearing."
+  bool get hasMemories => events.isNotEmpty;
+
+  /// Whether the family has any pinned memories. Drives the visibility
+  /// of the pin-count badge in the header (the badge is hidden when zero
+  /// because there's nothing to filter to).
+  bool get hasPinnedMemories => events.any((e) => e.isPinned);
+
+  /// Count of pinned memories (drives the badge counter).
+  int get pinnedCount => events.where((e) => e.isPinned).length;
 
   /// Events grouped by year for sectioned display.
   Map<int, List<MemoryEvent>> get eventsByYear {
@@ -536,11 +590,25 @@ class MemoriesState {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// State notifier managing the memories list and operations.
+///
+/// PRODUCTION DEFAULT
+/// ──────────────────
+/// The notifier starts with an EMPTY state — no demo events are loaded for
+/// real families. This is intentional: the seeded "Sharma family" demo
+/// data (Aarav's birth, Rajesh & Meera's wedding, Ravi's Padma Shri, etc.)
+/// must NEVER appear for a brand-new real family — those families should
+/// see the proper "invitation to act" empty state instead.
+///
+/// Demo data is still available via [loadDemoData] for:
+///   • Widget tests (call from setUp)
+///   • Debug-mode preview (call from a dev-only entrypoint)
+///   • Test family IDs (call after construction if familyId matches a
+///     known test fixture)
+///
+/// See: task audit "Confirm/clear seeded demo data" in the Memories &
+/// Timeline brief.
 class MemoriesNotifier extends StateNotifier<MemoriesState> {
-  MemoriesNotifier()
-    : super(
-        MemoriesState(events: _demoEvents, onThisDayMemories: _demoOnThisDay),
-      );
+  MemoriesNotifier() : super(const MemoriesState());
 
   /// Set the year filter.
   void setYearFilter(int? year) {
@@ -566,9 +634,24 @@ class MemoriesNotifier extends StateNotifier<MemoriesState> {
     state = state.copyWith(filter: newFilter);
   }
 
-  /// Clear all filters.
+  /// Toggle the pinned-only filter (driven by the pin-count badge tap).
+  /// When toggled ON, the timeline shows only pinned memories; when
+  /// toggled OFF, the user's prior year/type/member filters are restored.
+  void togglePinnedOnly() {
+    final newFilter = state.filter.copyWith(
+      showPinnedOnly: !state.filter.showPinnedOnly,
+    );
+    state = state.copyWith(filter: newFilter);
+  }
+
+  /// Clear all pill filters (year/type/member) but leave `showPinnedOnly`
+  /// alone — the badge toggle has its own affordance to clear itself.
   void clearFilters() {
-    state = state.copyWith(filter: const MemoriesFilter());
+    state = state.copyWith(
+      filter: MemoriesFilter(
+        showPinnedOnly: state.filter.showPinnedOnly,
+      ),
+    );
   }
 
   /// Toggle pin on an event.
@@ -579,12 +662,35 @@ class MemoriesNotifier extends StateNotifier<MemoriesState> {
       }
       return e;
     }).toList();
+    // If the user just un-pinned the LAST pinned memory while
+    // `showPinnedOnly` was active, the filtered list will go empty.
+    // We don't auto-clear the filter — the screen's "no results while
+    // pinned-only" empty state handles that UX gracefully with a
+    // "No pinned memories — view all" affordance.
     state = state.copyWith(events: updatedEvents);
   }
 
   /// Add a new memory event.
   void addEvent(MemoryEvent event) {
     state = state.copyWith(events: [...state.events, event]);
+  }
+
+  /// Load the demo/seed memory set into the current state.
+  ///
+  /// This is intended for:
+  ///   • Widget tests — call from `setUp` to render with known data
+  ///   • Debug-mode preview — call from a dev-only entrypoint
+  ///   • Test family IDs — call after construction if the family is a
+  ///     known test fixture
+  ///
+  /// NEVER call this in production code paths for a real family — real
+  /// families should see the empty-state invitation-to-act, not someone
+  /// else's demo family history.
+  void loadDemoData() {
+    state = MemoriesState(
+      events: demoMemoryEvents,
+      onThisDayMemories: demoOnThisDayMemories,
+    );
   }
 }
 
@@ -601,9 +707,20 @@ final memoriesProvider = StateNotifierProvider<MemoriesNotifier, MemoriesState>(
 
 // ═══════════════════════════════════════════════════════════════════════
 // Demo Data — Realistic Indian Family Timeline Events
+// ───────────────────────────────────────────────────────────────────────
+//
+// These constants are PUBLIC so they can be:
+//   • Loaded by `MemoriesNotifier.loadDemoData()` in tests/debug
+//   • Imported directly by widget tests that want to render the screen
+//     with known data
+//
+// They MUST NOT be used as the default initialization for the notifier —
+// real families start empty (see `MemoriesNotifier` doc above).
 // ═══════════════════════════════════════════════════════════════════════
 
-final _demoEvents = <MemoryEvent>[
+/// Demo/seed timeline events — a realistic Indian family ("Sharma")
+/// history used for tests and debug preview. NOT loaded by default.
+final demoMemoryEvents = <MemoryEvent>[
   // ── 2024 ──────────────────────────────────────────────────────────
   MemoryEvent(
     id: 'migration-arjun-2024',
@@ -875,11 +992,17 @@ final _demoEvents = <MemoryEvent>[
 
 // ═══════════════════════════════════════════════════════════════════════
 // Demo "On This Day" Memories
+// ───────────────────────────────────────────────────────────────────────
+//
+// Demo data for tests/debug only — NOT loaded by default. See the
+// `MemoriesNotifier` doc above.
 // ═══════════════════════════════════════════════════════════════════════
 
 final _now = DateTime.now();
 
-final _demoOnThisDay = <OnThisDayMemory>[
+/// Demo "On This Day" memories — used for tests and debug preview.
+/// NOT loaded by default for real families.
+final demoOnThisDayMemories = <OnThisDayMemory>[
   OnThisDayMemory(
     id: 'otd-1',
     title: 'Diwali at Dadi\'s House',

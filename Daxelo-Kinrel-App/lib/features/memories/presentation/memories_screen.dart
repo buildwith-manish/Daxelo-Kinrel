@@ -18,7 +18,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../shared/widgets/app_scroll_safe_area.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../../shared/widgets/kinrel_empty_state.dart';
 import '../providers/memories_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -64,26 +66,57 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
             physics: const BouncingScrollPhysics(),
             slivers: [
               // ── Header ────────────────────────────────────────────
-              SliverToBoxAdapter(child: _buildHeader()),
+              SliverToBoxAdapter(child: _buildHeader(state)),
 
               // ── On This Day (if any) ──────────────────────────────
+              // HIDDEN entirely when there are zero "On This Day"
+              // matches — never shown empty or with placeholder content.
+              // (On This Day reflects a calendar-date filter independent
+              // of the user's Year/Type/Member pills, so its visibility
+              // is decided purely by [state.hasOnThisDay].)
               if (state.hasOnThisDay)
                 SliverToBoxAdapter(
                   child: _buildOnThisDaySection(state.onThisDayMemories),
                 ),
 
               // ── Filter Chips ──────────────────────────────────────
-              SliverToBoxAdapter(child: _buildFilterChips(state)),
+              // Filter pills are ONLY rendered when there's something to
+              // filter — for a brand-new family with zero memories the
+              // empty state invites the user to add the first moment
+              // instead of presenting unpopulated filter UI.
+              if (state.hasMemories)
+                SliverToBoxAdapter(child: _buildFilterChips(state)),
 
               // ── Timeline ──────────────────────────────────────────
-              if (state.filteredEvents.isEmpty)
-                SliverToBoxAdapter(child: _buildEmptyState())
+              // Two distinct empty states:
+              //   • Zero memories TOTAL → invitation to act ("add your
+              //     family's first moment")
+              //   • Has memories but filteredEvents is empty → "no
+              //     memories match your filters — adjust or clear"
+              if (!state.hasMemories)
+                SliverToBoxAdapter(child: _buildEmptyStateZeroMemories())
+              else if (state.filteredEvents.isEmpty)
+                SliverToBoxAdapter(child: _buildEmptyStateFiltered(state))
               else
                 _buildTimeline(state.filteredEvents),
+
+              // ── Scroll safe-area padding ──────────────────────────
+              // Shared widget — encodes the ADR-007 pattern so the last
+              // card never clips under the FAB or the gesture-nav inset.
+              // chromeHeight 56 = FAB only (no floating nav on this
+              // screen). See lib/shared/widgets/app_scroll_safe_area.dart
+              // for the full pattern. Other scroll screens with the
+              // same layout shape should adopt this widget instead of
+              // re-implementing the math inline.
+              AppScrollSafeArea.sliver(chromeHeight: 56),
             ],
           ),
 
           // ── FAB: Add Memory ────────────────────────────────────────
+          // Per ADR-007: positioned using MediaQuery padding bottom +
+          // visual margin. The FAB floats above the scrollable content
+          // (and the safe-area sliver above guarantees the last card
+          // never clips under it).
           Positioned(
             right: KinrelSpacing.base,
             bottom: MediaQuery.of(context).padding.bottom + 24,
@@ -98,87 +131,79 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
   // Header
   // ═══════════════════════════════════════════════════════════════════
 
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        KinrelSpacing.base,
-        KinrelSpacing.xl,
-        KinrelSpacing.base,
-        KinrelSpacing.sm,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: KinrelColors.orange.withValues(alpha: 0.15),
-            ),
-            child: const Icon(
-              Icons.access_time_rounded,
-              color: KinrelColors.orange,
-              size: 22,
-            ),
+  Widget _buildHeader(MemoriesState state) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            KinrelSpacing.base,
+            KinrelSpacing.xl,
+            KinrelSpacing.base,
+            KinrelSpacing.sm,
           ),
-          const SizedBox(width: KinrelSpacing.md),
-          Expanded(
-            child: Text(
-              'Memories & Timeline',
-              style: KinrelTypography.headlineLarge.copyWith(
-                color: KinrelColors.textWhite,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          // Pin count badge
-          Consumer(
-            builder: (context, ref, _) {
-              final pinnedCount = ref.watch(
-                memoriesProvider.select(
-                  (s) => s.events.where((e) => e.isPinned).length,
-                ),
-              );
-              if (pinnedCount == 0) return const SizedBox.shrink();
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  gradient: KinrelGradients.igniteGradient,
-                  borderRadius: BorderRadius.circular(KinrelRadius.full),
-                  boxShadow: [
-                    const BoxShadow(
-                      color: KinrelColors.orangeGlow,
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
+                  shape: BoxShape.circle,
+                  color: KinrelColors.orange.withValues(alpha: 0.15),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.push_pin_rounded,
-                      size: 14,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$pinnedCount',
-                      style: KinrelTypography.labelSmall.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+                child: const Icon(
+                  Icons.access_time_rounded,
+                  color: KinrelColors.orange,
+                  size: 22,
                 ),
-              );
-            },
+              ),
+              const SizedBox(width: KinrelSpacing.md),
+              Expanded(
+                child: Text(
+                  'Memories & Timeline',
+                  style: KinrelTypography.headlineLarge.copyWith(
+                    color: KinrelColors.textWhite,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              // ── Pin-count badge (TAPPABLE) ───────────────────────
+              // Tapping the badge toggles the `showPinnedOnly` filter,
+              // filtering the timeline to pinned memories only. The
+              // badge is hidden when there are zero pinned memories
+              // (because there's nothing to filter to). When the
+              // pinned-only filter is active, the badge shows a
+              // distinct "active" style (filled orange) so the user
+              // knows the timeline is currently filtered.
+              if (state.hasPinnedMemories)
+                _PinCountBadge(
+                  count: state.pinnedCount,
+                  isActive: state.filter.showPinnedOnly,
+                  onTap: () =>
+                      ref.read(memoriesProvider.notifier).togglePinnedOnly(),
+                ),
+            ],
           ),
-        ],
-      ),
+        ),
+        // ── "Showing pinned only — view all" indicator ─────────────
+        // Renders below the header when `showPinnedOnly` is active so
+        // the user always has a clear path back to the unfiltered
+        // timeline. Tapping it clears the pinned-only filter (keeps the
+        // user's prior year/type/member pills intact).
+        if (state.filter.showPinnedOnly)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              KinrelSpacing.base,
+              0,
+              KinrelSpacing.base,
+              KinrelSpacing.sm,
+            ),
+            child: _ShowingPinnedOnlyBanner(
+              onTap: () =>
+                  ref.read(memoriesProvider.notifier).togglePinnedOnly(),
+            ),
+          ),
+      ],
     );
   }
 
@@ -271,6 +296,11 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
                       : 'Year',
                   icon: Icons.calendar_today_rounded,
                   isActive: state.filter.selectedYear != null,
+                  onClear: state.filter.selectedYear != null
+                      ? () => ref
+                          .read(memoriesProvider.notifier)
+                          .setYearFilter(null)
+                      : null,
                   onTap: () => _showYearFilterSheet(state),
                 ),
               ),
@@ -283,6 +313,11 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
                       : 'Event Type',
                   icon: Icons.filter_list_rounded,
                   isActive: state.filter.selectedType != null,
+                  onClear: state.filter.selectedType != null
+                      ? () => ref
+                          .read(memoriesProvider.notifier)
+                          .setTypeFilter(null)
+                      : null,
                   onTap: () => _showTypeFilterSheet(state),
                 ),
               ),
@@ -295,13 +330,20 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
                       : 'Member',
                   icon: Icons.person_rounded,
                   isActive: state.filter.selectedMember != null,
+                  onClear: state.filter.selectedMember != null
+                      ? () => ref
+                          .read(memoriesProvider.notifier)
+                          .setMemberFilter(null)
+                      : null,
                   onTap: () => _showMemberFilterSheet(state),
                 ),
               ),
             ],
           ),
-          // Clear filters
-          if (!state.filter.isClear)
+          // Clear filters — only when at least one pill filter is active.
+          // `showPinnedOnly` is excluded because it has its own banner
+          // under the header.
+          if (state.filter.pillsActive)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Align(
@@ -639,11 +681,14 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
   // ═══════════════════════════════════════════════════════════════════
 
   Widget _buildTimeline(List<MemoryEvent> events) {
+    // NOTE: Bottom scroll padding is now provided by AppScrollSafeArea.sliver
+    // (added after this sliver in the build method). The previous inline
+    // SizedBox(height: 100) footer was insufficient on devices with large
+    // gesture-nav insets — see the ADR-007 safe-area policy and the
+    // shared widget's doc comment for details.
     return SliverList(
-      delegate: SliverChildBuilderWithFooter(
-        childCount: events.length,
-        footer: const SizedBox(height: 100), // Space for FAB
-        builder: (context, index) {
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
           final event = events[index];
           final isFirst = index == 0;
           final isLast = index == events.length - 1;
@@ -655,60 +700,108 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
                 ref.read(memoriesProvider.notifier).togglePin(event.id),
           );
         },
+        childCount: events.length,
       ),
     );
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // Empty State
+  // Empty State — Zero Memories Total
   // ═══════════════════════════════════════════════════════════════════
+  //
+  // Renders when the family has NO memories at all (the production
+  // default for a brand-new family — see `MemoriesNotifier` doc).
+  // Uses the shared [KinrelEmptyState] widget which follows the
+  // app-wide "invitation to act" pattern (matching the family list,
+  // presence strip, and leaderboard empty states).
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyStateZeroMemories() {
     return SliverToBoxAdapter(
-      child: SizedBox(
-        height: 400,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: KinrelColors.orange.withValues(alpha: 0.1),
-                ),
-                child: const Icon(
-                  Icons.access_time_rounded,
-                  size: 40,
-                  color: KinrelColors.orange,
-                ),
+      child: KinrelEmptyState(
+        icon: Icons.auto_stories_rounded,
+        title: 'No Memories Yet',
+        subtitle:
+            "Capture your family's first moment — a birth, a wedding, "
+            'a festival, a milestone — to start building your timeline '
+            'together.',
+        actionLabel: 'Add First Memory',
+        onAction: () => _showAddMemorySheet(),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Empty State — Filtered (Has Memories, No Filter Match)
+  // ═══════════════════════════════════════════════════════════════════
+  //
+  // Distinct from the zero-memories state: the family HAS memories but
+  // the current filter combination produces zero results. The CTA
+  // offers a clear path back (clear filters / clear pinned-only) so
+  // the user isn't stuck on a dead-end screen.
+
+  Widget _buildEmptyStateFiltered(MemoriesState state) {
+    final isPinnedOnly = state.filter.showPinnedOnly;
+    final hasPillFilters = state.filter.pillsActive;
+    void onClear() {
+      if (hasPillFilters) {
+        ref.read(memoriesProvider.notifier).clearFilters();
+      }
+      if (isPinnedOnly) {
+        ref.read(memoriesProvider.notifier).togglePinnedOnly();
+      }
+    }
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: KinrelColors.orange.withValues(alpha: 0.1),
               ),
-              const SizedBox(height: 20),
-              Text(
-                'No memories found',
-                style: KinrelTypography.headlineMedium.copyWith(
-                  color: KinrelColors.textWhite,
-                ),
+              child: const Icon(
+                Icons.filter_alt_off_rounded,
+                size: 40,
+                color: KinrelColors.orange,
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Try adjusting your filters or add\nyour first family memory!',
-                textAlign: TextAlign.center,
-                style: KinrelTypography.bodyMedium.copyWith(
-                  color: KinrelColors.textSilver,
-                ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              isPinnedOnly && !hasPillFilters
+                  ? 'No Pinned Memories'
+                  : 'No Memories Match Your Filters',
+              style: KinrelTypography.headlineMedium.copyWith(
+                color: KinrelColors.textWhite,
               ),
-              const SizedBox(height: 24),
-              DKButton(
-                label: 'Add First Memory',
-                variant: DKButtonVariant.gradient,
-                icon: Icons.add_rounded,
-                size: DKButtonSize.md,
-                onPressed: () => _showAddMemorySheet(),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isPinnedOnly && !hasPillFilters
+                  ? 'Pin a memory to keep it at the top of your timeline — '
+                      'tap the pin icon on any card.'
+                  : 'Try adjusting or clearing your filters to see more '
+                      'of your family timeline.',
+              textAlign: TextAlign.center,
+              style: KinrelTypography.bodyMedium.copyWith(
+                color: KinrelColors.textSilver,
+                height: 1.5,
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 24),
+            DKButton(
+              label: isPinnedOnly && !hasPillFilters
+                  ? 'View All Memories'
+                  : 'Clear Filters',
+              variant: DKButtonVariant.secondary,
+              icon: Icons.close_rounded,
+              size: DKButtonSize.md,
+              onPressed: onClear,
+            ),
+          ],
         ),
       ),
     );
@@ -925,6 +1018,17 @@ class _OnThisDayCard extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 // Filter Chip Button
 // ═══════════════════════════════════════════════════════════════════════
+//
+// Three interaction states (all visually distinct):
+//   • Default  — outlined, dim icon/label.
+//   • Active   — filled accent background (orange at 15% alpha),
+//                accent border, accent icon/label, plus a small "×"
+//                affordance so the user can clear this filter without
+//                re-opening the bottom sheet.
+//   • Pressed  — handled by AnimatedContainer + Material InkWell.
+//
+// Tapping the pill body opens the bottom sheet to change the selection.
+// Tapping the "×" clears this filter in one tap (does not open the sheet).
 
 class _FilterChipButton extends StatelessWidget {
   const _FilterChipButton({
@@ -932,12 +1036,19 @@ class _FilterChipButton extends StatelessWidget {
     required this.icon,
     required this.isActive,
     required this.onTap,
+    this.onClear,
   });
 
   final String label;
   final IconData icon;
   final bool isActive;
   final VoidCallback onTap;
+
+  /// Optional quick-clear callback. When non-null AND `isActive` is
+  /// true, a small "×" appears at the trailing edge of the pill.
+  /// Tapping the "×" calls this callback (does NOT trigger `onTap`).
+  /// Set to null to hide the "×" affordance entirely.
+  final VoidCallback? onClear;
 
   @override
   Widget build(BuildContext context) {
@@ -947,19 +1058,33 @@ class _FilterChipButton extends StatelessWidget {
         duration: KinrelMotion.fast,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
+          // Active state uses a FILLED background (not just a tinted
+          // outline) so it's immediately obvious at a glance which
+          // filters are applied. Matches the pattern used by other
+          // active filter chips in the app.
           color: isActive
-              ? KinrelColors.orange.withValues(alpha: 0.15)
+              ? KinrelColors.orange.withValues(alpha: 0.18)
               : KinrelColors.darkCard,
           borderRadius: BorderRadius.circular(KinrelRadius.full),
           border: Border.all(
             color: isActive
-                ? KinrelColors.orange.withValues(alpha: 0.4)
+                ? KinrelColors.orange.withValues(alpha: 0.55)
                 : const Color(0xFF3A3A4A),
-            width: 1,
+            width: isActive ? 1.5 : 1,
           ),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: KinrelColors.orange.withValues(alpha: 0.18),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
@@ -974,12 +1099,177 @@ class _FilterChipButton extends StatelessWidget {
                   color: isActive
                       ? KinrelColors.orange
                       : KinrelColors.textSilver,
-                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            // ── Quick-clear "×" — only on active pills ────────────
+            // Tap area is intentionally larger than the visual icon
+            // (44×44 minimum) for accessibility.
+            if (isActive && onClear != null) ...[
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: onClear,
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 2),
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: KinrelColors.orange.withValues(alpha: 0.25),
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 11,
+                      color: KinrelColors.orange,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Pin Count Badge (header)
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Tappable badge that shows the count of pinned memories. Tapping it
+// toggles the `showPinnedOnly` filter (filtering the timeline to pinned
+// memories only). When the filter is active, the badge shows a distinct
+// "active" style — bright filled orange + glow — so the user knows the
+// timeline is currently filtered. When inactive, the badge shows a
+// softer outlined style to invite tapping.
+
+class _PinCountBadge extends StatelessWidget {
+  const _PinCountBadge({
+    required this.count,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  final int count;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Tooltip(
+        message: isActive ? 'Showing pinned only — tap to view all' : 'Tap to show pinned only',
+        child: AnimatedContainer(
+          duration: KinrelMotion.fast,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            // Active: solid orange gradient + glow.
+            // Inactive: soft orange-tinted outline (still discoverable).
+            gradient: isActive ? KinrelGradients.igniteGradient : null,
+            color: isActive
+                ? null
+                : KinrelColors.orange.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(KinrelRadius.full),
+            border: isActive
+                ? null
+                : Border.all(
+                    color: KinrelColors.orange.withValues(alpha: 0.45),
+                    width: 1.2,
+                  ),
+            boxShadow: isActive
+                ? [
+                    const BoxShadow(
+                      color: KinrelColors.orangeGlowIntense,
+                      blurRadius: 12,
+                      offset: Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isActive
+                    ? Icons.push_pin_rounded
+                    : Icons.push_pin_outlined,
+                size: 14,
+                color: isActive ? Colors.white : KinrelColors.orange,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '$count',
+                style: KinrelTypography.labelSmall.copyWith(
+                  color: isActive ? Colors.white : KinrelColors.orange,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// "Showing Pinned Only — View All" Banner
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Renders below the header when the `showPinnedOnly` filter is active.
+// Provides a clear path back to the unfiltered timeline — tapping it
+// toggles the pinned-only filter off (the user's prior year/type/member
+// pills are preserved).
+
+class _ShowingPinnedOnlyBanner extends StatelessWidget {
+  const _ShowingPinnedOnlyBanner({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: KinrelColors.orange.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(KinrelRadius.full),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(KinrelRadius.full),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.push_pin_rounded,
+                size: 12,
+                color: KinrelColors.orange,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Showing pinned only',
+                style: KinrelTypography.labelSmall.copyWith(
+                  color: KinrelColors.orange,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '— View all',
+                style: KinrelTypography.labelSmall.copyWith(
+                  color: KinrelColors.orange.withValues(alpha: 0.85),
+                  fontWeight: FontWeight.w500,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1688,35 +1978,9 @@ class _AddMemorySheetState extends ConsumerState<_AddMemorySheet> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// SliverChildBuilderWithFooter — utility delegate
+// NOTE: SliverChildBuilderWithFooter removed — replaced by
+// AppScrollSafeArea.sliver (lib/shared/widgets/app_scroll_safe_area.dart)
+// which encodes the ADR-007 bottom safe-area pattern as a reusable
+// widget. Other scroll screens with the same layout shape should adopt
+// the same widget instead of re-implementing the bottom-padding math.
 // ═══════════════════════════════════════════════════════════════════════
-
-class SliverChildBuilderWithFooter extends SliverChildDelegate {
-  SliverChildBuilderWithFooter({
-    required this.childCount,
-    required this.footer,
-    required this.builder,
-  });
-
-  final int childCount;
-  final Widget footer;
-  final NullableIndexedWidgetBuilder builder;
-
-  @override
-  int get estimatedChildCount => childCount + 1;
-
-  @override
-  Widget? build(BuildContext context, int index) {
-    if (index < childCount) {
-      return builder(context, index);
-    }
-    if (index == childCount) {
-      return footer;
-    }
-    return null;
-  }
-
-  @override
-  bool shouldRebuild(covariant SliverChildBuilderWithFooter oldDelegate) =>
-      childCount != oldDelegate.childCount || footer != oldDelegate.footer;
-}
