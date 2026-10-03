@@ -40,6 +40,7 @@ import 'package:kinrel/core/widgets/global_error_widget.dart';
 // ignite gradient (#E8612A → #F59240), glow effects.
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,9 +48,11 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/constants/app_tokens.dart' show AppMotion;
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../shared/widgets/animated_preview_card.dart';
 import '../../../shared/widgets/app_scroll_safe_area.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../shared/widgets/kinrel_empty_state.dart';
@@ -694,9 +697,36 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
   /// doc). Uses the shared [KinrelEmptyState] widget which follows the
   /// app-wide "invitation to act" pattern (matching the family list,
   /// presence strip, and memories empty states).
+  ///
+  /// v95 (animated preview card): the static icon is replaced with
+  /// a small, animated live preview of what an Oral History story card
+  /// looks like. The preview demonstrates the format with a subtle
+  /// waveform-pulse animation (bars gently rising and falling in a
+  /// loose rhythm) instead of the Memories screen's photo crossfade
+  /// — because Oral History is audio content, not photo content.
+  /// The animation respects the platform reduced-motion accessibility
+  /// setting (AppMotion.reducedMotion) by showing a single static
+  /// waveform shape instead of pulsing. The preview card is wrapped
+  /// in a RepaintBoundary so the continuous animation doesn't cause
+  /// frame drops elsewhere on the screen (per the jank-audit
+  /// principles already established in this app).
   Widget _buildEmptyStateZeroStories() {
     return SliverToBoxAdapter(
       child: KinrelEmptyState(
+        // v95: pass an animated preview card as the illustration
+        // instead of a static icon. The KinrelEmptyState widget
+        // renders the illustration in place of the default icon
+        // circle. The preview card is wrapped in a RepaintBoundary
+        // so the continuous waveform pulse doesn't cause Flutter to
+        // repaint the entire empty state on every animation tick.
+        illustration: RepaintBoundary(
+          child: _AnimatedStoryPreviewCard(
+            reducedMotion: AppMotion.reducedMotion(context),
+          ),
+        ),
+        // `icon` is still required by KinrelEmptyState (used as a
+        // fallback if illustration is null). We pass a sensible
+        // default that matches the previous static state.
         icon: Icons.mic_rounded,
         title: 'No Stories Yet',
         subtitle:
@@ -2857,3 +2887,408 @@ Shared via Daxelo KinRel — Family Oral History
         .slideY(begin: 0.1, end: 0, duration: KinrelMotion.normal);
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Animated Story Preview Card (v95)
+// ═══════════════════════════════════════════════════════════════════════
+//
+// A small, animated live preview of what an Oral History story card
+// looks like — used in the Oral History empty state to demonstrate
+// the feature in action rather than showing a static icon.
+//
+// DESIGN
+// ──────
+// The preview card is styled identically to a real story card
+// (matching KinrelColors.darkCard + KinrelRadius.lg, category tag,
+// narrator avatar, duration badge, waveform visualization already
+// established in the populated view via _StoryCard). The card shell
+// (container + title/description layout) is delegated to the shared
+// [AnimatedPreviewCard] widget — the same shell the Memories &
+// Timeline preview card uses — so the two empty states share one
+// coherent design language.
+//
+// The placeholder content is deliberately generic and clearly
+// illustrative:
+//   • Avatar: a soft gradient circle with a microphone icon (NOT an
+//     initial that could be mistaken for a real person's name)
+//   • Title: "A story waiting to be told" (a generic, clearly-
+//     illustrative phrase demonstrating the breadth of what can be
+//     recorded, rather than a specific fabricated story title)
+//   • Duration badge: shows "0:00" with an audio-waveform icon
+//     (clearly a placeholder, not a fake specific duration like
+//     "12:34" that could read as real data)
+//   • Category tag: cycles through 2-3 of the real category types
+//     (Family, Recipe, Wisdom) every ~5 seconds during the
+//     animation — clearly illustrative/rotating, not presented as
+//     one fixed fake story. The cycling is subtle and slow.
+//
+// ANIMATION
+// ────────
+// Rather than photo crossfading (which doesn't fit audio content),
+// the waveform bars animate with a gentle, slow pulsing/breathing
+// motion — bars subtly rising and falling in a loose rhythm. This
+// suggests "this is where your recording's waveform will appear"
+// WITHOUT implying actual audio is playing (no progress indicator,
+// no play-state visual, since nothing is actually playing). The
+// pulse uses a [Timer.periodic] at ~1.6s per cycle with a sine-wave
+// amplitude envelope, so the motion reads as ambient breathing
+// rather than an attention-grabbing loop.
+//
+// REDUCED MOTION
+// ──────────────
+// When [reducedMotion] is true (the platform accessibility setting
+// is on, per AppMotion.reducedMotion), the Timer is never started —
+// the waveform bars are shown at varied but FIXED heights (a single
+// static waveform shape), not pulsing. The card is still visible
+// (the user still sees what a story card looks like) — only the
+// pulse animation is suppressed.
+//
+// PERFORMANCE
+// ───────────
+// The parent wraps this widget in a RepaintBoundary so the
+// continuous waveform pulse doesn't cause Flutter to repaint the
+// entire empty state on every animation tick. The animation is
+// lightweight (only the bar heights change; the rest of the card is
+// static). The Timer is cancelled on dispose so the widget doesn't
+// keep ticking when the empty state is scrolled off-screen or the
+// screen is popped.
+//
+// CONSISTENCY WITH MEMORIES EMPTY STATE
+// ─────────────────────────────────────
+// Reuses the same [AnimatedPreviewCard] shell as the Memories &
+// Timeline preview card, with slot-based content (header + mediaArea
+// + title + description) and the same reduced-motion passthrough.
+// The two empty states share one coherent design language — same
+// card chrome, same sizing (240px width), same typography — only the
+// animated media area differs (photo crossfade for Memories, waveform
+// pulse for Oral History) because the content types differ.
+
+class _AnimatedStoryPreviewCard extends StatefulWidget {
+  const _AnimatedStoryPreviewCard({
+    this.reducedMotion = false,
+  });
+
+  /// Whether the user has requested reduced motion. When true, the
+  /// card shows a single static waveform shape instead of pulsing.
+  /// Defaults to false — the parent should pass
+  /// `AppMotion.reducedMotion(context)`.
+  final bool reducedMotion;
+
+  @override
+  State<_AnimatedStoryPreviewCard> createState() =>
+      _AnimatedStoryPreviewCardState();
+}
+
+class _AnimatedStoryPreviewCardState
+    extends State<_AnimatedStoryPreviewCard>
+    with SingleTickerProviderStateMixin {
+  /// Drives the waveform pulse. A single [AnimationController] that
+  /// runs continuously (0 → 1 → 0 → 1 → ...) with a sine curve so
+  /// the bars breathe in and out gently.
+  late final AnimationController _pulseController;
+
+  /// Drives the category tag cycling. Restarts when the user toggles
+  /// reduced-motion off (so the cycle resumes from the current
+  /// category, not from the beginning).
+  Timer? _categoryTimer;
+
+  /// Index of the currently-shown placeholder category.
+  /// Cycles 0 → 1 → 2 → 0 → ...
+  int _currentCategoryIndex = 0;
+
+  /// The 2-3 illustrative placeholder categories. These are REAL
+  /// [StoryCategory] values (Family, Recipe, Wisdom) — cycling
+  /// through them showcases the variety of categories available,
+  /// which the brief explicitly allows: "can cycle through 2-3 of
+  /// the real category types ... since it's clearly illustrative/
+  /// rotating rather than presented as one fixed fake story."
+  static const _placeholderCategories = <StoryCategory>[
+    StoryCategory.familyHistory,
+    StoryCategory.recipe,
+    StoryCategory.wisdom,
+  ];
+
+  /// The base waveform shape — 30 bars at varied but fixed heights.
+  /// These heights are the "resting" state of the pulse: when the
+  /// pulse animation runs, each bar's height oscillates around its
+  /// base height. When reduced-motion is on, the bars stay at these
+  /// fixed heights (a single static waveform shape).
+  ///
+  /// The values are deterministic (generated from a fixed seed) so
+  /// the static shape is consistent across renders — not random
+  /// per build, which would look jittery.
+  static final List<double> _baseWaveform = _generateBaseWaveform(30);
+
+  @override
+  void initState() {
+    super.initState();
+    // The pulse runs at ~1.6s per cycle (1700ms). Slow and ambient,
+    // matching the Memories preview card's restraint.
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1700),
+    );
+    _startAnimationsIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedStoryPreviewCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.reducedMotion != oldWidget.reducedMotion) {
+      if (widget.reducedMotion) {
+        _stopAnimations();
+      } else {
+        _startAnimationsIfNeeded();
+      }
+    }
+  }
+
+  void _startAnimationsIfNeeded() {
+    if (widget.reducedMotion) return;
+    _pulseController.repeat(reverse: true);
+    // Cycle the category tag every ~5 seconds. Slow and subtle —
+    // the cycling is clearly illustrative, not attention-grabbing.
+    _categoryTimer?.cancel();
+    _categoryTimer = Timer.periodic(
+      const Duration(milliseconds: 5000),
+      (_) {
+        if (!mounted) return;
+        setState(() {
+          _currentCategoryIndex =
+              (_currentCategoryIndex + 1) % _placeholderCategories.length;
+        });
+      },
+    );
+  }
+
+  void _stopAnimations() {
+    _pulseController.stop();
+    _categoryTimer?.cancel();
+    _categoryTimer = null;
+  }
+
+  @override
+  void dispose() {
+    _stopAnimations();
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final category = _placeholderCategories[_currentCategoryIndex];
+
+    return AnimatedPreviewCard(
+      reducedMotion: widget.reducedMotion,
+      accentColor: category.accentColor,
+      header: _StoryPreviewHeader(category: category),
+      mediaArea: _StoryWaveformPulse(
+        accentColor: category.accentColor,
+        baseWaveform: _baseWaveform,
+        pulseAnimation: widget.reducedMotion ? null : _pulseController,
+      ),
+      title: 'A story waiting to be told',
+      description:
+          'Grandma\'s recipe, Dad\'s first job, a festival memory — '
+          'the voices and traditions worth preserving.',
+    );
+  }
+}
+
+/// The header row for the Oral History preview card — a category tag
+/// (icon + short label) on the left, a duration badge on the right.
+/// Matches the real `_StoryCard`'s top-row layout so the preview
+/// reads as a real story card.
+class _StoryPreviewHeader extends StatelessWidget {
+  const _StoryPreviewHeader({required this.category});
+
+  final StoryCategory category;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        // Category tag — matches _StoryCard's category tag styling.
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: category.accentColor.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(KinrelRadius.xs),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(category.icon, size: 12, color: category.accentColor),
+              const SizedBox(width: 3),
+              Text(
+                category.shortLabel,
+                style: KinrelTypography.micro.copyWith(
+                  color: category.accentColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Spacer(),
+        // Duration badge — shows "0:00" with an audio-waveform icon.
+        // Clearly a placeholder (not a fake specific duration like
+        // "12:34" that could read as real data). Matches _StoryCard's
+        // duration badge styling.
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkElevated,
+            borderRadius: BorderRadius.circular(KinrelRadius.full),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.graphic_eq_rounded,
+                size: 12,
+                color: KinrelColors.amber,
+              ),
+              const SizedBox(width: 3),
+              Text(
+                '0:00',
+                style: KinrelTypography.labelSmall.copyWith(
+                  color: KinrelColors.amber,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The animated waveform area for the Oral History preview card — a
+/// row of bars that gently pulse (rise and fall) to suggest "this is
+/// where your recording's waveform will appear" without implying
+/// actual audio is playing. When [pulseAnimation] is null (reduced-
+/// motion mode), the bars are shown at their fixed base heights — a
+/// single static waveform shape.
+///
+/// The bars use the same styling as the real [_WaveformPreview] widget
+/// (accent color with varying opacity, 1.5px border radius) so the
+/// preview reads as a real story card's waveform.
+class _StoryWaveformPulse extends StatelessWidget {
+  const _StoryWaveformPulse({
+    required this.accentColor,
+    required this.baseWaveform,
+    this.pulseAnimation,
+  });
+
+  /// The accent color for the waveform bars. Matches the cycling
+  /// category's accent color so the waveform color rotates with
+  /// the category tag.
+  final Color accentColor;
+
+  /// The base (resting) heights of the bars, 0.0–1.0. When
+  /// [pulseAnimation] is null, the bars render at these heights
+  /// (a single static waveform shape). When [pulseAnimation] is
+  /// non-null, each bar's height oscillates around its base height
+  /// following the pulse animation's value.
+  final List<double> baseWaveform;
+
+  /// The pulse animation driving the bar heights. When null
+  /// (reduced-motion mode), the bars are static. When non-null,
+  /// the parent is responsible for starting/stopping the animation
+  /// controller.
+  final Animation<double>? pulseAnimation;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 56,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: List.generate(baseWaveform.length, (index) {
+          final baseHeight = baseWaveform[index];
+
+          if (pulseAnimation == null) {
+            // Reduced-motion: static bars at their base heights.
+            return Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 1),
+                height: 6.0 + baseHeight * 36.0,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.35 + baseHeight * 0.5),
+                  borderRadius: BorderRadius.circular(1.5),
+                ),
+              ),
+            );
+          }
+
+          // Animated: each bar oscillates around its base height.
+          // The phase offset (index * 0.15) makes adjacent bars pulse
+          // slightly out of sync, so the motion reads as a loose
+          // "breathing" rhythm rather than all bars moving in unison
+          // (which would look mechanical).
+          return AnimatedBuilder(
+            animation: pulseAnimation!,
+            builder: (context, _) {
+              // The pulse animation's value goes 0→1→0→1 with
+              // repeat(reverse: true) — a triangle wave. We convert
+              // it to a smooth sine envelope (0.0–1.0) so the bars
+              // breathe rather than jump. Each bar has a phase offset
+              // (index * 0.15, wrapped to 0..1) so adjacent bars don't
+              // move in lockstep.
+              //
+              // `t` is the animation value (0..1, 0..1, 0..1, ...).
+              // `phase` is the per-bar phase offset (0..1).
+              // The sine wave: sin((t + phase) * 2π), mapped -1..1 to 0..1.
+              final t = pulseAnimation!.value;
+              final phase = (index * 0.15) % 1.0;
+              final sineValue =
+                  math.sin((t + phase) * 2 * math.pi);
+              final envelope = (1 + sineValue) / 2;
+
+              // The bar height oscillates between ~50% and ~100% of
+              // its base height — a gentle pulse, not a full collapse.
+              final pulseFactor = 0.5 + 0.5 * envelope;
+              final height = 6.0 + baseHeight * 36.0 * pulseFactor;
+              final opacity = 0.3 + baseHeight * pulseFactor * 0.5;
+
+              return Expanded(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 1),
+                  height: height,
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: opacity),
+                    borderRadius: BorderRadius.circular(1.5),
+                  ),
+                ),
+              );
+            },
+          );
+        }),
+      ),
+    );
+  }
+}
+
+/// Generates the base (resting) waveform shape — 30 bars at varied
+/// but deterministic heights (0.0–1.0). Deterministic so the static
+/// shape is consistent across renders (not random per build, which
+/// would look jittery).
+List<double> _generateBaseWaveform(int barCount) {
+  // The shape should look like a real audio waveform — varied, with
+  // some tall bars and some short bars, not a uniform sine wave.
+  // We use a deterministic mix of sine waves at different frequencies
+  // for a natural-looking but consistent shape.
+  return List.generate(barCount, (i) {
+    // Three sine waves at different frequencies + phases, mixed
+    // and normalized to 0..1. The result is clamped to a reasonable
+    // range so the bars are visible but not all the same height.
+    final low = 0.5 + 0.5 * math.sin(i * 0.4);
+    final mid = 0.5 + 0.5 * math.sin(i * 1.7 + 1.0);
+    final high = 0.5 + 0.5 * math.sin(i * 3.3 + 2.0);
+    final mixed = (low * 0.5 + mid * 0.3 + high * 0.2);
+    return (0.15 + mixed * 0.7).clamp(0.15, 0.95);
+  });
+}
+

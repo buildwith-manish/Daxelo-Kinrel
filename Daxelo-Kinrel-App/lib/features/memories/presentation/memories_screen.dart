@@ -21,6 +21,7 @@ import '../../../core/constants/app_tokens.dart' show AppMotion;
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../shared/widgets/animated_preview_card.dart';
 import '../../../shared/widgets/app_scroll_safe_area.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../shared/widgets/kinrel_empty_state.dart';
@@ -2197,131 +2198,101 @@ class _AnimatedMemoryPreviewCardState
   Widget build(BuildContext context) {
     final scene = _placeholderScenes[_currentSceneIndex];
 
-    // Constrain the preview card width so it reads as a real
-    // timeline card (not a tiny icon-sized chip). The KinrelEmptyState
-    // wraps the illustration in a 96×96 circle — our illustration
-    // overflows that circle intentionally (SizedBox with width 220 +
-    // aspect-ratio-driven height), so it presents as a proper card
-    // preview above the headline.
-    return SizedBox(
-      width: 240,
-      // The card is sized to ~1.4:1 aspect ratio — wider than tall,
-      // matching the photo-area proportions of a real timeline card.
-      child: Container(
-        padding: const EdgeInsets.all(KinrelSpacing.base),
-        decoration: BoxDecoration(
-          color: KinrelColors.darkCard,
-          borderRadius: BorderRadius.circular(KinrelRadius.lg),
-          border: Border.all(
-            color: scene.accentColor.withValues(alpha: 0.25),
-            width: 1,
+    // v95: delegate the card container + title/description layout to
+    // the shared AnimatedPreviewCard shell. This widget now owns only
+    // the scene data + the crossfade media widget — the card chrome
+    // (darkCard container, KinrelRadius.lg, accent border/shadow,
+    // title/description typography) lives in the shared shell so the
+    // Oral History preview card can reuse the exact same chrome.
+    return AnimatedPreviewCard(
+      reducedMotion: widget.reducedMotion,
+      accentColor: scene.accentColor,
+      header: _SceneHeader(scene: scene),
+      mediaArea: _MemoryPhotoCrossfade(
+        scene: scene,
+        sceneIndex: _currentSceneIndex,
+      ),
+      title: scene.title,
+      description: scene.description,
+    );
+  }
+}
+
+/// The header row for the Memories preview card — a type badge (icon
+/// + uppercase label) on the left, a date label on the right. Matches
+/// the real `_TimelineEventCard`'s top-row layout so the preview
+/// reads as a real timeline card.
+class _SceneHeader extends StatelessWidget {
+  const _SceneHeader({required this.scene});
+
+  final _PlaceholderScene scene;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: scene.accentColor.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(KinrelRadius.xs),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: scene.accentColor.withValues(alpha: 0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(scene.icon, size: 12, color: scene.accentColor),
+              const SizedBox(width: 4),
+              Text(
+                scene.typeLabel,
+                style: KinrelTypography.micro.copyWith(
+                  color: scene.accentColor,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // ── Top row: type badge + date ────────────────────────
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: scene.accentColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(KinrelRadius.xs),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        scene.icon,
-                        size: 12,
-                        color: scene.accentColor,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        scene.typeLabel,
-                        style: KinrelTypography.micro.copyWith(
-                          color: scene.accentColor,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  scene.dateLabel,
-                  style: KinrelTypography.labelSmall.copyWith(
-                    color: KinrelColors.textDim,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
+        const Spacer(),
+        Text(
+          scene.dateLabel,
+          style: KinrelTypography.labelSmall.copyWith(
+            color: KinrelColors.textDim,
+          ),
+        ),
+      ],
+    );
+  }
+}
 
-            // ── Animated photo area (crossfade between scenes) ────
-            // The AnimatedSwitcher crossfades between the placeholder
-            // scene's gradient + icon. When reduced-motion is on, the
-            // switcher still renders (so the card looks complete) but
-            // doesn't cycle (the Timer is stopped in initState). The
-            // 700ms transition matches the brief's 600-800ms target.
-            ClipRRect(
-              borderRadius: BorderRadius.circular(KinrelRadius.md),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 700),
-                switchInCurve: Curves.easeOut,
-                switchOutCurve: Curves.easeIn,
-                transitionBuilder: (child, anim) => FadeTransition(
-                  opacity: anim,
-                  child: child,
-                ),
-                child: _PlaceholderPhoto(
-                  key: ValueKey('scene_$_currentSceneIndex'),
-                  scene: scene,
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
+/// The animated photo area for the Memories preview card — a soft
+/// gradient + centered icon that crossfades between scenes via
+/// [AnimatedSwitcher]. When reduced-motion is on, the parent stops
+/// cycling the scene index so this widget renders a single static
+/// frame (the AnimatedSwitcher still exists but never switches).
+class _MemoryPhotoCrossfade extends StatelessWidget {
+  const _MemoryPhotoCrossfade({
+    required this.scene,
+    required this.sceneIndex,
+  });
 
-            // ── Title + description ───────────────────────────────
-            // These change with each scene too (via the same
-            // _currentSceneIndex). To keep the crossfade subtle, the
-            // text area doesn't animate (only the photo area does) —
-            // the text updates instantly when the photo crossfades.
-            // This reads as "the photo changes, and the caption
-            // changes with it" rather than two simultaneous
-            // crossfades that would feel busy.
-            Text(
-              scene.title,
-              style: KinrelTypography.headlineSmall.copyWith(
-                color: KinrelColors.textWhite,
-                fontWeight: FontWeight.w700,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              scene.description,
-              style: KinrelTypography.bodySmall.copyWith(
-                color: KinrelColors.textSilver,
-                height: 1.5,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+  final _PlaceholderScene scene;
+  final int sceneIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(KinrelRadius.md),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 700),
+        switchInCurve: Curves.easeOut,
+        switchOutCurve: Curves.easeIn,
+        transitionBuilder: (child, anim) => FadeTransition(
+          opacity: anim,
+          child: child,
+        ),
+        child: _PlaceholderPhoto(
+          key: ValueKey('scene_$sceneIndex'),
+          scene: scene,
         ),
       ),
     );
