@@ -11,10 +11,13 @@
 // Orange K-Graph DNA: #13141E bg, #191B2C cards, #E8612A accent,
 // timeline gradient (#E8612A → #F59240), glow nodes.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/app_tokens.dart' show AppMotion;
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
@@ -714,10 +717,37 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
   // Uses the shared [KinrelEmptyState] widget which follows the
   // app-wide "invitation to act" pattern (matching the family list,
   // presence strip, and leaderboard empty states).
+  //
+  // v94 (animated preview card): the static icon is replaced with
+  // a small, animated live preview of what a memory card looks like.
+  // The preview cycles through 3-4 illustrative placeholder scenes
+  // with a slow crossfade (3.5s hold + 700ms transition), so the
+  // user sees the feature in action rather than just an icon. The
+  // animation respects the platform reduced-motion accessibility
+  // setting (AppMotion.reducedMotion) by showing a single static
+  // frame instead of cycling. The preview card is wrapped in a
+  // RepaintBoundary so the continuous crossfade doesn't cause frame
+  // drops elsewhere on the screen (per the jank-audit principles
+  // already established in this app).
 
   Widget _buildEmptyStateZeroMemories() {
     return SliverToBoxAdapter(
       child: KinrelEmptyState(
+        // v94: pass an animated preview card as the illustration
+        // instead of a static icon. The KinrelEmptyState widget
+        // renders the illustration in place of the default icon
+        // circle (it replaces the 96×96 icon container — the
+        // illustration is sized larger via its own constrained
+        // width, so it reads as a real timeline card preview,
+        // not a tiny icon-sized chip).
+        illustration: RepaintBoundary(
+          child: _AnimatedMemoryPreviewCard(
+            reducedMotion: AppMotion.reducedMotion(context),
+          ),
+        ),
+        // `icon` is still required by KinrelEmptyState (used as a
+        // fallback if illustration is null). We pass a sensible
+        // default that matches the previous static state.
         icon: Icons.auto_stories_rounded,
         title: 'No Memories Yet',
         subtitle:
@@ -1984,3 +2014,392 @@ class _AddMemorySheetState extends ConsumerState<_AddMemorySheet> {
 // widget. Other scroll screens with the same layout shape should adopt
 // the same widget instead of re-implementing the bottom-padding math.
 // ═══════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════
+// Animated Memory Preview Card (v94)
+// ═══════════════════════════════════════════════════════════════════════
+//
+// A small, animated live preview of what a memory timeline card looks
+// like — used in the Memories & Timeline empty state to demonstrate
+// the feature in action rather than showing a static icon.
+//
+// DESIGN
+// ──────
+// The preview card is styled identically to a real memory timeline
+// card (matching KinrelColors.darkCard + KinrelRadius.lg, category
+// color-coding, type badge, date, title/description layout already
+// established in the populated timeline view). The photo area uses
+// an AnimatedSwitcher with a crossfade to cycle through 3-4
+// illustrative placeholder "scenes" every 3.5 seconds, with a 700ms
+// crossfade transition between them (per the brief: 3-4 second hold
+// + 600-800ms transition).
+//
+// The placeholder scenes are deliberately generic and abstract — NOT
+// photos of real or AI-generated people — to avoid any implication
+// that these are real family photos or someone else's actual
+// memories. Each scene is a warm gradient + a simple Material icon
+// (cake, hearts, photo frame, star) that hints at the kind of memory
+// the user might add. The captions are neutral and non-specific
+// ("A family celebration", "A treasured milestone", "A special
+// moment", "A captured memory").
+//
+// REDUCED MOTION
+// ──────────────
+// When `reducedMotion` is true (the platform accessibility setting
+// is on, per AppMotion.reducedMotion), the card shows a SINGLE static
+// frame instead of cycling. The card is still visible (the user
+// still sees what a memory card looks like) — only the crossfade
+// animation is suppressed.
+//
+// PERFORMANCE
+// ───────────
+// The parent wraps this widget in a RepaintBoundary so the
+// continuous crossfade doesn't cause Flutter to repaint the entire
+// empty state on every animation tick. The AnimatedSwitcher itself
+// is lightweight (only the photo area animates; the rest of the
+// card is static). The Timer is cancelled on dispose so the widget
+// doesn't keep ticking when the empty state is scrolled off-screen
+// or the screen is popped.
+//
+// The animation is intentionally SLOW and SUBTLE — a 3.5s hold per
+// scene + 700ms crossfade means a full cycle takes ~16 seconds. This
+// reads as a gentle, ambient demonstration, not an attention-
+// grabbing loop. Per the brief: "this should read as a gentle,
+// ambient demonstration, not an attention-grabbing or distracting
+// loop."
+
+class _AnimatedMemoryPreviewCard extends StatefulWidget {
+  const _AnimatedMemoryPreviewCard({
+    this.reducedMotion = false,
+  });
+
+  /// Whether the user has requested reduced motion. When true, the
+  /// card shows a single static frame instead of cycling through
+  /// placeholder scenes. Defaults to false — the parent should pass
+  /// `AppMotion.reducedMotion(context)`.
+  final bool reducedMotion;
+
+  @override
+  State<_AnimatedMemoryPreviewCard> createState() =>
+      _AnimatedMemoryPreviewCardState();
+}
+
+class _AnimatedMemoryPreviewCardState
+    extends State<_AnimatedMemoryPreviewCard> {
+  /// Index of the currently-shown placeholder scene.
+  /// Cycles 0 → 1 → 2 → 3 → 0 → ...
+  int _currentSceneIndex = 0;
+
+  /// Drives the crossfade cycle. Restarts when the user toggles
+  /// reduced-motion off (so the cycle resumes from the current
+  /// frame, not from the beginning).
+  Timer? _cycleTimer;
+
+  /// The 3-4 illustrative placeholder scenes. Each scene is a tuple
+  /// of (gradient colors, icon, accent color, type label, title,
+  /// date label, description).
+  ///
+  /// v94 design rationale: these are deliberately GENERIC and
+  /// ABSTRACT — soft gradients + simple Material icons (cake,
+  /// hearts, photo frame, star) rather than photos of real or
+  /// AI-generated people. This avoids any implication that the
+  /// empty state is showing real family photos or someone else's
+  /// actual memories. The captions are neutral and non-specific.
+  static const _placeholderScenes = <_PlaceholderScene>[
+    _PlaceholderScene(
+      gradientColors: [Color(0xFFE8612A), Color(0xFF1A1C2E)],
+      icon: Icons.cake_rounded,
+      accentColor: KinrelColors.orange,
+      typeLabel: 'CELEBRATION',
+      title: 'A family celebration',
+      dateLabel: '12 Nov 2024',
+      description: 'Birthdays, festivals, and the moments we gather.',
+    ),
+    _PlaceholderScene(
+      gradientColors: [Color(0xFFF59240), Color(0xFF1A1C2E)],
+      icon: Icons.favorite_rounded,
+      accentColor: KinrelColors.amber,
+      typeLabel: 'MARRIAGE',
+      title: 'A treasured milestone',
+      dateLabel: '8 Dec 2020',
+      description: 'Weddings, anniversaries, and the vows that bind us.',
+    ),
+    _PlaceholderScene(
+      gradientColors: [Color(0xFF60A5FA), Color(0xFF1A1C2E)],
+      icon: Icons.school_rounded,
+      accentColor: KinrelColors.info,
+      typeLabel: 'GRADUATION',
+      title: 'A special moment',
+      dateLabel: '25 May 2012',
+      description: 'Graduations, achievements, and the milestones we reach.',
+    ),
+    _PlaceholderScene(
+      gradientColors: [Color(0xFFFFD700), Color(0xFF1A1C2E)],
+      icon: Icons.auto_stories_rounded,
+      accentColor: KinrelColors.brightGold,
+      typeLabel: 'FESTIVAL',
+      title: 'A captured memory',
+      dateLabel: '1 Nov 2024',
+      description: 'Festivals, traditions, and the rituals we keep alive.',
+    ),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _startCycleIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedMemoryPreviewCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If reduced-motion toggled, start/stop the cycle accordingly.
+    if (widget.reducedMotion != oldWidget.reducedMotion) {
+      if (widget.reducedMotion) {
+        _stopCycle();
+      } else {
+        _startCycleIfNeeded();
+      }
+    }
+  }
+
+  void _startCycleIfNeeded() {
+    if (widget.reducedMotion) return;
+    _stopCycle();
+    // 3.5 second hold per scene + 700ms crossfade ≈ 4.2s per cycle.
+    // Total cycle (4 scenes) ≈ 16.8s — slow and ambient, per the
+    // brief's "gentle, ambient demonstration, not an attention-
+    // grabbing loop" requirement.
+    _cycleTimer = Timer.periodic(
+      const Duration(milliseconds: 4200),
+      (_) {
+        if (!mounted) return;
+        setState(() {
+          _currentSceneIndex =
+              (_currentSceneIndex + 1) % _placeholderScenes.length;
+        });
+      },
+    );
+  }
+
+  void _stopCycle() {
+    _cycleTimer?.cancel();
+    _cycleTimer = null;
+  }
+
+  @override
+  void dispose() {
+    _stopCycle();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scene = _placeholderScenes[_currentSceneIndex];
+
+    // Constrain the preview card width so it reads as a real
+    // timeline card (not a tiny icon-sized chip). The KinrelEmptyState
+    // wraps the illustration in a 96×96 circle — our illustration
+    // overflows that circle intentionally (SizedBox with width 220 +
+    // aspect-ratio-driven height), so it presents as a proper card
+    // preview above the headline.
+    return SizedBox(
+      width: 240,
+      // The card is sized to ~1.4:1 aspect ratio — wider than tall,
+      // matching the photo-area proportions of a real timeline card.
+      child: Container(
+        padding: const EdgeInsets.all(KinrelSpacing.base),
+        decoration: BoxDecoration(
+          color: KinrelColors.darkCard,
+          borderRadius: BorderRadius.circular(KinrelRadius.lg),
+          border: Border.all(
+            color: scene.accentColor.withValues(alpha: 0.25),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: scene.accentColor.withValues(alpha: 0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Top row: type badge + date ────────────────────────
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scene.accentColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(KinrelRadius.xs),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        scene.icon,
+                        size: 12,
+                        color: scene.accentColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        scene.typeLabel,
+                        style: KinrelTypography.micro.copyWith(
+                          color: scene.accentColor,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  scene.dateLabel,
+                  style: KinrelTypography.labelSmall.copyWith(
+                    color: KinrelColors.textDim,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // ── Animated photo area (crossfade between scenes) ────
+            // The AnimatedSwitcher crossfades between the placeholder
+            // scene's gradient + icon. When reduced-motion is on, the
+            // switcher still renders (so the card looks complete) but
+            // doesn't cycle (the Timer is stopped in initState). The
+            // 700ms transition matches the brief's 600-800ms target.
+            ClipRRect(
+              borderRadius: BorderRadius.circular(KinrelRadius.md),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 700),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                transitionBuilder: (child, anim) => FadeTransition(
+                  opacity: anim,
+                  child: child,
+                ),
+                child: _PlaceholderPhoto(
+                  key: ValueKey('scene_$_currentSceneIndex'),
+                  scene: scene,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // ── Title + description ───────────────────────────────
+            // These change with each scene too (via the same
+            // _currentSceneIndex). To keep the crossfade subtle, the
+            // text area doesn't animate (only the photo area does) —
+            // the text updates instantly when the photo crossfades.
+            // This reads as "the photo changes, and the caption
+            // changes with it" rather than two simultaneous
+            // crossfades that would feel busy.
+            Text(
+              scene.title,
+              style: KinrelTypography.headlineSmall.copyWith(
+                color: KinrelColors.textWhite,
+                fontWeight: FontWeight.w700,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              scene.description,
+              style: KinrelTypography.bodySmall.copyWith(
+                color: KinrelColors.textSilver,
+                height: 1.5,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A single illustrative placeholder scene for the animated preview
+/// card. Kept simple (gradient + icon + accent + text) — deliberately
+/// NOT a photo of real people, to avoid any implication that these
+/// are real family photos or someone else's actual memories.
+@immutable
+class _PlaceholderScene {
+  const _PlaceholderScene({
+    required this.gradientColors,
+    required this.icon,
+    required this.accentColor,
+    required this.typeLabel,
+    required this.title,
+    required this.dateLabel,
+    required this.description,
+  });
+
+  /// The two-color gradient for the photo area. The first color is
+  /// warm (the scene's accent), the second is dark (the card
+  /// background) — produces a soft "spotlight" effect that reads as
+  /// an illustrative placeholder rather than a real photo.
+  final List<Color> gradientColors;
+
+  /// A simple Material icon that hints at the scene's category
+  /// (cake for celebration, hearts for marriage, etc.).
+  final IconData icon;
+
+  /// The accent color used for the type badge and the gradient.
+  final Color accentColor;
+
+  /// The uppercase type label (matches the real timeline card's
+  /// `event.typeLabel` convention).
+  final String typeLabel;
+
+  /// A neutral, non-specific title (e.g., "A family celebration").
+  final String title;
+
+  /// A neutral, non-specific date label.
+  final String dateLabel;
+
+  /// A neutral, non-specific description (1 sentence).
+  final String description;
+}
+
+/// The placeholder "photo" area inside the preview card — a soft
+/// gradient with a centered icon. Used by AnimatedSwitcher to
+/// crossfade between scenes.
+class _PlaceholderPhoto extends StatelessWidget {
+  const _PlaceholderPhoto({super.key, required this.scene});
+
+  final _PlaceholderScene scene;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 110,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: scene.gradientColors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Center(
+          child: Icon(
+            scene.icon,
+            size: 44,
+            color: Colors.white.withValues(alpha: 0.85),
+          ),
+        ),
+      ),
+    );
+  }
+}
