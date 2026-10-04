@@ -180,7 +180,10 @@ class ChatMessage {
     this.roomCode, // 6-char display room code
     this.gameMaxPlayers,
     this.gameCurrentPlayers,
-    this.gameInviteStatus, // 'pending' | 'accepted' | 'expired' | 'cancelled'
+    this.gameInviteStatus, // 'pending' | 'in_progress' | 'completed' | 'expired' | 'cancelled'
+                           // (legacy 'accepted' = 'in_progress')
+    this.gameWinnerName,    // 5-state lifecycle: winner display name (privacy-gated)
+    this.gameCompletedAt,   // 5-state lifecycle: when the game finished
     // Phase 22 / Task 3 — @mention references. Denormalized from the
     // ChatMention table so the bubble renderer can highlight @Name spans
     // without an extra round-trip.
@@ -229,6 +232,14 @@ class ChatMessage {
       gameMaxPlayers: json['gameMaxPlayers'] as int?,
       gameCurrentPlayers: json['gameCurrentPlayers'] as int?,
       gameInviteStatus: json['gameInviteStatus'] as String?,
+      // 5-state lifecycle: winner display name (privacy-gated server-side
+      // by fn_sync_game_invite_status — null for non-participants).
+      gameWinnerName: json['gameWinnerName'] as String?,
+      // 5-state lifecycle: when the game finished (server-set on
+      // transition to 'completed').
+      gameCompletedAt: json['gameCompletedAt'] == null
+          ? null
+          : DateTime.tryParse(json['gameCompletedAt'] as String),
       // Phase 22 / Task 3 — parse the denormalized `mentions` JSONB
       // column. Falls back to [] when the column is null or the row
       // came from a server that didn't have the column yet.
@@ -342,9 +353,36 @@ class ChatMessage {
   /// "2/4 players" / flips to "Full" without reopening the thread.
   final int? gameCurrentPlayers;
 
-  /// Game-invite card lifecycle: 'pending' (joinable) | 'accepted' (started)
-  /// | 'expired' | 'cancelled' (ended). Null is treated as 'pending'.
+  /// Game-invite card lifecycle: 'pending' (waiting/open-to-join lobby
+  /// state) | 'in_progress' (game started, players are playing) |
+  /// 'completed' (game finished normally) | 'expired' (room never filled /
+  /// never started in time) | 'cancelled' (host cancelled — legacy alias
+  /// for 'expired'). Null is treated as 'pending'.
+  ///
+  /// Legacy 'accepted' is a pre-state-machine alias for 'in_progress';
+  /// the GameInviteStatusChip classifier handles both.
+  ///
+  /// Driven by:
+  ///   • Per-game Flutter providers calling syncGameInviteChatCards()
+  ///   • AFTER UPDATE trigger on each game table → fn_sync_game_invite_status
+  ///   • pg_cron-driven fn_sweep_expired_game_rooms() (5-min cadence)
   final String? gameInviteStatus;
+
+  /// 5-state lifecycle: display name of the match winner, written when
+  /// the game completes. PRIVACY-GATED — the server-side
+  /// fn_sync_game_invite_status RPC only writes this column if the
+  /// requesting user (auth.uid()) is a participant of the match (verified
+  /// via game_participants). Non-participants see null and the card
+  /// renders a generic "Game completed" treatment.
+  ///
+  /// When the value IS present, it's safe to render — the requesting user
+  /// was a participant. The frontend does NOT need to re-validate.
+  final String? gameWinnerName;
+
+  /// 5-state lifecycle: server-set completion timestamp. Populated when
+  /// gameInviteStatus transitions to 'completed'. Used by the card to
+  /// render "Completed · 5m ago" alongside the status chip.
+  final DateTime? gameCompletedAt;
 
   /// Phase 22 / Task 3 — @mention refs on this message. Each contains
   /// the userId, display name, and the [start, end) character offsets
@@ -401,12 +439,43 @@ class ChatMessage {
       messageType == MessageType.gameInvite;
 
   /// Game-invite card: whether the invite is no longer joinable because its
-  /// lifecycle ended (started / expired / cancelled) — as opposed to merely
-  /// being full.
+  /// lifecycle ended (in_progress / completed / expired / cancelled) — as
+  /// opposed to merely being full.
   bool get isGameInviteClosed =>
       messageType == MessageType.gameInvite &&
       gameInviteStatus != null &&
       gameInviteStatus != 'pending';
+
+  /// 5-state lifecycle: the game has actually started (host pressed "Start"
+  /// or the equivalent RPC transitioned the row to in_progress/active).
+  /// Legacy 'accepted' (pre-state-machine) is also treated as in-progress.
+  bool get isGameInProgress =>
+      messageType == MessageType.gameInvite &&
+      (gameInviteStatus == 'in_progress' ||
+       gameInviteStatus == 'accepted' ||
+       gameInviteStatus == 'active');
+
+  /// 5-state lifecycle: the game finished normally (winner determined,
+  /// natural completion — NOT expired/cancelled).
+  bool get isGameCompleted =>
+      messageType == MessageType.gameInvite &&
+      gameInviteStatus == 'completed';
+
+  /// 5-state lifecycle: the room expired (never filled or never started in
+  /// time) OR was cancelled by the host. Both render the same "expired"
+  /// treatment per the spec ("greyed out, clearly inactive").
+  bool get isGameExpired =>
+      messageType == MessageType.gameInvite &&
+      (gameInviteStatus == 'expired' ||
+       gameInviteStatus == 'cancelled');
+
+  /// 5-state lifecycle: the room is in a pre-game state (waiting or full)
+  /// and is still joinable by other family members. This is the inverse
+  /// of [isGameInviteClosed] but semantically clearer at call sites.
+  bool get isGameJoinable =>
+      messageType == MessageType.gameInvite &&
+      (gameInviteStatus == null || gameInviteStatus == 'pending') &&
+      !isGameFull;
 
   /// Convenience: grouped reactions (emoji → count).
   Map<String, int> get groupedReactions {
@@ -463,6 +532,8 @@ class ChatMessage {
     int? gameMaxPlayers,
     int? gameCurrentPlayers,
     String? gameInviteStatus,
+    String? gameWinnerName,
+    DateTime? gameCompletedAt,
     List<MentionRef>? mentions,
     String? pollQuestion,
     List<String>? pollOptions,
@@ -502,6 +573,8 @@ class ChatMessage {
       gameMaxPlayers: gameMaxPlayers ?? this.gameMaxPlayers,
       gameCurrentPlayers: gameCurrentPlayers ?? this.gameCurrentPlayers,
       gameInviteStatus: gameInviteStatus ?? this.gameInviteStatus,
+      gameWinnerName: gameWinnerName ?? this.gameWinnerName,
+      gameCompletedAt: gameCompletedAt ?? this.gameCompletedAt,
       mentions: mentions ?? this.mentions,
       pollQuestion: pollQuestion ?? this.pollQuestion,
       pollOptions: pollOptions ?? this.pollOptions,
@@ -611,6 +684,12 @@ class ChatMessage {
       if (gameMaxPlayers != null) 'gameMaxPlayers': gameMaxPlayers,
       if (gameCurrentPlayers != null) 'gameCurrentPlayers': gameCurrentPlayers,
       if (gameInviteStatus != null) 'gameInviteStatus': gameInviteStatus,
+      // 5-state lifecycle: only sent on the wire when set (e.g. when the
+      // host sends a completed-state card via sendGameInvite — rare; usually
+      // these are server-set by fn_sync_game_invite_status trigger).
+      if (gameWinnerName != null) 'gameWinnerName': gameWinnerName,
+      if (gameCompletedAt != null)
+        'gameCompletedAt': gameCompletedAt!.toUtc().toIso8601String(),
       // Phase 22 / Task 3 — mentions are stored as a JSONB array on the
       // row. Empty list → '[]' which the server treats as "no mentions".
       'mentions': mentions.map((m) => m.toJson()).toList(),

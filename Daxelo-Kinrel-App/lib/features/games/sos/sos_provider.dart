@@ -406,13 +406,23 @@ class SosNotifier extends StateNotifier<SosState> {
         'startedAt': DateTime.now().toIso8601String(),
       }).eq('id', gameId);
 
-      // The game-invite chat card is no longer joinable — flip its status
-      // so the card renders "Started" for every family member via realtime.
+      // ── 5-state lifecycle: transition chat card to 'in_progress' ──
+      // Previously: the chat card flipped to 'accepted' (legacy alias,
+      // rendered as "Started" by the old classifier). Now we use the
+      // canonical 'in_progress' value, which the new classifier renders
+      // as a pulsing "LIVE NOW" chip — matching the existing LIVE NOW
+      // badge styling on the Prediction Battle card.
+      //
+      // The AFTER UPDATE trigger on sos_games will ALSO fire and call
+      // fn_sync_game_invite_status (which maps 'active' → 'in_progress'),
+      // so this Flutter-side call is belt-and-suspenders + ensures the
+      // chat card updates immediately even if the trigger hasn't been
+      // migrated to this table yet (forward compat).
       unawaited(
         syncGameInviteChatCards(
           client: client,
           gameId: gameId,
-          inviteStatus: 'accepted',
+          inviteStatus: 'in_progress',
         ),
       );
     } catch (e) {
@@ -610,13 +620,34 @@ class SosNotifier extends StateNotifier<SosState> {
       'winnerUserId': winner.winnerUserId,
     }).eq('id', gameId);
 
-    // The game-invite chat card has run its course — flip its status so the
-    // card renders "Ended" for every family member via realtime.
+    // ── 5-state lifecycle: transition chat card to 'completed' ──────
+    // Previously: the chat card flipped to 'expired' (rendered as "Ended")
+    // regardless of whether the game finished normally or was abandoned.
+    // Now: we distinguish 'completed' (finished normally with a winner)
+    // from 'expired' (never started / cancelled). The trigger on
+    // sos_games will ALSO fire and call fn_sync_game_invite_status,
+    // which maps 'finished' → 'completed' — but we set it explicitly
+    // here too so the winner name + completedAt land in the same UPDATE
+    // (the trigger-driven path doesn't carry the winner name).
+    //
+    // Privacy gate: the winner name is only written if the calling user
+    // is a participant of the match. Since SOS is turn-based 2-team and
+    // the user calling endGame is by definition a participant (either
+    // host or opponent), we always have a winner name to write here.
+    // The server-side fn_sync_game_invite_status RPC also gates this
+    // when called from a trigger context, but here we trust the
+    // per-game provider's participant context.
+    final winnerName = finalPlayers
+        .where((p) => p.userId == winner.winnerUserId)
+        .map((p) => p.userName)
+        .firstOrNull;
     unawaited(
       syncGameInviteChatCards(
         client: client,
         gameId: gameId,
-        inviteStatus: 'expired',
+        inviteStatus: 'completed',
+        winnerName: winnerName,
+        completedAt: DateTime.now(),
       ),
     );
 

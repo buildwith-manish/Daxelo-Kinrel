@@ -1,15 +1,16 @@
 // test/features/chat/game_invite_status_chip_test.dart
 //
-// Phase 7 — Unified game-invite status chip
+// 5-state lifecycle — Unified game-invite status chip
 //
-// Verifies the classification logic that drives the new color-coded
-// GameInviteStatusChip widget:
+// Verifies the classification logic that drives the color-coded
+// GameInviteStatusChip widget, now covering all 5 lifecycle states:
 //
 //   • waitingForPlayers (amber)  — status='pending', currentPlayers <= 1
 //   • openToJoin (green)         — status='pending', 1 < current < max
 //   • full (grey)                — status='pending', currentPlayers >= max
-//   • started (ember)            — status='accepted'
-//   • ended (muted)              — status='expired' | 'cancelled'
+//   • inProgress (pulsing green) — status='in_progress' (or legacy 'accepted'/'active')
+//   • completed (muted)          — status='completed'
+//   • expired (greyed)           — status='expired' | 'cancelled'
 //
 // Also pumps the chip widget itself in a test harness and asserts the
 // rendered text matches the expected label for each kind, so we have a
@@ -43,7 +44,7 @@ ChatMessage _invite({
 }
 
 void main() {
-  group('Phase 7 — classifyGameInviteStatus', () {
+  group('5-state lifecycle — classifyGameInviteStatus', () {
     test('status=pending, currentPlayers<=1 → waitingForPlayers', () {
       // A fresh invite with just the host in — "Waiting for players…"
       final c = classifyGameInviteStatus(_invite(
@@ -105,50 +106,78 @@ void main() {
       expect(c2.kind, GameInviteStatusKind.full);
     });
 
-    test('status=accepted → started (regardless of player count)', () {
-      // Game started — even if not at capacity, the room is closed
-      // because the game has begun.
+    test('status=in_progress → inProgress (pulsing LIVE NOW)', () {
+      // Game started — the chip renders the pulsing green LIVE NOW
+      // treatment, matching the existing LIVE NOW badge on the
+      // Prediction Battle card.
+      final c = classifyGameInviteStatus(_invite(
+        status: 'in_progress',
+        currentPlayers: 2,
+        maxPlayers: 4,
+      ));
+      expect(c.kind, GameInviteStatusKind.inProgress);
+      expect(c.label, 'LIVE NOW');
+    });
+
+    test('legacy status=accepted → inProgress (back-compat alias)', () {
+      // Pre-state-machine rows had gameInviteStatus='accepted' on
+      // host-start. These continue to render as inProgress (LIVE NOW)
+      // — no migration needed for existing chat cards.
       final c = classifyGameInviteStatus(_invite(
         status: 'accepted',
         currentPlayers: 2,
         maxPlayers: 4,
       ));
-      expect(c.kind, GameInviteStatusKind.started);
-      expect(c.label, 'Game started');
+      expect(c.kind, GameInviteStatusKind.inProgress);
+      expect(c.label, 'LIVE NOW');
     });
 
-    test('status=expired → ended', () {
+    test('status=completed → completed (muted, settled treatment)', () {
+      final c = classifyGameInviteStatus(_invite(
+        status: 'completed',
+        currentPlayers: 4,
+        maxPlayers: 4,
+      ));
+      expect(c.kind, GameInviteStatusKind.completed);
+      expect(c.label, 'Completed');
+    });
+
+    test('status=expired → expired (greyed, inactive)', () {
       final c = classifyGameInviteStatus(_invite(
         status: 'expired',
         currentPlayers: 1,
         maxPlayers: 4,
       ));
-      expect(c.kind, GameInviteStatusKind.ended);
-      expect(c.label, 'Game ended');
+      expect(c.kind, GameInviteStatusKind.expired);
+      expect(c.label, 'Expired');
     });
 
-    test('status=cancelled → ended', () {
+    test('status=cancelled → expired kind, label "Cancelled"', () {
+      // Per the spec, 'cancelled' is an alias for 'expired' — both
+      // render the same greyed-out, non-interactive treatment. The
+      // label differs so the user knows which terminal state they're
+      // looking at.
       final c = classifyGameInviteStatus(_invite(
         status: 'cancelled',
         currentPlayers: 4,
         maxPlayers: 4,
       ));
-      expect(c.kind, GameInviteStatusKind.ended);
-      expect(c.label, 'Game ended');
+      expect(c.kind, GameInviteStatusKind.expired);
+      expect(c.label, 'Cancelled');
     });
 
-    test('status=accepted takes priority over isFull=true', () {
-      // A game that started at full capacity should show "Game started"
-      // (lifecycle ended), not "Room full" (capacity-based). The
+    test('status=in_progress takes priority over isFull=true', () {
+      // A game that started at full capacity should show "LIVE NOW"
+      // (in-progress), not "Room full" (capacity-based). The
       // lifecycle status is the stronger signal — once a game has
       // started, the room is no longer joinable regardless of capacity.
       final c = classifyGameInviteStatus(_invite(
-        status: 'accepted',
+        status: 'in_progress',
         currentPlayers: 4,
         maxPlayers: 4,
       ));
-      expect(c.kind, GameInviteStatusKind.started,
-          reason: 'accepted status overrides isFull');
+      expect(c.kind, GameInviteStatusKind.inProgress,
+          reason: 'in_progress status overrides isFull');
     });
 
     test('applies uniformly across game types (SOS, Bingo, etc.)', () {
@@ -169,7 +198,7 @@ void main() {
     });
   });
 
-  group('Phase 7 — GameInviteStatusChip widget', () {
+  group('5-state lifecycle — GameInviteStatusChip widget', () {
     /// Pumps the chip in a minimal MaterialApp and asserts the rendered
     /// label text matches the expected string for each kind.
     Future<void> pumpChip(
@@ -217,22 +246,49 @@ void main() {
       expect(find.text('Room full'), findsOneWidget);
     });
 
-    testWidgets('started renders the "Game started" label', (tester) async {
+    testWidgets('inProgress renders the "LIVE NOW" label', (tester) async {
       await pumpChip(
         tester,
-        GameInviteStatusKind.started,
-        'Game started',
+        GameInviteStatusKind.inProgress,
+        'LIVE NOW',
       );
-      expect(find.text('Game started'), findsOneWidget);
+      expect(find.text('LIVE NOW'), findsOneWidget);
     });
 
-    testWidgets('ended renders the "Game ended" label', (tester) async {
+    testWidgets('inProgress starts the pulsing animation', (tester) async {
+      // The inProgress chip is the only state with an AnimationController.
+      // Pump with a duration to verify the controller is running and
+      // the chip's background alpha changes over time (the pulse).
       await pumpChip(
         tester,
-        GameInviteStatusKind.ended,
-        'Game ended',
+        GameInviteStatusKind.inProgress,
+        'LIVE NOW',
       );
-      expect(find.text('Game ended'), findsOneWidget);
+      // Pump a frame to let the AnimationController's repeat() kick in.
+      await tester.pump(const Duration(milliseconds: 50));
+      // The chip should still be rendering (the pulse doesn't unmount).
+      expect(find.text('LIVE NOW'), findsOneWidget);
+      // Pump more time to verify the controller is still alive.
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(find.text('LIVE NOW'), findsOneWidget);
+    });
+
+    testWidgets('completed renders the "Completed" label', (tester) async {
+      await pumpChip(
+        tester,
+        GameInviteStatusKind.completed,
+        'Completed',
+      );
+      expect(find.text('Completed'), findsOneWidget);
+    });
+
+    testWidgets('expired renders the "Expired" label', (tester) async {
+      await pumpChip(
+        tester,
+        GameInviteStatusKind.expired,
+        'Expired',
+      );
+      expect(find.text('Expired'), findsOneWidget);
     });
 
     testWidgets('compact variant renders text at smaller size', (tester) async {
@@ -275,12 +331,16 @@ void main() {
           'Room full',
         ),
         (
-          _invite(status: 'accepted', currentPlayers: 2, maxPlayers: 4),
-          'Game started',
+          _invite(status: 'in_progress', currentPlayers: 2, maxPlayers: 4),
+          'LIVE NOW',
+        ),
+        (
+          _invite(status: 'completed', currentPlayers: 4, maxPlayers: 4),
+          'Completed',
         ),
         (
           _invite(status: 'expired', currentPlayers: 1, maxPlayers: 4),
-          'Game ended',
+          'Expired',
         ),
       ];
 

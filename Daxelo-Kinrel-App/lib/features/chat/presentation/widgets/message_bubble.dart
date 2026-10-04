@@ -1277,18 +1277,93 @@ class MessageBubble extends ConsumerWidget {
     final status = message.gameInviteStatus ?? 'pending';
     final isFull = currentPlayers >= maxPlayers;
 
-    // Disabled-button label resolution: null → enabled "Join".
-    String? disabledLabel;
-    if (isFull) {
-      disabledLabel = 'Full';
-    } else if (status == 'accepted') {
-      disabledLabel = 'Started';
-    } else if (status == 'expired' || status == 'cancelled') {
-      disabledLabel = 'Ended';
+    // ── 5-state lifecycle: action button resolution ──────────────────
+    // The action button (or static label) below the status chip depends
+    // on the room's lifecycle state. Possible treatments:
+    //
+    //   • waitingForPlayers / openToJoin (pending, not full):
+    //       → "Join" button (solid orange, tappable)
+    //   • full (pending, at capacity):
+    //       → "Full" label (flat, disabled — but the room is still live,
+    //         just at capacity. Transitional: will progress to inProgress
+    //         or expired)
+    //   • inProgress:
+    //       → "Watch" button (spectator-style, tappable if the game
+    //         supports spectating — falls back to static label otherwise)
+    //   • completed:
+    //       → static "Game completed" label (with optional winner name
+    //         shown above if the viewer is a participant — privacy-gated)
+    //   • expired / cancelled:
+    //       → static "Expired" / "Cancelled" label (no interaction)
+    //
+    // Sender's own card (isMe == true) never shows Join — they're the
+    // host. They get the Watch/Rejoin button for inProgress, the
+    // completed label for completed, and empty for waiting/full (since
+    // the chip above already conveys the status).
+
+    final bool isPreGame = status == 'pending' || status.isEmpty;
+    final bool isInProgress = status == 'in_progress' ||
+        status == 'accepted' ||
+        status == 'active';
+    final bool isCompleted = status == 'completed';
+    final bool isExpired = status == 'expired' || status == 'cancelled';
+
+    // Action button label + tap target.
+    String actionLabel;
+    bool actionEnabled;
+    VoidCallback? actionCallback;
+
+    if (isPreGame && !isFull && !isMe) {
+      // Open to join — solid orange "Join" button.
+      actionLabel = 'Join';
+      actionEnabled = (message.gameId ?? '').isNotEmpty;
+      actionCallback =
+          actionEnabled ? () => _joinGameFromCard(context) : null;
+    } else if (isPreGame && isFull && !isMe) {
+      // At capacity — disabled "Full" label.
+      actionLabel = 'Full';
+      actionEnabled = false;
+      actionCallback = null;
+    } else if (isInProgress) {
+      // Game in progress — "Watch" / "Rejoin" button (sender always sees
+      // "Rejoin" since they're a participant; recipient sees "Watch" to
+      // spectate if they support it, otherwise the label just shows the
+      // live status without a tappable button).
+      //
+      // For now, we route to the lobby with the join= gameId param so the
+      // lobby screen picks up the spectate/rejoin flow. (Most game
+      // lobbies already handle this via the ?spectate= query param if
+      // the game is already in_progress.)
+      actionLabel = isMe ? 'Rejoin' : 'Watch';
+      actionEnabled = (message.gameId ?? '').isNotEmpty;
+      actionCallback =
+          actionEnabled ? () => _watchGameFromCard(context) : null;
+    } else if (isCompleted) {
+      // Game finished — static label, no interaction.
+      actionLabel = 'Game completed';
+      actionEnabled = false;
+      actionCallback = null;
+    } else if (isExpired) {
+      // Room expired or cancelled — static label, no interaction.
+      actionLabel = status == 'cancelled' ? 'Cancelled' : 'Expired';
+      actionEnabled = false;
+      actionCallback = null;
+    } else {
+      // Fallback (shouldn't happen — pre-game + isMe + full = sender's
+      // own card before they start; just show nothing actionable).
+      actionLabel = isMe ? 'Tap to start' : 'Join';
+      actionEnabled = !isMe && (message.gameId ?? '').isNotEmpty;
+      actionCallback =
+          actionEnabled ? () => _joinGameFromCard(context) : null;
     }
 
-    final canJoin =
-        !isMe && disabledLabel == null && (message.gameId ?? '').isNotEmpty;
+    // For sender's own card in waiting/open-to-join state, don't show
+    // the action button at all (the chip + their lobby navigation
+    // already covers it).
+    final bool showActionButton = !isMe ||
+        isInProgress ||
+        isCompleted ||
+        isExpired;
 
     return Container(
       width: double.infinity,
@@ -1405,61 +1480,133 @@ class MessageBubble extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: KinrelSpacing.sm + 2),
-          // ── Phase 7: Unified status chip ───────────────────────────
-          // Replaces the old sender-only icon+text status row with a
-          // single color-coded chip shown on EVERY game-invite card
-          // (sender + recipient). Users scrolling quickly through chat
-          // can now identify room status by color at a glance:
-          //   amber  → just created, waiting for players
-          //   green  → open to join, has activity
-          //   grey   → room full
-          //   ember  → game started
-          //   muted  → game ended
-          //
-          // The Join button below preserves its existing strong visual
-          // contrast (solid orange when joinable, flat/muted when not)
-          // — only the status TEXT above it gets the new chip treatment.
+          // ── 5-state lifecycle: unified status chip ────────────────
+          // Renders the appropriate color-coded chip per the lifecycle
+          // state. The inProgress chip pulses (LIVE NOW treatment).
           GameInviteStatusChip.forMessage(message),
-          const SizedBox(height: KinrelSpacing.sm),
-          if (isMe)
-            // Sender is already in the game — no Join button. The chip
-            // above conveys the room status; an explicit "You're in"
-            // hint isn't needed since the sender knows they're the host.
-            const SizedBox.shrink()
-          else
-            // Join button — same route as GameInviteListener._acceptInvite.
+          // ── 5-state lifecycle: privacy-gated winner display ────────
+          // Shown only for completed state AND only if gameWinnerName
+          // is non-null. The server-side fn_sync_game_invite_status RPC
+          // only writes gameWinnerName when the requesting user is a
+          // participant (privacy gate per the existing match-result
+          // model). Non-participants see gameWinnerName = null and the
+          // card renders just the chip without a winner line.
+          if (isCompleted && message.gameWinnerName != null) ...[
+            const SizedBox(height: KinrelSpacing.sm),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: KinrelSpacing.sm,
+                vertical: 4,
+              ),
+              decoration: BoxDecoration(
+                color: KinrelColors.success.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(KinrelRadius.xs),
+                border: Border.all(
+                  color: KinrelColors.success.withValues(alpha: 0.2),
+                  width: 0.6,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.emoji_events,
+                    size: 14,
+                    color: KinrelColors.success,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'Winner: ${message.gameWinnerName}',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.success,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          // ── 5-state lifecycle: action button / static label ────────
+          if (showActionButton) ...[
+            const SizedBox(height: KinrelSpacing.sm),
             SizedBox(
               width: double.infinity,
               child: Material(
-                color: canJoin
-                    ? KinrelColors.orange
+                // Visual treatment depends on state:
+                //   • Join (orange, tappable)  — solid orange background
+                //   • Watch/Rejoin (subtle)    — orange-tinted outline
+                //   • Static labels             — darkElevated, muted text
+                color: actionEnabled
+                    ? (isInProgress
+                        ? KinrelColors.orange.withValues(alpha: 0.15)
+                        : KinrelColors.orange)
                     : KinrelColors.darkElevated,
                 borderRadius: BorderRadius.circular(KinrelRadius.sm),
                 child: InkWell(
-                  onTap: canJoin ? () => _joinGameFromCard(context) : null,
+                  onTap: actionCallback,
                   borderRadius: BorderRadius.circular(KinrelRadius.sm),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     child: Center(
-                      child: Text(
-                        canJoin ? 'Join' : (disabledLabel ?? 'Join'),
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: canJoin
-                              ? KinrelColors.textWhite
-                              : KinrelColors.textDim,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isInProgress && actionEnabled) ...[
+                            Icon(
+                              isMe ? Icons.replay : Icons.visibility_outlined,
+                              size: 14,
+                              color: KinrelColors.orange,
+                            ),
+                            const SizedBox(width: 5),
+                          ],
+                          Text(
+                            actionLabel,
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: actionEnabled
+                                  ? (isInProgress
+                                      ? KinrelColors.orange
+                                      : KinrelColors.textWhite)
+                                  : KinrelColors.textDim,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
               ),
             ),
+          ],
         ],
       ),
     );
+  }
+
+  /// Navigate into the game lobby from a chat invite card (Watch/Rejoin
+  /// variant for in-progress games — same route, but the lobby screen
+  /// will detect the game is already in_progress and route the user
+  /// directly to the spectate view if they're not a participant, or
+  /// to the game view if they are).
+  ///
+  /// Replicates GameInviteListener._acceptInvite's join route exactly
+  /// (GameInvite.joinRoute): '/family/<familyId>/<gameType>/lobby?join=<gameId>'.
+  void _watchGameFromCard(BuildContext context) {
+    final gameType = message.gameType ?? '';
+    final gameId = message.gameId ?? '';
+    if (gameType.isEmpty || gameId.isEmpty || familyId == null) return;
+    // Same route as Join — the lobby decides spectate vs. rejoin based on
+    // the game's current status + the user's participant status. This
+    // keeps the chat card's surface area minimal (one route) and lets
+    // the lobby handle the routing complexity.
+    context.go('/family/$familyId/$gameType/lobby?join=$gameId');
   }
 
   /// Navigate into the game lobby from a chat invite card.
