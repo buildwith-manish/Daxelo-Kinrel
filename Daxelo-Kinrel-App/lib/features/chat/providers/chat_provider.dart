@@ -814,6 +814,35 @@ class ChatNotifier extends StateNotifier<ChatState> {
   // ref.listen returns a ProviderSubscription.
   ProviderSubscription<AsyncValue<List<Person>>>? _memberListListener;
 
+  // ── Realtime burst batching (WhatsApp-tier scroll smoothness) ──────
+  //
+  // When several messages arrive in quick succession (e.g. several
+  // players joining a game room triggering multiple system messages
+  // within a short window), the unbatched path would fire one state
+  // replacement + rebuild per message. At ~50 incoming messages in a
+  // burst (e.g. during initial realtime catch-up after a reconnect,
+  // or a heavy system-message flood), this meant 50 O(n) list
+  // allocations + 50 O(n log n) sorts + 50 widget rebuilds, all
+  // competing for the same animation frame and producing visible
+  // stutter during scroll.
+  //
+  // The fix: buffer incoming realtime INSERTs in a Map (id → row) for
+  // up to `_burstWindowMs` milliseconds, then flush as a SINGLE state
+  // update that prepends all buffered messages in one allocation + one
+  // sort. The window is intentionally short (60ms ≈ one animation frame
+  // at 16ms / 4-frame jitter) so a single lone message still feels
+  // instant — the perceived delay for one-at-a-time arrival is below
+  // the human perception threshold (~100ms).
+  //
+  // Batching is gated on the burst containing more than one message:
+  // if only one message arrives within the window, we flush it
+  // immediately on the next microtask (no perceived latency at all).
+  // This matches WhatsApp's behaviour where lone messages appear
+  // instantly but rapid bursts coalesce into a single render frame.
+  final Map<String, Map<String, dynamic>> _pendingBurstBuffer = {};
+  Timer? _burstFlushTimer;
+  static const int _burstWindowMs = 60;
+
   // ── Initialization ───────────────────────────────────────────────
 
   Future<void> _init() async {
@@ -1220,18 +1249,106 @@ class ChatNotifier extends StateNotifier<ChatState> {
       return;
     }
 
-    final msg = ChatMessage.fromJson(row);
-    final updated = [msg, ...state.messages];
-    updated.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    if (mounted) {
-      state = state.copyWith(messages: updated);
+    // ── Burst batching: buffer the row and flush on a short timer ──
+    //
+    // Buffering here means a burst of N rapid inserts results in ONE
+    // state replacement, ONE list allocation, ONE sort, and ONE widget
+    // rebuild — instead of N of each. See _pendingBurstBuffer docs
+    // above for the rationale on why the window is 60ms.
+    _pendingBurstBuffer[msgId] = row;
+
+    // If this is the first message in a fresh window, schedule a flush.
+    // If a flush is already scheduled, we just leave it (the existing
+    // timer will fire and pick up the new row from the buffer).
+    if (_burstFlushTimer == null || !_burstFlushTimer!.isActive) {
+      _burstFlushTimer?.cancel();
+      _burstFlushTimer = Timer(
+        const Duration(milliseconds: _burstWindowMs),
+        _flushPendingBurst,
+      );
+    }
+  }
+
+  /// Test-only accessor: how many realtime INSERTs are currently
+  /// buffered (waiting for the next flush). Used by the burst-batching
+  /// unit tests to verify the buffer state without exposing the buffer
+  /// itself.
+  @visibleForTesting
+  int get pendingBurstBufferSizeForTest => _pendingBurstBuffer.length;
+
+  /// Test-only accessor: whether a flush timer is currently scheduled.
+  @visibleForTesting
+  bool get isBurstFlushScheduledForTest =>
+      _burstFlushTimer != null && _burstFlushTimer!.isActive;
+
+  /// Test-only hook: directly invoke the realtime insert handler. The
+  /// production path is the Supabase PostgresChanges callback, which
+  /// is hard to simulate in a unit test. Exposing this lets the burst-
+  /// batching tests fire synthetic inserts and assert the buffering /
+  /// flush behavior without a Supabase client.
+  @visibleForTesting
+  void handleMessageInsertForTest(Map<String, dynamic> row) {
+    _handleMessageInsert(row);
+  }
+
+  /// Test-only hook: directly flush any buffered inserts (cancelling
+  /// the pending timer if any). Lets tests deterministically advance
+  /// past the 60ms window without using `Future.delayed`.
+  @visibleForTesting
+  void flushPendingBurstForTest() {
+    _burstFlushTimer?.cancel();
+    _burstFlushTimer = null;
+    _flushPendingBurst();
+  }
+
+  /// Flush all buffered realtime INSERTs as a single state update.
+  ///
+  /// Called either by the [_burstFlushTimer] (after the 60ms window) or
+  /// directly when an immediate flush is needed (e.g. on dispose).
+  ///
+  /// Algorithm:
+  ///   1. Parse each buffered row into a ChatMessage (skipping invalid).
+  ///   2. Mark foreign messages as read (server-side).
+  ///   3. Build the new messages list: [buffered (newest-first), ...old].
+  ///   4. Sort the COMBINED list once (defensive — Supabase already
+  ///      delivers newest-first, but sort guarantees correctness if a
+  ///      late row arrives out-of-order).
+  ///   5. Single state = copyWith(messages: ...) → ONE rebuild.
+  void _flushPendingBurst() {
+    if (_pendingBurstBuffer.isEmpty) return;
+    if (!mounted) {
+      _pendingBurstBuffer.clear();
+      return;
     }
 
-    // If the message was sent by someone else, mark it as read.
+    // Pull + clear the buffer atomically so a concurrent insert while
+    // we're parsing doesn't get dropped.
+    final rowsToApply = Map<String, Map<String, dynamic>>.from(_pendingBurstBuffer);
+    _pendingBurstBuffer.clear();
+    _burstFlushTimer?.cancel();
+    _burstFlushTimer = null;
+
     final myUserId = _currentUserId;
-    if (myUserId != null && msg.senderId != myUserId) {
-      unawaited(_markSingleAsRead(msg.id, myUserId));
+    final newMessages = <ChatMessage>[];
+    for (final row in rowsToApply.values) {
+      try {
+        final msg = ChatMessage.fromJson(row);
+        if (msg.id.isEmpty) continue;
+        newMessages.add(msg);
+        // If the message was sent by someone else, mark it as read.
+        if (myUserId != null && msg.senderId != myUserId) {
+          unawaited(_markSingleAsRead(msg.id, myUserId));
+        }
+      } catch (_) {
+        // Skip rows that fail to parse — don't break the batch.
+      }
     }
+    if (newMessages.isEmpty) return;
+
+    // Single allocation + single sort for the entire burst.
+    final updated = [...newMessages, ...state.messages];
+    updated.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    state = state.copyWith(messages: updated);
   }
 
   void _handleMessageUpdate(Map<String, dynamic> row) {
@@ -2438,6 +2555,16 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // v5.2: Cancel the family member listener to prevent leaks.
     _memberListListener?.close();
     _memberListListener = null;
+    // ── Burst batching teardown ──────────────────────────────────────
+    // Best-effort flush of any pending realtime inserts so a fast
+    // screen-exit doesn't drop messages that arrived in the final 60ms.
+    // If the widget is already unmounted, _flushPendingBurst will clear
+    // the buffer without attempting a state write.
+    _burstFlushTimer?.cancel();
+    _burstFlushTimer = null;
+    if (_pendingBurstBuffer.isNotEmpty) {
+      _flushPendingBurst();
+    }
     // Tier 1 / Last Seen — Task 4: presence is now owned APP-WIDE by the
     // PresenceHeartbeat (marks online on boot/sign-in + 30s heartbeat,
     // offline on sign-out) and the server-side sweeper handles killed

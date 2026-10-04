@@ -24,6 +24,9 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/services/supabase_service.dart';
+// Phase 4 — consolidated image cache manager so inbox row avatars share
+// the singleton cache with chat-screen avatars (no double-download).
+import '../../../core/services/image_cache_manager.dart';
 // Step 4 — shared timezone-aware time utility. Chat inbox row
 // timestamps ("Now", "5m", "10:30 AM", "Yesterday", "3d", "M/D") are
 // PERSONAL — each viewer sees their own device-local time.
@@ -609,9 +612,17 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
                 child: ClipOval(
                   child: CachedNetworkImage(
                     imageUrl: family.avatarUrl!,
+                    cacheManager: KinrelImageCacheManager.instance,
                     fit: BoxFit.cover,
                     width: 52,
                     height: 52,
+                    // Phase 4 — cap decode at 52×52*DPR so a 4K family
+                    // avatar doesn't allocate a 4K bitmap in the shared
+                    // ImageCache (which would evict message thumbnails).
+                    memCacheWidth:
+                        (52 * MediaQuery.devicePixelRatioOf(context)).round(),
+                    memCacheHeight:
+                        (52 * MediaQuery.devicePixelRatioOf(context)).round(),
                     placeholder: (_, __) => Center(
                       child: Text(
                         family.name.isNotEmpty

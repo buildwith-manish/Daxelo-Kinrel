@@ -28,6 +28,7 @@ import '../../../games/shared/models/game_invite.dart';
 import '../../../profile/presentation/member_profile_sheet.dart';
 import '../../providers/chat_provider.dart';
 import 'chat_meta.dart';
+import 'game_invite_status_chip.dart';
 import 'link_preview_card.dart';
 import 'mention_picker.dart';
 import 'poll_card.dart';
@@ -956,6 +957,16 @@ class MessageBubble extends ConsumerWidget {
         // high-res original); the content holds the Giphy title for
         // accessibility. Cap at ~220x220 so it doesn't dominate the
         // thread.
+        //
+        // ── Phase 4 / image cache ─────────────────────────────────────
+        // Previously this branch used a bare CachedNetworkImage with
+        // NO cacheManager and NO memCacheWidth/memCacheHeight, so a
+        // 480p GIF decoded at full native resolution (and got cached
+        // in the shared ImageCache at that full size — evicting other
+        // thumbnails). Now we route through the consolidated
+        // KinrelImageCacheManager and cap the decode at 220×220*DPR
+        // — matching the photo-bubble branch's pattern.
+        final gifDpr = MediaQuery.devicePixelRatioOf(context);
         return ClipRRect(
           borderRadius: BorderRadius.circular(KinrelRadius.md),
           child: ConstrainedBox(
@@ -963,7 +974,13 @@ class MessageBubble extends ConsumerWidget {
             child: message.mediaUrl != null && message.mediaUrl!.isNotEmpty
                 ? CachedNetworkImage(
                     imageUrl: message.mediaUrl!,
+                    cacheManager: KinrelImageCacheManager.instance,
                     fit: BoxFit.cover,
+                    // Cap decode at the on-screen display size × DPR so
+                    // we don't burn memory decoding a 480p GIF to a 4×
+                    // oversized bitmap just to downscale it on the GPU.
+                    memCacheWidth: (220 * gifDpr).round(),
+                    memCacheHeight: (220 * gifDpr).round(),
                     placeholder: (_, __) => Container(
                       color: const Color(0xFF11132A),
                       height: 120,
@@ -1273,18 +1290,6 @@ class MessageBubble extends ConsumerWidget {
     final canJoin =
         !isMe && disabledLabel == null && (message.gameId ?? '').isNotEmpty;
 
-    // Sender-side status line (replaces the Join button on isMe cards).
-    String waitingLabel;
-    if (status == 'accepted') {
-      waitingLabel = 'Game started';
-    } else if (status == 'expired' || status == 'cancelled') {
-      waitingLabel = 'Game ended';
-    } else if (isFull) {
-      waitingLabel = 'Room full';
-    } else {
-      waitingLabel = 'Waiting for players…';
-    }
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(KinrelSpacing.md),
@@ -1400,34 +1405,27 @@ class MessageBubble extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: KinrelSpacing.sm + 2),
+          // ── Phase 7: Unified status chip ───────────────────────────
+          // Replaces the old sender-only icon+text status row with a
+          // single color-coded chip shown on EVERY game-invite card
+          // (sender + recipient). Users scrolling quickly through chat
+          // can now identify room status by color at a glance:
+          //   amber  → just created, waiting for players
+          //   green  → open to join, has activity
+          //   grey   → room full
+          //   ember  → game started
+          //   muted  → game ended
+          //
+          // The Join button below preserves its existing strong visual
+          // contrast (solid orange when joinable, flat/muted when not)
+          // — only the status TEXT above it gets the new chip treatment.
+          GameInviteStatusChip.forMessage(message),
+          const SizedBox(height: KinrelSpacing.sm),
           if (isMe)
-            // Sender is already in the game — status label, no Join button.
-            Row(
-              children: [
-                Icon(
-                  status == 'accepted'
-                      ? Icons.play_circle_outline
-                      : (status == 'expired' || status == 'cancelled')
-                          ? Icons.event_busy
-                          : Icons.hourglass_top,
-                  size: 14,
-                  color: KinrelColors.textDim,
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    waitingLabel,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: KinrelColors.textDim,
-                    ),
-                  ),
-                ),
-              ],
-            )
+            // Sender is already in the game — no Join button. The chip
+            // above conveys the room status; an explicit "You're in"
+            // hint isn't needed since the sender knows they're the host.
+            const SizedBox.shrink()
           else
             // Join button — same route as GameInviteListener._acceptInvite.
             SizedBox(
