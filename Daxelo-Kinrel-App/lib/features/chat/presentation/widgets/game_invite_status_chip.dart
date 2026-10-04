@@ -1,30 +1,37 @@
 // lib/features/chat/presentation/widgets/game_invite_status_chip.dart
 //
-// DAXELO KINREL — Unified game-invite status chip
+// DAXELO KINREL — Unified game-invite status chip (5-state lifecycle)
 //
-// Replaces the inconsistent per-card-type status text styling
-// (plain Text widgets with hand-rolled colors + leading icons) with a
-// single reusable chip component. A user scrolling quickly through
-// chat can now identify room status by COLOR at a glance without
-// reading each line of text.
+// Replaces the prior 3-state chip (waitingForPlayers / openToJoin / full /
+// started / ended) with a complete 5-state lifecycle state machine:
 //
-// Color semantics (per Phase 7 spec):
-//   • GREEN / success accent — room is joinable AND has activity
-//     (1 < currentPlayers < maxPlayers, status == 'pending')
-//   • AMBER / warning accent — room created but not yet full
-//     (currentPlayers <= 1, status == 'pending') — i.e. just the host,
-//     "Waiting for players…"
-//   • GREY / neutral accent — room is FULL
-//     (currentPlayers >= maxPlayers, status == 'pending')
-//   • DARK / muted accent — game lifecycle ended
-//     (status == 'accepted' | 'expired' | 'cancelled') — the room is
-//     no longer in the "pending" lobby state.
+//     waiting → full → inProgress → completed
+//                                ↘ expired
 //
-// The chip is rendered ABOVE the Join button on every game-invite
-// card (sender + recipient), replacing the old sender-only status row.
-// The Join button's strong visual treatment (solid orange when joinable,
-// flat/muted when not) is preserved unchanged — only the status TEXT
-// above it gets the new chip treatment.
+// Each state has distinct card styling + status chip treatment:
+//
+//   • waitingForPlayers (amber)  — room created, not yet full (lobby)
+//   • openToJoin (green)        — room has activity, still joinable
+//   • full (grey)                — capacity reached, transitional (will
+//                                   progress to inProgress or expired)
+//   • inProgress (PULSING green) — game started, "LIVE NOW" treatment
+//                                   matching the Prediction Battle card's
+//                                   badge styling elsewhere in the app
+//   • completed (muted)          — game finished normally, with optional
+//                                   privacy-gated winner name
+//   • expired (greyed)           — room never filled / never started in time
+//                                   OR host cancelled
+//
+// The chip is rendered ABOVE the action button on every game-invite card
+// (sender + recipient). The action button's treatment depends on state:
+//   • waitingForPlayers / openToJoin → "Join" (solid orange)
+//   • full                            → "Full" (disabled)
+//   • inProgress                      → "Watch" / "Rejoin" (spectator-style)
+//   • completed / expired             → static label, no button
+//
+// Legacy status values ('accepted' = pre-state-machine alias for
+// in_progress, 'cancelled' = alias for expired) are mapped to the
+// canonical kinds by the classifier.
 
 import 'package:flutter/material.dart';
 
@@ -36,6 +43,18 @@ import '../../providers/chat_provider.dart';
 /// The visual category a game-invite card falls into, derived from
 /// [ChatMessage] fields. Exposed publicly so widget tests can verify
 /// the categorization logic without having to render the chip.
+///
+/// 5-state lifecycle (canonical):
+///   • waitingForPlayers (amber)
+///   • openToJoin (green)
+///   • full (grey)
+///   • inProgress (pulsing green — LIVE NOW treatment)
+///   • completed (muted)
+///   • expired (greyed)
+///
+/// Legacy aliases (handled by the classifier):
+///   • 'accepted' (pre-state-machine) → inProgress
+///   • 'cancelled' (host cancel)      → expired
 enum GameInviteStatusKind {
   /// Room was just created, only the host is in — "Waiting for players".
   waitingForPlayers,
@@ -43,20 +62,31 @@ enum GameInviteStatusKind {
   /// Room has activity (some players joined) and is still joinable.
   openToJoin,
 
-  /// Room is at capacity — "Room full".
+  /// Room is at capacity — "Room full". TRANSITIONAL state — will
+  /// progress to inProgress (host starts the game) or expired (host
+  /// doesn't start within the full-state expiry window).
   full,
 
-  /// Game has started — "Game started".
-  started,
+  /// Game has started — "LIVE NOW". Players are actively playing.
+  /// Distinct from the prior merged 'started' kind: this gets a pulsing
+  /// accent treatment to signal "live now," consistent with the
+  /// Prediction Battle card's badge styling elsewhere in the app.
+  inProgress,
 
-  /// Game has ended (expired or cancelled) — "Game ended".
-  ended,
+  /// Game finished normally (winner determined). Muted/settled visual
+  /// treatment — not alarming, just "this is done." May optionally
+  /// show the winner name (privacy-gated to participants only).
+  completed,
+
+  /// Room expired (never filled / never started in time) OR host cancelled.
+  /// Greyed out, clearly inactive. Card is NOT tappable/joinable.
+  expired,
 }
 
 /// The result of categorizing a [ChatMessage] game-invite card.
 ///
-/// Carries the [kind] (which drives the chip color) plus a short
-/// human-readable [label] suitable for display in the chip body.
+/// Carries the [kind] (which drives the chip color + animation) plus a
+/// short human-readable [label] suitable for display in the chip body.
 class GameInviteStatusClassification {
   const GameInviteStatusClassification({
     required this.kind,
@@ -73,6 +103,18 @@ class GameInviteStatusClassification {
 /// unit-testable. This is the SINGLE source of truth for status-chip
 /// styling across all game-invite card types (SOS, Bingo, Prediction
 /// Battle, and any future game types that reuse the chat card pattern).
+///
+/// State mapping (per the 5-state lifecycle spec):
+///   • gameInviteStatus == null or 'pending':
+///       - currentPlayers <= 1 → waitingForPlayers ("Waiting for players…")
+///       - 1 < currentPlayers < maxPlayers → openToJoin ("Open to join")
+///       - currentPlayers >= maxPlayers → full ("Room full")
+///   • gameInviteStatus == 'in_progress' or legacy 'accepted'/'active':
+///       → inProgress ("LIVE NOW")
+///   • gameInviteStatus == 'completed':
+///       → completed ("Completed" + optional winner)
+///   • gameInviteStatus == 'expired' or 'cancelled':
+///       → expired ("Expired" / "Cancelled")
 GameInviteStatusClassification classifyGameInviteStatus(
   ChatMessage message,
 ) {
@@ -81,19 +123,43 @@ GameInviteStatusClassification classifyGameInviteStatus(
   final currentPlayers = message.gameCurrentPlayers ?? 1;
   final isFull = currentPlayers >= maxPlayers;
 
-  if (status == 'accepted') {
+  // ── In-progress: legacy 'accepted' (pre-state-machine) maps here ──
+  // The prior chat-smoothness work treated 'accepted' as 'started'; the
+  // 5-state model renames 'started' → 'inProgress' with a new pulsing
+  // treatment. Legacy rows with 'accepted' continue to render correctly.
+  if (status == 'in_progress' ||
+      status == 'accepted' ||
+      status == 'active') {
     return const GameInviteStatusClassification(
-      kind: GameInviteStatusKind.started,
-      label: 'Game started',
+      kind: GameInviteStatusKind.inProgress,
+      label: 'LIVE NOW',
     );
   }
+
+  // ── Completed: game finished normally ──
+  // Winner name is privacy-gated server-side (gameWinnerName is null for
+  // non-participants). The chip itself just shows "Completed"; the
+  // winner name (if present) is rendered as a separate line below the
+  // chip by the card renderer.
+  if (status == 'completed') {
+    return const GameInviteStatusClassification(
+      kind: GameInviteStatusKind.completed,
+      label: 'Completed',
+    );
+  }
+
+  // ── Expired: room never filled OR host cancelled ──
+  // Both 'expired' (sweep-driven) and 'cancelled' (host-driven) render
+  // the same "inactive" treatment per the spec.
   if (status == 'expired' || status == 'cancelled') {
-    return const GameInviteStatusClassification(
-      kind: GameInviteStatusKind.ended,
-      label: 'Game ended',
+    return GameInviteStatusClassification(
+      kind: GameInviteStatusKind.expired,
+      label: status == 'cancelled' ? 'Cancelled' : 'Expired',
     );
   }
-  // status == 'pending' (or null treated as pending)
+
+  // ── Pre-game: 'pending' (or null treated as pending) ──
+  // Sub-classify by capacity: waiting vs. open-to-join vs. full.
   if (isFull) {
     return const GameInviteStatusClassification(
       kind: GameInviteStatusKind.full,
@@ -115,10 +181,15 @@ GameInviteStatusClassification classifyGameInviteStatus(
 /// A small pill chip that renders the game-invite room status with a
 /// consistent color-coded treatment.
 ///
+/// For the [GameInviteStatusKind.inProgress] kind, the chip renders with
+/// a PULSING animation (subtle opacity oscillation) to signal "live now,"
+/// matching the existing LIVE NOW badge styling on the Prediction Battle
+/// card. All other kinds render statically.
+///
 /// Construct via [GameInviteStatusChip.forMessage] in production code,
 /// or via the default constructor with an explicit [kind] + [label]
 /// in tests.
-class GameInviteStatusChip extends StatelessWidget {
+class GameInviteStatusChip extends StatefulWidget {
   const GameInviteStatusChip({
     super.key,
     required this.kind,
@@ -133,7 +204,7 @@ class GameInviteStatusChip extends StatelessWidget {
     return GameInviteStatusChip(kind: c.kind, label: c.label);
   }
 
-  /// The status category — drives the chip's color treatment.
+  /// The status category — drives the chip's color + animation treatment.
   final GameInviteStatusKind kind;
 
   /// The human-readable status text shown inside the chip.
@@ -146,12 +217,117 @@ class GameInviteStatusChip extends StatelessWidget {
   final bool compact;
 
   @override
+  State<GameInviteStatusChip> createState() => _GameInviteStatusChipState();
+}
+
+class _GameInviteStatusChipState extends State<GameInviteStatusChip>
+    with TickerProviderStateMixin {
+  // ── Pulsing animation for the inProgress state ──────────────────
+  // Matches the "LIVE NOW" badge styling on the Prediction Battle card
+  // (lib/features/prediction_battle_v1/pb_v1_card.dart _StatusPill),
+  // but adds a subtle pulsing animation since this chip signals an
+  // actively-running game.
+  //
+  // The Prediction Battle _StatusPill is static (no animation); the
+  // pulsing here is a deliberate enhancement per the spec ("a pulsing/
+  // animated indicator or a solid accent color signaling 'live now'").
+  AnimationController? _pulseController;
+  Animation<double>? _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupPulseIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(GameInviteStatusChip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.kind != widget.kind) {
+      _setupPulseIfNeeded();
+    }
+  }
+
+  void _setupPulseIfNeeded() {
+    final needsPulse = widget.kind == GameInviteStatusKind.inProgress;
+    if (needsPulse && _pulseController == null) {
+      _pulseController = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 1400),
+      )..repeat(reverse: true);
+      _pulseAnimation = Tween<double>(begin: 0.55, end: 1.0).animate(
+        CurvedAnimation(
+          parent: _pulseController!,
+          curve: Curves.easeInOut,
+        ),
+      );
+    } else if (!needsPulse && _pulseController != null) {
+      _pulseController!.stop();
+      _pulseController!.dispose();
+      _pulseController = null;
+      _pulseAnimation = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final (accent, bgAlpha, borderAlpha, iconData) = _styleFor(kind);
-    final fontSize = compact ? 10.0 : 12.5;
-    final iconSize = compact ? 11.0 : 14.0;
-    final vPad = compact ? 2.5 : 4.0;
-    final hPad = compact ? 7.0 : 10.0;
+    final (accent, bgAlpha, borderAlpha, iconData) = _styleFor(widget.kind);
+    final fontSize = widget.compact ? 10.0 : 12.5;
+    final iconSize = widget.compact ? 11.0 : 14.0;
+    final vPad = widget.compact ? 2.5 : 4.0;
+    final hPad = widget.compact ? 7.0 : 10.0;
+
+    // For inProgress, render with a pulsing background alpha so the chip
+    // "breathes" — a subtle visual signal that the game is actively running.
+    // For all other kinds, render statically.
+    if (widget.kind == GameInviteStatusKind.inProgress &&
+        _pulseAnimation != null) {
+      return AnimatedBuilder(
+        animation: _pulseAnimation!,
+        builder: (context, child) {
+          // Pulse the background alpha between 0.10 and 0.20 (subtle).
+          final pulseAlpha = bgAlpha * 0.7 + (bgAlpha * 0.6) * _pulseAnimation!.value;
+          return Container(
+            padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: pulseAlpha.clamp(0.0, 1.0)),
+              borderRadius: BorderRadius.circular(KinrelRadius.xs),
+              border: Border.all(
+                color: accent.withValues(alpha: borderAlpha),
+                width: 0.75,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(iconData, size: iconSize, color: accent),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    widget.label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.monoFont,
+                      fontSize: fontSize - 0.5, // mono badge feels right slightly tighter
+                      fontWeight: FontWeight.w800,
+                      color: accent,
+                      letterSpacing: 0.6,
+                      height: 1.2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    }
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
@@ -170,7 +346,7 @@ class GameInviteStatusChip extends StatelessWidget {
           const SizedBox(width: 5),
           Flexible(
             child: Text(
-              label,
+              widget.label,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -227,20 +403,36 @@ class GameInviteStatusChip extends StatelessWidget {
           0.25,
           Icons.lock_outline,
         );
-      case GameInviteStatusKind.started:
-        // Dark ember: game has started — "Game started"
+      case GameInviteStatusKind.inProgress:
+        // GREEN PULSING: game has started — "LIVE NOW"
+        // Uses the success green accent (matching the Prediction Battle
+        // card's _StatusPill LIVE NOW treatment), but with a pulsing
+        // animation overlaid by the chip's _GameInviteStatusChipState
+        // (see build() above).
         return (
-          KinrelColors.ember,
-          0.14,
-          0.32,
-          Icons.play_circle_outline,
+          KinrelColors.success,
+          0.16,  // slightly higher base alpha so the pulse is visible
+          0.40,
+          Icons.sensors,  // a "live" / activity icon
         );
-      case GameInviteStatusKind.ended:
-        // Muted: game ended (expired or cancelled) — "Game ended"
+      case GameInviteStatusKind.completed:
+        // Muted: game finished normally — "Completed"
+        // Settled, not alarming. Slightly dimmer than the full-state
+        // grey to signal "this is done, not active".
+        return (
+          KinrelColors.textSilver,
+          0.08,
+          0.20,
+          Icons.emoji_events_outlined,  // trophy icon for "completed"
+        );
+      case GameInviteStatusKind.expired:
+        // Greyed: room expired or was cancelled — "Expired" / "Cancelled"
+        // Clearly inactive. Even dimmer than completed to signal
+        // "this room is dead, don't try to interact with it".
         return (
           KinrelColors.textDim,
-          0.10,
-          0.25,
+          0.06,
+          0.15,
           Icons.event_busy,
         );
     }
