@@ -80,6 +80,21 @@ class MemoryDetailScreen extends ConsumerWidget {
                     const SizedBox(height: KinrelSpacing.md),
                   ],
 
+                  // ── Feature 3: "View full album in Memory Vault →"
+                  // Per the spec: "When a Timeline entry's photo
+                  // corresponds to an event that also has additional
+                  // photos stored in Memory Vault (e.g., tagged with
+                  // the same date/event/category), show a 'View full
+                  // album in Memory Vault →' link on that Timeline
+                  // entry's detail view."
+                  //
+                  // We watch the `memoryAlbumForMemoryProvider` derived
+                  // provider to get the list of related photos. When the
+                  // list is non-empty, we render the cross-link button
+                  // (with a "+N" count badge). Tapping it navigates to
+                  // the Memory Vault.
+                  _buildViewAlbumInVaultButton(context, ref),
+
                   // Pin to Vault button (Feature 8)
                   _buildPinButton(ref),
                   const SizedBox(height: KinrelSpacing.lg),
@@ -276,6 +291,110 @@ class MemoryDetailScreen extends ConsumerWidget {
             const Icon(Icons.arrow_forward_ios_rounded,
                 size: 14, color: KinrelColors.orange),
           ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // View full album in Memory Vault (Feature 3)
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// Cross-link affordance to the related Memory Vault album.
+  ///
+  /// Per the spec (Feature 3): "When a Timeline entry's photo
+  /// corresponds to an event that also has additional photos stored
+  /// in Memory Vault (e.g., tagged with the same date/event/category),
+  /// show a 'View full album in Memory Vault →' link on that Timeline
+  /// entry's detail view."
+  ///
+  /// We watch the `memoryAlbumForMemoryProvider` derived provider
+  /// (which calls `MemoryVaultNotifier.albumForMemory` under the hood)
+  /// to fetch the list of related memories — same calendar date OR
+  /// same memory_type as this entry. When the list is non-empty, we
+  /// render the button. When empty, we render nothing (no album to
+  /// view → no link).
+  ///
+  /// Per the spec: "this cross-link can initially be scoped to only
+  /// the specific photo(s) uploaded through the post-to-memory linking
+  /// flow (item 2), where the association is already explicit via the
+  /// shared creation action." The current implementation extends
+  /// slightly further (any same-date/same-type memory in the vault),
+  /// but the explicit-association case (post-linking) is naturally
+  /// included since those entries share the same date as the post.
+  Widget _buildViewAlbumInVaultButton(BuildContext context, WidgetRef ref) {
+    final albumPhotos = ref.watch(memoryAlbumForMemoryProvider(memory.id));
+    if (albumPhotos.isEmpty) {
+      // No related photos in Memory Vault → don't render the link.
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: KinrelSpacing.md),
+      child: GestureDetector(
+        onTap: () {
+          // Navigate to the Memory Vault screen. The vault shows all
+          // family memories; the related photos will appear at the top
+          // (sorted by created_at desc by default). A future improvement
+          // could deep-link to a filtered album view.
+          context.push('/memory-vault');
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: KinrelColors.orange.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(KinrelRadius.lg),
+            border: Border.all(
+              color: KinrelColors.orange.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.photo_library_rounded,
+                  size: 18, color: KinrelColors.orange),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Memory Vault',
+                      style: KinrelTypography.labelSmall.copyWith(
+                        color: KinrelColors.textDim,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'View full album in Memory Vault →',
+                      style: KinrelTypography.labelMedium.copyWith(
+                        color: KinrelColors.orange,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Count badge — shows how many additional photos share
+              // this event (same date or same memory_type).
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: KinrelColors.orange.withValues(alpha: 0.20),
+                  borderRadius: BorderRadius.circular(KinrelRadius.full),
+                ),
+                child: Text(
+                  '+${albumPhotos.length}',
+                  style: KinrelTypography.labelSmall.copyWith(
+                    color: KinrelColors.orange,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

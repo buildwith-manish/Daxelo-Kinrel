@@ -77,6 +77,8 @@ class MemoryTimelineCard extends StatelessWidget {
     this.onTap,
     this.onPin,
     this.onViewOriginalPost,
+    this.onViewAlbumInVault,
+    this.albumPhotoCount,
     this.showPinButton = true,
   });
 
@@ -93,6 +95,25 @@ class MemoryTimelineCard extends StatelessWidget {
   /// Called when the user taps "View Original Post".
   /// Only rendered when [MemoryModel.isFromPost] is true.
   final VoidCallback? onViewOriginalPost;
+
+  /// Called when the user taps "View full album in Memory Vault →".
+  /// Per the spec (Feature 3): "When a Timeline entry's photo
+  /// corresponds to an event that also has additional photos stored in
+  /// Memory Vault (e.g., tagged with the same date/event/category),
+  /// show a 'View full album in Memory Vault →' link on that Timeline
+  /// entry's detail view."
+  ///
+  /// Only rendered when [albumPhotoCount] is greater than 0 — the
+  /// caller is responsible for computing the album size (see
+  /// `MemoryVaultNotifier.albumForMemory` and the
+  /// `memoryAlbumForMemoryProvider` derived provider).
+  final VoidCallback? onViewAlbumInVault;
+
+  /// Number of related photos in Memory Vault for this entry's event.
+  /// When > 0 AND [onViewAlbumInVault] is non-null, the cross-link
+  /// affordance is rendered. When 0 or null, the affordance is hidden
+  /// (no related photos → no album to view).
+  final int? albumPhotoCount;
 
   /// Whether to show the pin button (default true).
   /// Set false in contexts where pinning is not allowed (e.g. search results).
@@ -297,6 +318,73 @@ class MemoryTimelineCard extends StatelessWidget {
                           ],
                         ),
                       ),
+                  ],
+
+                  // ── Feature 3: "View full album in Memory Vault →"
+                  // Per the spec: "When a Timeline entry's photo corresponds
+                  // to an event that also has additional photos stored in
+                  // Memory Vault (e.g., tagged with the same date/event/
+                  // category), show a 'View full album in Memory Vault →'
+                  // link on that Timeline entry's detail view."
+                  //
+                  // The caller passes the album size + a callback. We
+                  // render the affordance only when there are related
+                  // photos (albumPhotoCount > 0) and a callback is wired.
+                  if (onViewAlbumInVault != null &&
+                      (albumPhotoCount ?? 0) > 0) ...[
+                    const SizedBox(height: 10),
+                    GestureDetector(
+                      onTap: onViewAlbumInVault,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _cOrange.withValues(alpha: 0.10),
+                          borderRadius:
+                              BorderRadius.circular(KinrelRadius.full),
+                          border: Border.all(
+                            color: _cOrange.withValues(alpha: 0.3),
+                            width: 0.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.photo_library_rounded,
+                                size: 12, color: _cOrange),
+                            const SizedBox(width: 4),
+                            Text(
+                              'View full album in Memory Vault →',
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: _cOrange,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: _cOrange.withValues(alpha: 0.20),
+                                borderRadius: BorderRadius.circular(
+                                    KinrelRadius.full),
+                              ),
+                              child: Text(
+                                '+${albumPhotoCount}',
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.monoFont,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: _cOrange,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ],
               ),

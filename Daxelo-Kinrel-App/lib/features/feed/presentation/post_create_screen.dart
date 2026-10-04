@@ -19,7 +19,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../memory_vault/presentation/memory_create_screen.dart';
+import '../../memory_vault/providers/memory_vault_provider.dart';
 import '../providers/post_create_provider.dart';
 import '../providers/feed_provider.dart';
 
@@ -542,7 +542,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
     );
   }
 
-  // ── Save To Memories Toggle (Feature 5) ───────────────────────
+  // ── "Also add this to our family timeline" toggle (Feature 2) ────
 
   Widget _buildSaveToMemoriesToggle(PostCreateState create) {
     return Container(
@@ -569,7 +569,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
                   : _cElevated,
             ),
             child: Icon(
-              Icons.bookmarks_outlined,
+              Icons.timeline_rounded,
               size: 18,
               color: create.saveToMemories ? _cOrange : _cTextDim,
             ),
@@ -580,7 +580,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Save To Memories',
+                  'Also add this to our family timeline',
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 14,
@@ -590,7 +590,10 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
                 ),
                 const SizedBox(height: 2),
                 const Text(
-                  'Pin this post to your family archive as a memory.',
+                  'Creates a Timeline entry from this post — text + first '
+                  'photo (if any). The link is one-time at creation; '
+                  'editing or deleting this post later won\'t touch the '
+                  'Timeline entry.',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,
@@ -600,7 +603,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
               ],
             ),
           ),
-          // Toggle switch
+          // Toggle switch — defaults OFF. The user must explicitly opt in.
           Switch(
             value: create.saveToMemories,
             onChanged: (v) {
@@ -667,6 +670,27 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
 
   // ── Share handler ──────────────────────────────────────────────
 
+  /// Maps a [PostOccasion] to the closest Timeline entry category.
+  /// Per the spec: "if the Post has any existing category/type metadata,
+  /// map it to the closest Timeline category (Birth/Festival/Achievement/etc.);
+  /// otherwise default to 'Custom' category, consistent with the custom-entry
+  /// type already visible in the current Timeline implementation."
+  static String? _mapOccasionToMemoryType(PostOccasion? occasion) {
+    switch (occasion) {
+      case PostOccasion.birthday:
+        return 'Birth';
+      case PostOccasion.anniversary:
+        return 'Anniversary';
+      case PostOccasion.festival:
+        return 'Festival';
+      case PostOccasion.achievement:
+        return 'Achievement';
+      case PostOccasion.other:
+      case null:
+        return 'Custom';
+    }
+  }
+
   Future<void> _onShare() async {
     HapticFeedback.mediumImpact();
     final create = ref.read(postCreateProvider);
@@ -676,31 +700,59 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
     if (postId != null) {
       ref.invalidate(feedProvider);
 
-      // If "Save To Memories" toggle was on, open the memory create screen
-      // prefilled with the post's data + sourcePostId (Feature 5).
+      // ── Feature 2: "Also add this to our family timeline" toggle ───
+      // Per the spec, when the toggle is ON we AUTO-CREATE a Timeline
+      // entry using the post's content (text + the post's FIRST image
+      // if it has one). We do NOT open a separate form — the toggle is
+      // the only mechanism for linking the two, and the entry is
+      // created automatically and silently (with a confirmation SnackBar).
+      //
+      // The linkage is ONE-DIRECTIONAL at creation time only: the post
+      // creates a memory, not the reverse. Editing or deleting the
+      // original post afterward will NOT cascade-delete the Timeline
+      // entry — they're independent records after creation, linked
+      // only by the `source_post_id` field on the memory row.
+      //
+      // Per the spec: "if the post has multiple images, use the first/
+      // primary one as the Timeline entry's hero image, and the rest
+      // remain part of the original post only, not duplicated into
+      // Timeline." PostCreateState currently supports a single mediaFile
+      // (one image per post), so the post's mediaUrl IS the first image.
+      // If multi-image posts are added later, only the first URL should
+      // be passed to savePostAsMemory().
       if (create.saveToMemories) {
-        // Pull the just-created post's data from the create state.
         final postText = create.text.trim();
-        final postImageUrl = create.mediaUrl;
-        final postDate = DateTime.now();
+        final postImageUrl = create.mediaUrl; // first/primary image
         final postLocation = create.location;
+        final memoryType = _mapOccasionToMemoryType(create.occasion);
 
-        if (mounted) {
-          // Pop the post composer, then push memory create screen on top
-          // — passing sourcePostId so the memory row links back to this post.
-          context.pop();
-          context.push(
-            '/memory/create',
-            extra: MemoryCreateArgs(
-              sourcePostId: postId,
-              prefillImageUrl: postImageUrl,
-              prefillTitle: postText.isNotEmpty ? postText : null,
-              prefillDescription: postText,
-              prefillDate: postDate,
-              prefillLocation: postLocation,
+        // AUTO-CREATE the Timeline entry. The post's image URL is
+        // passed through as `externalImageUrl` — it's NOT re-uploaded
+        // (the post upload already paid for the storage; displaying it
+        // on the Timeline entry has zero marginal cost, so no quota is
+        // consumed — see MemoryVaultNotifier.savePostAsMemory docs).
+        await ref.read(memoryVaultProvider.notifier).savePostAsMemory(
+              postId: postId,
+              postText: postText,
+              postImageUrl: postImageUrl,
+              postDate: DateTime.now(),
+              location: postLocation,
+              memoryType: memoryType,
+            );
+
+        if (!mounted) return;
+        // Confirm to the user that the linked Timeline entry was created.
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Posted — and a Timeline entry was created from this post. '
+              'View it in Memories.',
             ),
-          );
-        }
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 4),
+          ),
+        );
+        context.pop();
       } else {
         context.pop();
       }

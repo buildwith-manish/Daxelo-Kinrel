@@ -943,19 +943,22 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
   // ═══════════════════════════════════════════════════════════════════
 
   void _showAddMemorySheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: KinrelColors.darkCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.xxl),
-        ),
-      ),
-      builder: (context) {
-        return _AddMemorySheet();
-      },
-    );
+    // Route to the new MemoryCreateScreen (the Supabase-backed memory
+    // composer with image picker, crop editor, compression, and the
+    // shared-quota gate — see lib/features/memory_vault/presentation/
+    // memory_create_screen.dart).
+    //
+    // Per the user spec, this is the "Timeline entry creation flow":
+    // "Add an optional single-image field to the Timeline entry creation
+    // flow — when adding a memory (birth, wedding, festival, custom,
+    // etc.), allow attaching exactly ONE photo as that entry's hero
+    // image."
+    //
+    // The new screen handles the optional photo attachment (subject to
+    // the shared monthly quota with Memory Vault), the structured fields
+    // (title/description/location/memory_type/members/date), and writes
+    // to the Supabase `family_memories` table via MemoryVaultNotifier.
+    context.push('/memory/create');
   }
 }
 

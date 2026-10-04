@@ -35,8 +35,10 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/services/haptic_service.dart';
+import '../../../core/services/premium_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../../shared/widgets/paywall_sheet.dart';
 import '../../family/presentation/widgets/memory_crop_editor.dart';
 import '../data/memory_model.dart';
 import '../providers/memory_vault_provider.dart';
@@ -848,6 +850,74 @@ class _MemoryCreateScreenState extends ConsumerState<MemoryCreateScreen>
 
   Future<void> _showImageSourceSheet() async {
     HapticService.tap();
+
+    // ── Shared monthly quota soft-cap (Feature 1) ──────────────────
+    // The hero photo attachment draws against the SAME monthly quota
+    // already used by Memory Vault uploads (50/month free, unlimited on
+    // Kinrel Plus). When the user is approaching the cap (≥80%) or has
+    // hit it, we show the same in-context messaging pattern already
+    // established for Memory Vault — never a hard block; the user can
+    // still save the entry as text-only (the photo is silently dropped
+    // if they choose to proceed).
+    //
+    // Per the spec: "If a user attempts to attach a photo to a Timeline
+    // entry while at/near their monthly quota, show the same soft-cap
+    // messaging pattern already established for Memory Vault ('Running
+    // low on uploads this month — Kinrel Plus removes this limit'), and
+    // still allow the entry to be saved without a photo if they choose
+    // to proceed without one rather than blocking the whole memory from
+    // being created."
+    final canUpload = await PremiumService.canUploadMemoryVaultPhoto();
+    final used = await PremiumService.getMemoryVaultUploadsThisMonth();
+    final cap = PremiumService.memoryVaultFreeMonthlyCap;
+
+    if (!canUpload && mounted) {
+      // At cap — show the soft-cap paywall (NOT a hard block on the
+      // entry creation. The user can still proceed without a photo by
+      // tapping the sheet's dismiss and saving as text-only.)
+      PaywallSheet.show(
+        context: context,
+        trigger: PaywallTrigger.memoryVaultLimit,
+        currentCount: used,
+        maxFree: cap,
+      );
+      // After the paywall, give the user the option to proceed without
+      // a photo. Show a non-alarming SnackBar.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'You can still save this memory without a photo. Kinrel Plus '
+              'removes the monthly upload limit.',
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+      return; // don't open the picker — at cap.
+    }
+    // Approaching the cap (≥80% used, but still under). Show a
+    // non-alarming SnackBar BEFORE opening the picker. This is the
+    // "clear in-context message when approaching" half of the spec.
+    if (mounted && used >= (cap * 0.8).round() && used < cap) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Running low on uploads this month — $used of $cap used. '
+            'Kinrel Plus removes this limit.',
+          ),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+
+    // Pre-compute premium status so we can conditionally show the
+    // quota indicator inside the (synchronous) bottom-sheet builder.
+    final isPremium = await PremiumService.isPremiumActive();
+    if (!mounted) return;
+
     await showModalBottomSheet(
       context: context,
       backgroundColor: _cCard,
@@ -889,11 +959,39 @@ class _MemoryCreateScreenState extends ConsumerState<MemoryCreateScreen>
                 _pickAndCrop(ImageSource.gallery);
               },
             ),
+            // Quota usage indicator (subtle) — hidden for Kinrel Plus
+            // users (they have no cap).
+            if (!isPremium) ...[
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Icon(Icons.bolt_outlined,
+                        size: 14, color: _cTextDim),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Shared monthly photo quota: $used / $cap used',
+                      style: const TextStyle(
+                        fontFamily: KinrelTypography.monoFont,
+                        fontSize: 11,
+                        color: _cTextDim,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
           ],
         ),
       ),
     );
+  }
+
+  /// Quick check for premium status — kept for external use / testing.
+  Future<bool> isPremium() async {
+    return PremiumService.isPremiumActive();
   }
 
   Future<void> _pickAndCrop(ImageSource source) async {

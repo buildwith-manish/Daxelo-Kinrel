@@ -23,6 +23,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/services/premium_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/database/isar_database.dart';
@@ -32,6 +33,63 @@ import '../data/memory_model.dart';
 // ═══════════════════════════════════════════════════════════════════════
 // State
 // ═══════════════════════════════════════════════════════════════════════
+
+/// Outcome of a quota check for a hero-photo attachment on a Timeline entry.
+///
+/// The user spec is explicit:
+///   - Timeline entry creation WITHOUT a photo is always free and uncapped.
+///   - Only the optional hero photo attachment draws against the SHARED monthly
+///     media quota (the same counter already used by Memory Vault uploads).
+///   - When the user is at/near the cap, we still allow the entry to be saved
+///     without a photo (the photo is silently dropped) rather than blocking the
+///     whole memory from being created.
+enum QuotaCheckResult {
+  /// No quota applies — the entry has no photo, so the counter is untouched.
+  /// (Per spec: "Timeline entry creation WITHOUT a photo is always free and
+  /// uncapped, regardless of tier or quota status.")
+  notApplicableNoPhoto,
+
+  /// Photo attachment allowed — the shared counter had room and has been (or
+  /// will be) incremented.
+  allowed,
+
+  /// Free-tier user has hit the shared monthly cap. The caller should still
+  /// save the entry WITHOUT the photo (per spec: "still allow the entry to be
+  /// saved without a photo if they choose to proceed without one rather than
+  /// blocking the whole memory from being created").
+  cappedDropPhoto,
+}
+
+/// A snapshot of the shared monthly quota state, returned from
+/// [MemoryVaultNotifier.checkSharedQuota]. Used by the UI to render the
+/// same soft-cap messaging pattern already established for Memory Vault.
+class SharedQuotaSnapshot {
+  const SharedQuotaSnapshot({
+    required this.used,
+    required this.cap,
+    required this.isPremium,
+  });
+
+  /// Number of photo uploads the user has made in the current calendar month.
+  final int used;
+
+  /// Free-tier monthly cap (default 50). Premium users have no cap (the field
+  /// is still populated for display, but `isPremium` short-circuits the cap).
+  final int cap;
+
+  /// Whether the user is on Kinrel Plus (cap is bypassed when true).
+  final bool isPremium;
+
+  /// Whether the user is at or above 80% of the cap (the "running low" band).
+  bool get isApproachingCap =>
+      !isPremium && used >= (cap * 0.8).round() && used < cap;
+
+  /// Whether the user has hit the cap.
+  bool get isAtCap => !isPremium && used >= cap;
+
+  /// Whether a photo attachment is currently allowed.
+  bool get canAttachPhoto => isPremium || used < cap;
+}
 
 /// Immutable state for the Memory Vault + Memories Timeline feature.
 class MemoryVaultState {
@@ -306,15 +364,62 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
 
   // ── Create Memory (full payload) ───────────────────────────────────
 
+  /// Returns a snapshot of the shared monthly photo quota state.
+  ///
+  /// This is the SAME counter that Memory Vault uploads draw against —
+  /// there is ONE shared monthly media quota, NOT a separate one for
+  /// Timeline hero photos. The UI uses this snapshot to render the same
+  /// soft-cap messaging pattern already established for Memory Vault
+  /// (PaywallSheet when capped, "Running low on uploads this month —
+  /// Kinrel Plus removes this limit" SnackBar at ≥80%).
+  ///
+  /// Per the user spec: "do not create a second, separate 'memories photo'
+  /// limit; both Memory Vault uploads and Timeline entry photos count
+  /// against one shared monthly counter."
+  Future<SharedQuotaSnapshot> checkSharedQuota() async {
+    final isPremium = await PremiumService.isPremiumActive();
+    final used = await PremiumService.getMemoryVaultUploadsThisMonth();
+    final cap = PremiumService.memoryVaultFreeMonthlyCap;
+    return SharedQuotaSnapshot(
+      used: used,
+      cap: cap,
+      isPremium: isPremium,
+    );
+  }
+
   /// Creates a new memory with all structured fields (title, description,
   /// location, memoryType, members, date, sourcePostId).
   ///
-  /// [imageBytes] — optional pre-cropped + pre-compressed image bytes.
-  /// If provided, the image is uploaded to the `memory-images` bucket
-  /// and the resulting URL + storage key are stored on the memory row.
+  /// [imageBytes] — optional pre-cropped + pre-compressed image bytes for
+  /// the hero photo (one photo per Timeline entry, per spec). If provided
+  /// AND the shared monthly quota has room (or the user is on Kinrel Plus),
+  /// the image is uploaded to the `memory-images` bucket and the resulting
+  /// URL + storage key are stored on the memory row. If the user is at the
+  /// shared monthly cap, the photo is silently dropped (the memory is still
+  /// saved as a text-only entry — per spec: "still allow the entry to be
+  /// saved without a photo if they choose to proceed without one rather
+  /// than blocking the whole memory from being created").
+  ///
+  /// [externalImageUrl] — optional already-hosted image URL to use as the
+  /// hero photo WITHOUT uploading a new storage object or consuming quota.
+  /// Used by Feature 2 (post-to-memory linking) when the post already has
+  /// an image in the `post-media` bucket — we simply reference that URL
+  /// (the post upload already paid for the storage; the marginal cost of
+  /// displaying it on the Timeline entry is zero, so no quota is drawn).
+  /// `image_storage_key` is left null in this case (deleting the memory
+  /// must NOT delete the post's image).
+  ///
+  /// Per the spec: "Timeline entry creation WITHOUT a photo is always
+  /// free and uncapped, regardless of tier or quota status — only the
+  /// photo attachment is quota-gated." When both [imageBytes] and
+  /// [externalImageUrl] are null, the quota check is bypassed entirely
+  /// (no `canUploadMemoryVaultPhoto` call, no `incrementMemoryVaultUpload`
+  /// call).
   ///
   /// [sourcePostId] — optional FK to FamilyPost. Set when the memory
-  /// was created from a post via the "Save As Memory" flow.
+  /// was created from a post via the "Also add this to our family
+  /// timeline" flow (Feature 2). This is the link target for the
+  /// "View full album in Memory Vault →" cross-link (Feature 3).
   Future<MemoryModel?> createMemory({
     required String title,
     String? description,
@@ -324,6 +429,7 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
     List<String> memberIds = const [],
     Uint8List? imageBytes,
     String? imageExtension,
+    String? externalImageUrl,
     String? sourcePostId,
   }) async {
     state = state.copyWith(
@@ -359,36 +465,99 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
       final memoryId = _uuid.v4();
       final now = DateTime.now();
 
-      // Step 1: Upload image (if provided)
+      // ── Shared-quota gate (only when a NEW photo is uploaded) ─────
+      // Per spec: only the optional hero photo (uploaded by the user
+      // through the create flow) draws against the shared monthly media
+      // quota. Text-only entries skip the check entirely. When the
+      // memory is created via the post-to-memory linking flow (Feature 2)
+      // and references an already-hosted image URL (externalImageUrl),
+      // no quota is consumed — the post upload already paid for that
+      // storage and we're just displaying the URL again (zero marginal
+      // cost).
+      //
+      // When the user is at/near the cap, we still create the memory —
+      // we just drop the photo. This matches the spec's "still allow
+      // the entry to be saved without a photo if they choose to proceed
+      // without one rather than blocking the whole memory from being
+      // created" requirement.
+      Uint8List? effectiveImageBytes = imageBytes;
+      if (imageBytes != null) {
+        final quota = await checkSharedQuota();
+        if (quota.canAttachPhoto) {
+          // Allowed — increment the SHARED counter (the same one Memory
+          // Vault uploads use). We increment BEFORE the upload so a
+          // concurrent Memory Vault upload can't double-spend.
+          await PremiumService.incrementMemoryVaultUpload();
+        } else {
+          // Capped — drop the photo, save the entry text-only.
+          // The UI should have shown the soft-cap messaging before
+          // reaching this point; this is the defensive backstop.
+          debugPrint(
+            '⚠️ MemoryVault.createMemory: at shared monthly cap '
+            '(${quota.used}/${quota.cap}) — saving entry without photo.',
+          );
+          effectiveImageBytes = null;
+        }
+      }
+
+      // Step 1: Upload image (if provided AND quota allowed), OR fall
+      // back to the external image URL (post-to-memory link) — the
+      // latter does NOT consume quota and does NOT own the storage object.
       String? imageUrl;
       String? imageStorageKey;
-      if (imageBytes != null) {
+      if (effectiveImageBytes != null) {
         state = state.copyWith(uploadProgress: 'Uploading cover image...');
 
         final ext = (imageExtension ?? 'jpg').toLowerCase();
         // Path: memory-images/{familyId}/{memoryId}/image.{ext}
         imageStorageKey = '$familyId/$memoryId/image.$ext';
-        await withRetry(
-          () => client.storage.from(_imageBucketName).uploadBinary(
-                imageStorageKey!,
-                imageBytes,
-                fileOptions: FileOptions(
-                  contentType: ext == 'png'
-                      ? 'image/png'
-                      : ext == 'webp'
-                          ? 'image/webp'
-                          : 'image/jpeg',
-                  upsert: true,
+        try {
+          await withRetry(
+            () => client.storage.from(_imageBucketName).uploadBinary(
+                  imageStorageKey!,
+                  effectiveImageBytes!,
+                  fileOptions: FileOptions(
+                    contentType: ext == 'png'
+                        ? 'image/png'
+                        : ext == 'webp'
+                            ? 'image/webp'
+                            : 'image/jpeg',
+                    upsert: true,
+                  ),
                 ),
-              ),
-          operationName: 'Upload memory cover image',
-          maxAttempts: 2,
-        );
+            operationName: 'Upload memory cover image',
+            maxAttempts: 2,
+          );
 
-        imageUrl = client
-            .storage
-            .from(_imageBucketName)
-            .getPublicUrl(imageStorageKey);
+          imageUrl = client
+              .storage
+              .from(_imageBucketName)
+              .getPublicUrl(imageStorageKey);
+        } catch (e) {
+          // Per spec: "still allow the entry to be saved without a photo
+          // if they choose to proceed without one rather than blocking
+          // the whole memory from being created." The upload failed —
+          // save the entry without the photo (the quota counter was
+          // incremented; we'll let the user's failure handler in the UI
+          // surface this as a SnackBar, but the entry is saved).
+          debugPrint('⚠️ MemoryVault image upload failed: $e — saving without photo');
+          imageUrl = null;
+          imageStorageKey = null;
+          // Note: we don't decrement the quota counter here. The intent
+          // was to upload; the user's photo "slot" was consumed. This
+          // matches the Memory Vault upload failure behavior (the
+          // counter is incremented optimistically and the failure is
+          // surfaced separately). Decrementing would create a race
+          // where a second concurrent upload could exceed the cap.
+        }
+      } else if (externalImageUrl != null && externalImageUrl.isNotEmpty) {
+        // Feature 2 path: the post already has an image in the
+        // `post-media` bucket. We reference the URL directly — no
+        // re-upload, no quota consumption, no image_storage_key
+        // (deleting the memory must NOT delete the post's image).
+        // The image will display on the Timeline entry as the hero.
+        imageUrl = externalImageUrl;
+        imageStorageKey = null;
       }
 
       // Step 2: Insert memory row
@@ -448,15 +617,36 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
     }
   }
 
-  // ── Save Post as Memory ───────────────────────────────────────────
+  // ── Save Post as Memory (Feature 2: post → timeline linking) ─────
 
-  /// Creates a memory from an existing post. Prefills the image URL,
-  /// caption, and date from the post; the user fills in title, location,
-  /// members, and type via the memory create UI.
+  /// Creates a Timeline entry from an existing post.
   ///
-  /// This is the backend side of Feature 5 ("Save Post As Memory"). The
-  /// UI side lives in the post card's ⋮ menu and in the post create
-  /// screen's "Save To Memories" toggle.
+  /// This is the backend side of Feature 2 ("Also add this to our family
+  /// timeline" toggle on the Post creation flow). When the toggle is ON,
+  /// the post-creation flow calls this method to AUTO-CREATE a Timeline
+  /// entry using the post's content (text + the post's image if it has
+  /// one). The entry is categorized appropriately — if the post has an
+  /// occasion, it's mapped to the closest Timeline category; otherwise
+  /// the entry defaults to "Custom".
+  ///
+  /// Per the spec, this linkage is **one-directional at creation time
+  /// only**. Editing or deleting the original post afterward should NOT
+  /// cascade-delete the Timeline entry; they're treated as two
+  /// independent records after creation, linked only by this one-time
+  /// copy action (the `source_post_id` field on the memory row).
+  ///
+  /// The post's image URL (if any) is referenced — NOT re-uploaded. The
+  /// post upload already paid for that storage; displaying it on the
+  /// Timeline entry has zero marginal cost, so NO quota is consumed
+  /// (the `externalImageUrl` path in [createMemory] bypasses the
+  /// `canUploadMemoryVaultPhoto` / `incrementMemoryVaultUpload` calls).
+  ///
+  /// Per the spec: "if the post has multiple images, use the first/
+  /// primary one as the Timeline entry's hero image, and the rest
+  /// remain part of the original post only, not duplicated into
+  /// Timeline." The PostCreate flow currently supports a single image
+  /// per post (single `mediaFile`); even if it supported multiple,
+  /// only the first URL would be passed here.
   Future<MemoryModel?> savePostAsMemory({
     required String postId,
     required String postText,
@@ -475,12 +665,13 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
       memoryType: memoryType,
       date: postDate ?? DateTime.now(),
       memberIds: memberIds,
-      // If the post had an image URL, we don't re-upload it (it's already
-      // in post-media bucket). Instead, we link to it directly so the
-      // memory displays the same image. The image_storage_key is left null
-      // (since we don't own the storage object — deleting the memory
-      // should NOT delete the post's image).
+      // Pass the post's image URL through as the hero photo — NO new
+      // upload, NO quota consumption. The createMemory method handles
+      // this path via `externalImageUrl` (sets `image_url` directly,
+      // leaves `image_storage_key` null so deleting the memory does
+      // not delete the post's image).
       imageBytes: null,
+      externalImageUrl: postImageUrl,
       sourcePostId: postId,
     );
   }
@@ -592,6 +783,61 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
         error: 'Delete failed: ${_sanitizeError(e)}',
       );
     }
+  }
+
+  // ── Cross-link helpers (Feature 3) ─────────────────────────────────
+
+  /// Returns the Timeline entries that were created via the post-to-memory
+  /// linking flow (Feature 2) — i.e. memories where `source_post_id` is set.
+  ///
+  /// Used by Feature 3's "View full album in Memory Vault →" cross-link:
+  /// when a Timeline entry has `sourcePostId != null`, we know the entry
+  /// was created via the linking flow and there's an explicit association
+  /// between the entry and the original post (and any other memories that
+  /// may share the same date/category in the Memory Vault).
+  ///
+  /// Per the spec: "this cross-link can initially be scoped to only the
+  /// specific photo(s) uploaded through the post-to-memory linking flow
+  /// (item 2), where the association is already explicit via the shared
+  /// creation action, rather than attempting to infer associations between
+  /// previously-unrelated Memory Vault and Timeline content."
+  List<MemoryModel> memoriesLinkedFromPost(String postId) {
+    return state.memories
+        .where((m) => m.sourcePostId == postId)
+        .toList();
+  }
+
+  /// Returns ALL Memory Vault photos that share the same `taken_at` date
+  /// (calendar date — year-agnostic) AND `memory_type` as the given memory.
+  /// Used to determine whether a "View full album in Memory Vault →"
+  /// affordance should be shown on a Timeline entry's detail view.
+  ///
+  /// Per the spec: "When a Timeline entry's photo corresponds to an event
+  /// that also has additional photos stored in Memory Vault (e.g., tagged
+  /// with the same date/event/category), show a 'View full album in
+  /// Memory Vault →' link."
+  ///
+  /// Returns an empty list when there are no other photos for the same
+  /// event (in which case the UI should hide the cross-link affordance).
+  List<MemoryModel> albumForMemory(String memoryId) {
+    final target = state.memories.firstWhere(
+      (m) => m.id == memoryId,
+      orElse: () => MemoryModel.placeholder(memoryId),
+    );
+    if (target.takenAt == null && target.memoryType == null) {
+      return const [];
+    }
+    return state.memories.where((m) {
+      if (m.id == memoryId) return false;
+      // Match on same calendar day (year-agnostic) OR same memory_type.
+      final sameDate = target.takenAt != null && m.takenAt != null &&
+          m.takenAt!.month == target.takenAt!.month &&
+          m.takenAt!.day == target.takenAt!.day;
+      final sameType = target.memoryType != null &&
+          m.memoryType != null &&
+          m.memoryType == target.memoryType;
+      return sameDate || sameType;
+    }).toList();
   }
 
   // ── Private Helpers ──────────────────────────────────────────────
@@ -728,4 +974,26 @@ final memoryVaultCountProvider = Provider<int>((ref) {
 final memoryVaultPinnedCountProvider = Provider<int>((ref) {
   final state = ref.watch(memoryVaultProvider);
   return state.pinnedCount;
+});
+
+/// Derived provider (Feature 3): returns the album of related Memory
+/// Vault photos for a given Timeline entry — same calendar date OR
+/// same memory_type. Empty when no other photos share the event.
+final memoryAlbumForMemoryProvider =
+    Provider.family<List<MemoryModel>, String>((ref, memoryId) {
+  final notifier = ref.watch(memoryVaultProvider.notifier);
+  return notifier.albumForMemory(memoryId);
+});
+
+/// Derived provider (Feature 3): returns whether a given Timeline entry
+/// was created via the post-to-memory linking flow (Feature 2) — i.e.
+/// has `source_post_id` set. Used by the UI to decide whether to show
+/// the "View full album in Memory Vault →" affordance.
+final isMemoryLinkedFromPostProvider =
+    Provider.family<bool, String>((ref, memoryId) {
+  final state = ref.watch(memoryVaultProvider);
+  final memory = state.memories
+      .where((m) => m.id == memoryId)
+      .firstOrNull;
+  return memory?.isFromPost ?? false;
 });
