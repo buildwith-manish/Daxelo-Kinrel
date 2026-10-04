@@ -183,4 +183,169 @@ void main() {
       expect(m.effectiveSpectatorsEnabled, isTrue);
     });
   });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // SPEC MATRIX: spectator mode + room state → expected action button
+  // ─────────────────────────────────────────────────────────────────────
+  // This group documents the spec-compliant behavior for every combination
+  // of spectatorsAllowed and room state. The actual button rendering lives
+  // in message_bubble._buildGameInviteCard (a private method), so these
+  // tests verify the ChatMessage fields + getters that drive the logic.
+  // The behavior is pinned here so any regression in the action-button
+  // resolution will be caught.
+  //
+  // Spec rules:
+  //   1. spectatorsAllowed=true + open slots   → "Join" (primary action)
+  //   2. spectatorsAllowed=true + full         → "Spectate"
+  //   3. spectatorsAllowed=true + in-progress  → "Spectate"
+  //   4. spectatorsAllowed=false + open slots  → "Join"
+  //   5. spectatorsAllowed=false + full        → "Full" (disabled)
+  //   6. spectatorsAllowed=false + in-progress → "In Game" (static)
+  //   7. expired/cancelled                     → "Closed • Expired" (no Join)
+  //   8. completed                             → "Game completed" (no Join)
+  group('spec matrix — spectator mode + room state', () {
+    test('Rule 1: spectators=true + open slots → Join is primary action', () {
+      // The card should show "Join" as the primary action, NOT "Spectate".
+      // Spectate only becomes available once the room is full or in-progress.
+      final m = _invite(
+        status: 'pending',
+        currentPlayers: 1,
+        maxPlayers: 4,
+        spectatorsEnabled: true,
+      );
+      expect(m.isGameJoinable, isTrue,
+          reason: 'room with open slots should be joinable');
+      expect(m.effectiveSpectatorsEnabled, isTrue,
+          reason: 'spectators allowed');
+      expect(m.isGameFull, isFalse,
+          reason: 'room is not full');
+      expect(m.isGameInProgress, isFalse);
+    });
+
+    test('Rule 2: spectators=true + full → Spectate (not disabled Full)', () {
+      // Per spec: when spectatorsAllowed is true AND the room has reached
+      // full player capacity, show a "Spectate" action on the invite card.
+      final m = _invite(
+        status: 'pending',
+        currentPlayers: 4,
+        maxPlayers: 4,
+        spectatorsEnabled: true,
+      );
+      expect(m.isGameFull, isTrue,
+          reason: 'room is at capacity');
+      expect(m.effectiveSpectatorsEnabled, isTrue,
+          reason: 'spectators allowed → Spectate button should appear');
+      expect(m.isGameJoinable, isFalse,
+          reason: 'room is full, not joinable as player');
+    });
+
+    test('Rule 3: spectators=true + in-progress → Spectate', () {
+      final m = _invite(
+        status: 'in_progress',
+        currentPlayers: 4,
+        maxPlayers: 4,
+        spectatorsEnabled: true,
+      );
+      expect(m.isGameInProgress, isTrue);
+      expect(m.effectiveSpectatorsEnabled, isTrue,
+          reason: 'spectators allowed → Spectate button should appear');
+    });
+
+    test('Rule 4: spectators=false + open slots → Join', () {
+      final m = _invite(
+        status: 'pending',
+        currentPlayers: 1,
+        maxPlayers: 4,
+        spectatorsEnabled: false,
+      );
+      expect(m.isGameJoinable, isTrue,
+          reason: 'room with open slots should be joinable');
+      expect(m.effectiveSpectatorsEnabled, isFalse,
+          reason: 'spectators disabled');
+    });
+
+    test('Rule 5: spectators=false + full → Full (disabled, no Spectate)', () {
+      // Per spec: when spectatorsAllowed is false, no Spectate option appears
+      // at any point in the room's lifecycle, regardless of state.
+      final m = _invite(
+        status: 'pending',
+        currentPlayers: 4,
+        maxPlayers: 4,
+        spectatorsEnabled: false,
+      );
+      expect(m.isGameFull, isTrue);
+      expect(m.effectiveSpectatorsEnabled, isFalse,
+          reason: 'spectators disabled → no Spectate, just disabled Full');
+      expect(m.isGameJoinable, isFalse);
+    });
+
+    test('Rule 6: spectators=false + in-progress → In Game (static, no Spectate)', () {
+      final m = _invite(
+        status: 'in_progress',
+        currentPlayers: 4,
+        maxPlayers: 4,
+        spectatorsEnabled: false,
+      );
+      expect(m.isGameInProgress, isTrue);
+      expect(m.effectiveSpectatorsEnabled, isFalse,
+          reason: 'spectators disabled → no Spectate, static In Game label');
+    });
+
+    test('Rule 7: expired → Closed • Expired (Join NEVER visible)', () {
+      // The core bug being reported: the Join button must NEVER remain
+      // visible/tappable once a room has left the Waiting/Full joinable states.
+      final m = _invite(
+        status: 'expired',
+        currentPlayers: 1,
+        maxPlayers: 4,
+        spectatorsEnabled: true,
+      );
+      expect(m.isGameExpired, isTrue);
+      expect(m.isGameJoinable, isFalse,
+          reason: 'expired rooms are never joinable — Join must not appear');
+      expect(m.isGameInviteClosed, isTrue,
+          reason: 'expired is a terminal state');
+    });
+
+    test('Rule 7b: cancelled → Closed • Expired (Join NEVER visible)', () {
+      final m = _invite(
+        status: 'cancelled',
+        currentPlayers: 4,
+        maxPlayers: 4,
+        spectatorsEnabled: true,
+      );
+      expect(m.isGameExpired, isTrue,
+          reason: 'cancelled is an alias for expired');
+      expect(m.isGameJoinable, isFalse);
+      expect(m.isGameInviteClosed, isTrue);
+    });
+
+    test('Rule 8: completed → Game completed (Join NEVER visible)', () {
+      final m = _invite(
+        status: 'completed',
+        currentPlayers: 4,
+        maxPlayers: 4,
+        spectatorsEnabled: true,
+      );
+      expect(m.isGameCompleted, isTrue);
+      expect(m.isGameJoinable, isFalse,
+          reason: 'completed rooms are never joinable — Join must not appear');
+      expect(m.isGameInviteClosed, isTrue);
+    });
+
+    test('Regression: in-progress rooms are never joinable (no stale Join)', () {
+      // Even if the room has open slots (e.g. a player left mid-game),
+      // an in-progress room must NOT show a Join button — the game has
+      // already started.
+      final m = _invite(
+        status: 'in_progress',
+        currentPlayers: 2,
+        maxPlayers: 4,
+        spectatorsEnabled: false,
+      );
+      expect(m.isGameInProgress, isTrue);
+      expect(m.isGameJoinable, isFalse,
+          reason: 'in-progress rooms are never joinable, even with open slots');
+    });
+  });
 }

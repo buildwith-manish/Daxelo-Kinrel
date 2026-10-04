@@ -1315,15 +1315,30 @@ class MessageBubble extends ConsumerWidget {
 
     if (isPreGame && !isFull && !isMe) {
       // Open to join — solid orange "Join" button.
+      // Per spec: when spectatorsAllowed is true but the room still has
+      // open player slots, the primary action is "Join" (as a player),
+      // NOT "Spectate". Spectate only becomes available once the room is
+      // full or in-progress.
       actionLabel = 'Join';
       actionEnabled = (message.gameId ?? '').isNotEmpty;
       actionCallback =
           actionEnabled ? () => _joinGameFromCard(context) : null;
     } else if (isPreGame && isFull && !isMe) {
-      // At capacity — disabled "Full" label.
-      actionLabel = 'Full';
-      actionEnabled = false;
-      actionCallback = null;
+      // Room is at capacity. Per spec:
+      //   • spectatorsAllowed=true  → show "Spectate" button (tappable)
+      //     so the user can watch even though they can't join as a player.
+      //   • spectatorsAllowed=false → disabled "Full" label (no Spectate
+      //     option at any point in the room's lifecycle).
+      if (message.effectiveSpectatorsEnabled) {
+        actionLabel = 'Spectate';
+        actionEnabled = (message.gameId ?? '').isNotEmpty;
+        actionCallback =
+            actionEnabled ? () => _watchGameFromCard(context) : null;
+      } else {
+        actionLabel = 'Full';
+        actionEnabled = false;
+        actionCallback = null;
+      }
     } else if (isInProgress) {
       // Game in progress. Spectate-button logic per spec:
       //   • Sender (isMe)            → always show "Rejoin" (they're a
