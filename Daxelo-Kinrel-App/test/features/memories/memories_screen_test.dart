@@ -268,12 +268,12 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
 
-      // The preview card uses generic, neutral, non-specific copy so
-      // it reads as illustrative/demonstrative (not as a real memory
-      // the user might tap into). The first scene's title should
-      // appear in the preview card.
+      // The preview card uses full, complete demo-style illustrative
+      // examples matching the original demo data (specific titles,
+      // real category types, plausible dates) — not generic
+      // placeholder text. The first scene's title should appear.
       expect(
-        find.text('A family celebration'),
+        find.text('Aarav was born'),
         findsOneWidget,
         reason: 'The animated preview card should render in the empty '
             'state, showing the first placeholder scene\'s title.',
@@ -291,7 +291,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
 
       // Initially shows the first scene.
-      expect(find.text('A family celebration'), findsOneWidget);
+      expect(find.text('Aarav was born'), findsOneWidget);
 
       // Pump past the 4.2s cycle interval. The Timer.periodic fires
       // at 4200ms, then the AnimatedSwitcher takes 700ms to crossfade.
@@ -300,14 +300,14 @@ void main() {
 
       // After the cycle, the second scene's title should be visible.
       expect(
-        find.text('A treasured milestone'),
+        find.text("Rajesh & Meera's Wedding"),
         findsOneWidget,
         reason: 'After ~4.2s the preview card should crossfade to the '
             'second placeholder scene.',
       );
       // And the first scene's title should be gone (the AnimatedSwitcher
       // removes the old child after the transition).
-      expect(find.text('A family celebration'), findsNothing);
+      expect(find.text('Aarav was born'), findsNothing);
     });
 
     testWidgets(
@@ -332,7 +332,7 @@ void main() {
 
       // The first scene is still visible (the card renders, just
       // doesn't cycle).
-      expect(find.text('A family celebration'), findsOneWidget);
+      expect(find.text('Aarav was born'), findsOneWidget);
 
       // Pump well past the 4.2s cycle interval — the Timer should
       // not be running in reduced-motion mode, so the scene should
@@ -342,13 +342,13 @@ void main() {
 
       // Still the first scene — no cycling in reduced-motion mode.
       expect(
-        find.text('A family celebration'),
+        find.text('Aarav was born'),
         findsOneWidget,
         reason: 'In reduced-motion mode the preview card should show a '
             'single static frame, not cycle through scenes.',
       );
       expect(
-        find.text('A treasured milestone'),
+        find.text("Rajesh & Meera's Wedding"),
         findsNothing,
         reason: 'The second scene should NOT appear in reduced-motion '
             'mode — the cycle is suppressed.',
@@ -365,22 +365,17 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
 
-      // The preview card titles should be generic and non-specific
-      // ("A family celebration", "A treasured milestone", etc.) — NOT
-      // anything that looks like a real family's data. This is a
-      // design guardrail to ensure the preview reads as
-      // illustrative/demonstrative, not as actual content a user
-      // might tap into expecting a real memory detail view.
-      //
-      // Pump through all 4 scenes to verify each one's title is
-      // generic. (The cycle is 4.2s per scene × 4 scenes = ~16.8s,
-      // but we just verify the 4 known titles are all generic
-      // by checking the first one is present and pumping forward.)
-      expect(find.text('A family celebration'), findsOneWidget);
+      // The preview card titles are full, complete demo-style
+      // illustrative examples (matching the original demo data spirit)
+      // — NOT generic placeholder text like "A family celebration".
+      // These are clearly illustrative (they cycle, and the empty-state
+      // headline/subtitle makes it clear this is a preview).
+      expect(find.text('Aarav was born'), findsOneWidget);
 
-      // The first scene's description should also be generic.
+      // The first scene's description should also be a complete,
+      // legible phrase — not truncated/overlapping text.
       expect(
-        find.textContaining('Birthdays, festivals'),
+        find.textContaining('Welcome to the family'),
         findsOneWidget,
       );
     });

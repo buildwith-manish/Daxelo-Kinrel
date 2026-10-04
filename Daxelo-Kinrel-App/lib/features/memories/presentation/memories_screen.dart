@@ -2106,48 +2106,49 @@ class _AnimatedMemoryPreviewCardState
   /// of (gradient colors, icon, accent color, type label, title,
   /// date label, description).
   ///
-  /// v94 design rationale: these are deliberately GENERIC and
-  /// ABSTRACT — soft gradients + simple Material icons (cake,
-  /// hearts, photo frame, star) rather than photos of real or
-  /// AI-generated people. This avoids any implication that the
-  /// empty state is showing real family photos or someone else's
-  /// actual memories. The captions are neutral and non-specific.
+  /// v95 (demo-style content): these are full, complete illustrative
+  /// examples matching the spirit of the original demo data — specific
+  /// titles, real category types, and plausible dates — so the preview
+  /// reads as a real timeline card, not generic placeholder text. The
+  /// scenes are clearly illustrative (they cycle, and the empty-state
+  /// headline/subtitle makes it clear this is a preview), not real
+  /// data presented as the user's own.
   static const _placeholderScenes = <_PlaceholderScene>[
     _PlaceholderScene(
       gradientColors: [Color(0xFFE8612A), Color(0xFF1A1C2E)],
       icon: Icons.cake_rounded,
       accentColor: KinrelColors.orange,
-      typeLabel: 'CELEBRATION',
-      title: 'A family celebration',
-      dateLabel: '12 Nov 2024',
-      description: 'Birthdays, festivals, and the moments we gather.',
+      typeLabel: 'BIRTH',
+      title: 'Aarav was born',
+      dateLabel: '12 Aug 2023',
+      description: 'Welcome to the family, Aarav! Born at 3:42 AM, 3.2 kg.',
     ),
     _PlaceholderScene(
       gradientColors: [Color(0xFFF59240), Color(0xFF1A1C2E)],
       icon: Icons.favorite_rounded,
       accentColor: KinrelColors.amber,
       typeLabel: 'MARRIAGE',
-      title: 'A treasured milestone',
-      dateLabel: '8 Dec 2020',
-      description: 'Weddings, anniversaries, and the vows that bind us.',
+      title: "Rajesh & Meera's Wedding",
+      dateLabel: '14 Feb 2023',
+      description: 'A grand Gujarati-Rajasthani fusion wedding.',
     ),
     _PlaceholderScene(
       gradientColors: [Color(0xFF60A5FA), Color(0xFF1A1C2E)],
-      icon: Icons.school_rounded,
+      icon: Icons.emoji_events_rounded,
       accentColor: KinrelColors.info,
-      typeLabel: 'GRADUATION',
-      title: 'A special moment',
-      dateLabel: '25 May 2012',
-      description: 'Graduations, achievements, and the milestones we reach.',
+      typeLabel: 'ACHIEVEMENT',
+      title: 'Ravi received Padma Shri Award',
+      dateLabel: '26 Jan 2024',
+      description: 'Honored for contributions to rural education.',
     ),
     _PlaceholderScene(
       gradientColors: [Color(0xFFFFD700), Color(0xFF1A1C2E)],
-      icon: Icons.auto_stories_rounded,
+      icon: Icons.festival_rounded,
       accentColor: KinrelColors.brightGold,
       typeLabel: 'FESTIVAL',
-      title: 'A captured memory',
+      title: 'Diwali at the family home',
       dateLabel: '1 Nov 2024',
-      description: 'Festivals, traditions, and the rituals we keep alive.',
+      description: 'The whole family gathered for Diwali puja and fireworks.',
     ),
   ];
 

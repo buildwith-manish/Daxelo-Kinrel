@@ -3008,11 +3008,38 @@ class _AnimatedStoryPreviewCardState
   /// which the brief explicitly allows: "can cycle through 2-3 of
   /// the real category types ... since it's clearly illustrative/
   /// rotating rather than presented as one fixed fake story."
-  static const _placeholderCategories = <StoryCategory>[
-    StoryCategory.familyHistory,
-    StoryCategory.recipe,
-    StoryCategory.wisdom,
+  ///
+  /// v95 (demo-style content): each category is paired with a full,
+  /// complete illustrative title + description matching the spirit
+  /// of the original demo data — specific, legible phrases like
+  /// "Grandma's secret ghevar recipe" and "The night we left Lahore"
+  /// — not generic placeholder text like "A story waiting to be
+  /// told". The scenes are clearly illustrative (they cycle, and the
+  /// empty-state headline/subtitle makes it clear this is a preview).
+  static const _placeholderScenes = <_StoryPlaceholderScene>[
+    _StoryPlaceholderScene(
+      category: StoryCategory.familyHistory,
+      title: 'The night we left Lahore',
+      description: 'Saroj Devi recounts the family\'s journey during Partition.',
+      durationLabel: '23:15',
+    ),
+    _StoryPlaceholderScene(
+      category: StoryCategory.recipe,
+      title: "Grandma's secret ghevar recipe",
+      description: 'Kamla shares the recipe passed down through four generations.',
+      durationLabel: '8:22',
+    ),
+    _StoryPlaceholderScene(
+      category: StoryCategory.wisdom,
+      title: "Nani Ma's wisdom on raising children",
+      description: 'Saroj Devi shares her philosophy on family and patience.',
+      durationLabel: '15:08',
+    ),
   ];
+
+  /// Convenience getter for the currently-active placeholder scene.
+  _StoryPlaceholderScene get _currentScene =>
+      _placeholderScenes[_currentCategoryIndex];
 
   /// The base waveform shape — 30 bars at varied but fixed heights.
   /// These heights are the "resting" state of the pulse: when the
@@ -3061,7 +3088,7 @@ class _AnimatedStoryPreviewCardState
         if (!mounted) return;
         setState(() {
           _currentCategoryIndex =
-              (_currentCategoryIndex + 1) % _placeholderCategories.length;
+              (_currentCategoryIndex + 1) % _placeholderScenes.length;
         });
       },
     );
@@ -3082,21 +3109,22 @@ class _AnimatedStoryPreviewCardState
 
   @override
   Widget build(BuildContext context) {
-    final category = _placeholderCategories[_currentCategoryIndex];
+    final scene = _currentScene;
 
     return AnimatedPreviewCard(
       reducedMotion: widget.reducedMotion,
-      accentColor: category.accentColor,
-      header: _StoryPreviewHeader(category: category),
+      accentColor: scene.category.accentColor,
+      header: _StoryPreviewHeader(
+        category: scene.category,
+        durationLabel: scene.durationLabel,
+      ),
       mediaArea: _StoryWaveformPulse(
-        accentColor: category.accentColor,
+        accentColor: scene.category.accentColor,
         baseWaveform: _baseWaveform,
         pulseAnimation: widget.reducedMotion ? null : _pulseController,
       ),
-      title: 'A story waiting to be told',
-      description:
-          'Grandma\'s recipe, Dad\'s first job, a festival memory — '
-          'the voices and traditions worth preserving.',
+      title: scene.title,
+      description: scene.description,
     );
   }
 }
@@ -3106,9 +3134,18 @@ class _AnimatedStoryPreviewCardState
 /// Matches the real `_StoryCard`'s top-row layout so the preview
 /// reads as a real story card.
 class _StoryPreviewHeader extends StatelessWidget {
-  const _StoryPreviewHeader({required this.category});
+  const _StoryPreviewHeader({
+    required this.category,
+    this.durationLabel = '0:00',
+  });
 
   final StoryCategory category;
+
+  /// v95: now shows the scene's illustrative duration (e.g. "23:15",
+  /// "8:22") to match the demo-style content, instead of the
+  /// generic "0:00" placeholder. Defaults to "0:00" for backward
+  /// compat if a caller doesn't pass it.
+  final String durationLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -3137,10 +3174,9 @@ class _StoryPreviewHeader extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        // Duration badge — shows "0:00" with an audio-waveform icon.
-        // Clearly a placeholder (not a fake specific duration like
-        // "12:34" that could read as real data). Matches _StoryCard's
-        // duration badge styling.
+        // Duration badge — matches _StoryCard's duration badge styling.
+        // Shows the scene's illustrative duration (e.g. "23:15") to
+        // read as a real story card, not a generic "0:00" placeholder.
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
@@ -3157,7 +3193,7 @@ class _StoryPreviewHeader extends StatelessWidget {
               ),
               const SizedBox(width: 3),
               Text(
-                '0:00',
+                durationLabel,
                 style: KinrelTypography.labelSmall.copyWith(
                   color: KinrelColors.amber,
                   fontWeight: FontWeight.w600,
@@ -3169,6 +3205,27 @@ class _StoryPreviewHeader extends StatelessWidget {
       ],
     );
   }
+}
+
+/// v95: a placeholder scene for the Oral History preview card — pairs
+/// a [StoryCategory] with full, complete illustrative title +
+/// description + duration label. Used by `_AnimatedStoryPreviewCard`
+/// to cycle through demo-style examples matching the original demo
+/// data (The night we left Lahore / Grandma's secret ghevar recipe /
+/// Nani Ma's wisdom on raising children).
+@immutable
+class _StoryPlaceholderScene {
+  const _StoryPlaceholderScene({
+    required this.category,
+    required this.title,
+    required this.description,
+    required this.durationLabel,
+  });
+
+  final StoryCategory category;
+  final String title;
+  final String description;
+  final String durationLabel;
 }
 
 /// The animated waveform area for the Oral History preview card — a

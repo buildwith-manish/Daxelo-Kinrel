@@ -61,7 +61,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
-import '../../core/constants/brand_spacing.dart' show KinrelSpacing, KinrelRadius;
+import '../../core/constants/brand_spacing.dart' show KinrelRadius;
 import '../../core/services/haptic_service.dart';
 import 'bounce_button.dart';
 
@@ -121,34 +121,46 @@ class KinrelEmptyState extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // ── Illustration or Icon ───────────────────────────────────
-          // The icon sits in a soft circle with the brand color at low
-          // opacity — warm, not stark.
-          Container(
-            width: 96,
-            height: 96,
-            decoration: BoxDecoration(
-              color: KinrelColors.orange.withValues(alpha: 0.10),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: illustration ??
-                  Icon(
-                    icon,
-                    size: 44,
-                    color: KinrelColors.orange.withValues(alpha: 0.85),
-                  ),
-            ),
-          )
-              .animate()
-              .fadeIn(duration: 400.ms)
-              .scale(
-                begin: const Offset(0.85, 0.85),
-                end: const Offset(1, 1),
-                duration: 400.ms,
-                curve: Curves.easeOutBack,
+          // When a custom illustration is provided (e.g., the animated
+          // preview cards in Memories & Oral History), render it
+          // directly in the column flow — NOT in the 96×96 circular
+          // container below. The circular container is only for the
+          // default icon (when no illustration is passed). Forcing a
+          // 240px-wide preview card into a 96×96 circle causes it to
+          // overflow the circle and render on top of the headline/
+          // subtitle text below — which is the root cause of the
+          // overlapping-text bug.
+          if (illustration != null) ...[
+            illustration!,
+            const SizedBox(height: 24),
+          ] else ...[
+            // Default: icon in a soft circle with the brand color at
+            // low opacity — warm, not stark.
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: KinrelColors.orange.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
               ),
-
-          const SizedBox(height: 24),
+              child: Center(
+                child: Icon(
+                  icon,
+                  size: 44,
+                  color: KinrelColors.orange.withValues(alpha: 0.85),
+                ),
+              ),
+            )
+                .animate()
+                .fadeIn(duration: 400.ms)
+                .scale(
+                  begin: const Offset(0.85, 0.85),
+                  end: const Offset(1, 1),
+                  duration: 400.ms,
+                  curve: Curves.easeOutBack,
+                ),
+            const SizedBox(height: 24),
+          ],
 
           // ── Title ───────────────────────────────────────────────────
           Text(
