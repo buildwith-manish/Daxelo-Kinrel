@@ -52,6 +52,10 @@ import '../../../core/utils/web_keyboard_height.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/services/celebration_service.dart';
+// Phase 4 — consolidated image cache manager (used for the header avatar
+// + MessageInfoSheet photo/gif previews so they share the singleton cache
+// and decode at display-size × DPR instead of native resolution).
+import '../../../core/services/image_cache_manager.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/chat_enhancement_service.dart';
 import '../data/chat_lock_service.dart';
@@ -185,6 +189,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // when the keyboard opens. We use the visualViewport API instead to
   // detect the actual keyboard height and add explicit bottom padding.
   double _webKeyboardHeight = 0;
+
+  // ── Phase 2 / _groupByDate memoization ─────────────────────────────
+  //
+  // The previous implementation of _groupByDate ran an O(n²) grouping
+  // (using `groups.where(...).firstOrNull` inside a loop over messages)
+  // on EVERY build() call. With a chat thread of ~200 messages and a
+  // burst of realtime inserts triggering 10 builds per second, that's
+  // 200 × 10 = 2,000 firstOrNull scans per second — each one scanning
+  // up to N groups to find a label match.
+  //
+  // We now memoize the grouping result by the IDENTITY of the messages
+  // list. Since chat_provider's state is immutable (each state change
+  // creates a new List instance), identity comparison (identical()) is
+  // a perfect cache key — O(1) invalidation, no false hits.
+  //
+  // The grouping algorithm itself is now O(n) using a Map<String,
+  // DateGroup> index for O(1) label lookups (vs the old O(n) scan).
+  List<DateGroup> _groupedCache = const [];
+  List<ChatMessage>? _groupedCacheKey;
 
   // Quick reaction emojis
   static const _reactionEmojis = ['❤️', '😂', '👍', '😮', '😢', '🙏'];
@@ -1051,62 +1074,101 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // family-level action. Individual member profiles are
                 // opened from member-specific UI (message bubble avatars)
                 // via MemberProfileSheet, not from the header.
-                GestureDetector(
-                  onTap: () =>
-                      context.push('/family/${widget.familyId}/profile'),
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      // v134: Soft ember ambient glow — felt behind the
-                      // avatar, suggests warmth + human connection.
-                      boxShadow: [
-                        BoxShadow(
-                          color: KinrelColors.ember.withValues(alpha: 0.18),
-                          blurRadius: 14,
-                          offset: const Offset(0, 0),
-                        ),
-                      ],
-                    ),
+                //
+                // ── Phase 6 / RepaintBoundary ─────────────────────────
+                // Wrap the avatar in a RepaintBoundary so the CachedNetwork
+                // image decode + circle clip doesn't repaint on every
+                // chatState change (which fires on every new message,
+                // read-receipt flip, etc.). The avatar only changes when
+                // the family's avatarUrl changes — a separate concern.
+                RepaintBoundary(
+                  child: GestureDetector(
+                    onTap: () =>
+                        context.push('/family/${widget.familyId}/profile'),
                     child: Container(
+                      width: 48,
+                      height: 48,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        // v134: Hairline ember ring frames the avatar.
-                        border: Border.all(
-                          color: KinrelColors.ember.withValues(alpha: 0.35),
-                          width: 1.2,
-                        ),
+                        // v134: Soft ember ambient glow — felt behind the
+                        // avatar, suggests warmth + human connection.
+                        boxShadow: [
+                          BoxShadow(
+                            color: KinrelColors.ember.withValues(alpha: 0.18),
+                            blurRadius: 14,
+                            offset: const Offset(0, 0),
+                          ),
+                        ],
                       ),
-                      child: ClipOval(
-                        child: avatarUrl != null && avatarUrl.isNotEmpty
-                            ? (avatarUrl.startsWith('data:')
-                                ? Image.memory(
-                                    base64Decode(avatarUrl.substring(
-                                        avatarUrl.indexOf(',') + 1)),
-                                    fit: BoxFit.cover,
-                                    width: 46,
-                                    height: 46,
-                                    errorBuilder: (_, __, ___) =>
-                                        _buildLetterAvatar(),
-                                  )
-                                : CachedNetworkImage(
-                                    imageUrl: avatarUrl,
-                                    fit: BoxFit.cover,
-                                    width: 46,
-                                    height: 46,
-                                    placeholder: (_, __) =>
-                                        _buildLetterAvatar(),
-                                    errorWidget: (_, __, ___) =>
-                                        _buildLetterAvatar(),
-                                  ))
-                            : Container(
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: KinrelGradients.igniteGradient,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          // v134: Hairline ember ring frames the avatar.
+                          border: Border.all(
+                            color: KinrelColors.ember.withValues(alpha: 0.35),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: ClipOval(
+                          child: avatarUrl != null && avatarUrl.isNotEmpty
+                              ? (avatarUrl.startsWith('data:')
+                                  ? Image.memory(
+                                      base64Decode(avatarUrl.substring(
+                                          avatarUrl.indexOf(',') + 1)),
+                                      fit: BoxFit.cover,
+                                      width: 46,
+                                      height: 46,
+                                      // Phase 4 — cap decode at the
+                                      // 46×46 display size × DPR so a 4K
+                                      // family-avatar URL doesn't
+                                      // allocate a 4K bitmap in memory.
+                                      cacheWidth:
+                                          (46 * MediaQuery.devicePixelRatioOf(
+                                                  context))
+                                              .round(),
+                                      cacheHeight:
+                                          (46 * MediaQuery.devicePixelRatioOf(
+                                                  context))
+                                              .round(),
+                                      errorBuilder: (_, __, ___) =>
+                                          _buildLetterAvatar(),
+                                    )
+                                  : CachedNetworkImage(
+                                      imageUrl: avatarUrl,
+                                      cacheManager:
+                                          KinrelImageCacheManager.instance,
+                                      fit: BoxFit.cover,
+                                      width: 46,
+                                      height: 46,
+                                      // Phase 4 — consolidated cache
+                                      // manager + cap decode at the on-
+                                      // screen 46×46 size × DPR. Without
+                                      // these the family avatar would
+                                      // decode at full source resolution
+                                      // (often 512×512) and pollute the
+                                      // shared ImageCache, evicting
+                                      // message thumbnails.
+                                      memCacheWidth:
+                                          (46 * MediaQuery.devicePixelRatioOf(
+                                                  context))
+                                              .round(),
+                                      memCacheHeight:
+                                          (46 * MediaQuery.devicePixelRatioOf(
+                                                  context))
+                                              .round(),
+                                      placeholder: (_, __) =>
+                                          _buildLetterAvatar(),
+                                      errorWidget: (_, __, ___) =>
+                                          _buildLetterAvatar(),
+                                    ))
+                              : Container(
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: KinrelGradients.igniteGradient,
+                                  ),
+                                  child: Center(child: _buildLetterAvatar()),
                                 ),
-                                child: Center(child: _buildLetterAvatar()),
-                              ),
+                        ),
                       ),
                     ),
                   ),
@@ -2402,9 +2464,69 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
     return ListView.builder(
       controller: _scrollController,
+      // ── Phase 3 / reverse-list anchor-to-bottom ───────────────────
+      // reverse: true means the visual BOTTOM of the viewport shows
+      // index 0 (the newest message) and scrolling UP increases the
+      // scroll offset (toward older messages at the end of the list).
+      // This eliminates the need for a post-render scroll-to-bottom
+      // animation on screen entry — the list naturally opens at offset
+      // 0 = the most recent message, exactly like WhatsApp.
+      //
+      // Verified as part of Phase 3:
+      //   ✅ State is stored newest-first (chat_provider sorts
+      //      messages descending by timestamp).
+      //   ✅ Realtime inserts prepend to index 0 (visual bottom) —
+      //      the user sees the new message appear at the bottom of
+      //      the screen without any scroll animation.
+      //   ✅ Pagination prepends OLDER messages to the END of the
+      //      list (chat_provider's loadOlderMessages does
+      //      [...state.messages, ...olderMessages]), which in a
+      //      reverse ListView renders at the visual TOP — exactly
+      //      where the user is scrolling toward when reading history.
+      //   ✅ The main chat TextField does NOT have autofocus: true,
+      //      so the focus-listener-triggered _scrollToBottom() does
+      //      NOT fire on screen entry. (autofocus is only on the
+      //      edit-message dialog's TextField — a separate route.)
+      //   ✅ _scrollToBottom() is only called in two legitimate
+      //      contexts: after the user SENDS a message (so the new
+      //      message is visible even if they'd scrolled up to read
+      //      history) and when the user TAPS the input field (which
+      //      implies they're done reading and want to engage).
       reverse: true,
       padding: const EdgeInsets.fromLTRB(12, 8, 12, fabClearance),
       itemCount: grouped.length,
+      // ── Phase 2 / itemExtent / prototypeItem ───────────────────────
+      // The spec asks us to evaluate `itemExtent` for fixed-height
+      // message kinds (game-invite cards) and `prototypeItem` for
+      // near-fixed-height kinds. Both require a SINGLE global extent
+      // for the whole list — but each item in THIS ListView is a
+      // DateGroup Column wrapping multiple bubbles of genuinely
+      // varying heights (a 1-line text bubble vs. a 6-line game-invite
+      // card vs. a 220×220 GIF bubble). Forcing a fixed itemExtent
+      // would crop long messages or waste space on short ones.
+      //
+      // SliverVariedExtentList would allow per-item extents, but
+      // computing each group's extent upfront requires laying out
+      // every bubble (defeating the lazy-build benefit of ListView).
+      //
+      // Per the spec's escape hatch ("if the mixed-height reality
+      // makes a clean itemExtent win impractical, skip this
+      // optimization and rely on Phase 5's rebuild hygiene instead"),
+      // we skip itemExtent here. The wins come from:
+      //   • Phase 5 — debounced realtime bursts (1 rebuild/burst, not N)
+      //   • Phase 6 — RepaintBoundary per bubble (only the new bubble
+      //     repaints, not the whole visible list)
+      //   • Phase 2 memoization — _groupByDate no longer re-runs on
+      //     every build (it's memoized by list identity above)
+      //   • cacheExtent below — extends the offscreen render window so
+      //     scrolling reveals already-built items instead of building
+      //     them on demand mid-frame.
+      //
+      // cacheExtent: 1.5 screen heights of pre-built offscreen content.
+      // The default is 250px — too tight for chat, where a single
+      // game-invite card or photo bubble is already ~220px. 1500px
+      // gives ~2 screens of headroom in either scroll direction.
+      cacheExtent: 1500,
       itemBuilder: (context, index) {
         final group = grouped[index];
         return Column(
@@ -2437,34 +2559,47 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
               return Padding(
                 padding: EdgeInsets.only(bottom: bottomPadding),
-                child: SwipeToReply(
-                  messageId: msg.id,
-                  isMe: isMe,
-                  onReply: () {
-                    ref
-                        .read(chatProvider(widget.familyId).notifier)
-                        .setReplyTo(msg);
-                  },
-                  child: MessageBubble(
-                    message: msg,
+                // ── Phase 6 / RepaintBoundary ─────────────────────────
+                // Each bubble is wrapped in its own RepaintBoundary so a
+                // single new/updated message (or a realtime burst insert)
+                // doesn't trigger a repaint of the entire visible message
+                // list. Without this, every state change in the chatProvider
+                // (a new message arriving, a read-receipt flip, a reaction
+                // add) repaints ALL visible bubbles — including the
+                // expensive photo/GIF bubbles that decode cached bitmaps.
+                // The RepaintBoundary creates a separate paint layer per
+                // bubble so the framework only repaints bubbles whose
+                // subtree actually changed.
+                child: RepaintBoundary(
+                  child: SwipeToReply(
+                    messageId: msg.id,
                     isMe: isMe,
-                    familyId: widget.familyId,
-                    isFirstInGroup: isFirstInGroup,
-                    isLastInGroup: isLastInGroup,
                     onReply: () {
                       ref
                           .read(chatProvider(widget.familyId).notifier)
                           .setReplyTo(msg);
                     },
-                    onReact: () => _showReactionPicker(msg.id),
-                    onLongPress: () => _showMessageActions(msg),
-                    /// Feature 6: tap the quoted reply preview to scroll
-                    /// to the original message. We pass a callback only
-                    /// when replyToId is set (avoids creating a closure
-                    /// for every bubble).
-                    onReplyPreviewTap: msg.replyToId != null
-                        ? () => _scrollToMessage(msg.replyToId!)
-                        : null,
+                    child: MessageBubble(
+                      message: msg,
+                      isMe: isMe,
+                      familyId: widget.familyId,
+                      isFirstInGroup: isFirstInGroup,
+                      isLastInGroup: isLastInGroup,
+                      onReply: () {
+                        ref
+                            .read(chatProvider(widget.familyId).notifier)
+                            .setReplyTo(msg);
+                      },
+                      onReact: () => _showReactionPicker(msg.id),
+                      onLongPress: () => _showMessageActions(msg),
+                      /// Feature 6: tap the quoted reply preview to scroll
+                      /// to the original message. We pass a callback only
+                      /// when replyToId is set (avoids creating a closure
+                      /// for every bubble).
+                      onReplyPreviewTap: msg.replyToId != null
+                          ? () => _scrollToMessage(msg.replyToId!)
+                          : null,
+                    ),
                   ),
                 ),
               );
@@ -2480,35 +2615,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // refined shape. Uses a frosted-glass effect (semi-transparent
     // dark + hairline white border) so it feels integrated with the
     // ambient background rather than floating as a hard pill.
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        decoration: BoxDecoration(
-          // v132: Frosted glass — dark with low alpha so the ambient
-          // gradient shows through subtly.
-          color: const Color(0xFF13141E).withValues(alpha: 0.78),
-          borderRadius: BorderRadius.circular(100),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.08),
-            width: 0.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+    //
+    // Phase 6 — RepaintBoundary isolates the date pill from message-
+    // bubble repaints. The pill's visual only depends on [label], which
+    // is stable per group, so isolating it prevents the frosted-glass
+    // blur (an expensive paint op) from re-running on every state change.
+    return RepaintBoundary(
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            // v132: Frosted glass — dark with low alpha so the ambient
+            // gradient shows through subtly.
+            color: const Color(0xFF13141E).withValues(alpha: 0.78),
+            borderRadius: BorderRadius.circular(100),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.08),
+              width: 0.5,
             ),
-          ],
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: KinrelTypography.monoFont,
-            fontSize: 10.5,
-            fontWeight: FontWeight.w600,
-            color: KinrelColors.textSilver.withValues(alpha: 0.9),
-            letterSpacing: 0.8,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: KinrelTypography.monoFont,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              color: KinrelColors.textSilver.withValues(alpha: 0.9),
+              letterSpacing: 0.8,
+            ),
           ),
         ),
       ),
@@ -2521,27 +2663,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     return Positioned(
       right: 16,
       bottom: 8,
-      child: GestureDetector(
-        onTap: _scrollToBottom,
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: KinrelColors.darkCard,
-            border: Border.all(color: const Color(0xFF3A3A4A), width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.keyboard_arrow_down,
-            color: KinrelColors.textSilver,
-            size: 24,
+      // Phase 6 — RepaintBoundary isolates the FAB so it doesn't repaint
+      // when the message list repaints (and vice versa).
+      child: RepaintBoundary(
+        child: GestureDetector(
+          onTap: _scrollToBottom,
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: KinrelColors.darkCard,
+              border: Border.all(color: const Color(0xFF3A3A4A), width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.keyboard_arrow_down,
+              color: KinrelColors.textSilver,
+              size: 24,
+            ),
           ),
         ),
       ),
@@ -4120,7 +4266,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           borderRadius: BorderRadius.circular(12),
                           child: CachedNetworkImage(
                             imageUrl: message.mediaUrl!,
+                            cacheManager: KinrelImageCacheManager.instance,
                             fit: BoxFit.contain,
+                            // Phase 4 — cap decode at the info-sheet's
+                            // visible width (sheet is ~screen-wide × 0.85,
+                            // so use screenWidth × DPR × 0.9 as a safe
+                            // upper bound for the decoded bitmap).
+                            memCacheWidth: (MediaQuery.sizeOf(context).width *
+                                    MediaQuery.devicePixelRatioOf(context) *
+                                    0.9)
+                                .round(),
                             placeholder: (_, __) => Container(
                               height: 200,
                               color: const Color(0xFF0A0B16),
@@ -4145,7 +4300,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           borderRadius: BorderRadius.circular(12),
                           child: CachedNetworkImage(
                             imageUrl: message.mediaUrl!,
+                            cacheManager: KinrelImageCacheManager.instance,
                             fit: BoxFit.contain,
+                            // Phase 4 — cap decode at 360×360*DPR (the
+                            // sheet is wider than the bubble, so the cap
+                            // is slightly higher than the bubble's 220).
+                            memCacheWidth:
+                                (360 * MediaQuery.devicePixelRatioOf(context))
+                                    .round(),
+                            memCacheHeight:
+                                (360 * MediaQuery.devicePixelRatioOf(context))
+                                    .round(),
                           ),
                         )
                       else
@@ -4279,7 +4444,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // would be misfiled.
 
   List<DateGroup> _groupByDate(List<ChatMessage> messages) {
-    final groups = <DateGroup>[];
+    // ── Phase 2 / memoization ────────────────────────────────────────
+    // Return the cached grouping if the input list is the same instance
+    // as last time. chat_provider's ChatState.messages is immutable —
+    // any state change creates a fresh List, so identical() comparison
+    // is a perfect invalidation signal (O(1), no false hits).
+    //
+    // This eliminates the O(n²) grouping work on every rebuild that
+    // doesn't actually change the messages list (e.g. typing-indicator
+    // updates, presence changes — both fire chatState changes but
+    // leave .messages untouched).
+    if (identical(_groupedCacheKey, messages)) {
+      return _groupedCache;
+    }
+
+    // ── Phase 2 / O(n) algorithm (was O(n²)) ────────────────────────
+    // The previous implementation used `groups.where(...).firstOrNull`
+    // INSIDE the loop over messages — an O(n) scan per message, making
+    // the whole grouping O(n²) on the full message list. With 200+
+    // messages per chat thread, that's 40,000+ label scans per build.
+    //
+    // The fix: maintain a Map<String, DateGroup> index alongside the
+    // ordered List<DateGroup> so label lookups are O(1) instead of O(n).
+    // The ordered list is still produced in insertion order (newest day
+    // first, since messages are newest-first from the provider).
+    final orderedLabels = <String>[];
+    final byLabel = <String, DateGroup>{};
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
@@ -4314,16 +4504,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           'November',
           'December',
         ];
-        label =
-            '${months[local.month]} ${local.day}, ${local.year}';
+        label = '${months[local.month]} ${local.day}, ${local.year}';
       }
 
-      final existing = groups.where((g) => g.dateLabel == label).firstOrNull;
+      final existing = byLabel[label];
       if (existing != null) {
         existing.messages.add(msg);
       } else {
-        groups.add(DateGroup(dateLabel: label, messages: [msg]));
+        final g = DateGroup(dateLabel: label, messages: [msg]);
+        byLabel[label] = g;
+        orderedLabels.add(label);
       }
+    }
+
+    final groups = <DateGroup>[];
+    for (final label in orderedLabels) {
+      groups.add(byLabel[label]!);
     }
 
     // v112: Within each date group, sort messages ascending (oldest
@@ -4342,6 +4538,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       g.messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
     }
 
+    // Cache the result for next time.
+    _groupedCacheKey = messages;
+    _groupedCache = groups;
     return groups;
   }
 }
