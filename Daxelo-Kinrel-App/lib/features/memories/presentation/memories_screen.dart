@@ -16,6 +16,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_tokens.dart' show AppMotion;
 import '../../../core/constants/brand_colors.dart';
@@ -32,7 +33,14 @@ import '../providers/memories_provider.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 class MemoriesScreen extends ConsumerStatefulWidget {
-  const MemoriesScreen({super.key});
+  const MemoriesScreen({super.key, this.familyId = ''});
+
+  /// v96: the familyId for the current family context, passed via
+  /// the route's query parameter (`/memories?familyId=...`). Used by
+  /// the back button to navigate to `/family/$familyId` (Family
+  /// Space). Empty string if no familyId was passed (the back button
+  /// falls back to `context.pop()` in that case).
+  final String familyId;
 
   @override
   ConsumerState<MemoriesScreen> createState() => _MemoriesScreenState();
@@ -121,11 +129,19 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
           // visual margin. The FAB floats above the scrollable content
           // (and the safe-area sliver above guarantees the last card
           // never clips under it).
-          Positioned(
-            right: KinrelSpacing.base,
-            bottom: MediaQuery.of(context).padding.bottom + 24,
-            child: _buildFAB(),
-          ),
+          //
+          // v96: HIDE the FAB when the family has ZERO memories (true
+          // empty state) — the empty-state block's own "Add First
+          // Memory" CTA is the only add action shown in that case,
+          // avoiding redundancy. Once at least one memory exists
+          // (populated list OR filtered-empty), the FAB reappears so
+          // the user can add more from anywhere on the screen.
+          if (state.hasMemories)
+            Positioned(
+              right: KinrelSpacing.base,
+              bottom: MediaQuery.of(context).padding.bottom + 24,
+              child: _buildFAB(),
+            ),
         ],
       ),
     );
@@ -148,6 +164,34 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
           ),
           child: Row(
             children: [
+              // v96: Back button — navigates to the Family Space screen
+              // for the current family context. Uses context.go (not
+              // context.pop) so it always lands on the correct Family
+              // Space screen regardless of navigation history. Falls
+              // back to context.pop() if no familyId was passed.
+              GestureDetector(
+                onTap: () {
+                  if (widget.familyId.isNotEmpty) {
+                    context.go('/family/${widget.familyId}');
+                  } else if (context.canPop()) {
+                    context.pop();
+                  }
+                },
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: KinrelColors.darkCard,
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: KinrelColors.textWhite,
+                    size: 20,
+                  ),
+                ),
+              ),
+              const SizedBox(width: KinrelSpacing.sm),
               Container(
                 width: 40,
                 height: 40,

@@ -277,5 +277,34 @@ void main() {
       expect(find.text("Arjun & Priya's Wedding — The Full Story"),
           findsNothing);
     });
+
+    testWidgets(
+        'v96: hides floating "Record Story" FAB on true-zero empty state '
+        '(only the empty-state CTA should be visible)',
+        (tester) async {
+      final container = makeContainer();
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: OralHistoryScreen()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // The floating FAB label "Record Story" should NOT be visible
+      // when the family has zero stories — the empty-state block's
+      // own "Record First Story" CTA is the only add action shown.
+      expect(
+        find.text('Record Story'),
+        findsNothing,
+        reason: 'The floating FAB should be hidden on the true-zero '
+            'empty state — only the empty-state CTA should be visible.',
+      );
+      // The empty-state CTA "Record First Story" SHOULD be visible.
+      expect(find.text('Record First Story'), findsOneWidget);
+    });
   });
 }

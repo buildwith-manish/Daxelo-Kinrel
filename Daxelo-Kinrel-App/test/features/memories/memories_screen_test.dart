@@ -255,6 +255,31 @@ void main() {
       expect(find.text('Neha graduated from AIIMS'), findsNothing);
       expect(find.text('Holi at the Farmhouse'), findsNothing);
     });
+
+    testWidgets(
+        'v96: hides floating "Add Memory" FAB on true-zero empty state '
+        '(only the empty-state CTA should be visible)',
+        (tester) async {
+      await tester.pumpWidget(
+        const ProviderScope(
+          child: MaterialApp(home: MemoriesScreen()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // The floating FAB label "Add Memory" should NOT be visible
+      // when the family has zero memories — the empty-state block's
+      // own "Add First Memory" CTA is the only add action shown.
+      expect(
+        find.text('Add Memory'),
+        findsNothing,
+        reason: 'The floating FAB should be hidden on the true-zero '
+            'empty state — only the empty-state CTA should be visible.',
+      );
+      // The empty-state CTA "Add First Memory" SHOULD be visible.
+      expect(find.text('Add First Memory'), findsOneWidget);
+    });
   });
 
   group('MemoriesScreen — animated preview card (v94)', () {

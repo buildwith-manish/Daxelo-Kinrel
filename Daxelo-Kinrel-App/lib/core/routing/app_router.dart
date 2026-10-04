@@ -2821,15 +2821,29 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Oral History ────────────────────────────────────────────
       GoRoute(
         path: '/oral-history',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const OralHistoryScreen()),
+        pageBuilder: (context, state) {
+          // v96: read familyId from the query parameter so the back
+          // button can navigate to /family/$familyId (Family Space).
+          final familyId = state.uri.queryParameters['familyId'] ?? '';
+          return _fastFadePage(
+            key: state.pageKey,
+            child: OralHistoryScreen(familyId: familyId),
+          );
+        },
       ),
 
       // ── Memories & Timeline ─────────────────────────────────────
       GoRoute(
         path: '/memories',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const MemoriesScreen()),
+        pageBuilder: (context, state) {
+          // v96: read familyId from the query parameter so the back
+          // button can navigate to /family/$familyId (Family Space).
+          final familyId = state.uri.queryParameters['familyId'] ?? '';
+          return _fastFadePage(
+            key: state.pageKey,
+            child: MemoriesScreen(familyId: familyId),
+          );
+        },
       ),
 
       // ── AI-Powered Features ─────────────────────────────────────

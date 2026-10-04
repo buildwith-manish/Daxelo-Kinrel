@@ -45,6 +45,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -64,7 +65,14 @@ import 'oral_history_audio_player.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 class OralHistoryScreen extends ConsumerStatefulWidget {
-  const OralHistoryScreen({super.key});
+  const OralHistoryScreen({super.key, this.familyId = ''});
+
+  /// v96: the familyId for the current family context, passed via
+  /// the route's query parameter (`/oral-history?familyId=...`). Used
+  /// by the back button to navigate to `/family/$familyId` (Family
+  /// Space). Empty string if no familyId was passed (the back button
+  /// falls back to `context.pop()` in that case).
+  final String familyId;
 
   @override
   ConsumerState<OralHistoryScreen> createState() => _OralHistoryScreenState();
@@ -182,7 +190,15 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
           ),
 
           // ── Recording FAB ─────────────────────────────────────────
-          if (!state.recordingState.isActive)
+          // v96: HIDE the FAB when the family has ZERO stories (true
+          // empty state) — the empty-state block's own "Record First
+          // Story" CTA is the only add action shown in that case,
+          // avoiding redundancy. Once at least one story exists
+          // (populated list OR filtered-empty), the FAB reappears so
+          // the user can record more from anywhere on the screen.
+          // Also hidden while a recording session is active (the
+          // recording bottom sheet replaces the FAB in that case).
+          if (!state.recordingState.isActive && state.hasStories)
             Positioned(
               right: KinrelSpacing.base,
               bottom: MediaQuery.of(context).padding.bottom + 24,
@@ -242,6 +258,34 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
       ),
       child: Row(
         children: [
+          // v96: Back button — navigates to the Family Space screen
+          // for the current family context. Uses context.go (not
+          // context.pop) so it always lands on the correct Family
+          // Space screen regardless of navigation history. Falls
+          // back to context.pop() if no familyId was passed.
+          GestureDetector(
+            onTap: () {
+              if (widget.familyId.isNotEmpty) {
+                context.go('/family/${widget.familyId}');
+              } else if (context.canPop()) {
+                context.pop();
+              }
+            },
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: KinrelColors.darkCard,
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: KinrelColors.textWhite,
+                size: 20,
+              ),
+            ),
+          ),
+          const SizedBox(width: KinrelSpacing.sm),
           Container(
             width: 42,
             height: 42,
