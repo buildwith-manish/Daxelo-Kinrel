@@ -48,6 +48,264 @@ import '../../profile/presentation/member_profile_sheet.dart';
 // Family Profile screen — the profile screen is a family-tree
 // overview context.
 import 'family_members_screen.dart';
+// v5.215 (unified add-member entry-point fix): the Family Profile
+// screen's "Add member" button now skips straight to the Find on
+// Kinrel search flow (matching the Family Space "Invite family
+// member" button fix). "Add Manually" remains reachable only from
+// inside the Family Graph screen, where building out placeholder
+// tree nodes actually belongs.
+import 'find_on_kinrel_flow.dart' show openFindOnKinrelFlow;
+
+// ─────────────────────────────────────────────────────────────────────────
+// v5.214 — Family Profile Linked-member row model.
+//
+// Bug context: the Family Profile screen's member count + member list
+// previously came from `familyMembershipsProvider` (the FamilyMember
+// rows table — real Kinrel users who accepted an invite). For test
+// families where Linked Person rows exist without corresponding
+// FamilyMember rows (e.g. the creator's anchor Person has linkedUserId
+// = null due to the server-side unique constraint, OR a Linked Person
+// was added to the tree but the user never went through the invite-
+// acceptance flow to create a FamilyMember row), the screen would
+// show "1 member" + a single "Member (You)" placeholder row — neither
+// the correct Linked-only count (2) NOR the full-tree count (5).
+//
+// This fix matches the Linked-only standard already applied to Family
+// Chat, Family Space, and the bottom-nav Members screen (per the
+// v5.211/v5.212 work). The Family Profile screen now derives its
+// member list from Linked Person rows (filtering with the same
+// trulyLinkedIds anchor-fallback logic [linkedMemberCountProvider]
+// uses), then AUGMENTS each row with role / username / avatar info
+// from the corresponding FamilyMembership row when one exists.
+//
+// The result is a single list of Linked members with:
+//   • The Person's actual name (e.g. "Account 1") instead of a
+//     generic "Member" label
+//   • The role chip ('Admin' / 'Member') from FamilyMembership,
+//     with the anchor Person defaulting to 'Admin' (since the family
+//     creator is implicitly the family admin)
+//   • The "(You)" tag only on the row matching the currently logged-
+//     in user
+// ─────────────────────────────────────────────────────────────────────────
+
+/// A single Linked member row on the Family Profile screen.
+///
+/// Unifies [Person] data (name, photo, anchor flags) with the
+/// corresponding [FamilyMembership] data (role, username, email,
+/// avatarUrl from the embedded [MemberUserProfile]) when a
+/// membership row exists for the same Kinrel user.
+@immutable
+class _LinkedMemberRow {
+  const _LinkedMemberRow({
+    required this.personId,
+    required this.userId,
+    required this.displayName,
+    required this.initials,
+    required this.avatarUrl,
+    required this.username,
+    required this.role,
+    required this.isSelf,
+  });
+
+  /// Person.id — used as the row's ValueKey for stable React keys.
+  final String personId;
+
+  /// The Kinrel auth user ID for this member. Used to look up
+  /// presence in [lastSeenProvider] and to open the
+  /// [MemberProfileSheet]. May be null for the family anchor Person
+  /// when the unique constraint prevented `linkedUserId` from being
+  /// stored on the Person row — in that case, we still know it's the
+  /// creator (via `family.createdBy`), so we use that ID for presence
+  /// lookup.
+  final String? userId;
+
+  /// Display name. Prefers the FamilyMembership's user profile (which
+  /// has the user's chosen name), falls back to the Person's name,
+  /// then to 'Member' as a last-resort placeholder.
+  final String displayName;
+
+  /// 1-2 character initials for the avatar fallback.
+  final String initials;
+
+  /// Avatar image URL. Prefers the Person's photoUrl, falls back to
+  /// the FamilyMembership's user avatarUrl.
+  final String? avatarUrl;
+
+  /// @username (without the @) if available from the FamilyMembership
+  /// user profile. Null when no membership row exists.
+  final String? username;
+
+  /// Role string ('admin', 'owner', 'editor', 'viewer', 'member').
+  /// Defaults to 'admin' for the family anchor Person (the creator is
+  /// implicitly the admin), 'member' for everyone else.
+  final String role;
+
+  /// True if this row is the currently logged-in user. Used to render
+  /// the "(You)" tag and to hide the presence dot on self.
+  final bool isSelf;
+
+  /// Whether the role is admin/owner (drives the chip color).
+  bool get isAdmin =>
+      role.toLowerCase() == 'admin' || role.toLowerCase() == 'owner';
+
+  /// Display-friendly role label (capitalised).
+  String get displayRole {
+    switch (role.toLowerCase()) {
+      case 'admin':
+      case 'owner':
+        return 'Admin';
+      case 'editor':
+        return 'Editor';
+      case 'viewer':
+        return 'Viewer';
+      default:
+        return 'Member';
+    }
+  }
+}
+
+/// Builds the list of Linked-member rows for the Family Profile
+/// screen, using the SAME anchor-fallback logic that
+/// [linkedMemberCountProvider] uses (so the count pill and the list
+/// length always agree).
+///
+/// Returns one [_LinkedMemberRow] per Linked-status Person in the
+/// family — Manual placeholder relatives are NOT included, matching
+/// the Linked-only standard applied to Family Chat, Family Space, and
+/// the bottom-nav Members screen.
+List<_LinkedMemberRow> _buildLinkedMemberRows({
+  required Family family,
+  required List<Person> allMembers,
+  required List<FamilyMembership> memberships,
+  required String? currentUserId,
+}) {
+  final activeMembers = allMembers.where((p) => p.deletedAt == null).toList();
+
+  // Step 1: compute the trulyLinkedIds set (same algorithm as
+  // linkedMemberCountProvider + family_members_screen.dart).
+  final membershipUserIds = memberships
+      .where((m) => m.userId.isNotEmpty)
+      .map((m) => m.userId)
+      .toSet();
+  final trulyLinkedIds = <String>{};
+  for (final p in activeMembers) {
+    if (p.linkedUserId != null && p.linkedUserId!.isNotEmpty) {
+      trulyLinkedIds.add(p.id);
+      continue;
+    }
+    // v5.209 anchor fallback: isAnchor + family.createdBy set
+    // (the unique constraint prevented linkedUserId from being
+    // stored on the Person row, but it IS a real account).
+    if (p.isAnchor &&
+        family.createdBy != null &&
+        family.createdBy!.isNotEmpty) {
+      trulyLinkedIds.add(p.id);
+      continue;
+    }
+    // v5.210 fallback 2: Person is the family's designated anchor
+    // (by anchorPersonId pointer) + family has a creator.
+    if (family.anchorPersonId != null &&
+        family.anchorPersonId == p.id &&
+        family.createdBy != null &&
+        family.createdBy!.isNotEmpty) {
+      trulyLinkedIds.add(p.id);
+      continue;
+    }
+    // v5.210 fallback 3: Person is the anchor + family's createdBy
+    // matches a real FamilyMember's userId (cross-check against the
+    // memberships table).
+    if (p.isAnchor &&
+        family.createdBy != null &&
+        membershipUserIds.contains(family.createdBy)) {
+      trulyLinkedIds.add(p.id);
+      continue;
+    }
+  }
+
+  // Step 2: build a {userId: FamilyMembership} map for quick lookup
+  // by `linkedUserId`.
+  final membershipByUserId = <String, FamilyMembership>{
+    for (final m in memberships)
+      if (m.userId.isNotEmpty) m.userId: m,
+  };
+
+  // Step 3: build one row per Linked Person, augmenting with the
+  // matching FamilyMembership data when available.
+  final rows = <_LinkedMemberRow>[];
+  for (final p in activeMembers.where((p) => trulyLinkedIds.contains(p.id))) {
+    final membership = p.linkedUserId != null &&
+            p.linkedUserId!.isNotEmpty &&
+            membershipByUserId.containsKey(p.linkedUserId)
+        ? membershipByUserId[p.linkedUserId!]
+        : null;
+
+    // userId for presence lookup + MemberProfileSheet: prefer
+    // Person.linkedUserId; for the anchor fallback case, use
+    // family.createdBy (which is the creator's auth id).
+    final userId = (p.linkedUserId != null && p.linkedUserId!.isNotEmpty)
+        ? p.linkedUserId
+        : (p.isAnchor ? family.createdBy : null);
+
+    final isSelf = userId != null &&
+        currentUserId != null &&
+        userId == currentUserId;
+
+    // Display name: prefer the membership's user profile (which has
+    // the user's chosen name), fall back to Person.name, then to
+    // 'Member' as a last resort (so the row never shows an empty
+    // name).
+    final displayName = membership?.user?.displayName ??
+        (p.name.isNotEmpty ? p.name : 'Member');
+
+    // Initials: prefer the membership's user profile, fall back to
+    // deriving from the display name.
+    final initials = membership?.user?.initials ??
+        _initialsFromName(displayName);
+
+    // Avatar URL: prefer the Person's photoUrl (which is set when
+    // the user uploaded an avatar directly on their Person node),
+    // fall back to the membership's user avatarUrl.
+    final avatarUrl = (p.photoUrl != null && p.photoUrl!.isNotEmpty)
+        ? p.photoUrl
+        : membership?.user?.avatarUrl;
+
+    // Username: only available from the FamilyMembership user
+    // profile (the Person table doesn't carry @username).
+    final username = membership?.user?.username;
+
+    // Role: prefer the FamilyMembership's role; if no membership
+    // exists (the anchor fallback case), default to 'admin' since
+    // the family creator is implicitly the admin.
+    final role = membership?.role ??
+        (p.isAnchor && family.createdBy != null ? 'admin' : 'member');
+
+    rows.add(_LinkedMemberRow(
+      personId: p.id,
+      userId: userId,
+      displayName: displayName,
+      initials: initials,
+      avatarUrl: avatarUrl,
+      username: username,
+      role: role,
+      isSelf: isSelf,
+    ));
+  }
+
+  return rows;
+}
+
+/// Derives 1-2 character initials from a display name (used when no
+/// MemberUserProfile is available to provide initials directly).
+String _initialsFromName(String name) {
+  if (name.isEmpty) return '?';
+  final dn = name == 'Member' ? '?' : name;
+  if (dn == '?') return '?';
+  final parts = dn.split(' ').where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) return parts[0][0].toUpperCase();
+  return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+}
+
 
 class FamilyProfileScreen extends ConsumerWidget {
   const FamilyProfileScreen({super.key, required this.familyId});
@@ -70,9 +328,45 @@ class FamilyProfileScreen extends ConsumerWidget {
     final family = detail?.family;
     final memberships = membershipsAsync.valueOrNull ?? [];
 
+    // v5.214 (Family Profile member-count fix): the count pill + the
+    // MEMBERS section list are now derived from Linked Person rows
+    // (using [linkedMemberCountProvider] for the count, and a
+    // [_LinkedMemberRow] list augmenting Person data with role/username
+    // info from FamilyMembership where available). This matches the
+    // Linked-only standard already applied to Family Chat, Family
+    // Space, and the bottom-nav Members screen.
+    //
+    // Bug being fixed: the screen previously used `familyMembershipsProvider`
+    // alone (the FamilyMember rows table — real Kinrel users who accepted
+    // an invite). For test families where Linked Person rows exist
+    // without corresponding FamilyMember rows (the anchor Person with
+    // linkedUserId=null due to the server-side unique constraint, OR
+    // a Linked Person was added to the tree but the user never went
+    // through the invite-acceptance flow), this returned only 1 row
+    // (the current user's own membership) and the screen displayed
+    // "1 member" + a single "Member (You)" placeholder row.
+    final allMembers = detail?.members ?? const <Person>[];
+    final linkedMemberRows = family == null
+        ? const <_LinkedMemberRow>[]
+        : _buildLinkedMemberRows(
+            family: family,
+            allMembers: allMembers,
+            memberships: memberships,
+            currentUserId: currentUserId,
+          );
+    // The Linked-only count comes from [linkedMemberCountProvider] —
+    // single source of truth shared with Family Chat / Family Space
+    // / the bottom-nav Members screen, so counts can never disagree
+    // across surfaces.
+    final linkedMemberCount = ref.watch(linkedMemberCountProvider(familyId));
+
     // Determine whether the current user is an admin (for the settings link).
-    final isCurrentUserAdmin = memberships.any(
-      (m) => m.userId == currentUserId && m.isAdmin,
+    // v5.214: check the linkedMemberRows list so the anchor Person
+    // (whose admin status is inferred via the family.createdBy
+    // fallback when no FamilyMember row exists) is also recognised
+    // as admin here.
+    final isCurrentUserAdmin = linkedMemberRows.any(
+      (r) => r.isSelf && r.isAdmin,
     );
 
     return DKScaffold(
@@ -127,11 +421,12 @@ class FamilyProfileScreen extends ConsumerWidget {
                   context,
                   ref,
                   family,
-                  memberships,
                   avatarUrl,
                   currentUserId,
                   isCurrentUserAdmin,
                   presenceMap,
+                  linkedMemberRows,
+                  linkedMemberCount,
                 ),
     );
   }
@@ -169,17 +464,26 @@ class FamilyProfileScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     Family? family,
-    List<FamilyMembership> memberships,
     String? avatarUrl,
     String? currentUserId,
     bool isCurrentUserAdmin,
     Map<String, UserLastSeen> presenceMap,
+    List<_LinkedMemberRow> linkedMemberRows,
+    int linkedMemberCount,
   ) {
     if (family == null) return const SizedBox.shrink();
     return ListView(
       padding: const EdgeInsets.only(bottom: 32),
       children: [
-        _buildHero(context, family, avatarUrl, memberships.length),
+        // v5.214: hero pill now uses the Linked-only count
+        // (linkedMemberCountProvider) — matches the standard already
+        // applied to Family Chat / Family Space / the bottom-nav
+        // Members screen. The previous implementation passed
+        // `memberships.length` which only counted FamilyMember rows
+        // (Kinrel users who accepted an invite), undercounting the
+        // creator's anchor Person when no membership row existed for
+        // them.
+        _buildHero(context, family, avatarUrl, linkedMemberCount),
         const SizedBox(height: 20),
         if (family.description != null && family.description!.isNotEmpty)
           _buildSection(
@@ -200,11 +504,20 @@ class FamilyProfileScreen extends ConsumerWidget {
           ),
         if (family.description != null && family.description!.isNotEmpty)
           const SizedBox(height: 20),
-        _buildStatsRow(context, family, memberships.length),
+        // v5.214: stats row no longer takes memberCount as a param
+        // (it was unused — the row only uses family.createdAt,
+        // family.generationCount, family.lastActivityAt, which are
+        // all graph-level stats NOT derived from the member count.
+        // Confirmed: 'Generations' must use the FULL family tree
+        // count including Manual placeholder relatives — that's what
+        // family.generationCount represents, so it is preserved as-is
+        // and NOT swapped for the Linked-only count).
+        _buildStatsRow(context, family),
         const SizedBox(height: 20),
-        _buildAdminsSection(context, memberships),
+        _buildAdminsSection(context, linkedMemberRows),
         const SizedBox(height: 20),
-        _buildMembersSection(context, memberships, currentUserId, presenceMap),
+        _buildMembersSection(
+            context, linkedMemberRows, linkedMemberCount, presenceMap),
         const SizedBox(height: 20),
         _buildInviteSection(context, family),
         if (isCurrentUserAdmin) ...[
@@ -362,7 +675,7 @@ class FamilyProfileScreen extends ConsumerWidget {
 
   // ── Stats row: created date, generations, last activity ────────────
 
-  Widget _buildStatsRow(BuildContext context, Family family, int memberCount) {
+  Widget _buildStatsRow(BuildContext context, Family family) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
@@ -378,6 +691,14 @@ class FamilyProfileScreen extends ConsumerWidget {
           _statCard(
             icon: Icons.account_tree_rounded,
             label: 'Generations',
+            // v5.214: generationCount is a graph-level stat stored on
+            // the Family row (server-side trigger maintains it from
+            // the Person table's generationIndex values across ALL
+            // nodes — Linked + Manual). It is NOT member-count-
+            // derived, so it is intentionally NOT swapped for the
+            // Linked-only count. Generations/structure is a graph
+            // concept: a placeholder grandparent still occupies a
+            // distinct generation slot in the tree.
             value: '${family.generationCount}',
           ),
           const SizedBox(width: 10),
@@ -478,9 +799,14 @@ class FamilyProfileScreen extends ConsumerWidget {
 
   Widget _buildAdminsSection(
     BuildContext context,
-    List<FamilyMembership> memberships,
+    List<_LinkedMemberRow> linkedMemberRows,
   ) {
-    final admins = memberships.where((m) => m.isAdmin).toList();
+    // v5.214: the Admins section now filters the linkedMemberRows
+    // list (which is already Linked-only) by `isAdmin`. Previously
+    // this filtered the FamilyMembership list — which undercounted
+    // admins when their FamilyMember row was missing (the anchor
+    // Person case).
+    final admins = linkedMemberRows.where((r) => r.isAdmin).toList();
     if (admins.isEmpty) return const SizedBox.shrink();
 
     return _buildSection(
@@ -492,18 +818,25 @@ class FamilyProfileScreen extends ConsumerWidget {
           spacing: 8,
           runSpacing: 8,
           children: admins
-              .map((m) => _buildAdminChip(context, m))
+              .map((r) => _buildAdminChip(context, r))
               .toList(),
         ),
       ),
     );
   }
 
-  Widget _buildAdminChip(BuildContext context, FamilyMembership m) {
-    final name = m.user?.displayName ?? 'Admin';
-    final initials = m.user?.initials ?? '?';
+  Widget _buildAdminChip(BuildContext context, _LinkedMemberRow r) {
+    final name = r.displayName;
+    final initials = r.initials;
     return GestureDetector(
-      onTap: () => MemberProfileSheet.show(context, m.userId),
+      // v5.214: only open the MemberProfileSheet if we have a real
+      // userId. For the anchor-fallback case where the Person has no
+      // linkedUserId, we fall back to family.createdBy — which is a
+      // real auth id, so MemberProfileSheet.show(context, userId)
+      // works correctly.
+      onTap: r.userId != null && r.userId!.isNotEmpty
+          ? () => MemberProfileSheet.show(context, r.userId!)
+          : null,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
@@ -520,14 +853,20 @@ class FamilyProfileScreen extends ConsumerWidget {
             CircleAvatar(
               radius: 11,
               backgroundColor: KinrelColors.ember.withValues(alpha: 0.18),
-              child: Text(
-                initials,
-                style: const TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  color: KinrelColors.ember,
-                ),
-              ),
+              backgroundImage: r.avatarUrl != null &&
+                      r.avatarUrl!.isNotEmpty
+                  ? CachedNetworkImageProvider(r.avatarUrl!)
+                  : null,
+              child: r.avatarUrl == null || r.avatarUrl!.isEmpty
+                  ? Text(
+                      initials,
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: KinrelColors.ember,
+                      ),
+                    )
+                  : null,
             ),
             const SizedBox(width: 6),
             Text(
@@ -547,7 +886,7 @@ class FamilyProfileScreen extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                m.displayRole,
+                r.displayRole,
                 style: const TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 8.5,
@@ -567,22 +906,26 @@ class FamilyProfileScreen extends ConsumerWidget {
 
   Widget _buildMembersSection(
     BuildContext context,
-    List<FamilyMembership> memberships,
-    String? currentUserId,
+    List<_LinkedMemberRow> linkedMemberRows,
+    int linkedMemberCount,
     Map<String, UserLastSeen> presenceMap,
   ) {
-    if (memberships.isEmpty) return const SizedBox.shrink();
+    if (linkedMemberRows.isEmpty) return const SizedBox.shrink();
     // Sort: admins first, then alphabetical by name.
-    final sorted = [...memberships]..sort((a, b) {
+    final sorted = [...linkedMemberRows]..sort((a, b) {
         final aAdmin = a.isAdmin ? 0 : 1;
         final bAdmin = b.isAdmin ? 0 : 1;
         if (aAdmin != bAdmin) return aAdmin - bAdmin;
-        return (a.user?.displayName ?? '').compareTo(b.user?.displayName ?? '');
+        return a.displayName.compareTo(b.displayName);
       });
 
+    // v5.214: the MEMBERS (X) section header count now uses the
+    // Linked-only count (linkedMemberCount) — same source as the hero
+    // pill, so they always agree. Previously this used
+    // `memberships.length` which only counted FamilyMember rows.
     return _buildSection(
       context,
-      title: 'Members (${memberships.length})',
+      title: 'Members ($linkedMemberCount)',
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Container(
@@ -605,8 +948,7 @@ class FamilyProfileScreen extends ConsumerWidget {
                 _buildMemberRow(
                   context,
                   sorted[i],
-                  sorted[i].userId == currentUserId,
-                  presenceMap[sorted[i].userId],
+                  presenceMap[sorted[i].userId ?? ''],
                 ),
               ],
             ],
@@ -618,15 +960,29 @@ class FamilyProfileScreen extends ConsumerWidget {
 
   Widget _buildMemberRow(
     BuildContext context,
-    FamilyMembership m,
-    bool isSelf,
+    _LinkedMemberRow r,
     UserLastSeen? presence,
   ) {
-    final name = m.user?.displayName ?? 'Member';
-    final initials = m.user?.initials ?? '?';
+    // v5.214: the row now consumes a _LinkedMemberRow (Person data +
+    // optional FamilyMembership augmentation) instead of a raw
+    // FamilyMembership. This means rows display the Person's actual
+    // name (e.g. "Account 1") even when no FamilyMembership exists,
+    // and the "(You)" tag is correctly applied based on the row's
+    // `isSelf` flag (computed in _buildLinkedMemberRows by comparing
+    // the resolved userId against the current user's auth id).
+    final name = r.displayName;
+    final initials = r.initials;
+    final isSelf = r.isSelf;
     final online = isUserOnline(presence);
     return InkWell(
-      onTap: () => MemberProfileSheet.show(context, m.userId),
+      // v5.214: only open the MemberProfileSheet if we have a real
+      // userId. The anchor-fallback case resolves to family.createdBy
+      // (a real auth id), so this works for the creator's own row
+      // too. If userId is null/empty (edge case — shouldn't happen
+      // for a Linked row), disable the tap.
+      onTap: r.userId != null && r.userId!.isNotEmpty
+          ? () => MemberProfileSheet.show(context, r.userId!)
+          : null,
       borderRadius: BorderRadius.circular(14),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -641,12 +997,11 @@ class FamilyProfileScreen extends ConsumerWidget {
                 CircleAvatar(
                   radius: 18,
                   backgroundColor: KinrelColors.ember.withValues(alpha: 0.15),
-                  backgroundImage: m.user?.avatarUrl != null &&
-                          m.user!.avatarUrl!.isNotEmpty
-                      ? CachedNetworkImageProvider(m.user!.avatarUrl!)
+                  backgroundImage: r.avatarUrl != null &&
+                          r.avatarUrl!.isNotEmpty
+                      ? CachedNetworkImageProvider(r.avatarUrl!)
                       : null,
-                  child: m.user?.avatarUrl == null ||
-                          m.user!.avatarUrl!.isEmpty
+                  child: r.avatarUrl == null || r.avatarUrl!.isEmpty
                       ? Text(
                           initials,
                           style: const TextStyle(
@@ -707,10 +1062,9 @@ class FamilyProfileScreen extends ConsumerWidget {
                   ),
                   // Subtitle: @username if present, else last-seen label.
                   // Show the last-seen label only for OTHER users (not self).
-                  if (m.user?.username != null &&
-                      m.user!.username!.isNotEmpty)
+                  if (r.username != null && r.username!.isNotEmpty)
                     Text(
-                      '@${m.user!.username}',
+                      '@${r.username}',
                       style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
@@ -740,18 +1094,18 @@ class FamilyProfileScreen extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: m.isAdmin
+                color: r.isAdmin
                     ? KinrelColors.ember.withValues(alpha: 0.15)
                     : Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                m.displayRole,
+                r.displayRole,
                 style: TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 9,
                   fontWeight: FontWeight.w600,
-                  color: m.isAdmin
+                  color: r.isAdmin
                       ? KinrelColors.ember
                       : KinrelColors.textSilver,
                   letterSpacing: 0.4,
@@ -871,8 +1225,27 @@ class FamilyProfileScreen extends ConsumerWidget {
                   child: _inviteButton(
                     icon: Icons.person_add_rounded,
                     label: 'Add member',
-                    onTap: () =>
-                        context.push('/family/$familyId/add-member'),
+                    // v5.215 (unified add-member entry-point fix):
+                    // previously this button pushed the
+                    // `/family/$familyId/add-member` route which
+                    // opened `AddPersonSheet` (the manual-entry
+                    // form) directly — forcing the user to type
+                    // name/gender/photo/relationship by hand.
+                    // Now it skips straight to the Find on Kinrel
+                    // search flow (same as the Family Space "Invite
+                    // family member" button), because the primary
+                    // add-member intent for a non-Graph context is
+                    // inviting an existing Kinrel user (real
+                    // accounts who can actually chat/play/be
+                    // present). "Add Manually" remains reachable
+                    // only from the Family Graph screen, where
+                    // building out placeholder tree nodes
+                    // (deceased grandparents, relatives not on
+                    // Kinrel) is the appropriate context.
+                    onTap: () => openFindOnKinrelFlow(
+                      context,
+                      familyId: familyId,
+                    ),
                   ),
                 ),
               ],

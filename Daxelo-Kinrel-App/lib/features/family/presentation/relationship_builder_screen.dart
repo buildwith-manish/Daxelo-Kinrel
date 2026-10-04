@@ -12,7 +12,12 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
 import '../../../core/family/relationship_permissions.dart'; // v5.15.1
 import '../../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider; // v5.15.1
-import 'add_person_sheet.dart';
+// v5.215 (unified add-member entry-point fix): the Relationship
+// Builder screen's empty-state + FAB add-member entry points now
+// skip straight to Find on Kinrel search via the helper below. The
+// prior `add_person_sheet` import is removed entirely — manual
+// entry is no longer reachable from this surface.
+import 'find_on_kinrel_flow.dart' show openFindOnKinrelFlow;
 import 'relationship_picker_sheet.dart'; // v5.14: replace FundamentalRelationshipPicker
 import 'package:go_router/go_router.dart';
 
@@ -133,8 +138,17 @@ class _RelationshipBuilderScreenState
 
           if (detail.members.isEmpty) {
             return _EmptyState(
-              onAddMember: () =>
-                  AddPersonSheet.show(context, familyId: widget.familyId),
+              // v5.215 (unified add-member entry-point fix): skip
+              // straight to Find on Kinrel search (matching the
+              // Family Space / Family Profile / Members / Games Hub
+              // entry points). The empty-state on the Relationship
+              // Builder screen is NOT a graph-context entry — it's
+              // surfaced when the family has zero members at all, so
+              // the user is starting from a non-Graph surface.
+              onAddMember: () => openFindOnKinrelFlow(
+                context,
+                familyId: widget.familyId,
+              ),
             );
           }
 
@@ -142,8 +156,15 @@ class _RelationshipBuilderScreenState
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () =>
-            AddPersonSheet.show(context, familyId: widget.familyId),
+        // v5.215 (unified add-member entry-point fix): skip straight
+        // to Find on Kinrel search. "Add Manually" remains reachable
+        // only from the Family Graph screen (this Relationship
+        // Builder screen is NOT the Graph screen — it's a sibling
+        // Family Space surface).
+        onPressed: () => openFindOnKinrelFlow(
+          context,
+          familyId: widget.familyId,
+        ),
         backgroundColor: KinrelColors.purple,
         child: const Icon(Icons.person_add, color: Colors.white),
       ),

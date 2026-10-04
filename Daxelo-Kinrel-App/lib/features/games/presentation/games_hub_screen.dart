@@ -32,7 +32,14 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../family/presentation/add_member_options_sheet.dart';
+// v5.215 (unified add-member entry-point fix): the Games Hub screen's
+// "Add member" CTA now skips straight to the Find on Kinrel search
+// flow, matching the Family Space + Family Profile + Members screen
+// entry points. The 2-option (Add Manually / Find on Kinrel) sheet
+// import is replaced with the direct-flow helper. "Add Manually"
+// remains reachable only from the Family Graph screen.
+import '../../family/presentation/find_on_kinrel_flow.dart'
+    show openFindOnKinrelFlow;
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../../family/presentation/premium/family_hub_sections.dart';
 import '../../../core/family/family_provider.dart';
@@ -376,7 +383,13 @@ class _InviteFamilyBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => showAddMemberOptions(context, familyId: familyId),
+      // v5.215 (unified add-member entry-point fix): the Games Hub
+      // "Add member" CTA previously called `showAddMemberOptions` —
+      // the 2-option (Add Manually / Find on Kinrel) sheet. Now it
+      // skips straight to Find on Kinrel search, matching the other
+      // non-Graph entry points. "Add Manually" remains reachable
+      // only from the Family Graph screen.
+      onTap: () => openFindOnKinrelFlow(context, familyId: familyId),
       behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
