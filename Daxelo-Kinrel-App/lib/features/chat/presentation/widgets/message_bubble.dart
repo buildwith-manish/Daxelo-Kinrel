@@ -1362,8 +1362,11 @@ class MessageBubble extends ConsumerWidget {
       actionEnabled = false;
       actionCallback = null;
     } else if (isExpired) {
-      // Room expired or cancelled — static label, no interaction.
-      actionLabel = status == 'cancelled' ? 'Cancelled' : 'Expired';
+      // Room expired (15-min inactivity timeout) or cancelled by host.
+      // Per spec: render "Closed • Expired" as a static label so it's clear
+      // the room is no longer available and cannot be joined. The Join
+      // button is removed entirely.
+      actionLabel = 'Closed • Expired';
       actionEnabled = false;
       actionCallback = null;
     } else {

@@ -154,13 +154,14 @@ GameInviteStatusClassification classifyGameInviteStatus(
     );
   }
 
-  // ── Expired: room never filled OR host cancelled ──
-  // Both 'expired' (sweep-driven) and 'cancelled' (host-driven) render
-  // the same "inactive" treatment per the spec.
+  // ── Expired: room never filled OR host cancelled OR 15-min inactivity timeout ──
+  // Both 'expired' (sweep-driven inactivity timeout) and 'cancelled' (host-driven)
+  // render the same "Closed • Expired" treatment per the spec — the closed-door
+  // phrasing makes it clear the room is no longer available and cannot be joined.
   if (status == 'expired' || status == 'cancelled') {
-    return GameInviteStatusClassification(
+    return const GameInviteStatusClassification(
       kind: GameInviteStatusKind.expired,
-      label: status == 'cancelled' ? 'Cancelled' : 'Expired',
+      label: 'Closed • Expired',
     );
   }
 
@@ -435,14 +436,16 @@ class _GameInviteStatusChipState extends State<GameInviteStatusChip>
           Icons.emoji_events_outlined,  // trophy icon for "completed"
         );
       case GameInviteStatusKind.expired:
-        // Greyed: room expired or was cancelled — "Expired" / "Cancelled"
-        // Clearly inactive. Even dimmer than completed to signal
-        // "this room is dead, don't try to interact with it".
+        // Greyed: room expired (15-min inactivity timeout) or was cancelled.
+        // Renders the "Closed • Expired" label with a closed-door icon to
+        // make it clear the room is no longer available and cannot be joined.
+        // Even dimmer than completed to signal "this room is dead, don't try
+        // to interact with it".
         return (
           KinrelColors.textDim,
           0.06,
           0.15,
-          Icons.event_busy,
+          Icons.meeting_room, // closed-door icon — "room is closed"
         );
     }
   }
