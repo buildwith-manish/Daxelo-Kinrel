@@ -1378,10 +1378,13 @@ class MessageBubble extends ConsumerWidget {
       actionCallback = null;
     } else if (isExpired) {
       // Room expired (15-min inactivity timeout) or cancelled by host.
-      // Per spec: render "Closed • Expired" as a static label so it's clear
-      // the room is no longer available and cannot be joined. The Join
+      // Per spec: render a single "Expired" label matching the brevity of
+      // the other states (Full, Waiting, Live). The entire card is dimmed
+      // (see the Opacity wrapper below), and the status area uses a smaller,
+      // quieter treatment — not a full-width button-shaped element that
+      // would visually compete with active Join/Spectate buttons. The Join
       // button is removed entirely.
-      actionLabel = 'Closed • Expired';
+      actionLabel = 'Expired';
       actionEnabled = false;
       actionCallback = null;
     } else {
@@ -1421,20 +1424,37 @@ class MessageBubble extends ConsumerWidget {
         actionEnabled &&
         actionLabel == 'Spectate';
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(KinrelSpacing.md),
-      decoration: BoxDecoration(
-        color: KinrelColors.orange.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(KinrelRadius.md),
-        border: Border.all(
-          color: KinrelColors.orange.withValues(alpha: 0.2),
-          width: 1,
+    // ── Full-card dimming for expired state ──────────────────────────
+    // When expired, the ENTIRE card dims together as one visually settled
+    // unit — icon, game title, invite text, and status area all reduce
+    // opacity together. The card border/background also shifts from the
+    // active orange tint to a muted grey, so it's clearly inactive at a
+    // glance. Per spec: "icon, game title, invite text, and status area
+    // should all dim together as one visually settled unit."
+    final bool isExpiredCard = isExpired;
+
+    return Opacity(
+      opacity: isExpiredCard ? 0.5 : 1.0,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(KinrelSpacing.md),
+        decoration: BoxDecoration(
+          // Expired cards use a muted grey tint instead of the active
+          // orange tint — visually communicates "inactive, don't engage".
+          color: isExpiredCard
+              ? KinrelColors.textDim.withValues(alpha: 0.06)
+              : KinrelColors.orange.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
+          border: Border.all(
+            color: isExpiredCard
+                ? KinrelColors.textDim.withValues(alpha: 0.15)
+                : KinrelColors.orange.withValues(alpha: 0.2),
+            width: 1,
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           // Header: game icon + game display name
           Row(
             children: [
@@ -1621,7 +1641,34 @@ class MessageBubble extends ConsumerWidget {
             ),
           ],
           // ── 5-state lifecycle: action button / static label ────────
-          if (showActionButton) ...[
+          // Expired state: small, quiet label (icon + "Expired"), NOT a
+          // full-width button-shaped element. Per spec: "replace it with a
+          // smaller, quieter treatment — e.g., a small grey icon + 'Expired'
+          // label, sized and weighted clearly below the prominence of any
+          // actionable button." NOT tappable — no ripple/press feedback.
+          if (isExpiredCard) ...[
+            const SizedBox(height: KinrelSpacing.sm),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.event_busy,
+                  size: 13,
+                  color: KinrelColors.textDim,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Expired',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: KinrelColors.textDim,
+                  ),
+                ),
+              ],
+            ),
+          ] else if (showActionButton) ...[
             const SizedBox(height: KinrelSpacing.sm),
             SizedBox(
               width: double.infinity,
@@ -1690,6 +1737,7 @@ class MessageBubble extends ConsumerWidget {
             ),
           ],
         ],
+      ),
       ),
     );
   }

@@ -156,12 +156,14 @@ GameInviteStatusClassification classifyGameInviteStatus(
 
   // ── Expired: room never filled OR host cancelled OR 15-min inactivity timeout ──
   // Both 'expired' (sweep-driven inactivity timeout) and 'cancelled' (host-driven)
-  // render the same "Closed • Expired" treatment per the spec — the closed-door
-  // phrasing makes it clear the room is no longer available and cannot be joined.
+  // render the same "Expired" treatment — matching the single-word brevity of
+  // the other states (Full, Waiting, Live). The entire card is dimmed by the
+  // card renderer (message_bubble.dart) when expired, so the chip itself
+  // doesn't need to carry extra visual weight.
   if (status == 'expired' || status == 'cancelled') {
     return const GameInviteStatusClassification(
       kind: GameInviteStatusKind.expired,
-      label: 'Closed • Expired',
+      label: 'Expired',
     );
   }
 

@@ -147,8 +147,8 @@ void main() {
       expect(c.label, 'Completed');
     });
 
-    test('status=expired → expired (greyed, "Closed • Expired")', () {
-      // Per the user-facing spec, the expired state renders as "Closed • Expired"
+    test('status=expired → expired (greyed, "Expired")', () {
+      // Per the user-facing spec, the expired state renders as "Expired"
       // (with a closed-door icon) to make it clear the room is no longer available.
       final c = classifyGameInviteStatus(_invite(
         status: 'expired',
@@ -156,12 +156,12 @@ void main() {
         maxPlayers: 4,
       ));
       expect(c.kind, GameInviteStatusKind.expired);
-      expect(c.label, 'Closed • Expired');
+      expect(c.label, 'Expired');
     });
 
-    test('status=cancelled → expired kind, label "Closed • Expired"', () {
+    test('status=cancelled → expired kind, label "Expired"', () {
       // Per the spec, 'cancelled' (host-driven) and 'expired' (15-min inactivity
-      // timeout) both render the same "Closed • Expired" treatment — the
+      // timeout) both render the same "Expired" treatment — the
       // closed-door phrasing makes it clear the room is no longer available.
       final c = classifyGameInviteStatus(_invite(
         status: 'cancelled',
@@ -169,7 +169,7 @@ void main() {
         maxPlayers: 4,
       ));
       expect(c.kind, GameInviteStatusKind.expired);
-      expect(c.label, 'Closed • Expired');
+      expect(c.label, 'Expired');
     });
 
     test('status=in_progress takes priority over isFull=true', () {
@@ -291,13 +291,13 @@ void main() {
       expect(find.text('Completed'), findsOneWidget);
     });
 
-    testWidgets('expired renders the "Closed • Expired" label', (tester) async {
+    testWidgets('expired renders the "Expired" label', (tester) async {
       await pumpChip(
         tester,
         GameInviteStatusKind.expired,
-        'Closed • Expired',
+        'Expired',
       );
-      expect(find.text('Closed • Expired'), findsOneWidget);
+      expect(find.text('Expired'), findsOneWidget);
     });
 
     testWidgets('compact variant renders text at smaller size', (tester) async {
@@ -349,7 +349,7 @@ void main() {
         ),
         (
           _invite(status: 'expired', currentPlayers: 1, maxPlayers: 4),
-          'Closed • Expired',
+          'Expired',
         ),
       ];
 

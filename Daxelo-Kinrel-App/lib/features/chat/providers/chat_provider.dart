@@ -2447,10 +2447,76 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
 
     final senderName = _currentUserName;
-    final msgId = _generateId();
     final now = DateTime.now();
     final displayName =
         GameTypeX.fromRouteSegment(gameType)?.displayName ?? gameType;
+
+    // ── Dedup: one chat card per room ──────────────────────────────
+    // If a non-terminal ChatMessage row for this gameId already exists
+    // (status in pending/in_progress/accepted/active), UPDATE it instead
+    // of inserting a duplicate. This prevents the "multiple invite cards
+    // with the same room code" bug when the host taps "Invite Entire
+    // Family" multiple times or the bulk-send path is retried.
+    //
+    // Terminal states (expired/cancelled/completed) are excluded — if the
+    // room already expired, a new invite-sent for a DIFFERENT room with
+    // the same gameId (shouldn't happen, but defensive) would get a fresh
+    // card. In practice, gameId is a UUID so collisions are impossible.
+    try {
+      final existing = await client
+          .from('ChatMessage')
+          .select('id')
+          .eq('familyId', familyId)
+          .eq('messageType', 'gameInvite')
+          .eq('gameId', gameId)
+          .inFilter('gameInviteStatus', const [
+            'pending',
+            'in_progress',
+            'accepted',
+            'active'
+          ])
+          .order('createdAt', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (existing != null && existing['id'] != null) {
+        // Update the existing row with the latest player count + spectator
+        // flag (in case the host re-invited after more players joined or
+        // toggled spectator mode). Don't change the status — the existing
+        // status is authoritative (could be in_progress if the game
+        // already started).
+        await client.from('ChatMessage').update({
+          'gameCurrentPlayers': currentPlayers,
+          'gameMaxPlayers': maxPlayers,
+          if (spectatorsEnabled != null)
+            'gameSpectatorsEnabled': spectatorsEnabled,
+          if (content != null) 'content': content,
+        }).eq('id', existing['id'] as String);
+
+        // Also update the local optimistic state so the UI refreshes
+        // immediately without waiting for the realtime UPDATE.
+        if (mounted) {
+          final updated = state.messages.map((m) {
+            if (m.id == existing['id']) {
+              return m.copyWith(
+                gameCurrentPlayers: currentPlayers,
+                gameMaxPlayers: maxPlayers,
+                gameSpectatorsEnabled: spectatorsEnabled,
+              );
+            }
+            return m;
+          }).toList();
+          state = state.copyWith(messages: updated);
+        }
+        return; // Don't insert a duplicate
+      }
+    } catch (e) {
+      // Dedup check failed (e.g., RLS, network) — fall through to the
+      // insert path. A potential duplicate is better than no card at all.
+      debugPrint('⚠️ sendGameInvite dedup check failed (non-blocking): $e');
+    }
+
+    final msgId = _generateId();
 
     final optimistic = ChatMessage(
       id: msgId,

@@ -201,7 +201,7 @@ void main() {
   //   4. spectatorsAllowed=false + open slots  → "Join"
   //   5. spectatorsAllowed=false + full        → "Full" (disabled)
   //   6. spectatorsAllowed=false + in-progress → "In Game" (static)
-  //   7. expired/cancelled                     → "Closed • Expired" (no Join)
+  //   7. expired/cancelled                     → "Expired" (no Join)
   //   8. completed                             → "Game completed" (no Join)
   group('spec matrix — spectator mode + room state', () {
     test('Rule 1: spectators=true + open slots → Join is primary action', () {
@@ -291,7 +291,7 @@ void main() {
           reason: 'spectators disabled → no Spectate, static In Game label');
     });
 
-    test('Rule 7: expired → Closed • Expired (Join NEVER visible)', () {
+    test('Rule 7: expired → Expired (Join NEVER visible)', () {
       // The core bug being reported: the Join button must NEVER remain
       // visible/tappable once a room has left the Waiting/Full joinable states.
       final m = _invite(
@@ -307,7 +307,7 @@ void main() {
           reason: 'expired is a terminal state');
     });
 
-    test('Rule 7b: cancelled → Closed • Expired (Join NEVER visible)', () {
+    test('Rule 7b: cancelled → Expired (Join NEVER visible)', () {
       final m = _invite(
         status: 'cancelled',
         currentPlayers: 4,

@@ -158,8 +158,8 @@ void main() {
 
     // ── EXPIRED / CANCELLED ────────────────────────────────────────
 
-    test('expired → expired (greyed, "Closed • Expired")', () {
-      // Per the user-facing spec, the expired state renders as "Closed • Expired"
+    test('expired → expired (greyed, "Expired")', () {
+      // Per the user-facing spec, the expired state renders as "Expired"
       // (with a closed-door icon) to make it clear the room is no longer available.
       final c = classifyGameInviteStatus(_invite(
         status: 'expired',
@@ -167,12 +167,12 @@ void main() {
         maxPlayers: 4,
       ));
       expect(c.kind, GameInviteStatusKind.expired);
-      expect(c.label, 'Closed • Expired');
+      expect(c.label, 'Expired');
     });
 
-    test('cancelled → expired kind, label "Closed • Expired"', () {
+    test('cancelled → expired kind, label "Expired"', () {
       // Per the spec, 'cancelled' (host-driven) and 'expired' (15-min inactivity
-      // timeout) both render the same "Closed • Expired" treatment — the
+      // timeout) both render the same "Expired" treatment — the
       // closed-door phrasing makes it clear the room is no longer available.
       final c = classifyGameInviteStatus(_invite(
         status: 'cancelled',
@@ -180,7 +180,7 @@ void main() {
         maxPlayers: 4,
       ));
       expect(c.kind, GameInviteStatusKind.expired);
-      expect(c.label, 'Closed • Expired');
+      expect(c.label, 'Expired');
     });
 
     // ── UNIFORM ACROSS GAME TYPES ──────────────────────────────────
