@@ -198,7 +198,21 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
       ),
-      bottomNavigationBar: FamilySpaceFloatingNav(familyId: widget.familyId),
+      // v5.213 (graphViewAll chrome): the persistent Family Space
+      // bottom nav (Games / Family Chat / Members / Calendar) is
+      // rendered ONLY when this screen is reached via the bottom-nav
+      // "Members" tab (navTab context). When reached via the Graph
+      // screen's "View all" button (graphViewAll context), the screen
+      // is a focused modal/sub-view launched from inside the Graph —
+      // showing the bottom nav there makes the screen feel like a
+      // lateral move into a different app section rather than a
+      // focused "here's the full list" view, so it is omitted
+      // entirely. The back arrow (top-left) remains the single way
+      // out of the graphViewAll view, returning directly to the
+      // Graph screen the user came from.
+      bottomNavigationBar: widget.source == MembersScreenSource.navTab
+          ? FamilySpaceFloatingNav(familyId: widget.familyId)
+          : null,
       body: detailAsync.when(
         loading: () => const Center(
           child: CircularProgressIndicator(color: KinrelColors.orange),
@@ -477,12 +491,30 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                         ),
                       )
                     : ListView.builder(
-                        padding: const EdgeInsets.only(
+                        padding: EdgeInsets.only(
                           left: KinrelSpacing.base,
                           right: KinrelSpacing.base,
                           // Account for the floating dock (96px height +
-                          // 20px bottom margin + safe-area inset).
-                          bottom: 140,
+                          // 20px bottom margin + safe-area inset) ONLY
+                          // when the dock is actually present (navTab
+                          // context). When the dock is omitted
+                          // (graphViewAll context), use a smaller
+                          // bottom padding so the list doesn't have a
+                          // giant empty gap at the bottom of the
+                          // focused modal view — but still reserve
+                          // enough space (~80px) to clear the FAB
+                          // (which still floats at the bottom-right
+                          // via Scaffold.floatingActionButton).
+                          //
+                          // v5.213 (graphViewAll chrome): the dock
+                          // height was 140px when present; when absent
+                          // we still need a small amount of bottom
+                          // padding so the last row isn't flush against
+                          // the FAB or the bottom safe-area.
+                          bottom: widget.source ==
+                                  MembersScreenSource.navTab
+                              ? 140
+                              : 80,
                         ),
                         itemCount: filtered.length,
                         itemBuilder: (context, index) {
