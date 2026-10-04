@@ -732,8 +732,13 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
   // already established in this app).
 
   Widget _buildEmptyStateZeroMemories() {
-    return SliverToBoxAdapter(
-      child: KinrelEmptyState(
+    // Returns a BOX widget (not a sliver) — the caller wraps it in
+    // SliverToBoxAdapter(child: ...) in the build method's slivers
+    // list. The previous version returned SliverToBoxAdapter(...) here,
+    // which produced SliverToBoxAdapter(child: SliverToBoxAdapter(...))
+    // — a sliver-in-a-box-slot that renders nothing (the inner sliver
+    // gets zero size). This is the root cause of the blank-screen bug.
+    return KinrelEmptyState(
         // v94: pass an animated preview card as the illustration
         // instead of a static icon. The KinrelEmptyState widget
         // renders the illustration in place of the default icon
@@ -757,7 +762,6 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
             'together.',
         actionLabel: 'Add First Memory',
         onAction: () => _showAddMemorySheet(),
-      ),
     );
   }
 
@@ -781,59 +785,61 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
         ref.read(memoriesProvider.notifier).togglePinnedOnly();
       }
     }
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: KinrelColors.orange.withValues(alpha: 0.1),
-              ),
-              child: const Icon(
-                Icons.filter_alt_off_rounded,
-                size: 40,
-                color: KinrelColors.orange,
-              ),
+    // Returns a BOX widget (not a sliver) — see the note in
+    // _buildEmptyStateZeroMemories above for the root-cause explanation
+    // of the previous SliverToBoxAdapter(child: SliverToBoxAdapter(...))
+    // double-wrap that rendered nothing.
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: KinrelColors.orange.withValues(alpha: 0.1),
             ),
-            const SizedBox(height: 20),
-            Text(
-              isPinnedOnly && !hasPillFilters
-                  ? 'No Pinned Memories'
-                  : 'No Memories Match Your Filters',
-              style: KinrelTypography.headlineMedium.copyWith(
-                color: KinrelColors.textWhite,
-              ),
+            child: const Icon(
+              Icons.filter_alt_off_rounded,
+              size: 40,
+              color: KinrelColors.orange,
             ),
-            const SizedBox(height: 8),
-            Text(
-              isPinnedOnly && !hasPillFilters
-                  ? 'Pin a memory to keep it at the top of your timeline — '
-                      'tap the pin icon on any card.'
-                  : 'Try adjusting or clearing your filters to see more '
-                      'of your family timeline.',
-              textAlign: TextAlign.center,
-              style: KinrelTypography.bodyMedium.copyWith(
-                color: KinrelColors.textSilver,
-                height: 1.5,
-              ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            isPinnedOnly && !hasPillFilters
+                ? 'No Pinned Memories'
+                : 'No Memories Match Your Filters',
+            style: KinrelTypography.headlineMedium.copyWith(
+              color: KinrelColors.textWhite,
             ),
-            const SizedBox(height: 24),
-            DKButton(
-              label: isPinnedOnly && !hasPillFilters
-                  ? 'View All Memories'
-                  : 'Clear Filters',
-              variant: DKButtonVariant.secondary,
-              icon: Icons.close_rounded,
-              size: DKButtonSize.md,
-              onPressed: onClear,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isPinnedOnly && !hasPillFilters
+                ? 'Pin a memory to keep it at the top of your timeline — '
+                    'tap the pin icon on any card.'
+                : 'Try adjusting or clearing your filters to see more '
+                    'of your family timeline.',
+            textAlign: TextAlign.center,
+            style: KinrelTypography.bodyMedium.copyWith(
+              color: KinrelColors.textSilver,
+              height: 1.5,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 24),
+          DKButton(
+            label: isPinnedOnly && !hasPillFilters
+                ? 'View All Memories'
+                : 'Clear Filters',
+            variant: DKButtonVariant.secondary,
+            icon: Icons.close_rounded,
+            size: DKButtonSize.md,
+            onPressed: onClear,
+          ),
+        ],
       ),
     );
   }

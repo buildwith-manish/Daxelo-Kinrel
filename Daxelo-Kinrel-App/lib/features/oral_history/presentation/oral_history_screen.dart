@@ -711,31 +711,35 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
   /// frame drops elsewhere on the screen (per the jank-audit
   /// principles already established in this app).
   Widget _buildEmptyStateZeroStories() {
-    return SliverToBoxAdapter(
-      child: KinrelEmptyState(
-        // v95: pass an animated preview card as the illustration
-        // instead of a static icon. The KinrelEmptyState widget
-        // renders the illustration in place of the default icon
-        // circle. The preview card is wrapped in a RepaintBoundary
-        // so the continuous waveform pulse doesn't cause Flutter to
-        // repaint the entire empty state on every animation tick.
-        illustration: RepaintBoundary(
-          child: _AnimatedStoryPreviewCard(
-            reducedMotion: AppMotion.reducedMotion(context),
-          ),
+    // Returns a BOX widget (not a sliver) — the caller wraps it in
+    // SliverToBoxAdapter(child: ...) in the build method's slivers
+    // list. The previous version returned SliverToBoxAdapter(...) here,
+    // which produced SliverToBoxAdapter(child: SliverToBoxAdapter(...))
+    // — a sliver-in-a-box-slot that renders nothing (the inner sliver
+    // gets zero size). This is the root cause of the blank-screen bug.
+    return KinrelEmptyState(
+      // v95: pass an animated preview card as the illustration
+      // instead of a static icon. The KinrelEmptyState widget
+      // renders the illustration in place of the default icon
+      // circle. The preview card is wrapped in a RepaintBoundary
+      // so the continuous waveform pulse doesn't cause Flutter to
+      // repaint the entire empty state on every animation tick.
+      illustration: RepaintBoundary(
+        child: _AnimatedStoryPreviewCard(
+          reducedMotion: AppMotion.reducedMotion(context),
         ),
-        // `icon` is still required by KinrelEmptyState (used as a
-        // fallback if illustration is null). We pass a sensible
-        // default that matches the previous static state.
-        icon: Icons.mic_rounded,
-        title: 'No Stories Yet',
-        subtitle:
-            "Record your family's first memory — a grandparent's voice, "
-            'a treasured recipe, a story from the past — to start building '
-            'your oral history together.',
-        actionLabel: 'Record First Story',
-        onAction: () => _startRecording(),
       ),
+      // `icon` is still required by KinrelEmptyState (used as a
+      // fallback if illustration is null). We pass a sensible
+      // default that matches the previous static state.
+      icon: Icons.mic_rounded,
+      title: 'No Stories Yet',
+      subtitle:
+          "Record your family's first memory — a grandparent's voice, "
+          'a treasured recipe, a story from the past — to start building '
+          'your oral history together.',
+      actionLabel: 'Record First Story',
+      onAction: () => _startRecording(),
     );
   }
 
@@ -760,55 +764,57 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
             : "No stories match '${state.searchQuery}'. "
                 'Try a different search term.';
 
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: KinrelColors.orange.withValues(alpha: 0.1),
-              ),
-              child: const Icon(
-                Icons.search_off_rounded,
-                size: 40,
-                color: KinrelColors.orange,
-              ),
+    // Returns a BOX widget (not a sliver) — see the note in
+    // _buildEmptyStateZeroStories above for the root-cause explanation
+    // of the previous SliverToBoxAdapter(child: SliverToBoxAdapter(...))
+    // double-wrap that rendered nothing.
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: KinrelColors.orange.withValues(alpha: 0.1),
             ),
-            const SizedBox(height: 20),
-            Text(
-              title,
-              style: KinrelTypography.headlineMedium.copyWith(
-                color: KinrelColors.textWhite,
-              ),
-              textAlign: TextAlign.center,
+            child: const Icon(
+              Icons.search_off_rounded,
+              size: 40,
+              color: KinrelColors.orange,
             ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              style: KinrelTypography.bodyMedium.copyWith(
-                color: KinrelColors.textSilver,
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          Text(
+            title,
+            style: KinrelTypography.headlineMedium.copyWith(
+              color: KinrelColors.textWhite,
             ),
-            const SizedBox(height: 24),
-            DKButton(
-              label: 'Clear Filters',
-              variant: DKButtonVariant.secondary,
-              icon: Icons.close_rounded,
-              size: DKButtonSize.md,
-              onPressed: () {
-                ref.read(oralHistoryProvider.notifier).setFilter(null);
-                ref.read(oralHistoryProvider.notifier).setSearchQuery('');
-              },
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: KinrelTypography.bodyMedium.copyWith(
+              color: KinrelColors.textSilver,
+              height: 1.5,
             ),
-          ],
-        ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          DKButton(
+            label: 'Clear Filters',
+            variant: DKButtonVariant.secondary,
+            icon: Icons.close_rounded,
+            size: DKButtonSize.md,
+            onPressed: () {
+              ref.read(oralHistoryProvider.notifier).setFilter(null);
+              ref.read(oralHistoryProvider.notifier).setSearchQuery('');
+            },
+          ),
+        ],
       ),
     );
   }
