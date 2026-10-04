@@ -977,8 +977,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // feels cohesive. A subtle ember ambient glow behind the avatar
     // adds warmth.
     final avatarUrl = ref.watch(familyAvatarProvider(widget.familyId));
-    final familyDetail = ref.watch(familyDetailProvider(widget.familyId)).valueOrNull;
-    final memberCount = familyDetail?.family.memberCount ?? chatState.members.length;
+    // v5.211 (member-count de-conflation): the chat header used to show
+    // `familyDetail.family.memberCount` — a BLENDED count of every
+    // Person row (Linked Kinrel accounts + Manual placeholder
+    // relatives). That was misleading: a placeholder relative can
+    // never send or receive a chat message, so "Family · 5" in a chat
+    // context implies 5 real people who could chat — not 5 tree nodes.
+    //
+    // Now we read [linkedMemberCountProvider] which counts only real,
+    // active Kinrel accounts (Linked status). Falls back to the chat
+    // state's `members.length` while the family detail provider is
+    // still loading — chat-state members are themselves Linked-only
+    // (sourced from the membership table), so the fallback is also a
+    // real-people count.
+    final linkedCount = ref.watch(linkedMemberCountProvider(widget.familyId));
+    final memberCount = linkedCount > 0
+        ? linkedCount
+        : chatState.members.length;
 
     return PreferredSize(
       preferredSize: const Size.fromHeight(72),

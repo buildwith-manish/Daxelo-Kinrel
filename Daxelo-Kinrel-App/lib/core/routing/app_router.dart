@@ -1574,11 +1574,21 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── Family Members (extracted from FamilyDetailScreen) ──────
+      // v5.212 (entry-context-aware list): the Members screen takes a
+      // `source` query param (`navTab` | `graphViewAll`, default
+      // `navTab`) that controls whether the list shows Linked-only
+      // members (bottom-nav Members tab context) or the full family
+      // tree (Graph screen's "View all" context). See
+      // [MembersScreenSource] for the full rationale.
       GoRoute(
         path: '/family/:id/members',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: FamilyMembersScreen(familyId: state.pathParameters['id']!),
+          child: FamilyMembersScreen(
+            familyId: state.pathParameters['id']!,
+            source: MembersScreenSource.fromQueryParam(
+                state.uri.queryParameters['source']),
+          ),
         ),
       ),
 

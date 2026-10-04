@@ -311,6 +311,13 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
 
   Widget _familyRow(Family f) {
     final isSelected = _selectedFamilyIds.contains(f.id);
+    // v5.211 (member-count de-conflation): this row is shown in the
+    // "forward message to" picker — the count implies how many real
+    // people in that family could realistically receive the forwarded
+    // message. Manual placeholder relatives can never receive a chat
+    // message, so they must NOT count toward the displayed number.
+    // Reads [linkedMemberCountProvider] (Linked-only).
+    final memberCount = ref.watch(linkedMemberCountProvider(f.id));
     return InkWell(
       onTap: () => _toggleFamily(f.id),
       child: Padding(
@@ -351,7 +358,7 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
                     ),
                   ),
                   Text(
-                    '${f.memberCount} ${f.memberCount == 1 ? 'member' : 'members'}',
+                    '$memberCount ${memberCount == 1 ? 'member' : 'members'}',
                     style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11.5,

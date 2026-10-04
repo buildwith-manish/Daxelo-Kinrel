@@ -1159,10 +1159,153 @@ final familyRelationshipsProvider =
 /// With ref.read, the count only updates when this provider's dependencies
 /// (familyDetailProvider or familyListProvider) rebuild, not on every
 /// individual member invalidation from socket events.
+///
+/// Legacy alias for [totalGraphNodeCountProvider]. Prefer the new
+/// explicitly-named provider below — `familyMemberCountProvider` is
+/// kept only so existing screens continue to compile while they are
+/// migrated to the clearer Linked-vs-Total naming. The two are
+/// equivalent (both count ALL non-deleted Person rows).
 final familyMemberCountProvider = Provider.family<int, String>((ref, familyId) {
   // Watch familyMembersProvider to rebuild when members change
   final membersAsync = ref.watch(familyMembersProvider(familyId));
   return membersAsync.valueOrNull?.length ?? 0;
+});
+
+// ═════════════════════════════════════════════════════════════════════════
+//   TWO COUNT SOURCES — LINKED-ACTIVE vs FULL-GRAPH
+//
+//   Bug context: "member count" used to be a single blended number that
+//   counted EVERY Person row (both real Kinrel-linked accounts AND
+//   manually-added placeholder relatives). That was misleading in
+//   contexts where the number implies real, active people who can
+//   chat, join a game, or accept an invite (placeholder relatives can
+//   do none of those things). The two providers below split the
+//   semantics so future screens reaching for "member count" must pick
+//   consciously between:
+//
+//     • linkedMemberCountProvider   — real, active Kinrel accounts only
+//     • totalGraphNodeCountProvider — full family tree (Linked + Manual)
+//
+//   When adding a new screen, ASK: does the count imply real people
+//   who can act (use Linked), or does it represent the family tree
+//   (use Total)? If genuinely ambiguous, FLAG for a decision rather
+//   than guessing — silent regressions here have already happened.
+// ═════════════════════════════════════════════════════════════════════════
+
+/// Counts ALL non-deleted Person nodes in a family graph — both real
+/// Kinrel-linked accounts AND manually-added placeholder relatives.
+///
+/// Use this when the displayed number represents the FULL family tree
+/// size (Linked + Manual placeholders):
+///   • The Graph view's own "MEMBERS: X" stat
+///   • The Members management screen's primary "X members" header
+///   • Genealogy / family-tree-completeness stats (Family Insights,
+///     generation counters, milestone posts about tree growth)
+///   • Family profile overview cards ("family of N")
+///   • Delete-family confirmation copy (warns about the whole tree
+///     being deleted, so the full count is correct)
+///
+/// Do NOT use this in contexts that imply real, active people who can
+/// receive a message, join a game, accept an invite, or otherwise
+/// participate — those contexts must use [linkedMemberCountProvider].
+/// Manually-added placeholder relatives (Manual status) cannot do
+/// any of those things, so counting them in those contexts is the bug
+/// this provider exists to prevent.
+///
+/// Implementation: watches [familyMembersProvider] (the same source
+/// the legacy [familyMemberCountProvider] uses). Falls back to the
+/// denormalized `Family.memberCount` counter on the family object
+/// while the members list is still loading, so UI never flickers to 0
+/// during initial fetch.
+final totalGraphNodeCountProvider =
+    Provider.family<int, String>((ref, familyId) {
+  final membersAsync = ref.watch(familyMembersProvider(familyId));
+  final list = membersAsync.valueOrNull;
+  if (list != null) {
+    return list.where((p) => p.deletedAt == null).length;
+  }
+  // Fall back to the denormalized counter on the Family row while the
+  // members list is loading — keeps the UI from flashing 0 on cold
+  // start. This counter is maintained server-side by triggers.
+  final detailAsync = ref.watch(familyDetailProvider(familyId));
+  return detailAsync.valueOrNull?.family.memberCount ?? 0;
+});
+
+/// Counts only the real, active Kinrel accounts that are members of
+/// the family — i.e. Person rows whose `linkedUserId` is set, PLUS
+/// the family's anchor Person (the creator's own row, which may have
+/// `linkedUserId = null` due to a server-side unique constraint that
+/// prevents the creator's Kinrel account from being linked on the
+/// Person row — but is nonetheless a real, active Kinrel user).
+///
+/// Use this in any context that implies real people who can act:
+///   • Family Chat header ("Family · N", "N members")
+///   • Family Space "Your family is N members strong" closer card
+///   • Game lobby / invite screens (available player capacity —
+///     a Manual placeholder relative can never join a game)
+///   • Invite flow's references to current member count
+///   • Coin Pool / leaderboard / activity-feed copy referencing
+///     "X family members"
+///   • Push-notification copy referencing "X family members"
+///
+/// Do NOT use this in genealogy / family-tree contexts where the user
+/// expects to see the full tree including placeholder ancestors and
+/// relatives — those contexts must use [totalGraphNodeCountProvider].
+///
+/// The Linked/Manual distinction mirrors the existing per-row badge
+/// on the Members management screen. The anchor-person fallbacks
+/// (family.createdBy / family.anchorPersonId / membership cross-
+/// check) replicate exactly the same logic the Members screen uses
+/// to render the badge — so a count of "Linked" here will always
+/// agree with the number of "Linked" badges visible on the Members
+/// screen for the same family.
+final linkedMemberCountProvider =
+    Provider.family<int, String>((ref, familyId) {
+  final detailAsync = ref.watch(familyDetailProvider(familyId));
+  final detail = detailAsync.valueOrNull;
+  if (detail == null) return 0;
+  final family = detail.family;
+  final activeMembers = detail.members.where((p) => p.deletedAt == null);
+  final memberships =
+      ref.watch(familyMembershipsProvider(familyId)).valueOrNull ?? [];
+  final membershipUserIds = memberships
+      .where((m) => m.userId.isNotEmpty)
+      .map((m) => m.userId)
+      .toSet();
+  final linkedIds = <String>{};
+  for (final p in activeMembers) {
+    // Primary check: explicit linkedUserId on the Person row.
+    if (p.linkedUserId != null && p.linkedUserId!.isNotEmpty) {
+      linkedIds.add(p.id);
+      continue;
+    }
+    // Anchor fallbacks (see Members management screen v5.209/v5.210
+    // for the full rationale): the family's anchor Person has no
+    // linkedUserId due to a unique constraint, but it IS a real
+    // Kinrel account (the creator's). These fallbacks ensure the
+    // count here matches the per-row "Linked" badge on the Members
+    // screen.
+    if (p.isAnchor &&
+        family.createdBy != null &&
+        family.createdBy!.isNotEmpty) {
+      linkedIds.add(p.id);
+      continue;
+    }
+    if (family.anchorPersonId != null &&
+        family.anchorPersonId == p.id &&
+        family.createdBy != null &&
+        family.createdBy!.isNotEmpty) {
+      linkedIds.add(p.id);
+      continue;
+    }
+    if (p.isAnchor &&
+        family.createdBy != null &&
+        membershipUserIds.contains(family.createdBy)) {
+      linkedIds.add(p.id);
+      continue;
+    }
+  }
+  return linkedIds.length;
 });
 
 /// v5.42: Returns the set of Kinrel user IDs (auth.uid()) that are

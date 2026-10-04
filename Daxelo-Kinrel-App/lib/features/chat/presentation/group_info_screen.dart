@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/family/family_provider.dart';
 import '../../../core/networking/dio_client.dart';
 import '../../../l10n/app_localizations.dart';
 import '../providers/chat_socket_engagement_provider.dart';
@@ -221,13 +222,29 @@ class GroupInfoScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              '${info.memberCount} member${info.memberCount != 1 ? 's' : ''}',
-              style: const TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 13,
-                color: KinrelColors.textSilver,
-              ),
+            // v5.211 (member-count de-conflation): Group Info used to
+            // display `info.memberCount` straight from the backend's
+            // /chat/info endpoint — that count is the BLENDED Person
+            // row count (Linked Kinrel accounts + Manual placeholder
+            // relatives). In a chat context, "N members" implies N
+            // real people who could chat — placeholder relatives
+            // cannot. Reads [linkedMemberCountProvider] (Linked-only)
+            // so the count here matches the chat header above.
+            // Wrapped in [Consumer] because _buildBody is a plain
+            // method on ConsumerWidget without `ref` in scope.
+            Consumer(
+              builder: (context, ref, _) {
+                final memberCount =
+                    ref.watch(linkedMemberCountProvider(familyId));
+                return Text(
+                  '$memberCount member${memberCount != 1 ? 's' : ''}',
+                  style: const TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                    color: KinrelColors.textSilver,
+                  ),
+                );
+              },
             ),
           ],
         ),
