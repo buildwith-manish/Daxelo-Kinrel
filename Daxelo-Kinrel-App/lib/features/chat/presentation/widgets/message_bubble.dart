@@ -1406,6 +1406,21 @@ class MessageBubble extends ConsumerWidget {
         isCompleted ||
         isExpired;
 
+    // Visual-weight control for the Spectate button:
+    //   • Spectate on a LIVE NOW (in-progress) room → URGENT treatment
+    //     (orange-tinted background, matching the pulsing LIVE NOW chip).
+    //   • Spectate on a full-but-not-started room → CALM treatment
+    //     (darkElevated background with orange text + icon, less attention-
+    //     grabbing). A merely-full room is a settled/neutral state; the
+    //     urgent CTA treatment should be reserved for genuinely live games.
+    final bool isSpectateOnLiveRoom = isInProgress &&
+        actionEnabled &&
+        actionLabel == 'Spectate';
+    final bool isSpectateOnFullRoom = isPreGame &&
+        isFull &&
+        actionEnabled &&
+        actionLabel == 'Spectate';
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(KinrelSpacing.md),
@@ -1612,14 +1627,19 @@ class MessageBubble extends ConsumerWidget {
               width: double.infinity,
               child: Material(
                 // Visual treatment depends on state:
-                //   • Join (orange, tappable)   — solid orange background
-                //   • Spectate/Rejoin (subtle)  — orange-tinted outline
-                //   • Static labels             — darkElevated, muted text
-                color: actionEnabled
-                    ? (isInProgress
-                        ? KinrelColors.orange.withValues(alpha: 0.15)
-                        : KinrelColors.orange)
-                    : KinrelColors.darkElevated,
+                //   • Join (orange, tappable)           — solid orange background
+                //   • Spectate on LIVE NOW (in-progress) — orange-tinted (urgent)
+                //   • Spectate on full-but-not-started   — darkElevated bg + orange
+                //     text/icon (calmer — a merely-full room is settled, not urgent)
+                //   • Rejoin (in-progress, host)         — orange-tinted
+                //   • Static labels (Full/In Game/etc.)  — darkElevated, muted text
+                color: isSpectateOnFullRoom
+                    ? KinrelColors.darkElevated
+                    : (actionEnabled
+                        ? (isInProgress
+                            ? KinrelColors.orange.withValues(alpha: 0.15)
+                            : KinrelColors.orange)
+                        : KinrelColors.darkElevated),
                 borderRadius: BorderRadius.circular(KinrelRadius.sm),
                 child: InkWell(
                   onTap: actionCallback,
@@ -1630,13 +1650,17 @@ class MessageBubble extends ConsumerWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (isInProgress && actionEnabled) ...[
+                          // Show icon for Spectate/Rejoin actions.
+                          // Spectate-on-full gets the icon too, but in a calmer color.
+                          if (actionEnabled && (isInProgress || isSpectateOnFullRoom)) ...[
                             Icon(
                               isMe
                                   ? Icons.replay
                                   : Icons.visibility_outlined,
                               size: 14,
-                              color: KinrelColors.orange,
+                              color: isSpectateOnFullRoom
+                                  ? KinrelColors.textSilver
+                                  : KinrelColors.orange,
                             ),
                             const SizedBox(width: 5),
                           ],
@@ -1645,12 +1669,16 @@ class MessageBubble extends ConsumerWidget {
                             style: TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: actionEnabled
-                                  ? (isInProgress
-                                      ? KinrelColors.orange
-                                      : KinrelColors.textWhite)
-                                  : KinrelColors.textDim,
+                              fontWeight: isSpectateOnFullRoom
+                                  ? FontWeight.w600 // calmer weight
+                                  : FontWeight.w700,
+                              color: isSpectateOnFullRoom
+                                  ? KinrelColors.textSilver // calmer color
+                                  : (actionEnabled
+                                      ? (isInProgress
+                                          ? KinrelColors.orange
+                                          : KinrelColors.textWhite)
+                                      : KinrelColors.textDim),
                             ),
                           ),
                         ],
