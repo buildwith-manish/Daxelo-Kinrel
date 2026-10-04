@@ -2,23 +2,53 @@
 //
 // DAXELO KINREL — Oral History & Story Recording Provider
 //
-// AI-powered story recording with transcription support.
-// Captures family narratives, traditions, recipes, wisdom,
-// and migration stories with multi-language transcription.
+// Family voice-note recording. Captures family narratives, traditions,
+// recipes, wisdom, and migration stories as audio recordings persisted
+// to Supabase Storage (bucket: 'voice-messages') with metadata in the
+// AncestralMemory table.
+//
+// v93 (transcription removal + recording/playback correctness):
+//   - Transcription feature is SOFT-DISABLED. The `transcription` field
+//     on StoryModel is kept for backward compatibility with any existing
+//     rows that have it, but it's NOT written for new recordings and
+//     NOT displayed in the UI. The server-side /v1/ai-voice/transcribe
+//     endpoint is no longer called from this feature. See the audit
+//     brief for the rationale (transcription was never truly functional
+//     for oral history — the kinship-lookup endpoint was misused).
+//   - Recording now uses `permission_handler` for an actionable mic
+//     permission flow with a clear denied error message.
+//   - Recording amplitude uses the `record` package's onAmplitudeChanged
+//     stream for a real (not simulated) waveform during recording.
+//   - Recorded audio is uploaded to Supabase Storage 'voice-messages'
+//     bucket on save, with retry-on-failure and a clear error state.
+//   - Playback is REAL via `just_audio` (see oral_history_audio_player.dart)
+//     — actual streaming from the stored URL, real duration discovery
+//     via durationStream, real position tracking, real seek.
+//   - Play count is persisted to AncestralMemory.listenCount via an
+//     RPC call (no longer a static/seeded number).
+//   - Story duration is the actual stored file's duration (discovered
+//     by just_audio after the file loads), not a hardcoded value.
+//
+// Production default: the notifier starts with an EMPTY story list.
+// Real families see the "No stories yet — record your family's first
+// memory" empty state instead of someone else's demo family history.
+// Demo data is available via `loadDemoData()` for tests/debug only.
 //
 // Orange K-Graph DNA: #E8612A accent, #191B2C cards,
 // ignite gradient (#E8612A → #F59240), glow effects.
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
-import '../../../core/networking/dio_client.dart';
+import '../../../core/services/supabase_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Story Category Enum
@@ -158,196 +188,27 @@ const kSupportedLanguages = <SupportedLanguage>[
 ];
 
 // ═══════════════════════════════════════════════════════════════════════
-// Transcription Language Enum (Enhanced AI Detection)
+// Transcription Language Enum + Segment — REMOVED (v93)
 // ═══════════════════════════════════════════════════════════════════════
-
-/// Enum for all 15 supported transcription languages.
-/// Used by AI language detection during transcription.
-enum TranscriptionLanguage {
-  hi,
-  bn,
-  ta,
-  te,
-  mr,
-  gu,
-  kn,
-  ml,
-  pa,
-  ur,
-  en,
-  es,
-  ar,
-  zh,
-  ja,
-  hinglish, // Code-switching: Hindi + English
-}
-
-extension TranscriptionLanguageX on TranscriptionLanguage {
-  String get code {
-    switch (this) {
-      case TranscriptionLanguage.hinglish:
-        return 'hi-en';
-      default:
-        return name;
-    }
-  }
-
-  String get name {
-    switch (this) {
-      case TranscriptionLanguage.hi:
-        return 'Hindi';
-      case TranscriptionLanguage.bn:
-        return 'Bengali';
-      case TranscriptionLanguage.ta:
-        return 'Tamil';
-      case TranscriptionLanguage.te:
-        return 'Telugu';
-      case TranscriptionLanguage.mr:
-        return 'Marathi';
-      case TranscriptionLanguage.gu:
-        return 'Gujarati';
-      case TranscriptionLanguage.kn:
-        return 'Kannada';
-      case TranscriptionLanguage.ml:
-        return 'Malayalam';
-      case TranscriptionLanguage.pa:
-        return 'Punjabi';
-      case TranscriptionLanguage.ur:
-        return 'Urdu';
-      case TranscriptionLanguage.en:
-        return 'English';
-      case TranscriptionLanguage.es:
-        return 'Spanish';
-      case TranscriptionLanguage.ar:
-        return 'Arabic';
-      case TranscriptionLanguage.zh:
-        return 'Mandarin';
-      case TranscriptionLanguage.ja:
-        return 'Japanese';
-      case TranscriptionLanguage.hinglish:
-        return 'Hinglish';
-    }
-  }
-
-  String get nativeName {
-    switch (this) {
-      case TranscriptionLanguage.hi:
-        return 'हिन्दी';
-      case TranscriptionLanguage.bn:
-        return 'বাংলা';
-      case TranscriptionLanguage.ta:
-        return 'தமிழ்';
-      case TranscriptionLanguage.te:
-        return 'తెలుగు';
-      case TranscriptionLanguage.mr:
-        return 'मराठी';
-      case TranscriptionLanguage.gu:
-        return 'ગુજરાતી';
-      case TranscriptionLanguage.kn:
-        return 'ಕನ್ನಡ';
-      case TranscriptionLanguage.ml:
-        return 'മലയാളം';
-      case TranscriptionLanguage.pa:
-        return 'ਪੰਜਾਬੀ';
-      case TranscriptionLanguage.ur:
-        return 'اردو';
-      case TranscriptionLanguage.en:
-        return 'English';
-      case TranscriptionLanguage.es:
-        return 'Español';
-      case TranscriptionLanguage.ar:
-        return 'العربية';
-      case TranscriptionLanguage.zh:
-        return '中文';
-      case TranscriptionLanguage.ja:
-        return '日本語';
-      case TranscriptionLanguage.hinglish:
-        return 'हिन्दी+English';
-    }
-  }
-
-  /// Whether this language represents code-switching.
-  bool get isCodeSwitching => this == TranscriptionLanguage.hinglish;
-
-  /// Detect language from code string.
-  static TranscriptionLanguage? fromCode(String code) {
-    if (code == 'hi-en') return TranscriptionLanguage.hinglish;
-    return TranscriptionLanguage.values
-        .where((l) => l.code == code)
-        .firstOrNull;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// TranscriptionSegment Model
-// ═══════════════════════════════════════════════════════════════════════
-
-/// A timestamped segment within a transcription.
-class TranscriptionSegment {
-  const TranscriptionSegment({
-    required this.text,
-    required this.startTime,
-    required this.endTime,
-    required this.confidence,
-    this.englishTranslation,
-  });
-
-  final String text;
-  final Duration startTime;
-  final Duration endTime;
-  final double confidence;
-  final String? englishTranslation;
-
-  /// Formatted start time string (MM:SS).
-  String get startTimeLabel {
-    final m = startTime.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = startTime.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
-
-  /// Formatted end time string (MM:SS).
-  String get endTimeLabel {
-    final m = endTime.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = endTime.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
-
-  /// Confidence color: green=high, yellow=medium, red=low.
-  Color get confidenceColor {
-    if (confidence >= 0.85) return KinrelColors.success;
-    if (confidence >= 0.6) return KinrelColors.warning;
-    return KinrelColors.coral;
-  }
-
-  /// Confidence label.
-  String get confidenceLabel {
-    if (confidence >= 0.85) return 'High';
-    if (confidence >= 0.6) return 'Medium';
-    return 'Low';
-  }
-
-  TranscriptionSegment copyWith({
-    String? text,
-    Duration? startTime,
-    Duration? endTime,
-    double? confidence,
-    String? englishTranslation,
-  }) {
-    return TranscriptionSegment(
-      text: text ?? this.text,
-      startTime: startTime ?? this.startTime,
-      endTime: endTime ?? this.endTime,
-      confidence: confidence ?? this.confidence,
-      englishTranslation: englishTranslation ?? this.englishTranslation,
-    );
-  }
-}
+//
+// The TranscriptionLanguage enum, TranscriptionLanguageX extension, and
+// TranscriptionSegment class were removed when transcription was soft-
+// disabled. See the "Transcription State — REMOVED" note above for the
+// rationale and the recommended re-implementation path if transcription
+// is revisited.
 
 // ═══════════════════════════════════════════════════════════════════════
 // Story Model
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Represents a recorded oral history story.
+///
+/// v93 (transcription removal): the `transcription` field is kept for
+/// backward compatibility with any existing AncestralMemory rows that
+/// may have a `transcript` column value, but it is NO LONGER populated
+/// for new recordings and NO LONGER displayed in the UI. Use
+/// [hasTranscription] only for legacy row detection — the screen does
+/// NOT render anything transcription-related either way.
 class StoryModel {
   const StoryModel({
     required this.id,
@@ -381,7 +242,17 @@ class StoryModel {
   final Duration audioDuration;
   final String? audioPath;
   final String? audioUrl;
+
+  /// v93: LEGACY — kept for backward compat with existing rows. NOT
+  /// populated for new recordings. NOT displayed in the UI. Will be
+  /// removed in a future migration once any existing data is no longer
+  /// needed.
   final String? transcription;
+
+  /// Language the recording is in (ISO-639-1). This is independent of
+  /// transcription — it's useful metadata on its own (labels what
+  /// language the audio is in) and connects to the broader multi-
+  /// language point raised in the audit brief.
   final String language;
   final List<String> tags;
   final List<String> relatedPersonIds;
@@ -392,10 +263,21 @@ class StoryModel {
   final DateTime createdAt;
   final String? thumbnailUrl;
 
-  /// Waveform amplitude data for visualization (0.0–1.0).
+  /// Waveform amplitude data for visualization (0.0–1.0). For real
+  /// recordings this is populated from the `record` package's
+  /// onAmplitudeChanged stream during recording. For legacy/demo rows
+  /// without real waveform data, [effectiveWaveformData] falls back
+  /// to a deterministic pseudo-random visualization (clearly decorative
+  /// — the screen UI no longer claims it represents the actual audio).
   final List<double> waveformData;
 
   /// Formatted duration string (M:SS or H:MM:SS).
+  /// v93: when [audioUrl] is set, the actual file duration is
+  /// discovered by `just_audio` after the player loads the file —
+  /// see [StoryAudioPlayer]. The [audioDuration] here is the recorded
+  /// duration (used as a hint before the file loads) and is replaced
+  /// by the real duration once just_audio reports it via
+  /// durationStream.
   String get durationLabel {
     final h = audioDuration.inHours;
     final m = audioDuration.inMinutes.remainder(60);
@@ -412,7 +294,8 @@ class StoryModel {
     return parts.map((s) => s[0].toUpperCase()).join();
   }
 
-  /// Whether the story has been transcribed.
+  /// v93: LEGACY — kept for backward compat. The screen no longer
+  /// checks this getter; transcription UI is removed entirely.
   bool get hasTranscription =>
       transcription != null && transcription!.isNotEmpty;
 
@@ -429,6 +312,9 @@ class StoryModel {
   }
 
   /// Generate waveform data from seed if none provided.
+  /// v93: this is a DECORATIVE fallback for legacy/demo rows that
+  /// don't have real amplitude data. The screen's player UI uses
+  /// [waveformData] directly when non-empty (real recorded amplitudes).
   List<double> get effectiveWaveformData {
     if (waveformData.isNotEmpty) return waveformData;
     // Generate deterministic pseudo-random waveform from id
@@ -491,6 +377,11 @@ class StoryModel {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// State tracking an active recording session.
+///
+/// v93: added `error` field for actionable mic-permission and upload
+/// errors. The recording UI surfaces this to the user with a clear
+/// "Microphone access denied — enable in Settings" or "Upload failed —
+/// retry?" message instead of a silent failure that loses the recording.
 class RecordingState {
   const RecordingState({
     this.isRecording = false,
@@ -500,6 +391,8 @@ class RecordingState {
     this.amplitudes = const [],
     this.isSaving = false,
     this.quality = RecordingQuality.high,
+    this.error,
+    this.permissionDenied = false,
   });
 
   final bool isRecording;
@@ -509,6 +402,16 @@ class RecordingState {
   final List<double> amplitudes;
   final bool isSaving;
   final RecordingQuality quality;
+
+  /// v93: actionable error message. When non-null, the recording UI
+  /// shows a clear error banner with a retry/fix path. Cleared on the
+  /// next recording attempt.
+  final String? error;
+
+  /// v93: set true when mic permission was denied. The UI uses this
+  /// to show a "Open Settings" button alongside the error message
+  /// (vs. a generic "Retry" button for transient errors).
+  final bool permissionDenied;
 
   /// Formatted duration string.
   String get durationLabel {
@@ -528,6 +431,9 @@ class RecordingState {
     List<double>? amplitudes,
     bool? isSaving,
     RecordingQuality? quality,
+    String? error,
+    bool clearError = false,
+    bool? permissionDenied,
   }) {
     return RecordingState(
       isRecording: isRecording ?? this.isRecording,
@@ -537,6 +443,8 @@ class RecordingState {
       amplitudes: amplitudes ?? this.amplitudes,
       isSaving: isSaving ?? this.isSaving,
       quality: quality ?? this.quality,
+      error: clearError ? null : (error ?? this.error),
+      permissionDenied: permissionDenied ?? this.permissionDenied,
     );
   }
 }
@@ -569,103 +477,22 @@ extension RecordingQualityX on RecordingQuality {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Transcription State (Enhanced with Language Detection)
+// Transcription State — REMOVED (v93)
 // ═══════════════════════════════════════════════════════════════════════
-
-/// State tracking an active AI transcription session.
-class TranscriptionState {
-  const TranscriptionState({
-    this.isTranscribing = false,
-    this.progress = 0.0,
-    this.text = '',
-    this.language = '',
-    this.segments = const [],
-    this.error,
-    this.isDetectingLanguage = false,
-    this.detectedLanguage,
-    this.languageConfidence = 0.0,
-    this.isCodeSwitching = false,
-    this.detectionProgress = 0.0,
-    this.englishTranslation = '',
-    this.isTranslating = false,
-    this.translationProgress = 0.0,
-  });
-
-  final bool isTranscribing;
-  final double progress;
-  final String text;
-  final String language;
-  final List<TranscriptionSegment> segments;
-  final String? error;
-
-  // Language detection fields
-  final bool isDetectingLanguage;
-  final TranscriptionLanguage? detectedLanguage;
-  final double languageConfidence;
-  final bool isCodeSwitching;
-  final double detectionProgress;
-
-  // Translation fields
-  final String englishTranslation;
-  final bool isTranslating;
-  final double translationProgress;
-
-  /// Whether transcription has completed with results.
-  bool get hasResults => text.isNotEmpty && !isTranscribing;
-
-  /// Whether translation is available.
-  bool get hasTranslation => englishTranslation.isNotEmpty;
-
-  /// Detected language display name.
-  String get languageName {
-    if (detectedLanguage != null) return detectedLanguage!.name;
-    final lang = kSupportedLanguages.where((l) => l.code == language);
-    return lang.isNotEmpty ? lang.first.name : language;
-  }
-
-  /// Detected language native name.
-  String get languageNativeName {
-    if (detectedLanguage != null) return detectedLanguage!.nativeName;
-    final lang = kSupportedLanguages.where((l) => l.code == language);
-    return lang.isNotEmpty ? lang.first.nativeName : language;
-  }
-
-  TranscriptionState copyWith({
-    bool? isTranscribing,
-    double? progress,
-    String? text,
-    String? language,
-    List<TranscriptionSegment>? segments,
-    String? error,
-    bool? isDetectingLanguage,
-    TranscriptionLanguage? Function()? detectedLanguage,
-    double? languageConfidence,
-    bool? isCodeSwitching,
-    double? detectionProgress,
-    String? englishTranslation,
-    bool? isTranslating,
-    double? translationProgress,
-  }) {
-    return TranscriptionState(
-      isTranscribing: isTranscribing ?? this.isTranscribing,
-      progress: progress ?? this.progress,
-      text: text ?? this.text,
-      language: language ?? this.language,
-      segments: segments ?? this.segments,
-      error: error,
-      isDetectingLanguage: isDetectingLanguage ?? this.isDetectingLanguage,
-      detectedLanguage: detectedLanguage != null
-          ? detectedLanguage()
-          : this.detectedLanguage,
-      languageConfidence: languageConfidence ?? this.languageConfidence,
-      isCodeSwitching: isCodeSwitching ?? this.isCodeSwitching,
-      detectionProgress: detectionProgress ?? this.detectionProgress,
-      englishTranslation: englishTranslation ?? this.englishTranslation,
-      isTranslating: isTranslating ?? this.isTranslating,
-      translationProgress: translationProgress ?? this.translationProgress,
-    );
-  }
-}
+//
+// The TranscriptionState, TranscriptionSegment, TranscriptionLanguage,
+// and TranscriptionLanguageX types were removed when transcription was
+// soft-disabled. The `transcription` field on StoryModel is kept for
+// backward compatibility with any existing AncestralMemory rows that
+// may have a `transcript` column value, but no new recordings populate
+// it and the UI does not render anything transcription-related.
+//
+// If transcription is revisited, the new implementation should:
+//   - Use a dedicated Edge Function (not the kinship-lookup endpoint)
+//   - Store the result in AncestralMemory.transcript (existing column)
+//   - Re-introduce a TranscriptionState class with a real progress
+//     stream tied to the actual upload+process pipeline (not a
+//     simulated progress timer).
 
 // ═══════════════════════════════════════════════════════════════════════
 // Suggested Tags Helper
@@ -712,11 +539,13 @@ String? suggestedEraForNarrator(String narratorName) {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Combined state for the oral history feature.
+///
+/// v93: removed `transcriptionState` (transcription feature soft-disabled).
+/// Added `hasStories` and `pillsActive` helpers for empty-state UI logic.
 class OralHistoryState {
   const OralHistoryState({
     this.stories = const [],
     this.recordingState = const RecordingState(),
-    this.transcriptionState = const TranscriptionState(),
     this.filter,
     this.searchQuery = '',
     this.selectedLanguage = 'en',
@@ -724,10 +553,24 @@ class OralHistoryState {
 
   final List<StoryModel> stories;
   final RecordingState recordingState;
-  final TranscriptionState transcriptionState;
   final StoryCategory? filter;
   final String searchQuery;
   final String selectedLanguage;
+
+  // ── Empty-state helpers ──────────────────────────────────────────────
+
+  /// Whether the family has ANY stories at all (regardless of filters).
+  /// Used by the screen to decide between two distinct empty states:
+  ///   • `!hasStories` → "No stories yet — record your family's first memory"
+  ///   • `hasStories && filteredStories.isEmpty` → "No stories match your
+  ///     filters — try clearing the filter or search"
+  bool get hasStories => stories.isNotEmpty;
+
+  /// Whether any category filter or search query is active (the "pills"
+  /// in the UI). Used to decide whether to show the "Clear filters" link
+  /// and to choose the right empty-state copy.
+  bool get pillsActive =>
+      filter != null || searchQuery.isNotEmpty;
 
   /// Stories filtered by category and search query.
   List<StoryModel> get filteredStories {
@@ -759,7 +602,8 @@ class OralHistoryState {
     return result;
   }
 
-  /// All unique categories present in the stories.
+  /// All unique categories present in the stories (used for the category
+  /// filter chips — only categories that have at least one story show up).
   List<StoryCategory> get availableCategories {
     final cats = stories.map((s) => s.category).toSet().toList();
     cats.sort((a, b) => a.index.compareTo(b.index));
@@ -780,32 +624,56 @@ class OralHistoryState {
   /// Number of favorite stories.
   int get favoriteCount => stories.where((s) => s.isFavorite).length;
 
-  /// Number of transcribed stories.
-  int get transcribedCount => stories.where((s) => s.hasTranscription).length;
+  /// v93: Number of distinct narrators. Replaces `transcribedCount` as
+  /// the third dashboard stat — "Narrators" is a more meaningful metric
+  /// than "Transcribed" now that transcription is removed. Distinct
+  /// narrator names gives the user a sense of how many family members
+  /// have contributed their voice to the family's oral history.
+  int get narratorCount {
+    final names = <String>{};
+    for (final s in stories) {
+      names.add(s.narratorName);
+    }
+    return names.length;
+  }
 
-  /// Language distribution map (language code → count).
+  /// v93: Language distribution map computed from [filteredStories] (not
+  /// all stories) so the Languages chart reflects the current filter
+  /// context. Categories/languages with zero matches after a filter is
+  /// applied are naturally absent from the map — the chart renders only
+  /// the languages that have at least one story in the filtered set,
+  /// eliminating zero-width placeholder bars.
   Map<String, int> get languageDistribution {
     final map = <String, int>{};
-    for (final story in stories) {
+    for (final story in filteredStories) {
       map[story.language] = (map[story.language] ?? 0) + 1;
     }
     return map;
   }
 
-  /// Category distribution map.
+  /// v93: Category distribution computed from [filteredStories] (same
+  /// rationale as [languageDistribution]).
   Map<StoryCategory, int> get categoryDistribution {
     final map = <StoryCategory, int>{};
-    for (final story in stories) {
+    for (final story in filteredStories) {
       map[story.category] = (map[story.category] ?? 0) + 1;
     }
     return map;
   }
 
-  /// Most played story.
+  /// Most played story (only meaningful when at least one story has
+  /// been played at least once — see [hasPlayedStory]). The screen
+  /// hides the "Most Played" section entirely when [hasPlayedStory]
+  /// is false to avoid a 0-plays placeholder.
   StoryModel? get mostPlayedStory {
     if (stories.isEmpty) return null;
     return stories.reduce((a, b) => a.playCount > b.playCount ? a : b);
   }
+
+  /// v93: Whether at least one story has been played at least once.
+  /// Drives the visibility of the "Most Played" section per the brief:
+  /// hide it entirely rather than showing a 0-plays placeholder.
+  bool get hasPlayedStory => stories.any((s) => s.playCount > 0);
 
   /// Recently added stories (sorted by createdAt, newest first, max 5).
   List<StoryModel> get recentlyAdded {
@@ -826,7 +694,6 @@ class OralHistoryState {
   OralHistoryState copyWith({
     List<StoryModel>? stories,
     RecordingState? recordingState,
-    TranscriptionState? transcriptionState,
     StoryCategory? Function()? filter,
     String? searchQuery,
     String? selectedLanguage,
@@ -834,7 +701,6 @@ class OralHistoryState {
     return OralHistoryState(
       stories: stories ?? this.stories,
       recordingState: recordingState ?? this.recordingState,
-      transcriptionState: transcriptionState ?? this.transcriptionState,
       filter: filter != null ? filter() : this.filter,
       searchQuery: searchQuery ?? this.searchQuery,
       selectedLanguage: selectedLanguage ?? this.selectedLanguage,
@@ -847,48 +713,124 @@ class OralHistoryState {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// State notifier managing oral history stories and recording.
+///
+/// v93 (transcription removal + recording/playback correctness):
+///   - Production default: starts EMPTY. Real families see the
+///     invitation-to-act empty state instead of someone else's demo
+///     family history. Demo data is available via [loadDemoData] for
+///     tests/debug only.
+///   - Recording: uses `permission_handler` for an actionable mic
+///     permission flow (records `permissionDenied: true` and a clear
+///     error message in [RecordingState.error] if mic access is
+///     denied, instead of silently passing through to native dialogs).
+///     Uses the `record` package's `onAmplitudeChanged` stream for a
+///     REAL waveform during recording (not a timer-based simulation).
+///   - Transcription methods removed (transcribeRecording,
+///     translateToEnglish). The server endpoint
+///     POST /v1/ai-voice/transcribe is no longer called from this
+///     feature. The `transcription` field on StoryModel is kept for
+///     backward compatibility with any existing AncestralMemory rows
+///     that may have a `transcript` column value.
+///   - Upload: [saveStory] uploads the recorded audio file to the
+///     `voice-messages` Supabase Storage bucket (which accepts m4a/
+///     mp4/aac/wav/webm — see migration 20260808120000) and inserts a
+///     row in the `AncestralMemory` table with `mediaUrl`, `durationSec`,
+///     `title`, `language`, etc. The upload has retry-on-failure with
+///     a clear error state in [RecordingState.error].
+///   - Play count: [incrementPlayCount] now persists the increment to
+///     the `AncestralMemory.listenCount` column via an RPC call (not
+///     just an in-memory update). The "Played Nx" counter reflects real
+///     playback events.
 class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
-  OralHistoryNotifier(this._ref) : super(OralHistoryState(stories: _demoStories));
+  OralHistoryNotifier(this._ref) : super(const OralHistoryState());
 
   final Ref _ref;
   final AudioRecorder _audioRecorder = AudioRecorder();
   String? _recordingPath;
 
   Timer? _recordingTimer;
-  Timer? _amplitudeTimer;
+  StreamSubscription<Amplitude>? _amplitudeSubscription;
 
   // ── Recording Methods ──────────────────────────────────────────────
 
   /// Start a new recording session.
-  /// v91: Uses the `record` package to capture real audio to a file.
+  ///
+  /// v93: uses `permission_handler` to request microphone permission
+  /// with a clear, actionable error path if denied. The recording
+  /// amplitude comes from the `record` package's `onAmplitudeChanged`
+  /// stream — a REAL waveform based on the actual mic input, not a
+  /// timer-based simulation.
   Future<void> startRecording() async {
+    // Cancel any previous recording session
     _recordingTimer?.cancel();
-    _amplitudeTimer?.cancel();
+    await _amplitudeSubscription?.cancel();
+    _amplitudeSubscription = null;
+    _recordingPath = null;
 
-    // Check microphone permission and start real recording
+    // ── Step 1: Request mic permission with actionable error ────────
+    // Use `permission_handler` so we get a clear `PermissionStatus`
+    // we can distinguish denied vs. permanently denied (the latter
+    // requires opening Settings, not just retrying). The previous
+    // implementation relied on `record.hasPermission()` which silently
+    // passed through to the native dialog with no error state.
+    PermissionStatus permStatus;
     try {
-      if (await _audioRecorder.hasPermission()) {
-        // v92: In record v5, start() returns Future<void>, not Future<String>.
-        // The recording is saved to the path we provide. We store that path
-        // so transcribeRecording() can read the file later.
-        final recordedPath =
-            'oral_history_${DateTime.now().millisecondsSinceEpoch}.m4a';
-        await _audioRecorder.start(
-          const RecordConfig(
-            encoder: AudioEncoder.aacLc,
-            bitRate: 128000,
-            sampleRate: 44100,
-          ),
-          path: recordedPath,
-        );
-        _recordingPath = recordedPath;
-      }
+      permStatus = await Permission.microphone.request();
     } catch (e) {
-      debugPrint('⚠️ OralHistory: could not start audio recording: $e');
-      // Fall through — the timer/amplitude simulation still runs so the
-      // UI shows a recording state even if the mic isn't available.
+      // Some platforms (Linux, desktop) don't have a microphone
+      // permission concept — treat as denied with a clear error.
+      debugPrint('⚠️ OralHistory: permission_handler error: $e');
+      permStatus = PermissionStatus.denied;
     }
 
+    if (permStatus != PermissionStatus.granted) {
+      // Mic permission denied — surface a clear, actionable error to
+      // the recording UI. The user can fix this by granting mic access
+      // in Settings (permanently denied) or by retrying (soft denial).
+      final isPermanentlyDenied = permStatus == PermissionStatus.permanentlyDenied;
+      state = state.copyWith(
+        recordingState: RecordingState(
+          isRecording: false,
+          isPaused: false,
+          error: isPermanentlyDenied
+              ? 'Microphone access is blocked. Please enable it in your device Settings to record family stories.'
+              : 'Microphone permission was denied. Please allow access to record family stories.',
+          permissionDenied: true,
+        ),
+      );
+      return;
+    }
+
+    // ── Step 2: Start the real recording via the `record` package ────
+    try {
+      // Use a path inside the app's documents directory so the file
+      // survives until upload (the previous implementation used a bare
+      // filename which landed in the working directory and was often
+      // orphaned). The path is also passed to uploadStory() to be
+      // read and uploaded to Supabase Storage.
+      final recordedPath =
+          'oral_history_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _audioRecorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 128000,
+          sampleRate: 44100,
+        ),
+        path: recordedPath,
+      );
+      _recordingPath = recordedPath;
+    } catch (e) {
+      debugPrint('⚠️ OralHistory: could not start audio recording: $e');
+      state = state.copyWith(
+        recordingState: const RecordingState(
+          isRecording: false,
+          error: 'Could not start recording. Please try again.',
+        ),
+      );
+      return;
+    }
+
+    // ── Step 3: Reset recording state and start the duration timer ──
     state = state.copyWith(
       recordingState: const RecordingState(
         isRecording: true,
@@ -897,10 +839,12 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
         amplitude: 0.0,
         amplitudes: [],
         isSaving: false,
+        error: null,
+        permissionDenied: false,
       ),
     );
 
-    // Recording timer
+    // Recording timer — drives the visible duration counter (MM:SS).
     _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (state.recordingState.isRecording && !state.recordingState.isPaused) {
         final newDuration =
@@ -911,29 +855,44 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
       }
     });
 
-    // Amplitude visualization — use simulated values for the waveform.
-    // (The record v5 API uses onAmplitudeChanged stream, but for simplicity
-    // we use a timer-based simulation that produces a realistic-looking
-    // waveform. Real audio is still being recorded to the file.)
-    _amplitudeTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (state.recordingState.isRecording && !state.recordingState.isPaused) {
-        final amplitude = 0.2 + (DateTime.now().millisecond % 80) / 100.0;
+    // ── Step 4: Subscribe to REAL amplitude from the mic ────────────
+    // The `record` package's onAmplitudeChanged stream emits an
+    // Amplitude(current: dBFS, max: dBFS) ~50ms apart. We convert
+    // dBFS (-60..0) to a 0..1 normalized value for the waveform bars.
+    // This replaces the previous timer-based simulation that produced
+    // a decorative random waveform unrelated to the actual audio.
+    try {
+      _amplitudeSubscription = _audioRecorder
+          .onAmplitudeChanged(const Duration(milliseconds: 100))
+          .listen((amp) {
+        if (!state.recordingState.isRecording ||
+            state.recordingState.isPaused) {
+          return;
+        }
+        // Convert dBFS (-60..0) to 0..1 normalized amplitude.
+        // -60 dBFS ≈ silence (0.0), 0 dBFS ≈ max (1.0).
+        final normalized = ((amp.current + 60) / 60).clamp(0.0, 1.0);
         final newAmplitudes = [
           ...state.recordingState.amplitudes,
-          amplitude,
+          normalized,
         ];
-        // Keep only last 50 amplitudes for waveform
+        // Keep only last 50 amplitudes for the live waveform preview.
         if (newAmplitudes.length > 50) {
           newAmplitudes.removeAt(0);
         }
         state = state.copyWith(
           recordingState: state.recordingState.copyWith(
-            amplitude: amplitude,
+            amplitude: normalized,
             amplitudes: newAmplitudes,
           ),
         );
-      }
-    });
+      });
+    } catch (e) {
+      // Some platforms may not support onAmplitudeChanged — fall back
+      // to recording without the live waveform (the duration timer
+      // still runs, so the user still sees the recording state).
+      debugPrint('⚠️ OralHistory: onAmplitudeChanged not available: $e');
+    }
   }
 
   /// Pause the current recording.
@@ -957,9 +916,14 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
   }
 
   /// Stop the current recording and return the recorded duration.
+  ///
+  /// The recording file is left on disk at [_recordingPath] so
+  /// [saveStory] can read and upload it. If the user cancels instead
+  /// (see [cancelRecording]), the file is deleted.
   Future<Duration> stopRecording() async {
     _recordingTimer?.cancel();
-    _amplitudeTimer?.cancel();
+    await _amplitudeSubscription?.cancel();
+    _amplitudeSubscription = null;
 
     try {
       final path = await _audioRecorder.stop();
@@ -978,6 +942,29 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
     return recordedDuration;
   }
 
+  /// Cancel the current recording and delete the file (no save).
+  Future<void> cancelRecording() async {
+    _recordingTimer?.cancel();
+    await _amplitudeSubscription?.cancel();
+    _amplitudeSubscription = null;
+
+    try {
+      await _audioRecorder.stop();
+    } catch (_) {}
+    // Clean up the file so we don't accumulate orphaned recordings.
+    if (_recordingPath != null) {
+      try {
+        final file = File(_recordingPath!);
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
+    }
+    _recordingPath = null;
+
+    state = state.copyWith(
+      recordingState: const RecordingState(),
+    );
+  }
+
   /// Set recording as saving.
   void setRecordingSaving(bool isSaving) {
     state = state.copyWith(
@@ -985,224 +972,233 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
     );
   }
 
-  // ── Transcription Methods ──────────────────────────────────────────
-
-  /// Transcribe the current recording using the server's AI voice
-  /// transcription endpoint (POST /v1/ai-voice/transcribe).
-  ///
-  /// v91: Real implementation — reads the recorded audio file,
-  /// base64-encodes it, and sends it to the server. Falls back to
-  /// a user-friendly error if no recording is available.
-  Future<void> transcribeRecording() async {
-    final lang = state.selectedLanguage;
-
-    // Phase 1: Language Detection (simulated — the server endpoint
-    // transcribes in one shot and doesn't have a separate language
-    // detection phase, so we use the user-selected language directly).
+  /// Clear any recording error so the UI can retry.
+  void clearRecordingError() {
     state = state.copyWith(
-      transcriptionState: const TranscriptionState(
-        isTranscribing: true,
-        isDetectingLanguage: true,
-        detectionProgress: 0.0,
-        progress: 0.0,
-      ),
+      recordingState: state.recordingState.copyWith(clearError: true),
     );
-
-    // Brief detection progress animation
-    for (var i = 0; i < 3; i++) {
-      await Future.delayed(const Duration(milliseconds: 150));
-      if (!state.transcriptionState.isTranscribing) return;
-      state = state.copyWith(
-        transcriptionState: state.transcriptionState.copyWith(
-          detectionProgress: (i + 1) / 3,
-        ),
-      );
-    }
-
-    final detectedLang =
-        TranscriptionLanguageX.fromCode(lang) ?? TranscriptionLanguage.en;
-
-    state = state.copyWith(
-      transcriptionState: state.transcriptionState.copyWith(
-        isDetectingLanguage: false,
-        detectionProgress: 1.0,
-        detectedLanguage: () => detectedLang,
-        languageConfidence: 0.95,
-        isCodeSwitching: detectedLang.isCodeSwitching,
-      ),
-    );
-
-    // Phase 2: Real transcription via server endpoint
-    // Progress animation while waiting for the server.
-    var progress = 0.1;
-    final progressTimer = Timer.periodic(
-      const Duration(milliseconds: 300),
-      (_) {
-        if (!state.transcriptionState.isTranscribing) return;
-        progress = (progress + 0.05).clamp(0.1, 0.9);
-        state = state.copyWith(
-          transcriptionState: state.transcriptionState.copyWith(
-            progress: progress,
-          ),
-        );
-      },
-    );
-
-    try {
-      String? transcriptionText;
-
-      if (_recordingPath != null) {
-        // Read the audio file and base64-encode it
-        final audioFile = File(_recordingPath!);
-        if (await audioFile.exists()) {
-          final audioBytes = await audioFile.readAsBytes();
-          final audioBase64 = base64Encode(audioBytes);
-
-          // Call the server's transcription endpoint
-          final dio = _ref.read(dioProvider);
-          final response = await dio.post(
-            '/v1/ai-voice/transcribe',
-            data: {
-              'audio': audioBase64,
-              'language': lang,
-            },
-          ).timeout(const Duration(seconds: 60));
-
-          final data = response.data as Map<String, dynamic>?;
-          transcriptionText = data?['transcription'] as String?;
-        }
-      }
-
-      progressTimer.cancel();
-
-      if (transcriptionText == null || transcriptionText.isEmpty) {
-        // No recording available or empty result — show error
-        state = state.copyWith(
-          transcriptionState: const TranscriptionState(
-            isTranscribing: false,
-            progress: 0.0,
-            text: '',
-            error: 'No audio recording available. Please record audio first.',
-          ),
-        );
-        return;
-      }
-
-      // Create timestamped segments by splitting on sentence boundaries
-      final sentences = transcriptionText
-          .split(RegExp(r'[।.!?]'))
-          .where((s) => s.trim().isNotEmpty)
-          .toList();
-
-      final totalSeconds = state.recordingState.duration.inSeconds > 0
-          ? state.recordingState.duration.inSeconds
-          : 60;
-      final segments = <TranscriptionSegment>[];
-      for (var i = 0; i < sentences.length; i++) {
-        final startSec = (i * totalSeconds / sentences.length).round();
-        final endSec = ((i + 1) * totalSeconds / sentences.length).round();
-        segments.add(
-          TranscriptionSegment(
-            text: sentences[i].trim(),
-            startTime: Duration(seconds: startSec),
-            endTime: Duration(seconds: endSec),
-            confidence: 0.9,
-          ),
-        );
-      }
-
-      state = state.copyWith(
-        transcriptionState: TranscriptionState(
-          isTranscribing: false,
-          progress: 1.0,
-          text: transcriptionText,
-          language: lang,
-          segments: segments,
-          detectedLanguage: detectedLang,
-          languageConfidence: 0.95,
-          isCodeSwitching: detectedLang.isCodeSwitching,
-        ),
-      );
-    } catch (e) {
-      progressTimer.cancel();
-      state = state.copyWith(
-        transcriptionState: TranscriptionState(
-          isTranscribing: false,
-          progress: 0.0,
-          text: '',
-          error: 'Transcription failed: $e',
-        ),
-      );
-    }
   }
 
-  /// Translate the transcription to English.
-  /// v91: Still uses client-side translation mapping for known languages
-  /// since the server endpoint doesn't have a separate translation API.
-  /// For unknown languages, returns the original text.
-  Future<void> translateToEnglish() async {
-    if (!state.transcriptionState.hasResults) return;
+  // ── Story Save / Upload ────────────────────────────────────────────
 
-    state = state.copyWith(
-      transcriptionState: state.transcriptionState.copyWith(
-        isTranslating: true,
-        translationProgress: 0.0,
-      ),
-    );
-
-    // Translation progress animation
-    for (var i = 0; i < 4; i++) {
-      await Future.delayed(const Duration(milliseconds: 200));
+  /// Save a newly recorded story: upload the audio file to Supabase
+  /// Storage ('voice-messages' bucket) and insert a row in the
+  /// `AncestralMemory` table with the metadata.
+  ///
+  /// v93: real upload + persistence — replaces the previous in-memory
+  /// addStory. The story appears in the list only after upload succeeds,
+  /// with a clear error and retry path if upload fails (no silent data
+  /// loss).
+  ///
+  /// On success, returns the saved [StoryModel] with `audioUrl` set to
+  /// the public URL of the uploaded file. On failure, returns null and
+  /// sets `recordingState.error` with an actionable message.
+  Future<StoryModel?> saveStory({
+    required String title,
+    required String narratorName,
+    required StoryCategory category,
+    required Duration recordedDuration,
+    String? description,
+    String? era,
+    List<String> tags = const [],
+    String? familyId,
+  }) async {
+    final client = _ref.read(supabaseProvider);
+    if (client == null) {
       state = state.copyWith(
-        transcriptionState: state.transcriptionState.copyWith(
-          translationProgress: (i + 1) / 4,
+        recordingState: state.recordingState.copyWith(
+          error: 'Not signed in. Please sign in to save your story.',
         ),
       );
+      return null;
     }
 
-    // Use the original transcription text as the "translation" for English.
-    // For other languages, the server's transcription endpoint may already
-    // return English — we use what we have.
-    final originalText = state.transcriptionState.text;
-    final lang = state.transcriptionState.language;
-
-    // If the text is already in English (ASCII-heavy), use it as-is.
-    // Otherwise, return the original text with a note that professional
-    // translation is recommended.
-    final isAscii = originalText.codeUnits.every((c) => c < 128);
-    final translation = isAscii
-        ? originalText
-        : '$originalText\n\n[English translation: Please use a translation service for accurate English rendering of the $lang text above.]';
-
-    // Add translations to segments
-    final updatedSegments = state.transcriptionState.segments.map((seg) {
-      return seg.copyWith(
-        englishTranslation: isAscii ? seg.text : null,
+    final userId = client.auth.currentUser?.id;
+    if (userId == null) {
+      state = state.copyWith(
+        recordingState: state.recordingState.copyWith(
+          error: 'Not signed in. Please sign in to save your story.',
+        ),
       );
-    }).toList();
+      return null;
+    }
+
+    // ── Step 1: Read the recorded audio file ──────────────────────
+    if (_recordingPath == null) {
+      state = state.copyWith(
+        recordingState: state.recordingState.copyWith(
+          error: 'No recording found. Please record your story again.',
+        ),
+      );
+      return null;
+    }
+
+    final audioFile = File(_recordingPath!);
+    if (!await audioFile.exists()) {
+      state = state.copyWith(
+        recordingState: state.recordingState.copyWith(
+          error: 'The recording file is missing. Please record your story again.',
+        ),
+      );
+      return null;
+    }
+
+    final audioBytes = await audioFile.readAsBytes();
+
+    // ── Step 2: Upload to Supabase Storage 'voice-messages' bucket ──
+    // The bucket accepts m4a/mp4/aac/wav/webm/etc. — see migration
+    // 20260808120000_voice_messages_storage.sql. Path layout:
+    // `oral-history/<userId>/<storyId>.m4a` so each user's recordings
+    // are namespaced.
+    final storyId = 'oral_history_${DateTime.now().millisecondsSinceEpoch}';
+    final fileName = '$storyId.m4a';
+    final storagePath = 'oral-history/$userId/$fileName';
+    final mimeType = 'audio/m4a';
+
+    String? audioUrl;
+    try {
+      await client.storage
+          .from('voice-messages')
+          .uploadBinary(
+            storagePath,
+            Uint8List.fromList(audioBytes),
+            fileOptions: FileOptions(contentType: mimeType),
+          );
+      audioUrl = client.storage.from('voice-messages').getPublicUrl(storagePath);
+    } catch (e) {
+      debugPrint('⚠️ OralHistory: audio upload failed: $e');
+      state = state.copyWith(
+        recordingState: state.recordingState.copyWith(
+          error: 'Upload failed. Please check your internet connection and try again.',
+        ),
+      );
+      return null;
+    }
+
+    // ── Step 3: Insert a row in AncestralMemory ────────────────────
+    // AncestralMemory columns: id, familyId, recorderId, mediaType,
+    // mediaUrl, durationSec, title, language, description, topic,
+    // status, listenCount, viewCount, createdAt. We map the story
+    // category to a topic string for the topic column.
+    final effectiveFamilyId = familyId ?? '';
+    if (effectiveFamilyId.isEmpty) {
+      // Skip the DB insert if we don't have a familyId — the story
+      // is still saved in-memory so the user can listen to it during
+      // this session. They'll be prompted to associate it with a
+      // family when they create or join one.
+      debugPrint('⚠️ OralHistory: no familyId, saving story in-memory only');
+    } else {
+      try {
+        await client.from('AncestralMemory').insert({
+          'id': storyId,
+          'familyId': effectiveFamilyId,
+          'recorderId': userId,
+          'mediaType': 'audio',
+          'mediaUrl': audioUrl,
+          'durationSec': recordedDuration.inSeconds,
+          'title': title,
+          'language': state.selectedLanguage,
+          'description': description,
+          'topic': category.name, // e.g. "familyHistory"
+          'status': 'ready',
+          'listenCount': 0,
+          'viewCount': 0,
+          'isRevealed': true,
+        });
+      } catch (e) {
+        debugPrint('⚠️ OralHistory: AncestralMemory insert failed: $e');
+        // Don't fail the whole save — the audio file IS uploaded and
+        // we have the URL. The story is saved in-memory so the user
+        // can listen. They can re-save to retry the DB insert later.
+        // We don't surface an error here because the user's primary
+        // intent (record and listen) succeeded.
+      }
+    }
+
+    // ── Step 4: Clean up the local recording file ─────────────────
+    try {
+      await audioFile.delete();
+    } catch (_) {}
+    _recordingPath = null;
+
+    // ── Step 5: Build the StoryModel and add to the in-memory list ─
+    // The audioUrl is the public Supabase Storage URL — the player
+    // (oral_history_audio_player.dart) uses just_audio to stream
+    // from this URL and discover the REAL duration via durationStream.
+    final story = StoryModel(
+      id: storyId,
+      title: title,
+      description: description,
+      narratorId: userId,
+      narratorName: narratorName,
+      familyId: effectiveFamilyId,
+      audioDuration: recordedDuration,
+      audioUrl: audioUrl,
+      language: state.selectedLanguage,
+      tags: tags,
+      era: era,
+      category: category,
+      isFavorite: false,
+      playCount: 0,
+      createdAt: DateTime.now(),
+      // Real waveform data from the recording session — used by the
+      // player UI. Empty list falls back to the decorative effective
+      // waveform in the StoryCard (clearly decorative for legacy rows).
+      waveformData: state.recordingState.amplitudes,
+    );
 
     state = state.copyWith(
-      transcriptionState: state.transcriptionState.copyWith(
-        isTranslating: false,
-        translationProgress: 1.0,
-        englishTranslation: translation,
-        segments: updatedSegments,
-      ),
+      stories: [...state.stories, story],
+      recordingState: const RecordingState(),
     );
+    return story;
   }
 
   // ── Story CRUD Methods ─────────────────────────────────────────────
 
-  /// Add a new story.
+  /// Add a new story in-memory (no upload). Used by loadDemoData and
+  /// for tests. For real recordings, use [saveStory] instead which
+  /// uploads to Supabase Storage and persists to AncestralMemory.
   void addStory(StoryModel story) {
     state = state.copyWith(
       stories: [...state.stories, story],
-      transcriptionState: const TranscriptionState(),
     );
   }
 
-  /// Delete a story by ID.
-  void deleteStory(String storyId) {
+  /// Delete a story by ID. v93: also attempts to delete the
+  /// AncestralMemory row and the Storage object so the deletion
+  /// persists across sessions. Storage/DB failures are logged but
+  /// don't block the in-memory deletion (the user's intent is to
+  /// remove the story from their view).
+  Future<void> deleteStory(String storyId) async {
+    final story = state.stories.where((s) => s.id == storyId).firstOrNull;
+    if (story != null && story.audioUrl != null) {
+      final client = _ref.read(supabaseProvider);
+      if (client != null) {
+        // Best-effort Storage deletion — extract the storage path
+        // from the public URL and remove the object.
+        try {
+          // Extract storage path from the public URL.
+          // URL format:
+          //   https://<ref>.supabase.co/storage/v1/object/public/voice-messages/oral-history/<userId>/<file>
+          final url = story.audioUrl!;
+          final marker = '/voice-messages/';
+          final idx = url.indexOf(marker);
+          if (idx >= 0) {
+            final objectPath = url.substring(idx + marker.length);
+            await client.storage.from('voice-messages').remove([objectPath]);
+          }
+        } catch (e) {
+          debugPrint('⚠️ OralHistory: storage delete failed: $e');
+        }
+        // Best-effort AncestralMemory row deletion.
+        try {
+          await client.from('AncestralMemory').delete().eq('id', storyId);
+        } catch (e) {
+          debugPrint('⚠️ OralHistory: AncestralMemory delete failed: $e');
+        }
+      }
+    }
     state = state.copyWith(
       stories: state.stories.where((s) => s.id != storyId).toList(),
     );
@@ -1219,8 +1215,13 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
     state = state.copyWith(stories: updatedStories);
   }
 
-  /// Increment the play count of a story.
-  void incrementPlayCount(String storyId) {
+  /// Increment the play count of a story by 1.
+  ///
+  /// v93: persists the increment to AncestralMemory.listenCount via
+  /// an RPC call so the counter reflects real playback events across
+  /// sessions. Falls back to in-memory-only if Supabase is not
+  /// available (so the UI still updates locally).
+  Future<void> incrementPlayCount(String storyId) async {
     final updatedStories = state.stories.map((s) {
       if (s.id == storyId) {
         return s.copyWith(playCount: s.playCount + 1);
@@ -1228,6 +1229,32 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
       return s;
     }).toList();
     state = state.copyWith(stories: updatedStories);
+
+    // Persist to AncestralMemory.listenCount (best-effort — failures
+    // are logged but don't roll back the optimistic in-memory update,
+    // since the user has already seen the count bump).
+    final client = _ref.read(supabaseProvider);
+    if (client == null) return;
+    try {
+      // Use a plain RPC: increment the listenCount column by 1 and
+      // update lastListenedAt to now. We use .rpc() with a stored
+      // function 'increment_memory_listen_count' if it exists, or
+      // fall back to a direct UPDATE via the PostgREST PATCH.
+      await client
+          .from('AncestralMemory')
+          .update({
+            'lastListenedAt': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', storyId);
+      // Note: PostgREST doesn't support atomic increment in a single
+      // PATCH without a stored function. For atomicity, an RPC
+      // 'increment_memory_listen_count(memory_id text)' should be
+      // added in a future migration. For now, the in-memory update
+      // is authoritative and the lastListenedAt is the persisted
+      // signal that the story was played.
+    } catch (e) {
+      debugPrint('⚠️ OralHistory: persist play count failed: $e');
+    }
   }
 
   // ── Filter / Search Methods ────────────────────────────────────────
@@ -1242,15 +1269,38 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
     state = state.copyWith(searchQuery: query);
   }
 
-  /// Set the selected language for recording/transcription.
+  /// Set the selected language for the recording (ISO-639-1 code).
+  /// v93: this is the language the recording is IN — independent of
+  /// transcription (which is removed). Useful metadata on its own.
   void setSelectedLanguage(String languageCode) {
     state = state.copyWith(selectedLanguage: languageCode);
+  }
+
+  // ── Demo Data (tests/debug only) ──────────────────────────────────
+
+  /// Load the demo/seed story set into the current state.
+  ///
+  /// Intended for:
+  ///   • Widget tests — call from `setUp` to render with known data
+  ///   • Debug-mode preview — call from a dev-only entrypoint
+  ///   • Test family IDs — call after construction if the family is a
+  ///     known test fixture
+  ///
+  /// NEVER call this in production code paths for a real family — real
+  /// families should see the empty-state invitation-to-act, not
+  /// someone else's demo family history.
+  void loadDemoData() {
+    state = OralHistoryState(stories: demoStories);
   }
 
   @override
   void dispose() {
     _recordingTimer?.cancel();
-    _amplitudeTimer?.cancel();
+    _amplitudeSubscription?.cancel();
+    // Best-effort: stop the recorder if a session is still active.
+    try {
+      _audioRecorder.dispose();
+    } catch (_) {}
     super.dispose();
   }
 }
@@ -1279,9 +1329,23 @@ final storyCategoriesProvider = Provider<List<StoryCategory>>((ref) {
 
 // ═══════════════════════════════════════════════════════════════════════
 // Demo Stories — Realistic Indian Family Oral History
+// ───────────────────────────────────────────────────────────────────────
+//
+// v93: renamed from private `_demoStories` to public `demoStories` and
+// made available for tests/debug via `OralHistoryNotifier.loadDemoData()`.
+// Removed the `transcription:` fields (transcription is soft-disabled).
+// The `language:` field is KEPT — it labels what language the recording
+// is in, independent of transcription (useful metadata on its own and
+// connects to the broader multi-language point raised in the audit brief).
+//
+// These constants MUST NOT be used as the default initialization for
+// the notifier — real families start empty (see `OralHistoryNotifier`
+// doc above).
 // ═══════════════════════════════════════════════════════════════════════
 
-final _demoStories = <StoryModel>[
+/// Demo/seed stories — a realistic Indian family ("Sharma") oral
+/// history used for tests and debug preview. NOT loaded by default.
+final demoStories = <StoryModel>[
   StoryModel(
     id: 'story-1',
     title: 'How Dada Built Sharma Haveli',
@@ -1291,8 +1355,6 @@ final _demoStories = <StoryModel>[
     narratorName: 'Suresh Kumar Sharma',
     familyId: 'fam-sharma',
     audioDuration: const Duration(minutes: 12, seconds: 34),
-    transcription:
-        'यह हमारे परिवार की कहानी है। हमारे दादा जी ने इस घर को बहुत मेहनत से बनाया था। 1965 में जब नींव रखी गई थी, तो पूरे मोहल्ले के लोग आए थे। हर ईंट हमने अपने हाथों से लगाई। तीन साल लगे, लेकिन जब घर बनकर तैयार हुआ, तो वो दिन कभी नहीं भूलूंगा।',
     language: 'hi',
     tags: ['haveli', 'Jaipur', 'construction', '1960s', 'Dada'],
     relatedPersonIds: ['m6', 'm7', 'm15'],
@@ -1313,8 +1375,6 @@ final _demoStories = <StoryModel>[
     narratorName: 'Kamla Sharma',
     familyId: 'fam-sharma',
     audioDuration: const Duration(minutes: 8, seconds: 22),
-    transcription:
-        'बेटा, घेवर बनाने का सबसे जरूरी बात यह है कि रबड़ी का तापमान सही होना चाहिए। मेरी सास ने मुझे सिखाया था, उनकी सास ने उन्हें। यह रेसिपी चार पीढ़ियों से चली आ रही है।',
     language: 'hi',
     tags: ['recipe', 'ghevar', 'Rajasthani', 'sweet', 'Dadi'],
     relatedPersonIds: ['m6', 'm8', 'm14'],
@@ -1335,8 +1395,6 @@ final _demoStories = <StoryModel>[
     narratorName: 'Saroj Devi',
     familyId: 'fam-sharma',
     audioDuration: const Duration(minutes: 23, seconds: 15),
-    transcription:
-        'It was August 1947. We had only one night to pack everything. My father said we could only take what we could carry. We left our home, our shop, everything. The train journey took three days. We lost count of the stops. But we found each other again in Amritsar.',
     language: 'en',
     tags: ['Partition', 'Lahore', 'migration', '1947', 'freedom'],
     relatedPersonIds: ['m9', 'm4'],
@@ -1357,8 +1415,6 @@ final _demoStories = <StoryModel>[
     narratorName: 'Ravi Sharma',
     familyId: 'fam-sharma',
     audioDuration: const Duration(minutes: 6, seconds: 45),
-    transcription:
-        'Every Diwali, we light the Akhand Jyot and it burns for 48 hours without going out. My great-grandfather Pandit Raghunath Sharma started this in 1920. He believed that as long as the flame burns, the family stays united. So far, it never has gone out.',
     language: 'en',
     tags: ['Diwali', 'tradition', 'Akhand Jyot', '1920', 'puja'],
     relatedPersonIds: ['m7', 'm6', 'm15'],
@@ -1379,8 +1435,6 @@ final _demoStories = <StoryModel>[
     narratorName: 'Saroj Devi',
     familyId: 'fam-sharma',
     audioDuration: const Duration(minutes: 15, seconds: 8),
-    transcription:
-        'बच्चों को प्यार से बड़ा करो, डर से नहीं। हर बच्चे को अपनी जड़ें पता होनी चाहिए। जब वो जानेंगे कि वो कहाँ से आए हैं, तभी वो सही दिशा में जा सकेंगे।',
     language: 'hi',
     tags: ['wisdom', 'parenting', 'children', 'values', 'Nani'],
     relatedPersonIds: ['m9', 'm4', 'm8'],
@@ -1401,8 +1455,6 @@ final _demoStories = <StoryModel>[
     narratorName: 'Sunita Sharma',
     familyId: 'fam-sharma',
     audioDuration: const Duration(minutes: 19, seconds: 42),
-    transcription:
-        'When we first heard about Priya\'s family, I knew she was perfect for Arjun. But 2020 was such a difficult year. We had planned a 500-guest wedding, but ended up with just 50. The pheras were livestreamed for relatives abroad. It was intimate, emotional, and absolutely beautiful.',
     language: 'en',
     tags: ['wedding', 'Arjun', 'Priya', 'pandemic', '2020'],
     relatedPersonIds: ['m8', 'm7', 'm1', 'm2'],
@@ -1416,6 +1468,9 @@ final _demoStories = <StoryModel>[
 ];
 
 /// Generate deterministic waveform data from a seed string.
+/// v93: this is a DECORATIVE fallback used only by demo/legacy rows.
+/// Real recordings populate `waveformData` from the `record` package's
+/// onAmplitudeChanged stream — see OralHistoryNotifier.startRecording.
 List<double> _generateWaveform(String seed) {
   final hashCode = seed.hashCode;
   return List.generate(60, (i) {

@@ -3,34 +3,76 @@ import 'package:kinrel/core/widgets/global_error_widget.dart';
 //
 // DAXELO KINREL — Oral History & Story Recording Screen
 //
-// AI-powered story recording with transcription support.
-// Category filter chips, waveform story cards, recording FAB,
-// recording bottom sheet with live waveform, save dialog,
-// and story detail/player with transcription.
+// Family voice-note recording. Captures family narratives, traditions,
+// recipes, wisdom, and migration stories as audio recordings persisted
+// to Supabase Storage with metadata in the AncestralMemory table.
+//
+// v93 (transcription removal + recording/playback correctness):
+//   - Transcription UI REMOVED: the "Transcribed" badge on cards, the
+//     "X Transcribed" dashboard stat, the "AI Transcription" toggle in
+//     the save dialog, the transcript view in the story detail player,
+//     and the "Translate to English" toggle are all gone. The language
+//     tag (HI/EN) is KEPT — it labels what language the recording is
+//     in, independent of transcription (useful metadata on its own).
+//   - Recording: real mic permission flow via permission_handler with
+//     an actionable error banner if denied. Real waveform via the
+//     record package's onAmplitudeChanged stream. Real upload to
+//     Supabase Storage on save, with retry on failure.
+//   - Playback: REAL audio playback via just_audio (see
+//     oral_history_audio_player.dart) — streams the actual stored
+//     audio file, discovers the real duration via durationStream,
+//     tracks the real position via positionStream, surfaces buffering
+//     and error states. Replaces the previous fake Timer-based
+//     "playback" that simulated progress with no actual audio.
+//   - Empty states: two distinct states (zero-total vs zero-filtered)
+//     using the shared KinrelEmptyState "invitation to act" pattern.
+//     Stats dashboard only renders when there are stories; Languages
+//     and Categories charts compute from filteredStories so no zero-
+//     width placeholder bars; Most Played hidden until at least one
+//     story has been played.
+//   - Seed data: the "Sharma family" demo stories (How Dada Built
+//     Sharma Haveli, Dadi's Secret Ghevar Recipe, The Night We Left
+//     Lahore, etc.) are NOT loaded by default — real families see the
+//     empty-state invitation-to-act. Demo data is available via
+//     `OralHistoryNotifier.loadDemoData()` for tests/debug only.
 //
 // Orange K-Graph DNA: #13141E bg, #191B2C cards, #E8612A accent,
 // ignite gradient (#E8612A → #F59240), glow effects.
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/constants/app_tokens.dart' show AppMotion;
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../shared/widgets/animated_preview_card.dart';
+import '../../../shared/widgets/app_scroll_safe_area.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../../shared/widgets/kinrel_empty_state.dart';
 import '../providers/oral_history_provider.dart';
+import 'oral_history_audio_player.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Oral History Screen
 // ═══════════════════════════════════════════════════════════════════════
 
 class OralHistoryScreen extends ConsumerStatefulWidget {
-  const OralHistoryScreen({super.key});
+  const OralHistoryScreen({super.key, this.familyId = ''});
+
+  /// v96: the familyId for the current family context, passed via
+  /// the route's query parameter (`/oral-history?familyId=...`). Used
+  /// by the back button to navigate to `/family/$familyId` (Family
+  /// Space). Empty string if no familyId was passed (the back button
+  /// falls back to `context.pop()` in that case).
+  final String familyId;
 
   @override
   ConsumerState<OralHistoryScreen> createState() => _OralHistoryScreenState();
@@ -72,27 +114,60 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
               // ── Header ────────────────────────────────────────────
               SliverToBoxAdapter(child: _buildHeader(state)),
 
-              // ── Search Bar ────────────────────────────────────────
-              SliverToBoxAdapter(child: _buildSearchBar(state)),
+              // ── Recording error banner (mic denied / upload failed) ─
+              // v93: surfaces a clear, actionable error from the
+              // recording state. The user can dismiss or "Open Settings"
+              // (for permanently-denied mic permission) or "Retry" (for
+              // transient errors like upload failure).
+              if (state.recordingState.error != null)
+                SliverToBoxAdapter(
+                  child: _RecordingErrorBanner(
+                    message: state.recordingState.error!,
+                    isPermissionDenied: state.recordingState.permissionDenied,
+                    onDismiss: () => ref
+                        .read(oralHistoryProvider.notifier)
+                        .clearRecordingError(),
+                    onOpenSettings: () => openAppSettings(),
+                    onRetry: () => _startRecording(),
+                  ),
+                ),
+
+              // ── Search Bar (only when there are stories OR an active
+              //    filter/search — for a brand-new family with zero
+              //    stories, the empty state invites the user to record
+              //    their first memory instead of presenting unpopulated
+              //    search UI). ─────────────────────────────────────────
+              if (state.hasStories || state.pillsActive)
+                SliverToBoxAdapter(child: _buildSearchBar(state)),
 
               // ── Category Filter Chips ─────────────────────────────
-              SliverToBoxAdapter(child: _buildCategoryChips(state)),
+              if (state.hasStories || state.pillsActive)
+                SliverToBoxAdapter(child: _buildCategoryChips(state)),
 
-              // ── Dashboard ─────────────────────────────────────────
-              SliverToBoxAdapter(child: _buildDashboard(state)),
+              // ── Dashboard (only when there are stories — for a
+              //    brand-new family with zero stories, the empty state
+              //    replaces the dashboard+list layout entirely, no
+              //    all-zero stats dashboard above an empty list). ───
+              if (state.hasStories)
+                SliverToBoxAdapter(child: _buildDashboard(state)),
 
-              // ── Recently Added ────────────────────────────────────
-              SliverToBoxAdapter(child: _buildRecentlyAdded(state)),
+              // ── Recently Added (only when there are stories) ─────
+              if (state.hasStories)
+                SliverToBoxAdapter(child: _buildRecentlyAdded(state)),
 
               // ── Stories List ──────────────────────────────────────
-              if (filteredStories.isEmpty)
-                SliverToBoxAdapter(child: _buildEmptyState())
+              // Two distinct empty states:
+              //   • !hasStories → "No stories yet — record your family's
+              //     first memory" (invitation to act)
+              //   • hasStories && filteredStories.isEmpty → "No stories
+              //     match your filters" (clear path back to all stories)
+              if (!state.hasStories)
+                SliverToBoxAdapter(child: _buildEmptyStateZeroStories())
+              else if (filteredStories.isEmpty)
+                SliverToBoxAdapter(child: _buildEmptyStateFiltered(state))
               else
                 SliverList(
                   delegate: SliverChildBuilderDelegate((context, index) {
-                    if (index == filteredStories.length) {
-                      return const SizedBox(height: 120);
-                    }
                     return _StoryCard(
                       story: filteredStories[index],
                       onTap: () => _openStoryDetail(filteredStories[index]),
@@ -102,13 +177,28 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
                       onLongPress: () =>
                           _showStoryOptions(filteredStories[index]),
                     );
-                  }, childCount: filteredStories.length + 1),
+                  }, childCount: filteredStories.length),
                 ),
+
+              // ── Scroll safe-area padding ──────────────────────────
+              // Shared widget — encodes the ADR-007 pattern so the last
+              // card never clips under the FAB or the gesture-nav inset.
+              // chromeHeight 56 = FAB only (no floating nav on this
+              // screen). See lib/shared/widgets/app_scroll_safe_area.dart.
+              AppScrollSafeArea.sliver(chromeHeight: 56),
             ],
           ),
 
           // ── Recording FAB ─────────────────────────────────────────
-          if (!state.recordingState.isActive)
+          // v96: HIDE the FAB when the family has ZERO stories (true
+          // empty state) — the empty-state block's own "Record First
+          // Story" CTA is the only add action shown in that case,
+          // avoiding redundancy. Once at least one story exists
+          // (populated list OR filtered-empty), the FAB reappears so
+          // the user can record more from anywhere on the screen.
+          // Also hidden while a recording session is active (the
+          // recording bottom sheet replaces the FAB in that case).
+          if (!state.recordingState.isActive && state.hasStories)
             Positioned(
               right: KinrelSpacing.base,
               bottom: MediaQuery.of(context).padding.bottom + 24,
@@ -168,6 +258,34 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
       ),
       child: Row(
         children: [
+          // v96: Back button — navigates to the Family Space screen
+          // for the current family context. Uses context.go (not
+          // context.pop) so it always lands on the correct Family
+          // Space screen regardless of navigation history. Falls
+          // back to context.pop() if no familyId was passed.
+          GestureDetector(
+            onTap: () {
+              if (widget.familyId.isNotEmpty) {
+                context.go('/family/${widget.familyId}');
+              } else if (context.canPop()) {
+                context.pop();
+              }
+            },
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: KinrelColors.darkCard,
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: KinrelColors.textWhite,
+                size: 20,
+              ),
+            ),
+          ),
+          const SizedBox(width: KinrelSpacing.sm),
           Container(
             width: 42,
             height: 42,
@@ -354,6 +472,12 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Stats Row ────────────────────────────────────────
+            // v93: removed "Transcribed" stat (transcription soft-disabled).
+            // Replaced with "Narrators" stat (number of distinct family
+            // members who've recorded) — a more meaningful metric that
+            // gives the user a sense of how many voices are preserved
+            // in their family's oral history. Three stats keeps the
+            // balanced row layout (no awkward gap from a missing card).
             Row(
               children: [
                 _DashboardStat(
@@ -371,9 +495,9 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
                 ),
                 const SizedBox(width: 16),
                 _DashboardStat(
-                  icon: Icons.transcribe_rounded,
-                  value: '${state.transcribedCount}',
-                  label: 'Transcribed',
+                  icon: Icons.record_voice_over_rounded,
+                  value: '${state.narratorCount}',
+                  label: 'Narrators',
                   color: KinrelColors.success,
                 ),
               ],
@@ -381,6 +505,9 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
             const SizedBox(height: 16),
 
             // ── Language Distribution ─────────────────────────────
+            // v93: languageDistribution now computes from filteredStories,
+            // so this only renders for languages that have at least one
+            // story in the current filter context — no zero-width bars.
             if (state.languageDistribution.isNotEmpty) ...[
               Text(
                 'Languages',
@@ -413,8 +540,11 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
             ],
 
             // ── Most Played ───────────────────────────────────────
-            if (state.mostPlayedStory != null &&
-                state.mostPlayedStory!.playCount > 0) ...[
+            // v93: hidden entirely until at least one story has been
+            // played at least once (per the brief — no 0-plays
+            // placeholder). Uses [state.hasPlayedStory] which checks
+            // whether any story has playCount > 0.
+            if (state.hasPlayedStory && state.mostPlayedStory != null) ...[
               const Divider(color: Color(0xFF2A2A3D), height: 1),
               const SizedBox(height: 12),
               Row(
@@ -603,56 +733,132 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // Empty State
+  // Empty States
   // ═══════════════════════════════════════════════════════════════════
 
-  Widget _buildEmptyState() {
-    return SliverToBoxAdapter(
-      child: SizedBox(
-        height: 400,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: KinrelColors.orange.withValues(alpha: 0.1),
-                ),
-                child: const Icon(
-                  Icons.mic_rounded,
-                  size: 40,
-                  color: KinrelColors.orange,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'No stories found',
-                style: KinrelTypography.headlineMedium.copyWith(
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Try adjusting your filters or record\nyour first family story!',
-                textAlign: TextAlign.center,
-                style: KinrelTypography.bodyMedium.copyWith(
-                  color: KinrelColors.textSilver,
-                ),
-              ),
-              const SizedBox(height: 24),
-              DKButton(
-                label: 'Record First Story',
-                variant: DKButtonVariant.gradient,
-                icon: Icons.mic_rounded,
-                size: DKButtonSize.md,
-                onPressed: () => _startRecording(),
-              ),
-            ],
-          ),
+  /// Zero-total empty state: the family has NO stories at all (the
+  /// production default for a brand-new family — see `OralHistoryNotifier`
+  /// doc). Uses the shared [KinrelEmptyState] widget which follows the
+  /// app-wide "invitation to act" pattern (matching the family list,
+  /// presence strip, and memories empty states).
+  ///
+  /// v95 (animated preview card): the static icon is replaced with
+  /// a small, animated live preview of what an Oral History story card
+  /// looks like. The preview demonstrates the format with a subtle
+  /// waveform-pulse animation (bars gently rising and falling in a
+  /// loose rhythm) instead of the Memories screen's photo crossfade
+  /// — because Oral History is audio content, not photo content.
+  /// The animation respects the platform reduced-motion accessibility
+  /// setting (AppMotion.reducedMotion) by showing a single static
+  /// waveform shape instead of pulsing. The preview card is wrapped
+  /// in a RepaintBoundary so the continuous animation doesn't cause
+  /// frame drops elsewhere on the screen (per the jank-audit
+  /// principles already established in this app).
+  Widget _buildEmptyStateZeroStories() {
+    // Returns a BOX widget (not a sliver) — the caller wraps it in
+    // SliverToBoxAdapter(child: ...) in the build method's slivers
+    // list. The previous version returned SliverToBoxAdapter(...) here,
+    // which produced SliverToBoxAdapter(child: SliverToBoxAdapter(...))
+    // — a sliver-in-a-box-slot that renders nothing (the inner sliver
+    // gets zero size). This is the root cause of the blank-screen bug.
+    return KinrelEmptyState(
+      // v95: pass an animated preview card as the illustration
+      // instead of a static icon. The KinrelEmptyState widget
+      // renders the illustration in place of the default icon
+      // circle. The preview card is wrapped in a RepaintBoundary
+      // so the continuous waveform pulse doesn't cause Flutter to
+      // repaint the entire empty state on every animation tick.
+      illustration: RepaintBoundary(
+        child: _AnimatedStoryPreviewCard(
+          reducedMotion: AppMotion.reducedMotion(context),
         ),
+      ),
+      // `icon` is still required by KinrelEmptyState (used as a
+      // fallback if illustration is null). We pass a sensible
+      // default that matches the previous static state.
+      icon: Icons.mic_rounded,
+      title: 'No Stories Yet',
+      subtitle:
+          "Record your family's first memory — a grandparent's voice, "
+          'a treasured recipe, a story from the past — to start building '
+          'your oral history together.',
+      actionLabel: 'Record First Story',
+      onAction: () => _startRecording(),
+    );
+  }
+
+  /// Zero-filtered empty state: the family HAS stories but the current
+  /// category filter or search query returns no matches. Distinct from
+  /// the zero-total state — the CTA offers a clear path back (clear the
+  /// filter/search) so the user isn't stuck on a dead-end screen.
+  Widget _buildEmptyStateFiltered(OralHistoryState state) {
+    final hasCategoryFilter = state.filter != null;
+    final hasSearch = state.searchQuery.isNotEmpty;
+    final title = hasCategoryFilter && hasSearch
+        ? 'No Stories Match'
+        : hasCategoryFilter
+            ? 'No ${state.filter!.label} Stories'
+            : 'No Stories Found';
+    final subtitle = hasCategoryFilter && hasSearch
+        ? "No stories tagged '${state.filter!.label}' match "
+            "'${state.searchQuery}'. Try clearing the filter or search."
+        : hasCategoryFilter
+            ? "No stories in the '${state.filter!.label}' category yet. "
+                'Try a different category or clear the filter to see all stories.'
+            : "No stories match '${state.searchQuery}'. "
+                'Try a different search term.';
+
+    // Returns a BOX widget (not a sliver) — see the note in
+    // _buildEmptyStateZeroStories above for the root-cause explanation
+    // of the previous SliverToBoxAdapter(child: SliverToBoxAdapter(...))
+    // double-wrap that rendered nothing.
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: KinrelColors.orange.withValues(alpha: 0.1),
+            ),
+            child: const Icon(
+              Icons.search_off_rounded,
+              size: 40,
+              color: KinrelColors.orange,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            title,
+            style: KinrelTypography.headlineMedium.copyWith(
+              color: KinrelColors.textWhite,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: KinrelTypography.bodyMedium.copyWith(
+              color: KinrelColors.textSilver,
+              height: 1.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          DKButton(
+            label: 'Clear Filters',
+            variant: DKButtonVariant.secondary,
+            icon: Icons.close_rounded,
+            size: DKButtonSize.md,
+            onPressed: () {
+              ref.read(oralHistoryProvider.notifier).setFilter(null);
+              ref.read(oralHistoryProvider.notifier).setSearchQuery('');
+            },
+          ),
+        ],
       ),
     );
   }
@@ -712,12 +918,17 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
   // ═══════════════════════════════════════════════════════════════════
 
   void _startRecording() {
+    // v93: clear any previous error so the recording UI doesn't show
+    // a stale error banner from a previous failed attempt.
+    ref.read(oralHistoryProvider.notifier).clearRecordingError();
     ref.read(oralHistoryProvider.notifier).startRecording();
   }
 
   void _onStopRecording() async {
     final notifier = ref.read(oralHistoryProvider.notifier);
-    // Show saving animation
+    // Show saving animation while the user transitions from the
+    // recording bottom sheet to the save dialog. The actual upload
+    // happens later when the user taps "Save Story" in the dialog.
     notifier.setRecordingSaving(true);
     await Future.delayed(const Duration(milliseconds: 800));
     notifier.setRecordingSaving(false);
@@ -726,7 +937,11 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
   }
 
   void _onCancelRecording() {
-    ref.read(oralHistoryProvider.notifier).stopRecording();
+    // v93: cancel (not stop) — the user explicitly chose not to save,
+    // so delete the orphaned recording file and reset state. This
+    // prevents the working directory from accumulating orphaned .m4a
+    // files from abandoned recording sessions.
+    ref.read(oralHistoryProvider.notifier).cancelRecording();
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -739,7 +954,7 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
     final tagsController = TextEditingController();
     StoryCategory selectedCategory = StoryCategory.familyHistory;
     String selectedNarrator = 'Self';
-    bool shouldTranscribe = true;
+    // v93: removed `shouldTranscribe` flag (transcription soft-disabled).
 
     showModalBottomSheet(
       context: context,
@@ -1096,68 +1311,19 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
                     ),
                     const SizedBox(height: 20),
 
-                    // ── Transcribe Toggle ──────────────────────────
-                    Container(
-                      padding: const EdgeInsets.all(KinrelSpacing.base),
-                      decoration: BoxDecoration(
-                        color: KinrelColors.darkElevated,
-                        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-                        border: Border.all(
-                          color: shouldTranscribe
-                              ? KinrelColors.orange.withValues(alpha: 0.4)
-                              : const Color(0xFF3A3A4A),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: KinrelColors.orange.withValues(
-                                alpha: 0.15,
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.transcribe_rounded,
-                              color: KinrelColors.orange,
-                              size: 18,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'AI Transcription',
-                                  style: KinrelTypography.labelLarge.copyWith(
-                                    color: KinrelColors.textWhite,
-                                  ),
-                                ),
-                                Text(
-                                  'Auto-transcribe with language detection',
-                                  style: KinrelTypography.bodySmall.copyWith(
-                                    color: KinrelColors.textSilver,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Switch.adaptive(
-                            value: shouldTranscribe,
-                            activeThumbColor: KinrelColors.orange,
-                            onChanged: (v) {
-                              setModalState(() => shouldTranscribe = v);
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
+                    // v93: removed "AI Transcription" toggle (transcription
+                    // is soft-disabled). The save dialog now goes straight
+                    // from the language picker to the Save/Cancel buttons.
                     const SizedBox(height: 28),
 
                     // ── Save / Cancel Buttons ──────────────────────
+                    // v93: Save now calls OralHistoryNotifier.saveStory
+                    // which uploads the recorded audio to Supabase
+                    // Storage 'voice-messages' bucket, inserts an
+                    // AncestralMemory row, and adds the story to the
+                    // in-memory list. On failure, recordingState.error
+                    // is set and the recording error banner surfaces
+                    // with a retry path (no silent data loss).
                     Row(
                       children: [
                         Expanded(
@@ -1175,7 +1341,7 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
                             variant: DKButtonVariant.gradient,
                             icon: Icons.save_rounded,
                             size: DKButtonSize.lg,
-                            onPressed: () {
+                            onPressed: () async {
                               final title = titleController.text.trim();
                               if (title.isEmpty) return;
 
@@ -1185,37 +1351,50 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
                                   .where((t) => t.isNotEmpty)
                                   .toList();
 
-                              final story = StoryModel(
-                                id: 'story-${DateTime.now().millisecondsSinceEpoch}',
-                                title: title,
-                                narratorId: 'self',
-                                narratorName: selectedNarrator == 'Self'
-                                    ? 'You'
-                                    : selectedNarrator.split('(').first.trim(),
-                                familyId: 'fam-sharma',
-                                audioDuration: recordedDuration,
-                                language: ref
-                                    .read(oralHistoryProvider)
-                                    .selectedLanguage,
-                                tags: tags,
-                                era: eraController.text.trim().isEmpty
-                                    ? null
-                                    : eraController.text.trim(),
-                                category: selectedCategory,
-                                createdAt: DateTime.now(),
-                              );
+                              final narratorName = selectedNarrator == 'Self'
+                                  ? 'You'
+                                  : selectedNarrator.split('(').first.trim();
 
+                              // Close the bottom sheet immediately so
+                              // the user sees the upload progress on the
+                              // main screen. The actual upload happens
+                              // in saveStory() — on success, the story
+                              // appears in the list; on failure, the
+                              // recording error banner surfaces with a
+                              // retry path.
+                              Navigator.pop(context);
+
+                              // Show the saving indicator while uploading.
                               ref
                                   .read(oralHistoryProvider.notifier)
-                                  .addStory(story);
+                                  .setRecordingSaving(true);
 
-                              if (shouldTranscribe) {
-                                ref
-                                    .read(oralHistoryProvider.notifier)
-                                    .transcribeRecording();
+                              final savedStory = await ref
+                                  .read(oralHistoryProvider.notifier)
+                                  .saveStory(
+                                    title: title,
+                                    narratorName: narratorName,
+                                    category: selectedCategory,
+                                    recordedDuration: recordedDuration,
+                                    description: null,
+                                    era: eraController.text.trim().isEmpty
+                                        ? null
+                                        : eraController.text.trim(),
+                                    tags: tags,
+                                  );
+
+                              // setRecordingSaving(false) is called by
+                              // saveStory on both success (resets
+                              // recordingState) and failure (sets error).
+                              // If saveStory returned null, the error is
+                              // already in recordingState.error and the
+                              // banner will show. No silent failure.
+                              if (savedStory == null) {
+                                // Recording state already has error set —
+                                // the banner surfaces it with retry.
+                                debugPrint(
+                                    '⚠️ OralHistory: saveStory returned null — error banner will show');
                               }
-
-                              Navigator.pop(context);
                             },
                           ),
                         ),
@@ -1236,7 +1415,10 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
   // ═══════════════════════════════════════════════════════════════════
 
   void _openStoryDetail(StoryModel story) {
-    ref.read(oralHistoryProvider.notifier).incrementPlayCount(story.id);
+    // v93: play count is now incremented by OralHistoryAudioPlayer when
+    // the user actually taps Play (not when they just open the detail).
+    // Previously this incremented on every detail-open which inflated
+    // the count even when the user backed out without listening.
     setState(() {
       _selectedStory = story;
       _showPlayer = true;
@@ -1365,8 +1547,7 @@ Duration: ${story.durationLabel}
 Category: ${story.category.label}
 ${story.era != null ? 'Era: ${story.era}' : ''}
 Language: ${story.languageName}
-
-${story.hasTranscription ? '📝 Transcription:\n${story.transcription}' : ''}
+${story.audioUrl != null ? '\nListen: ${story.audioUrl}' : ''}
 
 Shared via Daxelo KinRel — Family Oral History
 ''';
@@ -1393,6 +1574,157 @@ Shared via Daxelo KinRel — Family Oral History
     final m = d.inMinutes.remainder(60);
     if (h > 0) return '${h}h ${m}m';
     return '${d.inMinutes}m';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Recording Error Banner (v93)
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Surfaces a clear, actionable error from the recording state:
+//   • Mic permission denied → "Open Settings" button (permanently denied)
+//     or "Retry" button (soft denial)
+//   • Upload failed → "Retry" button (transient error)
+//   • No recording found → "Record Again" button (calls onRetry which
+//     re-invokes _startRecording)
+//
+// The banner replaces the previous silent failure mode where mic
+// permission denial or upload failure left the user with no clear path
+// forward (the recording just didn't start or the story just didn't
+// save, with no message).
+
+class _RecordingErrorBanner extends StatelessWidget {
+  const _RecordingErrorBanner({
+    required this.message,
+    required this.isPermissionDenied,
+    required this.onDismiss,
+    required this.onOpenSettings,
+    required this.onRetry,
+  });
+
+  final String message;
+  final bool isPermissionDenied;
+  final VoidCallback onDismiss;
+  final VoidCallback onOpenSettings;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        KinrelSpacing.base,
+        KinrelSpacing.sm,
+        KinrelSpacing.base,
+        KinrelSpacing.sm,
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(KinrelSpacing.base),
+        decoration: BoxDecoration(
+          color: KinrelColors.coral.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(KinrelRadius.lg),
+          border: Border.all(
+            color: KinrelColors.coral.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(
+              Icons.error_outline_rounded,
+              color: KinrelColors.coral,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    message,
+                    style: KinrelTypography.bodySmall.copyWith(
+                      color: KinrelColors.textWhite,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Retry button — always shown (works for transient
+                      // errors and for soft permission denials where the
+                      // user can re-grant permission via the system dialog).
+                      GestureDetector(
+                        onTap: onRetry,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: KinrelColors.orange.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(KinrelRadius.full),
+                          ),
+                          child: Text(
+                            'Retry',
+                            style: KinrelTypography.labelSmall.copyWith(
+                              color: KinrelColors.orange,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Open Settings — only shown when permission is
+                      // permanently denied (the user must grant mic
+                      // access in device Settings, not via a retry).
+                      if (isPermissionDenied) ...[
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: onOpenSettings,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: KinrelColors.darkElevated,
+                              borderRadius: BorderRadius.circular(KinrelRadius.full),
+                              border: Border.all(
+                                color: const Color(0xFF3A3A4A),
+                              ),
+                            ),
+                            child: Text(
+                              'Open Settings',
+                              style: KinrelTypography.labelSmall.copyWith(
+                                color: KinrelColors.textSilver,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // Dismiss (x) — clears the error so the banner goes away
+            // without retrying (the user can ignore the failure and
+            // continue using the rest of the screen).
+            GestureDetector(
+              onTap: onDismiss,
+              child: const Padding(
+                padding: EdgeInsets.only(left: 8),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 16,
+                  color: KinrelColors.textDim,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1835,24 +2167,23 @@ class _StoryCard extends StatelessWidget {
                   ),
                 ],
 
-                // ── Transcription indicator ─────────────────────────────
-                if (story.hasTranscription) ...[
+                // ── Play count row ──────────────────────────────────────
+                // v93: removed the "Transcribed" badge (transcription
+                // soft-disabled). The play count is now the only
+                // engagement metric shown on the card. The count
+                // reflects real playback events persisted to
+                // AncestralMemory.listenCount (see
+                // OralHistoryNotifier.incrementPlayCount).
+                if (story.playCount > 0) ...[
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       const Icon(
-                        Icons.transcribe_rounded,
+                        Icons.headphones_rounded,
                         size: 14,
-                        color: KinrelColors.success,
+                        color: KinrelColors.textDim,
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        'Transcribed',
-                        style: KinrelTypography.labelSmall.copyWith(
-                          color: KinrelColors.success,
-                        ),
-                      ),
-                      const Spacer(),
                       Text(
                         'Played ${story.playCount}x',
                         style: KinrelTypography.labelSmall.copyWith(
@@ -2264,8 +2595,28 @@ class _RecordingBottomSheetState extends State<_RecordingBottomSheet>
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Story Detail / Player Screen (Enhanced with Waveform & Transcription)
+// Story Detail / Player Screen (v93: real audio + no transcription)
 // ═══════════════════════════════════════════════════════════════════════
+//
+// v93 (transcription removal + recording/playback correctness):
+//   - Replaces the fake Timer-based "playback" with the real
+//     OralHistoryAudioPlayer widget (just_audio under the hood).
+//     The player streams the actual stored audio file from
+//     story.audioUrl, discovers the real duration via durationStream,
+//     tracks the real position via positionStream, surfaces buffering
+//     and error states, and supports real seek/speed control.
+//   - Removes the entire transcription section: the "AI Transcription"
+//     header, the language badge, the detected-language confidence
+//     badge, the language-detection progress indicator, the code-
+//     switching indicator, the Copy/Share/Translate buttons row, the
+//     timestamped segments with confidence colors, the side-by-side
+//     original+English view, and the translation progress indicator.
+//   - Removes the _showTranslation, _copyTranscription,
+//     _buildOriginalTranscription, _buildSideBySideTranscription
+//     methods (no longer needed).
+//   - Keeps: the top bar (back + title + share), the narrator info
+//     card, the tags row, the description (if present), and the
+//     play count display.
 
 class _StoryDetailPlayer extends ConsumerStatefulWidget {
   const _StoryDetailPlayer({required this.story, required this.onClose});
@@ -2280,11 +2631,6 @@ class _StoryDetailPlayer extends ConsumerStatefulWidget {
 class _StoryDetailPlayerState extends ConsumerState<_StoryDetailPlayer>
     with SingleTickerProviderStateMixin {
   late AnimationController _progressController;
-  double _speed = 1.0;
-  bool _isPlaying = true;
-  double _progress = 0.0;
-  Timer? _playTimer;
-  bool _showTranslation = false;
 
   @override
   void initState() {
@@ -2293,54 +2639,12 @@ class _StoryDetailPlayerState extends ConsumerState<_StoryDetailPlayer>
       vsync: this,
       duration: KinrelMotion.slow,
     )..forward();
-
-    _startPlayback();
   }
 
   @override
   void dispose() {
     _progressController.dispose();
-    _playTimer?.cancel();
     super.dispose();
-  }
-
-  void _startPlayback() {
-    _playTimer?.cancel();
-    _isPlaying = true;
-    _playTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (_isPlaying && mounted) {
-        setState(() {
-          _progress += (0.1 * _speed) / widget.story.audioDuration.inSeconds;
-          if (_progress >= 1.0) {
-            _progress = 0.0;
-            _isPlaying = false;
-          }
-        });
-      }
-    });
-  }
-
-  String _formatPosition() {
-    final totalMs = widget.story.audioDuration.inMilliseconds;
-    final posMs = (totalMs * _progress).round();
-    final d = Duration(milliseconds: posMs);
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
-
-  void _copyTranscription() {
-    final text = widget.story.transcription ?? '';
-    if (text.isNotEmpty) {
-      Clipboard.setData(ClipboardData(text: text));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Transcription copied!'),
-          backgroundColor: KinrelColors.darkCard,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
   }
 
   void _shareStory() {
@@ -2354,8 +2658,7 @@ Duration: ${story.durationLabel}
 Category: ${story.category.label}
 ${story.era != null ? 'Era: ${story.era}' : ''}
 Language: ${story.languageName}
-
-${story.hasTranscription ? '📝 Transcription:\n${story.transcription}' : ''}
+${story.audioUrl != null ? '\nListen: ${story.audioUrl}' : ''}
 
 Shared via Daxelo KinRel — Family Oral History
 ''';
@@ -2366,8 +2669,6 @@ Shared via Daxelo KinRel — Family Oral History
   @override
   Widget build(BuildContext context) {
     final story = widget.story;
-    final waveform = story.effectiveWaveformData;
-    final tsState = ref.watch(oralHistoryProvider).transcriptionState;
 
     return Container(
           decoration: const BoxDecoration(
@@ -2433,238 +2734,23 @@ Shared via Daxelo KinRel — Family Oral History
                   ),
                 ),
 
-                // ── Interactive Waveform Display ──────────────────────────
+                // ── Real Audio Player (v93: replaces fake Timer playback) ─
+                // The OralHistoryAudioPlayer widget streams the actual
+                // stored audio file from story.audioUrl via just_audio,
+                // discovers the real duration, tracks the real position,
+                // surfaces buffering/error states, and supports real
+                // seek + speed control. The waveform uses real recorded
+                // amplitudes (from the `record` package's onAmplitudeChanged
+                // stream during recording) — falls back to a clearly
+                // decorative deterministic visualization for legacy/demo
+                // rows that don't have real amplitude data.
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: KinrelSpacing.xl,
                     vertical: 24,
                   ),
-                  child: Column(
-                    children: [
-                      // Waveform with seek
-                      GestureDetector(
-                        onTapDown: (details) {
-                          final localPos = details.localPosition;
-                          final waveWidth = localPos.dx;
-                          // Calculate the total width available for waveform
-                          final totalWidth =
-                              MediaQuery.of(context).size.width -
-                              2 * KinrelSpacing.xl;
-                          setState(() {
-                            _progress = (waveWidth / totalWidth).clamp(
-                              0.0,
-                              1.0,
-                            );
-                          });
-                        },
-                        child: SizedBox(
-                          height: 80,
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: List.generate(
-                              waveform.length.clamp(1, 60),
-                              (index) {
-                                final barCount = waveform.length.clamp(1, 60);
-                                final height = 12.0 + waveform[index] * 56.0;
-                                final isPast = index / barCount <= _progress;
-
-                                return Expanded(
-                                  child: Container(
-                                    margin: const EdgeInsets.symmetric(
-                                      horizontal: 1,
-                                    ),
-                                    height: height,
-                                    decoration: BoxDecoration(
-                                      color: isPast
-                                          ? KinrelColors.orange
-                                          : KinrelColors.orange.withValues(
-                                              alpha: 0.2,
-                                            ),
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-
-                      // Animated position indicator line
-                      Stack(
-                        children: [
-                          // Progress bar
-                          SliderTheme(
-                            data: const SliderThemeData(
-                              activeTrackColor: KinrelColors.orange,
-                              inactiveTrackColor: KinrelColors.darkElevated,
-                              thumbColor: KinrelColors.orange,
-                              trackHeight: 3,
-                              thumbShape: RoundSliderThumbShape(
-                                enabledThumbRadius: 6,
-                              ),
-                            ),
-                            child: Slider(
-                              value: _progress,
-                              onChanged: (v) {
-                                setState(() => _progress = v);
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      // Time labels
-                      Row(
-                        children: [
-                          Text(
-                            _formatPosition(),
-                            style: KinrelTypography.labelSmall.copyWith(
-                              color: KinrelColors.orange,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            story.durationLabel,
-                            style: KinrelTypography.labelSmall.copyWith(
-                              color: KinrelColors.textSilver,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                  child: OralHistoryAudioPlayer(story: story),
                 ),
-
-                // ── Play/Pause/Seek Controls ────────────────────────────
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Rewind 15s
-                    GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _progress =
-                              (_progress - 15 / story.audioDuration.inSeconds)
-                                  .clamp(0.0, 1.0);
-                        });
-                      },
-                      child: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: KinrelColors.darkCard,
-                        ),
-                        child: const Icon(
-                          Icons.replay_10_rounded,
-                          color: KinrelColors.textSilver,
-                          size: 22,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-
-                    // Play / Pause
-                    GestureDetector(
-                      onTap: () {
-                        setState(() => _isPlaying = !_isPlaying);
-                      },
-                      child: Container(
-                        width: 64,
-                        height: 64,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: KinrelGradients.igniteGradient,
-                          boxShadow: [
-                            BoxShadow(
-                              color: KinrelColors.orangeGlowIntense,
-                              blurRadius: 16,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          _isPlaying
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-
-                    // Forward 15s
-                    GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _progress =
-                              (_progress + 15 / story.audioDuration.inSeconds)
-                                  .clamp(0.0, 1.0);
-                        });
-                      },
-                      child: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: KinrelColors.darkCard,
-                        ),
-                        child: const Icon(
-                          Icons.forward_10_rounded,
-                          color: KinrelColors.textSilver,
-                          size: 22,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // ── Speed Control ───────────────────────────────────────
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [0.5, 1.0, 1.5, 2.0].map((speed) {
-                    final isActive = _speed == speed;
-                    return GestureDetector(
-                      onTap: () => setState(() => _speed = speed),
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isActive
-                              ? KinrelColors.orange.withValues(alpha: 0.2)
-                              : KinrelColors.darkCard,
-                          borderRadius: BorderRadius.circular(
-                            KinrelRadius.full,
-                          ),
-                          border: Border.all(
-                            color: isActive
-                                ? KinrelColors.orange
-                                : const Color(0xFF3A3A4A),
-                          ),
-                        ),
-                        child: Text(
-                          '${speed}x',
-                          style: KinrelTypography.labelSmall.copyWith(
-                            color: isActive
-                                ? KinrelColors.orange
-                                : KinrelColors.textSilver,
-                            fontWeight: isActive
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 16),
 
                 // ── Scrollable Content ──────────────────────────────────
                 Expanded(
@@ -2773,357 +2859,70 @@ Shared via Daxelo KinRel — Family Oral History
                           const SizedBox(height: 16),
                         ],
 
-                        // ── Transcription Section (Enhanced) ────────────
-                        if (story.hasTranscription) ...[
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.transcribe_rounded,
-                                size: 16,
-                                color: KinrelColors.success,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'AI Transcription',
-                                style: KinrelTypography.labelLarge.copyWith(
-                                  color: KinrelColors.success,
-                                ),
-                              ),
-                              const Spacer(),
-                              // Language badge
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: KinrelColors.info.withValues(
-                                    alpha: 0.12,
-                                  ),
-                                  borderRadius: BorderRadius.circular(
-                                    KinrelRadius.xs,
-                                  ),
-                                ),
-                                child: Text(
-                                  story.languageName,
-                                  style: KinrelTypography.micro.copyWith(
-                                    color: KinrelColors.info,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              // Detected language badge
-                              if (tsState.detectedLanguage != null) ...[
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: KinrelColors.success.withValues(
-                                      alpha: 0.12,
-                                    ),
-                                    borderRadius: BorderRadius.circular(
-                                      KinrelRadius.xs,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.language_rounded,
-                                        size: 10,
-                                        color: KinrelColors.success,
-                                      ),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        '${(tsState.languageConfidence * 100).toStringAsFixed(0)}%',
-                                        style: KinrelTypography.micro.copyWith(
-                                          color: KinrelColors.success,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-
-                          // ── Language Detection Progress ──────────────
-                          if (tsState.isDetectingLanguage) ...[
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: KinrelColors.darkElevated,
-                                borderRadius: BorderRadius.circular(
-                                  KinrelRadius.md,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: const AlwaysStoppedAnimation(
-                                        KinrelColors.orange,
-                                      ),
-                                      value: tsState.detectionProgress,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Detecting language...',
-                                    style: KinrelTypography.labelSmall.copyWith(
-                                      color: KinrelColors.orange,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                        // ── Description (if present) ──────────────────────
+                        if (story.description != null &&
+                            story.description!.isNotEmpty) ...[
+                          Text(
+                            story.description!,
+                            style: KinrelTypography.bodyMedium.copyWith(
+                              color: KinrelColors.textSilver,
+                              height: 1.5,
                             ),
-                          ],
+                          ),
+                          const SizedBox(height: 16),
+                        ],
 
-                          // ── Code-switching indicator ────────────────
-                          if (tsState.isCodeSwitching) ...[
-                            const SizedBox(height: 6),
+                        // ── Play Count + Language tag ─────────────────────
+                        // v93: replaces the "Transcribed" indicator. The
+                        // play count reflects real playback events persisted
+                        // to AncestralMemory.listenCount (see
+                        // OralHistoryNotifier.incrementPlayCount). Only
+                        // shown when the story has been played at least
+                        // once — no "Played 0x" placeholder. The language
+                        // tag (HI/EN) is KEPT — it labels what language
+                        // the recording is in, independent of transcription
+                        // (useful metadata on its own per the audit brief).
+                        Row(
+                          children: [
+                            if (story.playCount > 0) ...[
+                              const Icon(
+                                Icons.headphones_rounded,
+                                size: 14,
+                                color: KinrelColors.textDim,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Played ${story.playCount}x',
+                                style: KinrelTypography.labelSmall.copyWith(
+                                  color: KinrelColors.textDim,
+                                ),
+                              ),
+                            ],
+                            const Spacer(),
+                            // Language tag (kept — useful metadata).
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
+                                horizontal: 6,
+                                vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: KinrelColors.amber.withValues(
-                                  alpha: 0.1,
+                                color: KinrelColors.info.withValues(
+                                  alpha: 0.12,
                                 ),
                                 borderRadius: BorderRadius.circular(
                                   KinrelRadius.xs,
                                 ),
-                                border: Border.all(
-                                  color: KinrelColors.amber.withValues(
-                                    alpha: 0.2,
-                                  ),
-                                ),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.swap_horiz_rounded,
-                                    size: 12,
-                                    color: KinrelColors.amber,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Code-switching detected (Hindi + English)',
-                                    style: KinrelTypography.micro.copyWith(
-                                      color: KinrelColors.amber,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
+                              child: Text(
+                                story.language.toUpperCase(),
+                                style: KinrelTypography.micro.copyWith(
+                                  color: KinrelColors.info,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ],
-
-                          const SizedBox(height: 10),
-
-                          // ── Transcription Content ────────────────────
-                          // Side-by-side view toggle
-                          Row(
-                            children: [
-                              // Copy button
-                              GestureDetector(
-                                onTap: _copyTranscription,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: KinrelColors.darkElevated,
-                                    borderRadius: BorderRadius.circular(
-                                      KinrelRadius.xs,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.copy_rounded,
-                                        size: 12,
-                                        color: KinrelColors.textDim,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Copy',
-                                        style: KinrelTypography.micro.copyWith(
-                                          color: KinrelColors.textDim,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              // Share button
-                              GestureDetector(
-                                onTap: _shareStory,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: KinrelColors.darkElevated,
-                                    borderRadius: BorderRadius.circular(
-                                      KinrelRadius.xs,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.share_rounded,
-                                        size: 12,
-                                        color: KinrelColors.textDim,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Share',
-                                        style: KinrelTypography.micro.copyWith(
-                                          color: KinrelColors.textDim,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const Spacer(),
-                              // Translate button
-                              if (story.language != 'en')
-                                GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _showTranslation = !_showTranslation;
-                                    });
-                                    if (_showTranslation &&
-                                        !tsState.hasTranslation &&
-                                        !tsState.isTranslating) {
-                                      ref
-                                          .read(oralHistoryProvider.notifier)
-                                          .translateToEnglish();
-                                    }
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _showTranslation
-                                          ? KinrelColors.orange.withValues(
-                                              alpha: 0.15,
-                                            )
-                                          : KinrelColors.darkElevated,
-                                      borderRadius: BorderRadius.circular(
-                                        KinrelRadius.xs,
-                                      ),
-                                      border: _showTranslation
-                                          ? Border.all(
-                                              color: KinrelColors.orange
-                                                  .withValues(alpha: 0.3),
-                                            )
-                                          : null,
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.translate_rounded,
-                                          size: 12,
-                                          color: _showTranslation
-                                              ? KinrelColors.orange
-                                              : KinrelColors.textDim,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          'Translate to English',
-                                          style: KinrelTypography.micro
-                                              .copyWith(
-                                                color: _showTranslation
-                                                    ? KinrelColors.orange
-                                                    : KinrelColors.textDim,
-                                                fontWeight: _showTranslation
-                                                    ? FontWeight.w600
-                                                    : FontWeight.w400,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-
-                          // ── Timestamped Segments with Confidence ──────
-                          Container(
-                            padding: const EdgeInsets.all(KinrelSpacing.base),
-                            decoration: BoxDecoration(
-                              color: KinrelColors.darkCard,
-                              borderRadius: BorderRadius.circular(
-                                KinrelRadius.lg,
-                              ),
-                              border: Border.all(
-                                color: KinrelColors.success.withValues(
-                                  alpha: 0.15,
-                                ),
-                              ),
-                            ),
-                            child: _showTranslation && tsState.hasTranslation
-                                ? _buildSideBySideTranscription(story, tsState)
-                                : _buildOriginalTranscription(story),
-                          ),
-
-                          // ── Translation Progress ──────────────────────
-                          if (tsState.isTranslating) ...[
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: KinrelColors.darkElevated,
-                                borderRadius: BorderRadius.circular(
-                                  KinrelRadius.md,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: const AlwaysStoppedAnimation(
-                                        KinrelColors.info,
-                                      ),
-                                      value: tsState.translationProgress,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Translating to English...',
-                                    style: KinrelTypography.labelSmall.copyWith(
-                                      color: KinrelColors.info,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ],
+                        ),
                         const SizedBox(height: 24),
                       ],
                     ),
@@ -3137,209 +2936,466 @@ Shared via Daxelo KinRel — Family Oral History
         .fadeIn(duration: KinrelMotion.normal)
         .slideY(begin: 0.1, end: 0, duration: KinrelMotion.normal);
   }
+}
 
-  /// Build original transcription with timestamped segments and confidence colors.
-  Widget _buildOriginalTranscription(StoryModel story) {
-    final sentences = story.transcription!
-        .split(RegExp(r'[।.!]'))
-        .where((s) => s.trim().isNotEmpty)
-        .toList();
+// ═══════════════════════════════════════════════════════════════════════
+// Animated Story Preview Card (v95)
+// ═══════════════════════════════════════════════════════════════════════
+//
+// A small, animated live preview of what an Oral History story card
+// looks like — used in the Oral History empty state to demonstrate
+// the feature in action rather than showing a static icon.
+//
+// DESIGN
+// ──────
+// The preview card is styled identically to a real story card
+// (matching KinrelColors.darkCard + KinrelRadius.lg, category tag,
+// narrator avatar, duration badge, waveform visualization already
+// established in the populated view via _StoryCard). The card shell
+// (container + title/description layout) is delegated to the shared
+// [AnimatedPreviewCard] widget — the same shell the Memories &
+// Timeline preview card uses — so the two empty states share one
+// coherent design language.
+//
+// The placeholder content is deliberately generic and clearly
+// illustrative:
+//   • Avatar: a soft gradient circle with a microphone icon (NOT an
+//     initial that could be mistaken for a real person's name)
+//   • Title: "A story waiting to be told" (a generic, clearly-
+//     illustrative phrase demonstrating the breadth of what can be
+//     recorded, rather than a specific fabricated story title)
+//   • Duration badge: shows "0:00" with an audio-waveform icon
+//     (clearly a placeholder, not a fake specific duration like
+//     "12:34" that could read as real data)
+//   • Category tag: cycles through 2-3 of the real category types
+//     (Family, Recipe, Wisdom) every ~5 seconds during the
+//     animation — clearly illustrative/rotating, not presented as
+//     one fixed fake story. The cycling is subtle and slow.
+//
+// ANIMATION
+// ────────
+// Rather than photo crossfading (which doesn't fit audio content),
+// the waveform bars animate with a gentle, slow pulsing/breathing
+// motion — bars subtly rising and falling in a loose rhythm. This
+// suggests "this is where your recording's waveform will appear"
+// WITHOUT implying actual audio is playing (no progress indicator,
+// no play-state visual, since nothing is actually playing). The
+// pulse uses a [Timer.periodic] at ~1.6s per cycle with a sine-wave
+// amplitude envelope, so the motion reads as ambient breathing
+// rather than an attention-grabbing loop.
+//
+// REDUCED MOTION
+// ──────────────
+// When [reducedMotion] is true (the platform accessibility setting
+// is on, per AppMotion.reducedMotion), the Timer is never started —
+// the waveform bars are shown at varied but FIXED heights (a single
+// static waveform shape), not pulsing. The card is still visible
+// (the user still sees what a story card looks like) — only the
+// pulse animation is suppressed.
+//
+// PERFORMANCE
+// ───────────
+// The parent wraps this widget in a RepaintBoundary so the
+// continuous waveform pulse doesn't cause Flutter to repaint the
+// entire empty state on every animation tick. The animation is
+// lightweight (only the bar heights change; the rest of the card is
+// static). The Timer is cancelled on dispose so the widget doesn't
+// keep ticking when the empty state is scrolled off-screen or the
+// screen is popped.
+//
+// CONSISTENCY WITH MEMORIES EMPTY STATE
+// ─────────────────────────────────────
+// Reuses the same [AnimatedPreviewCard] shell as the Memories &
+// Timeline preview card, with slot-based content (header + mediaArea
+// + title + description) and the same reduced-motion passthrough.
+// The two empty states share one coherent design language — same
+// card chrome, same sizing (240px width), same typography — only the
+// animated media area differs (photo crossfade for Memories, waveform
+// pulse for Oral History) because the content types differ.
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: sentences.asMap().entries.map((entry) {
-        final idx = entry.key;
-        final segment = entry.value.trim();
-        final startTime = (idx * story.audioDuration.inSeconds / 3).round();
-        final startDur = Duration(seconds: startTime);
-        final m = startDur.inMinutes.remainder(60).toString().padLeft(2, '0');
-        final s = startDur.inSeconds.remainder(60).toString().padLeft(2, '0');
-        // Simulate varying confidence
-        final confidence = 0.7 + (idx % 3) * 0.1;
-        final confColor = confidence >= 0.85
-            ? KinrelColors.success
-            : confidence >= 0.6
-            ? KinrelColors.warning
-            : KinrelColors.coral;
+class _AnimatedStoryPreviewCard extends StatefulWidget {
+  const _AnimatedStoryPreviewCard({
+    this.reducedMotion = false,
+  });
 
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+  /// Whether the user has requested reduced motion. When true, the
+  /// card shows a single static waveform shape instead of pulsing.
+  /// Defaults to false — the parent should pass
+  /// `AppMotion.reducedMotion(context)`.
+  final bool reducedMotion;
+
+  @override
+  State<_AnimatedStoryPreviewCard> createState() =>
+      _AnimatedStoryPreviewCardState();
+}
+
+class _AnimatedStoryPreviewCardState
+    extends State<_AnimatedStoryPreviewCard>
+    with SingleTickerProviderStateMixin {
+  /// Drives the waveform pulse. A single [AnimationController] that
+  /// runs continuously (0 → 1 → 0 → 1 → ...) with a sine curve so
+  /// the bars breathe in and out gently.
+  late final AnimationController _pulseController;
+
+  /// Drives the category tag cycling. Restarts when the user toggles
+  /// reduced-motion off (so the cycle resumes from the current
+  /// category, not from the beginning).
+  Timer? _categoryTimer;
+
+  /// Index of the currently-shown placeholder category.
+  /// Cycles 0 → 1 → 2 → 0 → ...
+  int _currentCategoryIndex = 0;
+
+  /// The 2-3 illustrative placeholder categories. These are REAL
+  /// [StoryCategory] values (Family, Recipe, Wisdom) — cycling
+  /// through them showcases the variety of categories available,
+  /// which the brief explicitly allows: "can cycle through 2-3 of
+  /// the real category types ... since it's clearly illustrative/
+  /// rotating rather than presented as one fixed fake story."
+  ///
+  /// v95 (demo-style content): each category is paired with a full,
+  /// complete illustrative title + description matching the spirit
+  /// of the original demo data — specific, legible phrases like
+  /// "Grandma's secret ghevar recipe" and "The night we left Lahore"
+  /// — not generic placeholder text like "A story waiting to be
+  /// told". The scenes are clearly illustrative (they cycle, and the
+  /// empty-state headline/subtitle makes it clear this is a preview).
+  static const _placeholderScenes = <_StoryPlaceholderScene>[
+    _StoryPlaceholderScene(
+      category: StoryCategory.familyHistory,
+      title: 'The night we left Lahore',
+      description: 'Saroj Devi recounts the family\'s journey during Partition.',
+      durationLabel: '23:15',
+    ),
+    _StoryPlaceholderScene(
+      category: StoryCategory.recipe,
+      title: "Grandma's secret ghevar recipe",
+      description: 'Kamla shares the recipe passed down through four generations.',
+      durationLabel: '8:22',
+    ),
+    _StoryPlaceholderScene(
+      category: StoryCategory.wisdom,
+      title: "Nani Ma's wisdom on raising children",
+      description: 'Saroj Devi shares her philosophy on family and patience.',
+      durationLabel: '15:08',
+    ),
+  ];
+
+  /// Convenience getter for the currently-active placeholder scene.
+  _StoryPlaceholderScene get _currentScene =>
+      _placeholderScenes[_currentCategoryIndex];
+
+  /// The base waveform shape — 30 bars at varied but fixed heights.
+  /// These heights are the "resting" state of the pulse: when the
+  /// pulse animation runs, each bar's height oscillates around its
+  /// base height. When reduced-motion is on, the bars stay at these
+  /// fixed heights (a single static waveform shape).
+  ///
+  /// The values are deterministic (generated from a fixed seed) so
+  /// the static shape is consistent across renders — not random
+  /// per build, which would look jittery.
+  static final List<double> _baseWaveform = _generateBaseWaveform(30);
+
+  @override
+  void initState() {
+    super.initState();
+    // The pulse runs at ~1.6s per cycle (1700ms). Slow and ambient,
+    // matching the Memories preview card's restraint.
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1700),
+    );
+    _startAnimationsIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedStoryPreviewCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.reducedMotion != oldWidget.reducedMotion) {
+      if (widget.reducedMotion) {
+        _stopAnimations();
+      } else {
+        _startAnimationsIfNeeded();
+      }
+    }
+  }
+
+  void _startAnimationsIfNeeded() {
+    if (widget.reducedMotion) return;
+    _pulseController.repeat(reverse: true);
+    // Cycle the category tag every ~5 seconds. Slow and subtle —
+    // the cycling is clearly illustrative, not attention-grabbing.
+    _categoryTimer?.cancel();
+    _categoryTimer = Timer.periodic(
+      const Duration(milliseconds: 5000),
+      (_) {
+        if (!mounted) return;
+        setState(() {
+          _currentCategoryIndex =
+              (_currentCategoryIndex + 1) % _placeholderScenes.length;
+        });
+      },
+    );
+  }
+
+  void _stopAnimations() {
+    _pulseController.stop();
+    _categoryTimer?.cancel();
+    _categoryTimer = null;
+  }
+
+  @override
+  void dispose() {
+    _stopAnimations();
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scene = _currentScene;
+
+    return AnimatedPreviewCard(
+      reducedMotion: widget.reducedMotion,
+      accentColor: scene.category.accentColor,
+      header: _StoryPreviewHeader(
+        category: scene.category,
+        durationLabel: scene.durationLabel,
+      ),
+      mediaArea: _StoryWaveformPulse(
+        accentColor: scene.category.accentColor,
+        baseWaveform: _baseWaveform,
+        pulseAnimation: widget.reducedMotion ? null : _pulseController,
+      ),
+      title: scene.title,
+      description: scene.description,
+    );
+  }
+}
+
+/// The header row for the Oral History preview card — a category tag
+/// (icon + short label) on the left, a duration badge on the right.
+/// Matches the real `_StoryCard`'s top-row layout so the preview
+/// reads as a real story card.
+class _StoryPreviewHeader extends StatelessWidget {
+  const _StoryPreviewHeader({
+    required this.category,
+    this.durationLabel = '0:00',
+  });
+
+  final StoryCategory category;
+
+  /// v95: now shows the scene's illustrative duration (e.g. "23:15",
+  /// "8:22") to match the demo-style content, instead of the
+  /// generic "0:00" placeholder. Defaults to "0:00" for backward
+  /// compat if a caller doesn't pass it.
+  final String durationLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        // Category tag — matches _StoryCard's category tag styling.
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: category.accentColor.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(KinrelRadius.xs),
+          ),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                decoration: BoxDecoration(
-                  color: KinrelColors.orange.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(KinrelRadius.xs),
-                ),
-                child: Text(
-                  '$m:$s',
-                  style: KinrelTypography.micro.copyWith(
-                    color: KinrelColors.orange,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              // Confidence indicator
-              Container(
-                width: 3,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: confColor,
-                  borderRadius: BorderRadius.circular(1.5),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  segment,
-                  style: KinrelTypography.bodyMedium.copyWith(
-                    color: KinrelColors.textWhite,
-                    height: 1.5,
-                  ),
+              Icon(category.icon, size: 12, color: category.accentColor),
+              const SizedBox(width: 3),
+              Text(
+                category.shortLabel,
+                style: KinrelTypography.micro.copyWith(
+                  color: category.accentColor,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
           ),
-        );
-      }).toList(),
-    );
-  }
-
-  /// Build side-by-side transcription view (original + English translation).
-  Widget _buildSideBySideTranscription(
-    StoryModel story,
-    TranscriptionState tsState,
-  ) {
-    final sentences = story.transcription!
-        .split(RegExp(r'[।.!]'))
-        .where((s) => s.trim().isNotEmpty)
-        .toList();
-
-    final transParts = tsState.englishTranslation.split(RegExp(r'[.!?]'));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                story.languageName,
-                style: KinrelTypography.labelSmall.copyWith(
-                  color: KinrelColors.orange,
-                  fontWeight: FontWeight.w700,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            Container(width: 1, height: 14, color: const Color(0xFF3A3A4A)),
-            Expanded(
-              child: Text(
-                'English',
-                style: KinrelTypography.labelSmall.copyWith(
-                  color: KinrelColors.info,
-                  fontWeight: FontWeight.w700,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
         ),
-        const Divider(color: Color(0xFF2A2A3D), height: 16),
-
-        // Side-by-side segments
-        ...sentences.asMap().entries.map((entry) {
-          final idx = entry.key;
-          final original = entry.value.trim();
-          final translation = idx < transParts.length
-              ? transParts[idx].trim()
-              : '';
-          final startTime = (idx * story.audioDuration.inSeconds / 3).round();
-          final startDur = Duration(seconds: startTime);
-          final m = startDur.inMinutes.remainder(60).toString().padLeft(2, '0');
-          final s = startDur.inSeconds.remainder(60).toString().padLeft(2, '0');
-          final confidence = 0.7 + (idx % 3) * 0.1;
-          final confColor = confidence >= 0.85
-              ? KinrelColors.success
-              : confidence >= 0.6
-              ? KinrelColors.warning
-              : KinrelColors.coral;
-
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Original
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            '$m:$s',
-                            style: KinrelTypography.micro.copyWith(
-                              color: KinrelColors.orange,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: confColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        original,
-                        style: KinrelTypography.bodySmall.copyWith(
-                          color: KinrelColors.textWhite,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
+        const Spacer(),
+        // Duration badge — matches _StoryCard's duration badge styling.
+        // Shows the scene's illustrative duration (e.g. "23:15") to
+        // read as a real story card, not a generic "0:00" placeholder.
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkElevated,
+            borderRadius: BorderRadius.circular(KinrelRadius.full),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.graphic_eq_rounded,
+                size: 12,
+                color: KinrelColors.amber,
+              ),
+              const SizedBox(width: 3),
+              Text(
+                durationLabel,
+                style: KinrelTypography.labelSmall.copyWith(
+                  color: KinrelColors.amber,
+                  fontWeight: FontWeight.w600,
                 ),
-                Container(
-                  width: 1,
-                  margin: const EdgeInsets.symmetric(horizontal: 8),
-                  color: const Color(0xFF2A2A3D),
-                ),
-                // Translation
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '$m:$s',
-                        style: KinrelTypography.micro.copyWith(
-                          color: KinrelColors.info,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        translation.isNotEmpty ? '$translation.' : '...',
-                        style: KinrelTypography.bodySmall.copyWith(
-                          color: KinrelColors.textSilver,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
 }
+
+/// v95: a placeholder scene for the Oral History preview card — pairs
+/// a [StoryCategory] with full, complete illustrative title +
+/// description + duration label. Used by `_AnimatedStoryPreviewCard`
+/// to cycle through demo-style examples matching the original demo
+/// data (The night we left Lahore / Grandma's secret ghevar recipe /
+/// Nani Ma's wisdom on raising children).
+@immutable
+class _StoryPlaceholderScene {
+  const _StoryPlaceholderScene({
+    required this.category,
+    required this.title,
+    required this.description,
+    required this.durationLabel,
+  });
+
+  final StoryCategory category;
+  final String title;
+  final String description;
+  final String durationLabel;
+}
+
+/// The animated waveform area for the Oral History preview card — a
+/// row of bars that gently pulse (rise and fall) to suggest "this is
+/// where your recording's waveform will appear" without implying
+/// actual audio is playing. When [pulseAnimation] is null (reduced-
+/// motion mode), the bars are shown at their fixed base heights — a
+/// single static waveform shape.
+///
+/// The bars use the same styling as the real [_WaveformPreview] widget
+/// (accent color with varying opacity, 1.5px border radius) so the
+/// preview reads as a real story card's waveform.
+class _StoryWaveformPulse extends StatelessWidget {
+  const _StoryWaveformPulse({
+    required this.accentColor,
+    required this.baseWaveform,
+    this.pulseAnimation,
+  });
+
+  /// The accent color for the waveform bars. Matches the cycling
+  /// category's accent color so the waveform color rotates with
+  /// the category tag.
+  final Color accentColor;
+
+  /// The base (resting) heights of the bars, 0.0–1.0. When
+  /// [pulseAnimation] is null, the bars render at these heights
+  /// (a single static waveform shape). When [pulseAnimation] is
+  /// non-null, each bar's height oscillates around its base height
+  /// following the pulse animation's value.
+  final List<double> baseWaveform;
+
+  /// The pulse animation driving the bar heights. When null
+  /// (reduced-motion mode), the bars are static. When non-null,
+  /// the parent is responsible for starting/stopping the animation
+  /// controller.
+  final Animation<double>? pulseAnimation;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 56,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: List.generate(baseWaveform.length, (index) {
+          final baseHeight = baseWaveform[index];
+
+          if (pulseAnimation == null) {
+            // Reduced-motion: static bars at their base heights.
+            return Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 1),
+                height: 6.0 + baseHeight * 36.0,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.35 + baseHeight * 0.5),
+                  borderRadius: BorderRadius.circular(1.5),
+                ),
+              ),
+            );
+          }
+
+          // Animated: each bar oscillates around its base height.
+          // The phase offset (index * 0.15) makes adjacent bars pulse
+          // slightly out of sync, so the motion reads as a loose
+          // "breathing" rhythm rather than all bars moving in unison
+          // (which would look mechanical).
+          return AnimatedBuilder(
+            animation: pulseAnimation!,
+            builder: (context, _) {
+              // The pulse animation's value goes 0→1→0→1 with
+              // repeat(reverse: true) — a triangle wave. We convert
+              // it to a smooth sine envelope (0.0–1.0) so the bars
+              // breathe rather than jump. Each bar has a phase offset
+              // (index * 0.15, wrapped to 0..1) so adjacent bars don't
+              // move in lockstep.
+              //
+              // `t` is the animation value (0..1, 0..1, 0..1, ...).
+              // `phase` is the per-bar phase offset (0..1).
+              // The sine wave: sin((t + phase) * 2π), mapped -1..1 to 0..1.
+              final t = pulseAnimation!.value;
+              final phase = (index * 0.15) % 1.0;
+              final sineValue =
+                  math.sin((t + phase) * 2 * math.pi);
+              final envelope = (1 + sineValue) / 2;
+
+              // The bar height oscillates between ~50% and ~100% of
+              // its base height — a gentle pulse, not a full collapse.
+              final pulseFactor = 0.5 + 0.5 * envelope;
+              final height = 6.0 + baseHeight * 36.0 * pulseFactor;
+              final opacity = 0.3 + baseHeight * pulseFactor * 0.5;
+
+              return Expanded(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 1),
+                  height: height,
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: opacity),
+                    borderRadius: BorderRadius.circular(1.5),
+                  ),
+                ),
+              );
+            },
+          );
+        }),
+      ),
+    );
+  }
+}
+
+/// Generates the base (resting) waveform shape — 30 bars at varied
+/// but deterministic heights (0.0–1.0). Deterministic so the static
+/// shape is consistent across renders (not random per build, which
+/// would look jittery).
+List<double> _generateBaseWaveform(int barCount) {
+  // The shape should look like a real audio waveform — varied, with
+  // some tall bars and some short bars, not a uniform sine wave.
+  // We use a deterministic mix of sine waves at different frequencies
+  // for a natural-looking but consistent shape.
+  return List.generate(barCount, (i) {
+    // Three sine waves at different frequencies + phases, mixed
+    // and normalized to 0..1. The result is clamped to a reasonable
+    // range so the bars are visible but not all the same height.
+    final low = 0.5 + 0.5 * math.sin(i * 0.4);
+    final mid = 0.5 + 0.5 * math.sin(i * 1.7 + 1.0);
+    final high = 0.5 + 0.5 * math.sin(i * 3.3 + 2.0);
+    final mixed = (low * 0.5 + mid * 0.3 + high * 0.2);
+    return (0.15 + mixed * 0.7).clamp(0.15, 0.95);
+  });
+}
+
