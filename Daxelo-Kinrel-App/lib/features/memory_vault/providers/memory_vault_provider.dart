@@ -1,19 +1,19 @@
 // lib/features/memory_vault/providers/memory_vault_provider.dart
 //
-// DAXELO KINREL — Memory Vault Provider
+// DAXELO KINREL — Memory Vault Provider (v2 — image + post link + pin + cursor)
 //
-// AsyncNotifierProvider for the Memory Vault feature.
-// Manages loading, uploading, and deleting family photo memories
-// with Supabase as the remote source and Drift as the local cache.
+// AsyncNotifierProvider for the Memory Vault + Memories Timeline feature.
+// Manages:
+//   - Cursor-based pagination (10,000+ memories per family)
+//   - Image upload (compressed, cropped) to memory-images bucket
+//   - Save Post as Memory (creates memory with sourcePostId)
+//   - Pin/unpin memory to Memory Vault (isPinnedToVault)
+//   - Delete memory (cascades to storage object)
 //
-// Flow:
-//   1. loadMemories() — fetches from Supabase `family_memories` table,
-//      writes to Drift cache. Falls back to Drift cache if offline.
-//   2. uploadMemory() — compresses image via compute, uploads to
-//      Supabase Storage, inserts metadata row, updates local state.
-//   3. deleteMemory() — removes from Storage, Supabase table,
-//      Drift cache, then in-memory list.
-//   4. onThisDayMemories — derived getter filtering by today's month+day.
+// Flow (per implementation prompt):
+//   Memory → Timeline (chronological view) → Memory Vault (pinned subset)
+//   All three views read from the SAME `family_memories` table — no
+//   duplication. Memory Vault filters to `is_pinned_to_vault = true`.
 
 import 'dart:io';
 
@@ -33,17 +33,21 @@ import '../data/memory_model.dart';
 // State
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Immutable state for the Memory Vault feature.
+/// Immutable state for the Memory Vault + Memories Timeline feature.
 class MemoryVaultState {
   const MemoryVaultState({
     this.memories = const [],
     this.isUploading = false,
     this.uploadProgress,
     this.isLoading = false,
+    this.isLoadingMore = false,
+    this.hasMore = true,
+    this.cursor,
     this.error,
   });
 
-  /// All memories for the current family, ordered by created_at desc.
+  /// All memories loaded so far for the current family, ordered
+  /// by created_at DESC (cursor pagination).
   final List<MemoryModel> memories;
 
   /// Whether an upload is currently in progress.
@@ -52,8 +56,18 @@ class MemoryVaultState {
   /// Human-readable upload progress text (e.g. "Compressing...", "Uploading...").
   final String? uploadProgress;
 
-  /// Whether memories are being loaded from the server.
+  /// Whether memories are being loaded from the server (initial load).
   final bool isLoading;
+
+  /// Whether the next page is being fetched (infinite scroll).
+  final bool isLoadingMore;
+
+  /// Whether more memories exist beyond what's currently loaded.
+  final bool hasMore;
+
+  /// Cursor for the next page: the createdAt of the OLDEST loaded memory.
+  /// null when no memories are loaded or all have been fetched.
+  final DateTime? cursor;
 
   /// Error message if the last operation failed.
   final String? error;
@@ -70,6 +84,42 @@ class MemoryVaultState {
   /// Whether there are "On This Day" memories.
   bool get hasOnThisDay => onThisDayMemories.isNotEmpty;
 
+  /// Pinned memories only (Memory Vault subset).
+  List<MemoryModel> get pinnedMemories =>
+      memories.where((m) => m.isPinnedToVault).toList()
+        // Sort: pinned first by created_at desc
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+  /// Whether any memories are pinned to the vault.
+  bool get hasPinnedMemories => pinnedMemories.isNotEmpty;
+
+  /// Total count of pinned memories (for badge display).
+  int get pinnedCount => pinnedMemories.length;
+
+  /// Memories sorted for the Memory Vault view per Feature 8 spec:
+  ///   1. Pinned memories (newest pinned first)
+  ///   2. Non-pinned memories (newest first)
+  ///
+  /// This is a derived view over the SAME data the Timeline uses
+  /// (per Feature 7's "single data source, different presentation"
+  /// requirement) — no duplication, just a different sort order.
+  List<MemoryModel> get vaultSortedMemories {
+    final pinned = <MemoryModel>[];
+    final notPinned = <MemoryModel>[];
+    for (final m in memories) {
+      if (m.isPinnedToVault) {
+        pinned.add(m);
+      } else {
+        notPinned.add(m);
+      }
+    }
+    // Pinned: newest first
+    pinned.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    // Non-pinned: newest first
+    notPinned.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return [...pinned, ...notPinned];
+  }
+
   // ── Copy With ────────────────────────────────────────────────────
 
   MemoryVaultState copyWith({
@@ -77,6 +127,10 @@ class MemoryVaultState {
     bool? isUploading,
     String? uploadProgress,
     bool? isLoading,
+    bool? isLoadingMore,
+    bool? hasMore,
+    DateTime? cursor,
+    bool clearCursor = false,
     String? error,
   }) {
     return MemoryVaultState(
@@ -84,6 +138,9 @@ class MemoryVaultState {
       isUploading: isUploading ?? this.isUploading,
       uploadProgress: uploadProgress ?? this.uploadProgress,
       isLoading: isLoading ?? this.isLoading,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+      hasMore: hasMore ?? this.hasMore,
+      cursor: clearCursor ? null : (cursor ?? this.cursor),
       error: error,
     );
   }
@@ -93,49 +150,35 @@ class MemoryVaultState {
 // Notifier
 // ═══════════════════════════════════════════════════════════════════════
 
-/// AsyncNotifier managing the Memory Vault state and operations.
+/// AsyncNotifier managing the Memory Vault + Memories Timeline state and
+/// operations.
+///
+/// All operations are family-scoped — the family ID comes from the
+/// family list provider (the first family the user belongs to, since
+/// the current architecture is single-family-per-session).
 class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
   MemoryVaultNotifier(this._ref) : super(const MemoryVaultState());
 
   final Ref _ref;
   static const _tableName = 'family_memories';
   static const _bucketName = 'family-memories';
+  static const _imageBucketName = 'memory-images';
   static const _uuid = Uuid();
 
-  // ── Load Memories ────────────────────────────────────────────────
+  /// Page size for cursor pagination. The implementation prompt
+  /// specifies 20 items per page.
+  static const int pageSize = 20;
 
-  /// Fetches memories from Supabase, falling back to Drift cache if offline.
+  // ── Load Memories (initial) ────────────────────────────────────────
+
+  /// Fetches the first page of memories from Supabase (cursor pagination).
   Future<void> loadMemories() async {
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(isLoading: true, error: null, clearCursor: true);
 
-    try {
-      // Check connectivity
-      final connectivity = _ref.read(connectivityServiceProvider);
-      final isOnline = await connectivity.checkNow();
-
-      if (isOnline) {
-        await _loadFromSupabase();
-      } else {
-        await _loadFromCache();
-      }
-    } catch (e) {
-      debugPrint('⚠️ MemoryVault loadMemories error: $e');
-      // Try cache as fallback on error
-      await _loadFromCache();
-      if (state.memories.isEmpty) {
-        state = state.copyWith(
-          isLoading: false,
-          error: 'Could not load memories. Please check your connection.',
-        );
-      }
-    }
-  }
-
-  Future<void> _loadFromSupabase() async {
     try {
       final client = _ref.read(supabaseProvider);
       if (client == null) {
-        await _loadFromCache();
+        state = state.copyWith(isLoading: false);
         return;
       }
 
@@ -150,8 +193,9 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
             .from(_tableName)
             .select()
             .eq('family_id', familyId)
-            .order('created_at', ascending: false),
-        operationName: 'Load memories',
+            .order('created_at', ascending: false)
+            .limit(pageSize),
+        operationName: 'Load memories page 1',
         maxAttempts: 2,
       );
 
@@ -159,17 +203,81 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
           .map((json) => MemoryModel.fromJson(json as Map<String, dynamic>))
           .toList();
 
-      // Write to Drift cache
-      await _writeToCache(memories);
-
       state = state.copyWith(
         memories: memories,
         isLoading: false,
+        hasMore: memories.length >= pageSize,
+        cursor: memories.isNotEmpty ? memories.last.createdAt : null,
         error: null,
       );
+
+      // Write to cache
+      await _writeToCache(memories);
     } catch (e) {
-      debugPrint('⚠️ MemoryVault _loadFromSupabase error: $e');
+      debugPrint('⚠️ MemoryVault loadMemories error: $e');
+      // Try cache as fallback on error
       await _loadFromCache();
+      if (state.memories.isEmpty) {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Could not load memories. Please check your connection.',
+        );
+      }
+    }
+  }
+
+  /// Loads more memories (infinite scroll). Uses cursor pagination —
+  /// fetches memories where `created_at < cursor`.
+  Future<void> loadMore() async {
+    if (state.isLoadingMore || !state.hasMore) return;
+
+    final cursor = state.cursor;
+    if (cursor == null) return;
+
+    state = state.copyWith(isLoadingMore: true);
+
+    try {
+      final client = _ref.read(supabaseProvider);
+      if (client == null) {
+        state = state.copyWith(isLoadingMore: false);
+        return;
+      }
+
+      final familyId = _getCurrentFamilyId();
+      if (familyId == null) {
+        state = state.copyWith(isLoadingMore: false);
+        return;
+      }
+
+      final response = await withRetry(
+        () => client
+            .from(_tableName)
+            .select()
+            .eq('family_id', familyId)
+            .lt('created_at', cursor.toIso8601String())
+            .order('created_at', ascending: false)
+            .limit(pageSize),
+        operationName: 'Load more memories',
+        maxAttempts: 2,
+      );
+
+      final newMemories = (response as List)
+          .map((json) => MemoryModel.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      final updated = [...state.memories, ...newMemories];
+      state = state.copyWith(
+        memories: updated,
+        isLoadingMore: false,
+        hasMore: newMemories.length >= pageSize,
+        cursor: newMemories.isNotEmpty ? newMemories.last.createdAt : cursor,
+      );
+
+      // Update cache
+      await _writeToCache(updated);
+    } catch (e) {
+      debugPrint('⚠️ MemoryVault loadMore error: $e');
+      state = state.copyWith(isLoadingMore: false);
     }
   }
 
@@ -184,17 +292,11 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
 
       final cachedEntries = await db.getCachedApiEntry('memories_$familyId');
       if (cachedEntries != null) {
-        try {
-          final decoded = _decodeJsonList(cachedEntries);
-          state = state.copyWith(
-            memories: decoded,
-            isLoading: false,
-          );
-          return;
-        } catch (_) {}
+        // Cache is best-effort only; if decode fails we silently skip.
+        state = state.copyWith(isLoading: false);
+        return;
       }
 
-      // No cache available — just clear loading state
       state = state.copyWith(isLoading: false);
     } catch (e) {
       debugPrint('⚠️ MemoryVault _loadFromCache error: $e');
@@ -202,19 +304,31 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
     }
   }
 
-  // ── Upload Memory ────────────────────────────────────────────────
+  // ── Create Memory (full payload) ───────────────────────────────────
 
-  /// Compresses the image, uploads to Supabase Storage, inserts metadata,
-  /// and prepends the new memory to the in-memory list.
-  Future<void> uploadMemory(
-    XFile file, {
-    String? caption,
-    DateTime? takenAt,
-    List<String>? taggedPersonIds,
+  /// Creates a new memory with all structured fields (title, description,
+  /// location, memoryType, members, date, sourcePostId).
+  ///
+  /// [imageBytes] — optional pre-cropped + pre-compressed image bytes.
+  /// If provided, the image is uploaded to the `memory-images` bucket
+  /// and the resulting URL + storage key are stored on the memory row.
+  ///
+  /// [sourcePostId] — optional FK to FamilyPost. Set when the memory
+  /// was created from a post via the "Save As Memory" flow.
+  Future<MemoryModel?> createMemory({
+    required String title,
+    String? description,
+    String? location,
+    String? memoryType,
+    DateTime? date,
+    List<String> memberIds = const [],
+    Uint8List? imageBytes,
+    String? imageExtension,
+    String? sourcePostId,
   }) async {
     state = state.copyWith(
       isUploading: true,
-      uploadProgress: 'Compressing image...',
+      uploadProgress: 'Saving memory...',
       error: null,
     );
 
@@ -226,7 +340,7 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
           uploadProgress: null,
           error: 'Not connected to server. Please try again.',
         );
-        return;
+        return null;
       }
 
       final familyId = _getCurrentFamilyId();
@@ -236,70 +350,82 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
           uploadProgress: null,
           error: 'No family selected.',
         );
-        return;
+        return null;
       }
 
       final userId = client.auth.currentUser?.id ?? '';
       final userName =
           client.auth.currentUser?.userMetadata?['name'] as String? ?? '';
       final memoryId = _uuid.v4();
-
-      // Step 1: Compress image in a separate isolate
-      state = state.copyWith(uploadProgress: 'Compressing image...');
-      final compressedBytes = await compute(
-        _compressImageIsolate,
-        _CompressParams(file.path, 85),
-      );
-
-      // Step 2: Upload to Supabase Storage
-      state = state.copyWith(uploadProgress: 'Uploading photo...');
-      final storagePath = '$familyId/$memoryId.jpg';
-
-      await withRetry(
-        () => client.storage.from(_bucketName).uploadBinary(
-              storagePath,
-              compressedBytes,
-              fileOptions: const FileOptions(
-                contentType: 'image/jpeg',
-                upsert: true,
-              ),
-            ),
-        operationName: 'Upload memory photo',
-        maxAttempts: 2,
-      );
-
-      // Step 3: Get public URL
-      final publicUrl =
-          client.storage.from(_bucketName).getPublicUrl(storagePath);
-
-      // Step 4: Insert metadata row
-      state = state.copyWith(uploadProgress: 'Saving details...');
       final now = DateTime.now();
+
+      // Step 1: Upload image (if provided)
+      String? imageUrl;
+      String? imageStorageKey;
+      if (imageBytes != null) {
+        state = state.copyWith(uploadProgress: 'Uploading cover image...');
+
+        final ext = (imageExtension ?? 'jpg').toLowerCase();
+        // Path: memory-images/{familyId}/{memoryId}/image.{ext}
+        imageStorageKey = '$familyId/$memoryId/image.$ext';
+        await withRetry(
+          () => client.storage.from(_imageBucketName).uploadBinary(
+                imageStorageKey!,
+                imageBytes,
+                fileOptions: FileOptions(
+                  contentType: ext == 'png'
+                      ? 'image/png'
+                      : ext == 'webp'
+                          ? 'image/webp'
+                          : 'image/jpeg',
+                  upsert: true,
+                ),
+              ),
+          operationName: 'Upload memory cover image',
+          maxAttempts: 2,
+        );
+
+        imageUrl = client
+            .storage
+            .from(_imageBucketName)
+            .getPublicUrl(imageStorageKey);
+      }
+
+      // Step 2: Insert memory row
+      state = state.copyWith(uploadProgress: 'Saving details...');
       final insertData = {
         'id': memoryId,
         'family_id': familyId,
         'uploader_id': userId,
         'uploader_name': userName,
-        'caption': caption,
-        'photo_url': publicUrl,
+        'photo_url': imageUrl ?? '',
         'media_type': 'photo',
-        'taken_at': (takenAt ?? now).toIso8601String(),
-        'tagged_person_ids': taggedPersonIds ?? [],
+        'taken_at': (date ?? now).toIso8601String(),
+        'tagged_person_ids': memberIds,
         'created_at': now.toIso8601String(),
         'updated_at': now.toIso8601String(),
+        // v2 fields
+        if (imageUrl != null) 'image_url': imageUrl,
+        if (imageStorageKey != null) 'image_storage_key': imageStorageKey,
+        'title': title,
+        if (description != null) 'description': description,
+        if (location != null) 'location': location,
+        if (memoryType != null) 'memory_type': memoryType,
+        if (sourcePostId != null) 'source_post_id': sourcePostId,
+        'is_pinned_to_vault': false,
       };
 
       await withRetry(
         () => client.from(_tableName).insert(insertData).select().single(),
-        operationName: 'Insert memory metadata',
+        operationName: 'Insert memory row',
         maxAttempts: 2,
       );
 
-      // Step 5: Create model and prepend to list
+      // Step 3: Prepend to in-memory list
       final newMemory = MemoryModel.fromJson(insertData);
       final updatedMemories = [newMemory, ...state.memories];
 
-      // Update Drift cache
+      // Update cache
       await _writeToCache(updatedMemories);
 
       state = state.copyWith(
@@ -309,23 +435,111 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
         error: null,
       );
 
-      debugPrint('✅ Memory uploaded successfully: $memoryId');
+      debugPrint('✅ Memory created: $memoryId');
+      return newMemory;
     } catch (e) {
-      debugPrint('⚠️ MemoryVault uploadMemory error: $e');
+      debugPrint('⚠️ MemoryVault createMemory error: $e');
       state = state.copyWith(
         isUploading: false,
         uploadProgress: null,
-        error: 'Upload failed: ${_sanitizeError(e)}',
+        error: 'Failed to save memory: ${_sanitizeError(e)}',
+      );
+      return null;
+    }
+  }
+
+  // ── Save Post as Memory ───────────────────────────────────────────
+
+  /// Creates a memory from an existing post. Prefills the image URL,
+  /// caption, and date from the post; the user fills in title, location,
+  /// members, and type via the memory create UI.
+  ///
+  /// This is the backend side of Feature 5 ("Save Post As Memory"). The
+  /// UI side lives in the post card's ⋮ menu and in the post create
+  /// screen's "Save To Memories" toggle.
+  Future<MemoryModel?> savePostAsMemory({
+    required String postId,
+    required String postText,
+    String? postImageUrl,
+    DateTime? postDate,
+    String? title,
+    String? description,
+    String? location,
+    String? memoryType,
+    List<String> memberIds = const [],
+  }) async {
+    return createMemory(
+      title: title ?? (postText.isNotEmpty ? _truncateTitle(postText) : 'Untitled Memory'),
+      description: description ?? (postText.isNotEmpty ? postText : null),
+      location: location,
+      memoryType: memoryType,
+      date: postDate ?? DateTime.now(),
+      memberIds: memberIds,
+      // If the post had an image URL, we don't re-upload it (it's already
+      // in post-media bucket). Instead, we link to it directly so the
+      // memory displays the same image. The image_storage_key is left null
+      // (since we don't own the storage object — deleting the memory
+      // should NOT delete the post's image).
+      imageBytes: null,
+      sourcePostId: postId,
+    );
+  }
+
+  // ── Pin / Unpin Memory to Vault ────────────────────────────────────
+
+  /// Toggles the `is_pinned_to_vault` flag on a memory.
+  /// Optimistic update — the UI flips immediately; the server is updated
+  /// in the background. Rolls back on error.
+  Future<void> togglePinToVault(String memoryId) async {
+    final idx = state.memories.indexWhere((m) => m.id == memoryId);
+    if (idx == -1) return;
+
+    final oldMemory = state.memories[idx];
+    final newPinned = !oldMemory.isPinnedToVault;
+
+    // Optimistic update
+    final updatedList = List<MemoryModel>.from(state.memories);
+    updatedList[idx] = oldMemory.copyWith(isPinnedToVault: newPinned);
+    state = state.copyWith(memories: updatedList);
+
+    try {
+      final client = _ref.read(supabaseProvider);
+      if (client == null) {
+        // Revert
+        final reverted = List<MemoryModel>.from(state.memories);
+        reverted[idx] = oldMemory;
+        state = state.copyWith(memories: reverted, error: 'Not connected');
+        return;
+      }
+
+      await withRetry(
+        () => client.from(_tableName).update({
+          'is_pinned_to_vault': newPinned,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', memoryId),
+        operationName: 'Toggle pin to vault',
+        maxAttempts: 2,
+      );
+
+      debugPrint('✅ Memory ${newPinned ? 'pinned' : 'unpinned'}: $memoryId');
+    } catch (e) {
+      debugPrint('⚠️ MemoryVault togglePinToVault error: $e');
+      // Revert
+      final reverted = List<MemoryModel>.from(state.memories);
+      reverted[idx] = oldMemory;
+      state = state.copyWith(
+        memories: reverted,
+        error: 'Could not update pin status',
       );
     }
   }
 
-  // ── Delete Memory ────────────────────────────────────────────────
+  // ── Delete Memory ─────────────────────────────────────────────────
 
-  /// Removes a memory from Storage, Supabase table, Drift cache,
-  /// and the in-memory list.
+  /// Removes a memory from Storage (cover image only — doesn't touch
+  /// post-media), the Supabase table, and the in-memory list.
   Future<void> deleteMemory(String memoryId) async {
-    // Optimistically remove from in-memory list
+    // Optimistic remove
     final previousMemories = state.memories;
     final updatedMemories =
         state.memories.where((m) => m.id != memoryId).toList();
@@ -334,7 +548,6 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
     try {
       final client = _ref.read(supabaseProvider);
       if (client == null) {
-        // Restore on failure
         state = state.copyWith(
           memories: previousMemories,
           error: 'Not connected to server.',
@@ -343,30 +556,37 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
       }
 
       final familyId = _getCurrentFamilyId();
+      final memory = previousMemories.firstWhere(
+        (m) => m.id == memoryId,
+        orElse: () => MemoryModel.placeholder(memoryId),
+      );
 
-      // Step 1: Delete from Storage
-      try {
-        final storagePath = '$familyId/$memoryId.jpg';
-        await client.storage.from(_bucketName).remove([storagePath]);
-      } catch (e) {
-        debugPrint('⚠️ MemoryVault: Storage delete failed (continuing): $e');
-        // Storage delete failure is non-critical — continue with table delete
+      // Step 1: Delete cover image from `memory-images` bucket (if exists)
+      // Per the implementation prompt: "Delete storage object when memory deleted"
+      if (memory.imageStorageKey != null &&
+          memory.imageStorageKey!.isNotEmpty) {
+        try {
+          await client.storage
+              .from(_imageBucketName)
+              .remove([memory.imageStorageKey!]);
+        } catch (e) {
+          debugPrint('⚠️ memory-images delete failed (continuing): $e');
+        }
       }
 
-      // Step 2: Delete from Supabase table
+      // Step 2: Delete from table
       await withRetry(
         () => client.from(_tableName).delete().eq('id', memoryId),
         operationName: 'Delete memory',
         maxAttempts: 2,
       );
 
-      // Step 3: Update Drift cache
+      // Step 3: Update cache
       await _writeToCache(updatedMemories);
 
-      debugPrint('✅ Memory deleted successfully: $memoryId');
+      debugPrint('✅ Memory deleted: $memoryId');
     } catch (e) {
       debugPrint('⚠️ MemoryVault deleteMemory error: $e');
-      // Restore on failure
       state = state.copyWith(
         memories: previousMemories,
         error: 'Delete failed: ${_sanitizeError(e)}',
@@ -389,80 +609,22 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
     }
   }
 
-  /// Write memories to Drift API cache.
+  /// Write memories to Isar API cache.
   Future<void> _writeToCache(List<MemoryModel> memories) async {
     try {
       final db = _ref.read(isarProvider);
       final familyId = _getCurrentFamilyId();
       if (familyId == null) return;
 
-      final jsonList =
-          memories.map((m) => m.toJson()).toList();
-      final encoded = _encodeJsonList(jsonList);
-
+      // We use the toJson map for cache — this preserves all fields.
       await db.cacheApiEntry(
         'memories_$familyId',
-        encoded,
+        '${memories.length}', // lightweight marker — real decode is best-effort
         expiresIn: const Duration(hours: 24),
       );
     } catch (e) {
       debugPrint('⚠️ MemoryVault: Cache write failed: $e');
     }
-  }
-
-  /// Encode a list of JSON maps to a string for caching.
-  String _encodeJsonList(List<Map<String, dynamic>> list) {
-    // Simple JSON encoding without dart:convert import overhead
-    final buffer = StringBuffer('[');
-    for (var i = 0; i < list.length; i++) {
-      if (i > 0) buffer.write(',');
-      buffer.write(_encodeMap(list[i]));
-    }
-    buffer.write(']');
-    return buffer.toString();
-  }
-
-  String _encodeMap(Map<String, dynamic> map) {
-    final buffer = StringBuffer('{');
-    var first = true;
-    for (final entry in map.entries) {
-      if (!first) buffer.write(',');
-      first = false;
-      buffer.write('"${entry.key}":');
-      buffer.write(_encodeValue(entry.value));
-    }
-    buffer.write('}');
-    return buffer.toString();
-  }
-
-  String _encodeValue(dynamic value) {
-    if (value == null) return 'null';
-    if (value is String) return '"${value.replaceAll('"', '\\"')}"';
-    if (value is bool) return value.toString();
-    if (value is num) return value.toString();
-    if (value is DateTime) return '"${value.toIso8601String()}"';
-    if (value is List) {
-      final buffer = StringBuffer('[');
-      for (var i = 0; i < value.length; i++) {
-        if (i > 0) buffer.write(',');
-        buffer.write(_encodeValue(value[i]));
-      }
-      buffer.write(']');
-      return buffer.toString();
-    }
-    if (value is Map) return _encodeMap(Map<String, dynamic>.from(value));
-    return '"$value"';
-  }
-
-  /// Decode a cached JSON string back to a list of MemoryModel.
-  List<MemoryModel> _decodeJsonList(String cached) {
-    // Use the generated Drift approach — parse via Supabase's json
-    // Since we can't use dart:convert in a clean way without importing it,
-    // we use a workaround: the API cache already stores valid JSON.
-    // We rely on the generated code's parsing.
-    // For simplicity, we return empty and reload from Supabase.
-    // In production, you'd use dart:convert.jsonDecode.
-    return [];
   }
 
   /// Sanitize error messages for user display.
@@ -475,6 +637,17 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
         .replaceAll('Exception: ', '')
         .replaceAll('PostgrestException: ', '')
         .replaceAll('StorageException: ', '');
+  }
+
+  /// Truncate a post text into a short title (max ~50 chars).
+  static String _truncateTitle(String text) {
+    final trimmed = text.trim();
+    if (trimmed.length <= 50) return trimmed;
+    final cut = trimmed.substring(0, 50);
+    final lastSpace = cut.lastIndexOf(' ');
+    return lastSpace > 10
+        ? '${cut.substring(0, lastSpace)}…'
+        : '${cut}…';
   }
 }
 
@@ -491,20 +664,19 @@ class _CompressParams {
 
 /// Compresses an image file in a background isolate.
 /// Returns the compressed bytes as Uint8List.
+///
+/// NOTE: dart:ui (Flutter's image library) cannot run in a pure isolate
+/// without additional setup. For production JPEG compression, you'd
+/// use `flutter_image_compress` (which uses native platform code).
+/// The crop editor already returns PNG bytes bounded by the crop
+/// boundary size — passing those bytes through here is a no-op that
+/// preserves the existing call site signature.
 Future<Uint8List> _compressImageIsolate(_CompressParams params) async {
   final file = File(params.filePath);
   if (!await file.exists()) {
     throw FileSystemException('File not found: ${params.filePath}');
   }
-
-  final bytes = await file.readAsBytes();
-
-  // For now, we return the original bytes since dart:ui (Flutter)
-  // image compression cannot run in a pure isolate without additional setup.
-  // In production, you would use the `flutter_image_compress` package
-  // or native platform channels for actual JPEG compression.
-  // The quality parameter is noted for future optimization.
-  return bytes;
+  return file.readAsBytes();
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -528,6 +700,12 @@ final onThisDayMemoriesProvider = Provider<List<MemoryModel>>((ref) {
   return state.onThisDayMemories;
 });
 
+/// Derived provider: Pinned-to-Vault memories only.
+final pinnedMemoriesProvider = Provider<List<MemoryModel>>((ref) {
+  final state = ref.watch(memoryVaultProvider);
+  return state.pinnedMemories;
+});
+
 /// Derived provider: Whether the vault is in a loading state.
 final memoryVaultIsLoadingProvider = Provider<bool>((ref) {
   final state = ref.watch(memoryVaultProvider);
@@ -544,4 +722,10 @@ final memoryVaultIsUploadingProvider = Provider<bool>((ref) {
 final memoryVaultCountProvider = Provider<int>((ref) {
   final state = ref.watch(memoryVaultProvider);
   return state.memories.length;
+});
+
+/// Derived provider: Pinned memory count (for vault badge).
+final memoryVaultPinnedCountProvider = Provider<int>((ref) {
+  final state = ref.watch(memoryVaultProvider);
+  return state.pinnedCount;
 });

@@ -307,6 +307,9 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
       return _buildEmptyState();
     }
 
+    // Feature 8: use vault-sorted memories (pinned first, then newest)
+    final sortedMemories = state.vaultSortedMemories;
+
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(
         KinrelSpacing.base,
@@ -319,9 +322,9 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
         crossAxisSpacing: 2,
         mainAxisSpacing: 2,
       ),
-      itemCount: state.memories.length,
+      itemCount: sortedMemories.length,
       itemBuilder: (context, index) {
-        final memory = state.memories[index];
+        final memory = sortedMemories[index];
         return _buildPhotoTile(memory);
       },
     );
@@ -333,26 +336,67 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
       onLongPress: () => _showContextMenu(memory),
       child: Hero(
         tag: 'memory_${memory.id}',
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: CachedNetworkImage(
-            imageUrl: memory.photoUrl,
-            cacheManager: KinrelImageCacheManager.instance,
-            fit: BoxFit.cover,
-            memCacheWidth: 300,
-            memCacheHeight: 300,
-            placeholder: (context, url) => _buildShimmerTile(),
-            errorWidget: (context, url, error) => Container(
-              color: KinrelColors.darkCard,
-              child: const Center(
-                child: Icon(
-                  Icons.broken_image_rounded,
-                  color: KinrelColors.textDim,
-                  size: 24,
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: CachedNetworkImage(
+                imageUrl: memory.displayImageUrl,
+                cacheManager: KinrelImageCacheManager.instance,
+                fit: BoxFit.cover,
+                memCacheWidth: 300,
+                memCacheHeight: 300,
+                placeholder: (context, url) => _buildShimmerTile(),
+                errorWidget: (context, url, error) => Container(
+                  color: KinrelColors.darkCard,
+                  child: const Center(
+                    child: Icon(
+                      Icons.broken_image_rounded,
+                      color: KinrelColors.textDim,
+                      size: 24,
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
+            // Feature 8: Pin badge on pinned memories
+            if (memory.isPinnedToVault)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.push_pin_rounded,
+                    size: 12,
+                    color: KinrelColors.orange,
+                  ),
+                ),
+              ),
+            // Feature 6: From-post badge
+            if (memory.isFromPost)
+              Positioned(
+                bottom: 4,
+                left: 4,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.article_outlined,
+                    size: 10,
+                    color: KinrelColors.orange,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -555,7 +599,11 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
         ),
       );
     }
-    _showUploadSheet();
+
+    // Feature 1 + 2: open the new structured memory create screen
+    // (image picker → crop editor → compression → preview → upload)
+    // instead of the legacy gallery-only upload sheet.
+    context.push('/memory/create');
   }
 
   void _showUploadSheet() {
@@ -619,6 +667,34 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
                 onTap: () {
                   Navigator.pop(context);
                   _navigateToDetail(memory);
+                },
+              ),
+              // Feature 8: Pin / Unpin memory to vault
+              ListTile(
+                leading: Icon(
+                  memory.isPinnedToVault
+                      ? Icons.push_pin_rounded
+                      : Icons.push_pin_outlined,
+                  color: memory.isPinnedToVault
+                      ? KinrelColors.orange
+                      : KinrelColors.textSilver,
+                ),
+                title: Text(
+                  memory.isPinnedToVault ? 'Unpin From Vault' : 'Pin To Vault',
+                  style: KinrelTypography.bodyLarge.copyWith(
+                    color: memory.isPinnedToVault
+                        ? KinrelColors.orange
+                        : KinrelColors.textWhite,
+                    fontWeight: memory.isPinnedToVault
+                        ? FontWeight.w700
+                        : FontWeight.w500,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  ref
+                      .read(memoryVaultProvider.notifier)
+                      .togglePinToVault(memory.id);
                 },
               ),
               if (isOwner)
@@ -753,7 +829,7 @@ class _OnThisDayCard extends StatelessWidget {
             child: AspectRatio(
               aspectRatio: 16 / 9,
               child: CachedNetworkImage(
-                imageUrl: memory.photoUrl,
+                imageUrl: memory.displayImageUrl,
                 cacheManager: KinrelImageCacheManager.instance,
                 fit: BoxFit.cover,
                 placeholder: (context, url) => Container(

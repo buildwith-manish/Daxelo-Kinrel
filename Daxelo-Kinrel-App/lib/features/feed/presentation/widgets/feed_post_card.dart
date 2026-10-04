@@ -4,17 +4,28 @@
 // Instagram-style post card for the unified home feed.
 // Shows author info, family badge, post content (text/image),
 // reaction row, comment count, and relationship context chip.
+//
+// Feature 5 & 6 additions (v2):
+//   - ⋮ menu now includes "Save As Memory" action
+//   - "Saved To Memories" badge appears when this post has been
+//     saved as a memory (queried from family_memories.source_post_id)
+//
+// Orange K-Graph DNA: #131416 bg, #191B2C cards, #E8612A accent.
 
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/services/image_cache_manager.dart';
 import '../../../../core/services/haptic_service.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../../providers/feed_provider.dart';
+import '../../../memory_vault/presentation/memory_create_screen.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────
 const _cOrange = KinrelColors.orange;
@@ -27,7 +38,7 @@ const _cTextDim = KinrelColors.textDim;
 /// Reaction emoji list for the post card
 const _reactionEmojis = ['👍', '❤️', '😂', '😮'];
 
-class FeedPostCard extends StatelessWidget {
+class FeedPostCard extends ConsumerStatefulWidget {
   const FeedPostCard({
     super.key,
     required this.post,
@@ -38,6 +49,119 @@ class FeedPostCard extends StatelessWidget {
   final FamilyPost post;
   final VoidCallback onHeart;
   final void Function(String emoji) onReact;
+
+  @override
+  ConsumerState<FeedPostCard> createState() => _FeedPostCardState();
+}
+
+class _FeedPostCardState extends ConsumerState<FeedPostCard> {
+  /// Cached "saved to memories" status for this post.
+  /// null = unknown / not yet checked.
+  bool? _savedToMemories;
+
+  @override
+  void initState() {
+    super.initState();
+    // Check if this post has been saved as a memory (Feature 6 badge).
+    // The query is cheap (indexed by source_post_id) and only runs once
+    // per card instantiation.
+    _checkSavedToMemories();
+  }
+
+  Future<void> _checkSavedToMemories() async {
+    try {
+      final client = ref.read(supabaseProvider);
+      if (client == null) return;
+
+      final response = await client
+          .from('family_memories')
+          .select('id')
+          .eq('source_post_id', widget.post.id)
+          .limit(1);
+
+      if (mounted) {
+        setState(() {
+          _savedToMemories = (response as List).isNotEmpty;
+        });
+      }
+    } catch (e) {
+      // Silent fail — badge is non-critical.
+      debugPrint('⚠️ Saved-to-memories check failed: $e');
+    }
+  }
+
+  Future<void> _showPostMenu() async {
+    HapticService.tap();
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: _cCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.xxl),
+        ),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Post Options',
+                style: KinrelTypography.headlineSmall.copyWith(
+                  color: _cTextPrimary,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.bookmark_add_outlined, color: _cOrange),
+              title: const Text('Save As Memory',
+                  style: TextStyle(color: _cTextPrimary)),
+              subtitle: const Text(
+                  'Pin this post to your family archive',
+                  style: TextStyle(color: _cTextDim, fontSize: 12)),
+              onTap: () => Navigator.pop(context, 'save_as_memory'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.share_outlined, color: _cTextDim),
+              title: const Text('Share',
+                  style: TextStyle(color: _cTextPrimary)),
+              onTap: () => Navigator.pop(context, 'share'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.flag_outlined, color: _cTextDim),
+              title: const Text('Report',
+                  style: TextStyle(color: _cTextPrimary)),
+              onTap: () => Navigator.pop(context, 'report'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (action == 'save_as_memory' && mounted) {
+      // Launch memory creation flow prefilled from this post (Feature 5).
+      final postText =
+          widget.post.content['text'] as String? ?? '';
+      final postImageUrl =
+          widget.post.content['mediaUrl'] as String?;
+      final postLocation =
+          widget.post.content['location'] as String?;
+
+      context.push(
+        '/memory/create',
+        extra: MemoryCreateArgs(
+          sourcePostId: widget.post.id,
+          prefillImageUrl: postImageUrl,
+          prefillTitle: postText.isNotEmpty ? postText : null,
+          prefillDescription: postText,
+          prefillDate: widget.post.createdAt ?? DateTime.now(),
+          prefillLocation: postLocation,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,16 +183,26 @@ class FeedPostCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Author header
-            _FeedPostHeader(post: post),
+            _FeedPostHeader(
+              post: widget.post,
+              onMenuTap: _showPostMenu,
+            ),
 
             // Post body content
-            _FeedPostBody(post: post),
+            _FeedPostBody(
+              post: widget.post,
+              savedToMemories: _savedToMemories,
+              onMemoryBadgeTap: () {
+                // Open the memory-vault screen — the saved memory lives there.
+                context.push('/memory-vault');
+              },
+            ),
 
             // Reaction row
             _FeedReactionRow(
-              post: post,
-              onHeart: onHeart,
-              onReact: onReact,
+              post: widget.post,
+              onHeart: widget.onHeart,
+              onReact: widget.onReact,
             ),
           ],
         ),
@@ -81,13 +215,14 @@ class FeedPostCard extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Post Header — Author avatar + name + family badge + timestamp
+// Post Header — Author avatar + name + family badge + timestamp + menu
 // ═══════════════════════════════════════════════════════════════════════
 
 class _FeedPostHeader extends StatelessWidget {
-  const _FeedPostHeader({required this.post});
+  const _FeedPostHeader({required this.post, required this.onMenuTap});
 
   final FamilyPost post;
+  final VoidCallback onMenuTap;
 
   @override
   Widget build(BuildContext context) {
@@ -154,7 +289,8 @@ class _FeedPostHeader extends StatelessWidget {
                 // Family name badge (orange pill)
                 if (post.familyName != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                       color: _cOrange.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(KinrelRadius.full),
@@ -198,10 +334,11 @@ class _FeedPostHeader extends StatelessWidget {
             ),
           ),
 
-          // Three-dot menu
+          // Three-dot menu (Feature 5: opens Save As Memory, etc.)
           IconButton(
-            icon: const Icon(Icons.more_horiz_rounded, size: 20, color: _cTextDim),
-            onPressed: () {},
+            icon: const Icon(Icons.more_horiz_rounded,
+                size: 20, color: _cTextDim),
+            onPressed: onMenuTap,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
           ),
@@ -212,13 +349,19 @@ class _FeedPostHeader extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Post Body — Text content + optional image
+// Post Body — Text content + optional image + Saved-to-Memories badge
 // ═══════════════════════════════════════════════════════════════════════
 
 class _FeedPostBody extends StatelessWidget {
-  const _FeedPostBody({required this.post});
+  const _FeedPostBody({
+    required this.post,
+    required this.savedToMemories,
+    required this.onMemoryBadgeTap,
+  });
 
   final FamilyPost post;
+  final bool? savedToMemories;
+  final VoidCallback onMemoryBadgeTap;
 
   @override
   Widget build(BuildContext context) {
@@ -234,7 +377,8 @@ class _FeedPostBody extends StatelessWidget {
           // Occasion badge (if present)
           if (occasion != null && occasion.isNotEmpty) ...[
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: KinrelColors.gold.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(KinrelRadius.full),
@@ -242,7 +386,8 @@ class _FeedPostBody extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.celebration_outlined, size: 12, color: KinrelColors.gold),
+                  const Icon(Icons.celebration_outlined,
+                      size: 12, color: KinrelColors.gold),
                   const SizedBox(width: 4),
                   Text(
                     occasion,
@@ -313,11 +458,49 @@ class _FeedPostBody extends StatelessWidget {
             ),
           ],
 
+          // Saved To Memories badge (Feature 6)
+          if (savedToMemories == true) ...[
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: onMemoryBadgeTap,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _cOrange.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(KinrelRadius.full),
+                  border: Border.all(
+                    color: _cOrange.withValues(alpha: 0.3),
+                    width: 0.5,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.bookmark_rounded,
+                        size: 12, color: _cOrange),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Saved To Memories',
+                      style: const TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _cOrange,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+
           // Relationship context chip
           if (post.familyName != null) ...[
             const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: _cElevated,
                 borderRadius: BorderRadius.circular(KinrelRadius.full),
@@ -380,7 +563,8 @@ class _FeedReactionRowState extends State<_FeedReactionRow> {
   @override
   Widget build(BuildContext context) {
     final reactions = widget.post.reactions;
-    final reactionCounts = (reactions['reactionCounts'] as Map<String, dynamic>?) ?? {};
+    final reactionCounts =
+        (reactions['reactionCounts'] as Map<String, dynamic>?) ?? {};
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
@@ -405,16 +589,10 @@ class _FeedReactionRowState extends State<_FeedReactionRow> {
                   padding: const EdgeInsets.only(right: 12),
                   child: GestureDetector(
                     onTap: () {
-                      // ── Haptic: tap confirms the reaction registered
-                      // BEFORE the provider's optimistic update
-                      // completes. The local _localReactions state
-                      // updates in the same frame (instant visual),
-                      // and the haptic reinforces it tactilely. This
-                      // is the Instagram/WhatsApp pattern — the heart
-                      // fills + you feel it in <16ms.
                       HapticService.tap();
                       setState(() {
-                        _localReactions[emoji] = !(_localReactions[emoji] ?? false);
+                        _localReactions[emoji] =
+                            !(_localReactions[emoji] ?? false);
                       });
                       if (emoji == '❤️') {
                         widget.onHeart();
@@ -423,7 +601,8 @@ class _FeedReactionRowState extends State<_FeedReactionRow> {
                       }
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: isActive
                             ? _cOrange.withValues(alpha: 0.15)
@@ -463,7 +642,8 @@ class _FeedReactionRowState extends State<_FeedReactionRow> {
 
               // Comment count chip
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: _cElevated,
                   borderRadius: BorderRadius.circular(KinrelRadius.full),

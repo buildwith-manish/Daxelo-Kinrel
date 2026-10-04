@@ -267,6 +267,7 @@ import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/memories/presentation/memories_screen.dart';
 import '../../features/family_map/presentation/family_map_screen.dart';
 import '../../features/memory_vault/presentation/memory_vault_screen.dart';
+import '../../features/memory_vault/presentation/memory_create_screen.dart';
 import '../../features/chat/presentation/chat_screen.dart';
 import '../../features/chat/presentation/chat_search_screen.dart';
 import '../../features/chat/presentation/group_info_screen.dart';
@@ -3146,6 +3147,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/memory-vault',
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: const MemoryVaultScreen()),
+      ),
+
+      // ── Memory Create (Feature 1, 2, 5, 6) ─────────────────────────
+      // Pushed from: Memories FAB, post-create "Save To Memories" toggle,
+      // and post card ⋮ menu "Save As Memory".
+      GoRoute(
+        path: '/memory/create',
+        pageBuilder: (context, state) {
+          final args = state.extra as MemoryCreateArgs?;
+          return _fastFadePage(
+            key: state.pageKey,
+            child: MemoryCreateScreen(args: args),
+          );
+        },
       ),
 
       // ── Phase B: Occasion Reminders ───────────────────────────────

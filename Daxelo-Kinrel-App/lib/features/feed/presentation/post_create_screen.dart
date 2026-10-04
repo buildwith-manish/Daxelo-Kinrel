@@ -19,6 +19,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../memory_vault/presentation/memory_create_screen.dart';
 import '../providers/post_create_provider.dart';
 import '../providers/feed_provider.dart';
 
@@ -129,6 +130,11 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
 
             // Audience selector
             _buildAudienceSelector(create),
+
+            const SizedBox(height: 20),
+
+            // Save To Memories toggle (Feature 5)
+            _buildSaveToMemoriesToggle(create),
 
             const SizedBox(height: 100), // Bottom padding
           ],
@@ -536,6 +542,79 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
     );
   }
 
+  // ── Save To Memories Toggle (Feature 5) ───────────────────────
+
+  Widget _buildSaveToMemoriesToggle(PostCreateState create) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _cCard,
+        borderRadius: BorderRadius.circular(KinrelRadius.md),
+        border: Border.all(
+          color: create.saveToMemories
+              ? _cOrange.withValues(alpha: 0.4)
+              : Colors.white.withValues(alpha: 0.06),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: create.saveToMemories
+                  ? _cOrange.withValues(alpha: 0.15)
+                  : _cElevated,
+            ),
+            child: Icon(
+              Icons.bookmarks_outlined,
+              size: 18,
+              color: create.saveToMemories ? _cOrange : _cTextDim,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Save To Memories',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: _cTextPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Pin this post to your family archive as a memory.',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 11,
+                    color: _cTextDim,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Toggle switch
+          Switch(
+            value: create.saveToMemories,
+            onChanged: (v) {
+              ref.read(postCreateProvider.notifier).setSaveToMemories(v);
+            },
+            activeColor: _cOrange,
+            inactiveThumbColor: _cTextDim,
+            inactiveTrackColor: _cElevated,
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Image/Video Pickers ────────────────────────────────────────
 
   Future<void> _pickImage() async {
@@ -590,12 +669,41 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
 
   Future<void> _onShare() async {
     HapticFeedback.mediumImpact();
-    final success = await ref.read(postCreateProvider.notifier).submit();
+    final create = ref.read(postCreateProvider);
+    final postId = await ref.read(postCreateProvider.notifier).submit();
     if (!mounted) return;
 
-    if (success) {
+    if (postId != null) {
       ref.invalidate(feedProvider);
-      context.pop();
+
+      // If "Save To Memories" toggle was on, open the memory create screen
+      // prefilled with the post's data + sourcePostId (Feature 5).
+      if (create.saveToMemories) {
+        // Pull the just-created post's data from the create state.
+        final postText = create.text.trim();
+        final postImageUrl = create.mediaUrl;
+        final postDate = DateTime.now();
+        final postLocation = create.location;
+
+        if (mounted) {
+          // Pop the post composer, then push memory create screen on top
+          // — passing sourcePostId so the memory row links back to this post.
+          context.pop();
+          context.push(
+            '/memory/create',
+            extra: MemoryCreateArgs(
+              sourcePostId: postId,
+              prefillImageUrl: postImageUrl,
+              prefillTitle: postText.isNotEmpty ? postText : null,
+              prefillDescription: postText,
+              prefillDate: postDate,
+              prefillLocation: postLocation,
+            ),
+          );
+        }
+      } else {
+        context.pop();
+      }
     } else {
       final error = ref.read(postCreateProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(

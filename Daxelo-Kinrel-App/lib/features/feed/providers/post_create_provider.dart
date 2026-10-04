@@ -40,6 +40,7 @@ class PostCreateState {
     this.occasion,
     this.location,
     this.isSubmitting = false,
+    this.saveToMemories = false,
     this.error,
   });
 
@@ -51,6 +52,11 @@ class PostCreateState {
   final PostOccasion? occasion;
   final String? location;
   final bool isSubmitting;
+
+  /// Feature 5: Save To Memories toggle. Default OFF.
+  /// When ON, after the post is created, the user is taken to the
+  /// memory create screen prefilled with the post's data + sourcePostId.
+  final bool saveToMemories;
   final String? error;
 
   bool get hasContent => text.trim().isNotEmpty || mediaFile != null;
@@ -65,6 +71,7 @@ class PostCreateState {
     PostOccasion? occasion,
     String? location,
     bool? isSubmitting,
+    bool? saveToMemories,
     String? error,
     bool clearError = false,
   }) {
@@ -77,6 +84,7 @@ class PostCreateState {
       occasion: occasion ?? this.occasion,
       location: location ?? this.location,
       isSubmitting: isSubmitting ?? this.isSubmitting,
+      saveToMemories: saveToMemories ?? this.saveToMemories,
       error: clearError ? null : (error ?? this.error),
     );
   }
@@ -117,13 +125,23 @@ class PostCreateNotifier extends StateNotifier<PostCreateState> {
     state = state.copyWith(location: location);
   }
 
+  /// Feature 5: Toggle the "Save To Memories" flag.
+  /// Default OFF. When ON, after the post is created, the user is
+  /// taken to the memory create screen prefilled with the post's data.
+  void setSaveToMemories(bool value) {
+    state = state.copyWith(saveToMemories: value);
+  }
+
   void clearError() {
     state = state.copyWith(clearError: true);
   }
 
-  /// Submit the post to the backend
-  Future<bool> submit() async {
-    if (!state.hasContent || state.selectedFamilyId == null) return false;
+  /// Submit the post to the backend.
+  /// Returns the newly-created post's ID on success, or null on failure.
+  /// The ID is used by Feature 5 to link the resulting memory back to
+  /// the post via `sourcePostId`.
+  Future<String?> submit() async {
+    if (!state.hasContent || state.selectedFamilyId == null) return null;
 
     state = state.copyWith(isSubmitting: true, clearError: true);
 
@@ -131,13 +149,13 @@ class PostCreateNotifier extends StateNotifier<PostCreateState> {
       final client = _ref.read(supabaseProvider);
       if (client == null) {
         state = state.copyWith(isSubmitting: false, error: 'Not connected');
-        return false;
+        return null;
       }
 
       final userId = client.auth.currentUser?.id;
       if (userId == null) {
         state = state.copyWith(isSubmitting: false, error: 'Not authenticated');
-        return false;
+        return null;
       }
 
       String? mediaUrl;
@@ -175,30 +193,46 @@ class PostCreateNotifier extends StateNotifier<PostCreateState> {
         content['location'] = state.location;
       }
 
-      // Submit via Supabase direct insert
-      await client.from('FamilyPost').insert({
-        'familyId': state.selectedFamilyId,
-        'authorId': userId,
-        'postType': postType,
-        'content': content,
-        'reactions': {
-          'heart': 0,
-          'comment': 0,
-          'isHearted': false,
-          'isSaved': false,
-        },
-        'audience': state.audience == PostAudience.public ? 'PUBLIC' : 'FAMILY_ONLY',
-      });
+      // Submit via Supabase direct insert — use .select().single() to get
+      // back the inserted row so we can return the post's id (Feature 5).
+      final inserted = await client
+          .from('FamilyPost')
+          .insert({
+            'familyId': state.selectedFamilyId,
+            'authorId': userId,
+            'postType': postType,
+            'content': content,
+            'reactions': {
+              'heart': 0,
+              'comment': 0,
+              'isHearted': false,
+              'isSaved': false,
+            },
+            'audience': state.audience == PostAudience.public
+                ? 'PUBLIC'
+                : 'FAMILY_ONLY',
+          })
+          .select('id')
+          .single();
 
-      state = const PostCreateState(); // Reset on success
-      return true;
+      final postId = (inserted['id'] ?? '').toString();
+      final savedMediaUrl = mediaUrl; // capture for caller
+      // Stash the post id + media url on the state so the screen can read
+      // them after submit() returns. (We reset the rest of the state.)
+      state = PostCreateState(
+        selectedFamilyId: state.selectedFamilyId,
+        mediaUrl: savedMediaUrl,
+        text: state.text, // preserve text so the memory prefill works
+        location: state.location, // preserve location for memory prefill
+      );
+      return postId.isNotEmpty ? postId : null;
     } catch (e) {
       debugPrint('⚠️ Post create error: $e');
       state = state.copyWith(
         isSubmitting: false,
         error: 'Failed to share post. Please try again.',
       );
-      return false;
+      return null;
     }
   }
 }

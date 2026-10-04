@@ -11,6 +11,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -20,7 +21,7 @@ import '../../../core/utils/share_helper.dart';
 import '../../../core/widgets/cached_avatar.dart';
 import '../../../core/family/family_provider.dart';
 import '../data/memory_model.dart';
-import 'package:go_router/go_router.dart';
+import '../providers/memory_vault_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Memory Detail Screen
@@ -53,12 +54,35 @@ class MemoryDetailScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Caption
-                  if (memory.caption != null &&
-                      memory.caption!.isNotEmpty) ...[
+                  // Title (Feature 1 — structured memory)
+                  if (memory.title != null &&
+                      memory.title!.trim().isNotEmpty) ...[
+                    _buildTitle(),
+                    const SizedBox(height: KinrelSpacing.sm),
+                  ],
+
+                  // Caption / description
+                  if (memory.displayDescription != null) ...[
                     _buildCaption(),
                     const SizedBox(height: KinrelSpacing.md),
                   ],
+
+                  // Location (Feature 1)
+                  if (memory.location != null &&
+                      memory.location!.isNotEmpty) ...[
+                    _buildLocationRow(),
+                    const SizedBox(height: KinrelSpacing.md),
+                  ],
+
+                  // View Original Post button (Feature 6)
+                  if (memory.isFromPost) ...[
+                    _buildViewOriginalPostButton(context),
+                    const SizedBox(height: KinrelSpacing.md),
+                  ],
+
+                  // Pin to Vault button (Feature 8)
+                  _buildPinButton(ref),
+                  const SizedBox(height: KinrelSpacing.lg),
 
                   // Date + Uploader
                   _buildMetaInfo(),
@@ -130,7 +154,7 @@ class MemoryDetailScreen extends ConsumerWidget {
           maxHeight: MediaQuery.of(context).size.height * 0.55,
         ),
         child: CachedNetworkImage(
-          imageUrl: memory.photoUrl,
+          imageUrl: memory.displayImageUrl,
           cacheManager: KinrelImageCacheManager.instance,
           fit: BoxFit.cover,
           placeholder: (context, url) => Container(
@@ -161,12 +185,164 @@ class MemoryDetailScreen extends ConsumerWidget {
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // Caption
+  // Title (Feature 1 — structured memory title)
+  // ═══════════════════════════════════════════════════════════════════
+
+  Widget _buildTitle() {
+    return Text(
+      memory.title!,
+      style: const TextStyle(
+        fontFamily: KinrelTypography.displayFont,
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
+        color: KinrelColors.textWhite,
+        height: 1.3,
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Location Row (Feature 1)
+  // ═══════════════════════════════════════════════════════════════════
+
+  Widget _buildLocationRow() {
+    return Row(
+      children: [
+        const Icon(Icons.location_on_rounded,
+            size: 16, color: KinrelColors.orange),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            memory.location!,
+            style: KinrelTypography.bodyMedium.copyWith(
+              color: KinrelColors.textSilver,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // View Original Post button (Feature 6)
+  // ═══════════════════════════════════════════════════════════════════
+
+  Widget _buildViewOriginalPostButton(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        // The post feed is the only place posts can be viewed in the
+        // current architecture. Push the home feed (where posts live).
+        // A future improvement would be a dedicated /post/:id route.
+        context.push('/home');
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: KinrelColors.orange.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(KinrelRadius.lg),
+          border: Border.all(
+            color: KinrelColors.orange.withValues(alpha: 0.3),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.article_outlined,
+                size: 18, color: KinrelColors.orange),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Created from a Post',
+                    style: KinrelTypography.labelSmall.copyWith(
+                      color: KinrelColors.textDim,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'View Original Post',
+                    style: KinrelTypography.labelMedium.copyWith(
+                      color: KinrelColors.orange,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded,
+                size: 14, color: KinrelColors.orange),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Pin To Vault button (Feature 8)
+  // ═══════════════════════════════════════════════════════════════════
+
+  Widget _buildPinButton(WidgetRef ref) {
+    final isPinned = memory.isPinnedToVault;
+    return GestureDetector(
+      onTap: () {
+        ref
+            .read(memoryVaultProvider.notifier)
+            .togglePinToVault(memory.id);
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isPinned
+              ? KinrelColors.orange.withValues(alpha: 0.15)
+              : KinrelColors.darkCard,
+          borderRadius: BorderRadius.circular(KinrelRadius.lg),
+          border: Border.all(
+            color: isPinned
+                ? KinrelColors.orange.withValues(alpha: 0.5)
+                : const Color(0xFF3A3A4A),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isPinned
+                  ? Icons.push_pin_rounded
+                  : Icons.push_pin_outlined,
+              size: 18,
+              color: isPinned
+                  ? KinrelColors.orange
+                  : KinrelColors.textSilver,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              isPinned ? 'Pinned To Vault' : 'Pin To Vault',
+              style: KinrelTypography.labelMedium.copyWith(
+                color: isPinned
+                    ? KinrelColors.orange
+                    : KinrelColors.textWhite,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Caption / Description
   // ═══════════════════════════════════════════════════════════════════
 
   Widget _buildCaption() {
     return Text(
-      memory.caption!,
+      memory.displayDescription ?? memory.caption ?? '',
       style: const TextStyle(
         fontFamily: KinrelTypography.bodyFont,
         fontSize: 17,
