@@ -57,7 +57,7 @@ void main() {
         maxPlayers: 4,
       ));
       expect(c.kind, GameInviteStatusKind.waitingForPlayers);
-      expect(c.label, 'Waiting for players…');
+      expect(c.label, 'Waiting for players');
     });
 
     test('null status treated as pending → waitingForPlayers', () {
@@ -72,14 +72,28 @@ void main() {
       expect(c.kind, GameInviteStatusKind.waitingForPlayers);
     });
 
-    test('pending + 1<current<max → openToJoin (green)', () {
-      final c = classifyGameInviteStatus(_invite(
+    test('pending + 1<current<max → openToJoin with spots-left label (green)', () {
+      // Per the user-facing spec, the chip surfaces the explicit
+      // remaining-slot count ("X spots left") instead of a generic
+      // "Open to join". The card also renders a separate "X/Y players"
+      // line above the chip, so the user gets both the absolute count
+      // and the remaining-slot count at a glance.
+      final c2of4 = classifyGameInviteStatus(_invite(
         status: 'pending',
         currentPlayers: 2,
         maxPlayers: 4,
       ));
-      expect(c.kind, GameInviteStatusKind.openToJoin);
-      expect(c.label, 'Open to join');
+      expect(c2of4.kind, GameInviteStatusKind.openToJoin);
+      expect(c2of4.label, '2 spots left');
+
+      // Singular form when only 1 slot remains.
+      final c3of4 = classifyGameInviteStatus(_invite(
+        status: 'pending',
+        currentPlayers: 3,
+        maxPlayers: 4,
+      ));
+      expect(c3of4.kind, GameInviteStatusKind.openToJoin);
+      expect(c3of4.label, '1 spot left');
     });
 
     test('pending + currentPlayers>=max → full (grey, transitional)', () {
@@ -144,7 +158,9 @@ void main() {
 
     // ── EXPIRED / CANCELLED ────────────────────────────────────────
 
-    test('expired → expired (greyed, inactive)', () {
+    test('expired → expired (greyed, "Expired")', () {
+      // Per the user-facing spec, the expired state renders as "Expired"
+      // (with a closed-door icon) to make it clear the room is no longer available.
       final c = classifyGameInviteStatus(_invite(
         status: 'expired',
         currentPlayers: 1,
@@ -154,17 +170,17 @@ void main() {
       expect(c.label, 'Expired');
     });
 
-    test('cancelled → expired kind, label "Cancelled"', () {
-      // Per the spec, 'cancelled' is an alias for 'expired' — both render
-      // the same greyed-out, non-interactive treatment. The label differs
-      // so the user knows which terminal state they're looking at.
+    test('cancelled → expired kind, label "Expired"', () {
+      // Per the spec, 'cancelled' (host-driven) and 'expired' (15-min inactivity
+      // timeout) both render the same "Expired" treatment — the
+      // closed-door phrasing makes it clear the room is no longer available.
       final c = classifyGameInviteStatus(_invite(
         status: 'cancelled',
         currentPlayers: 4,
         maxPlayers: 4,
       ));
       expect(c.kind, GameInviteStatusKind.expired);
-      expect(c.label, 'Cancelled');
+      expect(c.label, 'Expired');
     });
 
     // ── UNIFORM ACROSS GAME TYPES ──────────────────────────────────

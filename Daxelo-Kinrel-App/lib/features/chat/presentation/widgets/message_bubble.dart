@@ -1315,37 +1315,76 @@ class MessageBubble extends ConsumerWidget {
 
     if (isPreGame && !isFull && !isMe) {
       // Open to join — solid orange "Join" button.
+      // Per spec: when spectatorsAllowed is true but the room still has
+      // open player slots, the primary action is "Join" (as a player),
+      // NOT "Spectate". Spectate only becomes available once the room is
+      // full or in-progress.
       actionLabel = 'Join';
       actionEnabled = (message.gameId ?? '').isNotEmpty;
       actionCallback =
           actionEnabled ? () => _joinGameFromCard(context) : null;
     } else if (isPreGame && isFull && !isMe) {
-      // At capacity — disabled "Full" label.
-      actionLabel = 'Full';
-      actionEnabled = false;
-      actionCallback = null;
+      // Room is at capacity. Per spec:
+      //   • spectatorsAllowed=true  → show "Spectate" button (tappable)
+      //     so the user can watch even though they can't join as a player.
+      //   • spectatorsAllowed=false → disabled "Full" label (no Spectate
+      //     option at any point in the room's lifecycle).
+      if (message.effectiveSpectatorsEnabled) {
+        actionLabel = 'Spectate';
+        actionEnabled = (message.gameId ?? '').isNotEmpty;
+        actionCallback =
+            actionEnabled ? () => _watchGameFromCard(context) : null;
+      } else {
+        actionLabel = 'Full';
+        actionEnabled = false;
+        actionCallback = null;
+      }
     } else if (isInProgress) {
-      // Game in progress — "Watch" / "Rejoin" button (sender always sees
-      // "Rejoin" since they're a participant; recipient sees "Watch" to
-      // spectate if they support it, otherwise the label just shows the
-      // live status without a tappable button).
-      //
-      // For now, we route to the lobby with the join= gameId param so the
-      // lobby screen picks up the spectate/rejoin flow. (Most game
-      // lobbies already handle this via the ?spectate= query param if
-      // the game is already in_progress.)
-      actionLabel = isMe ? 'Rejoin' : 'Watch';
-      actionEnabled = (message.gameId ?? '').isNotEmpty;
-      actionCallback =
-          actionEnabled ? () => _watchGameFromCard(context) : null;
+      // Game in progress. Spectate-button logic per spec:
+      //   • Sender (isMe)            → always show "Rejoin" (they're a
+      //                               participant; route re-enters the game).
+      //   • Recipient + spectators
+      //     enabled                  → show "Spectate" button (host allows
+      //                               watchers; route enters as spectator).
+      //   • Recipient + spectators
+      //     disabled                 → NO button. The chip already shows
+      //                               "LIVE NOW" so the user knows the
+      //                               game is in progress; they simply
+      //                               can't watch. Per spec: "If Spectator
+      //                               Mode is disabled: Do not show any
+      //                               Spectate option."
+      if (isMe) {
+        actionLabel = 'Rejoin';
+        actionEnabled = (message.gameId ?? '').isNotEmpty;
+        actionCallback =
+            actionEnabled ? () => _watchGameFromCard(context) : null;
+      } else if (message.effectiveSpectatorsEnabled) {
+        actionLabel = 'Spectate';
+        actionEnabled = (message.gameId ?? '').isNotEmpty;
+        actionCallback =
+            actionEnabled ? () => _watchGameFromCard(context) : null;
+      } else {
+        // Spectators disabled and recipient is not the host — no action.
+        // Show a static "In Game" label so the card still communicates
+        // state, but the user can't tap to enter.
+        actionLabel = 'In Game';
+        actionEnabled = false;
+        actionCallback = null;
+      }
     } else if (isCompleted) {
       // Game finished — static label, no interaction.
       actionLabel = 'Game completed';
       actionEnabled = false;
       actionCallback = null;
     } else if (isExpired) {
-      // Room expired or cancelled — static label, no interaction.
-      actionLabel = status == 'cancelled' ? 'Cancelled' : 'Expired';
+      // Room expired (15-min inactivity timeout) or cancelled by host.
+      // Per spec: render a single "Expired" label matching the brevity of
+      // the other states (Full, Waiting, Live). The entire card is dimmed
+      // (see the Opacity wrapper below), and the status area uses a smaller,
+      // quieter treatment — not a full-width button-shaped element that
+      // would visually compete with active Join/Spectate buttons. The Join
+      // button is removed entirely.
+      actionLabel = 'Expired';
       actionEnabled = false;
       actionCallback = null;
     } else {
@@ -1360,25 +1399,62 @@ class MessageBubble extends ConsumerWidget {
     // For sender's own card in waiting/open-to-join state, don't show
     // the action button at all (the chip + their lobby navigation
     // already covers it).
+    //
+    // Spectators-disabled + in-progress + non-host case: we DO render the
+    // button area, but as a static "In Game" label (no tap target) so the
+    // card still communicates state. This matches the spec's "show In Game
+    // only" rule for the spectators-disabled case.
     final bool showActionButton = !isMe ||
         isInProgress ||
         isCompleted ||
         isExpired;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(KinrelSpacing.md),
-      decoration: BoxDecoration(
-        color: KinrelColors.orange.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(KinrelRadius.md),
-        border: Border.all(
-          color: KinrelColors.orange.withValues(alpha: 0.2),
-          width: 1,
+    // Visual-weight control for the Spectate button:
+    //   • Spectate on a LIVE NOW (in-progress) room → URGENT treatment
+    //     (orange-tinted background, matching the pulsing LIVE NOW chip).
+    //   • Spectate on a full-but-not-started room → CALM treatment
+    //     (darkElevated background with orange text + icon, less attention-
+    //     grabbing). A merely-full room is a settled/neutral state; the
+    //     urgent CTA treatment should be reserved for genuinely live games.
+    final bool isSpectateOnLiveRoom = isInProgress &&
+        actionEnabled &&
+        actionLabel == 'Spectate';
+    final bool isSpectateOnFullRoom = isPreGame &&
+        isFull &&
+        actionEnabled &&
+        actionLabel == 'Spectate';
+
+    // ── Full-card dimming for expired state ──────────────────────────
+    // When expired, the ENTIRE card dims together as one visually settled
+    // unit — icon, game title, invite text, and status area all reduce
+    // opacity together. The card border/background also shifts from the
+    // active orange tint to a muted grey, so it's clearly inactive at a
+    // glance. Per spec: "icon, game title, invite text, and status area
+    // should all dim together as one visually settled unit."
+    final bool isExpiredCard = isExpired;
+
+    return Opacity(
+      opacity: isExpiredCard ? 0.5 : 1.0,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(KinrelSpacing.md),
+        decoration: BoxDecoration(
+          // Expired cards use a muted grey tint instead of the active
+          // orange tint — visually communicates "inactive, don't engage".
+          color: isExpiredCard
+              ? KinrelColors.textDim.withValues(alpha: 0.06)
+              : KinrelColors.orange.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
+          border: Border.all(
+            color: isExpiredCard
+                ? KinrelColors.textDim.withValues(alpha: 0.15)
+                : KinrelColors.orange.withValues(alpha: 0.2),
+            width: 1,
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           // Header: game icon + game display name
           Row(
             children: [
@@ -1439,6 +1515,39 @@ class MessageBubble extends ConsumerWidget {
                   color: KinrelColors.textSilver,
                 ),
               ),
+              // ── "X spots left" pill — explicit slot count per spec ──
+              // Always visible while the room is in a pre-game state and
+              // not yet full. Hidden once the room is full, in-progress,
+              // completed, or expired (the chip + action button already
+              // convey those states).
+              if (isPreGame && !isFull && maxPlayers > currentPlayers) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.success.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(
+                      color: KinrelColors.success.withValues(alpha: 0.25),
+                      width: 0.6,
+                    ),
+                  ),
+                  child: Text(
+                    () {
+                      final spots = maxPlayers - currentPlayers;
+                      return '$spots spot${spots == 1 ? '' : 's'} left';
+                    }(),
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: KinrelColors.success,
+                      height: 1.2,
+                    ),
+                  ),
+                ),
+              ],
               if (roomCode.isNotEmpty) ...[
                 const SizedBox(width: KinrelSpacing.sm),
                 Container(
@@ -1483,7 +1592,13 @@ class MessageBubble extends ConsumerWidget {
           // ── 5-state lifecycle: unified status chip ────────────────
           // Renders the appropriate color-coded chip per the lifecycle
           // state. The inProgress chip pulses (LIVE NOW treatment).
-          GameInviteStatusChip.forMessage(message),
+          //
+          // EXPIRED cards skip the chip — the expired state is conveyed by
+          // a single quiet label below (icon + "Expired" text) plus full-
+          // card dimming. Showing the chip AND the quiet label would
+          // display "Expired" twice, which is redundant. Per spec: "Keep a
+          // single status indicator per card."
+          if (!isExpiredCard) GameInviteStatusChip.forMessage(message),
           // ── 5-state lifecycle: privacy-gated winner display ────────
           // Shown only for completed state AND only if gameWinnerName
           // is non-null. The server-side fn_sync_game_invite_status RPC
@@ -1532,20 +1647,52 @@ class MessageBubble extends ConsumerWidget {
             ),
           ],
           // ── 5-state lifecycle: action button / static label ────────
-          if (showActionButton) ...[
+          // Expired state: small, quiet label (icon + "Expired"), NOT a
+          // full-width button-shaped element. Per spec: "replace it with a
+          // smaller, quieter treatment — e.g., a small grey icon + 'Expired'
+          // label, sized and weighted clearly below the prominence of any
+          // actionable button." NOT tappable — no ripple/press feedback.
+          if (isExpiredCard) ...[
+            const SizedBox(height: KinrelSpacing.sm),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.event_busy,
+                  size: 13,
+                  color: KinrelColors.textDim,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Expired',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: KinrelColors.textDim,
+                  ),
+                ),
+              ],
+            ),
+          ] else if (showActionButton) ...[
             const SizedBox(height: KinrelSpacing.sm),
             SizedBox(
               width: double.infinity,
               child: Material(
                 // Visual treatment depends on state:
-                //   • Join (orange, tappable)  — solid orange background
-                //   • Watch/Rejoin (subtle)    — orange-tinted outline
-                //   • Static labels             — darkElevated, muted text
-                color: actionEnabled
-                    ? (isInProgress
-                        ? KinrelColors.orange.withValues(alpha: 0.15)
-                        : KinrelColors.orange)
-                    : KinrelColors.darkElevated,
+                //   • Join (orange, tappable)           — solid orange background
+                //   • Spectate on LIVE NOW (in-progress) — orange-tinted (urgent)
+                //   • Spectate on full-but-not-started   — darkElevated bg + orange
+                //     text/icon (calmer — a merely-full room is settled, not urgent)
+                //   • Rejoin (in-progress, host)         — orange-tinted
+                //   • Static labels (Full/In Game/etc.)  — darkElevated, muted text
+                color: isSpectateOnFullRoom
+                    ? KinrelColors.darkElevated
+                    : (actionEnabled
+                        ? (isInProgress
+                            ? KinrelColors.orange.withValues(alpha: 0.15)
+                            : KinrelColors.orange)
+                        : KinrelColors.darkElevated),
                 borderRadius: BorderRadius.circular(KinrelRadius.sm),
                 child: InkWell(
                   onTap: actionCallback,
@@ -1556,11 +1703,17 @@ class MessageBubble extends ConsumerWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (isInProgress && actionEnabled) ...[
+                          // Show icon for Spectate/Rejoin actions.
+                          // Spectate-on-full gets the icon too, but in a calmer color.
+                          if (actionEnabled && (isInProgress || isSpectateOnFullRoom)) ...[
                             Icon(
-                              isMe ? Icons.replay : Icons.visibility_outlined,
+                              isMe
+                                  ? Icons.replay
+                                  : Icons.visibility_outlined,
                               size: 14,
-                              color: KinrelColors.orange,
+                              color: isSpectateOnFullRoom
+                                  ? KinrelColors.textSilver
+                                  : KinrelColors.orange,
                             ),
                             const SizedBox(width: 5),
                           ],
@@ -1569,12 +1722,16 @@ class MessageBubble extends ConsumerWidget {
                             style: TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: actionEnabled
-                                  ? (isInProgress
-                                      ? KinrelColors.orange
-                                      : KinrelColors.textWhite)
-                                  : KinrelColors.textDim,
+                              fontWeight: isSpectateOnFullRoom
+                                  ? FontWeight.w600 // calmer weight
+                                  : FontWeight.w700,
+                              color: isSpectateOnFullRoom
+                                  ? KinrelColors.textSilver // calmer color
+                                  : (actionEnabled
+                                      ? (isInProgress
+                                          ? KinrelColors.orange
+                                          : KinrelColors.textWhite)
+                                      : KinrelColors.textDim),
                             ),
                           ),
                         ],
@@ -1586,6 +1743,7 @@ class MessageBubble extends ConsumerWidget {
             ),
           ],
         ],
+      ),
       ),
     );
   }

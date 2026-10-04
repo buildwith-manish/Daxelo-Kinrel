@@ -106,15 +106,21 @@ class GameInviteStatusClassification {
 ///
 /// State mapping (per the 5-state lifecycle spec):
 ///   • gameInviteStatus == null or 'pending':
-///       - currentPlayers <= 1 → waitingForPlayers ("Waiting for players…")
-///       - 1 < currentPlayers < maxPlayers → openToJoin ("Open to join")
 ///       - currentPlayers >= maxPlayers → full ("Room full")
+///       - currentPlayers <= 1          → waitingForPlayers ("Waiting for players")
+///       - 1 < currentPlayers < max     → openToJoin ("X spots left")
 ///   • gameInviteStatus == 'in_progress' or legacy 'accepted'/'active':
 ///       → inProgress ("LIVE NOW")
 ///   • gameInviteStatus == 'completed':
 ///       → completed ("Completed" + optional winner)
 ///   • gameInviteStatus == 'expired' or 'cancelled':
 ///       → expired ("Expired" / "Cancelled")
+///
+/// The openToJoin label is dynamic — it surfaces the explicit slot count
+/// ("3 spots left" / "2 spots left" / "1 spot left") per the user-facing
+/// spec, instead of a generic "Open to join". This makes the chip itself
+/// informative without forcing the user to do mental arithmetic on the
+/// "current/max players" line above.
 GameInviteStatusClassification classifyGameInviteStatus(
   ChatMessage message,
 ) {
@@ -148,13 +154,16 @@ GameInviteStatusClassification classifyGameInviteStatus(
     );
   }
 
-  // ── Expired: room never filled OR host cancelled ──
-  // Both 'expired' (sweep-driven) and 'cancelled' (host-driven) render
-  // the same "inactive" treatment per the spec.
+  // ── Expired: room never filled OR host cancelled OR 15-min inactivity timeout ──
+  // Both 'expired' (sweep-driven inactivity timeout) and 'cancelled' (host-driven)
+  // render the same "Expired" treatment — matching the single-word brevity of
+  // the other states (Full, Waiting, Live). The entire card is dimmed by the
+  // card renderer (message_bubble.dart) when expired, so the chip itself
+  // doesn't need to carry extra visual weight.
   if (status == 'expired' || status == 'cancelled') {
-    return GameInviteStatusClassification(
+    return const GameInviteStatusClassification(
       kind: GameInviteStatusKind.expired,
-      label: status == 'cancelled' ? 'Cancelled' : 'Expired',
+      label: 'Expired',
     );
   }
 
@@ -169,12 +178,15 @@ GameInviteStatusClassification classifyGameInviteStatus(
   if (currentPlayers <= 1) {
     return const GameInviteStatusClassification(
       kind: GameInviteStatusKind.waitingForPlayers,
-      label: 'Waiting for players…',
+      label: 'Waiting for players',
     );
   }
-  return const GameInviteStatusClassification(
+  // openToJoin: surface the explicit remaining-slot count per spec.
+  // e.g. "3 spots left" / "2 spots left" / "1 spot left".
+  final spots = maxPlayers - currentPlayers;
+  return GameInviteStatusClassification(
     kind: GameInviteStatusKind.openToJoin,
-    label: 'Open to join',
+    label: '$spots spot${spots == 1 ? '' : 's'} left',
   );
 }
 
@@ -426,14 +438,16 @@ class _GameInviteStatusChipState extends State<GameInviteStatusChip>
           Icons.emoji_events_outlined,  // trophy icon for "completed"
         );
       case GameInviteStatusKind.expired:
-        // Greyed: room expired or was cancelled — "Expired" / "Cancelled"
-        // Clearly inactive. Even dimmer than completed to signal
-        // "this room is dead, don't try to interact with it".
+        // Greyed: room expired (15-min inactivity timeout) or was cancelled.
+        // Renders the "Closed • Expired" label with a closed-door icon to
+        // make it clear the room is no longer available and cannot be joined.
+        // Even dimmer than completed to signal "this room is dead, don't try
+        // to interact with it".
         return (
           KinrelColors.textDim,
           0.06,
           0.15,
-          Icons.event_busy,
+          Icons.meeting_room, // closed-door icon — "room is closed"
         );
     }
   }
