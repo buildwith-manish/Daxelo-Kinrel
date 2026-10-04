@@ -27,14 +27,20 @@ import 'widgets/family_insights_dashboard.dart';
 import 'family_space_floating_nav.dart';
 import 'add_person_sheet.dart';
 // v5.15: kept for route compat but no longer called directly
-// Phase (invite-direct-find-on-kinrel): the space-detail Invite button
-// now navigates directly to KinrelUserSearchScreen (skipping the
-// two-option sheet). The sheet is still used by the Graph view's
-// "Add Member" button (with fromGraph: true) and by the Family Members
-// screen — those trigger points are unchanged.
-import 'kinrel_user_search_screen.dart';
-import 'add_member_source.dart' show KinrelUser;
-import 'relationship_quick_pick_sheet.dart' show RelationshipQuickPickSheet;
+// Phase (invite-direct-find-on-kinrel): the space-detail Invite
+// button now navigates directly to KinrelUserSearchScreen (skipping
+// the two-option sheet). The sheet is still used by the Graph
+// view's "Add Member" button (with fromGraph: true) — that trigger
+// point is unchanged.
+//
+// v5.215 (unified add-member entry-point fix): the Family Space
+// screen's _openInviteFlow method now delegates to the shared
+// [openFindOnKinrelFlow] helper. The direct imports of
+// KinrelUserSearchScreen + RelationshipQuickPickSheet are no
+// longer needed in this file — the helper owns those imports now.
+// `add_member_source.dart` (KinrelUser) is also no longer needed
+// here — the helper consumes KinrelUser internally.
+import 'find_on_kinrel_flow.dart' show openFindOnKinrelFlow;
 
 import '../../../core/utils/share_helper.dart';
 import '../../prediction_battle_v1/pb_v1_card.dart';
@@ -522,22 +528,21 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
   /// Flow: pushes KinrelUserSearchScreen → on user selected, opens the
   /// RelationshipQuickPickSheet so the inviter can pick how the new
   /// member relates to existing family members.
+  ///
+  /// v5.215 (unified add-member entry-point fix): this method now
+  /// delegates to the shared [openFindOnKinrelFlow] helper so that
+  /// every non-Graph add-member entry point uses the exact same code
+  /// path. The behavior is unchanged for this entry point — same
+  /// screen push, same callback, same `fromGraph: false` (Family
+  /// Space is not a graph context). The shared helper exists so
+  /// future entry points can be wired up consistently without
+  /// re-implementing the same `Navigator.push → onUserSelected →
+  /// RelationshipQuickPickSheet.show` chain.
   void _openInviteFlow(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => KinrelUserSearchScreen(
-          familyId: widget.familyId,
-          onUserSelected: (KinrelUser user) {
-            RelationshipQuickPickSheet.show(
-              context,
-              familyId: widget.familyId,
-              selectedUser: user,
-              fromGraph: false,
-            );
-          },
-        ),
-        fullscreenDialog: true,
-      ),
+    openFindOnKinrelFlow(
+      context,
+      familyId: widget.familyId,
+      fromGraph: false,
     );
   }
 

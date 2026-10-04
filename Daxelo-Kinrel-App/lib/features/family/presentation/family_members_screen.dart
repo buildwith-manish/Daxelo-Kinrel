@@ -30,8 +30,8 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../presence/presence_provider.dart';
 import '../presentation/providers/family_graph_provider.dart' show familyGraphProvider;
-import 'add_member_options_sheet.dart';
 import 'family_space_floating_nav.dart';
+import 'find_on_kinrel_flow.dart' show openFindOnKinrelFlow;
 import 'person_detail_sheet.dart';
 
 /// v5.212 — Entry context for the Members screen.
@@ -652,8 +652,26 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () =>
-            showAddMemberOptions(context, familyId: widget.familyId),
+        // v5.215 (unified add-member entry-point fix): the Members
+        // screen FAB previously called `showAddMemberOptions` — the
+        // 2-option (Add Manually / Find on Kinrel) bottom sheet.
+        // Now it skips straight to the Find on Kinrel search flow,
+        // matching the Family Space "Invite family member" button
+        // and the Family Profile "Add member" button. "Add Manually"
+        // remains reachable only from the Family Graph screen's own
+        // Add Member button (which keeps `showAddMemberOptions` with
+        // `fromGraph: true`).
+        //
+        // Applies in BOTH entry-context modes (navTab and
+        // graphViewAll): the Members screen is NOT the Graph screen,
+        // even when launched from inside it via "View all" — so Add
+        // Manually is not appropriate here. The Graph screen's own
+        // Add Member button is the single place where Add Manually
+        // remains reachable.
+        onPressed: () => openFindOnKinrelFlow(
+          context,
+          familyId: widget.familyId,
+        ),
         backgroundColor: KinrelColors.orange,
         child: const Icon(Icons.person_add_alt_1_rounded,
             color: Colors.white),

@@ -25,6 +25,13 @@ import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/family/family_provider.dart';
+// v5.215 (unified add-member entry-point fix): the Home screen's two
+// "Add Member" / "Add family member" entry points (more-menu item +
+// quick-action chip) now skip straight to Find on Kinrel search,
+// matching the other non-Graph entry points. "Add Manually" remains
+// reachable only from the Family Graph screen.
+import '../../../features/family/presentation/find_on_kinrel_flow.dart'
+    show openFindOnKinrelFlow;
 import '../../../features/kinrel_intelligence/providers/kinrel_provider.dart';
 import '../../../features/kinrel_intelligence/widgets/kinrel_symbol_widget.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
@@ -534,7 +541,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 onTap: () {
                   Navigator.pop(ctx);
                   if (primaryFamilyId != null) {
-                    context.push('/family/$primaryFamilyId/add-person');
+                    // v5.215 (unified add-member entry-point fix):
+                    // skip straight to Find on Kinrel search
+                    // (matching the Family Space / Family Profile /
+                    // Members / Games Hub / Relationship Builder
+                    // entry points). Previously this pushed the
+                    // `/family/$familyId/add-person` route which
+                    // opened `AddPersonSheet` (the manual-entry
+                    // form) directly. "Add Manually" remains
+                    // reachable only from the Family Graph screen.
+                    openFindOnKinrelFlow(
+                      context,
+                      familyId: primaryFamilyId,
+                    );
                   }
                 },
               ),
@@ -1374,7 +1393,21 @@ class _HeroFamilyCard extends ConsumerWidget {
                               onTap: () {
                                 // ── Haptic on Add Member — milestone-creating.
                                 HapticService.tap();
-                                context.push('/family/${family.id}/add-person');
+                                // v5.215 (unified add-member entry-point
+                                // fix): skip straight to Find on Kinrel
+                                // search (matching the Family Space /
+                                // Family Profile / Members / Games Hub /
+                                // Relationship Builder entry points).
+                                // Previously this pushed the
+                                // `/family/$familyId/add-person` route
+                                // which opened `AddPersonSheet` (the
+                                // manual-entry form) directly. "Add
+                                // Manually" remains reachable only from
+                                // the Family Graph screen.
+                                openFindOnKinrelFlow(
+                                  context,
+                                  familyId: family.id,
+                                );
                               },
                             ),
                             _QuickActionChip(

@@ -48,6 +48,13 @@ import '../../profile/presentation/member_profile_sheet.dart';
 // Family Profile screen — the profile screen is a family-tree
 // overview context.
 import 'family_members_screen.dart';
+// v5.215 (unified add-member entry-point fix): the Family Profile
+// screen's "Add member" button now skips straight to the Find on
+// Kinrel search flow (matching the Family Space "Invite family
+// member" button fix). "Add Manually" remains reachable only from
+// inside the Family Graph screen, where building out placeholder
+// tree nodes actually belongs.
+import 'find_on_kinrel_flow.dart' show openFindOnKinrelFlow;
 
 // ─────────────────────────────────────────────────────────────────────────
 // v5.214 — Family Profile Linked-member row model.
@@ -1218,8 +1225,27 @@ class FamilyProfileScreen extends ConsumerWidget {
                   child: _inviteButton(
                     icon: Icons.person_add_rounded,
                     label: 'Add member',
-                    onTap: () =>
-                        context.push('/family/$familyId/add-member'),
+                    // v5.215 (unified add-member entry-point fix):
+                    // previously this button pushed the
+                    // `/family/$familyId/add-member` route which
+                    // opened `AddPersonSheet` (the manual-entry
+                    // form) directly — forcing the user to type
+                    // name/gender/photo/relationship by hand.
+                    // Now it skips straight to the Find on Kinrel
+                    // search flow (same as the Family Space "Invite
+                    // family member" button), because the primary
+                    // add-member intent for a non-Graph context is
+                    // inviting an existing Kinrel user (real
+                    // accounts who can actually chat/play/be
+                    // present). "Add Manually" remains reachable
+                    // only from the Family Graph screen, where
+                    // building out placeholder tree nodes
+                    // (deceased grandparents, relatives not on
+                    // Kinrel) is the appropriate context.
+                    onTap: () => openFindOnKinrelFlow(
+                      context,
+                      familyId: familyId,
+                    ),
                   ),
                 ),
               ],
