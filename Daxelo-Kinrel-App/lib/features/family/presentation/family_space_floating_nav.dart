@@ -60,6 +60,9 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/utils/accessibility_utils.dart';
 import '../../../shared/widgets/bottom_nav_repaint_guard.dart';
+// v5.212: MembersScreenSource — passes the entry context (navTab vs
+// graphViewAll) to the Members screen so the displayed list adapts.
+import 'family_members_screen.dart';
 
 /// A single navigation item for [FamilySpaceFloatingNav].
 class _NavTab {
@@ -283,7 +286,15 @@ class FamilySpaceFloatingNav extends StatelessWidget {
         // Group Chat row inside the list.
         context.go('/family/$familyId/chats');
       case 2:
-        context.go('/family/$familyId/members');
+        // v5.212 (entry-context-aware list): the bottom-nav Members tab
+        // passes `source=navTab` so the Members screen shows only
+        // Linked-status members (real Kinrel accounts). Placeholder
+        // relatives (Manual status) cannot chat / invite / be present,
+        // so they should NOT appear in this entry context. The Graph
+        // screen's "View all" button passes `source=graphViewAll` to
+        // show the full tree.
+        context.go(
+            '/family/$familyId/members?source=${MembersScreenSource.navTab.toQueryParam()}');
       case 3:
         context.go('/family/$familyId/calendar');
     }

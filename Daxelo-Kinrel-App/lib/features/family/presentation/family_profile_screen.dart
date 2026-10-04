@@ -43,6 +43,11 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../presence/last_seen_provider.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
+// v5.212: MembersScreenSource — passes entry context (graphViewAll)
+// to the Members screen when "View all members" is tapped from this
+// Family Profile screen — the profile screen is a family-tree
+// overview context.
+import 'family_members_screen.dart';
 
 class FamilyProfileScreen extends ConsumerWidget {
   const FamilyProfileScreen({super.key, required this.familyId});
@@ -1019,7 +1024,16 @@ class FamilyProfileScreen extends ConsumerWidget {
                   style: TextStyle(color: KinrelColors.textWhite)),
               onTap: () {
                 Navigator.pop(ctx);
-                context.push('/family/$familyId/members');
+                // v5.212 (entry-context-aware list): the Family
+                // Profile screen's "View all members" action is a
+                // family-tree overview context — the user is
+                // explicitly trying to see everyone in the tree,
+                // including placeholder relatives. Pass
+                // `source=graphViewAll` so the Members screen shows
+                // the full list with per-row Linked/Manual badges
+                // (matching the Graph screen's "View all" button).
+                context.push(
+                    '/family/$familyId/members?source=${MembersScreenSource.graphViewAll.toQueryParam()}');
               },
             ),
             ListTile(

@@ -129,6 +129,10 @@ import '../../../graph/interaction/graph_search_state.dart'
 // graph/widgets/graph_legend.dart (via the graph.dart barrel above)
 // is the single legend widget now, wired into this screen.
 import 'widgets/stats_panel.dart';
+// v5.212: MembersScreenSource — passes the entry context (graphViewAll)
+// to the Members screen when the user taps "View all" inside the Graph
+// screen's stats panel, so the Members screen shows the full tree.
+import 'family_members_screen.dart';
 // v5.175: birthday push notification scheduler.
 import '../../../core/services/local_notification_scheduler.dart'
     show LocalNotificationScheduler;
@@ -1457,7 +1461,15 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
                 isTruncated: graph.isTruncated,
                 familyId: widget.familyId,
                 onViewAllMembers: () {
-                  context.push('/family/${widget.familyId}/members');
+                  // v5.212 (entry-context-aware list): pass
+                  // `source=graphViewAll` so the Members screen shows
+                  // the FULL family tree (Linked + Manual) — the
+                  // Graph screen is explicitly a genealogy context
+                  // where placeholder relatives are part of the
+                  // expected view. The bottom-nav Members tab uses
+                  // `source=navTab` (Linked-only) instead.
+                  context.push(
+                      '/family/${widget.familyId}/members?source=${MembersScreenSource.graphViewAll.toQueryParam()}');
                 },
               );
             }),

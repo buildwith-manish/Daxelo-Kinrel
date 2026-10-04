@@ -34,9 +34,71 @@ import 'add_member_options_sheet.dart';
 import 'family_space_floating_nav.dart';
 import 'person_detail_sheet.dart';
 
+/// v5.212 — Entry context for the Members screen.
+///
+/// The Members screen is reached from two distinct entry points that
+/// imply DIFFERENT semantics about what the user expects to see:
+///
+///   • [navTab] — the bottom-nav "Members" tab in Family Space. The
+///     user is scanning for real people to interact with (chat, invite,
+///     presence). Manually-added placeholder relatives cannot do any
+///     of those things, so they must NOT appear in this mode. Only
+///     Linked-status (real Kinrel account) members are shown.
+///
+///   • [graphViewAll] — the "View all 5" button inside the Graph
+///     screen's stats panel. The user is explicitly viewing the
+///     complete family tree, so the full list (Linked + Manual) is
+///     shown, with the existing per-row Linked/Manual badges
+///     preserved.
+///
+/// Default behavior when no context is provided (e.g., a direct deep
+/// link or an unhandled navigation path): [navTab] (Linked-only), per
+/// the safer-default rule — showing fewer real-feeling members is
+/// less confusing than showing placeholder relatives in an unexpected
+/// context.
+enum MembersScreenSource {
+  /// Reached via the bottom-nav "Members" tab in Family Space.
+  /// Shows Linked-status members only.
+  navTab,
+
+  /// Reached via the Graph screen's "View all" button. Shows the
+  /// full family tree (Linked + Manual) with per-row badges.
+  graphViewAll,
+  ;
+
+  /// Parses the `source` query param from the route URL. Returns
+  /// [navTab] (the safe default) for unknown/null values.
+  static MembersScreenSource fromQueryParam(String? value) {
+    if (value == 'graphViewAll') return MembersScreenSource.graphViewAll;
+    // Anything else (including 'navTab' and null/empty) maps to
+    // navTab — the safer default per the spec.
+    return MembersScreenSource.navTab;
+  }
+
+  /// The query-param value to use when building URLs.
+  String toQueryParam() => switch (this) {
+        MembersScreenSource.navTab => 'navTab',
+        MembersScreenSource.graphViewAll => 'graphViewAll',
+      };
+
+  /// Whether this entry context shows the full family tree (Linked +
+  /// Manual) or only Linked-status members.
+  bool get showsFullTree => this == MembersScreenSource.graphViewAll;
+}
+
 class FamilyMembersScreen extends ConsumerStatefulWidget {
-  const FamilyMembersScreen({super.key, required this.familyId});
+  const FamilyMembersScreen({
+    super.key,
+    required this.familyId,
+    this.source = MembersScreenSource.navTab,
+  });
   final String familyId;
+
+  /// Entry context — controls whether the list shows Linked-only
+  /// members ([MembersScreenSource.navTab]) or the full tree
+  /// ([MembersScreenSource.graphViewAll]). See the enum docs for the
+  /// full rationale.
+  final MembersScreenSource source;
 
   @override
   ConsumerState<FamilyMembersScreen> createState() =>
@@ -159,7 +221,16 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
           // to show fewer members than the true count. Now shows every
           // non-deleted member, with a Linked/Manual badge distinguishing
           // how they were added.
-          final activeMembers = combinedMembers
+          //
+          // v5.212 (entry-context-aware list): the `activeMembers` set
+          // is now narrowed based on entry context — when reached via
+          // the bottom-nav Members tab, only Linked-status members
+          // are shown. When reached via the Graph screen's "View all"
+          // button, the full list (Linked + Manual) is shown. The
+          // narrowing happens AFTER computing `trulyLinkedIds` below
+          // (which still needs the full active set to correctly
+          // classify the anchor Person's Linked status via fallbacks).
+          final allActiveMembers = combinedMembers
               .where((p) => p.deletedAt == null)
               .toList();
 
@@ -188,7 +259,7 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
               .map((m) => m.userId)
               .toSet();
           final Set<String> trulyLinkedIds = {};
-          for (final p in activeMembers) {
+          for (final p in allActiveMembers) {
             // Primary check: explicit linkedUserId on the Person row.
             if (p.linkedUserId != null && p.linkedUserId!.isNotEmpty) {
               trulyLinkedIds.add(p.id);
@@ -223,6 +294,17 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
               continue;
             }
           }
+
+          // v5.212 (entry-context-aware list): narrow the displayed
+          // list based on entry context. `navTab` shows only Linked
+          // members; `graphViewAll` shows the full tree. Default is
+          // `navTab` (Linked-only) per the safer-default rule — see
+          // [MembersScreenSource].
+          final activeMembers = widget.source.showsFullTree
+              ? allActiveMembers
+              : allActiveMembers
+                  .where((p) => trulyLinkedIds.contains(p.id))
+                  .toList();
 
           var filtered = activeMembers;
           if (_searchQuery.isNotEmpty) {
@@ -278,19 +360,109 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                   ],
                 ),
               ),
-              // Member count
+              // Member count + Linked/Manual split subtitle.
+              //
+              // v5.211 (member-count de-conflation): the primary count
+              // here remains the FULL family-tree count (Linked +
+              // Manual) — this screen IS the family-tree management
+              // view, so showing the total tree size is correct.
+              // However, we now ALSO show a clarifying subtitle that
+              // surfaces the Linked/Manual split at the summary level
+              // (not just per-row via the existing badges), so a user
+              // scanning the header understands the composition at a
+              // glance — e.g. "5 members · 2 on Kinrel".
+              //
+              // The Linked count uses `trulyLinkedIds` (computed
+              // above with the same anchor-fallback logic the
+              // [linkedMemberCountProvider] uses), so the subtitle's
+              // "N on Kinrel" number always matches the count of
+              // "Linked" badges visible in the list below.
+              //
+              // v5.212 (entry-context-aware list): the subtitle now
+              // varies by entry context:
+              //   • navTab mode — the displayed list is already
+              //     Linked-only, so the subtitle clarifies that the
+              //     visible rows are real accounts only ("Linked
+              //     members only · N in your tree"), NOT the blended
+              //     count. This anchors the user's mental model: "I'm
+              //     seeing the real people, and my tree has N more
+              //     placeholder relatives I can see via the Graph."
+              //   • graphViewAll mode — the displayed list is the
+              //     full tree, so the subtitle surfaces the
+              //     Linked/Manual split at the summary level (e.g.
+              //     "5 in your tree · 2 on Kinrel"), exactly as
+              //     before. This is the mode where the clarifying
+              //     subtitle is most meaningful because both kinds
+              //     of rows are visible.
+              //
+              // When the user is searching, the per-row filtered
+              // count is what's most actionable, so we hide the
+              // subtitle in both modes (it would imply a different
+              // denominator than the visible rows).
               Padding(
                 padding: const EdgeInsets.symmetric(
                     horizontal: KinrelSpacing.base),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    '${filtered.length} ${filtered.length == 1 ? "member" : "members"}',
-                    style: const TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 13,
-                      color: KinrelColors.textDim,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${filtered.length} ${filtered.length == 1 ? "member" : "members"}',
+                        style: const TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 13,
+                          color: KinrelColors.textDim,
+                        ),
+                      ),
+                      // v5.211 + v5.212: clarifying subtitle. Hidden
+                      // during search (the primary count is the
+                      // filtered subset, so a global subtitle would
+                      // be misleading). Otherwise, the subtitle
+                      // adapts to entry context per the v5.212 note
+                      // above.
+                      if (_searchQuery.isEmpty) ...[
+                        const SizedBox(height: 2),
+                        Builder(builder: (context) {
+                          final linkedCount = trulyLinkedIds.length;
+                          final treeTotal = allActiveMembers.length;
+                          if (treeTotal == 0) {
+                            return const SizedBox.shrink();
+                          }
+                          // v5.212: navTab mode subtitle tells the
+                          // user the visible rows are real accounts
+                          // + how many more placeholder relatives
+                          // exist in their tree (so they know where
+                          // to find them — the Graph view).
+                          //
+                          // graphViewAll mode subtitle surfaces the
+                          // Linked/Manual split at the summary level
+                          // (the original v5.211 behavior).
+                          final subtitle = widget.source.showsFullTree
+                              ? (linkedCount == 0
+                                  ? '$treeTotal in your tree'
+                                  : '$treeTotal in your tree · $linkedCount on Kinrel')
+                              // navTab mode: every visible row is
+                              // Linked. If treeTotal > linkedCount,
+                              // there ARE placeholder relatives the
+                              // user could see via the Graph view —
+                              // surface that count.
+                              : (treeTotal > linkedCount
+                                  ? 'Linked members only · ${treeTotal - linkedCount} more in your tree'
+                                  : 'Linked members only');
+                          return Text(
+                            subtitle,
+                            style: const TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 11,
+                              color: KinrelColors.textDim,
+                              height: 1.3,
+                            ),
+                          );
+                        }),
+                      ],
+                    ],
                   ),
                 ),
               ),
