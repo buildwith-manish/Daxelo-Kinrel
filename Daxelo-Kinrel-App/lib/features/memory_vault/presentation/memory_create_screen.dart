@@ -25,7 +25,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -35,6 +35,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/services/haptic_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../family/presentation/widgets/memory_crop_editor.dart';
 import '../data/memory_model.dart';
@@ -968,7 +969,7 @@ class _MemoryCreateScreenState extends ConsumerState<MemoryCreateScreen>
   // ── Submit ─────────────────────────────────────────────────────
 
   Future<void> _onSubmit() async {
-    HapticService.mediumImpact();
+    HapticService.medium();
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
 
