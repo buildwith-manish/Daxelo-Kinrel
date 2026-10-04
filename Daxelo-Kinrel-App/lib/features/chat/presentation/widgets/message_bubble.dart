@@ -1325,19 +1325,37 @@ class MessageBubble extends ConsumerWidget {
       actionEnabled = false;
       actionCallback = null;
     } else if (isInProgress) {
-      // Game in progress — "Watch" / "Rejoin" button (sender always sees
-      // "Rejoin" since they're a participant; recipient sees "Watch" to
-      // spectate if they support it, otherwise the label just shows the
-      // live status without a tappable button).
-      //
-      // For now, we route to the lobby with the join= gameId param so the
-      // lobby screen picks up the spectate/rejoin flow. (Most game
-      // lobbies already handle this via the ?spectate= query param if
-      // the game is already in_progress.)
-      actionLabel = isMe ? 'Rejoin' : 'Watch';
-      actionEnabled = (message.gameId ?? '').isNotEmpty;
-      actionCallback =
-          actionEnabled ? () => _watchGameFromCard(context) : null;
+      // Game in progress. Spectate-button logic per spec:
+      //   • Sender (isMe)            → always show "Rejoin" (they're a
+      //                               participant; route re-enters the game).
+      //   • Recipient + spectators
+      //     enabled                  → show "Spectate" button (host allows
+      //                               watchers; route enters as spectator).
+      //   • Recipient + spectators
+      //     disabled                 → NO button. The chip already shows
+      //                               "LIVE NOW" so the user knows the
+      //                               game is in progress; they simply
+      //                               can't watch. Per spec: "If Spectator
+      //                               Mode is disabled: Do not show any
+      //                               Spectate option."
+      if (isMe) {
+        actionLabel = 'Rejoin';
+        actionEnabled = (message.gameId ?? '').isNotEmpty;
+        actionCallback =
+            actionEnabled ? () => _watchGameFromCard(context) : null;
+      } else if (message.effectiveSpectatorsEnabled) {
+        actionLabel = 'Spectate';
+        actionEnabled = (message.gameId ?? '').isNotEmpty;
+        actionCallback =
+            actionEnabled ? () => _watchGameFromCard(context) : null;
+      } else {
+        // Spectators disabled and recipient is not the host — no action.
+        // Show a static "In Game" label so the card still communicates
+        // state, but the user can't tap to enter.
+        actionLabel = 'In Game';
+        actionEnabled = false;
+        actionCallback = null;
+      }
     } else if (isCompleted) {
       // Game finished — static label, no interaction.
       actionLabel = 'Game completed';
@@ -1360,6 +1378,11 @@ class MessageBubble extends ConsumerWidget {
     // For sender's own card in waiting/open-to-join state, don't show
     // the action button at all (the chip + their lobby navigation
     // already covers it).
+    //
+    // Spectators-disabled + in-progress + non-host case: we DO render the
+    // button area, but as a static "In Game" label (no tap target) so the
+    // card still communicates state. This matches the spec's "show In Game
+    // only" rule for the spectators-disabled case.
     final bool showActionButton = !isMe ||
         isInProgress ||
         isCompleted ||
@@ -1439,6 +1462,39 @@ class MessageBubble extends ConsumerWidget {
                   color: KinrelColors.textSilver,
                 ),
               ),
+              // ── "X spots left" pill — explicit slot count per spec ──
+              // Always visible while the room is in a pre-game state and
+              // not yet full. Hidden once the room is full, in-progress,
+              // completed, or expired (the chip + action button already
+              // convey those states).
+              if (isPreGame && !isFull && maxPlayers > currentPlayers) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.success.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(
+                      color: KinrelColors.success.withValues(alpha: 0.25),
+                      width: 0.6,
+                    ),
+                  ),
+                  child: Text(
+                    () {
+                      final spots = maxPlayers - currentPlayers;
+                      return '$spots spot${spots == 1 ? '' : 's'} left';
+                    }(),
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: KinrelColors.success,
+                      height: 1.2,
+                    ),
+                  ),
+                ),
+              ],
               if (roomCode.isNotEmpty) ...[
                 const SizedBox(width: KinrelSpacing.sm),
                 Container(
@@ -1538,8 +1594,8 @@ class MessageBubble extends ConsumerWidget {
               width: double.infinity,
               child: Material(
                 // Visual treatment depends on state:
-                //   • Join (orange, tappable)  — solid orange background
-                //   • Watch/Rejoin (subtle)    — orange-tinted outline
+                //   • Join (orange, tappable)   — solid orange background
+                //   • Spectate/Rejoin (subtle)  — orange-tinted outline
                 //   • Static labels             — darkElevated, muted text
                 color: actionEnabled
                     ? (isInProgress
@@ -1558,7 +1614,9 @@ class MessageBubble extends ConsumerWidget {
                         children: [
                           if (isInProgress && actionEnabled) ...[
                             Icon(
-                              isMe ? Icons.replay : Icons.visibility_outlined,
+                              isMe
+                                  ? Icons.replay
+                                  : Icons.visibility_outlined,
                               size: 14,
                               color: KinrelColors.orange,
                             ),

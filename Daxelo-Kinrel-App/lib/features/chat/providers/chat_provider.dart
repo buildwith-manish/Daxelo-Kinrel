@@ -184,6 +184,11 @@ class ChatMessage {
                            // (legacy 'accepted' = 'in_progress')
     this.gameWinnerName,    // 5-state lifecycle: winner display name (privacy-gated)
     this.gameCompletedAt,   // 5-state lifecycle: when the game finished
+    this.gameSpectatorsEnabled, // Spectator-mode flag (gates Spectate button on
+                                // in_progress cards). Null = legacy/unknown,
+                                // treated as `true` by the card for backward
+                                // compatibility (spectator mode was historically
+                                // on by default).
     // Phase 22 / Task 3 — @mention references. Denormalized from the
     // ChatMention table so the bubble renderer can highlight @Name spans
     // without an extra round-trip.
@@ -240,6 +245,12 @@ class ChatMessage {
       gameCompletedAt: json['gameCompletedAt'] == null
           ? null
           : DateTime.tryParse(json['gameCompletedAt'] as String),
+      // Spectator-mode flag: denormalized from the game row's
+      // spectatorsEnabled column by fn_sync_game_spectators (AFTER UPDATE
+      // trigger). Null on legacy rows → treated as `true` by the card.
+      gameSpectatorsEnabled: json['gameSpectatorsEnabled'] == null
+          ? null
+          : (json['gameSpectatorsEnabled'] as bool),
       // Phase 22 / Task 3 — parse the denormalized `mentions` JSONB
       // column. Falls back to [] when the column is null or the row
       // came from a server that didn't have the column yet.
@@ -383,6 +394,31 @@ class ChatMessage {
   /// gameInviteStatus transitions to 'completed'. Used by the card to
   /// render "Completed · 5m ago" alongside the status chip.
   final DateTime? gameCompletedAt;
+
+  /// Spectator-mode flag denormalized from the game row's `spectatorsEnabled`
+  /// column. Kept in sync by `fn_sync_game_spectators` (AFTER UPDATE OF
+  /// spectatorsEnabled trigger on every game table) + the initial INSERT
+  /// by `sendGameInvite` (which reads the value from the game row at
+  /// invite-sent time).
+  ///
+  /// The chat-invite card uses this to decide whether to render a Spectate
+  /// / Watch button for in_progress games:
+  ///   • `true`  → Spectate button shown (host allows spectators)
+  ///   • `false` → Spectate button hidden (host disabled spectators; only
+  ///               the "In Game" / "LIVE NOW" status chip is shown)
+  ///   • `null`  → legacy/unknown — treated as `true` for backward
+  ///               compatibility (spectator mode was historically on by
+  ///               default before this field was added).
+  ///
+  /// Driven by:
+  ///   • ChatNotifier.sendGameInvite(spectatorsEnabled: ...) at insert time
+  ///   • fn_sync_game_spectators RPC (called by AFTER UPDATE trigger)
+  final bool? gameSpectatorsEnabled;
+
+  /// Convenience: effective spectator-mode flag, defaulting to `true` for
+  /// legacy/unknown rows. Use this at render sites instead of the raw
+  /// nullable field.
+  bool get effectiveSpectatorsEnabled => gameSpectatorsEnabled ?? true;
 
   /// Phase 22 / Task 3 — @mention refs on this message. Each contains
   /// the userId, display name, and the [start, end) character offsets
@@ -534,6 +570,7 @@ class ChatMessage {
     String? gameInviteStatus,
     String? gameWinnerName,
     DateTime? gameCompletedAt,
+    bool? gameSpectatorsEnabled,
     List<MentionRef>? mentions,
     String? pollQuestion,
     List<String>? pollOptions,
@@ -575,6 +612,7 @@ class ChatMessage {
       gameInviteStatus: gameInviteStatus ?? this.gameInviteStatus,
       gameWinnerName: gameWinnerName ?? this.gameWinnerName,
       gameCompletedAt: gameCompletedAt ?? this.gameCompletedAt,
+      gameSpectatorsEnabled: gameSpectatorsEnabled ?? this.gameSpectatorsEnabled,
       mentions: mentions ?? this.mentions,
       pollQuestion: pollQuestion ?? this.pollQuestion,
       pollOptions: pollOptions ?? this.pollOptions,
@@ -690,6 +728,11 @@ class ChatMessage {
       if (gameWinnerName != null) 'gameWinnerName': gameWinnerName,
       if (gameCompletedAt != null)
         'gameCompletedAt': gameCompletedAt!.toUtc().toIso8601String(),
+      // Spectator-mode flag: only sent on the wire when explicitly set
+      // (host invite-time). Server-side fn_sync_game_spectators RPC keeps
+      // it in sync afterwards via AFTER UPDATE trigger on each game table.
+      if (gameSpectatorsEnabled != null)
+        'gameSpectatorsEnabled': gameSpectatorsEnabled,
       // Phase 22 / Task 3 — mentions are stored as a JSONB array on the
       // row. Empty list → '[]' which the server treats as "no mentions".
       'mentions': mentions.map((m) => m.toJson()).toList(),
@@ -2393,6 +2436,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     required String roomCode,
     required int maxPlayers,
     required int currentPlayers,
+    bool? spectatorsEnabled,
     String? content,
   }) async {
     final client = _client;
@@ -2423,6 +2467,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
       gameMaxPlayers: maxPlayers,
       gameCurrentPlayers: currentPlayers,
       gameInviteStatus: 'pending',
+      // Persist the host's spectator-mode setting at invite-sent time so
+      // the chat card can render the Spectate button (or hide it) without
+      // a per-render round-trip to the game table. Kept in sync afterwards
+      // by fn_sync_game_spectators (AFTER UPDATE OF spectatorsEnabled
+      // trigger on each game table).
+      gameSpectatorsEnabled: spectatorsEnabled,
     );
 
     // Track for echo de-dup so the realtime INSERT doesn't double-render.

@@ -46,14 +46,14 @@ ChatMessage _invite({
 void main() {
   group('5-state lifecycle — classifyGameInviteStatus', () {
     test('status=pending, currentPlayers<=1 → waitingForPlayers', () {
-      // A fresh invite with just the host in — "Waiting for players…"
+      // A fresh invite with just the host in — "Waiting for players"
       final c = classifyGameInviteStatus(_invite(
         status: 'pending',
         currentPlayers: 1,
         maxPlayers: 4,
       ));
       expect(c.kind, GameInviteStatusKind.waitingForPlayers);
-      expect(c.label, 'Waiting for players…');
+      expect(c.label, 'Waiting for players');
     });
 
     test('status=pending (null treated as pending), currentPlayers<=1 → waitingForPlayers', () {
@@ -68,23 +68,28 @@ void main() {
       expect(c.kind, GameInviteStatusKind.waitingForPlayers);
     });
 
-    test('status=pending, 1<current<max → openToJoin', () {
-      // Has activity, still joinable — "Open to join"
-      final c = classifyGameInviteStatus(_invite(
+    test('status=pending, 1<current<max → openToJoin with spots-left label', () {
+      // Has activity, still joinable. Per the user-facing spec, the
+      // chip surfaces the explicit remaining-slot count instead of a
+      // generic "Open to join" — so the user doesn't have to do mental
+      // arithmetic on the "current/max players" line above.
+      final c2of4 = classifyGameInviteStatus(_invite(
         status: 'pending',
         currentPlayers: 2,
         maxPlayers: 4,
       ));
-      expect(c.kind, GameInviteStatusKind.openToJoin);
-      expect(c.label, 'Open to join');
+      expect(c2of4.kind, GameInviteStatusKind.openToJoin);
+      expect(c2of4.label, '2 spots left');
 
       // Same kind at the upper edge (3 of 4).
-      final c2 = classifyGameInviteStatus(_invite(
+      final c3of4 = classifyGameInviteStatus(_invite(
         status: 'pending',
         currentPlayers: 3,
         maxPlayers: 4,
       ));
-      expect(c2.kind, GameInviteStatusKind.openToJoin);
+      expect(c3of4.kind, GameInviteStatusKind.openToJoin);
+      expect(c3of4.label, '1 spot left',
+          reason: 'singular form when only 1 slot remains');
     });
 
     test('status=pending, currentPlayers>=maxPlayers → full', () {
@@ -217,24 +222,27 @@ void main() {
       );
     }
 
-    testWidgets('waitingForPlayers renders the "Waiting for players…" label',
+    testWidgets('waitingForPlayers renders the "Waiting for players" label',
         (tester) async {
       await pumpChip(
         tester,
         GameInviteStatusKind.waitingForPlayers,
-        'Waiting for players…',
+        'Waiting for players',
       );
-      expect(find.text('Waiting for players…'), findsOneWidget);
+      expect(find.text('Waiting for players'), findsOneWidget);
     });
 
-    testWidgets('openToJoin renders the "Open to join" label',
+    testWidgets('openToJoin renders the spots-left label',
         (tester) async {
+      // The label is dynamic ("X spots left") but the widget itself
+      // just renders whatever label string it's given — so we pump a
+      // representative label.
       await pumpChip(
         tester,
         GameInviteStatusKind.openToJoin,
-        'Open to join',
+        '2 spots left',
       );
-      expect(find.text('Open to join'), findsOneWidget);
+      expect(find.text('2 spots left'), findsOneWidget);
     });
 
     testWidgets('full renders the "Room full" label', (tester) async {
@@ -320,11 +328,11 @@ void main() {
       final cases = <(ChatMessage, String)>[
         (
           _invite(status: 'pending', currentPlayers: 1, maxPlayers: 4),
-          'Waiting for players…',
+          'Waiting for players',
         ),
         (
           _invite(status: 'pending', currentPlayers: 2, maxPlayers: 4),
-          'Open to join',
+          '2 spots left',
         ),
         (
           _invite(status: 'pending', currentPlayers: 4, maxPlayers: 4),

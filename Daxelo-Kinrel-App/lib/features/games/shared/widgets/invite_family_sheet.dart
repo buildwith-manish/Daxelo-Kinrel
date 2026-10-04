@@ -309,6 +309,42 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
   /// or surface an error for the actual game_invites/socket invite flow.
   Future<void> _postInviteChatCard() async {
     try {
+      // Fetch the host's spectator-mode setting from the game row so the
+      // chat card can render (or hide) the Spectate button without a
+      // per-render round-trip. Best-effort — defaults to null on failure,
+      // which the card treats as `true` (legacy default).
+      //
+      // We resolve the game table from the GameType enum (forward map kept
+      // in lockstep by the contract test). Ghost Painter uses a different
+      // model (no spectatorsEnabled column) — its table query returns null
+      // and the card falls back to the legacy default.
+      bool? spectatorsEnabled;
+      try {
+        final client = ref.read(supabaseProvider);
+        if (client != null) {
+          final gameTable = gameTableForType(widget.gameType);
+          // ghost_painter_rounds has no spectatorsEnabled column — the
+          // SELECT will fail with a column-not-found error, which we
+          // catch and ignore (spectatorsEnabled stays null → card treats
+          // as true for backward compat).
+          final row = await client
+              .from(gameTable)
+              .select('spectatorsEnabled')
+              .eq('id', widget.gameId)
+              .maybeSingle();
+          final v = row?['spectatorsEnabled'];
+          if (v is bool) {
+            spectatorsEnabled = v;
+          } else if (v is String) {
+            spectatorsEnabled = v.toLowerCase() == 'true';
+          }
+        }
+      } catch (e) {
+        // Expected for ghost_painter_rounds (no spectatorsEnabled column).
+        // Don't even log — this is a known edge case.
+        spectatorsEnabled = null;
+      }
+
       // Read the notifier synchronously — never touch `ref` after an await
       // (this sheet may pop while the insert is in flight).
       final chatNotifier = ref.read(chatProvider(widget.familyId).notifier);
@@ -318,6 +354,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
         roomCode: widget.roomCode,
         maxPlayers: widget.maxPlayers,
         currentPlayers: widget.currentPlayers,
+        spectatorsEnabled: spectatorsEnabled,
         // content left null → ChatNotifier falls back to the default
         // "<name> started a <gameType> game" text.
       );

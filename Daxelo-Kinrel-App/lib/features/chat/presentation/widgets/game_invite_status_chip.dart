@@ -106,15 +106,21 @@ class GameInviteStatusClassification {
 ///
 /// State mapping (per the 5-state lifecycle spec):
 ///   • gameInviteStatus == null or 'pending':
-///       - currentPlayers <= 1 → waitingForPlayers ("Waiting for players…")
-///       - 1 < currentPlayers < maxPlayers → openToJoin ("Open to join")
 ///       - currentPlayers >= maxPlayers → full ("Room full")
+///       - currentPlayers <= 1          → waitingForPlayers ("Waiting for players")
+///       - 1 < currentPlayers < max     → openToJoin ("X spots left")
 ///   • gameInviteStatus == 'in_progress' or legacy 'accepted'/'active':
 ///       → inProgress ("LIVE NOW")
 ///   • gameInviteStatus == 'completed':
 ///       → completed ("Completed" + optional winner)
 ///   • gameInviteStatus == 'expired' or 'cancelled':
 ///       → expired ("Expired" / "Cancelled")
+///
+/// The openToJoin label is dynamic — it surfaces the explicit slot count
+/// ("3 spots left" / "2 spots left" / "1 spot left") per the user-facing
+/// spec, instead of a generic "Open to join". This makes the chip itself
+/// informative without forcing the user to do mental arithmetic on the
+/// "current/max players" line above.
 GameInviteStatusClassification classifyGameInviteStatus(
   ChatMessage message,
 ) {
@@ -169,12 +175,15 @@ GameInviteStatusClassification classifyGameInviteStatus(
   if (currentPlayers <= 1) {
     return const GameInviteStatusClassification(
       kind: GameInviteStatusKind.waitingForPlayers,
-      label: 'Waiting for players…',
+      label: 'Waiting for players',
     );
   }
-  return const GameInviteStatusClassification(
+  // openToJoin: surface the explicit remaining-slot count per spec.
+  // e.g. "3 spots left" / "2 spots left" / "1 spot left".
+  final spots = maxPlayers - currentPlayers;
+  return GameInviteStatusClassification(
     kind: GameInviteStatusKind.openToJoin,
-    label: 'Open to join',
+    label: '$spots spot${spots == 1 ? '' : 's'} left',
   );
 }
 
