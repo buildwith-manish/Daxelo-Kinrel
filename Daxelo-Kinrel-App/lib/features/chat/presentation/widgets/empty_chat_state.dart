@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/family/family_provider.dart';
 import '../../../../core/networking/dio_client.dart';
 import '../../../../l10n/app_localizations.dart';
 
@@ -145,14 +146,25 @@ class EmptyChatState extends ConsumerWidget {
           strokeWidth: 1.5,
         ),
       ),
-      error: (_, __) => _buildContent(context, null),
-      data: (nudge) => _buildContent(context, nudge),
+      error: (_, __) => _buildContent(context, ref, null),
+      data: (nudge) => _buildContent(context, ref, nudge),
     );
   }
 
-  Widget _buildContent(BuildContext context, EmptyStateNudge? nudge) {
+  Widget _buildContent(
+      BuildContext context, WidgetRef ref, EmptyStateNudge? nudge) {
     final familyName = nudge?.familyName ?? 'your family';
-    final memberCount = nudge?.memberCount ?? 0;
+    // v5.211 (member-count de-conflation): the backend nudge endpoint
+    // returns `memberCount` straight from the Family table — a
+    // BLENDED count of every Person row (Linked Kinrel accounts +
+    // Manual placeholder relatives). That was misleading in this
+    // chat empty-state subtitle ("...in the X family (N members)"):
+    // a placeholder relative can never chat, so the subtitle should
+    // imply real people who could join the conversation. Now reads
+    // [linkedMemberCountProvider] (Linked-only) — same source the
+    // chat header uses, so the count stays consistent across the
+    // chat screen.
+    final memberCount = ref.watch(linkedMemberCountProvider(familyId));
     // Feature 7: use localized suggestions as fallback when the backend
     // nudge fetch fails or returns no suggestions.
     final l10n = S.of(context);

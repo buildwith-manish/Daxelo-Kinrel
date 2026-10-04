@@ -67,8 +67,18 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
     final familyName =
         familyAsync.valueOrNull?.family.name ?? 'Family';
     final familyAvatarUrl = familyAsync.valueOrNull?.family.avatarUrl;
+    // v5.211 (member-count de-conflation): the family-chat-list header
+    // used to show `family.memberCount` — a BLENDED count of every
+    // Person row (Linked Kinrel accounts + Manual placeholder
+    // relatives). That was misleading: this header sits ABOVE the chat
+    // tab, and "N members" in a chat context implies N real people who
+    // could chat — not N family-tree nodes. Placeholder relatives
+    // cannot send or receive messages.
+    //
+    // Now reads [linkedMemberCountProvider] which counts only real,
+    // active Kinrel accounts (Linked status).
     final memberCount =
-        familyAsync.valueOrNull?.family.memberCount ?? 0;
+        ref.watch(linkedMemberCountProvider(widget.familyId));
 
     return DKScaffold(
       backgroundColor: const Color(0xFF0A0B16),

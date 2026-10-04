@@ -377,12 +377,23 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   // ── 3. FAMILY STRENGTH CLOSER (Peak-End Rule) ─────────
                   // Always last (after Premium Insights) — the warm
                   // emotional close.
+                  //
+                  // v5.211 (member-count de-conflation): this closer
+                  // card used to display `detail.members.length` — a
+                  // BLENDED count of every Person row (Linked Kinrel
+                  // accounts + Manual placeholder relatives). That
+                  // was misleading: the copy "Your family is N
+                  // members strong" reads as a statement about real
+                  // people who form the family's active community —
+                  // not the size of the family tree including
+                  // deceased ancestors and placeholder relatives.
+                  // Now reads [linkedMemberCountProvider] which
+                  // counts only real, active Kinrel accounts.
                   SliverToBoxAdapter(
                     child: staggerFade(
                       _FamilyStrengthCloser(
-                        memberCount: detail.members
-                            .where((p) => p.deletedAt == null)
-                            .length,
+                        memberCount: ref.watch(
+                            linkedMemberCountProvider(widget.familyId)),
                       ),
                       5,
                     ),
