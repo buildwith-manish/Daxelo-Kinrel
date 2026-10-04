@@ -1592,7 +1592,13 @@ class MessageBubble extends ConsumerWidget {
           // ── 5-state lifecycle: unified status chip ────────────────
           // Renders the appropriate color-coded chip per the lifecycle
           // state. The inProgress chip pulses (LIVE NOW treatment).
-          GameInviteStatusChip.forMessage(message),
+          //
+          // EXPIRED cards skip the chip — the expired state is conveyed by
+          // a single quiet label below (icon + "Expired" text) plus full-
+          // card dimming. Showing the chip AND the quiet label would
+          // display "Expired" twice, which is redundant. Per spec: "Keep a
+          // single status indicator per card."
+          if (!isExpiredCard) GameInviteStatusChip.forMessage(message),
           // ── 5-state lifecycle: privacy-gated winner display ────────
           // Shown only for completed state AND only if gameWinnerName
           // is non-null. The server-side fn_sync_game_invite_status RPC

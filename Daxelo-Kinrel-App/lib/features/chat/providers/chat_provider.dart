@@ -2522,7 +2522,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
       id: msgId,
       senderId: myUserId,
       senderName: senderName,
-      content: content ?? '$senderName started a $displayName game',
+      // Warm, personal invitation copy — replaces the prior flat log-style
+      // "[Name] started a [Game] game" with an inviting phrase consistent
+      // with the warm, family-oriented tone used elsewhere in the app
+      // (Family Pulse, empty states, etc.). Uses the account display name
+      // (not relationship term) to stay consistent with how names are
+      // displayed elsewhere in chat.
+      content: content ?? '$senderName wants to play $displayName with you',
       messageType: MessageType.gameInvite,
       timestamp: now,
       isRead: false,
