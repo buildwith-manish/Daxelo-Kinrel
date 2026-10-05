@@ -27,6 +27,7 @@ import '../../../shared/widgets/app_scroll_safe_area.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../shared/widgets/kinrel_empty_state.dart';
 import '../providers/memories_provider.dart';
+import '../../memory_vault/providers/memory_vault_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Memories & Timeline Screen
@@ -67,7 +68,12 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(memoriesProvider);
+    // Watch the display provider — reads REAL memories from
+    // memoryVaultProvider (Supabase-backed) + filter state from
+    // memoriesProvider. Pre-fix this watched memoriesProvider directly
+    // (local-only, always empty in production) — the root cause of the
+    // "save not persisting" regression.
+    final state = ref.watch(displayMemoriesProvider);
 
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
@@ -744,8 +750,14 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
             event: event,
             isFirst: isFirst,
             isLast: isLast,
-            onPin: () =>
-                ref.read(memoriesProvider.notifier).togglePin(event.id),
+            // Pin toggle goes to the vault (Supabase DB write) — NOT to
+            // the local memoriesProvider (which only updated an in-memory
+            // list and never persisted). The displayMemoriesProvider will
+            // re-emit when the vault state changes, so the card's pin
+            // badge updates immediately via optimistic update.
+            onPin: () => ref
+                .read(memoryVaultProvider.notifier)
+                .togglePinToVault(event.id),
           );
         },
         childCount: events.length,

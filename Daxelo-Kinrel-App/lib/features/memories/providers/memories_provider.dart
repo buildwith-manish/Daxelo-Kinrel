@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/brand_colors.dart';
+import '../../memory_vault/providers/memory_vault_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Timeline Event Type Enum
@@ -698,12 +699,187 @@ class MemoriesNotifier extends StateNotifier<MemoriesState> {
 // Provider
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Main memories provider.
+/// Main memories provider (filter state only — the actual memory list
+/// comes from [displayMemoriesProvider] which reads [memoryVaultProvider]).
+///
+/// Historically this held the full memory list locally (demo data only).
+/// The Supabase-backed memory list now lives in `memoryVaultProvider` —
+/// this provider retains ONLY the filter state (year/type/member/pinned)
+/// so the filter UI (setYearFilter / setTypeFilter / etc.) continues to
+/// work without a full migration of the screen.
 final memoriesProvider = StateNotifierProvider<MemoriesNotifier, MemoriesState>(
   (ref) {
     return MemoriesNotifier();
   },
 );
+
+// ═══════════════════════════════════════════════════════════════════════
+// Cross-provider bridge: memoryVaultProvider → memoriesProvider
+// ═══════════════════════════════════════════════════════════════════════
+//
+// BUG HISTORY (the "save not persisting" regression):
+//
+// The MemoriesScreen was watching `memoriesProvider` (local-only, starts
+// empty in production) for its memory list. The actual save flow
+// (MemoryCreateScreen → MemoryVaultNotifier.createMemory) writes to
+// Supabase `family_memories` table via `memoryVaultProvider` — a DIFFERENT
+// provider. The save SUCCEEDS at the DB level (the row is created with
+// the correct family_id and uploader_id), but the MemoriesScreen never
+// sees it because it reads from a different source that has no real data.
+//
+// The user would see "nothing happens" (the save succeeds, the form
+// pops back, but the timeline still shows "No Memories Yet" because
+// memoriesProvider is still empty). The cycling "Ravi received Padma
+// Shri" card is the empty-state's ILLUSTRATION (a hardcoded placeholder
+// in _AnimatedMemoryPreviewCard), NOT a real memory — but the user
+// misinterprets it as leftover demo data, creating the illusion of
+// "conflicting state" (a card AND the empty state showing together).
+//
+// FIX: this derived provider reads the REAL memory list from
+// `memoryVaultProvider` (Supabase-backed), converts each `MemoryModel`
+// to a `MemoryEvent` (the type the screen's widgets expect), merges with
+// the filter state from `memoriesProvider`, and returns a `MemoriesState`
+// that the screen can watch directly. Now the screen shows real saved
+// memories, the empty state only shows when there are genuinely zero
+// memories, and the "Ravi" card only appears as the empty-state
+// illustration (never as a real memory alongside the empty state).
+
+/// Converts a [MemoryModel] (Supabase-backed) to a [MemoryEvent] (the
+/// type the MemoriesScreen's widgets expect).
+///
+/// Field mapping:
+///   • id → id
+///   • title (or displayTitle) → title
+///   • memoryType (String, e.g. "Festival") → MemoryEventType enum
+///   • takenAt (or createdAt) → date
+///   • description → description
+///   • displayImageUrl → photoUrl
+///   • location → location
+///   • isPinnedToVault → isPinned
+///   • taggedPersonIds → members (empty for now — IDs without names)
+MemoryEvent memoryModelToEvent(dynamic m) {
+  // Use dynamic to avoid a circular import (memory_vault_provider imports
+  // memories_provider indirectly). We only read fields that exist on
+  // MemoryModel.
+  final title = (m.title as String?) ?? (m.caption as String?) ?? 'Untitled';
+  final memoryTypeStr = m.memoryType as String?;
+  final date = m.takenAt as DateTime? ?? m.createdAt as DateTime;
+  final photoUrl = (m.imageUrl as String?) ?? (m.photoUrl as String?) ?? '';
+  final description = m.description as String?;
+  final location = m.location as String?;
+  final isPinned = (m.isPinnedToVault as bool?) ?? false;
+  final id = m.id as String;
+
+  return MemoryEvent(
+    id: id,
+    title: title,
+    type: _parseMemoryEventType(memoryTypeStr),
+    date: date,
+    description: description,
+    members: const [], // MemoryModel has tagged_person_ids (UUIDs) but
+    // not display names — the member filter is hidden by the screen
+    // when there are no members with names.
+    photoUrl: photoUrl.isNotEmpty ? photoUrl : null,
+    location: location,
+    isPinned: isPinned,
+  );
+}
+
+/// Parses a memory-type string (e.g. "Festival", "Birth") into the
+/// matching [MemoryEventType] enum value. Returns [MemoryEventType.custom]
+/// for unknown/null values (per the spec: "otherwise default to 'Custom'
+/// category, consistent with the custom-entry type already visible in
+/// the current Timeline implementation").
+MemoryEventType _parseMemoryEventType(String? typeStr) {
+  if (typeStr == null) return MemoryEventType.custom;
+  switch (typeStr.toLowerCase()) {
+    case 'birth':
+      return MemoryEventType.birth;
+    case 'death':
+    case 'memorial':
+      return MemoryEventType.death;
+    case 'marriage':
+    case 'wedding':
+      return MemoryEventType.marriage;
+    case 'anniversary':
+      return MemoryEventType.anniversary;
+    case 'graduation':
+      return MemoryEventType.graduation;
+    case 'achievement':
+      return MemoryEventType.achievement;
+    case 'migration':
+      return MemoryEventType.migration;
+    case 'festival':
+      return MemoryEventType.festival;
+    case 'custom':
+    default:
+      return MemoryEventType.custom;
+  }
+}
+
+/// Builds the "On This Day" list from a set of [MemoryEvent]s.
+///
+/// Returns events whose `date` month+day matches today. Sorted by
+/// `yearsAgo` descending (most-recent first).
+List<OnThisDayMemory> _onThisDayFromEvents(List<MemoryEvent> events) {
+  final now = DateTime.now();
+  final matches = <OnThisDayMemory>[];
+  for (final e in events) {
+    if (e.date.month == now.month && e.date.day == now.day) {
+      final yearsAgo = now.year - e.date.year;
+      matches.add(OnThisDayMemory(
+        id: e.id,
+        title: e.title,
+        originalDate: e.date,
+        yearsAgo: yearsAgo,
+        imageUrl: e.photoUrl,
+        description: e.description,
+        members: e.members,
+      ));
+    }
+  }
+  // Most recent (smallest yearsAgo) first.
+  matches.sort((a, b) => a.yearsAgo.compareTo(b.yearsAgo));
+  return matches;
+}
+
+/// The display provider the MemoriesScreen watches.
+///
+/// Returns a [MemoriesState] with:
+///   • events — the REAL memory list from [memoryVaultProvider], converted
+///     to [MemoryEvent] objects for the screen's widgets.
+///   • filter — from [memoriesProvider] (the local filter state).
+///   • onThisDayMemories — computed from the real events.
+///   • isLoading / error — from [memoryVaultProvider].
+///
+/// Filter mutations (setYearFilter, setTypeFilter, togglePinnedOnly,
+/// clearFilters) go to `memoriesProvider.notifier` — this provider picks
+/// up the changes via `ref.watch(memoriesProvider)` and recomputes
+/// `filteredEvents` automatically.
+///
+/// Pin toggles go to `memoryVaultProvider.notifier.togglePinToVault(id)`
+/// (the real DB operation) — NOT to `memoriesProvider.notifier.togglePin`
+/// (which only updated the local list).
+final displayMemoriesProvider = Provider<MemoriesState>((ref) {
+  // Watch the vault for the real memory list + loading/error state.
+  final vaultState = ref.watch(memoryVaultProvider);
+  final localState = ref.watch(memoriesProvider);
+
+  // Convert MemoryModels → MemoryEvents.
+  final events = vaultState.memories.map(memoryModelToEvent).toList();
+  // Sort newest-first by date (the filteredEvents getter also sorts, but
+  // we sort the base list too so availableYears / availableMembers iterate
+  // in a predictable order).
+  events.sort((a, b) => b.date.compareTo(a.date));
+
+  return MemoriesState(
+    events: events,
+    onThisDayMemories: _onThisDayFromEvents(events),
+    filter: localState.filter,
+    isLoading: vaultState.isLoading,
+    error: vaultState.error,
+  );
+});
 
 // ═══════════════════════════════════════════════════════════════════════
 // Demo Data — Realistic Indian Family Timeline Events
