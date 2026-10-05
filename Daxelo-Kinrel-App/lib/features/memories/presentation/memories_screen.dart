@@ -1009,7 +1009,10 @@ class _OnThisDayCard extends StatelessWidget {
           Stack(
             children: [
               Container(
-                height: 100,
+                // Modestly increased from 100→120 (~20%) per the
+                // "slightly bigger image" request. Proportional to
+                // the Timeline card's 85px (both increased ~18-20%).
+                height: 120,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -1051,8 +1054,11 @@ class _OnThisDayCard extends StatelessWidget {
                               imageUrl: memory.imageUrl!,
                               cacheManager: KinrelImageCacheManager.instance,
                               fit: BoxFit.cover,
+                              // Updated to match the new 120px display
+                              // height (140px decode height gives a
+                              // small overscan for retina).
                               memCacheWidth: 300,
-                              memCacheHeight: 120,
+                              memCacheHeight: 140,
                               placeholder: (context, url) => Center(
                                 child: SizedBox(
                                   width: 20,
@@ -1663,13 +1669,12 @@ class _TimelineEventCard extends StatelessWidget {
                       child: Hero(
                         tag: 'memory_${event.id}',
                         child: SizedBox(
-                          // Fixed height for compact, predictable
-                          // card sizing. ~30% reduction from the
-                          // original 100px. Width is preserved
-                          // (double.infinity) — the image fills the
-                          // card width and crops top/bottom via
-                          // BoxFit.cover (no distortion).
-                          height: 70,
+                          // Modestly increased from 70→85 (~18%) per
+                          // the "slightly bigger image" request. Width
+                          // is preserved (double.infinity) — the image
+                          // fills the card width and crops top/bottom
+                          // via BoxFit.cover (no distortion).
+                          height: 85,
                           width: double.infinity,
                           child: ClipRRect(
                             borderRadius:
@@ -1679,9 +1684,11 @@ class _TimelineEventCard extends StatelessWidget {
                               cacheManager: KinrelImageCacheManager.instance,
                               fit: BoxFit.cover,
                               // Compact decoded bitmap for smooth
-                              // scrolling.
+                              // scrolling. Updated to match the new
+                              // 85px display height (100px decode height
+                              // gives a small overscan for retina).
                               memCacheWidth: 400,
-                              memCacheHeight: 80,
+                              memCacheHeight: 100,
                               placeholder: (context, url) => Container(
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
