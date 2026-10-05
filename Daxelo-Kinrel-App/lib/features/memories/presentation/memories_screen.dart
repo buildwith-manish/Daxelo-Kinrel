@@ -1533,29 +1533,40 @@ class _TimelineEventCard extends StatelessWidget {
           // ── Event Card ─────────────────────────────────────────────
           Expanded(
             child: Container(
-              // Tighter margins for a more compact timeline. The
-              // timeline connector line extends through the margin
-              // area (the line goes top:0 to bottom:0 of the Row),
-              // so smaller margins = less visible gap between cards
-              // = a more continuous timeline.
+              // ── Timeline continuity fix ──────────────────────────────
+              // Card margins set to 0 (top/bottom) so card
+              // backgrounds touch each other — the timeline line
+              // (which goes top:0 to bottom:0 of the Stack) is then
+              // fully continuous with zero visible gap. Internal
+              // padding (vertical: 12) provides the breathing room
+              // that margins used to provide. A subtle bottom border
+              // (1px, darkElevated) creates visual separation
+              // between touching cards.
               margin: EdgeInsets.only(
-                top: isFirst ? 8 : 4,
-                bottom: isLast ? 8 : 4,
+                top: isFirst ? 8 : 0,
+                bottom: isLast ? 8 : 0,
                 right: KinrelSpacing.base,
               ),
               padding: const EdgeInsets.symmetric(
                 horizontal: KinrelSpacing.base,
-                vertical: 10,
+                vertical: 12,
               ),
               decoration: BoxDecoration(
                 color: KinrelColors.darkCard,
                 borderRadius: BorderRadius.circular(KinrelRadius.lg),
-                border: event.isPinned
-                    ? Border.all(
-                        color: KinrelColors.orange.withValues(alpha: 0.4),
-                        width: 1.5,
-                      )
-                    : null,
+                // Subtle bottom border creates visual separation between
+                // touching cards (margins are 0 for timeline continuity).
+                // Only non-last cards get the border (the last card's
+                // bottom is followed by scroll-safe-area, not another card).
+                border: Border(
+                  bottom: isLast
+                      ? BorderSide.none
+                      : BorderSide(
+                          color: KinrelColors.darkBackground
+                              .withValues(alpha: 0.5),
+                          width: 1,
+                        ),
+                ),
                 boxShadow: event.isPinned
                     ? [
                         const BoxShadow(
@@ -1651,67 +1662,73 @@ class _TimelineEventCard extends StatelessWidget {
                       ),
                       child: Hero(
                         tag: 'memory_${event.id}',
-                        child: ClipRRect(
-                          borderRadius:
-                              BorderRadius.circular(KinrelRadius.md),
-                          child: CachedNetworkImage(
-                            imageUrl: event.photoUrl!,
-                            cacheManager: KinrelImageCacheManager.instance,
-                            fit: BoxFit.cover,
-                            // Compact image height: ~25% reduction from
-                            // the previous 120px memCacheHeight. The
-                            // image remains the focal point but doesn't
-                            // dominate the card. Width is preserved
-                            // (BoxFit.cover crops top/bottom).
-                            memCacheWidth: 400,
-                            memCacheHeight: 90,
-                            placeholder: (context, url) => Container(
-                              height: 60,
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    event.accentColor.withValues(alpha: 0.1),
-                                    KinrelColors.darkElevated,
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
+                        child: SizedBox(
+                          // Fixed height for compact, predictable
+                          // card sizing. ~30% reduction from the
+                          // original 100px. Width is preserved
+                          // (double.infinity) — the image fills the
+                          // card width and crops top/bottom via
+                          // BoxFit.cover (no distortion).
+                          height: 70,
+                          width: double.infinity,
+                          child: ClipRRect(
+                            borderRadius:
+                                BorderRadius.circular(KinrelRadius.md),
+                            child: CachedNetworkImage(
+                              imageUrl: event.photoUrl!,
+                              cacheManager: KinrelImageCacheManager.instance,
+                              fit: BoxFit.cover,
+                              // Compact decoded bitmap for smooth
+                              // scrolling.
+                              memCacheWidth: 400,
+                              memCacheHeight: 80,
+                              placeholder: (context, url) => Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      event.accentColor
+                                          .withValues(alpha: 0.1),
+                                      KinrelColors.darkElevated,
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
                                 ),
-                                borderRadius: BorderRadius.circular(
-                                    KinrelRadius.md),
-                              ),
-                              child: Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                        event.accentColor),
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child:
+                                        CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor:
+                                          AlwaysStoppedAnimation<
+                                              Color>(
+                                        event.accentColor,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            errorWidget: (context, url, error) => Container(
-                              height: 60,
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    event.accentColor.withValues(alpha: 0.1),
-                                    KinrelColors.darkElevated,
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
+                              errorWidget: (context, url, error) =>
+                                  Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      event.accentColor
+                                          .withValues(alpha: 0.1),
+                                      KinrelColors.darkElevated,
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
                                 ),
-                                borderRadius: BorderRadius.circular(
-                                    KinrelRadius.md),
-                              ),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.broken_image_outlined,
-                                  size: 24,
-                                  color: KinrelColors.textDim,
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.broken_image_outlined,
+                                    size: 20,
+                                    color: KinrelColors.textDim,
+                                  ),
                                 ),
                               ),
                             ),
