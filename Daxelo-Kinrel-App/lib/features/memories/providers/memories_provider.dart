@@ -367,9 +367,16 @@ class OnThisDayMemory {
   /// Optional grouping key (person name or event type).
   final String? groupBy;
 
-  /// Formatted "X years ago" string.
-  String get yearsAgoLabel =>
-      '$yearsAgo ${yearsAgo == 1 ? 'year' : 'years'} ago';
+  /// Formatted "X years ago" string. Returns empty string when
+  /// [yearsAgo] is 0 (same-year memory) — the "0 years ago" badge reads
+  /// awkwardly, so the card UI suppresses it entirely via
+  /// `if (memory.yearsAgo > 0)`. This getter also returns empty as a
+  /// defensive backstop in case it's used elsewhere without the
+  /// conditional check.
+  String get yearsAgoLabel {
+    if (yearsAgo <= 0) return '';
+    return '$yearsAgo ${yearsAgo == 1 ? 'year' : 'years'} ago';
+  }
 
   /// Formatted original date.
   String get formattedDate {

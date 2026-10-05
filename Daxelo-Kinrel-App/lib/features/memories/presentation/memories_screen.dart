@@ -13,6 +13,7 @@
 
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +23,7 @@ import '../../../core/constants/app_tokens.dart' show AppMotion;
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/services/image_cache_manager.dart';
 import '../../../shared/widgets/animated_preview_card.dart';
 import '../../../shared/widgets/app_scroll_safe_area.dart';
 import '../../../shared/widgets/dk_components.dart';
@@ -998,7 +1000,11 @@ class _OnThisDayCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Photo placeholder with date overlay
+          // Photo area — shows the REAL attached photo when available,
+          // falls back to the gradient + camera-icon placeholder ONLY
+          // when the memory has no photo (the genuine no-image case).
+          // Pre-fix: this always showed the camera icon placeholder
+          // regardless of whether a real photo existed.
           Stack(
             children: [
               Container(
@@ -1019,13 +1025,52 @@ class _OnThisDayCard extends StatelessWidget {
                     top: Radius.circular(KinrelRadius.lg),
                   ),
                 ),
-                child: const Center(
-                  child: Icon(
-                    Icons.photo_camera_rounded,
-                    size: 32,
-                    color: KinrelColors.textDim,
-                  ),
-                ),
+                // When the memory has a real photo, render it inline
+                // via CachedNetworkImage (same pattern as the Timeline
+                // card + memory_vault_screen). Otherwise show the
+                // camera-icon placeholder as the fallback.
+                child: (memory.imageUrl != null &&
+                        memory.imageUrl!.isNotEmpty)
+                    ? ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(KinrelRadius.lg),
+                        ),
+                        child: CachedNetworkImage(
+                          imageUrl: memory.imageUrl!,
+                          cacheManager: KinrelImageCacheManager.instance,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 300,
+                          memCacheHeight: 120,
+                          placeholder: (context, url) => Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(
+                                  KinrelColors.orange.withValues(alpha: 0.6),
+                                ),
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) =>
+                              const Center(
+                            child: Icon(
+                              Icons.broken_image_outlined,
+                              size: 28,
+                              color: KinrelColors.textDim,
+                            ),
+                          ),
+                        ),
+                      )
+                    : const Center(
+                        child: Icon(
+                          Icons.photo_camera_rounded,
+                          size: 32,
+                          color: KinrelColors.textDim,
+                        ),
+                      ),
               ),
               // Date overlay (bottom-left)
               Positioned(
@@ -1048,28 +1093,34 @@ class _OnThisDayCard extends StatelessWidget {
                   ),
                 ),
               ),
-              // Years ago badge (top-right)
-              Positioned(
-                top: 8,
-                right: 10,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: KinrelGradients.igniteGradient,
-                    borderRadius: BorderRadius.circular(KinrelRadius.full),
-                  ),
-                  child: Text(
-                    memory.yearsAgoLabel,
-                    style: KinrelTypography.micro.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
+              // Years ago badge (top-right) — ONLY shown when yearsAgo > 0.
+              // Same-year memories (yearsAgo == 0) suppress the badge
+              // entirely per the spec: "suppress the badge entirely for
+              // same-year memories" — "0 years ago" reads awkwardly.
+              // Genuinely older memories (1+ years ago) still show
+              // "1 year ago", "2 years ago", etc.
+              if (memory.yearsAgo > 0)
+                Positioned(
+                  top: 8,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: KinrelGradients.igniteGradient,
+                      borderRadius: BorderRadius.circular(KinrelRadius.full),
+                    ),
+                    child: Text(
+                      memory.yearsAgoLabel,
+                      style: KinrelTypography.micro.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
           // Content
@@ -1592,40 +1643,80 @@ class _TimelineEventCard extends StatelessWidget {
                       ],
                     ),
                   ],
-                  // ── Photo placeholder ────────────────────────────────
-                  if (event.photoUrl != null) ...[
+                  // ── Hero photo (inline, not "View Photo" text link) ────
+                  // Renders the actual attached photo as the card's hero
+                  // image area. Uses CachedNetworkImage (same pattern as
+                  // memory_vault_screen.dart) with memCacheWidth/Height
+                  // matching the card's display dimensions for smooth
+                  // scrolling per the jank-audit principles.
+                  // Falls back to a gradient + icon placeholder ONLY when
+                  // the memory has no photo attached (the genuine no-image
+                  // case). Tapping the card opens the full detail view.
+                  if (event.photoUrl != null &&
+                      event.photoUrl!.isNotEmpty) ...[
                     const SizedBox(height: 10),
-                    Container(
-                      height: 80,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            event.accentColor.withValues(alpha: 0.1),
-                            KinrelColors.darkElevated,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(KinrelRadius.md),
-                      ),
-                      child: Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.image_rounded,
-                              size: 20,
-                              color: KinrelColors.textDim,
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(KinrelRadius.md),
+                      child: CachedNetworkImage(
+                        imageUrl: event.photoUrl!,
+                        cacheManager: KinrelImageCacheManager.instance,
+                        fit: BoxFit.cover,
+                        memCacheWidth: 400,
+                        memCacheHeight: 120,
+                        // Same height as the old placeholder so the card
+                        // layout doesn't jump when the image loads.
+                        // The image fills the width (BoxFit.cover) and
+                        // crops top/bottom to fit.
+                        placeholder: (context, url) => Container(
+                          height: 80,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                event.accentColor.withValues(alpha: 0.1),
+                                KinrelColors.darkElevated,
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'View Photo',
-                              style: KinrelTypography.labelSmall.copyWith(
-                                color: KinrelColors.textDim,
+                            borderRadius:
+                                BorderRadius.circular(KinrelRadius.md),
+                          ),
+                          child: Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(
+                                        event.accentColor),
                               ),
                             ),
-                          ],
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          height: 80,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                event.accentColor.withValues(alpha: 0.1),
+                                KinrelColors.darkElevated,
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius:
+                                BorderRadius.circular(KinrelRadius.md),
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.broken_image_outlined,
+                              size: 24,
+                              color: KinrelColors.textDim,
+                            ),
+                          ),
                         ),
                       ),
                     ),
