@@ -91,6 +91,18 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
       vsync: this,
       duration: KinrelMotion.slow,
     )..forward();
+
+    // ── Database wiring: auto-load stories from Supabase ────────────
+    // Pre-fix, the provider started empty and never fetched — saved
+    // stories were invisible across sessions. Now we load on screen
+    // open so previously-recorded stories reappear.
+    if (widget.familyId.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref
+            .read(oralHistoryProvider.notifier)
+            .loadStories(familyId: widget.familyId);
+      });
+    }
   }
 
   @override
@@ -1381,6 +1393,12 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
                                         ? null
                                         : eraController.text.trim(),
                                     tags: tags,
+                                    // ── Database wiring: pass the familyId ──
+                                    // Pre-fix, familyId was NOT passed, so
+                                    // saveStory always fell into the
+                                    // "skip DB insert, in-memory only" branch.
+                                    // Now the story persists to AncestralMemory.
+                                    familyId: widget.familyId,
                                   );
 
                               // setRecordingSaving(false) is called by

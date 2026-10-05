@@ -549,6 +549,8 @@ class OralHistoryState {
     this.filter,
     this.searchQuery = '',
     this.selectedLanguage = 'en',
+    this.isLoading = false,
+    this.error,
   });
 
   final List<StoryModel> stories;
@@ -556,6 +558,14 @@ class OralHistoryState {
   final StoryCategory? filter;
   final String searchQuery;
   final String selectedLanguage;
+
+  /// Whether stories are being loaded from Supabase (initial load).
+  /// Drives a skeleton/loading-state in the UI.
+  final bool isLoading;
+
+  /// Error message if the last load failed (network error, RLS denial, etc.).
+  /// null = no error. Surfaced via the recordingState.error banner for now.
+  final String? error;
 
   // ── Empty-state helpers ──────────────────────────────────────────────
 
@@ -697,6 +707,9 @@ class OralHistoryState {
     StoryCategory? Function()? filter,
     String? searchQuery,
     String? selectedLanguage,
+    bool? isLoading,
+    String? error,
+    bool clearError = false,
   }) {
     return OralHistoryState(
       stories: stories ?? this.stories,
@@ -704,6 +717,8 @@ class OralHistoryState {
       filter: filter != null ? filter() : this.filter,
       searchQuery: searchQuery ?? this.searchQuery,
       selectedLanguage: selectedLanguage ?? this.selectedLanguage,
+      isLoading: isLoading ?? this.isLoading,
+      error: clearError ? null : (error ?? this.error),
     );
   }
 }
@@ -1080,39 +1095,60 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
     // mediaUrl, durationSec, title, language, description, topic,
     // status, listenCount, viewCount, createdAt. We map the story
     // category to a topic string for the topic column.
+    //
+    // v2: also writes narratorName, userTags, era, waveformData (the
+    // new columns added in migration 20261005160000).
     final effectiveFamilyId = familyId ?? '';
     if (effectiveFamilyId.isEmpty) {
-      // Skip the DB insert if we don't have a familyId — the story
-      // is still saved in-memory so the user can listen to it during
-      // this session. They'll be prompted to associate it with a
-      // family when they create or join one.
-      debugPrint('⚠️ OralHistory: no familyId, saving story in-memory only');
-    } else {
-      try {
-        await client.from('AncestralMemory').insert({
-          'id': storyId,
-          'familyId': effectiveFamilyId,
-          'recorderId': userId,
-          'mediaType': 'audio',
-          'mediaUrl': audioUrl,
-          'durationSec': recordedDuration.inSeconds,
-          'title': title,
-          'language': state.selectedLanguage,
-          'description': description,
-          'topic': category.name, // e.g. "familyHistory"
-          'status': 'ready',
-          'listenCount': 0,
-          'viewCount': 0,
-          'isRevealed': true,
-        });
-      } catch (e) {
-        debugPrint('⚠️ OralHistory: AncestralMemory insert failed: $e');
-        // Don't fail the whole save — the audio file IS uploaded and
-        // we have the URL. The story is saved in-memory so the user
-        // can listen. They can re-save to retry the DB insert later.
-        // We don't surface an error here because the user's primary
-        // intent (record and listen) succeeded.
-      }
+      // No familyId — surface a clear error. The user must be in a
+      // family to save an oral history story (the table requires
+      // familyId NOT NULL). Pre-fix this was silently skipped; now
+      // the user sees "No family selected" and can fix the issue.
+      state = state.copyWith(
+        recordingState: state.recordingState.copyWith(
+          isSaving: false,
+          error: 'No family selected. Please join or create a '
+              'family before recording.',
+        ),
+      );
+      return null;
+    }
+    try {
+      await client.from('AncestralMemory').insert({
+        'id': storyId,
+        'familyId': effectiveFamilyId,
+        'recorderId': userId,
+        'mediaType': 'audio',
+        'mediaUrl': audioUrl,
+        'durationSec': recordedDuration.inSeconds,
+        'title': title,
+        'language': state.selectedLanguage,
+        'description': description,
+        'topic': category.name, // e.g. "familyHistory"
+        'status': 'ready',
+        'listenCount': 0,
+        'viewCount': 0,
+        'isRevealed': true,
+        // ── v2 columns (migration 20261005160000) ──────────────────
+        'narratorName': narratorName,
+        'userTags': tags,
+        'era': era,
+        'waveformData': state.recordingState.amplitudes,
+      });
+    } catch (e) {
+      // Surface the DB error — pre-fix this was silently swallowed and
+      // the user thought the save succeeded (it didn't — RLS blocked
+      // it). Now the recordingState.error is set so the
+      // _RecordingErrorBanner shows "Save failed — please retry."
+      debugPrint('⚠️ OralHistory: AncestralMemory insert failed: $e');
+      state = state.copyWith(
+        recordingState: state.recordingState.copyWith(
+          isSaving: false,
+          error: 'Save failed: could not write to database. '
+              'Please try again. (Error: ${e.toString().length > 100 ? '${e.toString().substring(0, 100)}…' : e})',
+        ),
+      );
+      return null;
     }
 
     // ── Step 4: Clean up the local recording file ─────────────────
@@ -1155,6 +1191,135 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
   }
 
   // ── Story CRUD Methods ─────────────────────────────────────────────
+
+  /// Loads all oral history stories for the given [familyId] from
+  /// Supabase (`AncestralMemory` table). Converts each row to a
+  /// [StoryModel] and sets it as the state's `stories` list.
+  ///
+  /// This is the READ side of the database wiring. Pre-fix, the provider
+  /// started empty and never fetched — saved stories were invisible
+  /// across sessions. Now the screen calls this on `initState` so
+  /// previously-saved stories reappear on every visit.
+  ///
+  /// Sets `isLoading: true` before the fetch and `isLoading: false`
+  /// after (success or failure). On failure, sets `state.error` so the
+  /// UI can show a retry affordance.
+  Future<void> loadStories({required String familyId}) async {
+    if (familyId.isEmpty) {
+      state = state.copyWith(
+        stories: const [],
+        isLoading: false,
+        error: null,
+      );
+      return;
+    }
+
+    state = state.copyWith(isLoading: true, clearError: true);
+
+    try {
+      final client = _ref.read(supabaseProvider);
+      if (client == null) {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Not connected to server.',
+        );
+        return;
+      }
+
+      final response = await client
+          .from('AncestralMemory')
+          .select()
+          .eq('familyId', familyId)
+          .order('createdAt', ascending: false);
+
+      final stories = (response as List)
+          .map((row) => _rowToStoryModel(row as Map<String, dynamic>))
+          .toList();
+
+      state = state.copyWith(
+        stories: stories,
+        isLoading: false,
+        error: null,
+      );
+    } catch (e) {
+      debugPrint('⚠️ OralHistory: loadStories failed: $e');
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Could not load stories. Please check your connection.',
+      );
+    }
+  }
+
+  /// Converts a Supabase `AncestralMemory` row to a [StoryModel].
+  ///
+  /// Maps:
+  ///   • id → id
+  ///   • title → title
+  ///   • description → description
+  ///   • recorderId → narratorId
+  ///   • narratorName → narratorName (v2 column)
+  ///   • familyId → familyId
+  ///   • mediaUrl → audioUrl
+  ///   • durationSec → audioDuration (Duration(seconds: durationSec))
+  ///   • language → language
+  ///   • topic → category (parse "familyHistory" → StoryCategory.familyHistory)
+  ///   • userTags → tags (v2 column, JSONB array → List<String>)
+  ///   • era → era (v2 column)
+  ///   • waveformData → waveformData (v2 column, JSONB array → List<double>)
+  ///   • listenCount → playCount
+  ///   • createdAt → createdAt
+  ///   • thumbnailUrl → thumbnailUrl (optional, for video memories)
+  StoryModel _rowToStoryModel(Map<String, dynamic> row) {
+    return StoryModel(
+      id: row['id']?.toString() ?? '',
+      title: row['title']?.toString() ?? 'Untitled',
+      description: row['description']?.toString(),
+      narratorId: row['recorderId']?.toString() ?? '',
+      narratorName: row['narratorName']?.toString() ?? '',
+      familyId: row['familyId']?.toString() ?? '',
+      audioDuration: Duration(seconds: row['durationSec'] as int? ?? 0),
+      audioUrl: row['mediaUrl']?.toString(),
+      language: row['language']?.toString() ?? 'en',
+      tags: _parseTags(row['userTags']),
+      era: row['era']?.toString(),
+      category: _parseStoryCategory(row['topic']?.toString()),
+      isFavorite: false, // No per-user favorites column yet (Phase 3)
+      playCount: row['listenCount'] as int? ?? 0,
+      createdAt: row['createdAt'] != null
+          ? DateTime.tryParse(row['createdAt'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      thumbnailUrl: row['thumbnailUrl']?.toString(),
+      waveformData: _parseWaveformData(row['waveformData']),
+    );
+  }
+
+  /// Parses a JSONB `userTags` value (from Supabase) into a List<String>.
+  static List<String> _parseTags(dynamic value) {
+    if (value == null) return const [];
+    if (value is List) return value.map((e) => e.toString()).toList();
+    return const [];
+  }
+
+  /// Parses a JSONB `waveformData` value into a List<double>.
+  static List<double> _parseWaveformData(dynamic value) {
+    if (value == null) return const [];
+    if (value is List) {
+      return value.map((e) {
+        if (e is num) return e.toDouble();
+        return double.tryParse(e.toString()) ?? 0.0;
+      }).toList();
+    }
+    return const [];
+  }
+
+  /// Parses a `topic` string (e.g. "familyHistory") into a [StoryCategory].
+  static StoryCategory _parseStoryCategory(String? topic) {
+    if (topic == null) return StoryCategory.other;
+    return StoryCategory.values.firstWhere(
+      (c) => c.name == topic,
+      orElse: () => StoryCategory.other,
+    );
+  }
 
   /// Add a new story in-memory (no upload). Used by loadDemoData and
   /// for tests. For real recordings, use [saveStory] instead which
