@@ -28,6 +28,7 @@ import '../../../shared/widgets/animated_preview_card.dart';
 import '../../../shared/widgets/app_scroll_safe_area.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../shared/widgets/kinrel_empty_state.dart';
+import '../../chat/presentation/widgets/full_screen_image_viewer.dart';
 import '../providers/memories_provider.dart';
 import '../../memory_vault/providers/memory_vault_provider.dart';
 
@@ -1027,39 +1028,53 @@ class _OnThisDayCard extends StatelessWidget {
                 ),
                 // When the memory has a real photo, render it inline
                 // via CachedNetworkImage (same pattern as the Timeline
-                // card + memory_vault_screen). Otherwise show the
-                // camera-icon placeholder as the fallback.
+                // card + memory_vault_screen). Tapping the photo opens
+                // the full-screen immersive viewer with Hero animation.
+                // Otherwise show the camera-icon placeholder as the
+                // fallback (genuine no-image case only).
                 child: (memory.imageUrl != null &&
                         memory.imageUrl!.isNotEmpty)
-                    ? ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(KinrelRadius.lg),
-                        ),
-                        child: CachedNetworkImage(
+                    ? GestureDetector(
+                        onTap: () => FullScreenImageViewer.show(
+                          context,
                           imageUrl: memory.imageUrl!,
-                          cacheManager: KinrelImageCacheManager.instance,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 300,
-                          memCacheHeight: 120,
-                          placeholder: (context, url) => Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(
-                                  KinrelColors.orange.withValues(alpha: 0.6),
+                          heroTag: 'on_this_day_${memory.id}',
+                          closeOnTap: true,
+                        ),
+                        child: Hero(
+                          tag: 'on_this_day_${memory.id}',
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(KinrelRadius.lg),
+                            ),
+                            child: CachedNetworkImage(
+                              imageUrl: memory.imageUrl!,
+                              cacheManager: KinrelImageCacheManager.instance,
+                              fit: BoxFit.cover,
+                              memCacheWidth: 300,
+                              memCacheHeight: 120,
+                              placeholder: (context, url) => Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor:
+                                        AlwaysStoppedAnimation<Color>(
+                                      KinrelColors.orange
+                                          .withValues(alpha: 0.6),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) =>
-                              const Center(
-                            child: Icon(
-                              Icons.broken_image_outlined,
-                              size: 28,
-                              color: KinrelColors.textDim,
+                              errorWidget: (context, url, error) =>
+                                  const Center(
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  size: 28,
+                                  color: KinrelColors.textDim,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -1606,17 +1621,106 @@ class _TimelineEventCard extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  // ── Description ──────────────────────────────────────
+                  // ── Hero photo (immediately below title) ───────────────
+                  // Photo is the PRIMARY content of the card — placed
+                  // right after the title so the card feels media-first.
+                  // Tapping the photo opens the full-screen immersive
+                  // viewer (FullScreenImageViewer) with zoom/pan + Hero
+                  // animation. Uses CachedNetworkImage with memCacheWidth/
+                  // memCacheHeight matching the card's display dimensions
+                  // for smooth scrolling per the jank-audit principles.
+                  if (event.photoUrl != null &&
+                      event.photoUrl!.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    GestureDetector(
+                      onTap: () => FullScreenImageViewer.show(
+                        context,
+                        imageUrl: event.photoUrl!,
+                        heroTag: 'memory_${event.id}',
+                        closeOnTap: true,
+                      ),
+                      child: Hero(
+                        tag: 'memory_${event.id}',
+                        child: ClipRRect(
+                          borderRadius:
+                              BorderRadius.circular(KinrelRadius.md),
+                          child: CachedNetworkImage(
+                            imageUrl: event.photoUrl!,
+                            cacheManager: KinrelImageCacheManager.instance,
+                            fit: BoxFit.cover,
+                            memCacheWidth: 400,
+                            memCacheHeight: 120,
+                            placeholder: (context, url) => Container(
+                              height: 80,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    event.accentColor.withValues(alpha: 0.1),
+                                    KinrelColors.darkElevated,
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(
+                                    KinrelRadius.md),
+                              ),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        event.accentColor),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              height: 80,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    event.accentColor.withValues(alpha: 0.1),
+                                    KinrelColors.darkElevated,
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(
+                                    KinrelRadius.md),
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  size: 24,
+                                  color: KinrelColors.textDim,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  // ── Description (expandable, BELOW photo) ──────────────
+                  // Shows a 2-line preview initially; if the text
+                  // exceeds 2 lines, a "More" button appears. Tapping
+                  // "More" expands the full text inline (no separate
+                  // screen); "Less" collapses it back. Smooth
+                  // AnimatedSize transition. Short descriptions show
+                  // no More button.
                   if (event.description != null) ...[
                     const SizedBox(height: 6),
-                    Text(
-                      event.description!,
+                    _ExpandableDescription(
+                      text: event.description!,
+                      maxPreviewLines: 2,
                       style: KinrelTypography.bodySmall.copyWith(
                         color: KinrelColors.textSilver,
                         height: 1.5,
                       ),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                   // ── Location ─────────────────────────────────────────
@@ -1641,84 +1745,6 @@ class _TimelineEventCard extends StatelessWidget {
                           ),
                         ),
                       ],
-                    ),
-                  ],
-                  // ── Hero photo (inline, not "View Photo" text link) ────
-                  // Renders the actual attached photo as the card's hero
-                  // image area. Uses CachedNetworkImage (same pattern as
-                  // memory_vault_screen.dart) with memCacheWidth/Height
-                  // matching the card's display dimensions for smooth
-                  // scrolling per the jank-audit principles.
-                  // Falls back to a gradient + icon placeholder ONLY when
-                  // the memory has no photo attached (the genuine no-image
-                  // case). Tapping the card opens the full detail view.
-                  if (event.photoUrl != null &&
-                      event.photoUrl!.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(KinrelRadius.md),
-                      child: CachedNetworkImage(
-                        imageUrl: event.photoUrl!,
-                        cacheManager: KinrelImageCacheManager.instance,
-                        fit: BoxFit.cover,
-                        memCacheWidth: 400,
-                        memCacheHeight: 120,
-                        // Same height as the old placeholder so the card
-                        // layout doesn't jump when the image loads.
-                        // The image fills the width (BoxFit.cover) and
-                        // crops top/bottom to fit.
-                        placeholder: (context, url) => Container(
-                          height: 80,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                event.accentColor.withValues(alpha: 0.1),
-                                KinrelColors.darkElevated,
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius:
-                                BorderRadius.circular(KinrelRadius.md),
-                          ),
-                          child: Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(
-                                        event.accentColor),
-                              ),
-                            ),
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => Container(
-                          height: 80,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                event.accentColor.withValues(alpha: 0.1),
-                                KinrelColors.darkElevated,
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius:
-                                BorderRadius.circular(KinrelRadius.md),
-                          ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.broken_image_outlined,
-                              size: 24,
-                              color: KinrelColors.textDim,
-                            ),
-                          ),
-                        ),
-                      ),
                     ),
                   ],
                   // ── Member avatars + Pin action ──────────────────────
@@ -2528,6 +2554,134 @@ class _PlaceholderPhoto extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Expandable Description — More/Less inline expansion
+// ═══════════════════════════════════════════════════════════════════════
+
+/// A description text widget that shows a limited preview (2-3 lines)
+/// and expands to show the full text when the user taps "More".
+/// Tapping "Less" collapses it back. Uses [AnimatedSize] for a smooth
+/// expand/collapse transition.
+///
+/// If the text fits within [maxPreviewLines], no More/Less button is
+/// shown — the widget renders as a plain Text.
+///
+/// The expanded state is preserved per-card-instance (the widget's
+/// State is tied to the Element, which is tied to the card's position
+/// in the scroll view — so as long as the card isn't disposed, the
+/// expanded state survives scrolling).
+class _ExpandableDescription extends StatefulWidget {
+  const _ExpandableDescription({
+    required this.text,
+    this.maxPreviewLines = 2,
+    this.style,
+  });
+
+  final String text;
+  final int maxPreviewLines;
+  final TextStyle? style;
+
+  @override
+  State<_ExpandableDescription> createState() => _ExpandableDescriptionState();
+}
+
+class _ExpandableDescriptionState extends State<_ExpandableDescription> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topLeft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.text,
+            style: widget.style,
+            maxLines: _isExpanded ? null : widget.maxPreviewLines,
+            overflow: _isExpanded
+                ? TextOverflow.visible
+                : TextOverflow.ellipsis,
+          ),
+          // More/Less button — only shown if the text might exceed
+          // the preview limit. We use a LayoutBuilder + TextPainter
+          // to detect overflow at build time. If the text fits, the
+          // button is hidden.
+          _MoreLessButton(
+            text: widget.text,
+            style: widget.style,
+            maxPreviewLines: widget.maxPreviewLines,
+            isExpanded: _isExpanded,
+            onToggle: () => setState(() => _isExpanded = !_isExpanded),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Detects whether the text exceeds the preview limit and, if so,
+/// renders a "More"/"Less" toggle. Uses [TextPainter] to measure the
+/// text and determine if it would overflow the given maxLines at the
+/// given width.
+class _MoreLessButton extends StatelessWidget {
+  const _MoreLessButton({
+    required this.text,
+    required this.style,
+    required this.maxPreviewLines,
+    required this.isExpanded,
+    required this.onToggle,
+  });
+
+  final String text;
+  final TextStyle? style;
+  final int maxPreviewLines;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Measure the text to see if it exceeds maxPreviewLines.
+        final span = TextSpan(text: text, style: style);
+        final tp = TextPainter(
+          text: span,
+          maxLines: maxPreviewLines,
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: constraints.maxWidth);
+
+        // didExceedMaxLines is true when the text is longer than
+        // maxPreviewLines. If it fits, no More button is needed.
+        final didOverflow = tp.didExceedMaxLines;
+        tp.dispose();
+
+        if (!didOverflow) {
+          return const SizedBox.shrink();
+        }
+
+        // Text overflowed — show the More/Less button.
+        return Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: GestureDetector(
+            onTap: onToggle,
+            child: Text(
+              isExpanded ? 'Less' : 'More',
+              style: (style ?? const TextStyle()).copyWith(
+                color: KinrelColors.orange,
+                fontWeight: FontWeight.w600,
+                fontSize: (style?.fontSize ?? 13) - 1,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

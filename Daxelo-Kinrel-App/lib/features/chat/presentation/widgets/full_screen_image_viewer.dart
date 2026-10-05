@@ -29,11 +29,24 @@ class FullScreenImageViewer extends StatefulWidget {
     required this.imageUrl,
     this.senderName,
     this.timestamp,
+    this.heroTag,
+    this.closeOnTap = false,
   });
 
   final String imageUrl;
   final String? senderName;
   final DateTime? timestamp;
+
+  /// Optional Hero tag for shared-element transitions from a source
+  /// widget (e.g. a Timeline card's inline photo). When provided, the
+  /// image is wrapped in a [Hero] widget with this tag.
+  final String? heroTag;
+
+  /// When true, tapping anywhere (outside zoom gestures) closes the
+  /// viewer AND a subtle "Tap anywhere to close" hint is shown at the
+  /// bottom. When false (default, for backward compat with chat), tap
+  /// toggles the overlay instead.
+  final bool closeOnTap;
 
   /// Opens the viewer as a full-screen route.
   static void show(
@@ -41,6 +54,8 @@ class FullScreenImageViewer extends StatefulWidget {
     required String imageUrl,
     String? senderName,
     DateTime? timestamp,
+    String? heroTag,
+    bool closeOnTap = false,
   }) {
     Navigator.of(context).push(
       PageRouteBuilder(
@@ -50,6 +65,8 @@ class FullScreenImageViewer extends StatefulWidget {
           imageUrl: imageUrl,
           senderName: senderName,
           timestamp: timestamp,
+          heroTag: heroTag,
+          closeOnTap: closeOnTap,
         ),
         transitionsBuilder: (_, animation, __, child) {
           return FadeTransition(opacity: animation, child: child);
@@ -90,12 +107,65 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
     setState(() => _showOverlay = !_showOverlay);
   }
 
+  /// When [closeOnTap] is true, a single tap closes the viewer.
+  /// When false, a single tap toggles the overlay (chat-mode behavior).
+  void _onSingleTap() {
+    if (widget.closeOnTap) {
+      Navigator.of(context).pop();
+    } else {
+      _toggleOverlay();
+    }
+  }
+
   void _onDoubleTap() {
     if (_transformationController.value != Matrix4.identity()) {
       _transformationController.value = Matrix4.identity();
     } else {
       _transformationController.value = Matrix4.identity()..scale(2.0);
     }
+  }
+
+  /// Builds the CachedNetworkImage for the full-screen viewer.
+  /// Extracted to a method so it can be wrapped in a [Hero] widget
+  /// when [widget.heroTag] is provided (for shared-element transitions
+  /// from a Timeline card's inline photo).
+  ///
+  /// Reuses the SAME cached URL + KinrelImageCacheManager instance as
+  /// the card thumbnail — the image is already in the disk cache, so
+  /// the full-screen viewer loads instantly. The memCacheWidth is
+  /// capped to the physical screen width so we don't hold a 4K image
+  /// in memory.
+  Widget _buildImage() {
+    return CachedNetworkImage(
+      imageUrl: widget.imageUrl,
+      cacheManager: KinrelImageCacheManager.instance,
+      fit: BoxFit.contain,
+      // Full-screen viewer: cap decode width to the physical screen
+      // width so we don't hold a 4K image in memory when the device
+      // is ~1080p. The card thumbnail uses memCacheWidth: 400 which
+      // is already cached — the viewer loads a higher-res version
+      // only if the screen is wider than 400 logical pixels.
+      memCacheWidth: (MediaQuery.of(context).size.width *
+              MediaQuery.of(context).devicePixelRatio)
+          .toInt(),
+      placeholder: (context, url) => const Center(
+        child: CircularProgressIndicator(
+          color: Colors.white,
+        ),
+      ),
+      errorWidget: (_, __, ___) => const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.broken_image_outlined,
+                size: 64, color: Colors.white54),
+            SizedBox(height: 16),
+            Text('Could not load image',
+                style: TextStyle(color: Colors.white54)),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -116,7 +186,7 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
             setState(() => _dragY = 0);
           }
         },
-        onTap: _toggleOverlay,
+        onTap: _onSingleTap,
         onDoubleTap: _onDoubleTap,
         child: Stack(
           children: [
@@ -129,34 +199,12 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
                 maxScale: 4.0,
                 boundaryMargin: const EdgeInsets.all(double.infinity),
                 child: Center(
-                  child: CachedNetworkImage(
-                    imageUrl: widget.imageUrl,
-                    cacheManager: KinrelImageCacheManager.instance,
-                    fit: BoxFit.contain,
-                    // Full-screen viewer: cap decode width to the
-                    // physical screen width so we don't hold a 4K image
-                    // in memory when the device is ~1080p.
-                    memCacheWidth: (MediaQuery.of(context).size.width *
-                            MediaQuery.of(context).devicePixelRatio)
-                        .toInt(),
-                    placeholder: (context, url) => const Center(
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                      ),
-                    ),
-                    errorWidget: (_, __, ___) => const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.broken_image_outlined,
-                              size: 64, color: Colors.white54),
-                          SizedBox(height: 16),
-                          Text('Could not load image',
-                              style: TextStyle(color: Colors.white54)),
-                        ],
-                      ),
-                    ),
-                  ),
+                  child: widget.heroTag != null
+                      ? Hero(
+                          tag: widget.heroTag!,
+                          child: _buildImage(),
+                        )
+                      : _buildImage(),
                 ),
               ),
             ),
@@ -218,8 +266,43 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
                 ),
               ),
 
-            // Drag-to-close hint at bottom.
-            if (_showOverlay && _dragY > 10)
+            // Subtle "Tap anywhere to close" hint (only when closeOnTap
+            // is true — used by the Memories/Timeline feature).
+            // Per the spec: small text, low visual prominence,
+            // semi-transparent, positioned near the bottom safe area,
+            // should not obstruct image content.
+            if (widget.closeOnTap)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'Tap anywhere to close',
+                          style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            // Drag-to-close hint at bottom (only when closeOnTap is
+            // false — chat-mode behavior, shows only while dragging).
+            if (!widget.closeOnTap && _showOverlay && _dragY > 10)
               Positioned(
                 bottom: 50,
                 left: 0,
