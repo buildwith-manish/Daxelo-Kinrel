@@ -1533,12 +1533,20 @@ class _TimelineEventCard extends StatelessWidget {
           // ── Event Card ─────────────────────────────────────────────
           Expanded(
             child: Container(
+              // Tighter margins for a more compact timeline. The
+              // timeline connector line extends through the margin
+              // area (the line goes top:0 to bottom:0 of the Row),
+              // so smaller margins = less visible gap between cards
+              // = a more continuous timeline.
               margin: EdgeInsets.only(
-                top: isFirst ? 10 : 8,
-                bottom: isLast ? 8 : 12,
+                top: isFirst ? 8 : 4,
+                bottom: isLast ? 8 : 4,
                 right: KinrelSpacing.base,
               ),
-              padding: const EdgeInsets.all(KinrelSpacing.base),
+              padding: const EdgeInsets.symmetric(
+                horizontal: KinrelSpacing.base,
+                vertical: 10,
+              ),
               decoration: BoxDecoration(
                 color: KinrelColors.darkCard,
                 borderRadius: BorderRadius.circular(KinrelRadius.lg),
@@ -1612,7 +1620,7 @@ class _TimelineEventCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   // ── Title ────────────────────────────────────────────
                   Text(
                     event.title,
@@ -1620,6 +1628,8 @@ class _TimelineEventCard extends StatelessWidget {
                       color: KinrelColors.textWhite,
                       fontWeight: FontWeight.w700,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   // ── Hero photo (immediately below title) ───────────────
                   // Photo is the PRIMARY content of the card — placed
@@ -1631,7 +1641,7 @@ class _TimelineEventCard extends StatelessWidget {
                   // for smooth scrolling per the jank-audit principles.
                   if (event.photoUrl != null &&
                       event.photoUrl!.isNotEmpty) ...[
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     GestureDetector(
                       onTap: () => FullScreenImageViewer.show(
                         context,
@@ -1648,10 +1658,15 @@ class _TimelineEventCard extends StatelessWidget {
                             imageUrl: event.photoUrl!,
                             cacheManager: KinrelImageCacheManager.instance,
                             fit: BoxFit.cover,
+                            // Compact image height: ~25% reduction from
+                            // the previous 120px memCacheHeight. The
+                            // image remains the focal point but doesn't
+                            // dominate the card. Width is preserved
+                            // (BoxFit.cover crops top/bottom).
                             memCacheWidth: 400,
-                            memCacheHeight: 120,
+                            memCacheHeight: 90,
                             placeholder: (context, url) => Container(
-                              height: 80,
+                              height: 60,
                               width: double.infinity,
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
@@ -1678,7 +1693,7 @@ class _TimelineEventCard extends StatelessWidget {
                               ),
                             ),
                             errorWidget: (context, url, error) => Container(
-                              height: 80,
+                              height: 60,
                               width: double.infinity,
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
@@ -1713,19 +1728,23 @@ class _TimelineEventCard extends StatelessWidget {
                   // AnimatedSize transition. Short descriptions show
                   // no More button.
                   if (event.description != null) ...[
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     _ExpandableDescription(
                       text: event.description!,
                       maxPreviewLines: 2,
-                      style: KinrelTypography.bodySmall.copyWith(
+                      // bodyMedium (14px) instead of bodySmall (12px)
+                      // for improved readability. Still smaller than
+                      // the title (headlineSmall = 16px) so the visual
+                      // hierarchy is: Title > Description > Metadata.
+                      style: KinrelTypography.bodyMedium.copyWith(
                         color: KinrelColors.textSilver,
-                        height: 1.5,
+                        height: 1.45,
                       ),
                     ),
                   ],
                   // ── Location ─────────────────────────────────────────
                   if (event.location != null) ...[
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         const Icon(
@@ -1749,7 +1768,7 @@ class _TimelineEventCard extends StatelessWidget {
                   ],
                   // ── Member avatars + Pin action ──────────────────────
                   if (event.members.isNotEmpty) ...[
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(child: _AvatarRow(members: event.members)),
@@ -2676,7 +2695,8 @@ class _MoreLessButton extends StatelessWidget {
               style: (style ?? const TextStyle()).copyWith(
                 color: KinrelColors.orange,
                 fontWeight: FontWeight.w600,
-                fontSize: (style?.fontSize ?? 13) - 1,
+                // 1px smaller than the body text (bodyMedium=14 → 13)
+                fontSize: (style?.fontSize ?? 14) - 1,
               ),
             ),
           ),
