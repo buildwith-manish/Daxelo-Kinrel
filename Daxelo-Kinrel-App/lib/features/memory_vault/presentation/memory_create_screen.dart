@@ -820,27 +820,49 @@ class _MemoryCreateScreenState extends ConsumerState<MemoryCreateScreen>
         !vault.isUploading &&
         !_isSubmitting;
 
+    // ── Bottom-bar height constraint (regression fix) ───────────────
+    // The DKButton widget uses `BoxConstraints(minHeight: _height)` with
+    // NO maxHeight, and contains `Center(child: content)` which expands
+    // to fill the parent's maxHeight. When this SafeArea-wrapped bar is
+    // placed in `Scaffold.bottomNavigationBar`, the Scaffold cannot
+    // query a preferred height (SafeArea is not a PreferredSizeWidget),
+    // so it gives the bar a maxHeight of the FULL SCREEN HEIGHT. The
+    // DKButton's Center then expands to fill that maxHeight, making the
+    // bottom bar take 100% of the screen height — and the body slot
+    // ends up with ZERO height. The user sees only "Save Memory"
+    // (this bar) and the form fields (in the body) are invisible.
+    //
+    // Fix: pin the bar's height to the natural button height + padding.
+    // DKButtonSize.lg => _height = 56. Container padding = 12 + 12 = 24.
+    // Total = 80. The SafeArea still adds the device bottom inset on top
+    // of this fixed 80px (it pads the bottom by MediaQuery.padding.bottom).
+    const barHeight = 56.0 + 24.0; // button + vertical padding
+
     return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(
-            KinrelSpacing.base, 12, KinrelSpacing.base, 12),
-        decoration: BoxDecoration(
-          color: _cBg,
-          border: Border(
-            top: BorderSide(
-              color: Colors.white.withValues(alpha: 0.06),
-              width: 0.5,
+      top: false,
+      child: SizedBox(
+        height: barHeight,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(
+              KinrelSpacing.base, 12, KinrelSpacing.base, 12),
+          decoration: BoxDecoration(
+            color: _cBg,
+            border: Border(
+              top: BorderSide(
+                color: Colors.white.withValues(alpha: 0.06),
+                width: 0.5,
+              ),
             ),
           ),
-        ),
-        child: DKButton(
-          label: vault.isUploading
-              ? (vault.uploadProgress ?? 'Saving...')
-              : 'Save Memory',
-          variant: DKButtonVariant.gradient,
-          size: DKButtonSize.lg,
-          isLoading: vault.isUploading || _isSubmitting,
-          onPressed: canSubmit ? _onSubmit : null,
+          child: DKButton(
+            label: vault.isUploading
+                ? (vault.uploadProgress ?? 'Saving...')
+                : 'Save Memory',
+            variant: DKButtonVariant.gradient,
+            size: DKButtonSize.lg,
+            isLoading: vault.isUploading || _isSubmitting,
+            onPressed: canSubmit ? _onSubmit : null,
+          ),
         ),
       ),
     );
