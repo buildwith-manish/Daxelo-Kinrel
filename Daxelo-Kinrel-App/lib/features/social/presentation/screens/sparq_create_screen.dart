@@ -1,8 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
+import 'package:cross_file/cross_file.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../data/providers/sparq_provider.dart';
 
@@ -19,7 +21,9 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
   String _audience = 'PUBLIC';
   String? _text;
   String _backgroundColor = '#1A1A2E';
-  File? _mediaFile;
+  // XFile is cross-platform (works on web blob URLs and native file
+  // paths). The previous File? (dart:io) only worked on native.
+  XFile? _mediaFile;
   int? _duration;
   bool _isRecording = false;
   final String _timeCapsuleDuration = '1 Day';
@@ -123,7 +127,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
     final picker = ImagePicker();
     final image = await picker.pickImage(source: ImageSource.gallery);
     if (image != null) {
-      setState(() => _mediaFile = File(image.path));
+      setState(() => _mediaFile = image);
     }
   }
 
@@ -132,7 +136,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
     final video = await picker.pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 60));
     if (video != null) {
       setState(() {
-        _mediaFile = File(video.path);
+        _mediaFile = video;
         _duration = 60;
       });
     }
@@ -515,7 +519,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
               ),
             );
           },
-          child: Image.file(_mediaFile!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+          child: _XFileImage(xfile: _mediaFile!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
         ),
         // X button top-right
         Positioned(
@@ -544,7 +548,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
     return Stack(
       fit: StackFit.expand,
       children: [
-        Image.file(_mediaFile!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+        _XFileImage(xfile: _mediaFile!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
         Container(color: Colors.black.withValues(alpha: 0.3)),
         // Play button
         Center(
@@ -1254,4 +1258,58 @@ class _SegmentData {
   const _SegmentData({required this.key, required this.label});
   final String key;
   final String label;
+}
+
+
+// Cross-platform image widget for displaying an XFile. Uses
+// XFile.readAsBytes() (which works on web blob URLs and native file
+// paths) + Image.memory (which works everywhere). The previous
+// Image.file(File(...)) only worked on native.
+class _XFileImage extends StatelessWidget {
+  const _XFileImage({
+    required this.xfile,
+    this.fit = BoxFit.cover,
+    this.width,
+    this.height,
+  });
+
+  final XFile xfile;
+  final BoxFit fit;
+  final double? width;
+  final double? height;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<int>>(
+      future: xfile.readAsBytes(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done ||
+            !snapshot.hasData) {
+          return Container(
+            color: Colors.black.withValues(alpha: 0.1),
+            width: width,
+            height: height,
+            child: const Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        }
+        return Image.memory(
+          Uint8List.fromList(snapshot.data!),
+          fit: fit,
+          width: width,
+          height: height,
+          errorBuilder: (c, o, e) => Container(
+            color: Colors.black.withValues(alpha: 0.1),
+            width: width,
+            height: height,
+            child: const Center(
+              child: Icon(Icons.broken_image_outlined,
+                  color: Colors.white54, size: 32),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

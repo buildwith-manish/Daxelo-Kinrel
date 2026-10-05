@@ -197,13 +197,16 @@ void main() {
 
   group('Post → Timeline hero photo (one image only)', () {
     test('PostCreateState has exactly one mediaFile field (no array)', () {
-      // The PostCreateState class exposes `mediaFile` (singular File?)
-      // and `mediaUrl` (singular String?) — both single-valued. There
+      // The PostCreateState class exposes `mediaFile` (singular XFile?
+      // — was File? before the cross-platform fix; now XFile? so it
+      // works on both web blob URLs and native file paths) and
+      // `mediaUrl` (singular String?) — both single-valued. There
       // is no `mediaFiles` list. This is the structural enforcement of
       // the "one image per post" contract that makes the "first image
       // only" rule trivially correct.
       const state = PostCreateState();
-      // mediaFile is a File? (single). mediaUrl is a String? (single).
+      // mediaFile is an XFile? (single, cross-platform). mediaUrl is a
+      // String? (single).
       expect(state.mediaFile, isNull);
       expect(state.mediaUrl, isNull);
       // No `mediaFiles` array exists on the state — the post-create

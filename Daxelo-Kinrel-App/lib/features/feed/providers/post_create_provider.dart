@@ -4,7 +4,7 @@
 // Manages state for the post creation screen:
 // text, media file, family selection, audience, occasion, submission.
 
-import 'dart:io';
+import 'package:cross_file/cross_file.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -46,7 +46,11 @@ class PostCreateState {
 
   final String text;
   final String? selectedFamilyId;
-  final File? mediaFile;
+  // XFile (from cross_file) is the cross-platform type that works on
+  // both web (blob URLs) and native (real file paths). The previous
+  // File? (dart:io) only worked on native — on web, the picker returns
+  // a blob URL as the path, which dart:io's File can't open.
+  final XFile? mediaFile;
   final String? mediaUrl;
   final PostAudience audience;
   final PostOccasion? occasion;
@@ -64,7 +68,7 @@ class PostCreateState {
   PostCreateState copyWith({
     String? text,
     String? selectedFamilyId,
-    File? mediaFile,
+    XFile? mediaFile,
     String? mediaUrl,
     bool clearMedia = false,
     PostAudience? audience,
@@ -105,7 +109,10 @@ class PostCreateNotifier extends StateNotifier<PostCreateState> {
     state = state.copyWith(selectedFamilyId: familyId);
   }
 
-  void setMediaFile(File? file) {
+  /// Sets the picked media file. Pass `null` to clear (e.g., user
+  /// tapped the "remove" button on the preview). The [XFile] type
+  /// works on both web (blob URL path) and native (real file path).
+  void setMediaFile(XFile? file) {
     if (file == null) {
       state = state.copyWith(clearMedia: true);
     } else {

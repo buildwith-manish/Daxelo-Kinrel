@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:io';
+import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart' as dio;
 import '../../../../core/networking/dio_client.dart';
 import '../../../../core/services/supabase_service.dart';
@@ -60,12 +60,18 @@ class SparqRepository {
   }
 
   /// Create a new Sparq with file upload
+  ///
+  /// [mediaFile] is an [XFile] (from `cross_file`) — works on both web
+  /// (blob URL path) and native (real file path). The bytes are read
+  /// via `mediaFile.readAsBytes()` (cross-platform) and uploaded via
+  /// `MultipartFile.fromBytes` (rather than `fromFile`, which only
+  /// works on native filesystem paths).
   Future<SparqModel> createSparq({
     required String type,
     String? text,
     String? backgroundColor,
     String audience = 'PUBLIC',
-    File? mediaFile,
+    XFile? mediaFile,
     int? duration,
     String mood = 'happy',
     String intensity = 'warm',
@@ -90,9 +96,11 @@ class SparqRepository {
       if (revealAt != null) 'revealAt': revealAt.toIso8601String(),
       if (parentSparqId != null) 'parentSparqId': parentSparqId,
       if (mediaFile != null)
-        'media': await dio.MultipartFile.fromFile(
-          mediaFile.path,
-          filename: mediaFile.path.split('/').last,
+        'media': dio.MultipartFile.fromBytes(
+          await mediaFile.readAsBytes(),
+          filename: mediaFile.name.isNotEmpty
+              ? mediaFile.name
+              : 'media-${DateTime.now().millisecondsSinceEpoch}',
         ),
     });
     final response = await httpClient.post('/sparq', data: formData);
@@ -136,12 +144,15 @@ class SparqRepository {
   }
 
   /// Add to chain — POST /sparq/$parentSparqId/chain
+  ///
+  /// [mediaFile] is an [XFile] — works on web blob URLs AND native file
+  /// paths (uses readAsBytes + MultipartFile.fromBytes).
   Future<SparqModel> addToChain({
     required String parentSparqId,
     required String type,
     String? text,
     String? backgroundColor,
-    File? mediaFile,
+    XFile? mediaFile,
     int? duration,
     String mood = 'happy',
     String intensity = 'warm',
@@ -155,9 +166,11 @@ class SparqRepository {
       if (backgroundColor != null) 'backgroundColor': backgroundColor,
       if (duration != null) 'duration': duration,
       if (mediaFile != null)
-        'media': await dio.MultipartFile.fromFile(
-          mediaFile.path,
-          filename: mediaFile.path.split('/').last,
+        'media': dio.MultipartFile.fromBytes(
+          await mediaFile.readAsBytes(),
+          filename: mediaFile.name.isNotEmpty
+              ? mediaFile.name
+              : 'media-${DateTime.now().millisecondsSinceEpoch}',
         ),
     });
     final response = await httpClient.post('/sparq/$parentSparqId/chain', data: formData);

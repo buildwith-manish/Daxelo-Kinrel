@@ -5,7 +5,8 @@
 // Features: text input, media picker, family selector, audience toggle,
 // occasion dropdown, location input.
 
-import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
@@ -333,10 +334,36 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.file(
-              create.mediaFile!,
-              width: double.infinity,
-              fit: BoxFit.cover,
+            // Cross-platform image preview: load bytes via XFile.readAsBytes
+            // (works on web blob URLs and native file paths), then display
+            // via Image.memory. The previous Image.file(File(...)) didn't
+            // work on web because dart:io can't open blob URLs returned by
+            // image_picker's web implementation.
+            child: FutureBuilder<List<int>>(
+              future: create.mediaFile!.readAsBytes(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done ||
+                    !snapshot.hasData) {
+                  return Container(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    child: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  );
+                }
+                return Image.memory(
+                  Uint8List.fromList(snapshot.data!),
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (c, o, e) => Container(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    child: const Center(
+                      child: Icon(Icons.broken_image_outlined,
+                          color: Colors.white54, size: 32),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -621,6 +648,8 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
   // ── Image/Video Pickers ────────────────────────────────────────
 
   Future<void> _pickImage() async {
+    // Note: cancellation (image == null) returns silently WITHOUT showing
+    // an error — cancelling a picker is a normal user action, not a failure.
     try {
       final picker = ImagePicker();
       final image = await picker.pickImage(
@@ -630,13 +659,27 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
         imageQuality: 85,
       );
       if (image != null) {
-        ref.read(postCreateProvider.notifier).setMediaFile(File(image.path));
+        // Pass the XFile directly (cross-platform: works on web blob
+        // URLs and native file paths). The previous File(image.path)
+        // failed on web because dart:io can't open blob URLs.
+        ref.read(postCreateProvider.notifier).setMediaFile(image);
       }
+      // If image == null, the user cancelled — return silently (no error).
     } catch (e) {
       debugPrint('⚠️ Image picker error: $e');
       if (mounted) {
+        final msg = e.toString().toLowerCase().contains('permission') ||
+                e.toString().toLowerCase().contains('denied')
+            ? 'Photo library permission denied. Grant access in your '
+                'browser settings to attach a photo.'
+            : 'Could not pick photo. Please try again. '
+                '(Error: ${e.toString().length > 80 ? '${e.toString().substring(0, 80)}…' : e.toString()})';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open photo picker')),
+          SnackBar(
+            content: Text(msg),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     }
@@ -650,14 +693,25 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
         maxDuration: const Duration(seconds: 60),
       );
       if (video != null) {
-        // For now, treat video the same as image for preview
-        ref.read(postCreateProvider.notifier).setMediaFile(File(video.path));
+        // Pass the XFile directly (cross-platform).
+        ref.read(postCreateProvider.notifier).setMediaFile(video);
       }
+      // If video == null, the user cancelled — return silently (no error).
     } catch (e) {
       debugPrint('⚠️ Video picker error: $e');
       if (mounted) {
+        final msg = e.toString().toLowerCase().contains('permission') ||
+                e.toString().toLowerCase().contains('denied')
+            ? 'Photo library permission denied. Grant access in your '
+                'browser settings to attach a video.'
+            : 'Could not pick video. Please try again. '
+                '(Error: ${e.toString().length > 80 ? '${e.toString().substring(0, 80)}…' : e.toString()})';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open video picker')),
+          SnackBar(
+            content: Text(msg),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     }

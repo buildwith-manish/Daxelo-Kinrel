@@ -19,7 +19,6 @@
 // prefilled, and `sourcePostId` is passed so the resulting memory
 // row references the original post (Feature 6).
 
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -1017,6 +1016,23 @@ class _MemoryCreateScreenState extends ConsumerState<MemoryCreateScreen>
   }
 
   Future<void> _pickAndCrop(ImageSource source) async {
+    // ── Web/native cross-platform image reading ─────────────────────
+    // On Flutter web, image_picker returns an XFile whose `path` is a
+    // BLOB URL (e.g. `blob:http://localhost:8090/<uuid>`), NOT a real
+    // filesystem path. `dart:io`'s `File` constructor can't open blob
+    // URLs — it throws FileSystemException, which gets caught below and
+    // surfaces as the generic "Could not pick image" error.
+    //
+    // The cross-platform fix is to call `XFile.readAsBytes()` directly
+    // (XFile is from the `cross_file` package, re-exported by
+    // image_picker). On web it uses `fetch(blobUrl).then(blob =>
+    // blob.arrayBuffer())`; on native it uses dart:io File. This is
+    // the same pattern chat_screen.dart uses at line 3296-3297.
+    //
+    // Cancellation is handled BEFORE any exception can be thrown:
+    // `picker.pickImage(...)` returns `null` when the user cancels (on
+    // both web and native), and the `if (image == null) return;` below
+    // returns silently WITHOUT showing an error.
     try {
       final picker = ImagePicker();
       final image = await picker.pickImage(
@@ -1025,9 +1041,11 @@ class _MemoryCreateScreenState extends ConsumerState<MemoryCreateScreen>
         maxHeight: 1920,
         imageQuality: 95, // we'll recompress after crop
       );
+      // User cancelled the picker — this is NOT an error, return silently.
       if (image == null) return;
 
-      final bytes = await File(image.path).readAsBytes();
+      // Cross-platform read: works on web blob URLs AND native paths.
+      final bytes = await image.readAsBytes();
       if (!mounted) return;
 
       // Mandatory crop editor
@@ -1037,6 +1055,7 @@ class _MemoryCreateScreenState extends ConsumerState<MemoryCreateScreen>
         initialRatio: MemoryCropRatio.fourThree,
       );
 
+      // User cancelled the crop editor — return silently (not an error).
       if (result == null) return;
       if (!mounted) return;
 
@@ -1049,13 +1068,86 @@ class _MemoryCreateScreenState extends ConsumerState<MemoryCreateScreen>
       debugPrint('🖼 Memory cover: ${result.sizeKb}KB, '
           '${result.width}×${result.height} (${result.ratio.label})');
     } catch (e) {
+      // ── Distinct error messaging per failure mode ─────────────────
+      // The catch-all "Could not pick image" was hiding the actual cause
+      // (e.g., dart:io File on web). Now we surface a specific, actionable
+      // message based on the exception type / message:
+      //   • Permission denied (camera on native) → tell the user to grant
+      //     camera permission or use gallery instead.
+      //   • No camera available → tell the user to use gallery instead.
+      //   • Other failures → show the actual error so it's debuggable.
+      //
+      // Note: user CANCELLATION does NOT reach this block — it returns
+      // earlier via the `if (image == null) return;` check.
       debugPrint('⚠️ Image pick/crop error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not pick image')),
-        );
-      }
+      if (!mounted) return;
+
+      final msg = _friendlyPickErrorMessage(source, e);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+        ),
+      );
     }
+  }
+
+  /// Maps an image-picker exception to a specific, user-facing message.
+  ///
+  /// Returns distinct messages for:
+  ///   • Camera permission denied (native) → suggest gallery
+  ///   • No camera available (web/desktop) → suggest gallery
+  ///   • Other technical failures → include the actual error text
+  ///
+  /// Cancellation is NOT an error and never reaches this method (the
+  /// `if (image == null) return;` check in [_pickAndCrop] handles it
+  /// silently before any exception is thrown).
+  static String _friendlyPickErrorMessage(ImageSource source, Object e) {
+    final estr = e.toString().toLowerCase();
+
+    // Camera permission denied — distinct from cancellation.
+    if (source == ImageSource.camera &&
+        (estr.contains('permission') ||
+            estr.contains('denied') ||
+            estr.contains('not_granted') ||
+            estr.contains('camera_access_denied'))) {
+      return 'Camera permission denied. Tap "Choose From Gallery" '
+          'instead, or grant camera permission in your browser settings.';
+    }
+
+    // No camera available (e.g., desktop browser without webcam).
+    if (source == ImageSource.camera &&
+        (estr.contains('no camera') ||
+            estr.contains('no_camera') ||
+            estr.contains('not available') ||
+            estr.contains('notfound') ||
+            estr.contains('not_found'))) {
+      return 'No camera found on this device. Tap "Choose From Gallery" '
+          'to pick a photo from your device instead.';
+    }
+
+    // Web-specific: dart:io File can't read blob URLs. This shouldn't
+    // happen anymore (we use XFile.readAsBytes()), but if a similar
+    // platform incompatibility surfaces, give a clear message.
+    if (estr.contains('filesystemexception') ||
+        estr.contains('cannot open file') ||
+        estr.contains('operation not permitted')) {
+      return 'Could not load the selected image on this platform. '
+          'Try a different image or pick from gallery instead. '
+          '(Error: ${_truncate(e.toString(), 80)})';
+    }
+
+    // Fallback: include the actual error so it's debuggable.
+    return 'Could not load image. Please try again. '
+        '(Error: ${_truncate(e.toString(), 100)})';
+  }
+
+  /// Truncates a string to [maxLen] characters, appending an ellipsis
+  /// if truncation occurs.
+  static String _truncate(String s, int maxLen) {
+    if (s.length <= maxLen) return s;
+    return '${s.substring(0, maxLen)}…';
   }
 
   // ── Date Picker ────────────────────────────────────────────────

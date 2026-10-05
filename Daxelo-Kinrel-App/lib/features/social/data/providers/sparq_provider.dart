@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:cross_file/cross_file.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/sparq_model.dart';
 import '../repositories/sparq_repository.dart';
@@ -107,7 +107,7 @@ class SparqNotifier extends StateNotifier<SparqState> {
     String? text,
     String? backgroundColor,
     String audience = 'PUBLIC',
-    File? mediaFile,
+    XFile? mediaFile,
     int? duration,
     String? mood,
     String? intensity,
