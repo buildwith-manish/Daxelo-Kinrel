@@ -1473,10 +1473,41 @@ class _TimelineEventCard extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Gradient line
+                // ── Incoming segment (connects from the previous card) ──
+                // Draws a line from the top of this card's Stack down to
+                // the node's vertical center (y=28). Skipped for the first
+                // card (nothing above to connect to). This segment bridges
+                // the gap between the previous card's outgoing line (which
+                // ends at the bottom of the previous card's Stack = the
+                // top of this card's Stack) and this card's node.
+                //
+                // The 28px offset is the node's vertical center: the node
+                // is positioned at top:20 with height:16, so its center
+                // is at y = 20 + 16/2 = 28.
+                if (!isFirst)
+                  Positioned(
+                    top: 0,
+                    height: 28,
+                    left: 27,
+                    child: Container(
+                      width: 2,
+                      decoration: const BoxDecoration(
+                        gradient: KinrelGradients.timelineGradient,
+                      ),
+                    ),
+                  ),
+                // ── Outgoing segment (connects to the next card) ──────
+                // Draws a line from just below the node's center (y=28)
+                // to the bottom of this card's Stack. The next card's
+                // incoming segment picks up from here (its top:0 = this
+                // card's bottom:0). Skipped for the last card (nothing
+                // below to connect to). This replaces the previous
+                // single-line approach that was wrapped in `if (!isLast)`
+                // — which left a gap on the last card (no line at all)
+                // and didn't have a dedicated incoming segment.
                 if (!isLast)
                   Positioned(
-                    top: isFirst ? 28 : 0,
+                    top: 28,
                     bottom: 0,
                     left: 27,
                     child: Container(
@@ -1486,20 +1517,10 @@ class _TimelineEventCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                // Top cap for first item
-                if (isFirst)
-                  Positioned(
-                    top: 0,
-                    left: 27,
-                    child: Container(
-                      width: 2,
-                      height: 28,
-                      decoration: const BoxDecoration(
-                        gradient: KinrelGradients.timelineGradient,
-                      ),
-                    ),
-                  ),
-                // Glow node
+                // ── Glow node (drawn last so it sits above the line) ──
+                // The 28px offset used by the line segments above is
+                // derived from this node's position: top:20 + height:16
+                // → center at y = 20 + 8 = 28.
                 Positioned(
                   top: 20,
                   child: Container(
