@@ -38,6 +38,7 @@ import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/constants/brand_spacing.dart';
 import '../../core/utils/accessibility_utils.dart';
+import '../../core/utils/device_tier.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/services/image_cache_manager.dart';
 
@@ -980,23 +981,36 @@ class DKGlassCard extends StatelessWidget {
         (isLight
             ? Colors.white.withValues(alpha: 0.3)
             : Colors.white.withValues(alpha: 0.12));
+    // PERF (Part E4): on low-RAM phones, skip the BackdropFilter entirely
+    // (it's the heaviest cost — saveLayer + per-frame blur) and raise the
+    // background alpha from 0.6/0.5 to 0.85 so the card is still readable
+    // without the blur. Strong phones keep the original frosted-glass look.
+    final bool lowRam = DeviceTierCache.instance.lowRam;
+
+    final Widget cardChild = Container(
+      padding: EdgeInsets.all(padding),
+      decoration: BoxDecoration(
+        color: lowRam
+            ? (isLight
+                ? Colors.white.withValues(alpha: 0.85)
+                : Colors.black.withValues(alpha: 0.85))
+            : (isLight
+                ? Colors.white.withValues(alpha: 0.6)
+                : Colors.black.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: border, width: 1),
+      ),
+      child: child,
+    );
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
-        child: Container(
-          padding: EdgeInsets.all(padding),
-          decoration: BoxDecoration(
-            color: isLight
-                ? Colors.white.withValues(alpha: 0.6)
-                : Colors.black.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(radius),
-            border: Border.all(color: border, width: 1),
-          ),
-          child: child,
-        ),
-      ),
+      child: lowRam
+          ? cardChild
+          : BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+              child: cardChild,
+            ),
     );
   }
 }

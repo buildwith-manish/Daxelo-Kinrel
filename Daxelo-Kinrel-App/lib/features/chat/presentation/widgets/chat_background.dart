@@ -43,6 +43,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/utils/device_tier.dart';
 import '../../data/chat_wallpaper_provider.dart';
 import 'chat_background_theme.dart';
 // Conditional import: web vs native image rendering for custom wallpapers.
@@ -75,6 +76,10 @@ class ChatBackground extends ConsumerWidget {
     final hasImage = stored != null &&
         stored.isNotEmpty &&
         !ChatBackgroundTheme.isThemeValue(stored);
+    // PERF (Part E4): read lowRam ONCE per build. Low-RAM phones get a
+    // single RadialGradient layer (skip the accent glow + vignette);
+    // strong phones keep the original 3-layer stack unchanged.
+    final bool lowRam = DeviceTierCache.instance.lowRam;
 
     return Stack(
       children: [
@@ -97,7 +102,7 @@ class ChatBackground extends ConsumerWidget {
               // theme layers below still render correctly.
               if (hasImage)
                 Positioned.fill(
-                  child: _BlurredWallpaperImage(imagePath: stored),
+                  child: _BlurredWallpaperImage(imagePath: stored, lowRam: lowRam),
                 ),
 
               // ── Layer 1: base ambient gradient ─────────────────────────
@@ -122,21 +127,26 @@ class ChatBackground extends ConsumerWidget {
               // A soft radial highlight at the theme's accent corner. 12%
               // alpha so it's felt, not seen. Creates the impression of a
               // light source without drawing a visible circle.
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: theme.accentAlignment,
-                      radius: 0.9,
-                      colors: [
-                        theme.accentColor.withValues(alpha: 0.12),
-                        theme.accentColor.withValues(alpha: 0.0),
-                      ],
-                      stops: const [0.0, 1.0],
+              //
+              // PERF (Part E4): skipped on low-RAM phones (single
+              // RadialGradient layer keeps the cost low). Strong phones
+              // keep the original look.
+              if (!lowRam)
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: theme.accentAlignment,
+                        radius: 0.9,
+                        colors: [
+                          theme.accentColor.withValues(alpha: 0.12),
+                          theme.accentColor.withValues(alpha: 0.0),
+                        ],
+                        stops: const [0.0, 1.0],
+                      ),
                     ),
                   ),
                 ),
-              ),
 
               // ── Layer 3: edge vignette ─────────────────────────────────
               // A subtle darkening at the edges that frames the
@@ -144,22 +154,27 @@ class ChatBackground extends ConsumerWidget {
               // feeling — messages exist within a space, not on a flat
               // surface. The vignette is RADIAL so the readable center
               // stays bright.
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment.center,
-                      radius: 0.85,
-                      colors: [
-                        Colors.transparent,
-                        theme.vignetteColor.withValues(alpha: 0.0),
-                        theme.vignetteColor.withValues(alpha: 0.35),
-                      ],
-                      stops: const [0.0, 0.55, 1.0],
+              //
+              // PERF (Part E4): skipped on low-RAM phones (single
+              // RadialGradient layer keeps the cost low). Strong phones
+              // keep the original look.
+              if (!lowRam)
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: Alignment.center,
+                        radius: 0.85,
+                        colors: [
+                          Colors.transparent,
+                          theme.vignetteColor.withValues(alpha: 0.0),
+                          theme.vignetteColor.withValues(alpha: 0.35),
+                        ],
+                        stops: const [0.0, 0.55, 1.0],
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -178,14 +193,16 @@ class ChatBackground extends ConsumerWidget {
 /// Renders a custom wallpaper image with a heavy blur + darkening
 /// overlay so it reads as atmosphere rather than a photo.
 ///
-/// The blur is intentionally strong (sigma = 24) — anything less and
-/// recognizable shapes in the image would compete with message
-/// bubbles for attention. At sigma 24, even a busy photo becomes an
-/// abstract wash of color.
+/// The blur is intentionally strong (sigma = 24 on strong phones, 8 on
+/// low-RAM phones) — anything less and recognizable shapes in the image
+/// would compete with message bubbles for attention. At sigma 24, even
+/// a busy photo becomes an abstract wash of color.
 class _BlurredWallpaperImage extends StatelessWidget {
-  const _BlurredWallpaperImage({required this.imagePath});
+  const _BlurredWallpaperImage({required this.imagePath, required this.lowRam});
 
   final String imagePath;
+  // PERF (Part E4): when true, blur sigma is 8 instead of 24.
+  final bool lowRam;
 
   @override
   Widget build(BuildContext context) {
@@ -213,11 +230,12 @@ class _BlurredWallpaperImage extends StatelessWidget {
       return RepaintBoundary(
         child: ImageFiltered(
           // ImageFiltered wraps Image.network (works for data: URIs on
-          // both web and native) and applies a sigma-24 blur via
-          // ImageFilter. We don't use BackdropFilter because the image
-          // needs to be its own layer, not a backdrop to existing
-          // content.
-          imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          // both web and native) and applies a blur via ImageFilter.
+          // We don't use BackdropFilter because the image needs to be
+          // its own layer, not a backdrop to existing content.
+          // PERF (Part E4): sigma is 8 on low-RAM phones, 24 otherwise.
+          imageFilter: ImageFilter.blur(
+              sigmaX: lowRam ? 8 : 24, sigmaY: lowRam ? 8 : 24),
           child: Image.network(
             imagePath,
             fit: BoxFit.cover,
@@ -243,10 +261,12 @@ class _BlurredWallpaperImage extends StatelessWidget {
 
     // PERF (Part C2): same RepaintBoundary wrap as the data-URI branch
     // above — cache the expensive ImageFiltered saveLayer as a separate
-    // rasterized layer. Sigma UNCHANGED at 24.
+    // rasterized layer.
+    // PERF (Part E4): sigma is 8 on low-RAM phones, 24 otherwise.
     return RepaintBoundary(
       child: ImageFiltered(
-        imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        imageFilter: ImageFilter.blur(
+            sigmaX: lowRam ? 8 : 24, sigmaY: lowRam ? 8 : 24),
         child: image,
       ),
     );
