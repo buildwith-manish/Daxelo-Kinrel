@@ -14,10 +14,21 @@ import 'package:flutter/material.dart';
 /// Base widget for all game icons.
 /// Tries to load the PNG asset first; falls back to CustomPainter if missing.
 class GameIcon extends StatelessWidget {
-  const GameIcon({super.key, required this.gameId, this.size = 24, this.color});
+  const GameIcon({
+    super.key,
+    required this.gameId,
+    this.size = 24,
+    this.color,
+    this.colorBlendMode,
+  });
   final String gameId;
   final double size;
   final Color? color;
+  // PERF (Part C1): added so callers can dim an asset-backed icon via
+  // colorBlendMode: BlendMode.modulate + color: Colors.white * 0.5
+  // without triggering a saveLayer (the colorFilter is applied directly
+  // in the Image's paint call).
+  final BlendMode? colorBlendMode;
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +43,8 @@ class GameIcon extends StatelessWidget {
         width: size,
         height: size,
         fit: BoxFit.cover,
+        color: color,
+        colorBlendMode: colorBlendMode,
         errorBuilder: (context, error, stackTrace) {
           // Fallback to custom-painted icon
           final c = color ?? _colorFor(gameId);
