@@ -21,7 +21,10 @@
 // Pure mechanical extraction — every class keeps its exact API.
 // chat_screen.dart imports this file instead of defining them inline.
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../../core/constants/brand_colors.dart';
 import '../../../../../core/constants/brand_spacing.dart';
@@ -604,7 +607,7 @@ class DateGroup {
 // Tier 3 / Swipe-to-Reply
 // ═══════════════════════════════════════════════════════════════════════
 
-class SwipeToReply extends StatelessWidget {
+class SwipeToReply extends StatefulWidget {
   const SwipeToReply({
     super.key,
     required this.messageId,
@@ -619,49 +622,138 @@ class SwipeToReply extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    final direction = isMe
-        ? DismissDirection.endToStart
-        : DismissDirection.startToEnd;
+  State<SwipeToReply> createState() => _SwipeToReplyState();
+}
 
-    return Dismissible(
-      key: ValueKey('swipe_reply_$messageId'),
-      direction: direction,
-      confirmDismiss: (dir) {
-        onReply();
-        return Future.value(false);
-      },
-      dismissThresholds: const {
-        DismissDirection.startToEnd: 0.25,
-        DismissDirection.endToStart: 0.25,
-      },
-      background: _buildBackground(isMe),
-      secondaryBackground: _buildBackground(isMe),
-      child: child,
-    );
+class _SwipeToReplyState extends State<SwipeToReply>
+    with SingleTickerProviderStateMixin {
+  /// The bubble travels at most this fraction of the row width.
+  static const double _maxFraction = 0.20;
+  static const double _maxPixels = 80;
+
+  /// Reply fires when released after passing this fraction of max travel.
+  static const double _triggerFraction = 0.7;
+
+  final ValueNotifier<double> _offset = ValueNotifier<double>(0);
+  late final AnimationController _back = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  );
+
+  double _maxDrag = 64;
+  double _raw = 0;
+  double _releaseFrom = 0;
+  bool _armed = false;
+
+  // Received bubbles move right, your own bubbles move left, so a bubble
+  // always moves toward empty space and never leaves the screen.
+  double get _dir => widget.isMe ? -1 : 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _back.addListener(() {
+      _offset.value =
+          _releaseFrom * (1 - Curves.easeOutCubic.transform(_back.value));
+    });
   }
 
-  Widget _buildBackground(bool isMe) {
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: isMe ? 0 : 16,
-          right: isMe ? 16 : 0,
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: KinrelColors.ember.withValues(alpha: 0.15),
+  @override
+  void dispose() {
+    _back.dispose();
+    _offset.dispose();
+    super.dispose();
+  }
+
+  void _onStart(DragStartDetails d) {
+    _back.stop();
+    _raw = _offset.value;
+    _armed = _offset.value >= _maxDrag * _triggerFraction;
+  }
+
+  void _onUpdate(DragUpdateDetails d) {
+    _raw = math.max(0.0, _raw + d.delta.dx * _dir);
+    // Follow the finger up to _maxDrag, then resist hard.
+    final shown =
+        _raw <= _maxDrag ? _raw : _maxDrag + (_raw - _maxDrag) * 0.08;
+    _offset.value = math.min(shown, _maxDrag * 1.1);
+
+    final armedNow = _offset.value >= _maxDrag * _triggerFraction;
+    if (armedNow && !_armed) {
+      HapticFeedback.lightImpact();
+    }
+    _armed = armedNow;
+  }
+
+  void _release({required bool allowReply}) {
+    if (allowReply && _armed) {
+      widget.onReply();
+    }
+    _armed = false;
+    _raw = 0;
+    _releaseFrom = _offset.value;
+    _back.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _maxDrag = math.min(constraints.maxWidth * _maxFraction, _maxPixels);
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragStart: _onStart,
+          onHorizontalDragUpdate: _onUpdate,
+          onHorizontalDragEnd: (_) => _release(allowReply: true),
+          onHorizontalDragCancel: () => _release(allowReply: false),
+          child: ValueListenableBuilder<double>(
+            valueListenable: _offset,
+            // The bubble is built once and only moved, not rebuilt or repainted.
+            child: RepaintBoundary(child: widget.child),
+            builder: (context, offset, child) {
+              final progress =
+                  (offset / (_maxDrag * _triggerFraction)).clamp(0.0, 1.0);
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  if (offset > 2)
+                    Positioned.fill(
+                      child: Align(
+                        alignment: widget.isMe
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Transform.scale(
+                            scale: 0.6 + 0.4 * progress,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: KinrelColors.ember
+                                    .withValues(alpha: 0.15 * progress),
+                              ),
+                              child: Icon(
+                                Icons.reply_rounded,
+                                size: 20,
+                                color: KinrelColors.ember
+                                    .withValues(alpha: progress),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  Transform.translate(
+                    offset: Offset(_dir * offset, 0),
+                    child: child,
+                  ),
+                ],
+              );
+            },
           ),
-          child: const Icon(
-            Icons.reply_rounded,
-            size: 22,
-            color: KinrelColors.ember,
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

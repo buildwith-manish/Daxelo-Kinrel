@@ -108,49 +108,18 @@ class MessageBubble extends ConsumerWidget {
       }
     }
 
-    // v122: Swipe-to-reply — user can swipe right on any message to
-    // quote-reply to it. Uses a horizontal drag gesture with a
-    // threshold. When the swipe exceeds the threshold, onReply is
-    // called (which calls setReplyTo in the provider). A visual
-    // reply icon appears during the drag for feedback.
-    double dragX = 0;
-    bool replyTriggered = false;
-
+    // Swipe-to-reply is handled by SwipeToReply in chat_meta.dart (chat_screen.dart wraps
+    // each bubble). Do not add a second drag handler here: it would fight with it.
     return StatefulBuilder(
       builder: (context, setLocalState) {
         return GestureDetector(
           onLongPress: onLongPress,
-          onHorizontalDragUpdate: (details) {
-            if (details.delta.dx > 0 && !replyTriggered) {
-              dragX += details.delta.dx;
-              if (dragX > 40) {
-                replyTriggered = true;
-                onReply();
-                HapticFeedback.selectionClick();
-              }
-            }
-          },
-          onHorizontalDragEnd: (_) {
-            dragX = 0;
-            replyTriggered = false;
-          },
           child: Align(
             alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // v122: Reply icon shown during swipe (left side).
-                if (dragX > 5 && !isSticker)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Icon(
-                      Icons.reply_rounded,
-                      size: 20,
-                      color: KinrelColors.orange
-                          .withValues(alpha: (dragX / 40).clamp(0.0, 1.0)),
-                    ),
-                  ),
                 // v127: Avatar only on first message in group.
                 // Non-first messages get an invisible spacer for alignment.
                 if (!isMe && !isSticker && isFirstInGroup)

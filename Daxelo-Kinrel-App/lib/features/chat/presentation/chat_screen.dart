@@ -2608,6 +2608,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // subtree actually changed.
                 child: RepaintBoundary(
                   child: SwipeToReply(
+                    key: ValueKey(msg.id),
                     messageId: msg.id,
                     isMe: isMe,
                     onReply: () {
