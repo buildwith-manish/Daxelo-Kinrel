@@ -117,14 +117,29 @@ ChatMessage directMessageToChatMessage(
     final roomCode = (invitePayload['roomCode'] as String? ?? '').trim();
     final maxPlayers = (invitePayload['maxPlayers'] as num?)?.toInt();
     final currentPlayers = (invitePayload['currentPlayers'] as num?)?.toInt();
-    // The DM invite payload stores the host's familyId (the family the
-    // game lives in). The shared card needs it for the Join route:
-    // /family/<familyId>/<gameType>/lobby?join=<gameId>. We stash it
-    // on the ChatMessage via the groupId field (which the group card
-    // uses for sub-group scoping, not routing) — NO, that would
-    // conflict. Instead, the DM screen passes inviteFamilyId to
-    // MessageBubble directly from the payload (see direct_chat_screen).
-    // Here we only fill the card-display fields.
+    final fromName = invitePayload['fromName'] as String? ?? 'A family member';
+
+    // CRITICAL: the group game-invite card renders `message.content` as
+    // the body text (the human-readable invite message, e.g. "Account 1
+    // wants to play SOS with you"). The DM payload stores the ENTIRE
+    // invite as a JSON blob in dm.content — so passing dm.content as
+    // ChatMessage.content would dump raw JSON into the card body.
+    //
+    // Instead, extract the `message` field from the payload (the clean
+    // invite text set by InviteFamilySheet). If the payload has no
+    // `message` field (old rows), build a default from fromName + the
+    // game route segment so the card always shows a readable sentence.
+    final payloadMessage = invitePayload['message'] as String?;
+    final String inviteContent = (payloadMessage != null && payloadMessage.isNotEmpty)
+        ? payloadMessage
+        : '$fromName invited you to play';
+
+    // The DM invite payload (GameInvite.toJson) does NOT include a
+    // `status` field — the status is tracked server-side on the
+    // game_invites table + the game table itself, not in the DM row.
+    // Default to 'pending' so the card shows "Waiting for players" /
+    // "Join game" — the correct action for a pending invite. The lobby
+    // screen shows the actual live state when the user taps Join.
     final inviteStatus = (invitePayload['status'] as String?) ?? 'pending';
 
     return ChatMessage(
@@ -132,7 +147,8 @@ ChatMessage directMessageToChatMessage(
       senderId: dm.senderId,
       senderName: senderName,
       senderInitials: senderInitials,
-      content: dm.content,
+      // Use the clean invite message, NOT the raw JSON blob.
+      content: inviteContent,
       messageType: MessageType.gameInvite,
       timestamp: dm.createdAt,
       isRead: dm.isRead,
