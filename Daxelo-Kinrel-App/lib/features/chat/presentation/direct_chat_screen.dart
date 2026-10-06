@@ -37,7 +37,8 @@ import '../data/wallpaper_picker.dart';
 import '../data/direct_message_provider.dart';
 import '../data/direct_message_adapter.dart';
 import '../providers/chat_provider.dart';
-import 'widgets/chat_wallpaper_builder.dart';
+import 'widgets/chat_background.dart';
+import 'widgets/chat_input_bar.dart';
 import 'widgets/chat_message_list.dart';
 
 class DirectChatScreen extends ConsumerStatefulWidget {
@@ -361,10 +362,32 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     return DKScaffold(
       backgroundColor: const Color(0xFF13141E),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF13141E),
+        // v3.3: same header gradient as the group chat — vertical
+        // gradient (warm dark navy → base dark) + hairline bottom
+        // border. Uses flexibleSpace so the gradient fills the entire
+        // AppBar area including the status bar slot.
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF11132A), // top — warm dark navy (matches group)
+                Color(0xFF0A0B16), // bottom — base dark (matches group)
+              ],
+            ),
+            border: Border(
+              bottom: BorderSide(
+                  color: Color(0x0FFFFFFF), width: 0.5),
+            ),
+          ),
+        ),
+        // v3.3: same back button icon as the group chat.
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: KinrelColors.textWhite),
+          icon: const Icon(Icons.arrow_back_ios_new,
+              size: 18, color: KinrelColors.textSilver),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
         title: Row(
@@ -382,10 +405,13 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
               onTap: () => MemberProfileSheet.show(context, widget.otherUserId),
               child: Row(
                 children: [
-                  // Avatar
+                  // v3.3: avatar bumped to 40px (closer to the group's
+                  // 48px) with the same orange-tint circle. Kept at 40
+                  // rather than 48 so the DM header (which has no
+                  // member-count chip) doesn't feel oversized.
                   Container(
-                    width: 36,
-                    height: 36,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: KinrelColors.orange.withValues(alpha: 0.15),
@@ -398,16 +424,16 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                               cacheManager: KinrelImageCacheManager.instance,
                               fit: BoxFit.cover,
                               memCacheWidth:
-                                  (36 * MediaQuery.devicePixelRatioOf(context))
+                                  (40 * MediaQuery.devicePixelRatioOf(context))
                                       .toInt(),
                               memCacheHeight:
-                                  (36 * MediaQuery.devicePixelRatioOf(context))
+                                  (40 * MediaQuery.devicePixelRatioOf(context))
                                       .toInt(),
                               errorWidget: (_, __, ___) => Center(
                                 child: Text(
                                   peer.initials,
                                   style: const TextStyle(
-                                    fontSize: 14,
+                                    fontSize: 15,
                                     fontWeight: FontWeight.w700,
                                     color: KinrelColors.orange,
                                   ),
@@ -419,7 +445,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                             child: Text(
                               peer?.initials ?? '?',
                               style: const TextStyle(
-                                fontSize: 14,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w700,
                                 color: KinrelColors.orange,
                               ),
@@ -482,10 +508,14 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
       ),
       body: Column(
         children: [
-          // v114: Wrap messages with ChatWallpaperBuilder so the custom
-          // wallpaper (if set) renders only behind the messages.
+          // v3.3: Wrap messages with ChatBackground — the SAME multi-layer
+          // ambient gradient + custom wallpaper the group chat uses. The
+          // wallpaperPathProvider is keyed by chatId string; we pass
+          // 'dm_<otherUserId>' so DM wallpapers are independent of group
+          // wallpapers (no new provider needed — the existing family-keyed
+          // path is a different chatId string, so there's no collision).
           Expanded(
-            child: ChatWallpaperBuilder(
+            child: ChatBackground(
               chatId: 'dm_${widget.otherUserId}',
               child: bodyContent,
             ),
@@ -499,7 +529,21 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                 style: const TextStyle(color: KinrelColors.error, fontSize: 12),
               ),
             ),
-          _buildInputBar(),
+          // v3.3: shared ChatInputBar — same gradient surface, same
+          // elevated capsule, same send button as the group. DM passes
+          // only text + send (showAttach/showEmoji/showStickers/showPoll/
+          // showVoice all false — the DM backend supports text only).
+          ChatInputBar(
+            textController: _textController,
+            focusNode: _focusNode,
+            isComposing: _isComposing,
+            onSend: _sendMessage,
+            showAttach: false,
+            showEmoji: false,
+            showStickers: false,
+            showPoll: false,
+            showVoice: false,
+          ),
         ],
       ),
     );
@@ -543,99 +587,8 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     );
   }
 
-  Widget _buildInputBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: const BoxDecoration(
-        color: Color(0xFF13141E),
-        border: Border(
-          top: BorderSide(color: Color(0xFF2A2A3D), width: 0.5),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: [
-            Expanded(
-              child: Container(
-                constraints: const BoxConstraints(maxHeight: 120),
-                child: TextField(
-                  controller: _textController,
-                  focusNode: _focusNode,
-                  maxLines: null,
-                  textInputAction: TextInputAction.newline,
-                  style: const TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 15,
-                    color: KinrelColors.textWhite,
-                    height: 1.4,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Message…',
-                    hintStyle: const TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 15,
-                      color: KinrelColors.textDim,
-                    ),
-                    filled: true,
-                    fillColor: const Color(0xFF202338),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(KinrelRadius.xl),
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(KinrelRadius.xl),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(KinrelRadius.xl),
-                      borderSide: BorderSide(
-                        color: KinrelColors.orange.withValues(alpha: 0.3),
-                        width: 1,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            GestureDetector(
-              onTap: _isComposing ? _sendMessage : null,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: _isComposing
-                      ? KinrelGradients.igniteGradient
-                      : const LinearGradient(
-                          colors: [Color(0xFF202338), Color(0xFF202338)],
-                        ),
-                  boxShadow: _isComposing
-                      ? [
-                          BoxShadow(
-                            color: KinrelColors.orange.withValues(alpha: 0.3),
-                            blurRadius: 12,
-                            offset: const Offset(0, 3),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Icon(
-                  Icons.send_rounded,
-                  size: 20,
-                  color: _isComposing ? Colors.white : KinrelColors.textDim,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // v3.3: the old DM-only _buildInputBar was replaced by the shared
+  // ChatInputBar widget (see the body Column above). The DM passes
+  // showAttach/showEmoji/showStickers/showPoll/showVoice all false —
+  // the DM backend supports text only.
 }
