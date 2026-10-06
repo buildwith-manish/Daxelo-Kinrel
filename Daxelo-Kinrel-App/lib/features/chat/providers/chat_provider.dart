@@ -1086,14 +1086,22 @@ class ChatNotifier extends StateNotifier<ChatState> {
       return;
     }
     try {
-      // Fetch last 200 messages, ordered by createdAt ASC.
-      // We'll store newest-first in state (matching the old demo layout).
+      // Fetch the NEWEST 50 messages, ordered by createdAt DESC.
+      //
+      // Previously this fetched the OLDEST 200 (ascending: true with a
+      // limit returns the first 200 by ascending order — i.e. the oldest
+      // 200), which made a freshly-opened chat render ancient history
+      // instead of the latest conversation. Descending + limit 50 returns
+      // the newest 50 directly from the index, so the chat opens on the
+      // current tail of the conversation. Older history is still
+      // reachable via loadOlderMessages (cursor pagination using the
+      // oldest loaded message).
       final messagesResponse = await client
           .from('ChatMessage')
           .select()
           .eq('familyId', familyId)
-          .order('createdAt', ascending: true)
-          .limit(200);
+          .order('createdAt', ascending: false)
+          .limit(50);
 
       final messageIds = <String>[];
       final messages = <ChatMessage>[];
@@ -1104,9 +1112,36 @@ class ChatNotifier extends StateNotifier<ChatState> {
         messageIds.add(msg.id);
       }
 
-      // Fetch reactions for these messages in a single query.
+      // Newest first (UI ListView is reverse: true). The query already
+      // returns newest-first, but re-sorting keeps the invariant robust
+      // against any future ordering change and matches the existing
+      // contract documented in chat_reverse_list_pagination_test.dart.
+      messages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+      // Show messages as soon as the first query returns — do NOT make
+      // the screen wait for the reactions query. Set state with the
+      // message list (reactions empty for now) and isLoading: false,
+      // THEN fetch reactions and apply them in a second state update.
+      if (mounted) {
+        state = state.copyWith(
+          messages: messages,
+          isLoading: false,
+          clearError: true,
+        );
+      }
+      _initialLoadDone = true;
+
+      // Mark all unread messages not sent by me as read. Fire-and-forget
+      // so it never blocks the reactions merge below.
+      unawaited(_markUnreadAsRead());
+
+      // Fetch reactions for these messages in a single query and merge
+      // them into the already-rendered list. This is the same reaction
+      // merging logic as before — just split into a second state update
+      // so the messages appear on screen immediately.
+      if (messageIds.isEmpty) return;
       final reactions = <String, List<MessageReaction>>{};
-      if (messageIds.isNotEmpty) {
+      try {
         // Supabase's inFilter accepts a list.
         final reactionsResponse = await client
             .from('ChatMessageReaction')
@@ -1121,27 +1156,26 @@ class ChatNotifier extends StateNotifier<ChatState> {
             userId: r['userId'] as String? ?? '',
           ));
         }
+      } catch (e) {
+        // Reactions are decorative — never block the chat render. If the
+        // reactions query fails, the messages are already on screen
+        // (without reactions). The next realtime reaction event will
+        // populate them.
+        debugPrint('⚠️ ChatNotifier._loadMessages reactions fetch failed: $e');
+        return;
       }
 
-      // Apply reactions to messages.
-      final withReactions = messages.map((m) {
-        return m.copyWith(reactions: reactions[m.id] ?? const []);
+      if (!mounted) return;
+      // Apply reactions to the current list. We re-read state.messages
+      // (not the local `messages` variable) so that any realtime inserts
+      // that landed between the first and second state updates keep
+      // their reactions too (looked up by id in the `reactions` map;
+      // a realtime insert for an id not in `reactions` just stays
+      // reactionless until the next reload).
+      final withReactions = state.messages.map((m) {
+        return m.copyWith(reactions: reactions[m.id] ?? m.reactions);
       }).toList();
-
-      // Newest first (UI ListView is reverse: true)
-      withReactions.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-
-      if (mounted) {
-        state = state.copyWith(
-          messages: withReactions,
-          isLoading: false,
-          clearError: true,
-        );
-      }
-      _initialLoadDone = true;
-
-      // Mark all unread messages not sent by me as read.
-      unawaited(_markUnreadAsRead());
+      state = state.copyWith(messages: withReactions);
     } catch (e) {
       debugPrint('⚠️ ChatNotifier._loadMessages error: $e');
       if (mounted) {
@@ -1157,9 +1191,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
   //
   // Called when the user scrolls to the top of the currently-loaded
   // message list. Fetches the next page of older messages using the
-  // oldest-loaded message's createdAt as the cursor. Preserves the
-  // initial 200-message load behavior — this is additive pagination
-  // for history, not a change to the initial load.
+  // oldest-loaded message's createdAt as the cursor. The initial load
+  // now returns the newest 50 (see _loadMessages); this is additive
+  // pagination for history, not a change to the initial load.
   static const int _olderMessagesPageSize = 100;
 
   Future<void> loadOlderMessages() async {

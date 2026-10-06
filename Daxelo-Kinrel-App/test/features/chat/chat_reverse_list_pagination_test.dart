@@ -52,14 +52,15 @@ void main() {
     test('initial load order: messages are newest-first (DESC by timestamp)',
         () {
       // Mirror what chat_provider._loadMessages does:
-      //   1. Server returns messages ascending (createdAt ASC).
-      //   2. Provider sorts descending before storing in state.
+      //   1. Server returns messages DESC (createdAt DESC, limit 50 — the
+      //      newest 50).
+      //   2. Provider re-sorts descending before storing in state.
       final fromServer = [
-        _msg(id: 'oldest', timestamp: DateTime.utc(2026, 10, 1, 9, 0, 0)),
-        _msg(id: 'middle', timestamp: DateTime.utc(2026, 10, 2, 9, 0, 0)),
         _msg(id: 'newest', timestamp: DateTime.utc(2026, 10, 3, 9, 0, 0)),
+        _msg(id: 'middle', timestamp: DateTime.utc(2026, 10, 2, 9, 0, 0)),
+        _msg(id: 'oldest', timestamp: DateTime.utc(2026, 10, 1, 9, 0, 0)),
       ];
-      // Sort descending (matching chat_provider.dart line 981).
+      // Sort descending (matching chat_provider._loadMessages).
       final stored = [...fromServer]
         ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
