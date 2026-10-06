@@ -37,7 +37,7 @@ import '../voice_message_player.dart';
 import 'full_screen_image_viewer.dart';
 
 class MessageBubble extends ConsumerWidget {
-  const MessageBubble({super.key, 
+  const MessageBubble({super.key,
     required this.message,
     required this.isMe,
     required this.onReply,
@@ -50,6 +50,23 @@ class MessageBubble extends ConsumerWidget {
     /// Feature 6: callback when the user taps the quoted reply preview.
     /// The chat_screen wires this to scroll to the original message.
     this.onReplyPreviewTap,
+    /// v3.3 (shared chat UI): when true, this bubble is rendering inside
+    /// a 1:1 DM. The bubble hides the sender-name label above the bubble
+    /// and hides the avatar + its spacer (a DM only has two parties, so
+    /// the sender is unambiguous from the bubble alignment). Everything
+    /// else — bubble shape, colors, sizes, timestamps, ticks, game-invite
+    /// card — is identical to the group chat. Default false so the group
+    /// chat is unchanged.
+    this.isDirectChat = false,
+    /// v3.3 (shared chat UI): the family id used ONLY by the game-invite
+    /// Join/Spectate navigation routes
+    /// (/family/<id>/<gameType>/lobby?join=<gameId>). Falls back to
+    /// [familyId] when null (the group chat passes null and lets the
+    /// routes use familyId). The DM screen passes familyId null (so the
+    /// relationship label + group-only chatProvider calls are skipped)
+    /// AND inviteFamilyId from the DM invite payload (so the Join button
+    /// still deep-links into the host's family space).
+    this.inviteFamilyId,
   });
 
   final ChatMessage message;
@@ -78,6 +95,20 @@ class MessageBubble extends ConsumerWidget {
   /// above the bubble. The chat_screen uses this to scroll to the
   /// original message being replied to. Null = no tap handler.
   final VoidCallback? onReplyPreviewTap;
+
+  /// v3.3: see field doc above.
+  final bool isDirectChat;
+
+  /// v3.3: see field doc above.
+  final String? inviteFamilyId;
+
+  /// v3.3: the family id to use for game-invite Join/Spectate routes.
+  /// Prefers [inviteFamilyId] (set by the DM screen from the invite
+  /// payload) and falls back to [familyId] (the group chat's family).
+  /// Returns null when neither is set — the Join button is disabled
+  /// in that case (the card still renders, just without a working
+  /// Join action).
+  String? get _inviteRouteFamilyId => inviteFamilyId ?? familyId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -133,7 +164,11 @@ class MessageBubble extends ConsumerWidget {
               children: [
                 // v127: Avatar only on first message in group.
                 // Non-first messages get an invisible spacer for alignment.
-                if (!isMe && !isSticker && isFirstInGroup)
+                // v3.3: DMs (isDirectChat) hide the avatar AND the spacer
+                // entirely — a DM only has two parties so the sender is
+                // unambiguous from the bubble alignment, and removing
+                // the 40px spacer lets the bubble use the full width.
+                if (!isMe && !isSticker && !isDirectChat && isFirstInGroup)
                   GestureDetector(
                     onTap: () => MemberProfileSheet.show(
                       context,
@@ -162,7 +197,7 @@ class MessageBubble extends ConsumerWidget {
                       ),
                     ),
                   )
-                else if (!isMe && !isSticker && !isFirstInGroup)
+                else if (!isMe && !isSticker && !isDirectChat && !isFirstInGroup)
                   const SizedBox(width: 40), // invisible spacer for alignment
             Flexible(
               child: Container(
@@ -341,7 +376,9 @@ class MessageBubble extends ConsumerWidget {
                             : CrossAxisAlignment.start,
                         children: [
                           // v127: Sender name only on first message in group
-                          if (!isMe && !isSticker && isFirstInGroup)
+                          // v3.3: DMs (isDirectChat) hide the sender name —
+                          // a DM only has two parties so the name is redundant.
+                          if (!isMe && !isSticker && !isDirectChat && isFirstInGroup)
                             _buildSenderName(ref),
                           // Tier 1 / Forwarded label — show a small
                           // "Forwarded from <name>" tag above the content
@@ -1851,12 +1888,15 @@ class MessageBubble extends ConsumerWidget {
   void _watchGameFromCard(BuildContext context) {
     final gameType = message.gameType ?? '';
     final gameId = message.gameId ?? '';
-    if (gameType.isEmpty || gameId.isEmpty || familyId == null) return;
+    // v3.3: use _inviteRouteFamilyId so DM invites (familyId null,
+    // inviteFamilyId set from the payload) can still navigate.
+    final famId = _inviteRouteFamilyId;
+    if (gameType.isEmpty || gameId.isEmpty || famId == null) return;
     // Same route as Join — the lobby decides spectate vs. rejoin based on
     // the game's current status + the user's participant status. This
     // keeps the chat card's surface area minimal (one route) and lets
     // the lobby handle the routing complexity.
-    context.go('/family/$familyId/$gameType/lobby?join=$gameId');
+    context.go('/family/$famId/$gameType/lobby?join=$gameId');
   }
 
   /// Navigate into the game lobby from a chat invite card.
@@ -1867,8 +1907,11 @@ class MessageBubble extends ConsumerWidget {
   void _joinGameFromCard(BuildContext context) {
     final gameType = message.gameType ?? '';
     final gameId = message.gameId ?? '';
-    if (gameType.isEmpty || gameId.isEmpty || familyId == null) return;
-    context.go('/family/$familyId/$gameType/lobby?join=$gameId');
+    // v3.3: use _inviteRouteFamilyId so DM invites (familyId null,
+    // inviteFamilyId set from the payload) can still navigate.
+    final famId = _inviteRouteFamilyId;
+    if (gameType.isEmpty || gameId.isEmpty || famId == null) return;
+    context.go('/family/$famId/$gameType/lobby?join=$gameId');
   }
 
   /// Title-case fallback for game types not in the GameType enum

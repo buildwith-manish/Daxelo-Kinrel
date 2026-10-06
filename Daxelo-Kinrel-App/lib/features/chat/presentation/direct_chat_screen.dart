@@ -21,6 +21,7 @@
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -34,7 +35,10 @@ import '../../profile/presentation/member_profile_sheet.dart';
 import '../data/chat_wallpaper_provider.dart';
 import '../data/wallpaper_picker.dart';
 import '../data/direct_message_provider.dart';
+import '../data/direct_message_adapter.dart';
+import '../providers/chat_provider.dart';
 import 'widgets/chat_wallpaper_builder.dart';
+import 'widgets/chat_message_list.dart';
 
 class DirectChatScreen extends ConsumerStatefulWidget {
   const DirectChatScreen({super.key, required this.otherUserId});
@@ -102,7 +106,74 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   String? get _currentUserId =>
       ref.read(supabaseProvider)?.auth.currentUser?.id;
 
-  bool _isMine(DirectMessage msg) => msg.senderId == _currentUserId;
+  /// v3.3: Resolves the host's familyId from the FIRST game-invite DM
+  /// in the thread (the payload stores `familyId` as the family the
+  /// game lives in). Passed to ChatMessageList as `inviteFamilyId` so
+  /// the shared game-invite card's Join button can deep-link into the
+  /// host's family space (/family/<id>/<gameType>/lobby?join=<gameId>).
+  /// Returns null if there are no game-invite DMs — the Join button is
+  /// disabled in that case (the card still renders).
+  String? _resolveInviteFamilyId(List<DirectMessage> messages) {
+    for (final msg in messages) {
+      if (msg.isGameInvite) {
+        final payload = msg.gameInvitePayload;
+        final famId = payload?['familyId'] as String?;
+        if (famId != null && famId.isNotEmpty) return famId;
+      }
+    }
+    return null;
+  }
+
+  /// v3.3: Long-press on a DM message shows only the actions the DM
+  /// backend supports — currently just Copy. The group chat's full
+  /// action sheet (Delete, Forward, Reply, React, Edit, Star, Pin) is
+  /// NOT shown because the DM backend doesn't support those operations.
+  void _showDmMessageActions(ChatMessage msg) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
+        ),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 4),
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: KinrelColors.textDim.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              if (msg.content.isNotEmpty)
+                ListTile(
+                  leading: const Icon(Icons.copy_rounded,
+                      color: KinrelColors.textSilver, size: 22),
+                  title: const Text('Copy',
+                      style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    Clipboard.setData(ClipboardData(text: msg.content));
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   /// v114: Shows the image-based wallpaper picker bottom sheet with
   /// three options: Choose from Gallery, Remove Wallpaper (only if one
@@ -255,22 +326,35 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
         ),
       );
     } else {
+      // v3.3: the DM screen now renders the SAME shared ChatMessageList
+      // as the group chat — same date separators, same MessageBubble,
+      // same game-invite card, same RepaintBoundary/cacheExtent. The
+      // DM messages are converted to ChatMessage via the memoized
+      // directChatMessagesProvider (see direct_message_adapter.dart).
+      //
+      // isDirectChat=true → hides avatar + sender name (a DM only has
+      // two parties so both are unambiguous from bubble alignment).
+      // enableSwipeReply=false → DM backend doesn't support replies.
+      // showReactions=false → DM backend doesn't support reactions.
+      // familyId=null → skips the relationship label + group chatProvider
+      // actions inside MessageBubble.
+      // inviteFamilyId → resolved from the DM invite payload so the
+      // game-invite Join button deep-links into the host's family space.
+      final chatMessages = ref.watch(directChatMessagesProvider(widget.otherUserId));
       bodyContent = messages.isEmpty
           ? _buildEmptyState(peer?.name ?? 'them')
-          : ListView.builder(
-              controller: _scrollController,
-              reverse: true,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 8),
-              itemCount: messages.length,
-              itemBuilder: (context, index) {
-                final msg = messages[index];
-                final isMe = _isMine(msg);
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: _DirectMessageBubble(message: msg, isMe: isMe),
-                );
-              },
+          : ChatMessageList(
+              messages: chatMessages,
+              currentUserId: _currentUserId,
+              familyId: null,
+              isDirectChat: true,
+              inviteFamilyId: _resolveInviteFamilyId(messages),
+              scrollController: _scrollController,
+              onReply: (_) {}, // DMs don't support replies — no-op
+              onReact: (_) {}, // DMs don't support reactions — no-op (showReactions=false hides the entry point)
+              onLongPress: (msg) => _showDmMessageActions(msg),
+              enableSwipeReply: false,
+              showReactions: false,
             );
     }
 
@@ -553,384 +637,5 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
         ),
       ),
     );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Message Bubble
-// ═══════════════════════════════════════════════════════════════════════
-
-class _DirectMessageBubble extends StatelessWidget {
-  const _DirectMessageBubble({required this.message, required this.isMe});
-
-  final DirectMessage message;
-  final bool isMe;
-
-  @override
-  Widget build(BuildContext context) {
-    // Task 4 — interactive game-invite card (Specific-Members invites)
-    if (message.isGameInvite) {
-      return _buildGameInviteBubble(context);
-    }
-    // Special heart-themed card for Thinking of You messages
-    if (message.isThinkingOfYou) {
-      return _buildThinkingOfYouBubble(context);
-    }
-    return _buildTextBubble(context);
-  }
-
-  Widget _buildTextBubble(BuildContext context) {
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.78,
-        ),
-        margin: EdgeInsets.only(left: isMe ? 48 : 0, right: isMe ? 0 : 48),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isMe
-              ? const Color(0xFFE8612A).withValues(alpha: 0.08)
-              : const Color(0xFF191B2C),
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(KinrelRadius.lg),
-            topRight: const Radius.circular(KinrelRadius.lg),
-            bottomLeft: Radius.circular(isMe ? KinrelRadius.lg : 4),
-            bottomRight: Radius.circular(isMe ? 4 : KinrelRadius.lg),
-          ),
-          border: isMe
-              ? Border.all(
-                  color: KinrelColors.orange.withValues(alpha: 0.12),
-                  width: 0.5,
-                )
-              : Border.all(color: const Color(0xFF2A2A3D), width: 0.5),
-        ),
-        child: Column(
-          crossAxisAlignment:
-              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            Text(
-              message.content,
-              style: const TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 14.5,
-                color: KinrelColors.textWhite,
-                height: 1.45,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  message.formattedTime,
-                  style: const TextStyle(
-                    fontFamily: KinrelTypography.monoFont,
-                    fontSize: 10,
-                    color: KinrelColors.textDim,
-                  ),
-                ),
-                if (isMe) ...[
-                  const SizedBox(width: 4),
-                  Icon(
-                    message.isRead
-                        ? Icons.done_all_rounded
-                        : Icons.check_rounded,
-                    size: 12,
-                    color: message.isRead
-                        ? KinrelColors.orange
-                        : KinrelColors.textDim,
-                  ),
-                ],
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildThinkingOfYouBubble(BuildContext context) {
-    // Pink-coral themed card with a heart icon. Renders the message as
-    // "<sender> <message>" (e.g. "Manish is thinking of you.").
-    const accent = Color(0xFFE91E63); // pink
-    const accentDim = Color(0x1FE91E63); // 12% alpha
-    const accentBorder = Color(0x33E91E63); // 20% alpha
-
-    return Align(
-      alignment: Alignment.center,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.85,
-        ),
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: accentDim,
-          borderRadius: BorderRadius.circular(KinrelRadius.lg),
-          border: Border.all(
-            color: accentBorder,
-            width: 1,
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: accent.withValues(alpha: 0.18),
-                border: Border.all(
-                  color: accent.withValues(alpha: 0.4),
-                  width: 1,
-                ),
-              ),
-              child: const Icon(
-                Icons.favorite,
-                size: 18,
-                color: accent,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Thinking of You',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.monoFont,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                      color: accent,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    // Phase 22 fix: the RPC now stores the FULL grammatical
-                    // sentence in content (e.g. "Manish is thinking of you."),
-                    // so we render it as-is for both sender and receiver.
-                    // The previous code prepended "You " for the sender's own
-                    // messages — which produced broken output
-                    // ("You is thinking of you.") because the templates are
-                    // third-person verb phrases. See migration
-                    // 20260906150000_fix_thinking_of_you_grammar_and_per_receiver_cooldown.sql.
-                    message.content,
-                    style: const TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 13,
-                      color: KinrelColors.textWhite,
-                      height: 1.3,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    message.formattedTime,
-                    style: const TextStyle(
-                      fontFamily: KinrelTypography.monoFont,
-                      fontSize: 10,
-                      color: KinrelColors.textDim,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Task 4 — game-invite card for Specific-Members invitations.
-  ///
-  /// Renders a Kinrel-orange card with the game name, room code, player
-  /// count and a JOIN button (recipient side) that deep-links into the
-  /// host's lobby via the standard ?join=<gameId> route. Malformed JSON
-  /// (or a missing payload) degrades gracefully to the text bubble so
-  /// the thread never breaks.
-  Widget _buildGameInviteBubble(BuildContext context) {
-    final payload = message.gameInvitePayload;
-    if (payload == null) return _buildTextBubble(context);
-
-    final gameSegment = (payload['gameType'] as String? ?? '').trim();
-    final gameId = payload['gameId'] as String? ?? '';
-    final roomCode = (payload['roomCode'] as String? ?? '').trim();
-    final familyId = payload['familyId'] as String? ?? '';
-    final fromName = payload['fromName'] as String? ?? 'A family member';
-    final maxPlayers = (payload['maxPlayers'] as num?)?.toInt() ?? 0;
-    final currentPlayers = (payload['currentPlayers'] as num?)?.toInt() ?? 0;
-    final inviteMessage = payload['message'] as String?;
-
-    final displayName = _gameDisplayName(gameSegment);
-    // EVERY game (including the board games — chess, checkers, carrom,
-    // tictactoe) joins via the lobby's ?join= flow: the joiner lands in
-    // the shared waiting room and takes the free opponent slot
-    // automatically, or spectates if the match is already running.
-    final joinRoute =
-        '/family/$familyId/$gameSegment/lobby?join=$gameId';
-
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.82,
-        ),
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: KinrelColors.darkCard,
-          borderRadius: BorderRadius.circular(KinrelRadius.lg),
-          border: Border.all(
-            color: KinrelColors.orange.withValues(alpha: 0.35),
-            width: 1,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: KinrelColors.orange.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  ),
-                  child: const Icon(
-                    Icons.sports_esports,
-                    color: KinrelColors.orange,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '$displayName invitation',
-                        style: const TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: KinrelColors.textWhite,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'From $fromName'
-                        '${roomCode.isNotEmpty ? ' · Room $roomCode' : ''}'
-                        '${maxPlayers > 0 ? ' · $currentPlayers/$maxPlayers players' : ''}',
-                        style: const TextStyle(
-                          fontFamily: KinrelTypography.monoFont,
-                          fontSize: 10,
-                          color: KinrelColors.textDim,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            if (inviteMessage != null && inviteMessage.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text(
-                inviteMessage,
-                style: const TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 12.5,
-                  color: KinrelColors.textWhite,
-                  height: 1.35,
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Material(
-                    color: isMe
-                        ? KinrelColors.darkElevated
-                        : KinrelColors.orange,
-                    borderRadius: BorderRadius.circular(KinrelRadius.md),
-                    child: InkWell(
-                      onTap: isMe
-                          ? null
-                          : () => GoRouter.of(context).go(joinRoute),
-                      borderRadius: BorderRadius.circular(KinrelRadius.md),
-                      child: Container(
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 10),
-                        child: Center(
-                          child: Text(
-                            isMe ? 'Invitation sent' : 'Join game',
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: isMe
-                                  ? KinrelColors.textDim
-                                  : KinrelColors.textWhite,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message.formattedTime,
-              style: const TextStyle(
-                fontFamily: KinrelTypography.monoFont,
-                fontSize: 9,
-                color: KinrelColors.textDim,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Friendly name for a game route segment ('sos' → 'SOS').
-String _gameDisplayName(String segment) {
-  switch (segment) {
-    case 'bingo':
-      return 'Bingo';
-    case 'ludo':
-      return 'Ludo';
-    case 'checkers':
-      return 'Checkers';
-    case 'carrom':
-      return 'Carrom';
-    case 'chess':
-      return 'Chess';
-    case 'chitmatch':
-      return 'TripleMatch';
-    case 'nameplace':
-      return 'Name, Place, Animal, Thing';
-    case 'tictactoe':
-      return 'Tic-Tac-Toe';
-    case 'truthordare':
-      return 'Truth or Dare';
-    case 'twotruths':
-      return 'Two Truths and a Lie';
-    case 'dotsboxes':
-      return 'Dots and Boxes';
-    case 'antakshari':
-      return 'Antakshari';
-    case 'freeze-dash':
-      return 'Freeze & Dash';
-    case 'sos':
-    default:
-      return 'SOS';
   }
 }

@@ -43,11 +43,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../l10n/app_localizations.dart';
-// Step 4 — shared timezone-aware time utility. The "Today"/"Yesterday"
-// date-grouping in this screen must use the VIEWER'S device-local day
-// boundary (not UTC or IST), so a message sent at 11 PM in one timezone
-// doesn't misfile under the wrong day for a viewer elsewhere.
-import '../../../core/utils/app_time.dart';
+// v3.3: AppTime import removed — date grouping moved to ChatMessageList.
 import '../../../core/utils/web_keyboard_height.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/haptic_service.dart';
@@ -80,6 +76,7 @@ import 'widgets/sticker_pack_sheet.dart';
 import 'widgets/chat_meta.dart';
 import 'widgets/empty_chat_state.dart';
 import 'widgets/message_bubble.dart';
+import 'widgets/chat_message_list.dart';
 import 'widgets/pinned_messages_bar.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../data/chat_wallpaper_provider.dart';
@@ -206,25 +203,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // when the keyboard opens. We use the visualViewport API instead to
   // detect the actual keyboard height and add explicit bottom padding.
   double _webKeyboardHeight = 0;
-
-  // ── Phase 2 / _groupByDate memoization ─────────────────────────────
-  //
-  // The previous implementation of _groupByDate ran an O(n²) grouping
-  // (using `groups.where(...).firstOrNull` inside a loop over messages)
-  // on EVERY build() call. With a chat thread of ~200 messages and a
-  // burst of realtime inserts triggering 10 builds per second, that's
-  // 200 × 10 = 2,000 firstOrNull scans per second — each one scanning
-  // up to N groups to find a label match.
-  //
-  // We now memoize the grouping result by the IDENTITY of the messages
-  // list. Since chat_provider's state is immutable (each state change
-  // creates a new List instance), identity comparison (identical()) is
-  // a perfect cache key — O(1) invalidation, no false hits.
-  //
-  // The grouping algorithm itself is now O(n) using a Map<String,
-  // DateGroup> index for O(1) label lookups (vs the old O(n) scan).
-  List<DateGroup> _groupedCache = const [];
-  List<ChatMessage>? _groupedCacheKey;
 
   // Quick reaction emojis
   static const _reactionEmojis = ['❤️', '😂', '👍', '😮', '😢', '🙏'];
@@ -2485,212 +2463,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // ── Messages List ────────────────────────────────────────────────
 
   Widget _buildMessagesList(List<ChatMessage> messages, ChatState chatState) {
-    // Group messages by date for separators
-    final grouped = _groupByDate(messages);
-
-    // v130: Bottom padding reserves space for the scroll-to-bottom FAB
-    // (40px tall, 8px from bottom = 48px footprint) plus a 16px buffer
-    // so the most recent message — including full-size 64px sticker
-    // emoji messages — is never obscured by the floating button when
-    // the user scrolls slightly up from the bottom and the FAB is
-    // visible. In a reversed ListView, padding.bottom is applied at
-    // the visual bottom of the viewport (where index 0 / newest
-    // message renders).
-    const fabClearance = 64.0; // FAB(40) + margin(8) + buffer(16)
-
-    return ListView.builder(
-      controller: _scrollController,
-      // ── Phase 3 / reverse-list anchor-to-bottom ───────────────────
-      // reverse: true means the visual BOTTOM of the viewport shows
-      // index 0 (the newest message) and scrolling UP increases the
-      // scroll offset (toward older messages at the end of the list).
-      // This eliminates the need for a post-render scroll-to-bottom
-      // animation on screen entry — the list naturally opens at offset
-      // 0 = the most recent message, exactly like WhatsApp.
-      //
-      // Verified as part of Phase 3:
-      //   ✅ State is stored newest-first (chat_provider sorts
-      //      messages descending by timestamp).
-      //   ✅ Realtime inserts prepend to index 0 (visual bottom) —
-      //      the user sees the new message appear at the bottom of
-      //      the screen without any scroll animation.
-      //   ✅ Pagination prepends OLDER messages to the END of the
-      //      list (chat_provider's loadOlderMessages does
-      //      [...state.messages, ...olderMessages]), which in a
-      //      reverse ListView renders at the visual TOP — exactly
-      //      where the user is scrolling toward when reading history.
-      //   ✅ The main chat TextField does NOT have autofocus: true,
-      //      so the focus-listener-triggered _scrollToBottom() does
-      //      NOT fire on screen entry. (autofocus is only on the
-      //      edit-message dialog's TextField — a separate route.)
-      //   ✅ _scrollToBottom() is only called in two legitimate
-      //      contexts: after the user SENDS a message (so the new
-      //      message is visible even if they'd scrolled up to read
-      //      history) and when the user TAPS the input field (which
-      //      implies they're done reading and want to engage).
-      reverse: true,
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, fabClearance),
-      itemCount: grouped.length,
-      // ── Phase 2 / itemExtent / prototypeItem ───────────────────────
-      // The spec asks us to evaluate `itemExtent` for fixed-height
-      // message kinds (game-invite cards) and `prototypeItem` for
-      // near-fixed-height kinds. Both require a SINGLE global extent
-      // for the whole list — but each item in THIS ListView is a
-      // DateGroup Column wrapping multiple bubbles of genuinely
-      // varying heights (a 1-line text bubble vs. a 6-line game-invite
-      // card vs. a 220×220 GIF bubble). Forcing a fixed itemExtent
-      // would crop long messages or waste space on short ones.
-      //
-      // SliverVariedExtentList would allow per-item extents, but
-      // computing each group's extent upfront requires laying out
-      // every bubble (defeating the lazy-build benefit of ListView).
-      //
-      // Per the spec's escape hatch ("if the mixed-height reality
-      // makes a clean itemExtent win impractical, skip this
-      // optimization and rely on Phase 5's rebuild hygiene instead"),
-      // we skip itemExtent here. The wins come from:
-      //   • Phase 5 — debounced realtime bursts (1 rebuild/burst, not N)
-      //   • Phase 6 — RepaintBoundary per bubble (only the new bubble
-      //     repaints, not the whole visible list)
-      //   • Phase 2 memoization — _groupByDate no longer re-runs on
-      //     every build (it's memoized by list identity above)
-      //   • cacheExtent below — extends the offscreen render window so
-      //     scrolling reveals already-built items instead of building
-      //     them on demand mid-frame.
-      //
-      // cacheExtent: 1.5 screen heights of pre-built offscreen content.
-      // The default is 250px — too tight for chat, where a single
-      // game-invite card or photo bubble is already ~220px. 1500px
-      // gives ~2 screens of headroom in either scroll direction.
-      cacheExtent: 1500,
-      itemBuilder: (context, index) {
-        final group = grouped[index];
-        return Column(
-          children: [
-            // v127: Date separator pill
-            _buildDateSeparator(group.dateLabel),
-            const SizedBox(height: 8),
-            // Messages for this date — v127: with sender grouping
-            ...group.messages.asMap().entries.map((entry) {
-              final i = entry.key;
-              final msg = entry.value;
-              final isMe = _isMine(msg);
-
-              // v127: Compute isFirstInGroup + isLastInGroup.
-              // First in group if: first message OR previous message
-              // is from a different sender OR >60s gap.
-              final isFirstInGroup = i == 0 ||
-                  group.messages[i - 1].senderId != msg.senderId ||
-                  msg.timestamp.difference(group.messages[i - 1].timestamp).inSeconds.abs() > 60;
-
-              // Last in group if: last message OR next message
-              // is from a different sender OR >60s gap.
-              final isLastInGroup = i == group.messages.length - 1 ||
-                  group.messages[i + 1].senderId != msg.senderId ||
-                  group.messages[i + 1].timestamp.difference(msg.timestamp).inSeconds.abs() > 60;
-
-              // v127: Tighter spacing within groups (2px) vs between
-              // groups (8px).
-              final bottomPadding = isLastInGroup ? 8.0 : 2.0;
-
-              return Padding(
-                padding: EdgeInsets.only(bottom: bottomPadding),
-                // ── Phase 6 / RepaintBoundary ─────────────────────────
-                // Each bubble is wrapped in its own RepaintBoundary so a
-                // single new/updated message (or a realtime burst insert)
-                // doesn't trigger a repaint of the entire visible message
-                // list. Without this, every state change in the chatProvider
-                // (a new message arriving, a read-receipt flip, a reaction
-                // add) repaints ALL visible bubbles — including the
-                // expensive photo/GIF bubbles that decode cached bitmaps.
-                // The RepaintBoundary creates a separate paint layer per
-                // bubble so the framework only repaints bubbles whose
-                // subtree actually changed.
-                child: RepaintBoundary(
-                  child: SwipeToReply(
-                    key: ValueKey(msg.id),
-                    messageId: msg.id,
-                    isMe: isMe,
-                    onReply: () {
-                      ref
-                          .read(chatProvider(widget.familyId).notifier)
-                          .setReplyTo(msg);
-                    },
-                    child: MessageBubble(
-                      message: msg,
-                      isMe: isMe,
-                      familyId: widget.familyId,
-                      isFirstInGroup: isFirstInGroup,
-                      isLastInGroup: isLastInGroup,
-                      onReply: () {
-                        ref
-                            .read(chatProvider(widget.familyId).notifier)
-                            .setReplyTo(msg);
-                      },
-                      onReact: () => _showReactionPicker(msg.id),
-                      onLongPress: () => _showMessageActions(msg),
-                      /// Feature 6: tap the quoted reply preview to scroll
-                      /// to the original message. We pass a callback only
-                      /// when replyToId is set (avoids creating a closure
-                      /// for every bubble).
-                      onReplyPreviewTap: msg.replyToId != null
-                          ? () => _scrollToMessage(msg.replyToId!)
-                          : null,
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildDateSeparator(String label) {
-    // v132: Premium day divider — softer glass appearance with a
-    // refined shape. Uses a frosted-glass effect (semi-transparent
-    // dark + hairline white border) so it feels integrated with the
-    // ambient background rather than floating as a hard pill.
+    // v3.3: the message list logic (date grouping, first/last-in-group,
+    // SwipeToReply wrapping, RepaintBoundary per bubble, reversed
+    // ListView with cacheExtent=1500) was MOVED to the shared
+    // ChatMessageList widget so the DM screen can render the same list.
+    // The group chat passes enableSwipeReply=true, showReactions=true,
+    // and all callbacks wired — so the group chat behaves EXACTLY as
+    // before.
     //
-    // Phase 6 — RepaintBoundary isolates the date pill from message-
-    // bubble repaints. The pill's visual only depends on [label], which
-    // is stable per group, so isolating it prevents the frosted-glass
-    // blur (an expensive paint op) from re-running on every state change.
-    return RepaintBoundary(
-      child: Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          decoration: BoxDecoration(
-            // v132: Frosted glass — dark with low alpha so the ambient
-            // gradient shows through subtly.
-            color: const Color(0xFF13141E).withValues(alpha: 0.78),
-            borderRadius: BorderRadius.circular(100),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.08),
-              width: 0.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontFamily: KinrelTypography.monoFont,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w600,
-              color: KinrelColors.textSilver.withValues(alpha: 0.9),
-              letterSpacing: 0.8,
-            ),
-          ),
-        ),
-      ),
+    // The typing indicator, scroll-to-bottom FAB, and unread logic are
+    // NOT in ChatMessageList — they live ABOVE the list in this screen's
+    // Column (they're tightly coupled to the engagement provider + this
+    // screen's scroll controller state and would risk regressions if
+    // moved).
+    return ChatMessageList(
+      messages: messages,
+      currentUserId: _currentUserId,
+      familyId: widget.familyId,
+      isDirectChat: false,
+      inviteFamilyId: null,
+      scrollController: _scrollController,
+      onReply: (msg) {
+        ref.read(chatProvider(widget.familyId).notifier).setReplyTo(msg);
+      },
+      onReact: (msg) => _showReactionPicker(msg.id),
+      onLongPress: (msg) => _showMessageActions(msg),
+      onReplyPreviewTap: (msg) {
+        if (msg.replyToId != null) _scrollToMessage(msg.replyToId!);
+      },
     );
   }
 
@@ -4471,119 +4271,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
-  // ── Date Grouping ────────────────────────────────────────────────
-  //
-  // Step 4: "Today" / "Yesterday" labels use the VIEWER'S device-local
-  // day boundary — NOT UTC, NOT IST. A message sent at 11:30 PM in the
-  // viewer's local timezone on July 15 must be grouped under "Today"
-  // (if the viewer's local date is still July 15) or "Yesterday" (if
-  // it's now past midnight on July 16). Previously the code extracted
-  // `msg.timestamp.year/month/day` directly from the UTC-parsed
-  // server timestamp, which gave the UTC day — a message sent at
-  // 11:30 PM IST (18:00 UTC) would have its UTC day be the same IST
-  // day, but a message sent at 1 AM IST (the previous day in UTC)
-  // would be misfiled.
-
-  List<DateGroup> _groupByDate(List<ChatMessage> messages) {
-    // ── Phase 2 / memoization ────────────────────────────────────────
-    // Return the cached grouping if the input list is the same instance
-    // as last time. chat_provider's ChatState.messages is immutable —
-    // any state change creates a fresh List, so identical() comparison
-    // is a perfect invalidation signal (O(1), no false hits).
-    //
-    // This eliminates the O(n²) grouping work on every rebuild that
-    // doesn't actually change the messages list (e.g. typing-indicator
-    // updates, presence changes — both fire chatState changes but
-    // leave .messages untouched).
-    if (identical(_groupedCacheKey, messages)) {
-      return _groupedCache;
-    }
-
-    // ── Phase 2 / O(n) algorithm (was O(n²)) ────────────────────────
-    // The previous implementation used `groups.where(...).firstOrNull`
-    // INSIDE the loop over messages — an O(n) scan per message, making
-    // the whole grouping O(n²) on the full message list. With 200+
-    // messages per chat thread, that's 40,000+ label scans per build.
-    //
-    // The fix: maintain a Map<String, DateGroup> index alongside the
-    // ordered List<DateGroup> so label lookups are O(1) instead of O(n).
-    // The ordered list is still produced in insertion order (newest day
-    // first, since messages are newest-first from the provider).
-    final orderedLabels = <String>[];
-    final byLabel = <String, DateGroup>{};
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-
-    for (final msg in messages) {
-      // Step 4: convert the server-returned UTC timestamp to the
-      // viewer's device-local timezone before extracting year/month/day.
-      // AppTime.toLocalDisplay() is `utc.toUtc().toLocal()` — handles
-      // UTC-parsed DateTimes, naive timestamps, and local DateTimes
-      // uniformly.
-      final local = AppTime.toLocalDisplay(msg.timestamp);
-      final msgDate = DateTime(local.year, local.month, local.day);
-
-      String label;
-      if (msgDate == today) {
-        label = 'Today';
-      } else if (msgDate == yesterday) {
-        label = 'Yesterday';
-      } else {
-        final months = [
-          '',
-          'January',
-          'February',
-          'March',
-          'April',
-          'May',
-          'June',
-          'July',
-          'August',
-          'September',
-          'October',
-          'November',
-          'December',
-        ];
-        label = '${months[local.month]} ${local.day}, ${local.year}';
-      }
-
-      final existing = byLabel[label];
-      if (existing != null) {
-        existing.messages.add(msg);
-      } else {
-        final g = DateGroup(dateLabel: label, messages: [msg]);
-        byLabel[label] = g;
-        orderedLabels.add(label);
-      }
-    }
-
-    final groups = <DateGroup>[];
-    for (final label in orderedLabels) {
-      groups.add(byLabel[label]!);
-    }
-
-    // v112: Within each date group, sort messages ascending (oldest
-    // first, newest last) so they render top-to-bottom correctly inside
-    // that day's Column. The day-GROUPS themselves remain in descending
-    // order (newest day first) for correct placement in the reversed
-    // ListView — only the intra-day order is fixed here.
-    //
-    // ROOT CAUSE: chat_provider sorts the master list newest-first
-    // (descending). _groupByDate iterated that list and appended to
-    // each group in the same descending order, so within a single day
-    // the newest message ended up at group.messages[0] and rendered at
-    // the TOP of that day's block — backwards. This sort fixes that
-    // without affecting the between-day ordering.
-    for (final g in groups) {
-      g.messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-    }
-
-    // Cache the result for next time.
-    _groupedCacheKey = messages;
-    _groupedCache = groups;
-    return groups;
-  }
+  // v3.3: date grouping + date separator rendering was MOVED to the
+  // shared ChatMessageList widget (see chat_message_list.dart). The
+  // group chat now delegates to ChatMessageList via _buildMessagesList
+  // above.
 }
 
 // ═══════════════════════════════════════════════════════════════════════
