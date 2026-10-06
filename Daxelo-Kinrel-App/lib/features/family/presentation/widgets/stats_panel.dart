@@ -87,12 +87,10 @@ class StatsPanel extends StatelessWidget {
     // §3: Frosted glass panel instead of flat navy box
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
+      child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: KinrelColors.darkCard.withValues(alpha: 0.55),
+            color: KinrelColors.darkCard.withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             boxShadow: [
@@ -155,7 +153,6 @@ class StatsPanel extends StatelessWidget {
         ],
       ),
         ),
-      ),
     );
   }
 }
