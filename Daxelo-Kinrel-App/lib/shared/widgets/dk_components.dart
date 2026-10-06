@@ -1137,12 +1137,10 @@ class DKBottomNav extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(KinrelRadius.xl),
-            child: isLight
-                ? _buildContent(isLight)
-                : BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                    child: _buildContent(isLight),
-                  ),
+            // Perf: dark-mode BackdropFilter (sigma 16) removed — the
+            // container is already DKColors.darkCard at alpha 0.92, so
+            // the blur was nearly invisible and just added GPU cost.
+            child: _buildContent(isLight),
           ),
         ),
       ),
