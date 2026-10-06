@@ -168,6 +168,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   late final AnimationController _typingController;
   late final List<Animation<double>> _dotAnimations;
 
+  // PERF (Part C3): start/stop the typing animation based on whether
+  // anyone is actually typing. When nobody is typing, the controller
+  // stops ticking — no constant repaints. This is called from
+  // ref.listen callbacks registered in initState.
+  void _syncTypingController() {
+    if (!mounted) return;
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final engagement = ref.read(chatEngagementProvider(widget.familyId));
+    final someoneTyping =
+        chatState.isTyping || engagement.isSomeoneTyping;
+    if (someoneTyping && !_typingController.isAnimating) {
+      _typingController.repeat();
+    } else if (!someoneTyping && _typingController.isAnimating) {
+      _typingController.stop();
+    }
+  }
+
   // Phase 13: Voice recorder state
   final AudioRecorder _recorder = AudioRecorder();
   bool _isRecording = false;
@@ -255,11 +272,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     WebKeyboardHeight.instance.start();
     WebKeyboardHeight.instance.addListener(_onWebKeyboardHeight);
 
-    // Typing indicator — 3 bouncing dots
+    // Typing indicator — 3 bouncing dots.
+    // PERF (Part C3): the controller is NOT started here. Previously it
+    // was started with `..repeat()` which kept the ticker running forever
+    // (every ~16ms) even when nobody was typing — driving a constant
+    // repaint of the chat screen's render tree. Now the controller is
+    // started/stopped via ref.listen below, only when typing is actually
+    // active (chatState.isTyping || engagement.isSomeoneTyping).
     _typingController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
-    )..repeat();
+    );
 
     _dotAnimations = List.generate(3, (index) {
       return Tween<double>(begin: 0, end: -6).animate(
@@ -273,6 +296,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ),
       );
     });
+
+    // PERF (Part C3): start/stop the typing animation based on whether
+    // anyone is actually typing. When typing stops, the controller stops
+    // ticking — no more constant repaints.
+    ref.listen<dynamic>(
+      chatProvider(widget.familyId).select((s) => s.isTyping),
+      (previous, next) => _syncTypingController(),
+    );
+    ref.listen<dynamic>(
+      chatEngagementProvider(widget.familyId)
+          .select((e) => e.isSomeoneTyping),
+      (previous, next) => _syncTypingController(),
+    );
 
     // Mark all as read on enter
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -3102,8 +3138,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
             child: Row(
               children: [
-                // Pulsing red recording dot
-                const RecordingDot(),
+                // Pulsing red recording dot.
+                // PERF (Part C3): wrapped in a RepaintBoundary so the
+                // recording dot's 900ms pulse animation (which repaints
+                // ~every 16ms while recording) doesn't bleed into the
+                // rest of the chat header / message list.
+                const RepaintBoundary(child: RecordingDot()),
                 const SizedBox(width: 12),
                 // Timer
                 Text(
