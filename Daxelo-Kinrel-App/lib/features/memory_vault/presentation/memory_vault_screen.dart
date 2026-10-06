@@ -30,7 +30,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -307,6 +306,9 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
       return _buildEmptyState();
     }
 
+    // Feature 8: use vault-sorted memories (pinned first, then newest)
+    final sortedMemories = state.vaultSortedMemories;
+
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(
         KinrelSpacing.base,
@@ -319,9 +321,9 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
         crossAxisSpacing: 2,
         mainAxisSpacing: 2,
       ),
-      itemCount: state.memories.length,
+      itemCount: sortedMemories.length,
       itemBuilder: (context, index) {
-        final memory = state.memories[index];
+        final memory = sortedMemories[index];
         return _buildPhotoTile(memory);
       },
     );
@@ -333,26 +335,67 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
       onLongPress: () => _showContextMenu(memory),
       child: Hero(
         tag: 'memory_${memory.id}',
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: CachedNetworkImage(
-            imageUrl: memory.photoUrl,
-            cacheManager: KinrelImageCacheManager.instance,
-            fit: BoxFit.cover,
-            memCacheWidth: 300,
-            memCacheHeight: 300,
-            placeholder: (context, url) => _buildShimmerTile(),
-            errorWidget: (context, url, error) => Container(
-              color: KinrelColors.darkCard,
-              child: const Center(
-                child: Icon(
-                  Icons.broken_image_rounded,
-                  color: KinrelColors.textDim,
-                  size: 24,
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: CachedNetworkImage(
+                imageUrl: memory.displayImageUrl,
+                cacheManager: KinrelImageCacheManager.instance,
+                fit: BoxFit.cover,
+                memCacheWidth: 300,
+                memCacheHeight: 300,
+                placeholder: (context, url) => _buildShimmerTile(),
+                errorWidget: (context, url, error) => Container(
+                  color: KinrelColors.darkCard,
+                  child: const Center(
+                    child: Icon(
+                      Icons.broken_image_rounded,
+                      color: KinrelColors.textDim,
+                      size: 24,
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
+            // Feature 8: Pin badge on pinned memories
+            if (memory.isPinnedToVault)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.push_pin_rounded,
+                    size: 12,
+                    color: KinrelColors.orange,
+                  ),
+                ),
+              ),
+            // Feature 6: From-post badge
+            if (memory.isFromPost)
+              Positioned(
+                bottom: 4,
+                left: 4,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.article_outlined,
+                    size: 10,
+                    color: KinrelColors.orange,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -555,23 +598,11 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
         ),
       );
     }
-    _showUploadSheet();
-  }
 
-  void _showUploadSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: KinrelColors.darkCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.xxl),
-        ),
-      ),
-      builder: (context) {
-        return _UploadMemorySheet();
-      },
-    );
+    // Feature 1 + 2: open the new structured memory create screen
+    // (image picker → crop editor → compression → preview → upload)
+    // instead of the legacy gallery-only upload sheet.
+    context.push('/memory/create');
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -619,6 +650,34 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
                 onTap: () {
                   Navigator.pop(context);
                   _navigateToDetail(memory);
+                },
+              ),
+              // Feature 8: Pin / Unpin memory to vault
+              ListTile(
+                leading: Icon(
+                  memory.isPinnedToVault
+                      ? Icons.push_pin_rounded
+                      : Icons.push_pin_outlined,
+                  color: memory.isPinnedToVault
+                      ? KinrelColors.orange
+                      : KinrelColors.textSilver,
+                ),
+                title: Text(
+                  memory.isPinnedToVault ? 'Unpin From Vault' : 'Pin To Vault',
+                  style: KinrelTypography.bodyLarge.copyWith(
+                    color: memory.isPinnedToVault
+                        ? KinrelColors.orange
+                        : KinrelColors.textWhite,
+                    fontWeight: memory.isPinnedToVault
+                        ? FontWeight.w700
+                        : FontWeight.w500,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  ref
+                      .read(memoryVaultProvider.notifier)
+                      .togglePinToVault(memory.id);
                 },
               ),
               if (isOwner)
@@ -753,7 +812,7 @@ class _OnThisDayCard extends StatelessWidget {
             child: AspectRatio(
               aspectRatio: 16 / 9,
               child: CachedNetworkImage(
-                imageUrl: memory.photoUrl,
+                imageUrl: memory.displayImageUrl,
                 cacheManager: KinrelImageCacheManager.instance,
                 fit: BoxFit.cover,
                 placeholder: (context, url) => Container(
@@ -856,587 +915,5 @@ class _OnThisDayCard extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Upload Memory Bottom Sheet
-// ═══════════════════════════════════════════════════════════════════════
-
-class _UploadMemorySheet extends ConsumerStatefulWidget {
-  @override
-  ConsumerState<_UploadMemorySheet> createState() =>
-      _UploadMemorySheetState();
-}
-
-class _UploadMemorySheetState extends ConsumerState<_UploadMemorySheet> {
-  final _captionController = TextEditingController();
-  DateTime _takenAt = DateTime.now();
-  final Set<String> _selectedMemberIds = {};
-  XFile? _selectedFile;
-  bool _isPicking = false;
-
-  @override
-  void dispose() {
-    _captionController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = ref.watch(memoryVaultProvider);
-
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          KinrelSpacing.base,
-          KinrelSpacing.base,
-          KinrelSpacing.base,
-          MediaQuery.of(context).viewInsets.bottom + KinrelSpacing.base,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: KinrelColors.textDim,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Title
-              Text(
-                'Upload Memory',
-                style: KinrelTypography.headlineMedium.copyWith(
-                  color: KinrelColors.textWhite,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Camera / Gallery picker row
-              _buildImagePickerRow(),
-              const SizedBox(height: 16),
-
-              // Caption TextField
-              _buildCaptionField(),
-              const SizedBox(height: 16),
-
-              // Date picker
-              _buildDatePicker(),
-              const SizedBox(height: 16),
-
-              // Member tag picker
-              _buildMemberTagger(),
-              const SizedBox(height: 24),
-
-              // Upload progress
-              if (state.isUploading) ...[
-                _buildUploadProgress(state),
-                const SizedBox(height: 16),
-              ],
-
-              // Confirm button
-              DKButton(
-                label: state.isUploading
-                    ? state.uploadProgress ?? 'Uploading...'
-                    : 'Upload Memory',
-                variant: DKButtonVariant.gradient,
-                icon: state.isUploading ? null : Icons.cloud_upload_rounded,
-                fullWidth: true,
-                size: DKButtonSize.lg,
-                isLoading: state.isUploading,
-                onPressed: state.isUploading || _selectedFile == null
-                    ? null
-                    : _handleUpload,
-              ),
-
-              // Error display
-              if (state.error != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: KinrelColors.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(KinrelRadius.md),
-                    border: Border.all(
-                      color: KinrelColors.error.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.error_outline_rounded,
-                          color: KinrelColors.error, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          state.error!,
-                          style: KinrelTypography.bodySmall.copyWith(
-                            color: KinrelColors.error,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildImagePickerRow() {
-    return Row(
-      children: [
-        // Camera
-        Expanded(
-          child: GestureDetector(
-            onTap: _isPicking ? null : () => _pickImage(ImageSource.camera),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                color: KinrelColors.darkElevated,
-                borderRadius: BorderRadius.circular(KinrelRadius.md),
-                border: Border.all(
-                  color: _selectedFile != null
-                      ? KinrelColors.orange.withValues(alpha: 0.4)
-                      : const Color(0xFF3A3A4A),
-                ),
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.camera_alt_rounded,
-                    color: _selectedFile != null
-                        ? KinrelColors.orange
-                        : KinrelColors.textDim,
-                    size: 28,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Camera',
-                    style: KinrelTypography.labelSmall.copyWith(
-                      color: _selectedFile != null
-                          ? KinrelColors.orange
-                          : KinrelColors.textSilver,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-
-        // Gallery
-        Expanded(
-          child: GestureDetector(
-            onTap: _isPicking ? null : () => _pickImage(ImageSource.gallery),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                color: KinrelColors.darkElevated,
-                borderRadius: BorderRadius.circular(KinrelRadius.md),
-                border: Border.all(
-                  color: _selectedFile != null
-                      ? KinrelColors.orange.withValues(alpha: 0.4)
-                      : const Color(0xFF3A3A4A),
-                ),
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.photo_library_rounded,
-                    color: _selectedFile != null
-                        ? KinrelColors.orange
-                        : KinrelColors.textDim,
-                    size: 28,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Gallery',
-                    style: KinrelTypography.labelSmall.copyWith(
-                      color: _selectedFile != null
-                          ? KinrelColors.orange
-                          : KinrelColors.textSilver,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCaptionField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Caption',
-          style: KinrelTypography.labelMedium.copyWith(
-            color: KinrelColors.textSilver,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: _captionController,
-          maxLength: 200,
-          maxLines: 3,
-          style: KinrelTypography.bodyMedium.copyWith(
-            color: KinrelColors.textWhite,
-          ),
-          decoration: InputDecoration(
-            hintText: 'What makes this memory special?',
-            hintStyle: KinrelTypography.bodyMedium.copyWith(
-              color: KinrelColors.textDim,
-            ),
-            filled: true,
-            fillColor: KinrelColors.darkElevated,
-            counterStyle: KinrelTypography.labelSmall.copyWith(
-              color: KinrelColors.textDim,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(KinrelRadius.md),
-              borderSide: const BorderSide(color: Color(0xFF3A3A4A)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(KinrelRadius.md),
-              borderSide: const BorderSide(color: Color(0xFF3A3A4A)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(KinrelRadius.md),
-              borderSide:
-                  const BorderSide(color: KinrelColors.orange, width: 1.5),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDatePicker() {
-    return GestureDetector(
-      onTap: () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: _takenAt,
-          firstDate: DateTime(1900),
-          lastDate: DateTime.now(),
-          builder: (context, child) {
-            return Theme(
-              data: ThemeData.dark().copyWith(
-                colorScheme: const ColorScheme.dark(
-                  primary: KinrelColors.orange,
-                  surface: KinrelColors.darkCard,
-                ),
-              ),
-              child: child!,
-            );
-          },
-        );
-        if (picked != null) {
-          setState(() => _takenAt = picked);
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: KinrelColors.darkElevated,
-          borderRadius: BorderRadius.circular(KinrelRadius.md),
-          border: Border.all(color: const Color(0xFF3A3A4A)),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.calendar_today_rounded,
-              color: KinrelColors.orange,
-              size: 20,
-            ),
-            const SizedBox(width: 10),
-            Text(
-              'When was this taken?',
-              style: KinrelTypography.labelMedium.copyWith(
-                color: KinrelColors.textDim,
-              ),
-            ),
-            const Spacer(),
-            Text(
-              _formatDate(_takenAt),
-              style: KinrelTypography.labelMedium.copyWith(
-                color: KinrelColors.textWhite,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(width: 4),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: KinrelColors.textDim,
-              size: 20,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMemberTagger() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Tag Family Members',
-          style: KinrelTypography.labelMedium.copyWith(
-            color: KinrelColors.textSilver,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Consumer(
-          builder: (context, ref, _) {
-            final familiesAsync = ref.watch(familyListProvider);
-            final families = familiesAsync.valueOrNull;
-            if (families == null || families.isEmpty) {
-              return Text(
-                'No family members found',
-                style: KinrelTypography.bodySmall.copyWith(
-                  color: KinrelColors.textDim,
-                ),
-              );
-            }
-
-            // Load members for the first family
-            final familyId = families.first.id;
-            final membersAsync = ref.watch(familyMembersProvider(familyId));
-            final members = membersAsync.valueOrNull ?? [];
-
-            if (members.isEmpty) {
-              return Text(
-                'No family members found',
-                style: KinrelTypography.bodySmall.copyWith(
-                  color: KinrelColors.textDim,
-                ),
-              );
-            }
-
-            return SizedBox(
-              height: 80,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: members.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, index) {
-                  final member = members[index];
-                  final isSelected =
-                      _selectedMemberIds.contains(member.id);
-                  final initials = member.name
-                      .split(' ')
-                      .where((s) => s.isNotEmpty)
-                      .take(2)
-                      .map((s) => s[0].toUpperCase())
-                      .join();
-
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        if (isSelected) {
-                          _selectedMemberIds.remove(member.id);
-                        } else {
-                          _selectedMemberIds.add(member.id);
-                        }
-                      });
-                    },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: isSelected
-                                ? Border.all(
-                                    color: KinrelColors.orange,
-                                    width: 2.5,
-                                  )
-                                : null,
-                            boxShadow: isSelected
-                                ? [
-                                    const BoxShadow(
-                                      color:
-                                          KinrelColors.orangeGlow,
-                                      blurRadius: 8,
-                                    ),
-                                  ]
-                                : null,
-                          ),
-                          child: InitialsAvatar(
-                            imageUrl: member.photoUrl,
-                            initials: initials,
-                            radius: 22,
-                            backgroundColor: isSelected
-                                ? KinrelColors.orange
-                                    .withValues(alpha: 0.3)
-                                : KinrelColors.darkElevated,
-                            foregroundColor: isSelected
-                                ? KinrelColors.orange
-                                : KinrelColors.textSilver,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        SizedBox(
-                          width: 56,
-                          child: Text(
-                            member.name.split(' ').first,
-                            style: KinrelTypography.micro.copyWith(
-                              color: isSelected
-                                  ? KinrelColors.orange
-                                  : KinrelColors.textDim,
-                              fontWeight: isSelected
-                                  ? FontWeight.w700
-                                  : FontWeight.w400,
-                            ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildUploadProgress(MemoryVaultState state) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: KinrelColors.orange.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(KinrelRadius.md),
-        border: Border.all(
-          color: KinrelColors.orange.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Row(
-        children: [
-          const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(KinrelColors.orange),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  state.uploadProgress ?? 'Processing...',
-                  style: KinrelTypography.labelMedium.copyWith(
-                    color: KinrelColors.orange,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                LinearProgressIndicator(
-                  backgroundColor: KinrelColors.darkElevated,
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                      KinrelColors.orange),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _pickImage(ImageSource source) async {
-    setState(() => _isPicking = true);
-    try {
-      final picker = ImagePicker();
-      final file = await picker.pickImage(
-        source: source,
-        maxWidth: 2048,
-        maxHeight: 2048,
-        imageQuality: 90,
-      );
-      if (file != null) {
-        setState(() => _selectedFile = file);
-      }
-    } catch (e) {
-      debugPrint('⚠️ Image picker error: $e');
-    } finally {
-      setState(() => _isPicking = false);
-    }
-  }
-
-  Future<void> _handleUpload() async {
-    if (_selectedFile == null) return;
-
-    await ref.read(memoryVaultProvider.notifier).uploadMemory(
-          _selectedFile!,
-          caption: _captionController.text.trim().isEmpty
-              ? null
-              : _captionController.text.trim(),
-          takenAt: _takenAt,
-          taggedPersonIds: _selectedMemberIds.toList(),
-        );
-
-    final state = ref.read(memoryVaultProvider);
-    // Only count successful uploads against the free-tier monthly
-    // soft cap. Failed uploads (state.error != null OR still
-    // uploading) don't consume the user's monthly budget — this
-    // avoids penalizing the user for infrastructure failures.
-    // Premium (Kinrel Plus) users bypass the counter entirely
-    // (incrementMemoryVaultUpload is a no-op for them in the
-    // sense that canUploadMemoryVaultPhoto always returns true;
-    // we still record the count for diagnostics/insights, but
-    // the cap is not enforced).
-    if (!state.isUploading && state.error == null) {
-      await PremiumService.incrementMemoryVaultUpload();
-      if (mounted) {
-        Navigator.pop(context);
-      }
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    const months = [
-      '',
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${date.day} ${months[date.month]} ${date.year}';
   }
 }

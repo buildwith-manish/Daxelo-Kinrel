@@ -13,6 +13,7 @@
 
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,11 +23,14 @@ import '../../../core/constants/app_tokens.dart' show AppMotion;
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/services/image_cache_manager.dart';
 import '../../../shared/widgets/animated_preview_card.dart';
 import '../../../shared/widgets/app_scroll_safe_area.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../shared/widgets/kinrel_empty_state.dart';
+import '../../chat/presentation/widgets/full_screen_image_viewer.dart';
 import '../providers/memories_provider.dart';
+import '../../memory_vault/providers/memory_vault_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Memories & Timeline Screen
@@ -67,7 +71,12 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(memoriesProvider);
+    // Watch the display provider — reads REAL memories from
+    // memoryVaultProvider (Supabase-backed) + filter state from
+    // memoriesProvider. Pre-fix this watched memoriesProvider directly
+    // (local-only, always empty in production) — the root cause of the
+    // "save not persisting" regression.
+    final state = ref.watch(displayMemoriesProvider);
 
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
@@ -744,8 +753,14 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
             event: event,
             isFirst: isFirst,
             isLast: isLast,
-            onPin: () =>
-                ref.read(memoriesProvider.notifier).togglePin(event.id),
+            // Pin toggle goes to the vault (Supabase DB write) — NOT to
+            // the local memoriesProvider (which only updated an in-memory
+            // list and never persisted). The displayMemoriesProvider will
+            // re-emit when the vault state changes, so the card's pin
+            // badge updates immediately via optimistic update.
+            onPin: () => ref
+                .read(memoryVaultProvider.notifier)
+                .togglePinToVault(event.id),
           );
         },
         childCount: events.length,
@@ -943,19 +958,22 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
   // ═══════════════════════════════════════════════════════════════════
 
   void _showAddMemorySheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: KinrelColors.darkCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.xxl),
-        ),
-      ),
-      builder: (context) {
-        return _AddMemorySheet();
-      },
-    );
+    // Route to the new MemoryCreateScreen (the Supabase-backed memory
+    // composer with image picker, crop editor, compression, and the
+    // shared-quota gate — see lib/features/memory_vault/presentation/
+    // memory_create_screen.dart).
+    //
+    // Per the user spec, this is the "Timeline entry creation flow":
+    // "Add an optional single-image field to the Timeline entry creation
+    // flow — when adding a memory (birth, wedding, festival, custom,
+    // etc.), allow attaching exactly ONE photo as that entry's hero
+    // image."
+    //
+    // The new screen handles the optional photo attachment (subject to
+    // the shared monthly quota with Memory Vault), the structured fields
+    // (title/description/location/memory_type/members/date), and writes
+    // to the Supabase `family_memories` table via MemoryVaultNotifier.
+    context.push('/memory/create');
   }
 }
 
@@ -983,11 +1001,18 @@ class _OnThisDayCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Photo placeholder with date overlay
+          // Photo area — shows the REAL attached photo when available,
+          // falls back to the gradient + camera-icon placeholder ONLY
+          // when the memory has no photo (the genuine no-image case).
+          // Pre-fix: this always showed the camera icon placeholder
+          // regardless of whether a real photo existed.
           Stack(
             children: [
               Container(
-                height: 100,
+                // Modestly increased from 100→120 (~20%) per the
+                // "slightly bigger image" request. Proportional to
+                // the Timeline card's 85px (both increased ~18-20%).
+                height: 120,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -1004,13 +1029,69 @@ class _OnThisDayCard extends StatelessWidget {
                     top: Radius.circular(KinrelRadius.lg),
                   ),
                 ),
-                child: const Center(
-                  child: Icon(
-                    Icons.photo_camera_rounded,
-                    size: 32,
-                    color: KinrelColors.textDim,
-                  ),
-                ),
+                // When the memory has a real photo, render it inline
+                // via CachedNetworkImage (same pattern as the Timeline
+                // card + memory_vault_screen). Tapping the photo opens
+                // the full-screen immersive viewer with Hero animation.
+                // Otherwise show the camera-icon placeholder as the
+                // fallback (genuine no-image case only).
+                child: (memory.imageUrl != null &&
+                        memory.imageUrl!.isNotEmpty)
+                    ? GestureDetector(
+                        onTap: () => FullScreenImageViewer.show(
+                          context,
+                          imageUrl: memory.imageUrl!,
+                          heroTag: 'on_this_day_${memory.id}',
+                          closeOnTap: true,
+                        ),
+                        child: Hero(
+                          tag: 'on_this_day_${memory.id}',
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(KinrelRadius.lg),
+                            ),
+                            child: CachedNetworkImage(
+                              imageUrl: memory.imageUrl!,
+                              cacheManager: KinrelImageCacheManager.instance,
+                              fit: BoxFit.cover,
+                              // Updated to match the new 120px display
+                              // height (140px decode height gives a
+                              // small overscan for retina).
+                              memCacheWidth: 300,
+                              memCacheHeight: 140,
+                              placeholder: (context, url) => Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor:
+                                        AlwaysStoppedAnimation<Color>(
+                                      KinrelColors.orange
+                                          .withValues(alpha: 0.6),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) =>
+                                  const Center(
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  size: 28,
+                                  color: KinrelColors.textDim,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : const Center(
+                        child: Icon(
+                          Icons.photo_camera_rounded,
+                          size: 32,
+                          color: KinrelColors.textDim,
+                        ),
+                      ),
               ),
               // Date overlay (bottom-left)
               Positioned(
@@ -1033,28 +1114,34 @@ class _OnThisDayCard extends StatelessWidget {
                   ),
                 ),
               ),
-              // Years ago badge (top-right)
-              Positioned(
-                top: 8,
-                right: 10,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: KinrelGradients.igniteGradient,
-                    borderRadius: BorderRadius.circular(KinrelRadius.full),
-                  ),
-                  child: Text(
-                    memory.yearsAgoLabel,
-                    style: KinrelTypography.micro.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
+              // Years ago badge (top-right) — ONLY shown when yearsAgo > 0.
+              // Same-year memories (yearsAgo == 0) suppress the badge
+              // entirely per the spec: "suppress the badge entirely for
+              // same-year memories" — "0 years ago" reads awkwardly.
+              // Genuinely older memories (1+ years ago) still show
+              // "1 year ago", "2 years ago", etc.
+              if (memory.yearsAgo > 0)
+                Positioned(
+                  top: 8,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: KinrelGradients.igniteGradient,
+                      borderRadius: BorderRadius.circular(KinrelRadius.full),
+                    ),
+                    child: Text(
+                      memory.yearsAgoLabel,
+                      style: KinrelTypography.micro.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
           // Content
@@ -1386,10 +1473,41 @@ class _TimelineEventCard extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Gradient line
+                // ── Incoming segment (connects from the previous card) ──
+                // Draws a line from the top of this card's Stack down to
+                // the node's vertical center (y=28). Skipped for the first
+                // card (nothing above to connect to). This segment bridges
+                // the gap between the previous card's outgoing line (which
+                // ends at the bottom of the previous card's Stack = the
+                // top of this card's Stack) and this card's node.
+                //
+                // The 28px offset is the node's vertical center: the node
+                // is positioned at top:20 with height:16, so its center
+                // is at y = 20 + 16/2 = 28.
+                if (!isFirst)
+                  Positioned(
+                    top: 0,
+                    height: 28,
+                    left: 27,
+                    child: Container(
+                      width: 2,
+                      decoration: const BoxDecoration(
+                        gradient: KinrelGradients.timelineGradient,
+                      ),
+                    ),
+                  ),
+                // ── Outgoing segment (connects to the next card) ──────
+                // Draws a line from just below the node's center (y=28)
+                // to the bottom of this card's Stack. The next card's
+                // incoming segment picks up from here (its top:0 = this
+                // card's bottom:0). Skipped for the last card (nothing
+                // below to connect to). This replaces the previous
+                // single-line approach that was wrapped in `if (!isLast)`
+                // — which left a gap on the last card (no line at all)
+                // and didn't have a dedicated incoming segment.
                 if (!isLast)
                   Positioned(
-                    top: isFirst ? 28 : 0,
+                    top: 28,
                     bottom: 0,
                     left: 27,
                     child: Container(
@@ -1399,20 +1517,10 @@ class _TimelineEventCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                // Top cap for first item
-                if (isFirst)
-                  Positioned(
-                    top: 0,
-                    left: 27,
-                    child: Container(
-                      width: 2,
-                      height: 28,
-                      decoration: const BoxDecoration(
-                        gradient: KinrelGradients.timelineGradient,
-                      ),
-                    ),
-                  ),
-                // Glow node
+                // ── Glow node (drawn last so it sits above the line) ──
+                // The 28px offset used by the line segments above is
+                // derived from this node's position: top:20 + height:16
+                // → center at y = 20 + 8 = 28.
                 Positioned(
                   top: 20,
                   child: Container(
@@ -1452,21 +1560,40 @@ class _TimelineEventCard extends StatelessWidget {
           // ── Event Card ─────────────────────────────────────────────
           Expanded(
             child: Container(
+              // ── Timeline continuity fix ──────────────────────────────
+              // Card margins set to 0 (top/bottom) so card
+              // backgrounds touch each other — the timeline line
+              // (which goes top:0 to bottom:0 of the Stack) is then
+              // fully continuous with zero visible gap. Internal
+              // padding (vertical: 12) provides the breathing room
+              // that margins used to provide. A subtle bottom border
+              // (1px, darkElevated) creates visual separation
+              // between touching cards.
               margin: EdgeInsets.only(
-                top: isFirst ? 10 : 8,
-                bottom: isLast ? 8 : 12,
+                top: isFirst ? 8 : 0,
+                bottom: isLast ? 8 : 0,
                 right: KinrelSpacing.base,
               ),
-              padding: const EdgeInsets.all(KinrelSpacing.base),
+              padding: const EdgeInsets.symmetric(
+                horizontal: KinrelSpacing.base,
+                vertical: 12,
+              ),
               decoration: BoxDecoration(
                 color: KinrelColors.darkCard,
                 borderRadius: BorderRadius.circular(KinrelRadius.lg),
-                border: event.isPinned
-                    ? Border.all(
-                        color: KinrelColors.orange.withValues(alpha: 0.4),
-                        width: 1.5,
-                      )
-                    : null,
+                // Subtle bottom border creates visual separation between
+                // touching cards (margins are 0 for timeline continuity).
+                // Only non-last cards get the border (the last card's
+                // bottom is followed by scroll-safe-area, not another card).
+                border: Border(
+                  bottom: isLast
+                      ? BorderSide.none
+                      : BorderSide(
+                          color: KinrelColors.darkBackground
+                              .withValues(alpha: 0.5),
+                          width: 1,
+                        ),
+                ),
                 boxShadow: event.isPinned
                     ? [
                         const BoxShadow(
@@ -1531,7 +1658,7 @@ class _TimelineEventCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   // ── Title ────────────────────────────────────────────
                   Text(
                     event.title,
@@ -1539,23 +1666,130 @@ class _TimelineEventCard extends StatelessWidget {
                       color: KinrelColors.textWhite,
                       fontWeight: FontWeight.w700,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  // ── Description ──────────────────────────────────────
-                  if (event.description != null) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      event.description!,
-                      style: KinrelTypography.bodySmall.copyWith(
-                        color: KinrelColors.textSilver,
-                        height: 1.5,
+                  // ── Hero photo (immediately below title) ───────────────
+                  // Photo is the PRIMARY content of the card — placed
+                  // right after the title so the card feels media-first.
+                  // Tapping the photo opens the full-screen immersive
+                  // viewer (FullScreenImageViewer) with zoom/pan + Hero
+                  // animation. Uses CachedNetworkImage with memCacheWidth/
+                  // memCacheHeight matching the card's display dimensions
+                  // for smooth scrolling per the jank-audit principles.
+                  if (event.photoUrl != null &&
+                      event.photoUrl!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: () => FullScreenImageViewer.show(
+                        context,
+                        imageUrl: event.photoUrl!,
+                        heroTag: 'memory_${event.id}',
+                        closeOnTap: true,
                       ),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
+                      child: Hero(
+                        tag: 'memory_${event.id}',
+                        child: SizedBox(
+                          // Modestly increased from 70→85 (~18%) per
+                          // the "slightly bigger image" request. Width
+                          // is preserved (double.infinity) — the image
+                          // fills the card width and crops top/bottom
+                          // via BoxFit.cover (no distortion).
+                          height: 85,
+                          width: double.infinity,
+                          child: ClipRRect(
+                            borderRadius:
+                                BorderRadius.circular(KinrelRadius.md),
+                            child: CachedNetworkImage(
+                              imageUrl: event.photoUrl!,
+                              cacheManager: KinrelImageCacheManager.instance,
+                              fit: BoxFit.cover,
+                              // Compact decoded bitmap for smooth
+                              // scrolling. Updated to match the new
+                              // 85px display height (100px decode height
+                              // gives a small overscan for retina).
+                              memCacheWidth: 400,
+                              memCacheHeight: 100,
+                              placeholder: (context, url) => Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      event.accentColor
+                                          .withValues(alpha: 0.1),
+                                      KinrelColors.darkElevated,
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                ),
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child:
+                                        CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor:
+                                          AlwaysStoppedAnimation<
+                                              Color>(
+                                        event.accentColor,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) =>
+                                  Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      event.accentColor
+                                          .withValues(alpha: 0.1),
+                                      KinrelColors.darkElevated,
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                ),
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.broken_image_outlined,
+                                    size: 20,
+                                    color: KinrelColors.textDim,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  // ── Description (expandable, BELOW photo) ──────────────
+                  // Shows a 2-line preview initially; if the text
+                  // exceeds 2 lines, a "More" button appears. Tapping
+                  // "More" expands the full text inline (no separate
+                  // screen); "Less" collapses it back. Smooth
+                  // AnimatedSize transition. Short descriptions show
+                  // no More button.
+                  if (event.description != null) ...[
+                    const SizedBox(height: 8),
+                    _ExpandableDescription(
+                      text: event.description!,
+                      maxPreviewLines: 2,
+                      // bodyMedium (14px) instead of bodySmall (12px)
+                      // for improved readability. Still smaller than
+                      // the title (headlineSmall = 16px) so the visual
+                      // hierarchy is: Title > Description > Metadata.
+                      style: KinrelTypography.bodyMedium.copyWith(
+                        color: KinrelColors.textSilver,
+                        height: 1.45,
+                      ),
                     ),
                   ],
                   // ── Location ─────────────────────────────────────────
                   if (event.location != null) ...[
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         const Icon(
@@ -1577,47 +1811,9 @@ class _TimelineEventCard extends StatelessWidget {
                       ],
                     ),
                   ],
-                  // ── Photo placeholder ────────────────────────────────
-                  if (event.photoUrl != null) ...[
-                    const SizedBox(height: 10),
-                    Container(
-                      height: 80,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            event.accentColor.withValues(alpha: 0.1),
-                            KinrelColors.darkElevated,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(KinrelRadius.md),
-                      ),
-                      child: Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.image_rounded,
-                              size: 20,
-                              color: KinrelColors.textDim,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'View Photo',
-                              style: KinrelTypography.labelSmall.copyWith(
-                                color: KinrelColors.textDim,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
                   // ── Member avatars + Pin action ──────────────────────
                   if (event.members.isNotEmpty) ...[
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(child: _AvatarRow(members: event.members)),
@@ -2422,6 +2618,135 @@ class _PlaceholderPhoto extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Expandable Description — More/Less inline expansion
+// ═══════════════════════════════════════════════════════════════════════
+
+/// A description text widget that shows a limited preview (2-3 lines)
+/// and expands to show the full text when the user taps "More".
+/// Tapping "Less" collapses it back. Uses [AnimatedSize] for a smooth
+/// expand/collapse transition.
+///
+/// If the text fits within [maxPreviewLines], no More/Less button is
+/// shown — the widget renders as a plain Text.
+///
+/// The expanded state is preserved per-card-instance (the widget's
+/// State is tied to the Element, which is tied to the card's position
+/// in the scroll view — so as long as the card isn't disposed, the
+/// expanded state survives scrolling).
+class _ExpandableDescription extends StatefulWidget {
+  const _ExpandableDescription({
+    required this.text,
+    this.maxPreviewLines = 2,
+    this.style,
+  });
+
+  final String text;
+  final int maxPreviewLines;
+  final TextStyle? style;
+
+  @override
+  State<_ExpandableDescription> createState() => _ExpandableDescriptionState();
+}
+
+class _ExpandableDescriptionState extends State<_ExpandableDescription> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topLeft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.text,
+            style: widget.style,
+            maxLines: _isExpanded ? null : widget.maxPreviewLines,
+            overflow: _isExpanded
+                ? TextOverflow.visible
+                : TextOverflow.ellipsis,
+          ),
+          // More/Less button — only shown if the text might exceed
+          // the preview limit. We use a LayoutBuilder + TextPainter
+          // to detect overflow at build time. If the text fits, the
+          // button is hidden.
+          _MoreLessButton(
+            text: widget.text,
+            style: widget.style,
+            maxPreviewLines: widget.maxPreviewLines,
+            isExpanded: _isExpanded,
+            onToggle: () => setState(() => _isExpanded = !_isExpanded),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Detects whether the text exceeds the preview limit and, if so,
+/// renders a "More"/"Less" toggle. Uses [TextPainter] to measure the
+/// text and determine if it would overflow the given maxLines at the
+/// given width.
+class _MoreLessButton extends StatelessWidget {
+  const _MoreLessButton({
+    required this.text,
+    required this.style,
+    required this.maxPreviewLines,
+    required this.isExpanded,
+    required this.onToggle,
+  });
+
+  final String text;
+  final TextStyle? style;
+  final int maxPreviewLines;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Measure the text to see if it exceeds maxPreviewLines.
+        final span = TextSpan(text: text, style: style);
+        final tp = TextPainter(
+          text: span,
+          maxLines: maxPreviewLines,
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: constraints.maxWidth);
+
+        // didExceedMaxLines is true when the text is longer than
+        // maxPreviewLines. If it fits, no More button is needed.
+        final didOverflow = tp.didExceedMaxLines;
+        tp.dispose();
+
+        if (!didOverflow) {
+          return const SizedBox.shrink();
+        }
+
+        // Text overflowed — show the More/Less button.
+        return Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: GestureDetector(
+            onTap: onToggle,
+            child: Text(
+              isExpanded ? 'Less' : 'More',
+              style: (style ?? const TextStyle()).copyWith(
+                color: KinrelColors.orange,
+                fontWeight: FontWeight.w600,
+                // 1px smaller than the body text (bodyMedium=14 → 13)
+                fontSize: (style?.fontSize ?? 14) - 1,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

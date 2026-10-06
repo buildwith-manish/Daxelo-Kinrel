@@ -5,7 +5,8 @@
 // Features: text input, media picker, family selector, audience toggle,
 // occasion dropdown, location input.
 
-import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
@@ -19,6 +20,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../memory_vault/providers/memory_vault_provider.dart';
 import '../providers/post_create_provider.dart';
 import '../providers/feed_provider.dart';
 
@@ -129,6 +131,11 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
 
             // Audience selector
             _buildAudienceSelector(create),
+
+            const SizedBox(height: 20),
+
+            // Save To Memories toggle (Feature 5)
+            _buildSaveToMemoriesToggle(create),
 
             const SizedBox(height: 100), // Bottom padding
           ],
@@ -327,10 +334,36 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.file(
-              create.mediaFile!,
-              width: double.infinity,
-              fit: BoxFit.cover,
+            // Cross-platform image preview: load bytes via XFile.readAsBytes
+            // (works on web blob URLs and native file paths), then display
+            // via Image.memory. The previous Image.file(File(...)) didn't
+            // work on web because dart:io can't open blob URLs returned by
+            // image_picker's web implementation.
+            child: FutureBuilder<List<int>>(
+              future: create.mediaFile!.readAsBytes(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done ||
+                    !snapshot.hasData) {
+                  return Container(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    child: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  );
+                }
+                return Image.memory(
+                  Uint8List.fromList(snapshot.data!),
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (c, o, e) => Container(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    child: const Center(
+                      child: Icon(Icons.broken_image_outlined,
+                          color: Colors.white54, size: 32),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -536,9 +569,87 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
     );
   }
 
+  // ── "Also add this to our family timeline" toggle (Feature 2) ────
+
+  Widget _buildSaveToMemoriesToggle(PostCreateState create) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _cCard,
+        borderRadius: BorderRadius.circular(KinrelRadius.md),
+        border: Border.all(
+          color: create.saveToMemories
+              ? _cOrange.withValues(alpha: 0.4)
+              : Colors.white.withValues(alpha: 0.06),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: create.saveToMemories
+                  ? _cOrange.withValues(alpha: 0.15)
+                  : _cElevated,
+            ),
+            child: Icon(
+              Icons.timeline_rounded,
+              size: 18,
+              color: create.saveToMemories ? _cOrange : _cTextDim,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Also add this to our family timeline',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: _cTextPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Creates a Timeline entry from this post — text + first '
+                  'photo (if any). The link is one-time at creation; '
+                  'editing or deleting this post later won\'t touch the '
+                  'Timeline entry.',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 11,
+                    color: _cTextDim,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Toggle switch — defaults OFF. The user must explicitly opt in.
+          Switch(
+            value: create.saveToMemories,
+            onChanged: (v) {
+              ref.read(postCreateProvider.notifier).setSaveToMemories(v);
+            },
+            activeColor: _cOrange,
+            inactiveThumbColor: _cTextDim,
+            inactiveTrackColor: _cElevated,
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Image/Video Pickers ────────────────────────────────────────
 
   Future<void> _pickImage() async {
+    // Note: cancellation (image == null) returns silently WITHOUT showing
+    // an error — cancelling a picker is a normal user action, not a failure.
     try {
       final picker = ImagePicker();
       final image = await picker.pickImage(
@@ -548,13 +659,27 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
         imageQuality: 85,
       );
       if (image != null) {
-        ref.read(postCreateProvider.notifier).setMediaFile(File(image.path));
+        // Pass the XFile directly (cross-platform: works on web blob
+        // URLs and native file paths). The previous File(image.path)
+        // failed on web because dart:io can't open blob URLs.
+        ref.read(postCreateProvider.notifier).setMediaFile(image);
       }
+      // If image == null, the user cancelled — return silently (no error).
     } catch (e) {
       debugPrint('⚠️ Image picker error: $e');
       if (mounted) {
+        final msg = e.toString().toLowerCase().contains('permission') ||
+                e.toString().toLowerCase().contains('denied')
+            ? 'Photo library permission denied. Grant access in your '
+                'browser settings to attach a photo.'
+            : 'Could not pick photo. Please try again. '
+                '(Error: ${e.toString().length > 80 ? '${e.toString().substring(0, 80)}…' : e.toString()})';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open photo picker')),
+          SnackBar(
+            content: Text(msg),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     }
@@ -568,14 +693,25 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
         maxDuration: const Duration(seconds: 60),
       );
       if (video != null) {
-        // For now, treat video the same as image for preview
-        ref.read(postCreateProvider.notifier).setMediaFile(File(video.path));
+        // Pass the XFile directly (cross-platform).
+        ref.read(postCreateProvider.notifier).setMediaFile(video);
       }
+      // If video == null, the user cancelled — return silently (no error).
     } catch (e) {
       debugPrint('⚠️ Video picker error: $e');
       if (mounted) {
+        final msg = e.toString().toLowerCase().contains('permission') ||
+                e.toString().toLowerCase().contains('denied')
+            ? 'Photo library permission denied. Grant access in your '
+                'browser settings to attach a video.'
+            : 'Could not pick video. Please try again. '
+                '(Error: ${e.toString().length > 80 ? '${e.toString().substring(0, 80)}…' : e.toString()})';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open video picker')),
+          SnackBar(
+            content: Text(msg),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     }
@@ -588,14 +724,92 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
 
   // ── Share handler ──────────────────────────────────────────────
 
+  /// Maps a [PostOccasion] to the closest Timeline entry category.
+  /// Per the spec: "if the Post has any existing category/type metadata,
+  /// map it to the closest Timeline category (Birth/Festival/Achievement/etc.);
+  /// otherwise default to 'Custom' category, consistent with the custom-entry
+  /// type already visible in the current Timeline implementation."
+  static String? _mapOccasionToMemoryType(PostOccasion? occasion) {
+    switch (occasion) {
+      case PostOccasion.birthday:
+        return 'Birth';
+      case PostOccasion.anniversary:
+        return 'Anniversary';
+      case PostOccasion.festival:
+        return 'Festival';
+      case PostOccasion.achievement:
+        return 'Achievement';
+      case PostOccasion.other:
+      case null:
+        return 'Custom';
+    }
+  }
+
   Future<void> _onShare() async {
     HapticFeedback.mediumImpact();
-    final success = await ref.read(postCreateProvider.notifier).submit();
+    final create = ref.read(postCreateProvider);
+    final postId = await ref.read(postCreateProvider.notifier).submit();
     if (!mounted) return;
 
-    if (success) {
+    if (postId != null) {
       ref.invalidate(feedProvider);
-      context.pop();
+
+      // ── Feature 2: "Also add this to our family timeline" toggle ───
+      // Per the spec, when the toggle is ON we AUTO-CREATE a Timeline
+      // entry using the post's content (text + the post's FIRST image
+      // if it has one). We do NOT open a separate form — the toggle is
+      // the only mechanism for linking the two, and the entry is
+      // created automatically and silently (with a confirmation SnackBar).
+      //
+      // The linkage is ONE-DIRECTIONAL at creation time only: the post
+      // creates a memory, not the reverse. Editing or deleting the
+      // original post afterward will NOT cascade-delete the Timeline
+      // entry — they're independent records after creation, linked
+      // only by the `source_post_id` field on the memory row.
+      //
+      // Per the spec: "if the post has multiple images, use the first/
+      // primary one as the Timeline entry's hero image, and the rest
+      // remain part of the original post only, not duplicated into
+      // Timeline." PostCreateState currently supports a single mediaFile
+      // (one image per post), so the post's mediaUrl IS the first image.
+      // If multi-image posts are added later, only the first URL should
+      // be passed to savePostAsMemory().
+      if (create.saveToMemories) {
+        final postText = create.text.trim();
+        final postImageUrl = create.mediaUrl; // first/primary image
+        final postLocation = create.location;
+        final memoryType = _mapOccasionToMemoryType(create.occasion);
+
+        // AUTO-CREATE the Timeline entry. The post's image URL is
+        // passed through as `externalImageUrl` — it's NOT re-uploaded
+        // (the post upload already paid for the storage; displaying it
+        // on the Timeline entry has zero marginal cost, so no quota is
+        // consumed — see MemoryVaultNotifier.savePostAsMemory docs).
+        await ref.read(memoryVaultProvider.notifier).savePostAsMemory(
+              postId: postId,
+              postText: postText,
+              postImageUrl: postImageUrl,
+              postDate: DateTime.now(),
+              location: postLocation,
+              memoryType: memoryType,
+            );
+
+        if (!mounted) return;
+        // Confirm to the user that the linked Timeline entry was created.
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Posted — and a Timeline entry was created from this post. '
+              'View it in Memories.',
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 4),
+          ),
+        );
+        context.pop();
+      } else {
+        context.pop();
+      }
     } else {
       final error = ref.read(postCreateProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(
