@@ -10,7 +10,9 @@
 //   mid:  screenWidth 360–414 AND pixelRatio 2.0–2.9
 //   high: screenWidth > 414 OR pixelRatio >= 3.0
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -61,15 +63,43 @@ class DeviceTierCache extends ChangeNotifier {
   DeviceTier _tier = DeviceTier.mid;
   bool _initialized = false;
 
+  // ── Part E1: RAM-based low-RAM detection ───────────────────────────
+  // _lowRam is true when (a) the Android ActivityManager.isLowRamDevice
+  // flag is true, OR (b) totalRamMb <= 3300 (phones sold as 3GB report
+  // about 2.8GB; 4GB phones report about 3.7GB), OR (c) the
+  // FORCE_LOW_RAM dart-define is true. On web/iOS/desktop or on any
+  // error, _lowRam is false unless forced.
+  //
+  // initializeRam() must never throw and must time out after 300ms —
+  // the app must not block startup on a hung platform channel call.
+  bool _lowRam = false;
+  bool _ramInitialized = false;
+
   /// The detected device tier. Defaults to [DeviceTier.mid]
   /// until [initialize] is called and resolves a non-zero screen size.
   DeviceTier get tier => _tier;
+
+  /// Whether the device has been flagged as low-RAM (Part E1).
+  /// True when:
+  ///   - Android ActivityManager.isLowRamDevice == true, OR
+  ///   - totalRamMb <= 3300, OR
+  ///   - the FORCE_LOW_RAM dart-define is true.
+  /// False on web/iOS/desktop and on any error, unless forced.
+  /// Reads from a cached field — does not trigger rebuilds when called
+  /// from build methods. Call initializeRam() once at startup (in
+  /// main.dart) before this getter returns a meaningful value.
+  bool get lowRam => _lowRam;
 
   /// Whether the cache has been initialized with a non-deferred tier
   /// detection. Returns false if `initialize()` was called with
   /// `Size.zero` (web before first frame) and the deferred
   /// `initializeFromView()` has not yet run.
   bool get isInitialized => _initialized;
+
+  /// Whether [initializeRam] has completed (success or timeout/error).
+  /// Useful for tests; production code should just call initializeRam()
+  /// once at startup and read [lowRam] later.
+  bool get isRamInitialized => _ramInitialized;
 
   /// Detect and cache the device tier from screen metrics.
   ///
@@ -156,6 +186,99 @@ class DeviceTierCache extends ChangeNotifier {
     // 3D Buildings toggle in MapControlStack).
     notifyListeners();
   }
+
+  // ── Part E1: RAM detection ────────────────────────────────────────────
+
+  /// Compile-time force-low-RAM flag. When the dart-define
+  /// `FORCE_LOW_RAM=true` is passed at build time, [lowRam] is forced
+  /// to true regardless of the platform channel result. Useful for
+  /// testing the low-RAM code paths on a strong phone.
+  static const bool _forceLowRam =
+      bool.fromEnvironment('FORCE_LOW_RAM', defaultValue: false);
+
+  /// Detect and cache the low-RAM flag.
+  ///
+  /// Calls the `kinrel/device` platform channel's `memoryInfo` method,
+  /// which on Android returns `{totalRamMb, isLowRamDevice}` from
+  /// ActivityManager. On web/iOS/desktop or on any error, [lowRam] is
+  /// false unless `_forceLowRam` is true.
+  ///
+  /// This method MUST NEVER THROW and MUST time out after 300ms —
+  /// the app must not block startup on a hung platform channel call.
+  /// On timeout, [lowRam] falls back to `_forceLowRam` (false unless
+  /// forced).
+  Future<void> initializeRam() async {
+    if (_ramInitialized) return; // Idempotent
+
+    // Compile-time force always wins.
+    if (_forceLowRam) {
+      _lowRam = true;
+      _ramInitialized = true;
+      debugPrint('🔧 DeviceTier.lowRam: forced true via FORCE_LOW_RAM');
+      notifyListeners();
+      return;
+    }
+
+    // Platform check: only Android has the MethodChannel handler.
+    // On web/iOS/desktop, fall back to false.
+    if (!_isAndroid) {
+      _lowRam = false;
+      _ramInitialized = true;
+      debugPrint('🔧 DeviceTier.lowRam: false (non-Android platform)');
+      // No notifyListeners() here — lowRam defaults to false already,
+      // and widgets that read lowRam haven't been built yet (we're in
+      // main() before runApp).
+      return;
+    }
+
+    try {
+      const channel = MethodChannel('kinrel/device');
+      // Race the platform call against a 300ms timeout. The timeout
+      // ensures a hung channel doesn't block the app from starting.
+      final result = await channel
+          .invokeMethod<Map<dynamic, dynamic>>('memoryInfo')
+          .timeout(const Duration(milliseconds: 300));
+
+      if (result == null) {
+        _lowRam = false;
+      } else {
+        final totalRamMb = (result['totalRamMb'] as num?)?.toInt();
+        final isLowRamDevice = result['isLowRamDevice'] as bool? ?? false;
+        _lowRam = isLowRamDevice ||
+            (totalRamMb != null && totalRamMb <= 3300);
+      }
+      debugPrint('🔧 DeviceTier.lowRam: $_lowRam '
+          '(totalRamMb: ${result?['totalRamMb']}, '
+          'isLowRamDevice: ${result?['isLowRamDevice']})');
+    } catch (e) {
+      // Any error (MissingPluginException, timeout, etc.) → fall back
+      // to false. The app must not fail to start because of this.
+      _lowRam = false;
+      debugPrint('⚠️ DeviceTier.initializeRam failed: $e — falling back to lowRam=false');
+    }
+
+    _ramInitialized = true;
+    // No notifyListeners() — see comment above. initializeRam is called
+    // from main() before runApp(), so no widgets are listening yet.
+  }
+
+  /// Whether the current platform is Android. We avoid importing
+  /// dart:io here so this file also compiles on web (where dart:io
+  /// is unavailable). Instead, we use the PlatformDispatcher's
+  /// defaultRouteName heuristic — but the simplest approach is to
+  /// use `kIsWeb` from flutter/foundation plus the presence of the
+  /// MethodChannel. Since the MethodChannel handler is only
+  /// registered on Android (in MainActivity.kt), any platform that
+  /// ISN'T web but also doesn't have a handler will fall back to
+  /// false on the MissingPluginException — which is the correct
+  /// behavior for iOS/desktop.
+  ///
+  /// We set _isAndroid = !kIsWeb here as a best-effort filter so we
+  /// skip the channel call entirely on web (which would just throw
+  /// MissingPluginException after 300ms). On iOS/desktop we still
+  /// attempt the call and catch the exception — slightly slower but
+  /// semantically correct.
+  static final bool _isAndroid = !kIsWeb;
 
   // ── Adaptation Helpers ──────────────────────────────────────────
 
