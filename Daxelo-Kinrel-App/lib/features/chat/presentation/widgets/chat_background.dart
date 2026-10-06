@@ -78,82 +78,97 @@ class ChatBackground extends ConsumerWidget {
 
     return Stack(
       children: [
-        // ── Layer 4 (bottom): custom image wallpaper ───────────────
-        // Rendered first so all other layers composite on top. Heavy
-        // blur + darkening ensures it reads as atmosphere, not as a
-        // photo behind text. ImageErrorSilently swallowed — if the
-        // image fails to load (deleted file, broken data URI), the
-        // theme layers below still render correctly.
-        if (hasImage)
-          Positioned.fill(
-            child: _BlurredWallpaperImage(imagePath: stored),
-          ),
+        // PERF (Part C2): wrap the static background layers (1-4) in a
+        // RepaintBoundary so the message-list child's repaints don't
+        // force the gradient + blurred wallpaper to repaint too. The
+        // child itself is intentionally outside the RepaintBoundary —
+        // it must repaint freely as the user scrolls. The wallpaper's
+        // ImageFiltered blur is also wrapped in its own RepaintBoundary
+        // inside _BlurredWallpaperImage so its expensive saveLayer is
+        // cached as a separate layer and not re-rasterized per frame.
+        RepaintBoundary(
+          child: Stack(
+            children: [
+              // ── Layer 4 (bottom): custom image wallpaper ───────────────
+              // Rendered first so all other layers composite on top. Heavy
+              // blur + darkening ensures it reads as atmosphere, not as a
+              // photo behind text. ImageErrorSilently swallowed — if the
+              // image fails to load (deleted file, broken data URI), the
+              // theme layers below still render correctly.
+              if (hasImage)
+                Positioned.fill(
+                  child: _BlurredWallpaperImage(imagePath: stored),
+                ),
 
-        // ── Layer 1: base ambient gradient ─────────────────────────
-        // RadialGradient gives the "softly illuminated from within"
-        // feeling. Center is the lightest base color; edge is the
-        // darkest. The radius is large (1.4) so the gradient is very
-        // gradual — no obvious "spotlight" effect.
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.center,
-                radius: 1.4,
-                colors: theme.baseColors,
-                stops: const [0.0, 0.55, 1.0],
+              // ── Layer 1: base ambient gradient ─────────────────────────
+              // RadialGradient gives the "softly illuminated from within"
+              // feeling. Center is the lightest base color; edge is the
+              // darkest. The radius is large (1.4) so the gradient is very
+              // gradual — no obvious "spotlight" effect.
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment.center,
+                      radius: 1.4,
+                      colors: theme.baseColors,
+                      stops: const [0.0, 0.55, 1.0],
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
-        ),
 
-        // ── Layer 2: accent corner glow ────────────────────────────
-        // A soft radial highlight at the theme's accent corner. 12%
-        // alpha so it's felt, not seen. Creates the impression of a
-        // light source without drawing a visible circle.
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: theme.accentAlignment,
-                radius: 0.9,
-                colors: [
-                  theme.accentColor.withValues(alpha: 0.12),
-                  theme.accentColor.withValues(alpha: 0.0),
-                ],
-                stops: const [0.0, 1.0],
+              // ── Layer 2: accent corner glow ────────────────────────────
+              // A soft radial highlight at the theme's accent corner. 12%
+              // alpha so it's felt, not seen. Creates the impression of a
+              // light source without drawing a visible circle.
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: theme.accentAlignment,
+                      radius: 0.9,
+                      colors: [
+                        theme.accentColor.withValues(alpha: 0.12),
+                        theme.accentColor.withValues(alpha: 0.0),
+                      ],
+                      stops: const [0.0, 1.0],
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
-        ),
 
-        // ── Layer 3: edge vignette ─────────────────────────────────
-        // A subtle darkening at the edges that frames the
-        // conversation. 8% alpha. Creates the "designed environment"
-        // feeling — messages exist within a space, not on a flat
-        // surface. The vignette is RADIAL so the readable center
-        // stays bright.
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.center,
-                radius: 0.85,
-                colors: [
-                  Colors.transparent,
-                  theme.vignetteColor.withValues(alpha: 0.0),
-                  theme.vignetteColor.withValues(alpha: 0.35),
-                ],
-                stops: const [0.0, 0.55, 1.0],
+              // ── Layer 3: edge vignette ─────────────────────────────────
+              // A subtle darkening at the edges that frames the
+              // conversation. 8% alpha. Creates the "designed environment"
+              // feeling — messages exist within a space, not on a flat
+              // surface. The vignette is RADIAL so the readable center
+              // stays bright.
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment.center,
+                      radius: 0.85,
+                      colors: [
+                        Colors.transparent,
+                        theme.vignetteColor.withValues(alpha: 0.0),
+                        theme.vignetteColor.withValues(alpha: 0.35),
+                      ],
+                      stops: const [0.0, 0.55, 1.0],
+                    ),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ),
 
         // ── Child content ──────────────────────────────────────────
         // The messages list (or whatever else is wrapped). Rendered
         // above all background layers so bubbles are always the
-        // primary focus.
+        // primary focus. Outside the background's RepaintBoundary so
+        // it can repaint freely during scroll.
         child,
       ],
     );
@@ -189,19 +204,27 @@ class _BlurredWallpaperImage extends StatelessWidget {
       // Image.file via the platform helper. There is no HTTP network
       // URL case in this file, so CachedNetworkImage buys us nothing.
       // Same rationale as `wallpaper_image_web.dart` (skipped per spec).
-      return ImageFiltered(
-        // ImageFiltered wraps Image.network (works for data: URIs on
-        // both web and native) and applies a sigma-24 blur via
-        // ImageFilter. We don't use BackdropFilter because the image
-        // needs to be its own layer, not a backdrop to existing
-        // content.
-        imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-        child: Image.network(
-          imagePath,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+      //
+      // PERF (Part C2): wrap the ImageFiltered in a RepaintBoundary so
+      // its expensive saveLayer (the ImageFilter.blur at sigma 24) is
+      // cached as a separate layer in the rasterizer. The image itself
+      // doesn't animate, so this layer is rasterized once and reused.
+      // Sigma is UNCHANGED at 24 — no visual change.
+      return RepaintBoundary(
+        child: ImageFiltered(
+          // ImageFiltered wraps Image.network (works for data: URIs on
+          // both web and native) and applies a sigma-24 blur via
+          // ImageFilter. We don't use BackdropFilter because the image
+          // needs to be its own layer, not a backdrop to existing
+          // content.
+          imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Image.network(
+            imagePath,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+          ),
         ),
       );
     }
@@ -218,9 +241,14 @@ class _BlurredWallpaperImage extends StatelessWidget {
 
     if (image == null) return const SizedBox.shrink();
 
-    return ImageFiltered(
-      imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-      child: image,
+    // PERF (Part C2): same RepaintBoundary wrap as the data-URI branch
+    // above — cache the expensive ImageFiltered saveLayer as a separate
+    // rasterized layer. Sigma UNCHANGED at 24.
+    return RepaintBoundary(
+      child: ImageFiltered(
+        imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: image,
+      ),
     );
   }
 }

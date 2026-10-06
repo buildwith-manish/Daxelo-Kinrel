@@ -2189,7 +2189,10 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                   ),
                   if (!isOnline)
                     const Positioned(
-                        left: 0, right: 0, top: 0, child: OfflineBanner()),
+                        left: 0, right: 0, top: 0,
+                        // PERF (Part C4): isolate overlay repaints from
+                        // the graph canvas's repaints.
+                        child: RepaintBoundary(child: OfflineBanner())),
                   // v99 (Phase 1): Focus Back control
                   // v5.25 (distraction-free Rearrange): hide during
                   // Rearrange mode — its top-left position would
@@ -2203,13 +2206,17 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                     Positioned(
                       top: MediaQuery.of(context).padding.top + 8,
                       left: 8,
-                      child: FloatingActionButton.small(
-                        heroTag: 'graph_focus_back',
-                        backgroundColor: KinrelColors.darkCard,
-                        foregroundColor: KinrelColors.textWhite,
-                        onPressed: _onFocusBack,
-                        tooltip: 'Back to previous person',
-                        child: const Icon(Icons.arrow_back),
+                      // PERF (Part C4): isolate the FAB's ripple/state
+                      // repaints from the graph canvas.
+                      child: RepaintBoundary(
+                        child: FloatingActionButton.small(
+                          heroTag: 'graph_focus_back',
+                          backgroundColor: KinrelColors.darkCard,
+                          foregroundColor: KinrelColors.textWhite,
+                          onPressed: _onFocusBack,
+                          tooltip: 'Back to previous person',
+                          child: const Icon(Icons.arrow_back),
+                        ),
                       ),
                     ),
                   // v5.65 (ISOLATE CONNECTIONS): Persistent "Showing: X's
@@ -2229,16 +2236,20 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                       top: MediaQuery.of(context).padding.top + 8,
                       left: 0,
                       right: 0,
-                      child: Center(
-                        child: _IsolateConnectionsChip(
-                          personName: ref.watch(graphFocusProvider.select(
-                              (s) => s.focusedPersonName ?? '')),
-                          onShowAll: () {
-                            // v5.72: Cancel the auto-timeout timer when
-                            // the user manually exits isolation.
-                            _focusTimeoutTimer?.cancel();
-                            ref.read(graphFocusProvider.notifier).clearFocus();
-                          },
+                      // PERF (Part C4): isolate the chip's repaints
+                      // (it watches graphFocusProvider) from the canvas.
+                      child: RepaintBoundary(
+                        child: Center(
+                          child: _IsolateConnectionsChip(
+                            personName: ref.watch(graphFocusProvider.select(
+                                (s) => s.focusedPersonName ?? '')),
+                            onShowAll: () {
+                              // v5.72: Cancel the auto-timeout timer when
+                              // the user manually exits isolation.
+                              _focusTimeoutTimer?.cancel();
+                              ref.read(graphFocusProvider.notifier).clearFocus();
+                            },
+                          ),
                         ),
                       ),
                     ),
@@ -2253,23 +2264,27 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                     Positioned(
                       right: 8,
                       bottom: 8,
-                      child: GraphMiniMap(
-                        camera: _camera,
-                        positions: layout.positions,
-                        viewportSize: _viewportSize,
-                        anchorId: _SubtreeMethods._findAnchorId(flat, viewerPersonId),
-                        onTap: (graphSpaceTarget) {
-                          final bool reduced =
-                              MediaQuery.disableAnimationsOf(context);
-                          _camera.animateToWithSpring(
-                            -graphSpaceTarget.dx * _camera.zoomLevel +
-                                _viewportSize.width / 2,
-                            -graphSpaceTarget.dy * _camera.zoomLevel +
-                                _viewportSize.height / 2,
-                            _camera.zoomLevel,
-                            reducedMotion: reduced,
-                          );
-                        },
+                      // PERF (Part C4): isolate the mini-map's repaints
+                      // (it watches _camera) from the canvas.
+                      child: RepaintBoundary(
+                        child: GraphMiniMap(
+                          camera: _camera,
+                          positions: layout.positions,
+                          viewportSize: _viewportSize,
+                          anchorId: _SubtreeMethods._findAnchorId(flat, viewerPersonId),
+                          onTap: (graphSpaceTarget) {
+                            final bool reduced =
+                                MediaQuery.disableAnimationsOf(context);
+                            _camera.animateToWithSpring(
+                              -graphSpaceTarget.dx * _camera.zoomLevel +
+                                  _viewportSize.width / 2,
+                              -graphSpaceTarget.dy * _camera.zoomLevel +
+                                  _viewportSize.height / 2,
+                              _camera.zoomLevel,
+                              reducedMotion: reduced,
+                            );
+                          },
+                        ),
                       ),
                     ),
                   // Share FAB
@@ -2280,28 +2295,36 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                     Positioned(
                       right: 16,
                       bottom: flat.persons.length > 30 ? 80 : 16,
-                      child: FloatingActionButton(
-                        heroTag: 'graph_share_export',
-                        backgroundColor: KinrelColors.orange,
-                        foregroundColor: Colors.white,
-                        elevation: 4,
-                        onPressed: _shareGraph,
-                        tooltip: 'Share graph',
-                        child: const Icon(Icons.ios_share),
+                      // PERF (Part C4): isolate the FAB's ripple/state
+                      // repaints from the canvas.
+                      child: RepaintBoundary(
+                        child: FloatingActionButton(
+                          heroTag: 'graph_share_export',
+                          backgroundColor: KinrelColors.orange,
+                          foregroundColor: Colors.white,
+                          elevation: 4,
+                          onPressed: _shareGraph,
+                          tooltip: 'Share graph',
+                          child: const Icon(Icons.ios_share),
+                        ),
                       ),
                     ),
                   // P4.5: Outline view overlay
                   if (_showOutlineView)
                     Positioned.fill(
-                      child: GraphOutlineView(
-                        persons: flat.persons,
-                        relationshipLabels: const {},
-                        onNodeFocus: (personId, personName) {
-                          setState(() => _showOutlineView = false);
-                          _onFocusPerson(personId, personName);
-                        },
-                        onClose: () =>
-                            setState(() => _showOutlineView = false),
+                      // PERF (Part C4): isolate the outline view's repaints
+                      // (it has its own animations) from the canvas.
+                      child: RepaintBoundary(
+                        child: GraphOutlineView(
+                          persons: flat.persons,
+                          relationshipLabels: const {},
+                          onNodeFocus: (personId, personName) {
+                            setState(() => _showOutlineView = false);
+                            _onFocusPerson(personId, personName);
+                          },
+                          onClose: () =>
+                              setState(() => _showOutlineView = false),
+                        ),
                       ),
                     ),
                 ],

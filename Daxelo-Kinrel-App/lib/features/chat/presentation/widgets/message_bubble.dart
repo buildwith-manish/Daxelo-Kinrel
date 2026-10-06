@@ -1431,24 +1431,42 @@ class MessageBubble extends ConsumerWidget {
     // active orange tint to a muted grey, so it's clearly inactive at a
     // glance. Per spec: "icon, game title, invite text, and status area
     // should all dim together as one visually settled unit."
+    //
+    // PERF (Part C1): previously implemented as a wrapping Opacity(...) widget
+    // that forced an offscreen saveLayer per card. Now done by multiplying
+    // the alpha of every inline color by 0.5 when expired — visually
+    // identical (the GPU still composites the same pixels) but without the
+    // saveLayer cost. The card itself is also wrapped in a RepaintBoundary
+    // so it repaints independently of the message list.
     final bool isExpiredCard = isExpired;
 
-    return Opacity(
-      opacity: isExpiredCard ? 0.5 : 1.0,
+    // Helper: halve the alpha of a color when the card is expired. Opaque
+    // colors (alpha == 1.0) become alpha 0.5; already-translucent colors
+    // (e.g. 0.8) become 0.4. This matches what Opacity(opacity: 0.5) would
+    // have produced for that color, but at the paint level instead of via
+    // a saveLayer.
+    Color dim(Color c) => isExpiredCard
+        ? c.withValues(alpha: (c.a * 0.5).clamp(0.0, 1.0))
+        : c;
+
+    return RepaintBoundary(
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(KinrelSpacing.md),
         decoration: BoxDecoration(
           // Expired cards use a muted grey tint instead of the active
           // orange tint — visually communicates "inactive, don't engage".
-          color: isExpiredCard
+          // Alpha is already halved by the expired branch (0.06 vs 0.08);
+          // dim() then halves it AGAIN so the final alpha matches what the
+          // previous Opacity(opacity: 0.5) wrapper would have produced.
+          color: dim(isExpiredCard
               ? KinrelColors.textDim.withValues(alpha: 0.06)
-              : KinrelColors.orange.withValues(alpha: 0.08),
+              : KinrelColors.orange.withValues(alpha: 0.08)),
           borderRadius: BorderRadius.circular(KinrelRadius.md),
           border: Border.all(
-            color: isExpiredCard
+            color: dim(isExpiredCard
                 ? KinrelColors.textDim.withValues(alpha: 0.15)
-                : KinrelColors.orange.withValues(alpha: 0.2),
+                : KinrelColors.orange.withValues(alpha: 0.2)),
             width: 1,
           ),
         ),
@@ -1462,9 +1480,21 @@ class MessageBubble extends ConsumerWidget {
                 width: 40,
                 height: 40,
                 child: parsedGameType != null
-                    ? GameIcon(gameId: rawGameType, size: 40)
-                    : const Icon(Icons.sports_esports,
-                        size: 26, color: KinrelColors.orange),
+                    ? GameIcon(
+                        gameId: rawGameType,
+                        size: 40,
+                        // PERF (Part C1): dim the asset-backed icon via
+                        // BlendMode.modulate + white*0.5 — applied at
+                        // the paint level, no saveLayer.
+                        color: isExpiredCard
+                            ? Colors.white.withValues(alpha: 0.5)
+                            : null,
+                        colorBlendMode: isExpiredCard
+                            ? BlendMode.modulate
+                            : null,
+                      )
+                    : Icon(Icons.sports_esports,
+                        size: 26, color: dim(KinrelColors.orange)),
               ),
               const SizedBox(width: KinrelSpacing.sm + 2),
               Expanded(
@@ -1473,21 +1503,21 @@ class MessageBubble extends ConsumerWidget {
                   children: [
                     Text(
                       displayName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: KinrelColors.textWhite,
+                        color: dim(KinrelColors.textWhite),
                       ),
                     ),
                     const SizedBox(height: 1),
-                    const Text(
+                    Text(
                       'GAME INVITE',
                       style: TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 9,
                         fontWeight: FontWeight.w500,
-                        color: KinrelColors.orange,
+                        color: dim(KinrelColors.orange),
                         letterSpacing: 1,
                       ),
                     ),
@@ -1503,16 +1533,16 @@ class MessageBubble extends ConsumerWidget {
               Icon(
                 Icons.group_outlined,
                 size: 13,
-                color: KinrelColors.textSilver.withValues(alpha: 0.8),
+                color: dim(KinrelColors.textSilver.withValues(alpha: 0.8)),
               ),
               const SizedBox(width: 4),
               Text(
                 '$currentPlayers/$maxPlayers players',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: KinrelColors.textSilver,
+                  color: dim(KinrelColors.textSilver),
                 ),
               ),
               // ── "X spots left" pill — explicit slot count per spec ──
@@ -1526,10 +1556,10 @@ class MessageBubble extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
-                    color: KinrelColors.success.withValues(alpha: 0.10),
+                    color: dim(KinrelColors.success.withValues(alpha: 0.10)),
                     borderRadius: BorderRadius.circular(5),
                     border: Border.all(
-                      color: KinrelColors.success.withValues(alpha: 0.25),
+                      color: dim(KinrelColors.success.withValues(alpha: 0.25)),
                       width: 0.6,
                     ),
                   ),
@@ -1538,11 +1568,11 @@ class MessageBubble extends ConsumerWidget {
                       final spots = maxPlayers - currentPlayers;
                       return '$spots spot${spots == 1 ? '' : 's'} left';
                     }(),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 10.5,
                       fontWeight: FontWeight.w700,
-                      color: KinrelColors.success,
+                      color: dim(KinrelColors.success),
                       height: 1.2,
                     ),
                   ),
@@ -1554,20 +1584,20 @@ class MessageBubble extends ConsumerWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: KinrelColors.orange.withValues(alpha: 0.12),
+                    color: dim(KinrelColors.orange.withValues(alpha: 0.12)),
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
-                      color: KinrelColors.orange.withValues(alpha: 0.3),
+                      color: dim(KinrelColors.orange.withValues(alpha: 0.3)),
                       width: 0.75,
                     ),
                   ),
                   child: Text(
                     roomCode,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: KinrelColors.orange,
+                      color: dim(KinrelColors.orange),
                       letterSpacing: 1,
                     ),
                   ),
@@ -1583,7 +1613,7 @@ class MessageBubble extends ConsumerWidget {
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
-                color: KinrelColors.textSilver.withValues(alpha: 0.85),
+                color: dim(KinrelColors.textSilver.withValues(alpha: 0.85)),
                 height: 1.35,
               ),
             ),
@@ -1660,7 +1690,7 @@ class MessageBubble extends ConsumerWidget {
                 Icon(
                   Icons.event_busy,
                   size: 13,
-                  color: KinrelColors.textDim,
+                  color: dim(KinrelColors.textDim),
                 ),
                 const SizedBox(width: 4),
                 Text(
@@ -1669,7 +1699,7 @@ class MessageBubble extends ConsumerWidget {
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: KinrelColors.textDim,
+                    color: dim(KinrelColors.textDim),
                   ),
                 ),
               ],
