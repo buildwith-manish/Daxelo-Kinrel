@@ -57,6 +57,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/utils/accessibility_utils.dart';
+import '../../../core/utils/device_tier.dart';
 import '../../../shared/widgets/bottom_nav_repaint_guard.dart';
 // v5.212: MembersScreenSource — passes the entry context (navTab vs
 // graphViewAll) to the Members screen so the displayed list adapts.
@@ -137,6 +138,12 @@ class FamilySpaceFloatingNav extends StatelessWidget {
     final location = GoRouterState.of(context).matchedLocation;
     final currentIndex = _currentIndex(location);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    // PERF (Part E3): read lowRam ONCE per build. strong phones
+    // (lowRam == false) get the ORIGINAL three-shadow stack with the
+    // orange glow; low-RAM phones keep the lighter single-shadow
+    // treatment from PR 82. The BackdropFilter is NOT restored on
+    // either branch — that was always the heaviest cost.
+    final bool lowRam = DeviceTierCache.instance.lowRam;
 
     // Wrap in BottomNavRepaintGuard so the bar repaints immediately on
     // the next frame after mount (and on app resume). Without this, the
@@ -160,19 +167,41 @@ class FamilySpaceFloatingNav extends StatelessWidget {
               color: const Color(0xFF3A3A4A),
               width: 0.5,
             ),
-            boxShadow: [
-              // Perf: collapsed the previous three-shadow stack
-              // (blur 30 / 10 / 24) into one shadow. The container
-              // already sits on KinrelColors.darkCard at alpha 0.92,
-              // so the secondary edge shadow and the orange glow were
-              // visually invisible and just added GPU blur cost.
-              // Orange glow intentionally dropped — see commit message.
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.50),
-                blurRadius: 16,
-                offset: const Offset(0, 12),
-              ),
-            ],
+            boxShadow: lowRam
+                ? [
+                    // ── Low-RAM branch (PR 82 look): one shadow only ──
+                    // Container is already at darkCard alpha 0.92, so the
+                    // blur is invisible. Single shadow with blur 16.
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.50),
+                      blurRadius: 16,
+                      offset: const Offset(0, 12),
+                    ),
+                  ]
+                : [
+                    // ── Strong-phone branch (original pre-PR-82 look) ──
+                    // Restored per FULL_QUALITY_ON_STRONG_PHONES = YES.
+                    // Primary drop shadow — deep float effect
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.50),
+                      blurRadius: 30,
+                      offset: const Offset(0, 12),
+                    ),
+                    // Secondary tight shadow — defines the card edge
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                    // Subtle orange glow — gives the bar a premium warmth
+                    // and makes the active state feel intentional.
+                    if (currentIndex >= 0)
+                      BoxShadow(
+                        color: KinrelColors.orange.withValues(alpha: 0.18),
+                        blurRadius: 24,
+                        offset: const Offset(0, 6),
+                      ),
+                  ],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(_cornerRadius),
