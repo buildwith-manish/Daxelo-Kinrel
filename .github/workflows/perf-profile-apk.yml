@@ -15,6 +15,12 @@ name: Build Profile APK
 
 on:
   workflow_dispatch:
+    inputs:
+      force_low_ram:
+        description: 'Force DeviceTierCache.lowRam=true at compile time (tests low-RAM code paths on any phone)'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: perf-profile-apk-${{ github.ref }}
@@ -87,11 +93,13 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          FORCE_LOW_RAM_FLAG: ${{ inputs.force_low_ram && '--dart-define=FORCE_LOW_RAM=true' || '' }}
         run: >-
           flutter build apk --profile --target-platform android-arm64
           --dart-define=SUPABASE_URL="$SUPABASE_URL"
           --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
           --dart-define=PERF_OVERLAY=true
+          $FORCE_LOW_RAM_FLAG
 
       - name: Verify libthermion_dart.so in APK
         run: |
@@ -102,10 +110,19 @@ jobs:
           fi
           echo "::notice::libthermion_dart.so verified in profile APK"
 
+      - name: Determine artifact name
+        id: artifact_name
+        run: |
+          if [ "${{ inputs.force_low_ram }}" = "true" ]; then
+            echo "name=kinrel-profile-apk-lowram" >> $GITHUB_OUTPUT
+          else
+            echo "name=kinrel-profile-apk" >> $GITHUB_OUTPUT
+          fi
+
       - name: Upload profile APK
         uses: actions/upload-artifact@v4
         with:
-          name: kinrel-profile-apk
+          name: ${{ steps.artifact_name.outputs.name }}
           path: Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-profile.apk
           retention-days: 30
           if-no-files-found: error
