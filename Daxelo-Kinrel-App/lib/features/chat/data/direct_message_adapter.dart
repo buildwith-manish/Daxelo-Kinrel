@@ -51,8 +51,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/supabase_service.dart';
+import '../../games/shared/models/game_invite.dart';
 import '../providers/chat_provider.dart';
 import 'direct_message_provider.dart';
+import 'dm_invite_status_provider.dart';
 
 /// Converts a [DirectMessage] into a [ChatMessage] so the shared chat
 /// UI (MessageBubble, ChatMessageList, game-invite card) can render it.
@@ -269,10 +271,58 @@ final directChatMessagesProvider =
   // builder).
   final peerName = dmState.peer?.name;
 
-  return directMessagesToChatMessages(
+  // ── Live game-invite status ─────────────────────────────────────
+  // For each DM game-invite, watch the live status of the underlying
+  // game room (dmInviteLiveStatusProvider). This mirrors the server-
+  // side fn_sync_game_invite_status that keeps group chat ChatMessage
+  // rows in sync: when the game room expires / completes / starts,
+  // the DM invite card shows the same status as the group card.
+  //
+  // Watching here (inside the provider) means: when ANY game room's
+  // status changes, this provider re-runs and the DM card re-renders
+  // with the new status. The watch is keyed by (gameId, gameTable) —
+  // only invite DMs with a resolvable game type get a live status;
+  // others keep the adapter's default 'pending'.
+  final liveStatusOverrides = <String, String>{}; // gameId → live status
+  for (final dm in dms) {
+    if (!dm.isGameInvite) continue;
+    final payload = dm.gameInvitePayload;
+    if (payload == null) continue;
+    final gameId = payload['gameId'] as String? ?? '';
+    final gameTypeStr = (payload['gameType'] as String? ?? '').trim();
+    if (gameId.isEmpty || gameTypeStr.isEmpty) continue;
+
+    // Resolve gameType route segment → GameType enum → table name.
+    final gameType = GameTypeX.fromRouteSegment(gameTypeStr);
+    if (gameType == null) continue;
+    final gameTable = gameTableForType(gameType);
+    if (gameTable.isEmpty) continue;
+
+    // Watch the live status stream for this game room. The AsyncValue
+    // is either loading (use adapter default), data (use live status),
+    // or error (use adapter default).
+    final liveAsync =
+        ref.watch(dmInviteLiveStatusProvider(DmInviteKey(gameId: gameId, gameTable: gameTable)));
+    final liveStatus = liveAsync.valueOrNull?.status;
+    if (liveStatus != null) {
+      liveStatusOverrides[dm.id] = liveStatus;
+    }
+  }
+
+  final messages = directMessagesToChatMessages(
     dms,
     myUserId: myUserId,
     myName: myName,
     peerName: peerName,
   );
+
+  // Apply the live status overrides (if any) to the converted messages.
+  // This is a post-processing pass so the adapter function itself stays
+  // pure (no Ref dependency) and testable.
+  if (liveStatusOverrides.isEmpty) return messages;
+  return messages.map((m) {
+    final override = liveStatusOverrides[m.id];
+    if (override == null || override == m.gameInviteStatus) return m;
+    return m.copyWith(gameInviteStatus: override);
+  }).toList();
 });
