@@ -114,6 +114,17 @@ class MessageBubble extends ConsumerWidget {
       builder: (context, setLocalState) {
         return GestureDetector(
           onLongPress: onLongPress,
+          // v3.2: tapping a FAILED message opens a small sheet with
+          // Retry and Delete. Only for the sender's own messages in a
+          // group chat (familyId != null). DMs use a different provider
+          // and are out of scope for this PR. The tap handler does NOT
+          // fire for sent/delivered/read/sending messages — those have
+          // no tap action (the existing onLongPress still works).
+          onTap: (isMe &&
+                  message.messageStatus == 'failed' &&
+                  familyId != null)
+              ? () => _showFailedMessageSheet(context, ref)
+              : null,
           child: Align(
             alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
             child: Row(
@@ -361,6 +372,73 @@ class MessageBubble extends ConsumerWidget {
         ); // close GestureDetector
       }, // close StatefulBuilder builder
     ); // close StatefulBuilder
+  }
+
+  /// v3.2: Shows a small modal bottom sheet with Retry and Delete
+  /// options when the user taps a failed message. The sheet calls
+  /// `retryMessage` or `deleteFailedMessage` on the chatProvider, then
+  /// dismisses. Does not change the bubble layout, sizes, or colors —
+  /// the sheet is a standard Material bottom sheet.
+  void _showFailedMessageSheet(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 4),
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: KinrelColors.textDim.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.refresh_rounded,
+                    color: KinrelColors.orange, size: 22),
+                title: const Text('Retry',
+                    style: TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  ref
+                      .read(chatProvider(familyId!).notifier)
+                      .retryMessage(message.id);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.delete_outline_rounded,
+                    color: Colors.red.shade400, size: 22),
+                title: const Text('Delete',
+                    style: TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  ref
+                      .read(chatProvider(familyId!).notifier)
+                      .deleteFailedMessage(message.id);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildReplyPreview() {
