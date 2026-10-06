@@ -286,7 +286,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
       maxPlayers: widget.maxPlayers,
       currentPlayers: widget.currentPlayers,
       message: widget.message ??
-          '$myName invited you to join ${widget.gameType.displayName}',
+          '$myName wants to play ${widget.gameType.displayName} with you',
       timestamp: DateTime.now().toUtc(),
     );
   }

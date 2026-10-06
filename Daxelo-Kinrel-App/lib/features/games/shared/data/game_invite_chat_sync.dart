@@ -1,16 +1,22 @@
 // lib/features/games/shared/data/game_invite_chat_sync.dart
 //
-// Keeps the persistent game-invite chat card (ChatMessage rows with
-// messageType='gameInvite') in sync with live game state.
+// Keeps the persistent game-invite chat cards in sync with live game
+// state — for BOTH chat surfaces:
+//   • GROUP chat: ChatMessage rows (messageType='gameInvite') — updated
+//     directly below.
+//   • DIRECT MESSAGE chat: DirectMessage rows whose content payload
+//     carries the same gameId — updated through the same values via the
+//     fn_sync_dm_game_invites RPC (migration 20261007000000), the server-
+//     side twin of this write. One call, both surfaces — pin-to-pin.
 //
 // Whenever a game's player count changes — a member joins via the chat
 // card's Join button, via a lobby, or via a shared room code — or the
 // game's lifecycle changes (host starts it / game finishes), the matching
-// ChatMessage rows are UPDATEd here. chat_provider.dart already holds a
-// Supabase Realtime UPDATE subscription on "ChatMessage" (familyId-
-// filtered, REPLICA IDENTITY FULL), so every family member's open chat UI
-// re-renders the card ("2/4 players", "Full", "Started", "Ended") without
-// anyone needing to reopen the thread.
+// chat rows are UPDATEd here. Both chat providers hold Supabase Realtime
+// UPDATE subscriptions (chat:<familyId> on ChatMessage, dm_convo:<userId>
+// on DirectMessage, REPLICA IDENTITY FULL), so every member's open chat
+// UI re-renders the card ("2/4 players", "Full", "Started", "Ended")
+// without anyone needing to reopen the thread.
 //
 // All calls are best-effort: failures are logged and never bubble up to
 // the game logic that triggered them — the chat card is a secondary,
@@ -103,5 +109,24 @@ Future<void> syncGameInviteChatCards({
     // Best-effort by design — the game itself must never fail because the
     // chat-card mirror couldn't be refreshed.
     debugPrint('⚠️ syncGameInviteChatCards($gameId) failed: $e');
+  }
+
+  // ── DM parity: mirror the same values onto the DirectMessage invite
+  // payloads through the server-side twin RPC. SECURITY DEFINER handles
+  // the DirectMessage RLS (only the two DM parties could UPDATE directly,
+  // which would drop counts when a third family member joins), and the
+  // winner privacy gate inside the RPC matches the group-side gate.
+  // Best-effort — never blocks the game flow.
+  try {
+    await client.rpc('fn_sync_dm_game_invites', params: {
+      'p_game_id': gameId,
+      if (inviteStatus != null) 'p_status': inviteStatus,
+      if (currentPlayers != null) 'p_current_players': currentPlayers,
+      if (winnerName != null) 'p_winner_name': winnerName,
+      if (completedAt != null)
+        'p_completed_at': completedAt.toUtc().toIso8601String(),
+    });
+  } catch (e) {
+    debugPrint('⚠️ syncGameInviteChatCards($gameId) DM leg failed: $e');
   }
 }

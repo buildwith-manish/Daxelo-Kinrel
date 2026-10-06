@@ -490,7 +490,7 @@ class _GameInviteDialog extends StatelessWidget {
             // Body
             Text(
               invite.message ??
-                  '${invite.fromName} invited you to join ${invite.gameType.displayName}.',
+                  '${invite.fromName} wants to play ${invite.gameType.displayName} with you.',
               style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,

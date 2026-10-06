@@ -113,7 +113,7 @@ class _RecentPlayersSectionState extends ConsumerState<RecentPlayersSection> {
       fromName: myName,
       maxPlayers: widget.maxPlayers,
       currentPlayers: widget.currentPlayers,
-      message: '$myName invited you to join ${widget.gameType.displayName}',
+      message: '$myName wants to play ${widget.gameType.displayName} with you',
       timestamp: DateTime.now().toUtc(),
     );
     try {

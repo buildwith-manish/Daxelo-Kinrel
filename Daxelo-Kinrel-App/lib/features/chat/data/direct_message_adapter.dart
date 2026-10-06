@@ -54,7 +54,6 @@ import '../../../core/services/supabase_service.dart';
 import '../../games/shared/models/game_invite.dart';
 import '../providers/chat_provider.dart';
 import 'direct_message_provider.dart';
-import 'dm_invite_status_provider.dart';
 
 /// Converts a [DirectMessage] into a [ChatMessage] so the shared chat
 /// UI (MessageBubble, ChatMessageList, game-invite card) can render it.
@@ -113,7 +112,13 @@ ChatMessage directMessageToChatMessage(
   }
 
   if (dm.isGameInvite && invitePayload != null) {
-    // Parse the invite payload the same way the old DM-only card did.
+    // Parse the invite payload the same way the group card reads its
+    // dedicated ChatMessage columns. The payload keys are kept live by
+    // the SAME server-side state machine that drives the group chat
+    // (fn_sync_game_invite_status → fn_sync_dm_game_invites, called by
+    // the AFTER UPDATE triggers on every game table + the expiry sweep
+    // + the orphan cleanup), so both chat types always render the same
+    // lifecycle state.
     final gameType = (invitePayload['gameType'] as String? ?? '').trim();
     final gameId = invitePayload['gameId'] as String? ?? '';
     final roomCode = (invitePayload['roomCode'] as String? ?? '').trim();
@@ -128,21 +133,34 @@ ChatMessage directMessageToChatMessage(
     // ChatMessage.content would dump raw JSON into the card body.
     //
     // Instead, extract the `message` field from the payload (the clean
-    // invite text set by InviteFamilySheet). If the payload has no
-    // `message` field (old rows), build a default from fromName + the
-    // game route segment so the card always shows a readable sentence.
+    // invite text set by InviteFamilySheet — the same copy the group
+    // card uses: "<name> wants to play <game> with you"). If the payload
+    // has no `message` field (old rows), build the group card's exact
+    // default so the wording matches pin-to-pin.
     final payloadMessage = invitePayload['message'] as String?;
     final String inviteContent = (payloadMessage != null && payloadMessage.isNotEmpty)
         ? payloadMessage
-        : '$fromName invited you to play';
+        : '$fromName wants to play ${GameTypeX.fromRouteSegment(gameType)?.displayName ?? gameType} with you';
 
-    // The DM invite payload (GameInvite.toJson) does NOT include a
-    // `status` field — the status is tracked server-side on the
-    // game_invites table + the game table itself, not in the DM row.
-    // Default to 'pending' so the card shows "Waiting for players" /
-    // "Join game" — the correct action for a pending invite. The lobby
-    // screen shows the actual live state when the user taps Join.
+    // Live lifecycle state — written into the payload JSON by the same
+    // server-side triggers/sweeps that maintain the group chat's
+    // ChatMessage.gameInviteStatus column (unified 5-state vocabulary:
+    // pending / in_progress / completed / expired / cancelled). Rows
+    // created before that sync existed have no `status` key → 'pending'
+    // (the group insert default) until the next server sync reconciles
+    // them.
     final inviteStatus = (invitePayload['status'] as String?) ?? 'pending';
+
+    // Winner display — privacy-gated server-side exactly like the group
+    // path (only written when the viewer is a participant).
+    final winnerName = invitePayload['winnerName'] as String?;
+    final completedAt =
+        DateTime.tryParse(invitePayload['completedAt'] as String? ?? '');
+
+    // Spectator flag — synced by fn_sync_game_spectators. Absent → null
+    // → the shared card's effectiveSpectatorsEnabled treats it as true
+    // (the same legacy default the group column uses).
+    final spectatorsEnabled = invitePayload['spectatorsEnabled'] as bool?;
 
     return ChatMessage(
       id: dm.id,
@@ -161,6 +179,9 @@ ChatMessage directMessageToChatMessage(
       gameMaxPlayers: maxPlayers,
       gameCurrentPlayers: currentPlayers,
       gameInviteStatus: inviteStatus,
+      gameWinnerName: (winnerName != null && winnerName.isNotEmpty) ? winnerName : null,
+      gameCompletedAt: completedAt,
+      gameSpectatorsEnabled: spectatorsEnabled,
     );
   }
 
@@ -243,6 +264,19 @@ String resolveMyName(dynamic currentUser) {
 // directChatMessagesProvider(otherUserId) on every rebuild without
 // re-running the adapter.
 //
+// ── Lifecycle parity with the group chat (pin-to-pin) ─────────────────
+// The DM invite card's live status / player count / winner / spectators
+// flag all come from the invite payload JSON, which is maintained
+// SERVER-SIDE by the same state machine that maintains the group chat's
+// ChatMessage columns (fn_sync_game_invite_status →
+// fn_sync_dm_game_invites, driven by the AFTER UPDATE triggers on the
+// game tables, the expiry sweep and the orphan cleanup — migration
+// 20261007000000). DirectMessage UPDATE events (REPLICA IDENTITY FULL)
+// fan out over the dm_convo realtime channel, DirectChatNotifier
+// refresh() re-runs, this provider re-converts, and the card re-renders
+// with the new state. There is NO DM-specific status provider — one
+// logic for all chats.
+//
 // autoDispose: the DM screen is a route-scoped widget; when the user
 // pops back to the inbox, the provider disposes and the cached list is
 // freed. family: keyed by the other user's id (same key as
@@ -271,58 +305,10 @@ final directChatMessagesProvider =
   // builder).
   final peerName = dmState.peer?.name;
 
-  // ── Live game-invite status ─────────────────────────────────────
-  // For each DM game-invite, watch the live status of the underlying
-  // game room (dmInviteLiveStatusProvider). This mirrors the server-
-  // side fn_sync_game_invite_status that keeps group chat ChatMessage
-  // rows in sync: when the game room expires / completes / starts,
-  // the DM invite card shows the same status as the group card.
-  //
-  // Watching here (inside the provider) means: when ANY game room's
-  // status changes, this provider re-runs and the DM card re-renders
-  // with the new status. The watch is keyed by (gameId, gameTable) —
-  // only invite DMs with a resolvable game type get a live status;
-  // others keep the adapter's default 'pending'.
-  final liveStatusOverrides = <String, String>{}; // gameId → live status
-  for (final dm in dms) {
-    if (!dm.isGameInvite) continue;
-    final payload = dm.gameInvitePayload;
-    if (payload == null) continue;
-    final gameId = payload['gameId'] as String? ?? '';
-    final gameTypeStr = (payload['gameType'] as String? ?? '').trim();
-    if (gameId.isEmpty || gameTypeStr.isEmpty) continue;
-
-    // Resolve gameType route segment → GameType enum → table name.
-    final gameType = GameTypeX.fromRouteSegment(gameTypeStr);
-    if (gameType == null) continue;
-    final gameTable = gameTableForType(gameType);
-    if (gameTable.isEmpty) continue;
-
-    // Watch the live status stream for this game room. The AsyncValue
-    // is either loading (use adapter default), data (use live status),
-    // or error (use adapter default).
-    final liveAsync =
-        ref.watch(dmInviteLiveStatusProvider(DmInviteKey(gameId: gameId, gameTable: gameTable)));
-    final liveStatus = liveAsync.valueOrNull?.status;
-    if (liveStatus != null) {
-      liveStatusOverrides[dm.id] = liveStatus;
-    }
-  }
-
-  final messages = directMessagesToChatMessages(
+  return directMessagesToChatMessages(
     dms,
     myUserId: myUserId,
     myName: myName,
     peerName: peerName,
   );
-
-  // Apply the live status overrides (if any) to the converted messages.
-  // This is a post-processing pass so the adapter function itself stays
-  // pure (no Ref dependency) and testable.
-  if (liveStatusOverrides.isEmpty) return messages;
-  return messages.map((m) {
-    final override = liveStatusOverrides[m.id];
-    if (override == null || override == m.gameInviteStatus) return m;
-    return m.copyWith(gameInviteStatus: override);
-  }).toList();
 });

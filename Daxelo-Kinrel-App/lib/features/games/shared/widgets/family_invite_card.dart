@@ -222,7 +222,7 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
       fromName: myName,
       maxPlayers: widget.maxPlayers,
       currentPlayers: widget.currentPlayers,
-      message: '$myName invited you to join ${gameType.displayName}',
+      message: '$myName wants to play ${gameType.displayName} with you',
       timestamp: DateTime.now().toUtc(),
     );
 

@@ -24,6 +24,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/family/family_provider.dart';
 import '../../../core/services/supabase_service.dart';
+// GameInvite model — used by sendGameInviteDm to resolve the game table
+// (gameTableForType) for the spectators lookup + payload typing.
+import '../../games/shared/models/game_invite.dart';
 // Step 4 — shared timezone-aware time utility. DirectMessage timestamps
 // are PERSONAL — each viewer sees their own device-local time.
 import '../../../core/utils/app_time.dart';
@@ -195,11 +198,21 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
 
   /// Task 4 — live DM sync.
   ///
-  /// Subscribes to DirectMessage INSERT events addressed to me (RLS
-  /// keeps everything else private). New messages — including game
+  /// Subscribes to DirectMessage INSERT/UPDATE events addressed to me
+  /// (RLS keeps everything else private). New messages — including game
   /// invites sent via the Specific-Members flow — appear in an open DM
-  /// screen instantly, with no refresh. UPDATE events (read receipts)
-  /// also refresh the ticks.
+  /// screen instantly, with no refresh. UPDATE events (read receipts,
+  /// and the server-side game-invite payload rewrites) also refresh the
+  /// thread.
+  ///
+  /// Sender-side subscriptions (senderId = me) mirror the group chat's
+  /// ChatMessage realtime parity: the group channel is filtered by
+  /// familyId so BOTH parties see every UPDATE, while a receiver-only
+  /// DM filter would leave the SENDER's own invite cards stale when the
+  /// server-side lifecycle state machine (fn_sync_dm_game_invites)
+  /// rewrites the payload. Two extra subscriptions close that gap —
+  /// both parties now see invite status/players/winner change live,
+  /// pin-to-pin with the group card.
   void _subscribeToRealtime() {
     final client = _client;
     final myId = _currentUserId;
@@ -207,6 +220,7 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
 
     _channel = client
         .channel('dm_convo:$otherUserId')
+        // ── Receiver side: new messages from the other user ──
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
@@ -225,6 +239,9 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
             unawaited(refresh());
           },
         )
+        // ── Receiver side: updates to messages I received (read ticks +
+        //    live game-invite payload rewrites from the server state
+        //    machine) ──
         .onPostgresChanges(
           event: PostgresChangeEvent.update,
           schema: 'public',
@@ -235,6 +252,49 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
             value: myId,
           ),
           callback: (payload) {
+            unawaited(refresh());
+          },
+        )
+        // ── Sender side: updates to MY OWN messages in this conversation
+        //    (the receiver marking them read, and the server-side
+        //    game-invite payload rewrites). Without this the sender's
+        //    own invite card would stay "Waiting for players" while the
+        //    group chat card already moved on — the exact inconsistency
+        //    this parity fix removes. ──
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'DirectMessage',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'senderId',
+            value: myId,
+          ),
+          callback: (payload) {
+            final row = payload.newRecord;
+            // Only refresh when the updated message belongs to THIS
+            // conversation (filter is by sender only — receiver varies).
+            final receiverId = row['receiverId'] as String?;
+            if (receiverId != otherUserId) return;
+            unawaited(refresh());
+          },
+        )
+        // ── Sender side: inserts of my own messages from other surfaces
+        //    (e.g. a game invite sent from the invite sheet while this
+        //    DM screen is open) ──
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'DirectMessage',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'senderId',
+            value: myId,
+          ),
+          callback: (payload) {
+            final row = payload.newRecord;
+            final receiverId = row['receiverId'] as String?;
+            if (receiverId != otherUserId) return;
             unawaited(refresh());
           },
         )
@@ -409,9 +469,22 @@ final directChatProvider = StateNotifierProvider.autoDispose.family<
 /// reserved for the explicit "Entire Family" bulk flow.
 ///
 /// Content is a JSON payload (gameType / gameId / roomCode / familyId /
-/// fromName / maxPlayers / currentPlayers / message) which
-/// DirectChatScreen renders as an interactive invite card with a Join
-/// action. Best-effort: failures are logged, never thrown — the durable
+/// fromName / maxPlayers / currentPlayers / message / status /
+/// spectatorsEnabled) which DirectChatScreen renders through the SAME
+/// game-invite card widget the group chat uses.
+///
+/// Pin-to-pin group parity (mirrors ChatNotifier.sendGameInvite):
+///   • Dedupe: if a non-terminal invite DM for the same gameId already
+///     exists in this conversation, it is UPDATED (latest players /
+///     message / spectators) instead of inserting a duplicate card.
+///   • Initial payload status: 'pending' (the same insert default the
+///     group ChatMessage row gets).
+///   • spectatorsEnabled is persisted at invite-sent time so the shared
+///     card can render (or hide) the Spectate button without a
+///     per-render round-trip — kept in sync afterwards by the
+///     fn_sync_game_spectators trigger via fn_sync_dm_game_invites.
+///
+/// Best-effort: failures are logged, never thrown — the durable
 /// game_invites row + socket event are the authoritative invite legs.
 Future<void> sendGameInviteDm({
   required SupabaseClient client,
@@ -421,13 +494,102 @@ Future<void> sendGameInviteDm({
   final myUserId = client.auth.currentUser?.id;
   if (myUserId == null) return;
   final now = DateTime.now();
-  final msgId = _generateId();
+
+  // Payload copy — keep the caller's map untouched while adding the
+  // lifecycle fields the shared card reads.
+  final payload = Map<String, dynamic>.from(inviteJson);
+  payload['status'] ??= 'pending';
+
+  // Best-effort spectators flag from the game row (same query the group
+  // card path in InviteFamilySheet._postInviteChatCard performs). Games
+  // without a spectatorsEnabled column (ghost painter) or missing rows
+  // leave it unset → the shared card's legacy default (true).
+  if (payload['spectatorsEnabled'] == null) {
+    try {
+      final gameTypeStr = (payload['gameType'] as String? ?? '').trim();
+      final gameId = payload['gameId'] as String? ?? '';
+      final gameType = GameTypeX.fromRouteSegment(gameTypeStr);
+      if (gameType != null && gameId.isNotEmpty) {
+        final gameTable = gameTableForType(gameType);
+        if (gameTable.isNotEmpty) {
+          final row = await client
+              .from(gameTable)
+              .select('spectatorsEnabled')
+              .eq('id', gameId)
+              .maybeSingle();
+          final v = row?['spectatorsEnabled'];
+          if (v is bool) {
+            payload['spectatorsEnabled'] = v;
+          } else if (v is String) {
+            payload['spectatorsEnabled'] = v.toLowerCase() == 'true';
+          }
+        }
+      }
+    } catch (_) {
+      // Known edge (ghost painter / deleted row) — leave unset.
+    }
+  }
+
+  final gameId = payload['gameId'] as String? ?? '';
   try {
+    // ── Dedupe: one invite card per room per conversation ───────────
+    // Mirrors the group chat's sendGameInvite dedupe. If a non-terminal
+    // invite DM for this gameId already exists in THIS conversation
+    // (status pending / in_progress / accepted / active), update it with
+    // the latest players + message + spectators instead of inserting a
+    // duplicate. Terminal states (expired / cancelled / completed) get a
+    // fresh card.
+    if (gameId.isNotEmpty) {
+      final existing = await client
+          .from('DirectMessage')
+          .select('id, content')
+          .eq('messageType', 'gameInvite')
+          .or('and(senderId.eq.$myUserId,receiverId.eq.$toUserId),'
+              'and(senderId.eq.$toUserId,receiverId.eq.$myUserId)')
+          .order('createdAt', ascending: false)
+          .limit(50);
+
+      for (final row in (existing as List)) {
+        final Map<String, dynamic>? rowPayload =
+            _tryDecodeInvitePayload(row['content'] as String? ?? '');
+        if (rowPayload == null) continue;
+        if ((rowPayload['gameId'] as String?) != gameId) continue;
+        final rowStatus = (rowPayload['status'] as String?) ?? 'pending';
+        const nonTerminal = [
+          'pending',
+          'in_progress',
+          'accepted',
+          'active',
+        ];
+        if (!nonTerminal.contains(rowStatus)) continue;
+
+        // Merge the fresh values onto the existing payload (keep the
+        // authoritative server-side status — the room may already be
+        // in_progress).
+        final merged = Map<String, dynamic>.from(rowPayload);
+        merged['currentPlayers'] = payload['currentPlayers'] ??
+            rowPayload['currentPlayers'];
+        merged['maxPlayers'] = payload['maxPlayers'] ?? rowPayload['maxPlayers'];
+        merged['roomCode'] = payload['roomCode'] ?? rowPayload['roomCode'];
+        if (payload['message'] != null) merged['message'] = payload['message'];
+        if (payload['spectatorsEnabled'] != null) {
+          merged['spectatorsEnabled'] = payload['spectatorsEnabled'];
+        }
+
+        await client.from('DirectMessage').update({
+          'content': jsonEncode(merged),
+          'updatedAt': now.toIso8601String(),
+        }).eq('id', row['id'] as String);
+        return; // Updated — don't insert a duplicate.
+      }
+    }
+
+    final msgId = _generateId();
     await client.from('DirectMessage').insert({
       'id': msgId,
       'senderId': myUserId,
       'receiverId': toUserId,
-      'content': jsonEncode(inviteJson),
+      'content': jsonEncode(payload),
       'messageType': 'gameInvite',
       'isRead': false,
       'createdAt': now.toIso8601String(),
@@ -436,6 +598,20 @@ Future<void> sendGameInviteDm({
   } catch (e) {
     debugPrint('⚠️ sendGameInviteDm insert failed (non-blocking): $e');
   }
+}
+
+/// Decode a DirectMessage.content JSON blob into an invite payload map.
+/// Returns null for plain-text / malformed / non-JSON rows — same
+/// contract as DirectMessage.gameInvitePayload.
+Map<String, dynamic>? _tryDecodeInvitePayload(String content) {
+  try {
+    final decoded = jsonDecode(content);
+    if (decoded is Map<String, dynamic> &&
+        (decoded['gameId'] as String?)?.isNotEmpty == true) {
+      return decoded;
+    }
+  } catch (_) {}
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
