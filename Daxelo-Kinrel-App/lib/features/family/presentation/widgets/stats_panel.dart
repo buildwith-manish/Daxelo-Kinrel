@@ -5,9 +5,12 @@
 // A small bottom-left stats panel showing graph metrics: member count,
 // connection count, generation count, and an optional truncation warning.
 
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // STATS PANEL
@@ -83,23 +86,28 @@ class StatsPanel extends StatelessWidget {
     // on Android that can hide the child. The Container already has an
     // explicit opaque color (KinrelColors.darkCard) and its own decoration,
     // so no Material wrapper is needed.
-    // §3: Frosted glass panel instead of flat navy box
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: KinrelColors.darkCard.withValues(alpha: 0.9),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.35),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
+    // PERF (Part E3): read lowRam ONCE per build. Strong phones
+    // (lowRam == false) get the ORIGINAL frosted-glass look
+    // (BackdropFilter sigma 16 + alpha 0.55). Low-RAM phones keep
+    // the solid look from PR 82 (alpha 0.9, no blur). Per the
+    // QUALITY RULE, this is the only place where the look differs.
+    final bool lowRam = DeviceTierCache.instance.lowRam;
+    // §3: Frosted glass panel instead of flat navy box (strong-phone branch)
+    final Widget content = Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard
+            .withValues(alpha: lowRam ? 0.9 : 0.55),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
+        ],
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -151,7 +159,21 @@ class StatsPanel extends StatelessWidget {
           ],
         ],
       ),
-        ),
+    );
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      // PERF (Part E3): on strong phones (lowRam == false), wrap the
+      // panel in a BackdropFilter with sigma 16 — restoring the original
+      // frosted-glass look from BEFORE PR 82. On low-RAM phones, skip the
+      // BackdropFilter entirely (PR 82 look) since the blur is the
+      // heaviest raster cost on this panel.
+      child: lowRam
+          ? content
+          : BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: content,
+            ),
     );
   }
 }

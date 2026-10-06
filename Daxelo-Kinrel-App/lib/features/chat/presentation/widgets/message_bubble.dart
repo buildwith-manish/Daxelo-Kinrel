@@ -22,6 +22,7 @@ import '../../../../../core/constants/brand_spacing.dart';
 import '../../../../../core/constants/brand_typography.dart';
 import '../../../../../core/kinship/kinship_edge_style.dart';
 import '../../../../../core/services/image_cache_manager.dart';
+import '../../../../../core/utils/device_tier.dart';
 import '../../../family/data/relationship_label_provider.dart';
 import '../../../games/shared/icons/game_icons.dart';
 import '../../../games/shared/models/game_invite.dart';
@@ -322,23 +323,37 @@ class MessageBubble extends ConsumerWidget {
                         // Received: deeper shadow anchors it to the wall.
                         // Sent: gentler shadow lifts it + a faint ember
                         // ambient glow for warmth. Stickers: none.
+                        //
+                        // PERF (Part E4): On low-RAM phones, collapse to a
+                        // single shadow with blurRadius capped at 6 (per
+                        // spec) and skip the ember glow on sent bubbles.
+                        // Strong phones keep both shadows as before.
                         boxShadow: isSticker
                             ? null
-                            : [
-                                BoxShadow(
-                                  color: Colors.black.withValues(
-                                      alpha: isMe ? 0.18 : 0.30),
-                                  blurRadius: isMe ? 8 : 12,
-                                  offset: Offset(0, isMe ? 2 : 4),
-                                ),
-                                if (isMe)
-                                  BoxShadow(
-                                    color: KinrelColors.ember
-                                        .withValues(alpha: 0.10),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 0),
-                                  ),
-                              ],
+                            : (DeviceTierCache.instance.lowRam
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                          alpha: isMe ? 0.18 : 0.30),
+                                      blurRadius: 6,
+                                      offset: Offset(0, isMe ? 2 : 4),
+                                    ),
+                                  ]
+                                : [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                          alpha: isMe ? 0.18 : 0.30),
+                                      blurRadius: isMe ? 8 : 12,
+                                      offset: Offset(0, isMe ? 2 : 4),
+                                    ),
+                                    if (isMe)
+                                      BoxShadow(
+                                        color: KinrelColors.ember
+                                            .withValues(alpha: 0.10),
+                                        blurRadius: 14,
+                                        offset: const Offset(0, 0),
+                                      ),
+                                  ]),
                       ),
                       child: Column(
                         crossAxisAlignment: isMe

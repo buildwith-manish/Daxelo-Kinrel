@@ -283,6 +283,16 @@ void main() async {
   // the first scroll. Best-effort — never fails the app on errors.
   unawaited(_warmupShaders().catchError((_) => null));
 
+  // ── Part E1: Detect low-RAM mode before runApp ────────────────────
+  // Calls the kinrel/device MethodChannel on Android (returns totalRamMb
+  // + isLowRamDevice from ActivityManager). On web/iOS/desktop or on any
+  // error, lowRam is false unless the FORCE_LOW_RAM dart-define is true.
+  // initializeRam() has a built-in 300ms timeout so it can never block
+  // the app from starting. DeviceTierCache.lowRam is read by widgets
+  // in build() (it's a sync getter), so it must be initialized BEFORE
+  // runApp so the first build has the correct value.
+  await DeviceTierCache.instance.initializeRam();
+
   runApp(ProviderScope(child: KinrelApp()));
 
   // ── Background initialization ─────────────────────────────────────
