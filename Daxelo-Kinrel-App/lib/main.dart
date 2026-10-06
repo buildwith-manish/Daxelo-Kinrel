@@ -1079,6 +1079,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       child: MaterialApp.router(
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
+      showPerformanceOverlay: const bool.fromEnvironment('PERF_OVERLAY'),
       // v47 FIX: Allow touch, mouse, trackpad, and stylus gestures everywhere.
       // Without this, Android touch events can get routed to the scroll system
       // instead of the graph's ScaleGestureRecognizer, causing pinch-zoom and

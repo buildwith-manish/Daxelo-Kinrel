@@ -1,0 +1,111 @@
+# ─────────────────────────────────────────────────────────────────
+# Build Profile APK — produces a profile-mode APK for measuring UI
+# smoothness on a real device. Profile mode uses AOT compilation
+# (release-like performance characteristics) while still allowing
+# DevTools and the on-screen PerformanceOverlay to attach.
+#
+# Triggered manually only (workflow_dispatch). No signing, no analyze,
+# no keystore — just a profile APK artifact you can sideload.
+#
+# Required repo secrets (same as signed-release-apk.yml):
+#   SUPABASE_URL       — Supabase project URL
+#   SUPABASE_ANON_KEY  — Supabase anon public key
+# ─────────────────────────────────────────────────────────────────
+name: Build Profile APK
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: perf-profile-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.44.2'
+
+jobs:
+  build:
+    name: Build Profile APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install native build toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build \
+            libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev \
+            libc++-19-dev libc++1-19 libc++abi-19-dev libc++abi1-19 libunwind-19
+
+      - name: Install Android SDK & NDK
+        run: |
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install \
+            "ndk;28.2.13676358" "platforms;android-36" "platforms;android-33" \
+            "build-tools;35.0.1" "cmake;3.22.1" || true
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Enable native assets
+        run: flutter config --enable-native-assets
+
+      - name: Verify Supabase config secrets (fail loudly)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_URL and/or SUPABASE_ANON_KEY secrets are missing."
+            echo "::error::Add them under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build profile APK
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: >-
+          flutter build apk --profile --target-platform android-arm64
+          --dart-define=SUPABASE_URL="$SUPABASE_URL"
+          --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+          --dart-define=PERF_OVERLAY=true
+
+      - name: Verify libthermion_dart.so in APK
+        run: |
+          APK=build/app/outputs/flutter-apk/app-profile.apk
+          if ! unzip -l $APK | grep -q "libthermion_dart.so"; then
+            echo "::error::libthermion_dart.so NOT in APK"
+            exit 1
+          fi
+          echo "::notice::libthermion_dart.so verified in profile APK"
+
+      - name: Upload profile APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: kinrel-profile-apk
+          path: Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-profile.apk
+          retention-days: 30
+          if-no-files-found: error
