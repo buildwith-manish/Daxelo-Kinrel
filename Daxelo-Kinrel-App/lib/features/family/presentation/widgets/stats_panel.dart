@@ -5,7 +5,6 @@
 // A small bottom-left stats panel showing graph metrics: member count,
 // connection count, generation count, and an optional truncation warning.
 
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
