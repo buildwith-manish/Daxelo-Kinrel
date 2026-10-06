@@ -166,7 +166,7 @@ class _RelationshipPickerSheetState
 
   @override
   Widget build(BuildContext context) {
-    final height = MediaQuery.of(context).size.height * 0.8;
+    final height = MediaQuery.sizeOf(context).height * 0.8;
 
     return SizedBox(
       height: height,

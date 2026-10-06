@@ -51,8 +51,6 @@
 // the canonical place for occasional-use features.
 //
 
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -163,52 +161,40 @@ class FamilySpaceFloatingNav extends StatelessWidget {
               width: 0.5,
             ),
             boxShadow: [
-              // Primary drop shadow — deep float effect
+              // Perf: collapsed the previous three-shadow stack
+              // (blur 30 / 10 / 24) into one shadow. The container
+              // already sits on KinrelColors.darkCard at alpha 0.92,
+              // so the secondary edge shadow and the orange glow were
+              // visually invisible and just added GPU blur cost.
+              // Orange glow intentionally dropped — see commit message.
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.50),
-                blurRadius: 30,
+                blurRadius: 16,
                 offset: const Offset(0, 12),
               ),
-              // Secondary tight shadow — defines the card edge
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-              // Subtle orange glow — gives the bar a premium warmth and
-              // makes the active state feel intentional.
-              if (currentIndex >= 0)
-                BoxShadow(
-                  color: KinrelColors.orange.withValues(alpha: 0.18),
-                  blurRadius: 24,
-                  offset: const Offset(0, 6),
-                ),
             ],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(_cornerRadius),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: List.generate(_tabs.length, (index) {
-                  final tab = _tabs[index];
-                  final isSelected = index == currentIndex;
-                  return Expanded(
-                    child: semanticTab(
-                      label: tab.label,
-                      index: index,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: List.generate(_tabs.length, (index) {
+                final tab = _tabs[index];
+                final isSelected = index == currentIndex;
+                return Expanded(
+                  child: semanticTab(
+                    label: tab.label,
+                    index: index,
+                    isSelected: isSelected,
+                    totalTabs: _tabs.length,
+                    child: _NavTabButton(
+                      tab: tab,
                       isSelected: isSelected,
-                      totalTabs: _tabs.length,
-                      child: _NavTabButton(
-                        tab: tab,
-                        isSelected: isSelected,
-                        onTap: () => _onTap(context, index),
-                      ),
+                      onTap: () => _onTap(context, index),
                     ),
-                  );
-                }),
-              ),
+                  ),
+                );
+              }),
             ),
           ),
         ),

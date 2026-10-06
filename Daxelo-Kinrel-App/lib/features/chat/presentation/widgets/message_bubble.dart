@@ -186,7 +186,7 @@ class MessageBubble extends ConsumerWidget {
             Flexible(
               child: Container(
                 constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.78,
+                  maxWidth: MediaQuery.sizeOf(context).width * 0.78,
                 ),
                 margin: EdgeInsets.only(
                     left: isMe ? 48 : 0, right: isMe ? 0 : 48),
@@ -643,11 +643,11 @@ class MessageBubble extends ConsumerWidget {
                   // Bubble caps at ~85% of screen width. Decode at
                   // the screen width × DPR (slightly larger than the
                   // actual bubble display, but well below a 4K decode).
-                  memCacheWidth: (MediaQuery.of(context).size.width *
-                          MediaQuery.of(context).devicePixelRatio)
+                  memCacheWidth: (MediaQuery.sizeOf(context).width *
+                          MediaQuery.devicePixelRatioOf(context))
                       .toInt(),
                   memCacheHeight:
-                      (200 * MediaQuery.of(context).devicePixelRatio)
+                      (200 * MediaQuery.devicePixelRatioOf(context))
                           .toInt(),
                   placeholder: (context, url) => Container(
                     width: double.infinity,

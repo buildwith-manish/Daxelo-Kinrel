@@ -314,14 +314,10 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                               cacheManager: KinrelImageCacheManager.instance,
                               fit: BoxFit.cover,
                               memCacheWidth:
-                                  (36 *
-                                          MediaQuery.of(context)
-                                              .devicePixelRatio)
+                                  (36 * MediaQuery.devicePixelRatioOf(context))
                                       .toInt(),
                               memCacheHeight:
-                                  (36 *
-                                          MediaQuery.of(context)
-                                              .devicePixelRatio)
+                                  (36 * MediaQuery.devicePixelRatioOf(context))
                                       .toInt(),
                               errorWidget: (_, __, ___) => Center(
                                 child: Text(
@@ -588,7 +584,7 @@ class _DirectMessageBubble extends StatelessWidget {
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.78,
+          maxWidth: MediaQuery.sizeOf(context).width * 0.78,
         ),
         margin: EdgeInsets.only(left: isMe ? 48 : 0, right: isMe ? 0 : 48),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -665,7 +661,7 @@ class _DirectMessageBubble extends StatelessWidget {
       alignment: Alignment.center,
       child: Container(
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.85,
+          maxWidth: MediaQuery.sizeOf(context).width * 0.85,
         ),
         margin: const EdgeInsets.symmetric(vertical: 6),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -780,7 +776,7 @@ class _DirectMessageBubble extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: Container(
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.82,
+          maxWidth: MediaQuery.sizeOf(context).width * 0.82,
         ),
         margin: const EdgeInsets.symmetric(vertical: 6),
         padding: const EdgeInsets.all(14),
