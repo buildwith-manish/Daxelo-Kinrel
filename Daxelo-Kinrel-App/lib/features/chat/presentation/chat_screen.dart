@@ -76,6 +76,7 @@ import 'widgets/sticker_pack_sheet.dart';
 import 'widgets/chat_meta.dart';
 import 'widgets/empty_chat_state.dart';
 import 'widgets/chat_message_list.dart';
+import 'widgets/chat_input_bar.dart';
 import 'widgets/pinned_messages_bar.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../data/chat_wallpaper_provider.dart';
@@ -2688,206 +2689,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // buttons floating next to a text field. Mirrors iMessage +
     // Telegram's unified pill aesthetic.
     //
-    // Depth: outer bar uses a soft gradient (top lighter → bottom
-    // darker) + hairline white top border + subtle top shadow so the
-    // composer feels elevated from the chat content below. Inner
-    // capsule uses a slightly elevated surface with hairline border.
+    // v3.3: the visual rendering was EXTRACTED into the shared
+    // ChatInputBar widget (see chat_input_bar.dart) so the DM screen
+    // can render the same composer. This screen owns all the state
+    // (controllers, focus, composing flag, callbacks) and passes it
+    // in. The group passes all flags true → identical behavior.
     //
-    // Transformation: the trailing button smoothly morphs mic → send
-    // via AnimatedSwitcher (scale + fade, 220ms) when the user types.
+    // The recording bar variant is handled here (before delegating to
+    // ChatInputBar) because it's group-only — the DM backend doesn't
+    // support voice messages.
     if (_isRecording) {
       return _buildRecordingBar();
     }
 
-    return Container(
-      // v133: Soft gradient surface — top is slightly lighter (lit
-      // from above by the AppBar glow), bottom is the base dark.
-      // Matches the v132 ChatBackground palette for cohesion.
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFF0E0F1C),
-            Color(0xFF0A0B16),
-          ],
-        ),
-        border: Border(
-          top: BorderSide(
-              color: Colors.white.withValues(alpha: 0.06), width: 0.5),
-        ),
-        boxShadow: [
-          // v133: Subtle top shadow lifts the composer off the chat
-          // content. 18% alpha, 8 blur — felt, not seen.
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              // ── Attachment button ────────────────────────────────
-              AttachmentButton(onTap: () => _showAttachmentMenu()),
-              const SizedBox(width: 6),
-              // ── Sticker / emoji toggle ──────────────────────────
-              StickerButton(
-                isActive: _showStickerPanel,
-                onTap: _toggleStickerPanel,
-              ),
-              const SizedBox(width: 6),
-              // ── Tier 3 / Sticker packs — opens the StickerPackSheet
-              // (Giphy transparent-background stickers) for sending
-              // image stickers beyond just emoji.
-              StickerPackButton(onTap: _openStickerPacks),
-              const SizedBox(width: 6),
-              // ── Phase 22 / Task 5 — Poll composer button ───────
-              // Mirrors the StickerButton styling for visual
-              // consistency. Opens the PollComposerSheet modal.
-              PollButton(onTap: _openPollComposer),
-              const SizedBox(width: 8),
-              // ── Unified text capsule ────────────────────────────
-              // Contains the TextField + the trailing mic/send button
-              // so they feel like one continuous pill. The TextField
-              // has no border/fill of its own — the capsule provides
-              // the visual container.
-              Expanded(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  constraints: const BoxConstraints(maxHeight: 140),
-                  decoration: BoxDecoration(
-                    // v133: Elevated capsule surface — slightly
-                    // lighter than the outer bar so the capsule
-                    // reads as a distinct interactive element.
-                    color: const Color(0xFF1A1D2E),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: _focusNode.hasFocus
-                          ? KinrelColors.ember.withValues(alpha: 0.35)
-                          : Colors.white.withValues(alpha: 0.06),
-                      width: _focusNode.hasFocus ? 1.2 : 0.75,
-                    ),
-                    boxShadow: _focusNode.hasFocus
-                        ? [
-                            // v133: Focus glow — soft ember ambient
-                            // light when the field is active.
-                            BoxShadow(
-                              color: KinrelColors.ember
-                                  .withValues(alpha: 0.10),
-                              blurRadius: 12,
-                              offset: const Offset(0, 0),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      // Text field — no decoration of its own.
-                      // Phase 22 / Task 3 — wrapped in a
-                      // CompositedTransformTarget so the mention picker
-                      // overlay can anchor to this TextField via
-                      // _inputLayerLink.
-                      Expanded(
-                        child: CompositedTransformTarget(
-                          link: _inputLayerLink,
-                          child: TextField(
-                            controller: _textController,
-                            focusNode: _focusNode,
-                            maxLines: null,
-                            textInputAction: TextInputAction.newline,
-                            style: const TextStyle(
-                              fontFamily: KinrelTypography.bodyFont,
-                            fontSize: 15,
-                            color: KinrelColors.textWhite,
-                            height: 1.45,
-                          ),
-                          decoration: InputDecoration(
-                            // v133: Refined placeholder — shorter,
-                            // softer, more professional.
-                            hintText: 'Message',
-                            hintStyle: TextStyle(
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 15,
-                              color: KinrelColors.textDim
-                                  .withValues(alpha: 0.7),
-                            ),
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            contentPadding: const EdgeInsets.only(
-                              left: 18,
-                              right: 12,
-                              top: 13,
-                              bottom: 13,
-                            ),
-                          ),
-                        ),
-                        ),
-                      ),
-                      // ── Trailing mic/send button ───────────────────
-                      // Lives INSIDE the capsule so it feels
-                      // connected to the text field. AnimatedSwitcher
-                      // smoothly morphs mic → send → spinner.
-                      Padding(
-                        padding: const EdgeInsets.only(
-                            right: 5, bottom: 5),
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 220),
-                          transitionBuilder: (child, animation) =>
-                              ScaleTransition(
-                            scale: Tween<double>(begin: 0.6, end: 1.0)
-                                .animate(CurvedAnimation(
-                              parent: animation,
-                              curve: Curves.easeOutBack,
-                            )),
-                            child: FadeTransition(
-                              opacity: animation,
-                              child: child,
-                            ),
-                          ),
-                          child: _isSendingVoice
-                              ? const SizedBox(
-                                  key: ValueKey('spinner'),
-                                  width: 38,
-                                  height: 38,
-                                  child: Center(
-                                    child: SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: KinrelColors.orange,
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              : _isComposing
-                                  ? SendButton(
-                                      key: const ValueKey('send'),
-                                      isActive: true,
-                                      onTap: _sendMessage,
-                                    )
-                                  : MicButton(
-                                      key: const ValueKey('mic'),
-                                      onTap: _startRecording,
-                                    ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return ChatInputBar(
+      textController: _textController,
+      focusNode: _focusNode,
+      isComposing: _isComposing,
+      onSend: _sendMessage,
+      showAttach: true,
+      showEmoji: true,
+      showStickers: true,
+      showPoll: true,
+      showVoice: true,
+      onAttach: () => _showAttachmentMenu(),
+      onEmojiToggle: _toggleStickerPanel,
+      emojiActive: _showStickerPanel,
+      onStickerPacks: _openStickerPacks,
+      onPoll: _openPollComposer,
+      onStartRecording: _startRecording,
+      isSendingVoice: _isSendingVoice,
+      inputLayerLink: _inputLayerLink,
     );
   }
 
