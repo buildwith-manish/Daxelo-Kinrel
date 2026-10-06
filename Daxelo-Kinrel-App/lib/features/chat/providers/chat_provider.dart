@@ -1613,7 +1613,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // pending id is in _pendingOptimisticIds. Remove it and skip the
     // insert (the optimistic message is already in state).
     if (_pendingOptimisticIds.remove(msgId)) {
-      // Still patch isRead from the server's view if needed.
+      // Still patch isRead + messageStatus from the server's view if
+      // needed. v3.2: patch messageStatus so a 'sending' optimistic
+      // message transitions to 'sent' (or 'delivered'/'read' if the
+      // server says so) when the echo confirms the insert landed.
       final existing = state.messages.firstWhere(
         (m) => m.id == msgId,
         orElse: () => ChatMessage(
@@ -1626,10 +1629,23 @@ class ChatNotifier extends StateNotifier<ChatState> {
         ),
       );
       final serverIsRead = row['isRead'] as bool? ?? false;
-      if (existing.isRead != serverIsRead && mounted) {
+      final serverStatus = row['messageStatus'] as String? ?? 'sent';
+      // Don't override a 'failed' status from the echo — if the message
+      // is marked 'failed' locally (insert threw or timed out), the
+      // echo means the insert actually landed on the server despite the
+      // client-side error, so we SHOULD transition to 'sent'. But if
+      // the user already deleted the failed message, existing.id != msgId
+      // and the firstWhere orElse returned a placeholder — skip patching.
+      final statusChanged = existing.id == msgId &&
+          existing.messageStatus != serverStatus;
+      final readChanged = existing.id == msgId && existing.isRead != serverIsRead;
+      if ((statusChanged || readChanged) && mounted) {
         final updated = state.messages.map((m) {
           if (m.id != msgId) return m;
-          return m.copyWith(isRead: serverIsRead);
+          return m.copyWith(
+            isRead: serverIsRead,
+            messageStatus: statusChanged ? serverStatus : m.messageStatus,
+          );
         }).toList();
         state = state.copyWith(messages: updated);
       }
@@ -1801,9 +1817,93 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   // ── Actions ──────────────────────────────────────────────────────
 
+  /// v3.2: Updates a single message's `messageStatus` in state. Used by
+  /// the send methods (sendMessage, sendMessageWithMentions, sendAttachment,
+  /// sendVoiceMessage) and retryMessage to transition the optimistic
+  /// message through the 'sending' → 'sent' / 'failed' lifecycle. No-op
+  /// if the message is not in state (e.g. already deleted).
+  void _updateMessageStatus(String msgId, String status) {
+    if (!mounted) return;
+    final updated = state.messages.map((m) {
+      if (m.id != msgId) return m;
+      return m.copyWith(messageStatus: status);
+    }).toList();
+    state = state.copyWith(messages: updated);
+  }
+
+  /// v3.2: Re-send a failed message with the SAME id. Looks up the
+  /// failed message in state, flips its status back to 'sending',
+  /// re-adds the id to `_pendingOptimisticIds` (so the realtime echo
+  /// de-dup still works and a retry never shows twice), and re-INSERTs
+  /// the row with a 15-second timeout. On success, transitions to
+  /// 'sent'. On failure, transitions back to 'failed'.
+  ///
+  /// For photo / voice messages, the media was already uploaded to
+  /// storage on the original send — retry only re-INSERTs the
+  /// ChatMessage row (no re-upload). The failed message retains its
+  /// `mediaUrl`, so the re-insert payload is complete.
+  Future<void> retryMessage(String id) async {
+    final client = _client;
+    if (client == null) return;
+
+    // Find the failed message.
+    final existing = state.messages.firstWhere(
+      (m) => m.id == id,
+      orElse: () => ChatMessage(
+        id: id,
+        senderId: '',
+        senderName: '',
+        content: '',
+        messageType: MessageType.text,
+        timestamp: DateTime.now(),
+      ),
+    );
+    if (existing.id != id || existing.messageStatus != 'failed') return;
+
+    // Flip back to 'sending' and re-arm the echo de-dup.
+    _updateMessageStatus(id, 'sending');
+    _pendingOptimisticIds.add(id);
+
+    try {
+      await client.from('ChatMessage').insert({
+        ...existing.toJson(familyId: familyId),
+        // Override: server stores 'sent'; local keeps 'sending' until
+        // the echo arrives.
+        'messageStatus': 'sent',
+      }).timeout(const Duration(seconds: 15));
+      _updateMessageStatus(id, 'sent');
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.retryMessage insert failed: $e');
+      _pendingOptimisticIds.remove(id);
+      _updateMessageStatus(id, 'failed');
+    }
+  }
+
+  /// v3.2: Delete a failed message from the local list. Does NOT call
+  /// the server (the message was never successfully inserted, or if it
+  /// was, the server row will be cleaned up by the existing delete-for-
+  /// everyone flow if the user chooses to delete it there too). Removes
+  /// the id from `_pendingOptimisticIds` so a late echo (if the insert
+  /// actually landed on the server despite the timeout) doesn't re-add
+  /// the message via the burst buffer.
+  void deleteFailedMessage(String id) {
+    _pendingOptimisticIds.remove(id);
+    if (!mounted) return;
+    final withoutFailed = state.messages.where((m) => m.id != id).toList();
+    state = state.copyWith(messages: withoutFailed);
+  }
+
   /// Send a new text message. Inserts optimistically into state, then
-  /// persists to Supabase. If the server INSERT fails, the optimistic
-  /// message is removed and an error is surfaced.
+  /// persists to Supabase.
+  ///
+  /// v3.2 (WhatsApp-like send states): the optimistic message is
+  /// inserted with `messageStatus: 'sending'` (shows a clock icon in
+  /// the bubble footer). On a successful insert, the status transitions
+  /// to `'sent'` (single tick). On failure OR a 15-second timeout, the
+  /// message STAYS in the list with `messageStatus: 'failed'` (red
+  /// error icon) — it is NOT removed. The user can then tap the failed
+  /// message to retry or delete it (see retryMessage / deleteFailedMessage
+  /// and the failed-message sheet in message_bubble.dart).
   Future<void> sendMessage(String content, {String? replyToId, String? groupId}) async {
     final trimmed = content.trim();
     if (trimmed.isEmpty) return;
@@ -1846,6 +1946,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
       replyToSenderName: replySender,
       senderInitials: _initialsFromName(senderName),
       groupId: groupId,
+      // v3.2: 'sending' shows a clock icon until the insert confirms.
+      messageStatus: 'sending',
     );
 
     // Track for echo de-dup so the realtime INSERT doesn't double-render.
@@ -1857,22 +1959,29 @@ class ChatNotifier extends StateNotifier<ChatState> {
       state = state.copyWith(messages: updated, clearReplyTo: true);
     }
 
-    // Persist to Supabase. The realtime INSERT event will fire but be
-    // dropped by the de-dup check above.
+    // Persist to Supabase with a 15-second timeout. The realtime INSERT
+    // event will fire but be dropped by the de-dup check above.
     try {
-      await client.from('ChatMessage').insert(optimistic.toJson(
-        familyId: familyId,
-      ));
+      await client.from('ChatMessage').insert({
+        ...optimistic.toJson(familyId: familyId),
+        // Override: the server row stores 'sent' (the canonical delivery
+        // state). The local optimistic copy keeps 'sending' until the
+        // echo arrives, then the de-dup path patches it to 'sent'.
+        'messageStatus': 'sent',
+      }).timeout(const Duration(seconds: 15));
+      // Optimistically transition to 'sent' — the insert succeeded, so
+      // the message is on the server. The realtime echo will arrive
+      // shortly and confirm (no-op if already 'sent').
+      _updateMessageStatus(msgId, 'sent');
     } catch (e) {
       debugPrint('⚠️ ChatNotifier.sendMessage insert failed: $e');
+      // v3.2: keep the message in the list, marked as 'failed'. Do NOT
+      // remove it — the user can retry or delete via the failed-message
+      // sheet. Remove from _pendingOptimisticIds so a late echo (if the
+      // insert actually succeeded on the server despite the timeout)
+      // patches the status to 'sent' instead of being de-duped away.
       _pendingOptimisticIds.remove(msgId);
-      if (mounted) {
-        final withoutFailed = state.messages.where((m) => m.id != msgId).toList();
-        state = state.copyWith(
-          messages: withoutFailed,
-          error: 'Failed to send message',
-        );
-      }
+      _updateMessageStatus(msgId, 'failed');
     }
   }
 
@@ -1944,6 +2053,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
       senderInitials: _initialsFromName(senderName),
       groupId: groupId,
       mentions: mentions,
+      // v3.2: 'sending' shows a clock icon until the insert confirms.
+      messageStatus: 'sending',
     );
 
     _pendingOptimisticIds.add(msgId);
@@ -1956,19 +2067,19 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // Step 1: persist the ChatMessage row (mentions JSONB is included
     // via toJson so the server-side row has the highlight spans too).
     try {
-      await client.from('ChatMessage').insert(optimistic.toJson(
-        familyId: familyId,
-      ));
+      await client.from('ChatMessage').insert({
+        ...optimistic.toJson(familyId: familyId),
+        // Override: server stores 'sent'; local keeps 'sending' until
+        // the echo arrives.
+        'messageStatus': 'sent',
+      }).timeout(const Duration(seconds: 15));
+      _updateMessageStatus(msgId, 'sent');
     } catch (e) {
       debugPrint('⚠️ ChatNotifier.sendMessageWithMentions insert failed: $e');
+      // v3.2: keep the message, mark as 'failed'. Remove from de-dup so
+      // a late echo can patch the status if the insert actually landed.
       _pendingOptimisticIds.remove(msgId);
-      if (mounted) {
-        final withoutFailed = state.messages.where((m) => m.id != msgId).toList();
-        state = state.copyWith(
-          messages: withoutFailed,
-          error: 'Failed to send message',
-        );
-      }
+      _updateMessageStatus(msgId, 'failed');
       return;
     }
 
@@ -2052,7 +2163,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
       isRead: false,
       senderInitials: _initialsFromName(senderName),
       mediaUrl: mediaUrl,
-      messageStatus: 'sent',
+      // v3.2: 'sending' shows a clock icon until the insert confirms.
+      messageStatus: 'sending',
     );
 
     _pendingOptimisticIds.add(msgId);
@@ -2063,17 +2175,18 @@ class ChatNotifier extends StateNotifier<ChatState> {
       await client.from('ChatMessage').insert({
         ...optimistic.toJson(familyId: familyId),
         'mediaUrl': mediaUrl,
-      });
+        // Override: server stores 'sent'; local keeps 'sending' until
+        // the echo arrives.
+        'messageStatus': 'sent',
+      }).timeout(const Duration(seconds: 15));
+      _updateMessageStatus(msgId, 'sent');
     } catch (e) {
       debugPrint('⚠️ ChatNotifier.sendAttachment insert failed: $e');
+      // v3.2: keep the message, mark as 'failed' (the upload already
+      // succeeded, so a retry only needs to re-INSERT the row — no
+      // re-upload). Remove from de-dup so a late echo can patch.
       _pendingOptimisticIds.remove(msgId);
-      if (mounted) {
-        final withoutFailed = state.messages.where((m) => m.id != msgId).toList();
-        state = state.copyWith(
-          messages: withoutFailed,
-          error: 'Failed to send attachment',
-        );
-      }
+      _updateMessageStatus(msgId, 'failed');
     }
   }
 
@@ -2221,6 +2334,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
       timestamp: now,
       isRead: false,
       senderInitials: _initialsFromName(senderName),
+      // v3.2: 'sending' shows a clock icon until the insert confirms.
+      messageStatus: 'sending',
     );
 
     _pendingOptimisticIds.add(msgId);
@@ -2235,17 +2350,18 @@ class ChatNotifier extends StateNotifier<ChatState> {
         'messageSubType': 'voice',
         'mediaType': mimeType,
         'mediaFileName': fileName,
-      });
+        // Override: server stores 'sent'; local keeps 'sending' until
+        // the echo arrives.
+        'messageStatus': 'sent',
+      }).timeout(const Duration(seconds: 15));
+      _updateMessageStatus(msgId, 'sent');
     } catch (e) {
       debugPrint('⚠️ ChatNotifier.sendVoiceMessage insert failed: $e');
+      // v3.2: keep the message, mark as 'failed' (the upload already
+      // succeeded, so a retry only needs to re-INSERT the row — no
+      // re-upload). Remove from de-dup so a late echo can patch.
       _pendingOptimisticIds.remove(msgId);
-      if (mounted) {
-        final withoutFailed = state.messages.where((m) => m.id != msgId).toList();
-        state = state.copyWith(
-          messages: withoutFailed,
-          error: 'Failed to send voice message',
-        );
-      }
+      _updateMessageStatus(msgId, 'failed');
     }
   }
 
