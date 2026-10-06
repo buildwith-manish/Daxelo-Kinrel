@@ -776,7 +776,13 @@ class _StickyHeader extends StatelessWidget {
           // ── Streak badge: "🔥 N days". Hidden for new users (streak < 1).
           // This is the #1 retention lever — the user opens the app daily
           // to "not lose their streak" (Loss Aversion).
-          const StreakBadge(),
+          //
+          // PERF (Part C5): wrapped in a RepaintBoundary so the milestone
+          // pulse animation (1200ms repeat) doesn't bleed repaints into the
+          // rest of the home header / scroll view. The pulse only fires for
+          // milestone streaks (and respects reduce-motion), but when it does
+          // fire it ticks every ~16ms — isolate it.
+          const RepaintBoundary(child: StreakBadge()),
           const SizedBox(width: 8),
           // v138: Replaced the circular user-avatar icon with a single
           // notification bell. The bell is now part of the Home header
