@@ -194,7 +194,7 @@ class FamilySpaceFloatingNav extends StatelessWidget {
                       isSelected: isSelected,
                       onTap: () => _onTap(context, index),
                     ),
-                  );
+                  ),
                 );
               }),
             ),
