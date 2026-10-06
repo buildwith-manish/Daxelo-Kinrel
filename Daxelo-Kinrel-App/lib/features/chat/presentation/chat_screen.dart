@@ -75,7 +75,6 @@ import 'widgets/gif_search_sheet.dart';
 import 'widgets/sticker_pack_sheet.dart';
 import 'widgets/chat_meta.dart';
 import 'widgets/empty_chat_state.dart';
-import 'widgets/message_bubble.dart';
 import 'widgets/chat_message_list.dart';
 import 'widgets/pinned_messages_bar.dart';
 import '../../family/presentation/family_space_floating_nav.dart';

@@ -48,7 +48,6 @@
 //     has no gameId (old rows), the message is mapped to a plain text
 //     message so the thread never breaks.
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/supabase_service.dart';
