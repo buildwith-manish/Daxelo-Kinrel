@@ -31,6 +31,12 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+// v3.1 (schemaVersion 9) — Drift types for the chat message local cache.
+// `Value` is used to construct Drift companion objects; `AppDatabase`
+// is the type returned by isarProvider. Both come from the app's
+// existing Drift setup — no new dependency added.
+import 'package:drift/drift.dart' show Value;
+import '../../../core/database/app_database.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../../../core/network/realtime_channel_registry.dart';
@@ -41,6 +47,15 @@ import '../../../core/family/family_provider.dart';
 // timestamps to the viewer's local timezone before extracting
 // hour/minute/day for display.
 import '../../../core/utils/app_time.dart';
+// v3.1 (schemaVersion 9) — local Drift cache for chat messages. The
+// database is gated by IsarDatabase.isInitialized (false on web), so all
+// cache reads/writes are wrapped in try/catch and skipped silently when
+// the database is unavailable. A cache failure must NEVER break chat.
+import '../../../core/database/isar_database.dart';
+// Privacy: messages of locked chats (see ChatLockService) are NEVER
+// written to the local cache, so a locked chat's content never lands
+// in the on-device Drift store.
+import '../data/chat_lock_service.dart';
 import '../../games/shared/models/game_invite.dart';
 import '../../presence/last_seen_provider.dart';
 
@@ -1023,6 +1038,172 @@ class ChatNotifier extends StateNotifier<ChatState> {
     return 'You';
   }
 
+  // ── Local cache helpers (schemaVersion 9) ─────────────────────────
+  //
+  // All cache operations are best-effort: a cache failure must NEVER
+  // break chat. Reads are synchronous-fast (Drift is local SQLite) but
+  // still asynchronous Futures — they're awaited on the critical path
+  // of _loadMessages only when the cache is HOT (so the screen renders
+  // instantly from the device while the network refresh runs in
+  // parallel). Writes are always fire-and-forget via `unawaited` so
+  // the UI never waits for the database.
+  //
+  // Privacy: messages of locked chats (ChatLockService.isLocked) are
+  // NEVER written to the cache. The whole cache table is cleared on
+  // sign-out via clearAllCache() (called by IsarDatabase.clearCache in
+  // the logout flow), so a previous user's messages never bleed into a
+  // new account on a shared device.
+
+  /// Returns the AppDatabase instance, or null if Drift is not
+  /// initialized (e.g. on web). Callers MUST null-check before use.
+  AppDatabase? get _appDatabase {
+    if (!IsarDatabase.isInitialized) return null;
+    try {
+      return ref.read(isarProvider);
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier._appDatabase: isarProvider read failed: $e');
+      return null;
+    }
+  }
+
+  /// True if this chat is locked (see ChatLockService). Locked chats
+  /// never have their messages written to the local cache. Returns
+  /// false on any error (fail-open: a failed lock check doesn't block
+  /// caching — the lock check itself is a SharedPreferences read that
+  /// is extremely unlikely to fail).
+  Future<bool> _isChatLocked() async {
+    try {
+      return await ref.read(chatLockServiceProvider).isLocked(familyId);
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier._isChatLocked: $e');
+      return false;
+    }
+  }
+
+  /// Reads up to 50 cached messages for this family from the local
+  /// Drift store, newest first. Returns null on any error or if the
+  /// cache is cold/empty — the caller falls back to the network path.
+  Future<List<ChatMessage>?> _readCachedMessages() async {
+    final db = _appDatabase;
+    if (db == null) return null;
+    try {
+      final rows = await db.getCachedChatMessages(familyId, limit: 50);
+      if (rows.isEmpty) return null;
+      final messages = <ChatMessage>[];
+      for (final row in rows) {
+        try {
+          final payload = jsonDecode(row.payload) as Map<String, dynamic>;
+          final msg = ChatMessage.fromJson(payload);
+          if (msg.id.isNotEmpty) messages.add(msg);
+        } catch (_) {
+          // Skip rows whose payload can't be parsed — don't break the
+          // cache read for the rest. A future network refresh will
+          // overwrite the bad row.
+        }
+      }
+      // rows are already newest-first from the DB query; the parsed
+      // list preserves that order. Defensive sort matches the
+      // contract used by the network path.
+      messages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return messages;
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier._readCachedMessages: $e');
+      return null;
+    }
+  }
+
+  /// Writes (upserts) a single message row to the local cache. The
+  /// `payload` is the raw Supabase row JSON. Fire-and-forget — the UI
+  /// never waits for this. Skips silently if the chat is locked or the
+  /// database is unavailable.
+  void _writeMessageToCache(Map<String, dynamic> row) {
+    unawaited(_writeMessageToCacheAwaitable(row));
+  }
+
+  Future<void> _writeMessageToCacheAwaitable(Map<String, dynamic> row) async {
+    final db = _appDatabase;
+    if (db == null) return;
+    try {
+      // Privacy: never cache messages of locked chats.
+      if (await _isChatLocked()) return;
+      final id = row['id'] as String?;
+      if (id == null || id.isEmpty) return;
+      final createdAtStr = row['createdAt'] as String?;
+      final createdAt = (DateTime.tryParse(createdAtStr ?? '') ??
+              DateTime.now())
+          .millisecondsSinceEpoch;
+      final payload = jsonEncode(row);
+      await db.upsertCachedChatMessage(
+        ChatMessageCacheCompanion(
+          id: Value(id),
+          familyId: Value(familyId),
+          createdAt: Value(createdAt),
+          payload: Value(payload),
+        ),
+      );
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier._writeMessageToCache: $e');
+    }
+  }
+
+  /// Writes (upserts) a batch of message rows to the local cache and
+  /// trims the per-chat cache to 100 rows. Fire-and-forget. Skips
+  /// silently if the chat is locked or the database is unavailable.
+  void _writeMessagesToCache(List<Map<String, dynamic>> rows) {
+    unawaited(_writeMessagesToCacheAwaitable(rows));
+  }
+
+  Future<void> _writeMessagesToCacheAwaitable(
+      List<Map<String, dynamic>> rows) async {
+    final db = _appDatabase;
+    if (db == null) return;
+    try {
+      // Privacy: never cache messages of locked chats.
+      if (await _isChatLocked()) return;
+      for (final row in rows) {
+        final id = row['id'] as String?;
+        if (id == null || id.isEmpty) continue;
+        final createdAtStr = row['createdAt'] as String?;
+        final createdAt = (DateTime.tryParse(createdAtStr ?? '') ??
+                DateTime.now())
+            .millisecondsSinceEpoch;
+        final payload = jsonEncode(row);
+        await db.upsertCachedChatMessage(
+          ChatMessageCacheCompanion(
+            id: Value(id),
+            familyId: Value(familyId),
+            createdAt: Value(createdAt),
+            payload: Value(payload),
+          ),
+        );
+      }
+      // Trim per-chat cache to 100 rows so it doesn't grow unbounded.
+      try {
+        await db.trimCachedChatMessages(familyId, keep: 100);
+      } catch (e) {
+        debugPrint('⚠️ ChatNotifier._writeMessagesToCache trim: $e');
+      }
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier._writeMessagesToCache: $e');
+    }
+  }
+
+  /// Deletes a single message row from the local cache by id. Fire-
+  /// and-forget. Skips silently if the database is unavailable.
+  void _deleteMessageFromCache(String messageId) {
+    unawaited(_deleteMessageFromCacheAwaitable(messageId));
+  }
+
+  Future<void> _deleteMessageFromCacheAwaitable(String messageId) async {
+    final db = _appDatabase;
+    if (db == null) return;
+    try {
+      await db.deleteCachedChatMessage(messageId);
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier._deleteMessageFromCache: $e');
+    }
+  }
+
   // ── Load members (for the chat header) ────────────────────────────
 
   Future<void> _loadMembers() async {
@@ -1085,6 +1266,35 @@ class ChatNotifier extends StateNotifier<ChatState> {
       }
       return;
     }
+
+    // ── v3.1 (schemaVersion 9): render cached messages instantly ──
+    //
+    // Before hitting the network, read up to 50 cached messages for
+    // this family from the local Drift store. If the cache is hot, set
+    // state with them immediately (isLoading: false) so the chat
+    // screen renders the last conversation from the device while the
+    // network refresh runs in parallel. The network result then
+    // REPLACES the cached list (we don't merge — the network is the
+    // source of truth, the cache is just a fast first paint).
+    //
+    // Wrapped in try/catch — a cache read failure must NEVER block the
+    // network load. If the cache read fails or the cache is cold, we
+    // fall through to the network path with isLoading still true (the
+    // pre-cache behavior).
+    final cachedMessages = await _readCachedMessages();
+    if (cachedMessages != null && cachedMessages.isNotEmpty && mounted) {
+      state = state.copyWith(
+        messages: cachedMessages,
+        isLoading: false,
+        clearError: true,
+      );
+      // Don't set _initialLoadDone here — the network refresh hasn't
+      // run yet. Realtime inserts that arrive before the network
+      // completes will still prepend to the cached list (they look up
+      // _pendingOptimisticIds for echo de-dup, which doesn't depend on
+      // _initialLoadDone).
+    }
+
     try {
       // Fetch the NEWEST 50 messages, ordered by createdAt DESC.
       //
@@ -1105,11 +1315,18 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
       final messageIds = <String>[];
       final messages = <ChatMessage>[];
+      // Preserve the raw rows so we can write them to the local cache
+      // after the network refresh completes (the cache stores the raw
+      // row JSON, including its reactions array, so a cache hit can
+      // rehydrate the full message without a second round-trip).
+      final rawRows = <Map<String, dynamic>>[];
       for (final row in messagesResponse as List) {
-        final msg = ChatMessage.fromJson(row as Map<String, dynamic>);
+        final rowMap = row as Map<String, dynamic>;
+        final msg = ChatMessage.fromJson(rowMap);
         if (msg.id.isEmpty) continue;
         messages.add(msg);
         messageIds.add(msg.id);
+        rawRows.add(rowMap);
       }
 
       // Newest first (UI ListView is reverse: true). The query already
@@ -1130,6 +1347,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
         );
       }
       _initialLoadDone = true;
+
+      // ── v3.1: persist the network result to the local cache ──
+      //
+      // Write the newest 50 rows back to the cache (upsert), then trim
+      // the per-chat cache to 100 rows. Fire-and-forget — the UI never
+      // waits for this. The cache write skips silently for locked chats
+      // (privacy: locked chat messages never land on the device).
+      _writeMessagesToCache(rawRows);
 
       // Mark all unread messages not sent by me as read. Fire-and-forget
       // so it never blocks the reactions merge below.
@@ -1374,6 +1599,16 @@ class ChatNotifier extends StateNotifier<ChatState> {
     final msgId = row['id'] as String?;
     if (msgId == null || msgId.isEmpty) return;
 
+    // v3.1 (schemaVersion 9) — persist the server row to the local cache
+    // BEFORE any echo de-dup or burst-buffer logic. The cache stores the
+    // canonical server row (with the server-set id, createdAt, isRead,
+    // etc.), so writing here means both the echo path (our optimistic
+    // message) and the non-echo path (someone else's message) end up
+    // with the server version in the cache. Fire-and-forget, wrapped in
+    // try/catch inside the helper — a cache write failure never breaks
+    // the realtime insert.
+    _writeMessageToCache(row);
+
     // Echo de-dup: if we inserted this message optimistically, the
     // pending id is in _pendingOptimisticIds. Remove it and skip the
     // insert (the optimistic message is already in state).
@@ -1510,6 +1745,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
   void _handleMessageUpdate(Map<String, dynamic> row) {
     final msgId = row['id'] as String?;
     if (msgId == null) return;
+    // v3.1 — upsert the updated server row to the local cache. Same
+    // fire-and-forget + try/catch contract as the insert path. A cache
+    // write failure never breaks the realtime update.
+    _writeMessageToCache(row);
     final updated = state.messages.map((m) {
       if (m.id != msgId) return m;
       return ChatMessage.fromJson(row).copyWith(reactions: m.reactions);
@@ -1522,6 +1761,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
   void _handleMessageDelete(Map<String, dynamic> row) {
     final msgId = row['id'] as String?;
     if (msgId == null) return;
+    // v3.1 — remove the row from the local cache. Fire-and-forget +
+    // try/catch inside the helper.
+    _deleteMessageFromCache(msgId);
     final updated = state.messages.where((m) => m.id != msgId).toList();
     if (mounted) {
       state = state.copyWith(messages: updated);

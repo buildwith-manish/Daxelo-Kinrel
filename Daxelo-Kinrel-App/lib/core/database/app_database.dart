@@ -269,6 +269,37 @@ class CachedKinrels extends Table {
   Set<Column> get primaryKey => {familyId};
 }
 
+// ── v3.1 (schemaVersion 9): Chat message local cache ────────────────────
+// Stores the last-seen messages per family chat so the chat screen can
+// render the latest conversation instantly from the device, then refresh
+// from Supabase. The `payload` column is the raw ChatMessage row as JSON
+// (including its reactions array, denormalized at write time so the cache
+// read returns the full message ready to render).
+//
+// `createdAt` is stored as INTEGER milliseconds-since-epoch (not as a
+// Drift DateTimeColumn) because the source timestamps come from Supabase
+// as ISO strings — converting once at write time and storing as int lets
+// the read path order by an indexed integer column directly.
+//
+// Naming: plural table name (`ChatMessageCache`) so Drift generates a
+// singular row class (`ChatMessageCacheData`) and companion — matches
+// the existing CachedKinrels / CachedProfiles convention.
+//
+// Privacy: rows for locked chats (see ChatLockService) are NEVER written
+// to this table, and the whole table is cleared on sign-out via
+// clearAllCache() (already called by IsarDatabase.clearCache in the
+// logout flow).
+@TableIndex(name: 'idx_chat_msg_cache_fam_created', columns: {#familyId, #createdAt})
+class ChatMessageCache extends Table {
+  TextColumn get id => text()();
+  TextColumn get familyId => text()();
+  IntColumn get createdAt => integer()(); // milliseconds since epoch
+  TextColumn get payload => text()(); // raw ChatMessage row JSON (incl. reactions)
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // DATABASE CLASS
 // ═══════════════════════════════════════════════════════════════════════
@@ -296,12 +327,14 @@ class CachedKinrels extends Table {
   CachedRelationshipKeys,
   // v3.0 (schemaVersion 8): Kinrel offline cache
   CachedKinrels,
+  // v3.1 (schemaVersion 9): Chat message local cache
+  ChatMessageCache,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'daxelo_kinrel_db');
@@ -393,6 +426,15 @@ class AppDatabase extends _$AppDatabase {
             // as JSON so the symbol widget can render offline. See
             // lib/features/kinrel_intelligence/data/kinrel_model.dart for the schema.
             await migrator.createTable(cachedKinrels);
+          }
+          if (from < 9) {
+            // v8 → v9: Chat message local cache. One row per cached
+            // message (id PK) with familyId + createdAt(ms) + payload
+            // (the raw Supabase row JSON, including its reactions).
+            // The @TableIndex on (familyId, createdAt) is created
+            // automatically by createTable. This step ONLY adds the new
+            // table — no other schema changes.
+            await migrator.createTable(chatMessageCache);
           }
         },
       );
@@ -788,6 +830,7 @@ class AppDatabase extends _$AppDatabase {
     await delete(cachedFamilyIds).go();
     await delete(cachedMemories).go();
     await delete(cachedKinrels).go();
+    await delete(chatMessageCache).go();
   });
 
   // ── Kinrel cache (schemaVersion 8) ───────────────────────────────────
@@ -986,4 +1029,78 @@ class AppDatabase extends _$AppDatabase {
       (delete(cachedRelationshipKeys)
             ..where((t) => t.familyId.equals(familyId)))
           .go();
+
+  // ── Chat message cache (schemaVersion 9) ───────────────────────────
+  //
+  // Stores the last-seen raw ChatMessage rows per family so the chat
+  // screen can render instantly from the device on open, then refresh
+  // from Supabase. The `payload` column holds the raw Supabase row JSON
+  // (including its reactions array, denormalized at write time).
+  //
+  // Privacy: callers MUST skip the cache for locked chats (see
+  // ChatLockService.isLocked). The whole table is cleared on sign-out
+  // via clearAllCache() (already called by IsarDatabase.clearCache in
+  // the logout flow), so a previous user's messages never bleed into a
+  // new account on a shared device.
+
+  /// Returns up to [limit] cached message rows for [familyId], newest
+  /// first. Each row's `payload` is the raw Supabase ChatMessage row
+  /// JSON; the caller (chat_provider) parses it back into a ChatMessage.
+  Future<List<ChatMessageCacheData>> getCachedChatMessages(
+    String familyId, {
+    int limit = 50,
+  }) =>
+      (select(chatMessageCache)
+            ..where((t) => t.familyId.equals(familyId))
+            ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+            ..limit(limit))
+          .get();
+
+  /// Upserts a single cached message row. The `payload` should be the
+  /// raw Supabase ChatMessage row JSON (including its reactions array).
+  Future<void> upsertCachedChatMessage(ChatMessageCacheCompanion entry) =>
+      into(chatMessageCache).insertOnConflictUpdate(entry);
+
+  /// Deletes a single cached message row by id.
+  Future<void> deleteCachedChatMessage(String id) =>
+      (delete(chatMessageCache)..where((t) => t.id.equals(id))).go();
+
+  /// Clears all cached message rows for a single family chat. Call when
+  /// the user clears a chat's history or hides the chat.
+  Future<void> clearCachedChatMessagesForFamily(String familyId) =>
+      (delete(chatMessageCache)
+            ..where((t) => t.familyId.equals(familyId)))
+          .go();
+
+  /// Clears the entire chat message cache table. Called on sign-out via
+  /// clearAllCache() and is also safe to call directly from a "clear all
+  /// chat data" UI flow.
+  Future<void> clearAllCachedChatMessages() =>
+      delete(chatMessageCache).go();
+
+  /// Trims the cached rows for [familyId] to the newest [keep] rows,
+  /// deleting older ones. Called after each network refresh so the
+  /// cache doesn't grow unbounded.
+  Future<void> trimCachedChatMessages(String familyId, {int keep = 100}) async {
+    // Find the createdAt of the (keep+1)-th newest row for this family
+    // (i.e. the newest row we want to DELETE). If there are fewer than
+    // keep+1 rows, there's nothing to trim.
+    final thresholdRow = await (select(chatMessageCache)
+          ..where((t) => t.familyId.equals(familyId))
+          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+          ..limit(1, offset: keep))
+        .getSingleOrNull();
+    if (thresholdRow == null) return;
+    final threshold = thresholdRow.createdAt;
+    // Delete rows older than OR EQUAL TO the threshold. The equal-to
+    // case covers the (keep+1)-th row itself (which we want to delete).
+    // If multiple rows share the threshold timestamp (rare — createdAt
+    // is millisecond-precision and ids are unique), we may delete one
+    // or two extra rows; that's still "at most `keep` rows" as specified.
+    await (delete(chatMessageCache)
+          ..where((t) =>
+              t.familyId.equals(familyId) &
+              t.createdAt.isSmallerOrEqualValue(threshold)))
+        .go();
+  }
 }
