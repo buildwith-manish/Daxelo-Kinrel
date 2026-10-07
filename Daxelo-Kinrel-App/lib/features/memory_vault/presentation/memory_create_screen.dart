@@ -414,6 +414,12 @@ class _MemoryCreateScreenState extends ConsumerState<MemoryCreateScreen>
                       width: double.infinity,
                       height: 240,
                       fit: BoxFit.cover,
+                      // PERF (Tier F3): cap decode resolution at 1080×240
+                      // (3x DPR × 360×80 logical). Memory image preview
+                      // never needs full source raster — saves ~5MB
+                      // of pixel buffer per prefill image.
+                      cacheWidth: 1080,
+                      cacheHeight: 240,
                       errorBuilder: (c, o, e) => Container(
                         height: 240,
                         color: _cElevated,

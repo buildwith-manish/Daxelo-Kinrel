@@ -263,6 +263,10 @@ class WallpaperSettingsScreen extends ConsumerWidget {
         fit: BoxFit.cover,
         width: width,
         height: height,
+        // PERF (Tier F3): cap decode resolution — wallpaper preview is
+        // shown in a list cell, never needs full source raster.
+        cacheWidth: 540,
+        cacheHeight: 960,
         errorBuilder: (_, __, ___) => fallback,
       );
     }

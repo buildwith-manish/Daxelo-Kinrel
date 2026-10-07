@@ -211,7 +211,7 @@ class _BlurredWallpaperImage extends StatelessWidget {
     // validated by the wallpaper provider before being stored.
     final isDataUri = imagePath.startsWith('data:');
 
-    // PERF (Tier A1): On Flutter Web, ImageFilter.blur at sigma 24
+    // PERF (Tier A1 → Tier E): On Flutter Web, ImageFilter.blur at sigma 24
     // produces a 75+ ms/frame Raster average because the blurred
     // layer re-rasterizes every time the chat list rebuilds (which
     // happens on every new message from the realtime Supabase
@@ -220,9 +220,12 @@ class _BlurredWallpaperImage extends StatelessWidget {
     // (ambient wash of color behind messages) and ~4x cheaper.
     // Native keeps the original sigma for visual parity with iOS
     // and Android production builds.
-    final double effectiveSigma = kIsWeb
-        ? 6.0
-        : (lowRam ? 8.0 : 24.0);
+    //
+    // Tier E: now reads from the central RasterBudget.blurSigma API
+    // (device_tier.dart) instead of an inline kIsWeb ternary. Same
+    // value (6 on web, 24 on native strong-phone, 8 on native low-RAM).
+    final double effectiveSigma = DeviceTierCache.instance.rasterBudget.blurSigma
+        .clamp(0.0, lowRam ? 8.0 : 24.0);
 
     if (isDataUri) {
       // NOTE (perf pass step 3): the Image.network below is intentionally

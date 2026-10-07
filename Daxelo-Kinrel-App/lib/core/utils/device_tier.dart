@@ -320,6 +320,116 @@ Duration tierDelay(Duration original) {
   return DeviceTierCache.instance.shouldAnimate ? original : Duration.zero;
 }
 
+// ── Raster Budget (Tier E) ───────────────────────────────────────────
+//
+// A unified "raster budget" that combines three signals:
+//   1. Platform (kIsWeb — Web Raster thread is much heavier per saveLayer)
+//   2. RAM (Android ActivityManager.isLowRamDevice flag)
+//   3. Device tier (low/mid/high from screen metrics)
+//
+// Maps every raster-expensive primitive to a clamp:
+//   - BackdropFilter.blur sigma
+//   - BoxShadow blurRadius
+//   - ImageFilter.blur sigma
+//
+// Why a single budget instead of three separate booleans:
+//   - The tier A/B/C/D changes already read `kIsWeb` and `lowRam`
+//     inline at every hotspot. That works but scatters the logic
+//     across 8 files. Centralizing here means a future device class
+//     (e.g. a new Android Go tier) can be added by changing ONE
+//     function, not 8 hotspots.
+//
+// Usage:
+//   ```dart
+//   final budget = DeviceTierCache.instance.rasterBudget;
+//   ImageFilter.blur(sigmaX: budget.blurSigma, sigmaY: budget.blurSigma)
+//   boxShadow: [
+//     BoxShadow(blurRadius: budget.clampShadowBlur(24), offset: ...),
+//   ]
+//   ```
+
+/// Three-step raster budget. Drives every clamp in the app.
+enum RasterBudget {
+  /// Full-spec raster — strong phones (≥4GB RAM, mid/high tier) on native.
+  /// All shaders at full sigma/blur. Used as the production baseline.
+  full,
+
+  /// Reduced raster — web (any tier) OR low-RAM Android.
+  /// Blur sigma capped at 6, shadow blur capped at 8, single-shadow
+  /// instead of dual. Visually equivalent at 1x DPR; ~3-4x cheaper.
+  reduced,
+
+  /// Minimal raster — web on a low-tier device OR low-RAM + low-tier
+  /// Android. Blur sigma = 0 (skipped entirely), shadow blur = 0
+  /// (solid color fill only). Used as the absolute floor for
+  /// devices where any GPU work would drop frames.
+  minimal;
+
+  /// The current device's [RasterBudget]. Combines [kIsWeb],
+  /// [DeviceTierCache.lowRam], and [DeviceTierCache.tier].
+  ///
+  /// Resolution matrix:
+  ///   - kIsWeb + low tier  → minimal
+  ///   - kIsWeb + mid/high  → reduced
+  ///   - Native + lowRam    → reduced (regardless of tier)
+  ///   - Native + low tier  → reduced
+  ///   - Native + mid/high  → full
+  static RasterBudget get current {
+    if (kIsWeb) {
+      return DeviceTierCache.instance.tier == DeviceTier.low
+          ? RasterBudget.minimal
+          : RasterBudget.reduced;
+    }
+    if (DeviceTierCache.instance.lowRam ||
+        DeviceTierCache.instance.tier == DeviceTier.low) {
+      return RasterBudget.reduced;
+    }
+    return RasterBudget.full;
+  }
+
+  /// Backdrop-filter / image-filter blur sigma for this budget.
+  /// - full:     16 (production-grade frosted glass)
+  /// - reduced:   6 (web-capped — visually equivalent at wallpaper role)
+  /// - minimal:   0 (skip blur entirely — use flat color)
+  double get blurSigma => switch (this) {
+        RasterBudget.full => 16.0,
+        RasterBudget.reduced => 6.0,
+        RasterBudget.minimal => 0.0,
+      };
+
+  /// Maximum blur radius for BoxShadow at this budget. The caller
+  /// passes the *intended* native blur; the helper clamps it.
+  /// - full:     unclamped (24+ for hero glows)
+  /// - reduced:  8 (visually equivalent at 1x DPR)
+  /// - minimal:  0 (no shadow — solid fill only)
+  double clampShadowBlur(double intendedBlur) {
+    return switch (this) {
+      RasterBudget.full => intendedBlur,
+      RasterBudget.reduced => intendedBlur.clamp(0.0, 8.0),
+      RasterBudget.minimal => 0.0,
+    };
+  }
+
+  /// Whether backdrop-filter / image-filter blur should be applied
+  /// AT ALL. When false, callers should skip the wrapper entirely
+  /// and use a flat color Container — saves the saveLayer cost.
+  bool get shouldBlur => this != RasterBudget.minimal;
+
+  /// Whether shadows should be painted at all. When false, callers
+  /// should omit the `boxShadow:` parameter entirely.
+  bool get shouldPaintShadow => this != RasterBudget.minimal;
+}
+
+/// Convenience extension on [DeviceTierCache] so callers can write
+/// `DeviceTierCache.instance.rasterBudget` instead of
+/// `RasterBudget.current` — matches the existing `lowRam` / `tier`
+/// getter pattern.
+extension RasterBudgetDeviceTierX on DeviceTierCache {
+  /// The current device's raster budget (full / reduced / minimal).
+  /// See [RasterBudget.current] for the resolution matrix.
+  RasterBudget get rasterBudget => RasterBudget.current;
+}
+
 // ── Widget Extension for Conditional Animation ───────────────────────
 
 /// Extension on [Widget] that provides a drop-in replacement for
