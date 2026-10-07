@@ -21,6 +21,34 @@ on:
         required: false
         default: false
         type: boolean
+      # PERF_LAB: when true, the build command adds --dart-define=PERF_LAB=true
+      # so the in-app lab panel (lib/core/utils/perf_lab_panel.dart) and the
+      # five PerfLab switches are compiled in. When false (default), the lab
+      # code is tree-shaken by the Dart AOT compiler and the app behaves
+      # exactly as on main. Adds the "-lab" suffix to the artifact name so
+      # the lab APK is distinguishable from the regular profile APK.
+      perf_lab:
+        description: 'Compile in the PERF_LAB switches + lab panel (--dart-define=PERF_LAB=true)'
+        required: false
+        default: false
+        type: boolean
+      # Impeller opt-out (Android only). When "off", a CI-only step edits
+      # Daxelo-Kinrel-App/android/app/src/main/AndroidManifest.xml (in the
+      # CI workspace, NOT committed) to add the meta-data
+      #   <meta-data android:name="io.flutter.embedding.android.EnableImpeller" android:value="false" />
+      # inside the <application> element, forcing the app to use the
+      # legacy Skia rasterizer instead of Impeller. Adds the "-skia" suffix
+      # to the artifact name. See the Impeller opt-out notes in the
+      # workflow's report step below — the meta-data is still supported in
+      # Flutter 3.44.2 (deprecated warning, removal pending future release).
+      impeller:
+        description: 'Android rasterizer backend (default = Impeller, off = Skia via AndroidManifest opt-out)'
+        required: false
+        default: 'default'
+        type: choice
+        options:
+          - 'default'
+          - 'off'
 
 concurrency:
   group: perf-profile-apk-${{ github.ref }}
@@ -89,17 +117,96 @@ jobs:
       - name: Generate code
         run: dart run build_runner build --delete-conflicting-outputs
 
+      # PERF_LAB / Impeller opt-out — CI-only AndroidManifest patch.
+      # When the `impeller` workflow input is "off", this step edits
+      # Daxelo-Kinrel-App/android/app/src/main/AndroidManifest.xml IN THE
+      # CI WORKSPACE ONLY (the change is never committed — it lives only
+      # on this ephemeral CI runner) to add the meta-data
+      #   <meta-data android:name="io.flutter.embedding.android.EnableImpeller"
+      #              android:value="false" />
+      # inside the <application> element. This forces the Flutter engine
+      # to use the legacy Skia rasterizer instead of Impeller so we can
+      # A/B compare raster times between the two backends.
+      #
+      # Flutter version note (verified 2026-10-07 against the official
+      # Flutter docs at https://docs.flutter.dev/perf/impeller, last
+      # modified 2026-08-21):
+      #   • The `io.flutter.embedding.android.EnableImpeller` meta-data is
+      #     STILL SUPPORTED in Flutter 3.44.2 (and remains supported as
+      #     of the latest 3.47 docs).
+      #   • Impeller is enabled by default on Android API 29+ (since
+      #     Flutter 3.27). The opt-out meta-data disables it on Android.
+      #   • The engine prints a deprecation warning when the opt-out is
+      #     used (per github.com/flutter/flutter issue, Oct 2025), but
+      #     the opt-out is still functional — apps that ship with the
+      #     flag set will use Skia, not Impeller.
+      #   • A future Flutter release will remove the opt-out entirely
+      #     (the docs say "In a future release, the ability to opt out
+      #     of using Impeller will be removed"). Until then, this
+      #     workflow_dispatch path is the supported way to test Skia on
+      #     Android with this codebase.
+      #   • Some third-party blog posts claim the opt-out was removed
+      #     in 3.44 — that is INACCURATE per the official docs.
+      - name: Patch AndroidManifest to disable Impeller (CI-only, when impeller=off)
+        if: ${{ inputs.impeller == 'off' }}
+        working-directory: Daxelo-Kinrel-App/android/app/src/main
+        run: |
+          set -euo pipefail
+          MANIFEST=AndroidManifest.xml
+          if [ ! -f "$MANIFEST" ]; then
+            echo "::error::AndroidManifest.xml not found at $(pwd)"
+            exit 1
+          fi
+          # Idempotent: skip if the meta-data is already present.
+          if grep -q 'io.flutter.embedding.android.EnableImpeller' "$MANIFEST"; then
+            echo "::notice::EnableImpeller meta-data already present — skipping patch"
+            exit 0
+          fi
+          # Insert the meta-data as the FIRST child of the <application>
+          # element. We use python to do an XML-aware insert so we don't
+          # risk breaking the existing tag structure (a regex approach
+          # could match the <application ...> opening tag incorrectly
+          # if it spans multiple lines). The patch is applied to the
+          # CI workspace copy only — never committed to the repo.
+          python3 - <<'PY'
+          import re, sys
+          path = 'AndroidManifest.xml'
+          with open(path, 'r', encoding='utf-8') as f:
+              src = f.read()
+          # Find the <application ...> opening tag (may span multiple
+          # lines). We match up to the first '>' that closes the
+          # opening tag — but only the FIRST <application> occurrence.
+          pattern = re.compile(r'<application\b[^>]*>', re.DOTALL)
+          m = pattern.search(src)
+          if m is None:
+              print('::error::<application> opening tag not found')
+              sys.exit(1)
+          insertion = (
+              '\n        <!-- PERF_LAB CI-only patch: disable Impeller on Android. '
+              'NEVER COMMIT THIS. The repo on main does not have this meta-data. -->\n'
+              '        <meta-data\n'
+              '            android:name="io.flutter.embedding.android.EnableImpeller"\n'
+              '            android:value="false" />'
+          )
+          new_src = src[:m.end()] + insertion + src[m.end():]
+          with open(path, 'w', encoding='utf-8') as f:
+              f.write(new_src)
+          print('::notice::Patched AndroidManifest.xml to disable Impeller (CI workspace only)')
+          PY
+
       - name: Build profile APK
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           FORCE_LOW_RAM_FLAG: ${{ inputs.force_low_ram && '--dart-define=FORCE_LOW_RAM=true' || '' }}
+          PERF_LAB_FLAG: ${{ inputs.perf_lab && '--dart-define=PERF_LAB=true' || '' }}
         run: >-
           flutter build apk --profile --target-platform android-arm64
           --dart-define=SUPABASE_URL="$SUPABASE_URL"
           --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
           --dart-define=PERF_OVERLAY=true
           $FORCE_LOW_RAM_FLAG
+          $PERF_LAB_FLAG
 
       - name: Verify libthermion_dart.so in APK
         run: |
@@ -112,12 +219,26 @@ jobs:
 
       - name: Determine artifact name
         id: artifact_name
+        # Artifact name suffix logic (composable):
+        #   • Base:                kinrel-profile-apk
+        #   • + force_low_ram:     -lowram
+        #   • + perf_lab:           -lab
+        #   • + impeller=off:       -skia
+        # Suffixes are added in this exact order so a single artifact name
+        # like `kinrel-profile-apk-lowram-lab-skia` is unambiguous.
         run: |
+          NAME="kinrel-profile-apk"
           if [ "${{ inputs.force_low_ram }}" = "true" ]; then
-            echo "name=kinrel-profile-apk-lowram" >> $GITHUB_OUTPUT
-          else
-            echo "name=kinrel-profile-apk" >> $GITHUB_OUTPUT
+            NAME="${NAME}-lowram"
           fi
+          if [ "${{ inputs.perf_lab }}" = "true" ]; then
+            NAME="${NAME}-lab"
+          fi
+          if [ "${{ inputs.impeller }}" = "off" ]; then
+            NAME="${NAME}-skia"
+          fi
+          echo "name=${NAME}" >> $GITHUB_OUTPUT
+          echo "::notice::Artifact name: ${NAME}"
 
       - name: Upload profile APK
         uses: actions/upload-artifact@v4
