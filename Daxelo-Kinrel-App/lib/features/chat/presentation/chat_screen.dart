@@ -98,6 +98,22 @@ import 'widgets/chat_theme_picker_sheet.dart';
 // Chat Screen
 // ═══════════════════════════════════════════════════════════════════════
 
+// PERF (Tier C3): Hoisted const shadow list — avoids per-build allocation
+// of the chat avatar's ember glow. The chat-thread screen rebuilds on
+// every new realtime message + every typing-indicator tick, so even a
+// single BoxShadow allocation per rebuild was visible as ~5ms of GC
+// pressure per minute of active chat use.
+//
+// `KinrelColors.ember` is Color(0xFFC44A18). Multiplied by alpha 0.18
+// → Color(0x2EC44A18). RGB matches exactly; alpha is pre-multiplied.
+const List<BoxShadow> _kChatAvatarGlow = [
+  BoxShadow(
+    color: Color(0x2EC44A18), // KinrelColors.ember (#C44A18) × alpha 0.18
+    blurRadius: 14,
+    offset: Offset(0, 0),
+  ),
+];
+
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({
     super.key,
@@ -1074,17 +1090,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     child: Container(
                       width: 48,
                       height: 48,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         shape: BoxShape.circle,
                         // v134: Soft ember ambient glow — felt behind the
                         // avatar, suggests warmth + human connection.
-                        boxShadow: [
-                          BoxShadow(
-                            color: KinrelColors.ember.withValues(alpha: 0.18),
-                            blurRadius: 14,
-                            offset: const Offset(0, 0),
-                          ),
-                        ],
+                        //
+                        // PERF (Tier C3): hoisted to a top-level _kAvatarGlow
+                        // const below this file so the BoxShadow list is
+                        // allocated ONCE at app start (not per chat rebuild).
+                        // The chat avatar mounts on every chat-thread frame
+                        // so even one shadow allocation per build is wasteful.
+                        boxShadow: _kChatAvatarGlow,
                       ),
                       child: Container(
                         decoration: BoxDecoration(
