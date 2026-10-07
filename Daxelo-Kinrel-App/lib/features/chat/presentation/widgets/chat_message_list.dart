@@ -25,6 +25,10 @@
 //     it for scroll-to-bottom / scroll-FAB logic).
 //   - onReply / onReact / onLongPress / onReplyPreviewTap: per-message
 //     callbacks (the screen wires these to its own state/providers).
+//   - onRetryFailed / onDeleteFailed: per-message failed-send actions
+//     (the group passes null — MessageBubble falls back to its built-in
+//     chatProvider calls; the DM passes its own provider's methods so
+//     the SAME failed-message sheet works in both chat types).
 //   - onLoadOlder: optional callback when the user scrolls to the top
 //     (the group chat wires this to loadOlderMessages; DM passes null
 //     since the DM provider doesn't paginate).
@@ -82,6 +86,10 @@ class ChatMessageList extends ConsumerStatefulWidget {
     this.onLoadOlder,
     this.enableSwipeReply = true,
     this.showReactions = true,
+    /// v3.5 — failed-send actions (null = the group's built-in
+    /// chatProvider retry/delete; the DM passes its own provider's).
+    this.onRetryFailed,
+    this.onDeleteFailed,
   });
 
   /// Newest-first list of messages (the same shape chat_provider and
@@ -128,8 +136,19 @@ class ChatMessageList extends ConsumerStatefulWidget {
   /// both chat types now pass true; kept for API stability).
   final bool enableSwipeReply;
 
-  /// When false, the onReact callback is not invoked (DM passes false).
+  /// When false, the onReact callback is not invoked (legacy flag —
+  /// v3.5: BOTH chat types now pass true; the DM reactions table exists
+  /// (migration 20261007100000) and DirectChatNotifier.toggleReaction
+  /// implements the group's exact optimistic + realtime flow).
   final bool showReactions;
+
+  /// v3.5 — Retry a failed message (the failed-message sheet's Retry
+  /// action). Null = the group path (chatProvider.retryMessage).
+  final void Function(String messageId)? onRetryFailed;
+
+  /// v3.5 — Delete a failed message (the failed-message sheet's Delete
+  /// action). Null = the group path (chatProvider.deleteFailedMessage).
+  final void Function(String messageId)? onDeleteFailed;
 
   @override
   ConsumerState<ChatMessageList> createState() => _ChatMessageListState();
@@ -218,6 +237,9 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
                 onReplyPreviewTap: msg.replyToId != null && widget.onReplyPreviewTap != null
                     ? () => widget.onReplyPreviewTap!(msg)
                     : null,
+                // v3.5 — failed-send seam (null = group's built-in path).
+                onRetryFailed: widget.onRetryFailed,
+                onDeleteFailed: widget.onDeleteFailed,
               );
 
               // RepaintBoundary per bubble so a single new/updated

@@ -52,6 +52,17 @@
 //     fields (the DM table now mirrors the group's reply columns —
 //     migration 20261007080000_dm_reply_threading.sql), so the shared
 //     MessageBubble quote block renders in DMs EXACTLY like the group.
+//   - v3.5 — reactions: dm.reactions (loaded from the
+//     DirectMessageReaction table + kept live by realtime) map verbatim
+//     onto ChatMessage.reactions, so the shared MessageBubble renders
+//     the SAME reaction chips (emoji + count + my-reaction highlight)
+//     it renders for the group chat.
+//   - v3.5 — send-state ticks: a client-side in-flight status
+//     ('sending' | 'failed') passes through verbatim so the shared
+//     ReadReceipt shows the clock / red error + the bubble's failed-
+//     message sheet works. Once cleared (server-confirmed), the status
+//     derives from isRead exactly like before ('read' = gold double
+//     tick, else 'sent' = single tick).
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -87,10 +98,14 @@ ChatMessage directMessageToChatMessage(
   // _initialsFromName in chat_provider.dart.
   final String senderInitials = _initialsFromName(senderName);
 
-  // messageStatus — read takes precedence (gold double tick), else
-  // 'sent' (single grey tick). DMs don't have a 'delivered' state in
-  // the DirectMessage table, so we map directly to 'sent'.
-  final String messageStatus = dm.isRead ? 'read' : 'sent';
+  // messageStatus — an in-flight client status ('sending' | 'failed')
+  // passes through verbatim (the shared ReadReceipt renders the clock
+  // / red error + the failed-message sheet). Once cleared (server-
+  // confirmed), read takes precedence (gold double tick), else 'sent'
+  // (single grey tick). DMs don't have a 'delivered' state in the
+  // DirectMessage table, so we map directly to 'sent'.
+  final String messageStatus = dm.messageStatus ??
+      (dm.isRead ? 'read' : 'sent');
 
   // Game-invite payload — if present and has a gameId, map to a
   // gameInvite ChatMessage with the card fields filled. Otherwise
@@ -117,6 +132,8 @@ ChatMessage directMessageToChatMessage(
       replyToId: dm.replyToId,
       replyToContent: dm.replyToContent,
       replyToSenderName: dm.replyToSenderName,
+      // v3.5 — reactions (verbatim mapping, all message types).
+      reactions: dm.reactions,
     );
   }
 
@@ -195,6 +212,8 @@ ChatMessage directMessageToChatMessage(
       replyToId: dm.replyToId,
       replyToContent: dm.replyToContent,
       replyToSenderName: dm.replyToSenderName,
+      // v3.5 — reactions (verbatim mapping, all message types).
+      reactions: dm.reactions,
     );
   }
 
@@ -214,6 +233,8 @@ ChatMessage directMessageToChatMessage(
     replyToId: dm.replyToId,
     replyToContent: dm.replyToContent,
     replyToSenderName: dm.replyToSenderName,
+    // v3.5 — reactions (verbatim mapping, all message types).
+    reactions: dm.reactions,
   );
 }
 

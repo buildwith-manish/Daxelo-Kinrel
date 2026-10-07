@@ -876,6 +876,7 @@ class ChatState {
     List<OnlineMember>? members,
     bool? isTyping,
     String? typingUserName,
+    bool clearTypingUserName = false,
     ChatMessage? replyToMessage,
     bool isLoading = false,
     bool clearReplyTo = false,
@@ -888,7 +889,9 @@ class ChatState {
       messages: messages ?? this.messages,
       members: members ?? this.members,
       isTyping: isTyping ?? this.isTyping,
-      typingUserName: typingUserName ?? this.typingUserName,
+      typingUserName: clearTypingUserName
+          ? null
+          : (typingUserName ?? this.typingUserName),
       replyToMessage: clearReplyTo
           ? null
           : (replyToMessage ?? this.replyToMessage),
@@ -979,6 +982,27 @@ class ChatNotifier extends StateNotifier<ChatState> {
   final Map<String, Map<String, dynamic>> _pendingBurstBuffer = {};
   Timer? _burstFlushTimer;
   static const int _burstWindowMs = 60;
+
+  // ── v3.5 — Typing status (ChatTypingStatus realtime) ────────────
+  //
+  // The group chat's ChatState.isTyping / typingUserName fields + the
+  // typing indicator UI have existed since Pack 13, but nothing ever
+  // POPULATED them: the screen writes fn_set_typing_status (upserting
+  // the ChatTypingStatus row) while the socket layer only emits
+  // 'chat:userTyping' when a client emits 'chat:typing' — which the UI
+  // never calls. The indicator was dormant plumbing.
+  //
+  // This subscription completes the circuit the table was designed
+  // for: ChatTypingStatus is REPLICA IDENTITY FULL + in the realtime
+  // publication, so the typing upserts fan out as INSERT/UPDATE events
+  // to every open family chat screen. Per-user 3-second auto-clear
+  // timers (the same window ChatEngagementNotifier uses) hide stale
+  // rows; typers refresh every ≤2s while composing.
+  final Map<String, Timer> _typingTimers = {};
+  // userId → display name for everyone currently typing (excluding
+  // self). The singular ChatState fields expose the most recent typer —
+  // the exact contract the existing indicator reads.
+  final Map<String, String> _typingUsers = {};
 
   // ── Initialization ───────────────────────────────────────────────
 
@@ -1540,6 +1564,32 @@ class ChatNotifier extends StateNotifier<ChatState> {
             payload.oldRecord,
             isDelete: true,
           ),
+        )
+        // ── v3.5 — Typing status (completes the dormant ChatState ──
+        //    isTyping circuit: the screen upserts ChatTypingStatus via
+        //    fn_set_typing_status; these events fan out to every open
+        //    family chat screen, filtered to THIS family) ──
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'ChatTypingStatus',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'familyId',
+            value: familyId,
+          ),
+          callback: (payload) => _handleTypingStatusChange(payload.newRecord),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'ChatTypingStatus',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'familyId',
+            value: familyId,
+          ),
+          callback: (payload) => _handleTypingStatusChange(payload.newRecord),
         );
 
     // ── Presence: track who's online in this family chat ──
@@ -1812,6 +1862,74 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     if (mounted) {
       state = state.copyWith(messages: updated);
+    }
+  }
+
+  /// v3.5 — Typing status event handler (ChatTypingStatus INSERT/UPDATE).
+  ///
+  /// Mirrors the DM's _handleTypingChange and the engagement layer's
+  /// self-filter + 3-second auto-clear: ignore my own events, add the
+  /// typer with a fresh 3s timer, and publish the singular
+  /// ChatState.isTyping / typingUserName fields the indicator reads
+  /// (most recent typer). Stale rows (a typer who stopped without a
+  /// false-flip) clear themselves when the timer lapses.
+  void _handleTypingStatusChange(Map<String, dynamic> row) {
+    final userId = row['userId'] as String?;
+    if (userId == null || userId.isEmpty) return;
+    final myId = _currentUserId;
+    if (myId != null && userId == myId) return;
+
+    final isTyping = row['isTyping'] as bool? ?? false;
+    final userName = _resolveTypingName(userId);
+
+    if (isTyping) {
+      _typingTimers[userId]?.cancel();
+      _typingTimers[userId] = Timer(const Duration(seconds: 3), () {
+        _removeTypingUser(userId);
+      });
+      _typingUsers[userId] = userName;
+    } else {
+      _removeTypingUser(userId);
+    }
+
+    if (mounted) {
+      _publishTypingState();
+    }
+  }
+
+  /// v3.5 — resolve a display name for a typing user from the loaded
+  /// member roster (falls back to a neutral label, exactly like the
+  /// engagement layer's 'Someone').
+  String _resolveTypingName(String userId) {
+    final member = state.members.where((m) => m.id == userId).firstOrNull;
+    return member?.name ?? 'Someone';
+  }
+
+  /// v3.5 — remove a typer + republish the singular state fields.
+  void _removeTypingUser(String userId) {
+    _typingTimers[userId]?.cancel();
+    _typingTimers.remove(userId);
+    _typingUsers.remove(userId);
+    if (mounted) {
+      _publishTypingState();
+    }
+  }
+
+  /// v3.5 — publish _typingUsers into the singular ChatState fields the
+  /// existing indicator reads (isTyping = anyone typing; name = the most
+  /// recently added typer).
+  void _publishTypingState() {
+    if (!mounted) return;
+    if (_typingUsers.isEmpty) {
+      state = state.copyWith(
+        isTyping: false,
+        clearTypingUserName: true,
+      );
+    } else {
+      state = state.copyWith(
+        isTyping: true,
+        typingUserName: _typingUsers.values.last,
+      );
     }
   }
 
@@ -3148,6 +3266,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // v5.2: Cancel the family member listener to prevent leaks.
     _memberListListener?.close();
     _memberListListener = null;
+    // v3.5 — typing timers teardown (auto-clear timers hold this
+    // notifier alive until they lapse; cancel them with the channel).
+    for (final t in _typingTimers.values) {
+      t.cancel();
+    }
+    _typingTimers.clear();
+    _typingUsers.clear();
     // ── Burst batching teardown ──────────────────────────────────────
     // Best-effort flush of any pending realtime inserts so a fast
     // screen-exit doesn't drop messages that arrived in the final 60ms.

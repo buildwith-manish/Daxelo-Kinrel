@@ -67,6 +67,14 @@ class MessageBubble extends ConsumerWidget {
     /// AND inviteFamilyId from the DM invite payload (so the Join button
     /// still deep-links into the host's family space).
     this.inviteFamilyId,
+    /// v3.5 — Retry/Delete handlers for the failed-message sheet. The
+    /// group chat passes null (the sheet falls back to its built-in
+    /// chatProvider calls — unchanged behavior); the DM screen passes
+    /// its DirectChatNotifier's retryMessage/deleteFailedMessage so the
+    /// SAME sheet retries a failed DM instead of calling the group
+    /// provider.
+    this.onRetryFailed,
+    this.onDeleteFailed,
   });
 
   final ChatMessage message;
@@ -101,6 +109,14 @@ class MessageBubble extends ConsumerWidget {
 
   /// v3.3: see field doc above.
   final String? inviteFamilyId;
+
+  /// v3.5 — Retry a failed message (the failed-message sheet's Retry
+  /// action). Null = the group path (chatProvider.retryMessage).
+  final void Function(String messageId)? onRetryFailed;
+
+  /// v3.5 — Delete a failed message (the failed-message sheet's Delete
+  /// action). Null = the group path (chatProvider.deleteFailedMessage).
+  final void Function(String messageId)? onDeleteFailed;
 
   /// v3.3: the family id to use for game-invite Join/Spectate routes.
   /// Prefers [inviteFamilyId] (set by the DM screen from the invite
@@ -146,14 +162,16 @@ class MessageBubble extends ConsumerWidget {
         return GestureDetector(
           onLongPress: onLongPress,
           // v3.2: tapping a FAILED message opens a small sheet with
-          // Retry and Delete. Only for the sender's own messages in a
-          // group chat (familyId != null). DMs use a different provider
-          // and are out of scope for this PR. The tap handler does NOT
-          // fire for sent/delivered/read/sending messages — those have
-          // no tap action (the existing onLongPress still works).
+          // Retry and Delete. Only for the sender's own messages.
+          // v3.5: works in BOTH chat types — the group path
+          // (familyId != null, built-in chatProvider calls) OR an
+          // injected handler pair (the DM passes its own provider's
+          // retryMessage/deleteFailedMessage). The tap handler does
+          // NOT fire for sent/delivered/read/sending messages — those
+          // have no tap action (the existing onLongPress still works).
           onTap: (isMe &&
                   message.messageStatus == 'failed' &&
-                  familyId != null)
+                  (familyId != null || onRetryFailed != null))
               ? () => _showFailedMessageSheet(context, ref)
               : null,
           child: Align(
@@ -450,9 +468,15 @@ class MessageBubble extends ConsumerWidget {
                         fontWeight: FontWeight.w600)),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  ref
-                      .read(chatProvider(familyId!).notifier)
-                      .retryMessage(message.id);
+                  // v3.5 — injected handler (DM) or the built-in group
+                  // provider call — identical sheet, identical UX.
+                  if (onRetryFailed != null) {
+                    onRetryFailed!(message.id);
+                  } else {
+                    ref
+                        .read(chatProvider(familyId!).notifier)
+                        .retryMessage(message.id);
+                  }
                 },
               ),
               ListTile(
@@ -465,9 +489,15 @@ class MessageBubble extends ConsumerWidget {
                         fontWeight: FontWeight.w600)),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  ref
-                      .read(chatProvider(familyId!).notifier)
-                      .deleteFailedMessage(message.id);
+                  // v3.5 — injected handler (DM) or the built-in group
+                  // provider call — identical sheet, identical UX.
+                  if (onDeleteFailed != null) {
+                    onDeleteFailed!(message.id);
+                  } else {
+                    ref
+                        .read(chatProvider(familyId!).notifier)
+                        .deleteFailedMessage(message.id);
+                  }
                 },
               ),
               const SizedBox(height: 8),

@@ -19,6 +19,27 @@
 //   - sendText accepts replyToId — the SAME optimistic-insert + persist
 //     flow as the group's sendMessage(replyToId:).
 //
+// v3.5 — Engagement parity (reactions + typing + send-state ticks):
+//   - DirectMessage.reactions: per-user emoji reactions, backed by the
+//     DirectMessageReaction table (migration 20261007100000 — the DM
+//     mirror of ChatMessageReaction). Loaded two-phase (messages first,
+//     reactions merged after — the group's exact pattern), kept live by
+//     realtime INSERT/DELETE events, toggled optimistically with revert
+//     by toggleReaction — pin-to-pin with ChatNotifier.toggleReaction.
+//   - DirectMessage.messageStatus: client-side send-state lifecycle
+//     ('sending' → 'sent' | 'failed') mirroring the group's v3.2 flow:
+//     the optimistic row shows the clock, a successful insert (15s
+//     timeout) flips to the single tick, a failure KEEPS the message
+//     with the red error icon + Retry/Delete sheet (retryMessage /
+//     deleteFailedMessage). Not persisted — server rows re-derive
+//     'sent'/'read' from isRead at adapter time.
+//   - DirectChatState.isTyping / typingUserName: the SAME fields
+//     ChatState exposes for the group's typing indicator. Backed by the
+//     DirectTypingStatus table (the DM mirror of ChatTypingStatus) —
+//     setTyping() upserts my row on compose-flip + throttled keystroke
+//     refresh, realtime UPDATE events drive the peer's indicator with
+//     the same 3-second auto-clear the engagement layer uses.
+//
 // Used by:
 //   - DirectChatScreen (renders the conversation)
 //   - Thinking of You feature (sends a 'thinking_of_you' DM)
@@ -63,6 +84,14 @@ class DirectMessage {
     this.replyToId,
     this.replyToContent,
     this.replyToSenderName,
+    // v3.5 — reactions (mirrors ChatMessage.reactions; loaded from the
+    // DirectMessageReaction table and kept live by realtime events).
+    this.reactions = const [],
+    // v3.5 — client-side send-state ticks ('sending' | 'failed' while
+    // the optimistic row is in flight; null once the server confirms —
+    // the adapter then derives 'sent'/'read' from isRead exactly like
+    // the group path).
+    this.messageStatus,
   });
 
   factory DirectMessage.fromJson(Map<String, dynamic> json) {
@@ -102,6 +131,47 @@ class DirectMessage {
 
   /// Denormalized snapshot of the replied-to sender's name.
   final String? replyToSenderName;
+
+  // v3.5 — engagement parity fields (mirror ChatMessage's).
+
+  /// Per-user emoji reactions on this message (from the
+  /// DirectMessageReaction table — the DM mirror of
+  /// ChatMessageReaction). The shared MessageBubble renders the same
+  /// reaction chips it renders for the group chat.
+  final List<MessageReaction> reactions;
+
+  /// Client-side send-state while the optimistic row is in flight:
+  /// 'sending' (clock icon) or 'failed' (red error + Retry/Delete).
+  /// Null once server-confirmed — the adapter derives 'sent'/'read'
+  /// from isRead, exactly like the group path.
+  final String? messageStatus;
+
+  /// v3.5 — copyWith used by the reaction + send-state transitions
+  /// (optimistic toggle, realtime merge, retry flip). Only the
+  /// engagement fields are mutable; everything else is immutable
+  /// server data.
+  DirectMessage copyWith({
+    List<MessageReaction>? reactions,
+    String? messageStatus,
+    bool clearMessageStatus = false,
+    bool? isRead,
+  }) {
+    return DirectMessage(
+      id: id,
+      senderId: senderId,
+      receiverId: receiverId,
+      content: content,
+      messageType: messageType,
+      isRead: isRead ?? this.isRead,
+      createdAt: createdAt,
+      replyToId: replyToId,
+      replyToContent: replyToContent,
+      replyToSenderName: replyToSenderName,
+      reactions: reactions ?? this.reactions,
+      messageStatus:
+          clearMessageStatus ? null : (messageStatus ?? this.messageStatus),
+    );
+  }
 
   bool get isThinkingOfYou => messageType == 'thinking_of_you';
 
@@ -176,6 +246,10 @@ class DirectChatState {
     // v3.4 — reply threading (the same field ChatState carries for the
     // group chat). The shared ReplyPreviewBar renders directly from it.
     this.replyToMessage,
+    // v3.5 — typing indicator (the same fields ChatState carries for
+    // the group chat). The shared TypingIndicator renders from them.
+    this.isTyping = false,
+    this.typingUserName,
   });
 
   final List<DirectMessage> messages; // newest-first
@@ -190,6 +264,15 @@ class DirectChatState {
   /// adapter-converted ChatMessage.
   final ChatMessage? replyToMessage;
 
+  /// v3.5 — True while the OTHER user is typing (3-second auto-clear,
+  /// driven by DirectTypingStatus realtime events). Mirrors
+  /// ChatState.isTyping — the shared TypingIndicator renders from it.
+  final bool isTyping;
+
+  /// v3.5 — Display name of the typing user (the peer). Mirrors
+  /// ChatState.typingUserName.
+  final String? typingUserName;
+
   DirectChatState copyWith({
     List<DirectMessage>? messages,
     DirectChatPeer? peer,
@@ -198,6 +281,9 @@ class DirectChatState {
     bool clearError = false,
     ChatMessage? replyToMessage,
     bool clearReplyTo = false,
+    bool? isTyping,
+    String? typingUserName,
+    bool clearTypingUserName = false,
   }) {
     return DirectChatState(
       messages: messages ?? this.messages,
@@ -206,6 +292,10 @@ class DirectChatState {
       error: clearError ? null : (error ?? this.error),
       replyToMessage:
           clearReplyTo ? null : (replyToMessage ?? this.replyToMessage),
+      isTyping: isTyping ?? this.isTyping,
+      typingUserName: clearTypingUserName
+          ? null
+          : (typingUserName ?? this.typingUserName),
     );
   }
 }
@@ -233,6 +323,23 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
   final Ref ref;
 
   RealtimeChannel? _channel;
+
+  /// v3.5 — 3-second auto-clear timer for the peer's typing indicator
+  /// (the same window the group's Socket.IO engagement layer uses: the
+  /// typers emit a refresh every ≤2s while composing, so a live typer
+  /// keeps resetting this timer and the indicator only clears 3s after
+  /// the last event).
+  Timer? _typingTimer;
+
+  /// v3.5 — the symmetric conversation key both parties compute the
+  /// same way ("<idA>__<idB>", ids sorted) — the dmKey column on
+  /// DirectTypingStatus. Sorting makes the key independent of who
+  /// opened the chat.
+  String get _dmKey {
+    final myId = _currentUserId ?? '';
+    final ids = [myId, otherUserId]..sort();
+    return '${ids.first}__${ids.last}';
+  }
 
   String? get _currentUserId =>
       ref.read(supabaseProvider)?.auth.currentUser?.id;
@@ -348,6 +455,52 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
             unawaited(refresh());
           },
         )
+        // ── v3.5 — Reaction added (the DM mirror of the group's
+        //    ChatMessageReaction subscription: no table filter — RLS
+        //    scopes rows to the conversations I can read, and the
+        //    handler checks the affected message belongs to THIS
+        //    thread before applying) ──
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'DirectMessageReaction',
+          callback: (payload) =>
+              _handleReactionChange(payload.newRecord, isDelete: false),
+        )
+        // ── v3.5 — Reaction removed ──
+        .onPostgresChanges(
+          event: PostgresChangeEvent.delete,
+          schema: 'public',
+          table: 'DirectMessageReaction',
+          callback: (payload) =>
+              _handleReactionChange(payload.oldRecord, isDelete: true),
+        )
+        // ── v3.5 — Typing status flips for THIS conversation (the DM
+        //    mirror of the group's ChatTypingStatus subscription:
+        //    filtered by the symmetric dmKey, self filtered in the
+        //    handler, 3s auto-clear) ──
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'DirectTypingStatus',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'dmKey',
+            value: _dmKey,
+          ),
+          callback: (payload) => _handleTypingChange(payload.newRecord),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'DirectTypingStatus',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'dmKey',
+            value: _dmKey,
+          ),
+          callback: (payload) => _handleTypingChange(payload.newRecord),
+        )
         .subscribe();
   }
 
@@ -407,7 +560,67 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
           .toList();
 
       if (mounted) {
-        state = state.copyWith(messages: messages, isLoading: false);
+        // The optimistic 'sending'/'failed' rows are CLIENT-ONLY state —
+        // a reload from the server must never resurrect them if they've
+        // been deleted, and must never wipe a live in-flight status.
+        // However: rows that ARE still in flight (messageStatus != null
+        // and id still present in the server response) keep their local
+        // status so a refresh triggered by my own realtime echo (which
+        // fires the moment the insert lands) doesn't flip the clock
+        // icon off before the insert await confirms.
+        final serverIds = messages.map((m) => m.id).toSet();
+        final preserved = <DirectMessage>[];
+        for (final m in messages) {
+          final local = state.messages
+              .where((l) => l.id == m.id && l.messageStatus != null)
+              .firstOrNull;
+          preserved.add(local ?? m);
+        }
+        // In-flight / failed local rows that the server hasn't confirmed
+        // yet stay at the top (newest-first) so they don't vanish mid-send.
+        final localOnly = state.messages
+            .where((l) => l.messageStatus != null && !serverIds.contains(l.id))
+            .toList();
+        final merged = [...localOnly, ...preserved]
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        state = state.copyWith(messages: merged, isLoading: false);
+      }
+
+      // ── v3.5 — Two-phase reactions merge (the group's exact pattern):
+      //    the messages render FIRST (isLoading flips false above) so
+      //    the screen never waits on the reactions query; reactions are
+      //    then fetched in ONE query and merged in a second state update.
+      //    Reactions are decorative — a failure never blocks the render
+      //    (the next realtime reaction event heals the state).
+      if (messages.isNotEmpty) {
+        try {
+          final ids = messages.map((m) => m.id).toList();
+          final reactionsResponse = await client
+              .from('DirectMessageReaction')
+              .select('messageId, userId, emoji')
+              .inFilter('messageId', ids);
+          final byMessage = <String, List<MessageReaction>>{};
+          for (final r in reactionsResponse as List) {
+            final row = r as Map<String, dynamic>;
+            final messageId = row['messageId'] as String?;
+            if (messageId == null) continue;
+            byMessage.putIfAbsent(messageId, () => []);
+            byMessage[messageId]!.add(MessageReaction(
+              emoji: row['emoji'] as String? ?? '',
+              userId: row['userId'] as String? ?? '',
+            ));
+          }
+          if (mounted) {
+            final withReactions = state.messages.map((m) {
+              return m.copyWith(reactions: byMessage[m.id] ?? m.reactions);
+            }).toList();
+            state = state.copyWith(messages: withReactions);
+          }
+        } catch (e) {
+          // Same policy as the group's _loadMessages: never block the
+          // chat render on the reactions fetch.
+          debugPrint('⚠️ DirectChatNotifier._loadMessages reactions fetch failed: $e');
+        }
       }
     } catch (e) {
       debugPrint('⚠️ DirectChatNotifier._loadMessages error: $e');
@@ -447,6 +660,16 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
   /// If [replyToId] was passed WITHOUT a reply bar being set (e.g. a
   /// notification quick-reply), the preview is resolved from the loaded
   /// DM list — mirroring the group's firstWhere-over-state.messages.
+  ///
+  /// v3.5 — WhatsApp-like send states (the group's v3.2 flow, pin-to-pin):
+  /// the optimistic row is inserted with `messageStatus: 'sending'`
+  /// (clock icon via the shared ReadReceipt). On a successful insert
+  /// (15-second timeout) it transitions to 'sent' (single tick — the
+  /// adapter then derives the tick from isRead exactly like the group).
+  /// On failure OR timeout the message STAYS in the list with
+  /// `messageStatus: 'failed'` (red error icon) — it is NOT removed.
+  /// The user taps it to retry or delete (retryMessage /
+  /// deleteFailedMessage + the shared failed-message sheet).
   Future<void> sendText(String text, {String? replyToId}) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
@@ -492,6 +715,9 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
       replyToId: effectiveReplyToId,
       replyToContent: replyContent,
       replyToSenderName: replySender,
+      // v3.5 — 'sending' shows the clock icon until the insert
+      // confirms (the group's exact optimistic status).
+      messageStatus: 'sending',
     );
 
     if (mounted) {
@@ -517,17 +743,19 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
         'replyToId': effectiveReplyToId,
         'replyToContent': replyContent,
         'replyToSenderName': replySender,
-      });
+      }).timeout(const Duration(seconds: 15));
+      // v3.5 — insert landed: the message is on the server → clear the
+      // in-flight status (the adapter re-derives 'sent' from isRead,
+      // exactly like the group's echo→'sent' patch). The realtime echo
+      // + refresh() replace the row with the server copy — same tick.
+      _updateMessageStatus(msgId, null);
     } catch (e) {
       debugPrint('⚠️ DirectChatNotifier.sendText insert failed: $e');
-      if (mounted) {
-        final withoutFailed =
-            state.messages.where((m) => m.id != msgId).toList();
-        state = state.copyWith(
-          messages: withoutFailed,
-          error: 'Failed to send message',
-        );
-      }
+      // v3.5 — the group's exact failure policy: KEEP the message in
+      // the list marked 'failed' (red icon + tap-to-retry sheet). Do
+      // NOT remove it and do NOT set a banner error — the failed state
+      // IS the error surface, pin-to-pin with the group chat.
+      _updateMessageStatus(msgId, 'failed');
     }
   }
 
@@ -566,6 +794,262 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
     state = state.copyWith(clearReplyTo: true);
   }
 
+  // ── v3.5 — Reactions (the group's ChatNotifier API, pin-to-pin) ────
+
+  /// Toggle an emoji reaction on a DM. Optimistic update + Supabase
+  /// insert/delete. Idempotent — if the user already has that reaction,
+  /// DELETE it; otherwise INSERT it. Mirrors ChatNotifier.toggleReaction
+  /// exactly (same optimistic pattern, same revert-on-failure), only the
+  /// table differs (DirectMessageReaction vs ChatMessageReaction).
+  Future<void> toggleReaction(String messageId, String emoji) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) return;
+
+    // Find the message + check existing reaction (same firstWhere-
+    // with-orElse guard the group uses).
+    final msg = state.messages.firstWhere(
+      (m) => m.id == messageId,
+      orElse: () => state.messages.first,
+    );
+    final existingIdx = msg.reactions.indexWhere(
+      (r) => r.emoji == emoji && r.userId == myUserId,
+    );
+    final isAdding = existingIdx < 0;
+
+    // Optimistic update (identical to the group's).
+    final updated = state.messages.map((m) {
+      if (m.id != messageId) return m;
+      final reactions = List<MessageReaction>.from(m.reactions);
+      if (isAdding) {
+        reactions.add(MessageReaction(emoji: emoji, userId: myUserId));
+      } else {
+        reactions.removeWhere(
+          (r) => r.emoji == emoji && r.userId == myUserId,
+        );
+      }
+      return m.copyWith(reactions: reactions);
+    }).toList();
+    state = state.copyWith(messages: updated);
+
+    // Persist to Supabase (same id scheme + delete triple as the group).
+    try {
+      if (isAdding) {
+        await client.from('DirectMessageReaction').insert({
+          'id': 'dmr_${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}_${Random().nextInt(1 << 30).toRadixString(36)}',
+          'messageId': messageId,
+          'userId': myUserId,
+          'emoji': emoji,
+        });
+      } else {
+        await client
+            .from('DirectMessageReaction')
+            .delete()
+            .eq('messageId', messageId)
+            .eq('userId', myUserId)
+            .eq('emoji', emoji);
+      }
+    } catch (e) {
+      debugPrint('⚠️ DirectChatNotifier.toggleReaction failed: $e');
+      // Revert on failure (identical to the group's).
+      final reverted = state.messages.map((m) {
+        if (m.id != messageId) return m;
+        final reactions = List<MessageReaction>.from(m.reactions);
+        if (isAdding) {
+          reactions.removeWhere(
+            (r) => r.emoji == emoji && r.userId == myUserId,
+          );
+        } else {
+          reactions.add(MessageReaction(emoji: emoji, userId: myUserId));
+        }
+        return m.copyWith(reactions: reactions);
+      }).toList();
+      if (mounted) {
+        state = state.copyWith(messages: reverted);
+      }
+    }
+  }
+
+  /// Realtime reaction event handler — mirrors the group's
+  /// _handleReactionChange exactly (add-if-absent / remove-where), plus
+  /// a guard that the affected message belongs to THIS thread (the DM
+  /// channel has no table filter — RLS scopes rows, this scopes the
+  /// in-thread application).
+  void _handleReactionChange(Map<String, dynamic> row,
+      {required bool isDelete}) {
+    final messageId = row['messageId'] as String?;
+    if (messageId == null) return;
+    // Only apply when the affected message is in this conversation.
+    if (!state.messages.any((m) => m.id == messageId)) return;
+    final emoji = row['emoji'] as String? ?? '';
+    final userId = row['userId'] as String? ?? '';
+
+    final updated = state.messages.map((m) {
+      if (m.id != messageId) return m;
+      final reactions = List<MessageReaction>.from(m.reactions);
+      if (isDelete) {
+        reactions.removeWhere(
+          (r) => r.emoji == emoji && r.userId == userId,
+        );
+      } else {
+        if (!reactions.any(
+          (r) => r.emoji == emoji && r.userId == userId,
+        )) {
+          reactions.add(MessageReaction(emoji: emoji, userId: userId));
+        }
+      }
+      return m.copyWith(reactions: reactions);
+    }).toList();
+
+    if (mounted) {
+      state = state.copyWith(messages: updated);
+    }
+  }
+
+  // ── v3.5 — Typing indicator (the group's API, pin-to-pin) ────────
+
+  /// Emit my typing status into DirectTypingStatus. Called on every
+  /// compose flip AND on a throttled keystroke refresh (the screen
+  /// guards the throttle) so the peer's 3-second auto-clear timer keeps
+  /// getting reset while I'm actively typing — the same refresh cadence
+  /// the group's socket typing layer uses. Best-effort: typing is never
+  /// allowed to break the send path.
+  Future<void> setTyping(bool isTyping) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) return;
+    _lastEmittedTyping = isTyping;
+    final key = _dmKey;
+    try {
+      await client.from('DirectTypingStatus').upsert({
+        'id': 'dmtype_${key}_$myUserId',
+        'dmKey': key,
+        'userId': myUserId,
+        'isTyping': isTyping,
+        'updatedAt': DateTime.now().toIso8601String(),
+      }, onConflict: 'dmKey, userId');
+    } catch (_) {
+      // Silent — typing status is best-effort (same policy as the
+      // group's setTypingStatus).
+    }
+  }
+
+  /// Realtime typing event handler — the DM mirror of the group's
+  /// ChatTypingStatus → ChatState.isTyping population: ignore my own
+  /// events (the DM echo of the engagement layer's self-filter), show
+  /// the peer's name while isTyping, and auto-clear 3s after the last
+  /// event (the same window ChatEngagementNotifier uses).
+  void _handleTypingChange(Map<String, dynamic> row) {
+    final userId = row['userId'] as String?;
+    if (userId == null) return;
+    final myId = _currentUserId;
+    if (myId != null && userId == myId) return;
+    if (userId != otherUserId) return;
+    final rowDmKey = row['dmKey'] as String?;
+    if (rowDmKey != null && rowDmKey != _dmKey) return;
+
+    final isTyping = row['isTyping'] as bool? ?? false;
+    if (!mounted) return;
+
+    if (isTyping) {
+      _typingTimer?.cancel();
+      _typingTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) {
+          state = state.copyWith(
+            isTyping: false,
+            clearTypingUserName: true,
+          );
+        }
+      });
+      state = state.copyWith(
+        isTyping: true,
+        typingUserName: state.peer?.name ?? 'Them',
+      );
+    } else {
+      _typingTimer?.cancel();
+      _typingTimer = null;
+      state = state.copyWith(
+        isTyping: false,
+        clearTypingUserName: true,
+      );
+    }
+  }
+
+  // ── v3.5 — Send-state ticks (the group's v3.2 API, pin-to-pin) ────
+
+  /// Updates a single message's client-side [DirectMessage.messageStatus]
+  /// in state. Passing null clears it (the adapter then derives
+  /// 'sent'/'read' from isRead). No-op if the message is not in state
+  /// (e.g. already deleted). Mirrors ChatNotifier._updateMessageStatus.
+  void _updateMessageStatus(String msgId, String? status) {
+    if (!mounted) return;
+    final updated = state.messages.map((m) {
+      if (m.id != msgId) return m;
+      return m.copyWith(
+        messageStatus: status,
+        clearMessageStatus: status == null,
+      );
+    }).toList();
+    state = state.copyWith(messages: updated);
+  }
+
+  /// Re-send a failed DM with the SAME id. Mirrors the group's
+  /// retryMessage: flip the status back to 'sending', re-INSERT the row
+  /// with a 15-second timeout, transition to confirmed ('sent') on
+  /// success or back to 'failed' on failure. Text-only — a DM carries
+  /// no media to re-upload, so the re-insert payload is complete.
+  Future<void> retryMessage(String id) async {
+    final client = _client;
+    if (client == null) return;
+
+    final existing = state.messages.firstWhere(
+      (m) => m.id == id,
+      orElse: () => DirectMessage(
+        id: id,
+        senderId: '',
+        receiverId: '',
+        content: '',
+        messageType: 'text',
+        isRead: false,
+        createdAt: DateTime.now(),
+      ),
+    );
+    if (existing.id != id || existing.messageStatus != 'failed') return;
+
+    // Flip back to 'sending' (the retry affordance mirrors the group).
+    _updateMessageStatus(id, 'sending');
+
+    try {
+      await client.from('DirectMessage').insert({
+        'id': existing.id,
+        'senderId': existing.senderId,
+        'receiverId': existing.receiverId,
+        'content': existing.content,
+        'messageType': existing.messageType,
+        'isRead': false,
+        'createdAt': existing.createdAt.toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+        'replyToId': existing.replyToId,
+        'replyToContent': existing.replyToContent,
+        'replyToSenderName': existing.replyToSenderName,
+      }).timeout(const Duration(seconds: 15));
+      _updateMessageStatus(id, null);
+    } catch (e) {
+      debugPrint('⚠️ DirectChatNotifier.retryMessage failed: $e');
+      _updateMessageStatus(id, 'failed');
+    }
+  }
+
+  /// Remove a failed message from the list (the Delete action on the
+  /// shared failed-message sheet). Mirrors the group's
+  /// deleteFailedMessage — the row never reached the server, so there's
+  /// nothing to delete remotely.
+  void deleteFailedMessage(String id) {
+    if (!mounted) return;
+    final withoutFailed = state.messages.where((m) => m.id != id).toList();
+    state = state.copyWith(messages: withoutFailed);
+  }
+
   /// Refresh messages from the server (called after a Thinking of You
   /// is sent from elsewhere so this screen reflects the new message).
   Future<void> refresh() async {
@@ -573,8 +1057,21 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
     _markAsRead();
   }
 
+  /// v3.5 — the last typing value this client emitted (so dispose can
+  /// flip the row off when leaving mid-compose).
+  bool _lastEmittedTyping = false;
+
   @override
   void dispose() {
+    _typingTimer?.cancel();
+    _typingTimer = null;
+    // v3.5 — leaving the screen while typing: flip my row off so the
+    // peer's indicator clears immediately instead of waiting out the
+    // 3-second auto-clear. Fire-and-forget (the notifier is going away;
+    // a failed write just falls back to the receiver-side auto-clear).
+    if (_lastEmittedTyping) {
+      unawaited(setTyping(false));
+    }
     _channel?.unsubscribe();
     _channel = null;
     super.dispose();

@@ -57,6 +57,10 @@ import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
+// v3.5 — active status (the group's "Active now"/"Last seen" source —
+// the app-wide UserPresence watcher; pure reuse, same provider the
+// MemberProfileSheet renders its online dot from).
+import '../../presence/last_seen_provider.dart';
 import '../data/chat_wallpaper_provider.dart';
 import '../data/wallpaper_picker.dart';
 import '../data/direct_message_provider.dart';
@@ -70,6 +74,15 @@ import 'widgets/chat_message_list.dart';
 import 'widgets/chat_meta.dart';
 import 'widgets/message_preview_dialog.dart';
 import 'widgets/reply_preview_bar.dart';
+// v3.5 — shared engagement widgets (the SAME typing indicator +
+// reaction pickers the group chat renders).
+import 'widgets/typing_indicator.dart';
+import 'widgets/reaction_picker.dart';
+// v3.5 — the engagement layer's UserPresence value type (its
+// lastSeenLabelLocalized renders the same "Active now" / "Last seen X
+// ago" labels the group header shows — pure reuse, no re-implementation).
+import '../providers/chat_socket_engagement_provider.dart'
+    show UserPresence;
 
 class DirectChatScreen extends ConsumerStatefulWidget {
   const DirectChatScreen({super.key, required this.otherUserId});
@@ -108,13 +121,39 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     _scrollController.dispose();
     _textController.dispose();
     _focusNode.dispose();
+    // v3.5 — leaving mid-compose flips the typing row off (the
+    // notifier's dispose also handles this; belt-and-braces for the
+    // case where the text listener fires after the provider disposes).
     super.dispose();
   }
+
+  // v3.5 — typing emission throttle (the same ≤2s cadence the group
+  // screen uses): compose-flips write immediately; while actively
+  // composing, the DirectTypingStatus row is refreshed at most every
+  // 2s so the peer's 3-second auto-clear timer keeps resetting.
+  DateTime? _lastTypingWriteAt;
 
   void _onTextChanged() {
     final composing = _textController.text.trim().isNotEmpty;
     if (composing != _isComposing) {
       if (mounted) setState(() => _isComposing = composing);
+      // v3.5 — the same trigger the group's _onTextChanged uses
+      // (setTypingStatus on compose flip), pointed at the DM's
+      // DirectTypingStatus row.
+      ref
+          .read(directChatProvider(widget.otherUserId).notifier)
+          .setTyping(composing);
+      _lastTypingWriteAt = DateTime.now();
+    } else if (composing) {
+      // v3.5 — throttled keystroke refresh (identical to the group).
+      final now = DateTime.now();
+      final last = _lastTypingWriteAt;
+      if (last == null || now.difference(last).inMilliseconds >= 2000) {
+        ref
+            .read(directChatProvider(widget.otherUserId).notifier)
+            .setTyping(true);
+        _lastTypingWriteAt = now;
+      }
     }
   }
 
@@ -209,6 +248,71 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   String? get _currentUserId =>
       ref.read(supabaseProvider)?.auth.currentUser?.id;
 
+  /// v3.5 — the peer's live active-status line for the DM header.
+  ///
+  /// Pure reuse of the group's active-status sources: lastSeenProvider
+  /// (the app-wide UserPresence watcher kept live by realtime + the
+  /// presence heartbeat) supplies the peer's row, and the engagement
+  /// layer's UserPresence.lastSeenLabelLocalized renders the SAME
+  /// labels the group header shows ("Active now" when online, the
+  /// localized "Last seen 5m ago" otherwise). The dot styling matches
+  /// the group header / MemberProfileSheet presence dot (green glow
+  /// when online, dim grey otherwise).
+  Widget _buildPeerStatus() {
+    final l10n = S.of(context);
+    final presenceMap = ref.watch(lastSeenProvider);
+    final seen = presenceMap[widget.otherUserId];
+    final isOnline = seen?.isOnline ?? false;
+
+    final presence = UserPresence(
+      userId: widget.otherUserId,
+      isOnline: isOnline,
+      lastSeenAt: seen?.lastSeenAt,
+    );
+    final label = presence.lastSeenLabelLocalized(l10n);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 5,
+          height: 5,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isOnline
+                ? KinrelColors.success
+                : KinrelColors.textDim.withValues(alpha: 0.6),
+            boxShadow: isOnline
+                ? [
+                    BoxShadow(
+                      color: KinrelColors.success.withValues(alpha: 0.5),
+                      blurRadius: 4,
+                      offset: const Offset(0, 0),
+                    ),
+                  ]
+                : null,
+          ),
+        ),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 11,
+              fontWeight: isOnline ? FontWeight.w600 : FontWeight.w400,
+              color: isOnline
+                  ? KinrelColors.success
+                  : KinrelColors.textDim,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   /// v3.3: Resolves the host's familyId from the FIRST game-invite DM
   /// in the thread (the payload stores `familyId` as the family the
   /// game lives in). Passed to ChatMessageList as `inviteFamilyId` so
@@ -228,13 +332,18 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   }
 
   /// v3.4: Long-press on a DM message shows the actions the DM backend
-  /// supports — Reply, Copy, Preview, and Share — styled EXACTLY like
-  /// the group chat's sheet (same icons, colors, ListTile typography,
-  /// same KinrelRadius.xxl corners + vertical-12 padding). The group's
-  /// remaining actions (React, Forward, Star, Pin, Edit, Delete) are
-  /// backed by ChatMessage-table features the DirectMessage table
-  /// doesn't have yet.
+  /// supports — styled EXACTLY like the group chat's sheet (same icons,
+  /// colors, ListTile typography, same KinrelRadius.xxl corners +
+  /// vertical-12 padding).
+  ///
+  /// v3.5: the sheet now ALSO leads with the SAME quick-reactions row
+  /// the group sheet shows (the shared MessageActionQuickReactions — 6
+  /// quick emojis + "+" for the full picker), wired to the DM's
+  /// toggleReaction. The group's remaining actions (Forward, Star,
+  /// Pin, Edit, Delete) are still backed by ChatMessage-table features
+  /// the DirectMessage table doesn't have.
   void _showDmMessageActions(ChatMessage msg) {
+    final currentUserId = _currentUserId;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: KinrelColors.darkCard,
@@ -250,6 +359,39 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // v3.5 — Quick reactions row: the SAME shared widget the
+                // group sheet leads with (same 6 emojis, same 44x44
+                // circles, same has-reacted highlight, same "+").
+                MessageActionQuickReactions(
+                  reactions: msg.reactions,
+                  currentUserId: currentUserId,
+                  onToggle: (emoji) {
+                    ref
+                        .read(directChatProvider(widget.otherUserId).notifier)
+                        .toggleReaction(msg.id, emoji);
+                    Navigator.pop(ctx);
+                  },
+                  onMoreTap: () {
+                    // Pop the actions sheet first, then open the full
+                    // emoji sheet (same flow as the group).
+                    Navigator.pop(ctx);
+                    showFullEmojiSheet(
+                      context,
+                      onEmojiSelected: (emoji) {
+                        ref
+                            .read(directChatProvider(widget.otherUserId)
+                                .notifier)
+                            .toggleReaction(msg.id, emoji);
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                const Divider(
+                  color: Color(0xFF3A3A4A),
+                  height: 1,
+                  thickness: 0.5,
+                ),
                 // Reply action — the same ListTile the group sheet has.
                 ListTile(
                   leading: const Icon(
@@ -350,6 +492,20 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
             ),
           ),
         );
+      },
+    );
+  }
+
+  /// v3.5 — shows the SAME shared reaction overlay the group chat
+  /// opens (ReactionOverlay + full-emoji sheet), wired to the DM's
+  /// toggleReaction. Mirrors the group's _showReactionPicker exactly.
+  void _showReactionPicker(String messageId) {
+    showReactionOverlay(
+      context,
+      onEmojiSelected: (emoji) {
+        ref
+            .read(directChatProvider(widget.otherUserId).notifier)
+            .toggleReaction(messageId, emoji);
       },
     );
   }
@@ -515,8 +671,12 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
       // two parties so both are unambiguous from bubble alignment).
       // v3.4: enableSwipeReply=true → the SAME SwipeToReply wrapper the
       // group uses (the DirectMessage table now persists reply fields).
-      // showReactions=false → the DM backend doesn't support reactions
-      // yet (needs a DM reactions table — next parity pass).
+      // v3.5: showReactions=true → the DM reactions table exists
+      // (migration 20261007100000) and toggleReaction implements the
+      // group's exact optimistic + realtime flow — onReact opens the
+      // SAME shared reaction overlay. onRetryFailed/onDeleteFailed →
+      // the DM provider's retryMessage/deleteFailedMessage so the
+      // shared failed-message sheet works in DMs too.
       // familyId=null → skips the relationship label + group chatProvider
       // actions inside MessageBubble.
       // inviteFamilyId → resolved from the DM invite payload so the
@@ -539,7 +699,9 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                     .read(directChatProvider(widget.otherUserId).notifier)
                     .setReplyTo(msg);
               },
-              onReact: (_) {}, // DMs don't support reactions yet — no-op (showReactions=false hides the entry point)
+              // v3.5 — the SAME reaction wiring the group uses: tapping
+              // the bubble opens the shared quick-reaction overlay.
+              onReact: (msg) => _showReactionPicker(msg.id),
               onLongPress: (msg) => _showDmMessageActions(msg),
               // v3.4 — tapping the quote block scrolls to the original
               // message, exactly like the group chat.
@@ -547,7 +709,22 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                 if (msg.replyToId != null) _scrollToMessage(msg.replyToId!);
               },
               enableSwipeReply: true,
-              showReactions: false,
+              // v3.5 — reactions ON (the DM reactions table + toggle
+              // flow now mirror the group's, pin-to-pin).
+              showReactions: true,
+              // v3.5 — failed-send seam: the DM provider's retry/delete
+              // methods (the group leaves these null and falls back to
+              // its built-in chatProvider calls).
+              onRetryFailed: (messageId) {
+                ref
+                    .read(directChatProvider(widget.otherUserId).notifier)
+                    .retryMessage(messageId);
+              },
+              onDeleteFailed: (messageId) {
+                ref
+                    .read(directChatProvider(widget.otherUserId).notifier)
+                    .deleteFailedMessage(messageId);
+              },
             );
     }
 
@@ -662,14 +839,17 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const Text(
-                          'Private chat',
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.bodyFont,
-                            fontSize: 11,
-                            color: KinrelColors.textDim,
-                          ),
-                        ),
+                        // v3.5 — Active status: replaces the static
+                        // "Private chat" subtitle with the peer's LIVE
+                        // status, reusing the app-wide UserPresence
+                        // watcher (lastSeenProvider — the SAME provider
+                        // the group header's presence fallback + the
+                        // MemberProfileSheet online dot render from).
+                        // Online → green glowing dot + "Active now"
+                        // (the group header's exact label); offline →
+                        // the localized "Last seen X ago" via the
+                        // engagement layer's UserPresence label logic.
+                        _buildPeerStatus(),
                       ],
                     ),
                   ),
@@ -723,6 +903,18 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
               ),
             ),
           ),
+          // v3.5 — Typing indicator: the SAME shared TypingIndicator the
+          // group renders (same position in the Column — between the
+          // message area and the reply bar; same avatar + label +
+          // bouncing dots). DirectTypingStatus realtime events drive
+          // chatState.isTyping / typingUserName.
+          if (chatState.isTyping)
+            TypingIndicator(
+              name: chatState.typingUserName ?? peer?.name ?? 'Them',
+              label: S.of(context)?.chatTypingSingle(
+                      chatState.typingUserName ?? peer?.name ?? 'Them') ??
+                  '${chatState.typingUserName ?? peer?.name ?? 'Them'} is typing',
+            ),
           if (chatState.error != null && messages.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

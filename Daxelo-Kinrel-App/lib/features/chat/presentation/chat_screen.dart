@@ -1,4 +1,5 @@
-import 'package:kinrel/core/widgets/global_error_widget.dart';
+// v3.5: the global_error_widget import (KinrelAnimatedBuilder) moved
+// with the typing indicator into the shared typing_indicator.dart.
 // lib/features/chat/presentation/chat_screen.dart
 //
 // DAXELO KINREL — Family Chat Screen
@@ -26,7 +27,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+// v3.5: the emoji_picker_flutter import moved with the full-emoji sheet
+// into the shared reaction_picker.dart (this screen now delegates).
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -82,6 +84,10 @@ import 'widgets/pinned_messages_bar.dart';
 // this file so the DM screen renders the SAME widgets).
 import 'widgets/reply_preview_bar.dart';
 import 'widgets/message_preview_dialog.dart';
+// v3.5 — shared engagement widgets (moved from this screen so the DM
+// renders the SAME indicator + reaction pickers).
+import 'widgets/typing_indicator.dart';
+import 'widgets/reaction_picker.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../data/chat_wallpaper_provider.dart';
 import '../data/wallpaper_picker.dart';
@@ -165,26 +171,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   OverlayEntry? _mentionOverlay;
   String? _currentUserIdCache;
 
-  // Typing indicator animation
-  late final AnimationController _typingController;
-  late final List<Animation<double>> _dotAnimations;
-
-  // PERF (Part C3): start/stop the typing animation based on whether
-  // anyone is actually typing. When nobody is typing, the controller
-  // stops ticking — no constant repaints. This is called from
-  // ref.listen callbacks registered in initState.
-  void _syncTypingController() {
-    if (!mounted) return;
-    final chatState = ref.read(chatProvider(widget.familyId));
-    final engagement = ref.read(chatEngagementProvider(widget.familyId));
-    final someoneTyping =
-        chatState.isTyping || engagement.isSomeoneTyping;
-    if (someoneTyping && !_typingController.isAnimating) {
-      _typingController.repeat();
-    } else if (!someoneTyping && _typingController.isAnimating) {
-      _typingController.stop();
-    }
-  }
+  // v3.5: the typing indicator's animation MOVED to the shared
+  // TypingIndicator widget (typing_indicator.dart) — it owns its own
+  // controller and only animates while mounted (the screen gates the
+  // widget on someone-typing, so the PERF (Part C3) behavior is
+  // preserved). The screen-side controller/dot animations are gone.
 
   // Phase 13: Voice recorder state
   final AudioRecorder _recorder = AudioRecorder();
@@ -208,8 +199,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // detect the actual keyboard height and add explicit bottom padding.
   double _webKeyboardHeight = 0;
 
-  // Quick reaction emojis
-  static const _reactionEmojis = ['❤️', '😂', '👍', '😮', '😢', '🙏'];
+  // v3.5: the quick-reaction emoji list MOVED to the shared
+  // reaction_picker.dart (kQuickReactionEmojis) with the quick-reactions
+  // row — both chat types render the identical 6 defaults.
 
   // The real current user id (replaces the old hard-coded 'user_me' check).
   // Read from chatCurrentUserIdProvider which is wired to Supabase auth.
@@ -254,43 +246,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     WebKeyboardHeight.instance.start();
     WebKeyboardHeight.instance.addListener(_onWebKeyboardHeight);
 
-    // Typing indicator — 3 bouncing dots.
-    // PERF (Part C3): the controller is NOT started here. Previously it
-    // was started with `..repeat()` which kept the ticker running forever
-    // (every ~16ms) even when nobody was typing — driving a constant
-    // repaint of the chat screen's render tree. Now the controller is
-    // started/stopped via ref.listen below, only when typing is actually
-    // active (chatState.isTyping || engagement.isSomeoneTyping).
-    _typingController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
-
-    _dotAnimations = List.generate(3, (index) {
-      return Tween<double>(begin: 0, end: -6).animate(
-        CurvedAnimation(
-          parent: _typingController,
-          curve: Interval(
-            index * 0.2,
-            0.4 + index * 0.2,
-            curve: Curves.easeOut,
-          ),
-        ),
-      );
-    });
-
-    // PERF (Part C3): start/stop the typing animation based on whether
-    // anyone is actually typing. When typing stops, the controller stops
-    // ticking — no more constant repaints.
-    ref.listen<dynamic>(
-      chatProvider(widget.familyId).select((s) => s.isTyping),
-      (previous, next) => _syncTypingController(),
-    );
-    ref.listen<dynamic>(
-      chatEngagementProvider(widget.familyId)
-          .select((e) => e.isSomeoneTyping),
-      (previous, next) => _syncTypingController(),
-    );
+    // v3.5: typing indicator setup was REMOVED — the shared
+    // TypingIndicator widget (typing_indicator.dart) owns its animation
+    // and only animates while mounted. The ref.listen calls that
+    // started/stopped the screen-side controller are gone with it.
 
     // Mark all as read on enter
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -343,7 +302,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _scrollController.dispose();
     _textController.dispose();
     _focusNode.dispose();
-    _typingController.dispose();
     // Phase 13: stop the recording timer + dispose the recorder
     _recordingTimer?.cancel();
     _recordingTimer = null;
@@ -368,6 +326,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
+  // v3.5 — typing emission throttle: while the user is composing, the
+  // typing row is refreshed at most once every 2s so receivers' 3-second
+  // auto-clear timers keep getting reset (a live typer never looks
+  // idle). Compose-flips (empty→text / text→empty) always write
+  // immediately — the same start/stop semantics as before.
+  DateTime? _lastTypingWriteAt;
+
   void _onTextChanged() {
     final composing = _textController.text.trim().isNotEmpty;
     if (composing != _isComposing) {
@@ -378,6 +343,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // v109.11: Send typing status to Supabase
       final service = ref.read(chatEnhancementServiceProvider);
       service.setTypingStatus(widget.familyId, composing);
+      _lastTypingWriteAt = DateTime.now();
+    } else if (composing) {
+      // v3.5 — throttled keystroke refresh: the receiver-side indicator
+      // auto-clears 3s after the last event, so an actively-typing user
+      // must keep the ChatTypingStatus row fresh (≤2s cadence).
+      final now = DateTime.now();
+      final last = _lastTypingWriteAt;
+      if (last == null || now.difference(last).inMilliseconds >= 2000) {
+        final service = ref.read(chatEnhancementServiceProvider);
+        service.setTypingStatus(widget.familyId, true);
+        _lastTypingWriteAt = now;
+      }
     }
 
     // Phase 22 / Task 3 — @mention picker detection. MentionTracker
@@ -614,28 +591,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   void _showReactionPicker(String messageId) {
-    final overlay = Overlay.of(context);
-    late OverlayEntry entry;
-
-    entry = OverlayEntry(
-      builder: (context) => ReactionOverlay(
-        onEmojiSelected: (emoji) {
-          ref
-              .read(chatProvider(widget.familyId).notifier)
-              .toggleReaction(messageId, emoji);
-          entry.remove();
-        },
-        onDismiss: () => entry.remove(),
-        // v113: "+" button → remove the overlay and open the full
-        // emoji picker bottom sheet for access to ALL emojis.
-        onMoreTap: () {
-          entry.remove();
-          _showFullEmojiPicker(messageId);
-        },
-      ),
+    // v3.5: the overlay + full-emoji sheet were MOVED to the shared
+    // reaction_picker.dart (showReactionOverlay / showFullEmojiSheet)
+    // so the DM opens the SAME UI. The group passes its provider's
+    // toggleReaction as the emoji handler — identical behavior to the
+    // previous inline version.
+    showReactionOverlay(
+      context,
+      onEmojiSelected: (emoji) {
+        ref
+            .read(chatProvider(widget.familyId).notifier)
+            .toggleReaction(messageId, emoji);
+      },
     );
-
-    overlay.insert(entry);
   }
 
   // ── Build ────────────────────────────────────────────────────────
@@ -2514,7 +2482,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Falls back to English if localization is unavailable.
     final l10n = S.of(context);
     // Prefer the Socket.IO engagement layer's label (supports multiple typers
-    // and is sub-second fresh). Fall back to the Supabase polling result.
+    // and is sub-second fresh). Fall back to the Supabase typing status
+    // result (v3.5: ChatTypingStatus realtime now populates it).
     final label = engagement.isSomeoneTyping
         ? engagement.typingLabelLocalized(l10n)
         : (l10n?.chatTypingSingle(chatState.typingUserName ?? 'Someone') ??
@@ -2524,70 +2493,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ? engagement.typingUserNames.values.first
             : 'Someone')
         : (chatState.typingUserName ?? 'Someone');
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Row(
-        children: [
-          // Small avatar
-          Container(
-            width: 20,
-            height: 20,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: KinrelColors.ember.withValues(alpha: 0.3),
-            ),
-            child: Center(
-              child: Text(
-                ((firstInitial.isNotEmpty) ? firstInitial.substring(0, 1) : '?').toUpperCase(),
-                style: const TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  color: KinrelColors.orange,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 12,
-              color: KinrelColors.textSilver,
-            ),
-          ),
-          const SizedBox(width: 6),
-          // Bouncing dots
-          SizedBox(
-            width: 24,
-            height: 14,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: List.generate(3, (i) {
-                return KinrelAnimatedBuilder(
-                  animation: _dotAnimations[i],
-                  builder: (context, child) {
-                    return Transform.translate(
-                      offset: Offset(0, _dotAnimations[i].value),
-                      child: child,
-                    );
-                  },
-                  child: Container(
-                    width: 4,
-                    height: 4,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: KinrelColors.orange,
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-        ],
-      ),
+    // v3.5: the indicator's rendering was MOVED to the shared
+    // TypingIndicator widget (see typing_indicator.dart) so the DM
+    // screen renders the SAME indicator (avatar initial + label +
+    // bouncing dots, same animation). Identical rendering to the
+    // previous inline version — the group just supplies its label.
+    return TypingIndicator(
+      name: firstInitial,
+      label: label,
     );
   }
 
@@ -3390,75 +3303,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Quick reactions row
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    ..._reactionEmojis.map((emoji) {
-                      final hasReacted = message.reactions.any(
-                        (r) => r.emoji == emoji && r.userId == _currentUserId,
-                      );
-                      return GestureDetector(
-                        onTap: () {
-                          ref
-                              .read(chatProvider(widget.familyId).notifier)
-                              .toggleReaction(message.id, emoji);
-                          Navigator.pop(context);
-                        },
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: hasReacted
-                                ? KinrelColors.orange.withValues(alpha: 0.15)
-                                : Colors.transparent,
-                            border: hasReacted
-                                ? Border.all(
-                                    color: KinrelColors.orange.withValues(
-                                      alpha: 0.4,
-                                    ),
-                                    width: 1.5,
-                                  )
-                                : null,
-                          ),
-                          child: Center(
-                            child: Text(emoji, style: const TextStyle(fontSize: 22)),
-                          ),
-                        ),
-                      );
-                    }),
-                    // v113: "+" button — opens the full emoji picker so
-                    // users can react with ANY emoji, not just the 6
-                    // quick-react defaults. Styled identically to the
-                    // emoji buttons (44x44, circular) for consistency.
-                    GestureDetector(
-                      onTap: () {
-                        // Pop the message-actions sheet first, then
-                        // open the full emoji picker as a new sheet.
-                        Navigator.pop(context);
-                        _showFullEmojiPicker(message.id);
-                      },
-                      child: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: KinrelColors.darkElevated,
-                        ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.add,
-                            color: KinrelColors.textSilver,
-                            size: 22,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              // Quick reactions row — v3.5: MOVED to the shared
+              // MessageActionQuickReactions widget (reaction_picker.dart)
+              // so the DM long-press sheet renders the SAME row. The
+              // group passes its provider's toggleReaction — identical
+              // behavior to the previous inline version.
+              MessageActionQuickReactions(
+                reactions: message.reactions,
+                currentUserId: currentUserId,
+                onToggle: (emoji) {
+                  ref
+                      .read(chatProvider(widget.familyId).notifier)
+                      .toggleReaction(message.id, emoji);
+                  Navigator.pop(context);
+                },
+                onMoreTap: () {
+                  // Pop the message-actions sheet first, then
+                  // open the full emoji picker as a new sheet.
+                  Navigator.pop(context);
+                  _showFullEmojiPicker(message.id);
+                },
               ),
               const SizedBox(height: 8),
               const Divider(
@@ -3797,79 +3661,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// access to ALL emojis for reactions, not just the 6 quick-react
   /// defaults.
   void _showFullEmojiPicker(String messageId) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: KinrelColors.darkCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.xxl),
-        ),
-      ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(12),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'React with an emoji',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(
-              height: MediaQuery.of(context).size.height * 0.45,
-              child: EmojiPicker(
-                onEmojiSelected: (category, emoji) {
-                  ref
-                      .read(chatProvider(widget.familyId).notifier)
-                      .toggleReaction(messageId, emoji.emoji);
-                  Navigator.pop(context);
-                },
-                config: Config(
-                  height: MediaQuery.of(context).size.height * 0.45,
-                  checkPlatformCompatibility: true,
-                  emojiViewConfig: const EmojiViewConfig(
-                    backgroundColor: KinrelColors.darkCard,
-                    emojiSizeMax: 28,
-                  ),
-                  categoryViewConfig: const CategoryViewConfig(
-                    backgroundColor: KinrelColors.darkCard,
-                    iconColor: KinrelColors.textSilver,
-                    iconColorSelected: KinrelColors.orange,
-                    indicatorColor: KinrelColors.orange,
-                    backspaceColor: KinrelColors.textSilver,
-                  ),
-                  searchViewConfig: const SearchViewConfig(
-                    backgroundColor: KinrelColors.darkCard,
-                    buttonIconColor: KinrelColors.textSilver,
-                    hintText: 'Search emoji',
-                    hintTextStyle: TextStyle(
-                      color: KinrelColors.textDim,
-                      fontSize: 14,
-                    ),
-                    inputTextStyle: TextStyle(
-                      color: KinrelColors.textWhite,
-                      fontSize: 14,
-                    ),
-                  ),
-                  skinToneConfig: const SkinToneConfig(
-                    dialogBackgroundColor: Color(0xFF202338),
-                    indicatorColor: KinrelColors.orange,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    // v3.5: the sheet's rendering was MOVED to the shared
+    // showFullEmojiSheet function (see reaction_picker.dart) so the DM
+    // opens the SAME sheet. The group passes its provider's
+    // toggleReaction as the emoji handler — identical behavior to the
+    // previous inline version.
+    showFullEmojiSheet(
+      context,
+      onEmojiSelected: (emoji) {
+        ref
+            .read(chatProvider(widget.familyId).notifier)
+            .toggleReaction(messageId, emoji);
+      },
     );
   }
 
