@@ -112,6 +112,34 @@ class EngineEdgePainter extends CustomPainter {
   // per-instance duplication.
   static final Map<String, Paint> _blurPaintCache = {};
 
+  // PERF (raster audit): Static stroke Paints for the per-edge body /
+  // ridge / dot-body / dot-aura / sweep-core passes. These are
+  // allocated ONCE per process (not per edge per paint), with the
+  // constant fields (style, strokeCap, isAntiAlias) baked in. Per-edge
+  // code mutates only the volatile fields (color + strokeWidth) before
+  // each draw — visual output is byte-identical to the previous
+  // `final bodyPaint = Paint()..strokeWidth = ..color = ...` per edge.
+  //
+  // Impact: ~3-6 Paint allocations eliminated per visible edge per
+  // paint. For 100 visible edges × 60fps camera commits during
+  // pinch-zoom, that's ~18,000-36,000 Paint allocations/sec removed.
+  static final Paint _bodyStrokePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..isAntiAlias = true;
+  static final Paint _ridgeStrokePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..isAntiAlias = true;
+  static final Paint _dotAuraStrokePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..isAntiAlias = true;
+  static final Paint _sweepCoreStrokePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..isAntiAlias = true;
+
   // v5.186 (TIER 2 PERF): Cache the anchor sector fan-out result.
   // The fan-out computation is O(edges × high_degree_nodes) per paint.
   // For 1000 edges with 20 high-degree nodes, that's ~50K ops per
@@ -1415,22 +1443,20 @@ class EngineEdgePainter extends CustomPainter {
       if (isDot) {
         if (isSelected) {
           // PASS D — orange interaction aura (cheap, no blur)
-          final dotAuraPaint = Paint()
-            ..style = PaintingStyle.stroke
+          // PERF (raster audit): hoisted Paint — only color/strokeWidth
+          // mutate per edge. Visual output is byte-identical.
+          _dotAuraStrokePaint
             ..strokeWidth = effectiveBodyWidth + 2.0
             ..color = KinrelColors.orange
-                .withValues(alpha: GraphLighting.selectedAuraAlpha)
-            ..strokeCap = StrokeCap.round
-            ..isAntiAlias = true;
-          canvas.drawPath(path, dotAuraPaint);
+                .withValues(alpha: GraphLighting.selectedAuraAlpha);
+          canvas.drawPath(path, _dotAuraStrokePaint);
         }
-        final dotBodyPaint = Paint()
-          ..style = PaintingStyle.stroke
+        // PERF (raster audit): hoisted Paint — bodyPaint re-uses the
+        // same static instance; only color/strokeWidth mutate per edge.
+        _bodyStrokePaint
           ..strokeWidth = isSelected ? effectiveBodyWidth + 0.6 : effectiveBodyWidth
-          ..color = edgeColor.withValues(alpha: effectiveAlpha)
-          ..strokeCap = StrokeCap.round
-          ..isAntiAlias = true;
-        canvas.drawPath(path, dotBodyPaint);
+          ..color = edgeColor.withValues(alpha: effectiveAlpha);
+        canvas.drawPath(path, _bodyStrokePaint);
 
         // v105: paint the midpoint (simplified) at DOT LOD too, so
         // the heart / dot stays visible when zoomed out. _paintMidpoint
@@ -1697,26 +1723,25 @@ class EngineEdgePainter extends CustomPainter {
     }
 
     // PASS 2 — relationship body.
-    final bodyPaint = Paint()
-      ..style = PaintingStyle.stroke
+    // PERF (raster audit): hoisted Paint — only color/strokeWidth
+    // mutate per edge. Eliminates ~1 Paint allocation per visible
+    // edge per paint. Visual output is byte-identical.
+    _bodyStrokePaint
       ..strokeWidth = bodyWidth
-      ..color = edgeColor.withValues(alpha: edgeAlpha)
-      ..strokeCap = StrokeCap.round
-      ..isAntiAlias = true;
-    canvas.drawPath(path, bodyPaint);
+      ..color = edgeColor.withValues(alpha: edgeAlpha);
+    canvas.drawPath(path, _bodyStrokePaint);
 
     // PASS 3 — directional light ridge (top-left highlight).
     if (ridgeAlpha > 0) {
       canvas.save();
       canvas.translate(GraphLighting.highlightOffset.dx, GraphLighting.highlightOffset.dy);
-      final ridgePaint = Paint()
-        ..style = PaintingStyle.stroke
+      // PERF (raster audit): hoisted Paint — only color/strokeWidth
+      // mutate per edge.
+      _ridgeStrokePaint
         ..strokeWidth = (bodyWidth * 0.32).clamp(0.6, 1.0)
         ..color = GraphLighting.ridgeColor(edgeColor)
-            .withValues(alpha: ridgeAlpha)
-        ..strokeCap = StrokeCap.round
-        ..isAntiAlias = true;
-      canvas.drawPath(path, ridgePaint);
+            .withValues(alpha: ridgeAlpha);
+      canvas.drawPath(path, _ridgeStrokePaint);
       canvas.restore();
     }
   }
@@ -1949,24 +1974,28 @@ class EngineEdgePainter extends CustomPainter {
     final Path sweepPath = metric.extractPath(start, end);
 
     // Soft near-white tinted-with-relationship-colour highlight.
-    final sweepPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = bodyWidth + 1.2
-      ..color = GraphLighting.ridgeColor(edgeColor, t: 0.75)
-          .withValues(alpha: 0.55)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.4)
-      ..strokeCap = StrokeCap.round
-      ..isAntiAlias = true;
+    // PERF (raster audit): previously this allocated a fresh Paint +
+    // uncached MaskFilter.blur PER sweep/trace edge PER animation tick.
+    // Routed through the existing `_cachedBlurPaint` factory — the
+    // (color, alpha=0.55, sigma=2.4, strokeWidth) signature is stable
+    // per (edgeColor, bodyWidth) pair, so the blur Paint is allocated
+    // once per unique signature and reused. Visual output is
+    // byte-identical.
+    final sweepPaint = _cachedBlurPaint(
+      color: GraphLighting.ridgeColor(edgeColor, t: 0.75).toARGB32(),
+      alpha: 0.55,
+      sigma: 2.4,
+      strokeWidth: bodyWidth + 1.2,
+    );
     canvas.drawPath(sweepPath, sweepPaint);
 
     // Crisp inner core for a premium "polished filament" read.
-    final corePaint = Paint()
-      ..style = PaintingStyle.stroke
+    // PERF (raster audit): hoisted Paint — only color/strokeWidth
+    // mutate per sweep paint call.
+    _sweepCoreStrokePaint
       ..strokeWidth = (bodyWidth * 0.5).clamp(0.8, 1.6)
-      ..color = Colors.white.withValues(alpha: 0.70)
-      ..strokeCap = StrokeCap.round
-      ..isAntiAlias = true;
-    canvas.drawPath(sweepPath, corePaint);
+      ..color = Colors.white.withValues(alpha: 0.70);
+    canvas.drawPath(sweepPath, _sweepCoreStrokePaint);
   }
 
   /// Midpoint bead / heart (PART 6). Branches on `midpointSymbol`:
