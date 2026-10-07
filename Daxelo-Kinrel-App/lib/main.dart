@@ -46,6 +46,13 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'core/utils/device_tier.dart';
 import 'core/utils/a11y_checker.dart';
 import 'core/utils/memory_monitor.dart';
+// PERF_LAB: hidden performance test lab. Compile-time-gated via
+// `--dart-define=PERF_LAB=true`. When PERF_LAB is off (default, every
+// release build), every call site that guards on `PerfLab.enabled` is
+// tree-shaken — zero runtime/listener/rebuild cost. See
+// lib/core/utils/perf_lab.dart for the full rationale.
+import 'core/utils/perf_lab.dart';
+import 'core/utils/perf_lab_panel.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'core/widgets/offline_banner.dart';
 import 'core/widgets/global_error_widget.dart';
@@ -1078,6 +1085,14 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     );
   }
 
+  // PERF_LAB: runtime-togglable value for MaterialApp.showPerformanceOverlay.
+  // When PERF_LAB is off, this field is unused (the build method below
+  // constant-folds `PerfLab.enabled` to false and uses the existing
+  // const `bool.fromEnvironment('PERF_OVERLAY')` expression instead).
+  // Initialized to the same const value so the default behavior matches
+  // main exactly when PERF_LAB is on but the user hasn't toggled it.
+  bool _labPerfOverlay = const bool.fromEnvironment('PERF_OVERLAY');
+
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
@@ -1089,7 +1104,14 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       child: MaterialApp.router(
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
-      showPerformanceOverlay: const bool.fromEnvironment('PERF_OVERLAY'),
+      // PERF_LAB: when PERF_LAB is on, the perf overlay is runtime-
+      // togglable from the lab panel (so you can compare raster stats
+      // with and without the overlay). When PERF_LAB is off, the const
+      // false short-circuits the ternary to the original const
+      // `bool.fromEnvironment('PERF_OVERLAY')` — behavior matches main.
+      showPerformanceOverlay: PerfLab.enabled
+          ? _labPerfOverlay
+          : const bool.fromEnvironment('PERF_OVERLAY'),
       // v47 FIX: Allow touch, mouse, trackpad, and stylus gestures everywhere.
       // Without this, Android touch events can get routed to the scroll system
       // instead of the graph's ScaleGestureRecognizer, causing pinch-zoom and
@@ -1172,7 +1194,14 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
             ? const Color(0xFF131416) // KinrelColors.darkBackground
             : const Color(0xFFF5F7FA); // light scaffold bg
 
-        return ColoredBox(
+        // ── Default app content tree ─────────────────────────────────
+        // Built once per MaterialApp.builder build. When PERF_LAB is
+        // off, this is the only thing returned from the builder — the
+        // TickerMode wrap and the LAB chip Stack below are tree-shaken
+        // by the Dart AOT compiler (const false short-circuits the
+        // ternary), so no extra widget, listener, or rebuild cost is
+        // added in release builds.
+        final Widget appContent = ColoredBox(
           color: scaffoldBg,
           child: MediaQuery(
             data: MediaQuery.of(context).copyWith(
@@ -1207,6 +1236,50 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
               ],
             ),
           ),
+        );
+
+        // PERF_LAB — strict no-op gate. When PERF_LAB is off (const
+        // false), the entire `if`-block below is dead code and is
+        // tree-shaken by the Dart AOT compiler. We return appContent
+        // directly — no TickerMode wrap, no Stack, no PerfLabChip, no
+        // ValueListenableBuilder listening to PerfLab.pauseAnimations.
+        // The app behaves EXACTLY as on main.
+        if (!PerfLab.enabled) return appContent;
+
+        // ── PERF_LAB on — wrap app content in TickerMode ────────────
+        // pauseAnimations switch: when true, TickerMode(enabled: false)
+        // disables every ticker in the entire subtree (flutter_animate,
+        // shimmer, AnimatedContainer, typing indicator, etc.) without
+        // changing widget structure. The widget tree stays identical;
+        // only animation tickers are stopped — useful for measuring
+        // raster cost attributable to animated chrome.
+        final Widget tickered = ValueListenableBuilder<bool>(
+          valueListenable: PerfLab.pauseAnimations,
+          builder: (context, paused, _) => TickerMode(
+            enabled: !paused,
+            child: appContent,
+          ),
+        );
+
+        // ── PERF_LAB on — overlay the LAB chip on the left edge ────
+        // The chip opens a bottom sheet (see perf_lab_panel.dart) with
+        // the five switches, a performance-overlay toggle, and a Reset
+        // button. Stack is used so the chip floats above all routes.
+        return Stack(
+          children: [
+            tickered,
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 36, // thin chip — only as wide as "LAB" + padding
+              child: PerfLabChip(
+                perfOverlayEnabled: _labPerfOverlay,
+                onTogglePerfOverlay: (v) =>
+                    setState(() => _labPerfOverlay = v),
+              ),
+            ),
+          ],
         );
       },
       ),
