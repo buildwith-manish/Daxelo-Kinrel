@@ -53,6 +53,29 @@ void clearNodeBlurPaintCache() {
   _nodeBlurPaintCache.clear();
 }
 
+// PERF (raster audit): static stroke Paints for the inner-bevel passes
+// (dark inset, TL highlight, BR shadow) and the tint overlay. These
+// have constant style + color (only the strokeWidth varies per node via
+// params.bevelWidth), so hoisting them as static fields eliminates 3-4
+// Paint allocations per visible node per paint. Visual output is
+// byte-identical — only the allocation goes away.
+//
+// Impact: at 50 visible premium nodes × 60fps camera commits during
+// pinch-zoom, that's ~9,000-12,000 Paint allocations/sec removed.
+// Note: these are STATIC at file scope (not class fields) so they are
+// shared across all Pseudo3DNodePainter instances — same pattern as
+// the existing `_nodeBlurPaintCache` above.
+final Paint _bevelDarkInsetPaint = Paint()
+  ..style = PaintingStyle.stroke
+  ..color = Colors.black.withValues(alpha: 0.50);
+final Paint _bevelTlHighlightPaint = Paint()
+  ..style = PaintingStyle.stroke
+  ..color = Colors.white.withValues(alpha: 0.12);
+final Paint _bevelBrShadowPaint = Paint()
+  ..style = PaintingStyle.stroke
+  ..color = Colors.black.withValues(alpha: 0.30);
+final Paint _tintOverlayPaint = Paint();
+
 /// Get a cached fill-style blur Paint, creating it only if the
 /// (color, alpha, sigma) tuple hasn't been seen before. This avoids
 /// reallocating Paint + MaskFilter.blur on every frame during
@@ -318,7 +341,7 @@ class Pseudo3DNodePainter extends CustomPainter {
 
     // Tint overlay for selected/hover
     if (params.showTint) {
-      canvas.drawCircle(center, faceR, Paint()..color = params.tintColor);
+      canvas.drawCircle(center, faceR, _tintOverlayPaint..color = params.tintColor);
     }
 
     // ══ LAYER 5: Outer rim (directional bezel) ═════════════════════
@@ -371,26 +394,17 @@ class Pseudo3DNodePainter extends CustomPainter {
     final bevelRect = Rect.fromCircle(center: center, radius: bevelR);
 
     canvas.drawCircle(center, faceR - params.bevelWidth * 0.5,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = params.bevelWidth
-        ..color = Colors.black.withValues(alpha: 0.50),
+      _bevelDarkInsetPaint..strokeWidth = params.bevelWidth,
     );
 
     // TL bevel highlight: arc only, brighter
     canvas.drawArc(bevelRect, pi * 0.9, pi * 0.5, false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = params.bevelWidth * 0.7
-        ..color = Colors.white.withValues(alpha: 0.12),
+      _bevelTlHighlightPaint..strokeWidth = params.bevelWidth * 0.7,
     );
 
     // BR bevel shadow: arc only, darker (reinforces depth)
     canvas.drawArc(bevelRect, 0, pi * 0.4, false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = params.bevelWidth * 0.7
-        ..color = Colors.black.withValues(alpha: 0.30),
+      _bevelBrShadowPaint..strokeWidth = params.bevelWidth * 0.7,
     );
 
     // ══ LAYER 7: Specular reflection ═══════════════════════════════

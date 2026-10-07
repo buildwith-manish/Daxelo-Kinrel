@@ -1730,28 +1730,38 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         _perfLogger.end('build');
         _perfLogger.finish();
 
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: const Alignment(0, -0.1),
-              radius: 1.3,
-              colors: [
-                Color.lerp(KinrelColors.darkBackground, KinshipEdgeColors.self, 0.06)!,
-                KinrelColors.darkBackground,
-              ],
-              stops: const [0.0, 0.75],
+        return RepaintBoundary(
+          // PERF (raster audit): wrap the static background (RadialGradient
+          // + DotGridPainter) in its own RepaintBoundary so it is
+          // rasterized ONCE and not re-painted on every camera tick
+          // during pan/zoom. Previously the DecoratedBox + CustomPaint
+          // were OUTSIDE any RepaintBoundary, so every camera-driven
+          // AnimatedBuilder rebuild re-painted the gradient + dot grid.
+          // DotGridPainter.shouldRepaint returns false (so the painter
+          // output was technically cached), but the DecoratedBox's
+          // RadialGradient was re-rasterized per camera tick.
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(0, -0.1),
+                radius: 1.3,
+                colors: [
+                  Color.lerp(KinrelColors.darkBackground, KinshipEdgeColors.self, 0.06)!,
+                  KinrelColors.darkBackground,
+                ],
+                stops: const [0.0, 0.75],
+              ),
             ),
-          ),
-          child: CustomPaint(
-            painter: DotGridPainter(color: Colors.white.withValues(alpha: 0.025)),
-            // P4.4: Wrap the canvas in a Focus widget so keyboard events
-            // (arrows, +/-, Tab, Enter, Escape) are handled by the graph.
-            // The Focus is autofocus=false so it doesn't steal focus on
-            // mount — the user must tap/click the graph first.
-            child: Focus(
-              autofocus: false,
-              onKeyEvent: (node, event) {
-                final handled = handleGraphKeyEvent(
+            child: CustomPaint(
+              painter: DotGridPainter(color: Colors.white.withValues(alpha: 0.025)),
+              // P4.4: Wrap the canvas in a Focus widget so keyboard events
+              // (arrows, +/-, Tab, Enter, Escape) are handled by the graph.
+              // The Focus is autofocus=false so it doesn't steal focus on
+              // mount — the user must tap/click the graph first.
+              child: Focus(
+                autofocus: false,
+                onKeyEvent: (node, event) {
+                  final handled = handleGraphKeyEvent(
                   event: event,
                   camera: _camera,
                   ref: ref,
@@ -1958,6 +1968,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           ), // GestureDetector close
           ), // P4.4: Focus close
         ),
+        ), // PERF (raster audit): RepaintBoundary close (background gradient + dot grid)
     );
   },
 );

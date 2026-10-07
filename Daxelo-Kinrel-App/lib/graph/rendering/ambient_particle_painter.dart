@@ -137,6 +137,15 @@ class AmbientParticlePainter extends CustomPainter {
     final motes = _moteBasePositions;
     final n = moteCount <= motes.length ? moteCount : motes.length;
 
+    // PERF (raster audit): previously this method allocated a fresh
+    // `Paint()..color = moteColor.withValues(alpha: alpha)` PER MOTE
+    // per paint tick (25 motes × 60fps = 1,500 Paint allocations/sec).
+    // Hoisted a single Paint instance outside the loop and only mutate
+    // the color alpha per mote. Visual output is byte-identical —
+    // `withValues(alpha:)` returns a new Color either way; the savings
+    // are on the Paint object construction itself.
+    final motePaint = Paint()..color = moteColor;
+
     for (int i = 0; i < n; i++) {
       final m = motes[i];
       final angle = m.angle;
@@ -164,11 +173,9 @@ class AmbientParticlePainter extends CustomPainter {
             math.sin(angle) * radius + driftY,
           );
 
-      canvas.drawCircle(
-        pos,
-        1.5,
-        Paint()..color = moteColor.withValues(alpha: alpha),
-      );
+      // Mutate the hoisted paint's color per mote (alpha varies).
+      motePaint.color = moteColor.withValues(alpha: alpha);
+      canvas.drawCircle(pos, 1.5, motePaint);
     }
   }
 
