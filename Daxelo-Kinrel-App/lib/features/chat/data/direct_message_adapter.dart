@@ -47,6 +47,11 @@
 //     DirectMessage.gameInvitePayload. If the payload is missing or
 //     has no gameId (old rows), the message is mapped to a plain text
 //     message so the thread never breaks.
+//   - v3.4 — reply threading: replyToId / replyToContent /
+//     replyToSenderName map verbatim onto the ChatMessage's reply
+//     fields (the DM table now mirrors the group's reply columns —
+//     migration 20261007080000_dm_reply_threading.sql), so the shared
+//     MessageBubble quote block renders in DMs EXACTLY like the group.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -108,6 +113,10 @@ ChatMessage directMessageToChatMessage(
       isRead: dm.isRead,
       messageStatus: messageStatus,
       messageSubType: 'thinking_of_you',
+      // v3.4 — reply threading (verbatim mapping, all message types).
+      replyToId: dm.replyToId,
+      replyToContent: dm.replyToContent,
+      replyToSenderName: dm.replyToSenderName,
     );
   }
 
@@ -182,6 +191,10 @@ ChatMessage directMessageToChatMessage(
       gameWinnerName: (winnerName != null && winnerName.isNotEmpty) ? winnerName : null,
       gameCompletedAt: completedAt,
       gameSpectatorsEnabled: spectatorsEnabled,
+      // v3.4 — reply threading (verbatim mapping, all message types).
+      replyToId: dm.replyToId,
+      replyToContent: dm.replyToContent,
+      replyToSenderName: dm.replyToSenderName,
     );
   }
 
@@ -197,6 +210,10 @@ ChatMessage directMessageToChatMessage(
     timestamp: dm.createdAt,
     isRead: dm.isRead,
     messageStatus: messageStatus,
+    // v3.4 — reply threading (verbatim mapping, all message types).
+    replyToId: dm.replyToId,
+    replyToContent: dm.replyToContent,
+    replyToSenderName: dm.replyToSenderName,
   );
 }
 
