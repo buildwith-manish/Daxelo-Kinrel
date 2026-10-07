@@ -29,9 +29,12 @@
 //   registered). This is what makes the lab zero-cost in release builds.
 //
 // Never print or store tokens or secrets. This file intentionally has no
-// imports beyond Flutter foundation widgets.
+// imports beyond Flutter material widgets (material.dart re-exports the
+// foundation symbols we need — ValueNotifier, ValueListenableBuilder,
+// StatelessWidget, BuildContext, Widget — so a separate
+// `import 'package:flutter/foundation.dart';` would be redundant and
+// trigger the analyzer's `unnecessary_import` lint).
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Compile-time gate for the entire performance lab.
