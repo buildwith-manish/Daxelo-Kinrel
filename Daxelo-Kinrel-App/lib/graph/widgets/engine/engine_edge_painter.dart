@@ -1982,7 +1982,7 @@ class EngineEdgePainter extends CustomPainter {
     // once per unique signature and reused. Visual output is
     // byte-identical.
     final sweepPaint = _cachedBlurPaint(
-      color: GraphLighting.ridgeColor(edgeColor, t: 0.75).value,
+      color: GraphLighting.ridgeColor(edgeColor, t: 0.75).toARGB32(),
       alpha: 0.55,
       sigma: 2.4,
       strokeWidth: bodyWidth + 1.2,
