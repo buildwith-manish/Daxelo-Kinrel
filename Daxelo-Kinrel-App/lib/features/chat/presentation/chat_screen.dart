@@ -47,6 +47,12 @@ import '../../../core/family/family_provider.dart';
 import '../../../l10n/app_localizations.dart';
 // v3.3: AppTime import removed — date grouping moved to ChatMessageList.
 import '../../../core/utils/web_keyboard_height.dart';
+// PERF_LAB: hidden performance test lab. Compile-time-gated via
+// `--dart-define=PERF_LAB=true`. The hideChrome switch hides the
+// chat header (AppBar), input bar, and floating family nav so we
+// can measure the raster cost of the message-list body alone.
+// See lib/core/utils/perf_lab.dart for rationale.
+import '../../../core/utils/perf_lab.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/services/celebration_service.dart';
@@ -610,6 +616,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   @override
   Widget build(BuildContext context) {
+    // PERF_LAB: when PERF_LAB is off (const false), this entire block
+    // is tree-shaken by the Dart AOT compiler — no ValueNotifier is
+    // touched, no ValueListenableBuilder is constructed, no listener
+    // is ever registered. The build proceeds directly to the existing
+    // chat screen. The app behaves EXACTLY as on main.
+    if (!PerfLab.enabled) {
+      return _buildBody(context, hideChrome: false);
+    }
+
+    // PERF_LAB on: subscribe to hideChrome so toggling the switch
+    // from the lab panel rebuilds this screen. The Scaffold's
+    // appBar (chat header), bottomNavigationBar (family nav), and
+    // the input bar all branch on `hideChrome` inside _buildBody.
+    return ValueListenableBuilder<bool>(
+      valueListenable: PerfLab.hideChrome,
+      builder: (context, hideChrome, _) =>
+          _buildBody(context, hideChrome: hideChrome),
+    );
+  }
+
+  /// Existing build body, extracted verbatim except for the three
+  /// PERF_LAB-flag branches: the chat header (`appBar`), the floating
+  /// family nav (`bottomNavigationBar`), and the input bar at the
+  /// bottom of the body Column. When `hideChrome` is false, all three
+  /// render exactly as before — no visual or layout change.
+  Widget _buildBody(BuildContext context, {required bool hideChrome}) {
     final chatState = ref.watch(chatProvider(widget.familyId));
     // Pack 13: Socket.IO engagement state (typing / streak / presence /
     // read receipts / reactions). Additive to the Supabase Realtime state
@@ -721,12 +753,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // v140 Family-Centric Chat Navigation: hideAppBar lets the parent
       // (e.g. FamilyChatListScreen with [Family]/[Direct] tabs) provide
       // its own header without a double-AppBar.
-      appBar: widget.hideAppBar ? null : _buildAppBar(chatState),
+      //
+      // PERF_LAB (hideChrome): when hideChrome is on, the chat header
+      // is hidden too — set to null so the messages list fills the
+      // top of the screen. Layout does not crash because the body
+      // Column still contains the messages Expanded + input bar
+      // (the input bar is also replaced with SizedBox.shrink when
+      // hideChrome is on, see below).
+      appBar: (widget.hideAppBar || hideChrome)
+          ? null
+          : _buildAppBar(chatState),
       // v115: Only show the Family Space bottom nav when this screen
       // is the tab destination (showFamilyNav=true). When opened as a
       // pushed conversation from the chat list, the bottom nav is
       // hidden so the chat is full-screen (WhatsApp/Telegram style).
-      bottomNavigationBar: widget.showFamilyNav
+      //
+      // PERF_LAB (hideChrome): when hideChrome is on, the floating
+      // family nav is hidden too — null here. (The FamilySpaceFloatingNav
+      // widget itself also short-circuits to SizedBox.shrink when
+      // hideChrome is on, so any other call sites are covered too.)
+      bottomNavigationBar: (widget.showFamilyNav && !hideChrome)
           ? FamilySpaceFloatingNav(familyId: widget.familyId)
           : null,
       body: _isCheckingLock
@@ -764,7 +810,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         onClose: _toggleStickerPanel,
                       ),
                     // Input bar
-                    _buildInputBar(),
+                    //
+                    // PERF_LAB (hideChrome): when hideChrome is on, the
+                    // input bar is replaced with SizedBox.shrink so the
+                    // message list fills to the bottom of the screen.
+                    // The Column layout does not crash — SizedBox.shrink
+                    // is a zero-size widget that the Column will simply
+                    // collapse to nothing.
+                    hideChrome ? const SizedBox.shrink() : _buildInputBar(),
                     // v128: On Flutter Web, resizeToAvoidBottomInset doesn't detect
                     // the mobile keyboard. We add explicit bottom padding equal to
                     // the visualViewport-measured keyboard height so the input bar

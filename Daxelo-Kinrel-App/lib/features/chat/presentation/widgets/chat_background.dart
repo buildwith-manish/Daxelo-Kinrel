@@ -44,6 +44,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/utils/device_tier.dart';
+// PERF_LAB: hidden performance test lab. Compile-time-gated via
+// `--dart-define=PERF_LAB=true`. The plainBackground switch toggles
+// between the multi-layer ambient background (default) and a flat
+// solid color (lab). See lib/core/utils/perf_lab.dart for rationale.
+import '../../../../core/utils/perf_lab.dart';
 import '../../data/chat_wallpaper_provider.dart';
 import 'chat_background_theme.dart';
 // Conditional import: web vs native image rendering for custom wallpapers.
@@ -71,6 +76,43 @@ class ChatBackground extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // PERF_LAB: when PERF_LAB is off (const false), this entire block
+    // is tree-shaken by the Dart AOT compiler — no ValueNotifier is
+    // touched, no ValueListenableBuilder is constructed, no listener
+    // is ever registered. The build proceeds directly to the existing
+    // multi-layer ambient background. The app behaves EXACTLY as on
+    // main.
+    if (!PerfLab.enabled) return _buildAmbient(context, ref);
+
+    // PERF_LAB on: subscribe to plainBackground so toggling the switch
+    // from the lab panel rebuilds this widget. The wallpaper provider
+    // is NOT watched when plain is true — that's the whole point of
+    // the lab: skip the gradient + wallpaper + blur and measure the
+    // raster cost of just the messages list on a flat solid color.
+    return ValueListenableBuilder<bool>(
+      valueListenable: PerfLab.plainBackground,
+      builder: (context, plain, _) {
+        if (plain) {
+          // Flat solid color = the theme's scaffold background. This
+          // matches what the chat would look like with NO ambient
+          // layers, NO wallpaper, NO blur. Useful for bisecting the
+          // 59 ms raster cost on the family chat — is it the
+          // background layers, the bubbles, or the message list?
+          return ColoredBox(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: child,
+          );
+        }
+        return _buildAmbient(context, ref);
+      },
+    );
+  }
+
+  /// Builds the existing multi-layer ambient background (base gradient +
+  /// accent corner glow + edge vignette + optional blurred wallpaper).
+  /// Extracted verbatim from the previous `build` body so the
+  /// non-PERF_LAB path produces a pixel-identical result.
+  Widget _buildAmbient(BuildContext context, WidgetRef ref) {
     final stored = ref.watch(wallpaperPathProvider(chatId));
     final theme = ChatBackgroundTheme.fromStoredValue(stored);
     final hasImage = stored != null &&

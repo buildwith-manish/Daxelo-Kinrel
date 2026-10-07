@@ -33,6 +33,12 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
+// PERF_LAB: hidden performance test lab. Compile-time-gated via
+// `--dart-define=PERF_LAB=true`. The hideChrome switch hides the
+// family chat list header (the [Family]/[Direct] tab switcher +
+// family-name title) so we can measure the raster cost of the
+// underlying ChatScreen body alone. See lib/core/utils/perf_lab.dart.
+import '../../../core/utils/perf_lab.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../chat/data/direct_message_provider.dart';
 import '../../chat/presentation/chat_screen.dart';
@@ -80,16 +86,61 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
     final memberCount =
         ref.watch(linkedMemberCountProvider(widget.familyId));
 
+    // PERF_LAB: when PERF_LAB is off (const false), this block is
+    // tree-shaken — no ValueNotifier touched, no listener registered,
+    // the build proceeds directly to the existing DKScaffold. When
+    // PERF_LAB is on, subscribe to hideChrome so toggling the switch
+    // rebuilds this screen (the AppBar is conditionally null based
+    // on the switch value).
+    if (!PerfLab.enabled) {
+      return _buildScaffold(
+        context,
+        familyName: familyName,
+        familyAvatarUrl: familyAvatarUrl,
+        memberCount: memberCount,
+        hideChrome: false,
+      );
+    }
+    return ValueListenableBuilder<bool>(
+      valueListenable: PerfLab.hideChrome,
+      builder: (context, hideChrome, _) => _buildScaffold(
+        context,
+        familyName: familyName,
+        familyAvatarUrl: familyAvatarUrl,
+        memberCount: memberCount,
+        hideChrome: hideChrome,
+      ),
+    );
+  }
+
+  Widget _buildScaffold(
+    BuildContext context, {
+    required String familyName,
+    required String? familyAvatarUrl,
+    required int memberCount,
+    required bool hideChrome,
+  }) {
     return DKScaffold(
       backgroundColor: const Color(0xFF0A0B16),
       // The header adapts to the active tab so we never show a
       // redundant "Chats" title above the group chat, and the Direct
       // tab gets its own "Direct Messages" title.
-      appBar: _buildHeader(
-        familyName: familyName,
-        familyAvatarUrl: familyAvatarUrl,
-        memberCount: memberCount,
-      ),
+      //
+      // PERF_LAB (hideChrome): when hideChrome is on, the family chat
+      // list header (family avatar + name + member count + the
+      // [Family]/[Direct] tab switcher) is hidden — set to null so the
+      // inline ChatScreen body fills the top of the screen. The
+      // ChatScreen's own AppBar is also hidden via the same switch
+      // (see chat_screen.dart), so the message list alone is visible.
+      // The FamilySpaceFloatingNav below also self-hides via its own
+      // PERF_LAB guard.
+      appBar: hideChrome
+          ? null
+          : _buildHeader(
+              familyName: familyName,
+              familyAvatarUrl: familyAvatarUrl,
+              memberCount: memberCount,
+            ),
       bottomNavigationBar:
           FamilySpaceFloatingNav(familyId: widget.familyId),
       body: IndexedStack(

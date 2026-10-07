@@ -23,6 +23,12 @@ import '../../../../../core/constants/brand_typography.dart';
 import '../../../../../core/kinship/kinship_edge_style.dart';
 import '../../../../../core/services/image_cache_manager.dart';
 import '../../../../../core/utils/device_tier.dart';
+// PERF_LAB: hidden performance test lab. Compile-time-gated via
+// `--dart-define=PERF_LAB=true`. The flatBubbles + plainInviteCards
+// switches toggle between the rich bubble/card visuals (default) and
+// flat solid fills / text-only cards (lab). See
+// lib/core/utils/perf_lab.dart for rationale.
+import '../../../../../core/utils/perf_lab.dart';
 import '../../../family/data/relationship_label_provider.dart';
 import '../../../games/shared/icons/game_icons.dart';
 import '../../../games/shared/models/game_invite.dart';
@@ -128,6 +134,50 @@ class MessageBubble extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // PERF_LAB: when PERF_LAB is off (const false), this entire block
+    // is tree-shaken by the Dart AOT compiler — no ValueNotifier is
+    // touched, no ValueListenableBuilder is constructed, no listener
+    // is ever registered. The build proceeds directly to the existing
+    // rich bubble rendering. The app behaves EXACTLY as on main.
+    if (!PerfLab.enabled) {
+      return _buildBody(context, ref, flatBubbles: false, plainInviteCards: false);
+    }
+
+    // PERF_LAB on: subscribe to flatBubbles + plainInviteCards so
+    // toggling either switch from the lab panel rebuilds this bubble.
+    // The bubble decoration branches on `flatBubbles` (flat solid
+    // color vs. gradient + shadow + glow), and the game-invite card
+    // branches on `plainInviteCards` (text-only container vs. the rich
+    // game-icon + chips + status layout).
+    return ValueListenableBuilder<bool>(
+      valueListenable: PerfLab.flatBubbles,
+      builder: (context, flatBubbles, _) {
+        return ValueListenableBuilder<bool>(
+          valueListenable: PerfLab.plainInviteCards,
+          builder: (context, plainInviteCards, _) {
+            return _buildBody(
+              context, ref,
+              flatBubbles: flatBubbles,
+              plainInviteCards: plainInviteCards,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Existing build body, extracted verbatim except for the two
+  /// PERF_LAB-flag branches in the bubble decoration (`flatBubbles`)
+  /// and the game-invite card early-return (`plainInviteCards`).
+  /// Both branches are no-ops when the corresponding flag is `false`
+  /// — the decoration uses the gradient + shadow + glow as before,
+  /// and the invite card renders the full rich layout.
+  Widget _buildBody(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool flatBubbles,
+    required bool plainInviteCards,
+  }) {
     // Read the current user id so we can highlight the user's own reactions.
     // MessageBubble is a separate widget (not _ChatScreenState), so it
     // can't use the _currentUserId getter — it reads the provider directly.
@@ -246,6 +296,14 @@ class MessageBubble extends ConsumerWidget {
                     // rounded rectangle, layered shadows for gentle
                     // elevation, and generous padding for readability.
                     // Inspired by iMessage's softness + Telegram's tail.
+                    //
+                    // PERF_LAB (flatBubbles): when the flatBubbles
+                    // switch is on, the bubble decoration uses the
+                    // first gradient color as a solid fill (no
+                    // gradient), no BoxShadow, no glow. Radius,
+                    // padding and border are preserved. Stickers
+                    // remain unaffected (they always render
+                    // transparent).
                     Container(
                       padding: isSticker
                           ? const EdgeInsets.symmetric(
@@ -259,7 +317,15 @@ class MessageBubble extends ConsumerWidget {
                         // lighter (lit-from-above), bottom darker. Stays
                         // within the tinted-glass palette so the ember
                         // accent remains understated, not saturated.
-                        gradient: isSticker
+                        //
+                        // PERF_LAB (flatBubbles): when flatBubbles is
+                        // true, gradient is null and color is the FIRST
+                        // gradient color (the top, lighter one) as a
+                        // solid fill. The flat color is computed from
+                        // the SAME branches as the gradient's first
+                        // color so the bubble still looks like the
+                        // sender's bubble — just flat.
+                        gradient: (flatBubbles || isSticker)
                             ? null
                             : (isMe
                                 ? LinearGradient(
@@ -298,7 +364,20 @@ class MessageBubble extends ConsumerWidget {
                                           Color(0xFF23263B),
                                         ],
                                       )),
-                        color: isSticker ? Colors.transparent : null,
+                        // PERF_LAB (flatBubbles): when flatBubbles is
+                        // true, use the first gradient color as a solid
+                        // fill. Stickers remain transparent (they
+                        // never have a bubble background).
+                        color: flatBubbles
+                            ? (isMe
+                                ? KinrelColors.ember.withValues(alpha: 0.18)
+                                : (kinshipBandColor != null
+                                    ? Color.lerp(
+                                        const Color(0xFF2E3150),
+                                        kinshipBandColor,
+                                        0.06)!
+                                    : const Color(0xFF2E3150)))
+                            : (isSticker ? Colors.transparent : null),
                         // v131: Organic corners — 22px base, tail corner
                         // drops to 6px on isLastInGroup. Less mechanical
                         // than equal radii; mirrors Telegram's silhouette.
@@ -361,7 +440,12 @@ class MessageBubble extends ConsumerWidget {
                         // single shadow with blurRadius capped at 6 (per
                         // spec) and skip the ember glow on sent bubbles.
                         // Strong phones keep both shadows as before.
-                        boxShadow: isSticker
+                        //
+                        // PERF_LAB (flatBubbles): when flatBubbles is true,
+                        // there are NO shadows (and no glow) — just the
+                        // flat solid color fill. Stickers also have no
+                        // shadow.
+                        boxShadow: (flatBubbles || isSticker)
                             ? null
                             : (DeviceTierCache.instance.lowRam
                                 ? [
@@ -1396,6 +1480,38 @@ class MessageBubble extends ConsumerWidget {
   /// never shows Join — they are already in the game — and shows a
   /// waiting/status label instead.
   Widget _buildGameInviteCard(BuildContext context) {
+    // PERF_LAB (plainInviteCards): when the plainInviteCards switch
+    // is on, the card renders as a SIMPLE container with the content
+    // text only — no game icon image, no chips, no gradients. This
+    // isolates the raster cost of the rich card visuals (game icon
+    // asset, status chip, players chip, room code chip, action button)
+    // so we can measure whether the card is contributing to the 59 ms
+    // raster time on the family chat.
+    //
+    // When PERF_LAB is off (const false), this guard is tree-shaken
+    // by the AOT compiler — the .value access never happens, the
+    // ValueNotifier is never touched, the rich card renders as before.
+    if (PerfLab.enabled && PerfLab.plainInviteCards.value) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          // Flat solid color — no gradient, no border, no shadow.
+          color: KinrelColors.darkCard,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          message.content.isNotEmpty
+              ? message.content
+              : 'Game invite',
+          style: const TextStyle(
+            color: KinrelColors.textWhite,
+            fontSize: 13,
+            height: 1.3,
+          ),
+        ),
+      );
+    }
+
     final rawGameType = message.gameType ?? '';
     final parsedGameType = GameTypeX.fromRouteSegment(rawGameType);
     final displayName =

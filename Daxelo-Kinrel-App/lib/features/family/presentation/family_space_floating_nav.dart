@@ -58,6 +58,12 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/utils/accessibility_utils.dart';
 import '../../../core/utils/device_tier.dart';
+// PERF_LAB: hidden performance test lab. Compile-time-gated via
+// `--dart-define=PERF_LAB=true`. The hideChrome switch hides the
+// floating family nav so we can measure the raster cost of the
+// chat body alone (without the BackdropFilter/boxShadow chrome
+// on this bar). See lib/core/utils/perf_lab.dart for rationale.
+import '../../../core/utils/perf_lab.dart';
 import '../../../shared/widgets/bottom_nav_repaint_guard.dart';
 // v5.212: MembersScreenSource — passes the entry context (navTab vs
 // graphViewAll) to the Members screen so the displayed list adapts.
@@ -135,6 +141,34 @@ class FamilySpaceFloatingNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // PERF_LAB: when PERF_LAB is off (const false), this entire block
+    // is tree-shaken by the Dart AOT compiler — no ValueNotifier is
+    // touched, no ValueListenableBuilder is constructed, no listener
+    // is ever registered. The build proceeds directly to the existing
+    // floating dock. The app behaves EXACTLY as on main.
+    if (!PerfLab.enabled) return _buildDock(context);
+
+    // PERF_LAB on: subscribe to hideChrome so toggling the switch
+    // from the lab panel rebuilds this widget. When hideChrome is on,
+    // the floating dock is replaced with SizedBox.shrink — no
+    // BackdropFilter, no boxShadow, no Row of NavTabButtons. The
+    // parent's layout (which uses this widget as bottomNavigationBar)
+    // is not affected because SizedBox.shrink is zero-size and the
+    // Scaffold's bottomNavigationBar slot just becomes empty.
+    return ValueListenableBuilder<bool>(
+      valueListenable: PerfLab.hideChrome,
+      builder: (context, hideChrome, _) {
+        if (hideChrome) return const SizedBox.shrink();
+        return _buildDock(context);
+      },
+    );
+  }
+
+  /// Builds the existing floating dock (Padding > Container > ClipRRect
+  /// > Row of NavTabButtons). Extracted verbatim from the previous
+  /// `build` body so the non-PERF_LAB path produces a pixel-identical
+  /// result.
+  Widget _buildDock(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
     final currentIndex = _currentIndex(location);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
