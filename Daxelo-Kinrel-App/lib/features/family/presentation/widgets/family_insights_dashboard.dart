@@ -108,11 +108,21 @@ class _FamilyInsightsDashboardState extends State<FamilyInsightsDashboard> {
       child: Stack(
         children: [
           // Blurred card preview
-          ImageFiltered(
-            imageFilter: ui.ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-            child: Opacity(
-              opacity: 0.5,
-              child: _buildCardContent(insights),
+          //
+          // PERF (Tier A1/B2): wrap the ImageFiltered + Opacity stack
+          // in a RepaintBoundary. Without it, every parent rebuild
+          // (e.g. the modal's open/close animation, scroll, or any
+          // setState in the parent) re-rasterizes the blur filter on
+          // the GPU — visible as a 151.7 ms/frame Raster spike in
+          // DevTools. The RepaintBoundary caches the blurred layer
+          // as a separate raster image that survives parent rebuilds.
+          RepaintBoundary(
+            child: ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+              child: Opacity(
+                opacity: 0.5,
+                child: _buildCardContent(insights),
+              ),
             ),
           ),
           // Premium badge overlay

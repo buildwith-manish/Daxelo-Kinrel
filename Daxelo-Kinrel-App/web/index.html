@@ -9,6 +9,52 @@
   <meta name="description" content="Indian Family Relationship Intelligence — map relationships in 14 Indian languages">
   <meta name="theme-color" content="#E8612A">
 
+  <!-- ─────────────────────────────────────────────────────────────
+       PERF (Tier D1+D2) — FlutterWeb renderer + CanvasKit cache config
+
+       D1 — Renderer override (runtime-selectable):
+         Flutter's bootstrap script reads `window.flutterWebRenderer`
+         before initializing. Valid values:
+           - "canvaskit" (default for production)
+           - "html"      (lighter — better for chat/memories/list screens
+                          where Skia draw commands aren't needed)
+           - "auto"      (Flutter's runtime auto-switch — let the
+                          framework pick)
+         We default to "canvaskit" because the app's graph engine uses
+         CustomPaint with path/picture work that needs Skia. Sites that
+         want to force "html" for low-end mobile web can override
+         `window.flutterWebRenderer = "html"` BEFORE this script runs
+         (e.g. via a CDN-hosted JS snippet).
+
+       D2 — CanvasKit CDN cache:
+         Pinning the CanvasKit base URL to jsdelivr's CDN edge means
+         the ~3 MB canvaskit.wasm + canvaskit.js are served from
+         jsdelivr's global edge (warm cache for repeat visitors) and
+         the browser caches them via HTTP/2 server push + immutable
+         Cache-Control headers. Without this, Flutter loads CanvasKit
+         from `https://www.gstatic.com/flutter-canvaskit/<hash>/` —
+         a less-popular URL that misses the jsdelivr edge cache.
+
+         Version pinning: 0.39.1 is the version Flutter 3.49.x bundles.
+         When upgrading Flutter, bump this to match the bundled version
+         (search the engine hash in `flutter precache --force`).
+
+         Tip: After a Flutter SDK upgrade, run `flutter precache web`
+         locally and copy the canvaskit wasm hash → paste it here.
+  ────────────────────────────────────────────────────────────── -->
+  <script>
+    window.flutterConfiguration = {
+      canvasKitBaseUrl: "https://cdn.jsdelivr.net/npm/canvaskit-wasm@0.39.1/dist/"
+    };
+    // D1: keep canvaskit as the default — the graph engine needs Skia.
+    // Set window.flutterWebRenderer = "html" before this script to force
+    // the HTML renderer on a per-deployment basis (e.g. a marketing site
+    // that doesn't render the graph screen).
+    if (!window.flutterWebRenderer) {
+      window.flutterWebRenderer = "canvaskit";
+    }
+  </script>
+
   <!-- Open Graph -->
   <meta property="og:title" content="Daxelo Kinrel">
   <meta property="og:description" content="Indian Family Relationship Intelligence — map relationships in 14 Indian languages">

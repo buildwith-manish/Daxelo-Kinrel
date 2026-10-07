@@ -190,8 +190,17 @@ class _BounceButtonState extends State<BounceButton>
     }
 
     // Disabled buttons render at reduced opacity.
+    //
+    // PERF (Tier B1): wrap the disabled-state Opacity in a
+    // RepaintBoundary. Opacity triggers an offscreen saveLayer; if
+    // the parent rebuilds (scrolling, list rebuild, etc.) the
+    // saveLayer re-rasterizes even though the disabled button's
+    // appearance is static. The RepaintBoundary caches the dimmed
+    // layer as a single raster image that survives parent rebuilds.
     if (isDisabled) {
-      content = Opacity(opacity: 0.5, child: content);
+      content = RepaintBoundary(
+        child: Opacity(opacity: 0.5, child: content),
+      );
     }
 
     // Enforce minimum tap target (iOS HIG = 44x44).

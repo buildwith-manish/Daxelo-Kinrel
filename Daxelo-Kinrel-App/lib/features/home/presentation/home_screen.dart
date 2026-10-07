@@ -12,6 +12,7 @@
 // KinrelTypography, KinrelSpacing, KinrelGradients, flutter_animate.
 // Dark mode is the primary experience.
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:go_router/go_router.dart';
@@ -1168,11 +1169,15 @@ class _HeroFamilyCard extends ConsumerWidget {
               color: _cOrange.withValues(alpha: 0.15),
               width: 1,
             ),
+            // PERF (Tier A2): clamp glow blur on web — the avatar is
+            // on-screen for every home screen render and 24px blur
+            // forces a per-frame saveLayer. 8px is visually equivalent
+            // at 1x DPR.
             boxShadow: [
               BoxShadow(
                 color: _cOrange.withValues(alpha: 0.12),
-                blurRadius: 24,
-                spreadRadius: 2,
+                blurRadius: kIsWeb ? 8 : 24,
+                spreadRadius: kIsWeb ? 1 : 2,
               ),
             ],
           ),
@@ -1262,10 +1267,11 @@ class _HeroFamilyCard extends ConsumerWidget {
                                                 spreadRadius: 2,
                                               ),
                                               // Extra glow ring when stories exist
+                                              // PERF (Tier A2): clamped on web
                                               BoxShadow(
                                                 color: _cOrange.withValues(alpha: 0.15),
-                                                blurRadius: 20,
-                                                spreadRadius: 4,
+                                                blurRadius: kIsWeb ? 8 : 20,
+                                                spreadRadius: kIsWeb ? 2 : 4,
                                               ),
                                             ]
                                           : [
@@ -1569,17 +1575,27 @@ class _HeroKinrelOverlay extends ConsumerWidget {
       return const SizedBox.shrink();
     }
     // Low-opacity so the family name + stats stay readable on top.
+    //
+    // PERF (Tier B1): wrap the Opacity in a RepaintBoundary so the
+    // expensive saveLayer triggered by `Opacity(opacity: 0.18)` is
+    // cached as a single rasterized layer. The StaticKinrelSymbol
+    // underneath uses a CustomPainter that does heavy path work
+    // (mandala strokes) — without the RepaintBoundary, every parent
+    // rebuild (feed refresh, family-switch animation, scroll-bounce
+    // state change) re-rasterized both the painter AND the saveLayer.
     return IgnorePointer(
-      child: Opacity(
-        opacity: 0.18,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: StaticKinrelSymbol(
-              parameters: kinrel.symbol,
-              archetypeKey: kinrel.archetype.key,
-              size: 220,
+      child: RepaintBoundary(
+        child: Opacity(
+          opacity: 0.18,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: StaticKinrelSymbol(
+                parameters: kinrel.symbol,
+                archetypeKey: kinrel.archetype.key,
+                size: 220,
+              ),
             ),
           ),
         ),

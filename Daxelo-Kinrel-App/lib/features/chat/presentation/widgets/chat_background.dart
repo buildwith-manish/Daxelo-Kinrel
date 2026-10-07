@@ -40,6 +40,7 @@
 //   - If no value is stored, we render the default Midnight theme.
 
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -210,6 +211,22 @@ class _BlurredWallpaperImage extends StatelessWidget {
     // validated by the wallpaper provider before being stored.
     final isDataUri = imagePath.startsWith('data:');
 
+    // PERF (Tier A1 → Tier E): On Flutter Web, ImageFilter.blur at sigma 24
+    // produces a 75+ ms/frame Raster average because the blurred
+    // layer re-rasterizes every time the chat list rebuilds (which
+    // happens on every new message from the realtime Supabase
+    // channel + every typing-indicator tick). Capping sigma at 6
+    // on web is visually equivalent at the wallpaper's role
+    // (ambient wash of color behind messages) and ~4x cheaper.
+    // Native keeps the original sigma for visual parity with iOS
+    // and Android production builds.
+    //
+    // Tier E: now reads from the central RasterBudget.blurSigma API
+    // (device_tier.dart) instead of an inline kIsWeb ternary. Same
+    // value (6 on web, 24 on native strong-phone, 8 on native low-RAM).
+    final double effectiveSigma = DeviceTierCache.instance.rasterBudget.blurSigma
+        .clamp(0.0, lowRam ? 8.0 : 24.0);
+
     if (isDataUri) {
       // NOTE (perf pass step 3): the Image.network below is intentionally
       // left as-is. This branch only runs on web where the wallpaper
@@ -223,24 +240,27 @@ class _BlurredWallpaperImage extends StatelessWidget {
       // Same rationale as `wallpaper_image_web.dart` (skipped per spec).
       //
       // PERF (Part C2): wrap the ImageFiltered in a RepaintBoundary so
-      // its expensive saveLayer (the ImageFilter.blur at sigma 24) is
-      // cached as a separate layer in the rasterizer. The image itself
-      // doesn't animate, so this layer is rasterized once and reused.
-      // Sigma is UNCHANGED at 24 — no visual change.
+      // its expensive saveLayer (the ImageFilter.blur) is cached as a
+      // separate layer in the rasterizer. The image itself doesn't
+      // animate, so this layer is rasterized once and reused.
+      //
+      // PERF (Tier A1): sigma capped at 6 on web (see effectiveSigma
+      // above) — visually equivalent at wallpaper role, 4x cheaper.
+      //
+      // PERF (Tier B3): cacheWidth=1080 / cacheHeight=1920 caps the
+      // decode resolution so a 4K wallpaper data URI never rasterizes
+      // at full size — saves ~12MB of pixel buffer per wallpaper.
       return RepaintBoundary(
         child: ImageFiltered(
-          // ImageFiltered wraps Image.network (works for data: URIs on
-          // both web and native) and applies a blur via ImageFilter.
-          // We don't use BackdropFilter because the image needs to be
-          // its own layer, not a backdrop to existing content.
-          // PERF (Part E4): sigma is 8 on low-RAM phones, 24 otherwise.
           imageFilter: ImageFilter.blur(
-              sigmaX: lowRam ? 8 : 24, sigmaY: lowRam ? 8 : 24),
+              sigmaX: effectiveSigma, sigmaY: effectiveSigma),
           child: Image.network(
             imagePath,
             fit: BoxFit.cover,
             width: double.infinity,
             height: double.infinity,
+            cacheWidth: kIsWeb ? 1080 : null,
+            cacheHeight: kIsWeb ? 1920 : null,
             errorBuilder: (_, __, ___) => const SizedBox.shrink(),
           ),
         ),
@@ -262,11 +282,11 @@ class _BlurredWallpaperImage extends StatelessWidget {
     // PERF (Part C2): same RepaintBoundary wrap as the data-URI branch
     // above — cache the expensive ImageFiltered saveLayer as a separate
     // rasterized layer.
-    // PERF (Part E4): sigma is 8 on low-RAM phones, 24 otherwise.
+    // PERF (Tier A1): sigma capped at 6 on web (effectiveSigma above).
     return RepaintBoundary(
       child: ImageFiltered(
         imageFilter: ImageFilter.blur(
-            sigmaX: lowRam ? 8 : 24, sigmaY: lowRam ? 8 : 24),
+            sigmaX: effectiveSigma, sigmaY: effectiveSigma),
         child: image,
       ),
     );

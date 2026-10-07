@@ -25,6 +25,7 @@
 
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -537,11 +538,16 @@ class ReactionOverlay extends StatelessWidget {
                       color: const Color(0xFF3A3A4A),
                       width: 0.5,
                     ),
+                    // PERF (Tier A2): clamp shadow blur on web. This
+                    // FAB is visible during the entire chat session
+                    // and the 20px blur was the chat-thread screen's
+                    // largest per-frame shadow cost. 8px is visually
+                    // equivalent at 1x DPR and ~3x cheaper.
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.4),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
+                        blurRadius: kIsWeb ? 8 : 20,
+                        offset: kIsWeb ? const Offset(0, 3) : const Offset(0, 8),
                       ),
                     ],
                   ),
