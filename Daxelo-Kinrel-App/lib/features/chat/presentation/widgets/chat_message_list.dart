@@ -28,10 +28,13 @@
 //   - onLoadOlder: optional callback when the user scrolls to the top
 //     (the group chat wires this to loadOlderMessages; DM passes null
 //     since the DM provider doesn't paginate).
-//   - enableSwipeReply: when false, the SwipeToReply wrapper is skipped
-//     (DM passes false — the DM backend doesn't support replies).
+//   - enableSwipeReply: when false, the SwipeToReply wrapper is
+//     skipped. v3.4: BOTH chat types now pass true — the DM table
+//     persists reply columns (migration 20261007080000), so the group
+//     and the DM share the SAME swipe-to-reply behavior.
 //   - showReactions: when false, the onReact callback is not invoked
-//     (DM passes false — the DM backend doesn't support reactions).
+//     (DM passes false — the DM backend doesn't support reactions yet;
+//     next parity pass will add a DM reactions table).
 //
 // What was MOVED vs KEPT in chat_screen.dart:
 //   - MOVED: the ListView.builder, date grouping, first/last-in-group
@@ -46,7 +49,9 @@
 //
 // The group chat calls this widget with enableSwipeReply=true,
 // showReactions=true, and all callbacks wired — so the group chat
-// behaves EXACTLY as before.
+// behaves EXACTLY as before. v3.4: the DM now ALSO passes
+// enableSwipeReply=true (with onReply wired to its own setReplyTo) —
+// the same wrapper, the same drag physics, in both chat types.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -119,7 +124,8 @@ class ChatMessageList extends ConsumerStatefulWidget {
   /// DM passes null).
   final VoidCallback? onLoadOlder;
 
-  /// When false, the SwipeToReply wrapper is skipped (DM passes false).
+  /// When false, the SwipeToReply wrapper is skipped (legacy flag —
+  /// both chat types now pass true; kept for API stability).
   final bool enableSwipeReply;
 
   /// When false, the onReact callback is not invoked (DM passes false).
@@ -219,9 +225,10 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
               // list. MOVED verbatim from chat_screen.dart.
               final bounded = RepaintBoundary(child: bubble);
 
-              // SwipeToReply wrapper — skipped when enableSwipeReply is
-              // false (DM passes false since the DM backend doesn't
-              // support replies).
+              // SwipeToReply wrapper — v3.4: BOTH the group chat and
+              // the DM wrap every bubble (the DM table persists reply
+              // columns now, so swipe-to-reply works identically in
+              // both chat types).
               final wrapped = widget.enableSwipeReply
                   ? SwipeToReply(
                       key: ValueKey(msg.id),

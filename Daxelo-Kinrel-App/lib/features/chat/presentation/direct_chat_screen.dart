@@ -10,24 +10,49 @@
 //   - Special heart-themed bubble for 'thinking_of_you' messages
 //   - Loads the other user's name/avatar via fn_get_user_public_profile
 //   - Marks messages as read on open
-//   - Refresh button to pull new messages (realtime NOT wired — uses
-//     manual refresh + a 10s polling fallback to keep it simple)
+//   - Realtime INSERT/UPDATE sync (new messages + read receipts)
+//
+// v3.4 — Swipe-to-reply parity with the group chat (pin-to-pin reuse):
+//   - enableSwipeReply=true on the shared ChatMessageList — the SAME
+//     SwipeToReply wrapper (chat_meta.dart) the group uses, with the
+//     same drag physics, reply-icon reveal, haptic arming, and snap-back
+//     animation.
+//   - The reply target lands in DirectChatState.replyToMessage via the
+//     SAME setReplyTo API the group's ChatState exposes.
+//   - The shared ReplyPreviewBar (reply_preview_bar.dart — moved from
+//     chat_screen.dart) renders above the input: orange accent bar +
+//     sender name + snippet + X to cancel, identical styling.
+//   - sendText(replyToId:) persists the reply columns the group
+//     ChatMessage table uses (replyToId/replyToContent/
+//     replyToSenderName — migration 20261007080000_dm_reply_threading).
+//   - The shared MessageBubble renders the quote block from the
+//     adapter-mapped fields, and tapping it scrolls to the original
+//     (the SAME _scrollToMessage estimate the group uses).
+//   - Long-press sheet now offers the SAME actions the DM supports:
+//     Reply, Copy (with snackbar), Preview (the shared peek-preview
+//     dialog), and Share — all styled identically to the group sheet.
+//   - Scroll-to-bottom FAB — the SAME shared ScrollToBottomFab the
+//     group renders (moved to chat_meta.dart), same threshold (300px).
+//   - HapticService.tap() on send, matching the group's send feel.
 //
 // Entry points:
 //   - /dm/:otherUserId route
 //   - Tapping a thinking_of_you notification opens this screen with
 //     the SENDER as the other user
-//   - (Future) a DM inbox section in the ChatInboxScreen
+//   - a DM inbox section in the ChatInboxScreen
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../../core/services/haptic_service.dart';
 import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
@@ -40,6 +65,11 @@ import '../providers/chat_provider.dart';
 import 'widgets/chat_background.dart';
 import 'widgets/chat_input_bar.dart';
 import 'widgets/chat_message_list.dart';
+// v3.4 — shared reply/preview/FAB widgets (the same ones the group chat
+// renders; see the header comment).
+import 'widgets/chat_meta.dart';
+import 'widgets/message_preview_dialog.dart';
+import 'widgets/reply_preview_bar.dart';
 
 class DirectChatScreen extends ConsumerStatefulWidget {
   const DirectChatScreen({super.key, required this.otherUserId});
@@ -57,6 +87,10 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   late final FocusNode _focusNode;
   bool _isComposing = false;
 
+  // v3.4 — scroll-to-bottom FAB state (the same flag + threshold the
+  // group chat uses: FAB appears once the user scrolls >300px up).
+  bool _showScrollFab = false;
+
   @override
   void initState() {
     super.initState();
@@ -64,10 +98,13 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     _textController = TextEditingController();
     _focusNode = FocusNode();
     _textController.addListener(_onTextChanged);
+    // v3.4 — same listener wiring as the group chat's initState.
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _textController.dispose();
     _focusNode.dispose();
@@ -81,23 +118,88 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     }
   }
 
+  // v3.4 — MOVED from chat_screen.dart's _onScroll (same logic, same
+  // 300px threshold, same mounted guard).
+  void _onScroll() {
+    final show =
+        _scrollController.hasClients && _scrollController.position.pixels > 300;
+    if (show != _showScrollFab) {
+      if (mounted) {
+        setState(() => _showScrollFab = show);
+      }
+    }
+  }
+
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
         0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
+        duration: KinrelMotion.normal,
+        curve: KinrelMotion.easeOut,
       );
     }
+  }
+
+  /// v3.4 — MOVED from chat_screen.dart's _scrollToMessage: tapping the
+  /// quoted reply preview above a bubble jumps to the original message.
+  ///
+  /// The ListView is reverse: true (newest at top, index 0 = newest).
+  /// We find the message's index in the flat (newest-first) list, then
+  /// estimate the scroll offset as index * ~72px (average bubble height
+  /// including spacing). Same approximation the group chat uses.
+  void _scrollToMessage(String messageId) {
+    final messages = ref.read(directChatProvider(widget.otherUserId)).messages;
+    final index = messages.indexWhere((m) => m.id == messageId);
+    if (index == -1) {
+      // Message not in the current viewport (e.g. very old message not
+      // loaded yet). Show a snackbar telling the user to scroll up.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(S.of(context)?.chatReplyToOriginalNotFound ??
+                'Message is older than loaded history — scroll up to find it.'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+    if (!_scrollController.hasClients) return;
+    // Estimate: each message bubble is ~72px tall (bubble + spacing).
+    // The list is reversed, so offset 0 = newest (index 0).
+    const estimatedBubbleHeight = 72.0;
+    final targetOffset = index * estimatedBubbleHeight;
+    // Clamp to the max scroll extent so we don't overshoot.
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    final clamped = targetOffset.clamp(0.0, maxExtent);
+    _scrollController.animateTo(
+      clamped,
+      duration: KinrelMotion.normal,
+      curve: KinrelMotion.easeOut,
+    );
   }
 
   void _sendMessage() {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
+
+    // v3.4 — Haptic: tap confirms the send fired before the optimistic
+    // insert completes (the SAME WhatsApp/iMessage-pattern feel the
+    // group chat has).
+    HapticService.tap();
+
+    // v3.4 — capture the reply target the same way the group's
+    // _sendMessage does (provider state, not screen state).
+    final replyToId = ref
+        .read(directChatProvider(widget.otherUserId))
+        .replyToMessage
+        ?.id;
     Future.microtask(() {
       ref
           .read(directChatProvider(widget.otherUserId).notifier)
-          .sendText(text);
+          .sendText(text, replyToId: replyToId);
     });
     _textController.clear();
     _focusNode.requestFocus();
@@ -125,51 +227,127 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     return null;
   }
 
-  /// v3.3: Long-press on a DM message shows only the actions the DM
-  /// backend supports — currently just Copy. The group chat's full
-  /// action sheet (Delete, Forward, Reply, React, Edit, Star, Pin) is
-  /// NOT shown because the DM backend doesn't support those operations.
+  /// v3.4: Long-press on a DM message shows the actions the DM backend
+  /// supports — Reply, Copy, Preview, and Share — styled EXACTLY like
+  /// the group chat's sheet (same icons, colors, ListTile typography,
+  /// same KinrelRadius.xxl corners + vertical-12 padding). The group's
+  /// remaining actions (React, Forward, Star, Pin, Edit, Delete) are
+  /// backed by ChatMessage-table features the DirectMessage table
+  /// doesn't have yet.
   void _showDmMessageActions(ChatMessage msg) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: KinrelColors.darkCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.bottomSheet),
+          top: Radius.circular(KinrelRadius.xxl),
         ),
       ),
       builder: (ctx) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 8, bottom: 4),
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: KinrelColors.textDim.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              if (msg.content.isNotEmpty)
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Reply action — the same ListTile the group sheet has.
                 ListTile(
-                  leading: const Icon(Icons.copy_rounded,
-                      color: KinrelColors.textSilver, size: 22),
-                  title: const Text('Copy',
-                      style: TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.reply,
+                    color: KinrelColors.orange,
+                    size: 22,
+                  ),
+                  title: const Text(
+                    'Reply',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 15,
+                      color: KinrelColors.textWhite,
+                    ),
+                  ),
                   onTap: () {
-                    Navigator.of(ctx).pop();
-                    Clipboard.setData(ClipboardData(text: msg.content));
+                    Navigator.pop(ctx);
+                    ref
+                        .read(directChatProvider(widget.otherUserId).notifier)
+                        .setReplyTo(msg);
                   },
                 ),
-              const SizedBox(height: 8),
-            ],
+                // Copy action — the same ListTile + snackbar the group
+                // sheet shows.
+                if (msg.content.isNotEmpty)
+                  ListTile(
+                    leading: const Icon(Icons.copy_rounded,
+                        color: KinrelColors.textSilver, size: 22),
+                    title: const Text(
+                      'Copy',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 15,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      Clipboard.setData(ClipboardData(text: msg.content));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Message copied'),
+                          backgroundColor: KinrelColors.darkCard,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                  ),
+                // Preview action — the SAME shared peek-preview dialog
+                // the group opens (message_preview_dialog.dart).
+                ListTile(
+                  leading: const Icon(
+                    Icons.zoom_out_map_rounded,
+                    color: KinrelColors.ember,
+                    size: 22,
+                  ),
+                  title: const Text(
+                    'Preview',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 15,
+                      color: KinrelColors.textWhite,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    showMessagePeekPreview(context, msg);
+                  },
+                ),
+                // Share action — the same ListTile + Share.share call
+                // the group sheet makes (DMs are text-only, so the text
+                // branch always applies here).
+                if (msg.content.isNotEmpty)
+                  ListTile(
+                    leading: const Icon(
+                      Icons.share_outlined,
+                      color: KinrelColors.textSilver,
+                      size: 22,
+                    ),
+                    title: const Text(
+                      'Share',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 15,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      Share.share(
+                        msg.content,
+                        subject: 'Message from ${msg.senderName}',
+                      );
+                    },
+                  ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         );
       },
@@ -335,8 +513,10 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
       //
       // isDirectChat=true → hides avatar + sender name (a DM only has
       // two parties so both are unambiguous from bubble alignment).
-      // enableSwipeReply=false → DM backend doesn't support replies.
-      // showReactions=false → DM backend doesn't support reactions.
+      // v3.4: enableSwipeReply=true → the SAME SwipeToReply wrapper the
+      // group uses (the DirectMessage table now persists reply fields).
+      // showReactions=false → the DM backend doesn't support reactions
+      // yet (needs a DM reactions table — next parity pass).
       // familyId=null → skips the relationship label + group chatProvider
       // actions inside MessageBubble.
       // inviteFamilyId → resolved from the DM invite payload so the
@@ -351,10 +531,22 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
               isDirectChat: true,
               inviteFamilyId: _resolveInviteFamilyId(messages),
               scrollController: _scrollController,
-              onReply: (_) {}, // DMs don't support replies — no-op
-              onReact: (_) {}, // DMs don't support reactions — no-op (showReactions=false hides the entry point)
+              // v3.4 — the SAME wiring the group chat uses: swipe/Reply
+              // sets the provider's replyToMessage, which renders the
+              // shared ReplyPreviewBar above the input.
+              onReply: (msg) {
+                ref
+                    .read(directChatProvider(widget.otherUserId).notifier)
+                    .setReplyTo(msg);
+              },
+              onReact: (_) {}, // DMs don't support reactions yet — no-op (showReactions=false hides the entry point)
               onLongPress: (msg) => _showDmMessageActions(msg),
-              enableSwipeReply: false,
+              // v3.4 — tapping the quote block scrolls to the original
+              // message, exactly like the group chat.
+              onReplyPreviewTap: (msg) {
+                if (msg.replyToId != null) _scrollToMessage(msg.replyToId!);
+              },
+              enableSwipeReply: true,
               showReactions: false,
             );
     }
@@ -514,10 +706,21 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
           // 'dm_<otherUserId>' so DM wallpapers are independent of group
           // wallpapers (no new provider needed — the existing family-keyed
           // path is a different chatId string, so there's no collision).
+          //
+          // v3.4: a Stack above the background now hosts the SAME shared
+          // ScrollToBottomFab the group chat renders (chat_meta.dart) —
+          // appears once the user scrolls >300px up, taps back to bottom.
           Expanded(
             child: ChatBackground(
               chatId: 'dm_${widget.otherUserId}',
-              child: bodyContent,
+              child: Stack(
+                children: [
+                  bodyContent,
+                  // Scroll-to-bottom FAB — the shared group widget.
+                  if (_showScrollFab)
+                    ScrollToBottomFab(onTap: _scrollToBottom),
+                ],
+              ),
             ),
           ),
           if (chatState.error != null && messages.isNotEmpty)
@@ -528,6 +731,18 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                 chatState.error!,
                 style: const TextStyle(color: KinrelColors.error, fontSize: 12),
               ),
+            ),
+          // v3.4 — Reply preview bar: the SAME shared ReplyPreviewBar the
+          // group chat renders above its input (moved from
+          // chat_screen.dart). Shows while composing a reply; X clears it.
+          if (chatState.replyToMessage != null)
+            ReplyPreviewBar(
+              replyTo: chatState.replyToMessage!,
+              onClose: () {
+                ref
+                    .read(directChatProvider(widget.otherUserId).notifier)
+                    .clearReplyTo();
+              },
             ),
           // v3.3: shared ChatInputBar — same gradient surface, same
           // elevated capsule, same send button as the group. DM passes

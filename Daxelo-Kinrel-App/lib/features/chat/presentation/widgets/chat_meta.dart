@@ -16,6 +16,8 @@
 //   - ReactionOverlay (emoji reaction popup)
 //   - DateGroup (helper class for date separators)
 //   - Tier3SwipeToReply (swipe-to-reply Dismissible wrapper)
+//   - ScrollToBottomFab (scroll-to-bottom FAB — v3.4 MOVED from
+//     chat_screen.dart's _buildScrollFab so the DM renders the same FAB)
 //   - _kinshipCategoryColor (helper function for edge colors)
 //
 // Pure mechanical extraction — every class keeps its exact API.
@@ -754,6 +756,54 @@ class _SwipeToReplyState extends State<SwipeToReply>
           ),
         );
       },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Scroll-to-bottom FAB (shared group + DM)
+// ═════════════════════════════════════════════════════════════════
+
+class ScrollToBottomFab extends StatelessWidget {
+  const ScrollToBottomFab({super.key, required this.onTap});
+
+  /// Scrolls the chat list back to the bottom (offset 0 in the
+  /// reversed ListView).
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      right: 16,
+      bottom: 8,
+      // Phase 6 — RepaintBoundary isolates the FAB so it doesn't repaint
+      // when the message list repaints (and vice versa).
+      child: RepaintBoundary(
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: KinrelColors.darkCard,
+              border: Border.all(color: const Color(0xFF3A3A4A), width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.keyboard_arrow_down,
+              color: KinrelColors.textSilver,
+              size: 24,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

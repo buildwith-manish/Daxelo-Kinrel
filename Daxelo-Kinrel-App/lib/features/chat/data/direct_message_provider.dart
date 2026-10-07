@@ -8,6 +8,17 @@
 // RLS on DirectMessage only lets the sender and receiver see messages,
 // so this is fully private — no other family member can read these.
 //
+// v3.4 — Reply threading (swipe-to-reply parity with the group chat):
+//   - DirectMessage now carries replyToId / replyToContent /
+//     replyToSenderName (the SAME denormalized-preview columns the
+//     group ChatMessage table has, mirrored by migration
+//     20261007080000_dm_reply_threading.sql).
+//   - DirectChatState carries replyToMessage + the notifier exposes
+//     setReplyTo / clearReplyTo — the exact state shape ChatState uses
+//     for the group chat, so the shared ReplyPreviewBar renders off it.
+//   - sendText accepts replyToId — the SAME optimistic-insert + persist
+//     flow as the group's sendMessage(replyToId:).
+//
 // Used by:
 //   - DirectChatScreen (renders the conversation)
 //   - Thinking of You feature (sends a 'thinking_of_you' DM)
@@ -27,6 +38,10 @@ import '../../../core/services/supabase_service.dart';
 // Step 4 — shared timezone-aware time utility. DirectMessage timestamps
 // are PERSONAL — each viewer sees their own device-local time.
 import '../../../core/utils/app_time.dart';
+// v3.4 — the reply state is stored as a ChatMessage (the shape the
+// shared ReplyPreviewBar + MessageBubble quote render from). No cycle:
+// chat_provider.dart does not import this file.
+import '../providers/chat_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Model
@@ -41,6 +56,10 @@ class DirectMessage {
     required this.messageType,
     required this.isRead,
     required this.createdAt,
+    // v3.4 — reply threading (mirrors ChatMessage's reply columns).
+    this.replyToId,
+    this.replyToContent,
+    this.replyToSenderName,
   });
 
   factory DirectMessage.fromJson(Map<String, dynamic> json) {
@@ -53,6 +72,11 @@ class DirectMessage {
       isRead: json['isRead'] as bool? ?? false,
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
+      // v3.4 — reply threading. Old rows / servers without the columns
+      // fall back to null (renders as a normal message — never breaks).
+      replyToId: json['replyToId'] as String?,
+      replyToContent: json['replyToContent'] as String?,
+      replyToSenderName: json['replyToSenderName'] as String?,
     );
   }
 
@@ -63,6 +87,18 @@ class DirectMessage {
   final String messageType; // 'text' | 'thinking_of_you' | 'gameInvite'
   final bool isRead;
   final DateTime createdAt;
+
+  // v3.4 — reply threading (the SAME denormalized-preview fields the
+  // group ChatMessage carries; see migration
+  // 20261007080000_dm_reply_threading.sql).
+  /// ID of the DM this is replying to (null = not a reply).
+  final String? replyToId;
+
+  /// Denormalized snapshot of the replied-to message's content.
+  final String? replyToContent;
+
+  /// Denormalized snapshot of the replied-to sender's name.
+  final String? replyToSenderName;
 
   bool get isThinkingOfYou => messageType == 'thinking_of_you';
 
@@ -134,6 +170,9 @@ class DirectChatState {
     this.peer,
     this.isLoading = true,
     this.error,
+    // v3.4 — reply threading (the same field ChatState carries for the
+    // group chat). The shared ReplyPreviewBar renders directly from it.
+    this.replyToMessage,
   });
 
   final List<DirectMessage> messages; // newest-first
@@ -141,18 +180,29 @@ class DirectChatState {
   final bool isLoading;
   final String? error;
 
+  /// v3.4 — Message being replied to (null if not replying). Stored as
+  /// a ChatMessage because that's the shape the shared widgets
+  /// (ReplyPreviewBar + onReply callback) exchange — the DM screen sets
+  /// it from the ChatMessageList's onReply callback, which passes the
+  /// adapter-converted ChatMessage.
+  final ChatMessage? replyToMessage;
+
   DirectChatState copyWith({
     List<DirectMessage>? messages,
     DirectChatPeer? peer,
     bool? isLoading,
     String? error,
     bool clearError = false,
+    ChatMessage? replyToMessage,
+    bool clearReplyTo = false,
   }) {
     return DirectChatState(
       messages: messages ?? this.messages,
       peer: peer ?? this.peer,
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
+      replyToMessage:
+          clearReplyTo ? null : (replyToMessage ?? this.replyToMessage),
     );
   }
 }
@@ -326,12 +376,48 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
   }
 
   /// Send a plain text DM.
-  Future<void> sendText(String text) async {
+  ///
+  /// v3.4 — [replyToId] pins this message to an earlier one (the
+  /// swipe-to-reply / long-press-Reply flow). The reply preview fields
+  /// (replyToContent / replyToSenderName) are resolved from
+  /// [DirectChatState.replyToMessage] and denormalized onto the row —
+  /// the exact pattern the group ChatNotifier.sendMessage uses, so the
+  /// shared MessageBubble quote renders identically in both chats.
+  ///
+  /// If [replyToId] was passed WITHOUT a reply bar being set (e.g. a
+  /// notification quick-reply), the preview is resolved from the loaded
+  /// DM list — mirroring the group's firstWhere-over-state.messages.
+  Future<void> sendText(String text, {String? replyToId}) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
     final client = _client;
     final myUserId = _currentUserId;
     if (client == null || myUserId == null) return;
+
+    // ── Resolve the reply preview snapshot (same as the group's
+    // sendMessage: the content + sender name are captured NOW, so a
+    // later edit/delete of the original can't rewrite history).
+    final replyTo = state.replyToMessage;
+    final effectiveReplyToId = replyToId ?? replyTo?.id;
+    String? replyContent = (effectiveReplyToId != null)
+        ? (replyTo?.content)
+        : null;
+    String? replySender = (effectiveReplyToId != null)
+        ? (replyTo?.senderName)
+        : null;
+
+    // Fallback: replyToId given but no reply bar (notification
+    // quick-reply) — resolve from the loaded DM list.
+    if (effectiveReplyToId != null &&
+        (replyContent == null || replySender == null)) {
+      final target = state.messages
+          .where((m) => m.id == effectiveReplyToId)
+          .firstOrNull;
+      if (target != null) {
+        replyContent ??= target.isGameInvite ? '[Game invite]' : target.content;
+        replySender ??= _resolveNameFor(target.senderId, myUserId);
+      }
+    }
 
     final msgId = _generateId();
     final now = DateTime.now();
@@ -343,10 +429,18 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
       messageType: 'text',
       isRead: false,
       createdAt: now,
+      replyToId: effectiveReplyToId,
+      replyToContent: replyContent,
+      replyToSenderName: replySender,
     );
 
     if (mounted) {
-      state = state.copyWith(messages: [optimistic, ...state.messages]);
+      // Optimistic insert + clear the reply bar — the SAME combined
+      // state transition the group's sendMessage performs.
+      state = state.copyWith(
+        messages: [optimistic, ...state.messages],
+        clearReplyTo: true,
+      );
     }
 
     try {
@@ -359,6 +453,10 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
         'isRead': false,
         'createdAt': now.toIso8601String(),
         'updatedAt': now.toIso8601String(),
+        // v3.4 — persist the reply threading columns.
+        'replyToId': effectiveReplyToId,
+        'replyToContent': replyContent,
+        'replyToSenderName': replySender,
       });
     } catch (e) {
       debugPrint('⚠️ DirectChatNotifier.sendText insert failed: $e');
@@ -371,6 +469,41 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
         );
       }
     }
+  }
+
+  /// v3.4 — resolve a display name for the fallback reply-preview
+  /// path: my name for my own messages, the peer's name otherwise.
+  /// Mirrors resolveMyName in direct_message_adapter.dart (same
+  /// user-metadata keys, same email fallback) — duplicated inline
+  /// because the adapter imports THIS file (no reverse import
+  /// possible).
+  String? _resolveNameFor(String senderId, String myUserId) {
+    if (senderId == myUserId) {
+      final user = _client?.auth.currentUser;
+      final meta = user?.userMetadata;
+      final name = meta?['name'] as String? ??
+          meta?['full_name'] as String? ??
+          meta?['displayName'] as String?;
+      if (name != null && name.trim().isNotEmpty) return name.trim();
+      final email = user?.email;
+      if (email != null) return email.split('@').first;
+      return 'You';
+    }
+    return state.peer?.name;
+  }
+
+  // ── v3.4 — Reply threading state ──────────────────────────────────
+  // The EXACT API surface the group's ChatNotifier exposes
+  // (setReplyTo / clearReplyTo), so the screens wire the same way.
+
+  /// Set the message being replied to (shows the reply preview bar).
+  void setReplyTo(ChatMessage? message) {
+    state = state.copyWith(replyToMessage: message);
+  }
+
+  /// Clear the reply target (X button on the reply preview bar).
+  void clearReplyTo() {
+    state = state.copyWith(clearReplyTo: true);
   }
 
   /// Refresh messages from the server (called after a Thinking of You

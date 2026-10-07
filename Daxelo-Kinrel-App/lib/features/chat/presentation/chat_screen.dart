@@ -78,6 +78,10 @@ import 'widgets/empty_chat_state.dart';
 import 'widgets/chat_message_list.dart';
 import 'widgets/chat_input_bar.dart';
 import 'widgets/pinned_messages_bar.dart';
+// v3.4 — shared reply bar / peek-preview / scroll FAB (moved here from
+// this file so the DM screen renders the SAME widgets).
+import 'widgets/reply_preview_bar.dart';
+import 'widgets/message_preview_dialog.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../data/chat_wallpaper_provider.dart';
 import '../data/wallpaper_picker.dart';
@@ -2497,38 +2501,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // ── Scroll-to-bottom FAB ─────────────────────────────────────────
 
   Widget _buildScrollFab() {
-    return Positioned(
-      right: 16,
-      bottom: 8,
-      // Phase 6 — RepaintBoundary isolates the FAB so it doesn't repaint
-      // when the message list repaints (and vice versa).
-      child: RepaintBoundary(
-        child: GestureDetector(
-          onTap: _scrollToBottom,
-          child: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: KinrelColors.darkCard,
-              border: Border.all(color: const Color(0xFF3A3A4A), width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.keyboard_arrow_down,
-              color: KinrelColors.textSilver,
-              size: 24,
-            ),
-          ),
-        ),
-      ),
-    );
+    // v3.4: the FAB's rendering was MOVED to the shared ScrollToBottomFab
+    // widget (see chat_meta.dart) so the DM renders the same FAB with the
+    // same position/size/styling. Identical to the previous inline version.
+    return ScrollToBottomFab(onTap: _scrollToBottom);
   }
 
   // ── Typing Indicator ─────────────────────────────────────────────
@@ -2618,64 +2594,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // ── Reply Preview Bar ────────────────────────────────────────────
 
   Widget _buildReplyPreview(ChatMessage replyTo) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: const BoxDecoration(
-        color: Color(0xFF13141E),
-        border: Border(
-          top: BorderSide(color: Color(0xFF2A2A3D), width: 0.5),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Orange left bar
-          Container(
-            width: 3,
-            height: 36,
-            decoration: BoxDecoration(
-              color: KinrelColors.orange,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  replyTo.senderName,
-                  style: const TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: KinrelColors.orange,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  replyTo.content,
-                  style: const TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 12,
-                    color: KinrelColors.textSilver,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 18, color: KinrelColors.textDim),
-            onPressed: () {
-              ref.read(chatProvider(widget.familyId).notifier).clearReplyTo();
-            },
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-          ),
-        ],
-      ),
+    // v3.4: the bar's rendering was MOVED to the shared ReplyPreviewBar
+    // widget (see reply_preview_bar.dart) so the DM screen renders the
+    // SAME bar with the same layout/spacing/typography/colors. The group
+    // passes its provider's clearReplyTo as the close action — identical
+    // behavior to the previous inline version.
+    return ReplyPreviewBar(
+      replyTo: replyTo,
+      onClose: () {
+        ref.read(chatProvider(widget.familyId).notifier).clearReplyTo();
+      },
     );
   }
 
@@ -3854,169 +3782,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// truncated in the bubble, or for getting a closer look at photos.
   /// Dismissed by tapping outside the card.
   void _showMessagePreview(ChatMessage message) {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.75),
-      builder: (ctx) => GestureDetector(
-        onTap: () => Navigator.of(ctx).pop(),
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          body: Center(
-            child: GestureDetector(
-              onTap: () {}, // prevent tap-through dismissal when
-              // tapping the card itself
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(ctx).size.width * 0.85,
-                  maxHeight: MediaQuery.of(ctx).size.height * 0.75,
-                ),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF11132A),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: KinrelColors.ember.withValues(alpha: 0.25),
-                    width: 1,
-                  ),
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header: sender name + timestamp
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 16,
-                            backgroundColor:
-                                KinrelColors.ember.withValues(alpha: 0.15),
-                            child: Text(
-                              (message.senderName.isNotEmpty
-                                      ? message.senderName[0]
-                                      : '?')
-                                  .toUpperCase(),
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: KinrelColors.ember,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  message.senderName,
-                                  style: const TextStyle(
-                                    fontFamily: KinrelTypography.bodyFont,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: KinrelColors.textWhite,
-                                  ),
-                                ),
-                                Text(
-                                  message.formattedTime,
-                                  style: const TextStyle(
-                                    fontFamily: KinrelTypography.monoFont,
-                                    fontSize: 10,
-                                    color: KinrelColors.textDim,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      // Content — render based on message type
-                      if (message.messageType == MessageType.photo &&
-                          message.mediaUrl != null)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: CachedNetworkImage(
-                            imageUrl: message.mediaUrl!,
-                            cacheManager: KinrelImageCacheManager.instance,
-                            fit: BoxFit.contain,
-                            // Phase 4 — cap decode at the info-sheet's
-                            // visible width (sheet is ~screen-wide × 0.85,
-                            // so use screenWidth × DPR × 0.9 as a safe
-                            // upper bound for the decoded bitmap).
-                            memCacheWidth: (MediaQuery.sizeOf(context).width *
-                                    MediaQuery.devicePixelRatioOf(context) *
-                                    0.9)
-                                .round(),
-                            placeholder: (_, __) => Container(
-                              height: 200,
-                              color: const Color(0xFF0A0B16),
-                              child: const Center(
-                                child: CircularProgressIndicator(
-                                    color: KinrelColors.ember),
-                              ),
-                            ),
-                            errorWidget: (_, __, ___) => Container(
-                              height: 200,
-                              color: const Color(0xFF0A0B16),
-                              child: const Center(
-                                child: Icon(Icons.broken_image,
-                                    color: KinrelColors.textDim, size: 40),
-                              ),
-                            ),
-                          ),
-                        )
-                      else if (message.messageType == MessageType.gif &&
-                          message.mediaUrl != null)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: CachedNetworkImage(
-                            imageUrl: message.mediaUrl!,
-                            cacheManager: KinrelImageCacheManager.instance,
-                            fit: BoxFit.contain,
-                            // Phase 4 — cap decode at 360×360*DPR (the
-                            // sheet is wider than the bubble, so the cap
-                            // is slightly higher than the bubble's 220).
-                            memCacheWidth:
-                                (360 * MediaQuery.devicePixelRatioOf(context))
-                                    .round(),
-                            memCacheHeight:
-                                (360 * MediaQuery.devicePixelRatioOf(context))
-                                    .round(),
-                          ),
-                        )
-                      else
-                        SelectableText(
-                          message.content,
-                          style: const TextStyle(
-                            fontFamily: KinrelTypography.bodyFont,
-                            fontSize: 16,
-                            color: KinrelColors.textWhite,
-                            height: 1.6,
-                          ),
-                        ),
-                      const SizedBox(height: 16),
-                      // Footer: close hint
-                      const Center(
-                        child: Text(
-                          'Tap anywhere to close',
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.monoFont,
-                            fontSize: 10,
-                            color: KinrelColors.textDim,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    // v3.4: the dialog's rendering was MOVED to the shared
+    // showMessagePeekPreview function (see message_preview_dialog.dart)
+    // so the DM long-press sheet can offer the SAME Preview action.
+    // Identical rendering + dismissal behavior to the previous inline
+    // version.
+    showMessagePeekPreview(context, message);
   }
 
   /// v113: Opens a full emoji picker (emoji_picker_flutter) as a bottom

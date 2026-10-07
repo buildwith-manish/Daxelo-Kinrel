@@ -83,7 +83,7 @@ class NotificationReplyHandler {
         // DM reply
         container
             .read(directChatProvider(dmUserId).notifier)
-            .sendText(replyText);
+            .sendText(replyText, replyToId: replyToMessageId);
         debugPrint('💬 Reply sent to DM $dmUserId: "$replyText"');
       } else {
         debugPrint('⚠️ NotificationReplyHandler: payload missing familyId + dmUserId');
