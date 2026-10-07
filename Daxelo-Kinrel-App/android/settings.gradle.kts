@@ -21,6 +21,16 @@ pluginManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
+        // PERF (raster audit): the maplibre_android 0.3.6 plugin's
+        // build.gradle.kts applies `org.jlleitschuh.gradle.ktlint` —
+        // a ktlint-enforcement plugin hosted on the
+        // gradle-pluginguide.mozilla.org maven (a Mozilla-hosted
+        // mirror) and on the ktlint plugin's own repository.
+        // Without this entry the GitHub Actions profile-APK build
+        // fails with "Plugin [id: 'org.jlleitschuh.gradle.ktlint']
+        // was not found in any of the following sources".
+        // Reference: https://github.com/JLLeitschuh/ktlint-gradle#installation
+        maven("https://plugins.gradle.org/m2/")
     }
 }
 
