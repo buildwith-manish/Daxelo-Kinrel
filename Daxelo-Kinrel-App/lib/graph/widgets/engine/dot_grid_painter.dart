@@ -2,6 +2,7 @@
 // P0.4: Extracted from family_graph_engine_view.dart.
 
 import 'dart:typed_data';
+import 'dart:ui' show PointMode;
 import 'package:flutter/material.dart';
 
 /// Paints a very faint dot-grid on the graph background for spatial texture.
