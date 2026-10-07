@@ -183,7 +183,11 @@ dev_dependencies:
     sdk: flutter
   
   # Testing
-  mocktail: ^0.3.0
+  # PERF (raster audit): bumped from ^0.3.0 to ^1.0.5 so the dependency
+  # graph resolves under Dart 3.12+ (the analyzer 10.x line required by
+  # drift_dev 2.22 is incompatible with mocktail 0.3.0's pinned test
+  # constraint). mocktail 1.x is API-compatible — no test code changes.
+  mocktail: ^1.0.5
   # P5.5: Golden/visual-regression tests for painter output
   golden_toolkit: ^0.15.0
   
