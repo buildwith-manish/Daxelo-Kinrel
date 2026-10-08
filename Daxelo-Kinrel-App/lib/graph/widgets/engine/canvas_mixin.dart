@@ -1762,14 +1762,24 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           // RadialGradient was re-rasterized per camera tick.
           child: DecoratedBox(
             decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(0, -0.1),
-                radius: 1.3,
-                colors: [
-                  Color.lerp(KinrelColors.darkBackground, KinshipEdgeColors.self, 0.06)!,
-                  KinrelColors.darkBackground,
-                ],
-                stops: const [0.0, 0.75],
+              // PERF (Flat): in flat mode, use a solid color instead of
+              // the RadialGradient. The gradient costs ~3-5ms on the
+              // first rasterization pass (fullscreen RadialGradient
+              // shader compile + per-pixel blend). A solid color is
+              // ~0ms. The visual difference is imperceptible — the
+              // gradient was a subtle 6% teal tint at the center
+              // fading to the base dark color at 75% radius.
+              color: KinrelFx.rich ? null : KinrelColors.darkBackground,
+              gradient: KinrelFx.gradient(
+                RadialGradient(
+                  center: const Alignment(0, -0.1),
+                  radius: 1.3,
+                  colors: [
+                    Color.lerp(KinrelColors.darkBackground, KinshipEdgeColors.self, 0.06)!,
+                    KinrelColors.darkBackground,
+                  ],
+                  stops: const [0.0, 0.75],
+                ),
               ),
             ),
             child: CustomPaint(
