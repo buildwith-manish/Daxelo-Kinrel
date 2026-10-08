@@ -34,6 +34,21 @@ class GameIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     // Try PNG asset first
     final assetPath = 'assets/icons/games/$gameId.png';
+    // PERF (Tier K1): cap decode resolution to the displayed size × DPR.
+    // The source PNGs are 1024×1024 — without cacheWidth/cacheHeight,
+    // every visible game-invite card uploads a 4MB decoded bitmap as a
+    // GPU texture and the GPU downsamples to 40×40 (or whatever `size`
+    // is) on EVERY raster frame. With 10 cards visible in the chat
+    // cacheExtent window that's ~10 redundant downsamples/frame =
+    // ~30-50ms of GPU time — the single biggest cost on the chat
+    // invite-list screen (was Raster avg 67ms, max 130ms).
+    //
+    // Capping at (size × DPR) makes the decode-resize happen ONCE on
+    // the IO thread (not the GPU); subsequent frames just blit a tiny
+    // 40×40 texture. The visual result is identical at any phone DPR
+    // up to 3.0.
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cachePx = (size * dpr).round();
     // Use Image.asset with errorBuilder fallback to CustomPainter
     return SizedBox(
       width: size,
@@ -45,6 +60,8 @@ class GameIcon extends StatelessWidget {
         fit: BoxFit.cover,
         color: color,
         colorBlendMode: colorBlendMode,
+        cacheWidth: cachePx,
+        cacheHeight: cachePx,
         errorBuilder: (context, error, stackTrace) {
           // Fallback to custom-painted icon
           final c = color ?? _colorFor(gameId);
