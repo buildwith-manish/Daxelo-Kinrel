@@ -1098,7 +1098,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     child: Container(
                       width: 48,
                       height: 48,
-                      decoration: const BoxDecoration(
+                      // PERF (Flat): BoxDecoration is no longer `const`
+                      // because _kChatAvatarGlow is now a runtime-final
+                      // list (KinrelFx.shadows() resolves at app start,
+                      // but the list identity isn't a compile-time const).
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         // v134: Soft ember ambient glow — felt behind the
                         // avatar, suggests warmth + human connection.

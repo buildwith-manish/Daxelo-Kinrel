@@ -72,22 +72,20 @@ import '../../../../core/theme/kinrel_fx.dart';
 /// Vertical top-down gradient for "sent" message bubbles.
 /// Top slightly lighter (lit-from-above ember tint), bottom darker.
 /// Returned as null in flat mode (caller falls back to solid color).
-final LinearGradient? _kSentBubbleGradient = KinrelFx.gradient(
-  const LinearGradient(
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-    colors: [Color(0x2EC44A18), Color(0x14C44A18)],
-  ),
-);
+final LinearGradient? _kSentBubbleGradient =
+    KinrelFx.gradient(const LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Color(0x2EC44A18), Color(0x14C44A18)],
+    )) as LinearGradient?;
 
 /// Vertical top-down gradient for "received" message bubbles (no kinship band).
-final LinearGradient? _kReceivedBubbleGradient = KinrelFx.gradient(
-  const LinearGradient(
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-    colors: [Color(0xFF2E3150), Color(0xFF23263B)],
-  ),
-);
+final LinearGradient? _kReceivedBubbleGradient =
+    KinrelFx.gradient(const LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Color(0xFF2E3150), Color(0xFF23263B)],
+    )) as LinearGradient?;
 
 /// Cache of received-bubble gradients keyed by kinship band color, so
 /// the Color.lerp() only runs once per unique band color (max ~6
