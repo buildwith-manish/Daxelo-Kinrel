@@ -761,16 +761,25 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        ShaderMask(
-                          shaderCallback: (bounds) => KinrelGradients
-                              .wordmarkGradient
-                              .createShader(bounds),
-                          child: Text(
-                            'KINREL',
-                            style: KinrelTypography.appName.copyWith(
-                              fontSize: 28,
-                              letterSpacing: 3.92,
-                              color: Colors.white,
+                        // PERF (Tier I): wrap ShaderMask in RepaintBoundary.
+                        // ShaderMask forces a per-frame saveLayer to apply
+                        // the gradient to its child. Without a boundary,
+                        // any ancestor rebuild (e.g. form state change,
+                        // keyboard visibility toggle) re-rasterizes the
+                        // gradient layer. With a boundary, the layer is
+                        // cached once and composited on subsequent frames.
+                        RepaintBoundary(
+                          child: ShaderMask(
+                            shaderCallback: (bounds) => KinrelGradients
+                                .wordmarkGradient
+                                .createShader(bounds),
+                            child: Text(
+                              'KINREL',
+                              style: KinrelTypography.appName.copyWith(
+                                fontSize: 28,
+                                letterSpacing: 3.92,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),

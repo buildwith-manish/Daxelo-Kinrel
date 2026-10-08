@@ -45,6 +45,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../providers/notifications_provider.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
 import '../../occasions/widgets/upcoming_occasions_row.dart';
+import 'package:kinrel/core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Screen
@@ -425,13 +426,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: KinrelColors.orange.withValues(alpha: 0.1),
-                    boxShadow: [
+                    boxShadow: clampBoxShadows([
                       BoxShadow(
                         color: KinrelColors.orange.withValues(alpha: glowAlpha),
                         blurRadius: 30,
                         spreadRadius: 5,
                       ),
-                    ],
+                    ]),
                   ),
                   child: Stack(
                     alignment: Alignment.center,

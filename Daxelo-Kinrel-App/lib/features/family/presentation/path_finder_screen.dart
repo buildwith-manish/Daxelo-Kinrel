@@ -1010,19 +1010,23 @@ class _HeroResultCard extends ConsumerWidget {
         children: [
           // ── Kinship term in regional script (hero moment) ─────
           if (nativeTerm != null) ...[
-            ShaderMask(
-              shaderCallback: (bounds) {
-                return KinrelGradients.igniteGradient.createShader(bounds);
-              },
-              child: Text(
-                nativeTerm,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 36,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                  height: 1.15,
+            // PERF (Tier I): wrap ShaderMask in RepaintBoundary to cache
+            // the gradient saveLayer across path-reveal animation frames.
+            RepaintBoundary(
+              child: ShaderMask(
+                shaderCallback: (bounds) {
+                  return KinrelGradients.igniteGradient.createShader(bounds);
+                },
+                child: Text(
+                  nativeTerm,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 36,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1.15,
+                  ),
                 ),
               ),
             ),

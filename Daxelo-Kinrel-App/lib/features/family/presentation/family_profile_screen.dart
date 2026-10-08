@@ -574,6 +574,10 @@ class FamilyProfileScreen extends ConsumerWidget {
                       ? Image.memory(
                           base64Decode(avatarUrl.substring(avatarUrl.indexOf(',') + 1)),
                           fit: BoxFit.cover,
+                          // PERF (Tier G): cap family avatar at 480×480
+                          // physical pixels — saves ~5MB pixel buffer.
+                          cacheWidth: 480,
+                          cacheHeight: 480,
                           errorBuilder: (_, __, ___) => _buildLetterAvatar(family.name),
                         )
                       : CachedNetworkImage(

@@ -2454,17 +2454,25 @@ class _KinshipDetailSheet extends StatelessWidget {
                         ),
                         const SizedBox(height: 16),
                         // Large native script
-                        ShaderMask(
-                          shaderCallback: (bounds) => const LinearGradient(
-                            colors: [Color(0xFFE8612A), Color(0xFFF59240)],
-                          ).createShader(bounds),
-                          child: Text(
-                            term.nativeScript,
-                            style: const TextStyle(
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 36,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                        // PERF (Tier I): wrap ShaderMask in RepaintBoundary.
+                        // Explore screen rebuilds frequently as the user
+                        // scrolls the language grid; without a boundary
+                        // each rebuild re-rasterizes the gradient saveLayer
+                        // for every visible card. With a boundary, the
+                        // gradient layer is cached per-card and reused.
+                        RepaintBoundary(
+                          child: ShaderMask(
+                            shaderCallback: (bounds) => const LinearGradient(
+                              colors: [Color(0xFFE8612A), Color(0xFFF59240)],
+                            ).createShader(bounds),
+                            child: Text(
+                              term.nativeScript,
+                              style: const TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 36,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),

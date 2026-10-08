@@ -250,6 +250,15 @@ class _BlurredWallpaperImage extends StatelessWidget {
       // PERF (Tier B3): cacheWidth=1080 / cacheHeight=1920 caps the
       // decode resolution so a 4K wallpaper data URI never rasterizes
       // at full size — saves ~12MB of pixel buffer per wallpaper.
+      //
+      // PERF (Tier G): dropped the `kIsWeb ?` guard so the cache caps
+      // ALSO apply on native mobile. Previously the native path passed
+      // `cacheWidth: null`, which meant a 4K wallpaper (e.g. a 4032×3024
+      // JPEG shot on a Pixel 7 Pro) was decoded at full resolution then
+      // scaled down by `BoxFit.cover` — burning ~46MB of pixel buffer
+      // AND triggering a fullscreen re-raster on every wallpaper layer
+      // composite. Capping at 1080×1920 reduces the buffer to ~8MB and
+      // is visually identical at any phone screen size.
       return RepaintBoundary(
         child: ImageFiltered(
           imageFilter: ImageFilter.blur(
@@ -259,8 +268,8 @@ class _BlurredWallpaperImage extends StatelessWidget {
             fit: BoxFit.cover,
             width: double.infinity,
             height: double.infinity,
-            cacheWidth: kIsWeb ? 1080 : null,
-            cacheHeight: kIsWeb ? 1920 : null,
+            cacheWidth: 1080,
+            cacheHeight: 1920,
             errorBuilder: (_, __, ___) => const SizedBox.shrink(),
           ),
         ),

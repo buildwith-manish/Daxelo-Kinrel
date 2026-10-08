@@ -29,6 +29,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/health_heritage_provider.dart';
+import 'package:kinrel/core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // View mode enum
@@ -519,13 +520,13 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
       decoration: const BoxDecoration(
         gradient: KinrelGradients.igniteGradient,
         shape: BoxShape.circle,
-        boxShadow: [
+        boxShadow: clampBoxShadows([
           BoxShadow(
             color: KinrelColors.orangeGlowIntense,
             blurRadius: 20,
             spreadRadius: 4,
           ),
-        ],
+        ]),
       ),
       child: FloatingActionButton(
         onPressed: () => _showAddConditionSheet(),
@@ -778,13 +779,13 @@ class _RiskScoreCard extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              boxShadow: [
+              boxShadow: clampBoxShadows([
                 const BoxShadow(
                   color: KinrelColors.orangeGlow,
                   blurRadius: 20,
                   offset: Offset(0, 4),
                 ),
-              ],
+              ]),
             ),
             child: Row(
               children: [
