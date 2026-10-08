@@ -11,6 +11,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import '../../../../core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -100,21 +101,15 @@ class StatsPanel extends StatelessWidget {
     // (alpha 0.92) which is visually equivalent at the panel's small
     // size and ~0 ms raster cost. Native keeps the original branch.
     //
-    // PERF (Tier L1): the BackdropFilter samples the composited
-    // backdrop (the graph canvas) and applies a sigma-16 Gaussian
-    // blur every frame. On the graph screen, the ambient particle
-    // animation invalidates the backdrop 60×/sec, forcing the
-    // BackdropFilter to re-sample + re-blur the bottom-left screen
-    // rect every frame. On mid-tier Android GPUs this costs ~10-15
-    // ms/frame alone. Now skipping the blur on RasterBudget.reduced
-    // (mid-tier mobile — the most common device class after Tier J1)
-    // and using RasterBudget.current.blurSigma (12 instead of 16)
-    // when full (flagship) — visually equivalent on frosted glass at
-    // this small panel size, ~3 ms cheaper per frame on flagship.
+    // PERF (Flat): when KinrelFx.rich is false (flat mode, the
+    // default), skip the BackdropFilter entirely — flat mode uses
+    // the alpha-0.92 Container alone. In rich mode, retain the
+    // budget-aware BackdropFilter from Tier L1 (skipped on
+    // RasterBudget.reduced, sigma = blurSigma on full).
     final bool lowRam = DeviceTierCache.instance.lowRam;
     final RasterBudget budget = DeviceTierCache.instance.rasterBudget;
     final bool skipBlur =
-        lowRam || kIsWeb || budget != RasterBudget.full;
+        lowRam || kIsWeb || budget != RasterBudget.full || !KinrelFx.rich;
     final double blurSigma = budget.blurSigma; // 0/6/12 — never 16 anymore
     // §3: Frosted glass panel instead of flat navy box (strong-phone branch)
     final Widget content = Container(

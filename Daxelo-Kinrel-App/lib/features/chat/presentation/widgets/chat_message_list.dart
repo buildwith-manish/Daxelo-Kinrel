@@ -62,6 +62,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import '../../../../core/utils/app_time.dart';
 import '../../providers/chat_provider.dart';
 import 'chat_meta.dart';
@@ -295,13 +296,15 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
               color: Colors.white.withValues(alpha: 0.08),
               width: 0.5,
             ),
-            boxShadow: [
+            // PERF (Flat): no shadow in flat mode. The 0.5px hairline
+            // border already provides separation against the wallpaper.
+            boxShadow: KinrelFx.shadows([
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.25),
                 blurRadius: 6,
                 offset: const Offset(0, 2),
               ),
-            ],
+            ]),
           ),
           child: Text(
             label,

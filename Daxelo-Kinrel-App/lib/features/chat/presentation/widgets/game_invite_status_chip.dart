@@ -38,6 +38,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/constants/brand_colors.dart';
 import '../../../../../core/constants/brand_spacing.dart';
 import '../../../../../core/constants/brand_typography.dart';
+import '../../../../../core/theme/kinrel_fx.dart';
 import '../../providers/chat_provider.dart';
 
 /// The visual category a game-invite card falls into, derived from
@@ -261,7 +262,11 @@ class _GameInviteStatusChipState extends State<GameInviteStatusChip>
   }
 
   void _setupPulseIfNeeded() {
-    final needsPulse = widget.kind == GameInviteStatusKind.inProgress;
+    final needsPulse =
+        widget.kind == GameInviteStatusKind.inProgress &&
+        // PERF (Flat): skip the pulsing animation entirely in flat mode.
+        // KinrelFx.decorativeAnimation is true only when RICH_FX=true.
+        KinrelFx.decorativeAnimation;
     if (needsPulse && _pulseController == null) {
       _pulseController = AnimationController(
         vsync: this,

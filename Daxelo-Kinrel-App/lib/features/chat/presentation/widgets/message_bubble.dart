@@ -35,6 +35,7 @@ import 'mention_picker.dart';
 import 'poll_card.dart';
 import '../voice_message_player.dart';
 import 'full_screen_image_viewer.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // PERF (Tier K3): Const-hoisted gradients and shadow lists for the
@@ -52,6 +53,11 @@ import 'full_screen_image_viewer.dart';
 //      → Steady-state raster drops by ~5-15ms/frame on the invite-list
 //        screen (10+ visible bubbles × redundant repaint).
 //
+// PERF (Flat): KinrelFx.rich defaults to false. In flat mode:
+//   - All shadow lists return empty (KinrelFx.shadows()).
+//   - All gradients return null (KinrelFx.gradient()) — the bubble
+//     falls back to its solid color argument.
+//
 // Color pre-multiplication math:
 //   KinrelColors.ember = Color(0xFFC44A18)
 //   withValues(alpha: 0.18) → 0.18 × 255 = 45.9 → 46 → 0x2E → Color(0x2EC44A18)
@@ -65,17 +71,22 @@ import 'full_screen_image_viewer.dart';
 
 /// Vertical top-down gradient for "sent" message bubbles.
 /// Top slightly lighter (lit-from-above ember tint), bottom darker.
-const LinearGradient _kSentBubbleGradient = LinearGradient(
-  begin: Alignment.topCenter,
-  end: Alignment.bottomCenter,
-  colors: [Color(0x2EC44A18), Color(0x14C44A18)],
+/// Returned as null in flat mode (caller falls back to solid color).
+final LinearGradient? _kSentBubbleGradient = KinrelFx.gradient(
+  const LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Color(0x2EC44A18), Color(0x14C44A18)],
+  ),
 );
 
 /// Vertical top-down gradient for "received" message bubbles (no kinship band).
-const LinearGradient _kReceivedBubbleGradient = LinearGradient(
-  begin: Alignment.topCenter,
-  end: Alignment.bottomCenter,
-  colors: [Color(0xFF2E3150), Color(0xFF23263B)],
+final LinearGradient? _kReceivedBubbleGradient = KinrelFx.gradient(
+  const LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Color(0xFF2E3150), Color(0xFF23263B)],
+  ),
 );
 
 /// Cache of received-bubble gradients keyed by kinship band color, so
@@ -85,10 +96,11 @@ const LinearGradient _kReceivedBubbleGradient = LinearGradient(
 final Map<Color, LinearGradient> _kReceivedBubbleGradientByKinshipBand = {};
 
 /// Look up (or build + cache) the received-bubble gradient for a given
-/// kinship band color. Returns the cached gradient on subsequent calls
-/// — the LinearGradient identity is stable so RenderDecoratedBox is
-/// NOT marked dirty across rebuilds.
-LinearGradient _receivedBubbleGradientFor(Color kinshipBandColor) {
+/// kinship band color. Returns null in flat mode (caller falls back to
+/// solid color). The LinearGradient identity is stable so
+/// RenderDecoratedBox is NOT marked dirty across rebuilds.
+LinearGradient? _receivedBubbleGradientFor(Color kinshipBandColor) {
+  if (!KinrelFx.rich) return null;
   return _kReceivedBubbleGradientByKinshipBand.putIfAbsent(
     kinshipBandColor,
     () => LinearGradient(
@@ -103,26 +115,26 @@ LinearGradient _receivedBubbleGradientFor(Color kinshipBandColor) {
 }
 
 /// Const BoxShadow list for received messages on non-lowRam devices.
-/// On lowRam, the cheaper single-shadow list below is used instead.
-const List<BoxShadow> _kReceivedBubbleShadows = [
+/// Returns empty list in flat mode.
+final List<BoxShadow> _kReceivedBubbleShadows = KinrelFx.shadows(const [
   BoxShadow(color: Color(0x4D000000), blurRadius: 12, offset: Offset(0, 4)),
-];
+]);
 
 /// Const BoxShadow list for sent messages on non-lowRam devices (with ember glow).
-const List<BoxShadow> _kSentBubbleShadows = [
+final List<BoxShadow> _kSentBubbleShadows = KinrelFx.shadows(const [
   BoxShadow(color: Color(0x2E000000), blurRadius: 8, offset: Offset(0, 2)),
   BoxShadow(color: Color(0x1AC44A18), blurRadius: 14, offset: Offset(0, 0)),
-];
+]);
 
 /// Const BoxShadow list for received messages on lowRam devices (single shadow, blur 6).
-const List<BoxShadow> _kReceivedBubbleShadowsLowRam = [
+final List<BoxShadow> _kReceivedBubbleShadowsLowRam = KinrelFx.shadows(const [
   BoxShadow(color: Color(0x4D000000), blurRadius: 6, offset: Offset(0, 4)),
-];
+]);
 
 /// Const BoxShadow list for sent messages on lowRam devices (single shadow, blur 6, no glow).
-const List<BoxShadow> _kSentBubbleShadowsLowRam = [
+final List<BoxShadow> _kSentBubbleShadowsLowRam = KinrelFx.shadows(const [
   BoxShadow(color: Color(0x2E000000), blurRadius: 6, offset: Offset(0, 2)),
-];
+]);
 
 class MessageBubble extends ConsumerWidget {
   const MessageBubble({super.key,
@@ -371,7 +383,20 @@ class MessageBubble extends ConsumerWidget {
                                     // Color.lerp only runs once per band.
                                     ? _receivedBubbleGradientFor(kinshipBandColor)
                                     : _kReceivedBubbleGradient),
-                        color: isSticker ? Colors.transparent : null,
+                        // PERF (Flat): when KinrelFx.rich is false, the
+                        // gradient resolves to null. Fall back to a flat
+                        // solid color: sent = ember tint, received = dark
+                        // surface. The hairline border (defined below)
+                        // provides visual separation without shadows.
+                        color: isSticker
+                            ? Colors.transparent
+                            : (KinrelFx.rich
+                                ? null
+                                : (isMe
+                                    ? const Color(0x2EC44A18) // ember @ 0.18 (matches _kSentBubbleGradient)
+                                    : kinshipBandColor != null
+                                        ? Color.lerp(const Color(0xFF2E3150), kinshipBandColor, 0.06)!
+                                        : const Color(0xFF282B45))), // average of _kReceivedBubbleGradient
                         // v131: Organic corners — 22px base, tail corner
                         // drops to 6px on isLastInGroup. Less mechanical
                         // than equal radii; mirrors Telegram's silhouette.

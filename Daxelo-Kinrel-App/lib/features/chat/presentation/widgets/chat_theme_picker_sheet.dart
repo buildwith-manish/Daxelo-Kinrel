@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import '../../data/chat_wallpaper_provider.dart';
 import 'chat_background_theme.dart';
 
@@ -271,35 +272,39 @@ class _ThemeSwatch extends StatelessWidget {
           borderRadius: BorderRadius.circular(13),
           child: Stack(
             children: [
-              // Base radial gradient — matches ChatBackground layer 1
+              // PERF (Flat): solid base color in flat mode; gradient in rich mode.
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment.center,
-                      radius: 1.2,
-                      colors: theme.baseColors,
-                      stops: const [0.0, 0.55, 1.0],
+                    color: KinrelFx.rich ? null : theme.baseColors.last,
+                    gradient: KinrelFx.gradient(
+                      RadialGradient(
+                        center: Alignment.center,
+                        radius: 1.2,
+                        colors: theme.baseColors,
+                        stops: const [0.0, 0.55, 1.0],
+                      ),
                     ),
                   ),
                 ),
               ),
-              // Accent glow — matches ChatBackground layer 2
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: theme.accentAlignment,
-                      radius: 0.9,
-                      colors: [
-                        theme.accentColor.withValues(alpha: 0.30),
-                        theme.accentColor.withValues(alpha: 0.0),
-                      ],
-                      stops: const [0.0, 1.0],
+              // Accent glow — only rendered in rich mode.
+              if (KinrelFx.rich)
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: theme.accentAlignment,
+                        radius: 0.9,
+                        colors: [
+                          theme.accentColor.withValues(alpha: 0.30),
+                          theme.accentColor.withValues(alpha: 0.0),
+                        ],
+                        stops: const [0.0, 1.0],
+                      ),
                     ),
                   ),
                 ),
-              ),
               // Label
               Padding(
                 padding: const EdgeInsets.all(10),
@@ -343,12 +348,13 @@ class _ThemeSwatch extends StatelessWidget {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: KinrelColors.orange,
-                      boxShadow: [
+                      // PERF (Flat): no shadow in flat mode.
+                      boxShadow: KinrelFx.shadows([
                         BoxShadow(
                           color: KinrelColors.orange.withValues(alpha: 0.4),
                           blurRadius: 6,
                         ),
-                      ],
+                      ]),
                     ),
                     child: const Icon(
                       Icons.check_rounded,

@@ -131,6 +131,7 @@ import '../interaction/indirect_relation_provider.dart'
 import '../interaction/proximity_graph_state.dart'
     show proximityGraphProvider, ProximityGraphNotifier, buildAdjacency;
 import '../../core/services/supabase_service.dart' show supabaseProvider, currentUserProvider;
+import '../../core/theme/kinrel_fx.dart';
 import '../../features/family/presentation/services/graph_export_service.dart'
     show GraphExportService;
 import '../rendering/edge_path_cache.dart' show EdgePathCache;
@@ -2842,13 +2843,13 @@ class _IsolateConnectionsChip extends StatelessWidget {
               color: KinrelColors.orange.withValues(alpha: 0.5),
               width: 1,
             ),
-            boxShadow: [
+            boxShadow: KinrelFx.shadows([
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.3),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
-            ],
+            ]),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

@@ -21,6 +21,11 @@ on:
         required: false
         default: false
         type: boolean
+      rich_fx:
+        description: 'Restore the original decorated look (gradients, shadows, blur, glow loops) by setting RICH_FX=true. Default false = flat UI.'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: perf-profile-apk-${{ github.ref }}
@@ -94,12 +99,14 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           FORCE_LOW_RAM_FLAG: ${{ inputs.force_low_ram && '--dart-define=FORCE_LOW_RAM=true' || '' }}
+          RICH_FX_FLAG: ${{ inputs.rich_fx && '--dart-define=RICH_FX=true' || '' }}
         run: >-
           flutter build apk --profile --target-platform android-arm64
           --dart-define=SUPABASE_URL="$SUPABASE_URL"
           --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
           --dart-define=PERF_OVERLAY=true
           $FORCE_LOW_RAM_FLAG
+          $RICH_FX_FLAG
 
       - name: Verify libthermion_dart.so in APK
         run: |
@@ -113,11 +120,14 @@ jobs:
       - name: Determine artifact name
         id: artifact_name
         run: |
+          NAME="kinrel-profile-apk"
           if [ "${{ inputs.force_low_ram }}" = "true" ]; then
-            echo "name=kinrel-profile-apk-lowram" >> $GITHUB_OUTPUT
-          else
-            echo "name=kinrel-profile-apk" >> $GITHUB_OUTPUT
+            NAME="${NAME}-lowram"
           fi
+          if [ "${{ inputs.rich_fx }}" = "true" ]; then
+            NAME="${NAME}-rich"
+          fi
+          echo "name=${NAME}" >> $GITHUB_OUTPUT
 
       - name: Upload profile APK
         uses: actions/upload-artifact@v4

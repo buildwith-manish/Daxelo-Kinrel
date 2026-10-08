@@ -36,6 +36,7 @@ import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/constants/feature_flags.dart';
 import '../../core/kinship/kinship_edge_style.dart';
+import '../../core/theme/kinrel_fx.dart';
 import '../../core/widgets/cached_avatar.dart';
 import 'engine/node_decoration.dart';
 import 'engine/node_paint_helpers.dart';
@@ -452,7 +453,12 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     // v5.148 (TIER 2D): Only create this controller for the anchor
     // node. Non-anchor nodes never need it — saves 21 controllers
     // on a 22-node graph.
-    if (widget.isAnchor) {
+    //
+    // PERF (Flat): when KinrelFx.rich is false (flat mode, the
+    // default), skip the pulse controller entirely. The anchor's
+    // larger size + thin gold border + always-visible "You" label
+    // still make it visually distinct without the 5-second glow.
+    if (widget.isAnchor && KinrelFx.decorativeAnimation) {
       _selfPulseController = AnimationController(
         vsync: this,
         duration: const Duration(milliseconds: 2500),

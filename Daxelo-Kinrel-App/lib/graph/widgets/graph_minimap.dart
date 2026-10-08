@@ -25,6 +25,7 @@ import 'dart:ui' as ui show Picture, PictureRecorder;
 import 'package:flutter/material.dart';
 
 import '../interaction/camera_controller.dart' show CameraController;
+import '../../core/theme/kinrel_fx.dart';
 
 /// Renders a mini-map of the entire graph in a small box, with a
 /// viewport rectangle showing the current camera position.
@@ -117,13 +118,13 @@ class GraphMiniMap extends StatelessWidget {
                 // UX (v5.130): Subtle drop-shadow lifts the mini-map off the
                 // canvas so it doesn't disappear against busy backgrounds
                 // (birthday glows, ambient particles, dark clusters).
-                boxShadow: const [
+                boxShadow: KinrelFx.shadows(const [
                   BoxShadow(
                     color: Color(0x66000000),
                     blurRadius: 8,
                     offset: Offset(0, 2),
                   ),
-                ],
+                ]),
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(7),

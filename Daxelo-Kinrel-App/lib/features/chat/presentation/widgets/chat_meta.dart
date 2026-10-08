@@ -32,6 +32,7 @@ import 'package:flutter/services.dart';
 import '../../../../../core/constants/brand_colors.dart';
 import '../../../../../core/constants/brand_spacing.dart';
 import '../../../../../core/kinship/kinship_edge_style.dart';
+import '../../../../../core/theme/kinrel_fx.dart';
 import '../../providers/chat_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -194,19 +195,26 @@ class SendButton extends StatelessWidget {
         height: 38,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
+          // PERF (Flat): EXEMPT — primary orange CTA keep igniteGradient.
+          // Inactive branch falls back to a solid color (was a degenerate
+          // gradient with both stops equal — equivalent to a flat color).
+          color: KinrelFx.rich ? null : const Color(0xFF202338),
           gradient: isActive
               ? KinrelGradients.igniteGradient
-              : const LinearGradient(
-                  colors: [Color(0xFF202338), Color(0xFF202338)],
+              : KinrelFx.gradient(
+                  const LinearGradient(
+                    colors: [Color(0xFF202338), Color(0xFF202338)],
+                  ),
                 ),
+          // PERF (Flat): no shadow in flat mode (rich keeps the orange glow).
           boxShadow: isActive
-              ? [
+              ? KinrelFx.shadows([
                   BoxShadow(
                     color: KinrelColors.orange.withValues(alpha: 0.35),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
-                ]
+                ])
               : null,
         ),
         child: Icon(
@@ -543,13 +551,15 @@ class ReactionOverlay extends StatelessWidget {
                     // and the 20px blur was the chat-thread screen's
                     // largest per-frame shadow cost. 8px is visually
                     // equivalent at 1x DPR and ~3x cheaper.
-                    boxShadow: [
+                    //
+                    // PERF (Flat): no shadow in flat mode.
+                    boxShadow: KinrelFx.shadows([
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.4),
                         blurRadius: kIsWeb ? 8 : 20,
                         offset: kIsWeb ? const Offset(0, 3) : const Offset(0, 8),
                       ),
-                    ],
+                    ]),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -794,13 +804,14 @@ class ScrollToBottomFab extends StatelessWidget {
               shape: BoxShape.circle,
               color: KinrelColors.darkCard,
               border: Border.all(color: const Color(0xFF3A3A4A), width: 1),
-              boxShadow: [
+              // PERF (Flat): no shadow in flat mode.
+              boxShadow: KinrelFx.shadows([
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
-              ],
+              ]),
             ),
             child: const Icon(
               Icons.keyboard_arrow_down,

@@ -34,6 +34,7 @@
 
 import 'package:flutter/foundation.dart' show immutable;
 
+import '../../core/theme/kinrel_fx.dart';
 import '../widgets/engine/lod.dart' show Lod;
 import 'edge_quality.dart' show EdgeQuality;
 import '../../core/utils/device_tier.dart' show DeviceTier, DeviceTierCache;
@@ -53,6 +54,7 @@ class GraphPerformanceProfile {
     required this.allowEdgeRidgePass,
     required this.allowBirthdayPulseAnimation,
     required this.allowMemorialCandleFlicker,
+    required this.allowAnchorGlowPulse,
     required this.cullerRebuildThresholdPixels,
     required this.cullerBufferPixels,
     required this.lodForZoom,
@@ -68,7 +70,15 @@ class GraphPerformanceProfile {
   /// Call this ONCE at graph screen mount and pass the result down.
   /// Falls back to mid-range if the device tier hasn't been
   /// initialized yet (e.g. web before first frame).
+  ///
+  /// PERF (Flat): when [KinrelFx.rich] is false (the default), every
+  /// device tier resolves to the same `_flat` profile — flat-by-default
+  /// across the entire device matrix. Pass `--dart-define=RICH_FX=true`
+  /// at build time to restore the original per-tier behavior.
   factory GraphPerformanceProfile.forCurrentDevice() {
+    if (!KinrelFx.rich) {
+      return GraphPerformanceProfile._flat;
+    }
     return GraphPerformanceProfile._forTier(
       DeviceTierCache.instance.tier,
     );
@@ -114,6 +124,15 @@ class GraphPerformanceProfile {
   /// On low-end devices this is false — the candle is drawn at a
   /// static 0.75 alpha. The candle itself is still visible.
   final bool allowMemorialCandleFlicker;
+
+  /// Whether the anchor ("You") node's gold glow should pulse for the
+  /// first 5 seconds after graph mount.
+  ///
+  /// PERF (Flat): false in flat mode — eliminates a 5-second 60fps
+  /// AnimationController + a fresh Paint + MaskFilter.blur per tick.
+  /// The anchor's larger size + thin gold border + always-visible
+  /// "You" label still make it visually distinct.
+  final bool allowAnchorGlowPulse;
 
   // ── Edge rendering toggles ──────────────────────────────────────
 
@@ -225,6 +244,7 @@ class GraphPerformanceProfile {
     allowEdgeRidgePass: true,
     allowBirthdayPulseAnimation: true,
     allowMemorialCandleFlicker: true,
+    allowAnchorGlowPulse: true,
     cullerRebuildThresholdPixels: 50.0,
     cullerBufferPixels: 200.0,
     lodForZoom: _alwaysFull,
@@ -243,6 +263,7 @@ class GraphPerformanceProfile {
     allowEdgeRidgePass: true,
     allowBirthdayPulseAnimation: true,
     allowMemorialCandleFlicker: true,
+    allowAnchorGlowPulse: true,
     cullerRebuildThresholdPixels: 75.0,
     cullerBufferPixels: 150.0,
     // Mid: degrade to compact when zoomed out (< 0.50). Compact is
@@ -278,6 +299,7 @@ class GraphPerformanceProfile {
     allowBirthdayPulseAnimation: false,
     // Low-end: static memorial candle (0.75 alpha, no flicker).
     allowMemorialCandleFlicker: false,
+    allowAnchorGlowPulse: false,
     // Low-end: 120px rebuild threshold (vs 50px on high-end). Almost
     // half the rebuild frequency during pan = much smoother drag.
     cullerRebuildThresholdPixels: 120.0,
@@ -304,10 +326,64 @@ class GraphPerformanceProfile {
     maxConcurrentAvatarRequests: 8,
   );
 
+  /// Flat profile — used for ALL device tiers when [KinrelFx.rich]
+  /// is false (the default). Simpler than `_lowEnd`:
+  ///   - All decorative animations OFF (no particles, no candle flicker,
+  ///     no birthday pulse, no anchor glow pulse, no connect-on-open)
+  ///   - Edge shadow pass + ridge pass OFF (single-pass solid lines)
+  ///   - Force-mini when > 40 visible nodes (was 60 on low-end)
+  ///   - Wider culler rebuild threshold (150px) + tighter buffer (80px)
+  ///   - Lod.full only at zoom ≥ 0.90; Lod.mini below (no compact tier)
+  ///   - 30 MB image cache (was 40)
+  ///
+  /// Per the user spec: "make flat mode the default for ALL devices
+  /// (when KinrelFx.rich is false) and make it simpler than the current
+  /// low end profile."
+  static const GraphPerformanceProfile _flat = GraphPerformanceProfile(
+    deviceTier: DeviceTier.high, // tier label is informational only
+    allowAmbientParticles: false,
+    allowConnectOnOpenAnimation: false,
+    allowEdgeShadowPass: false,
+    allowEdgeRidgePass: false,
+    allowBirthdayPulseAnimation: false,
+    allowMemorialCandleFlicker: false,
+    allowAnchorGlowPulse: false,
+    // Flat: 150px rebuild threshold — almost 3x the high-end threshold.
+    // Fewer culler rebuilds during pan = smoother drag on big families.
+    cullerRebuildThresholdPixels: 150.0,
+    // Flat: 80px buffer — tighter than low-end's 100px. Nodes pop in
+    // at the viewport edge but the smaller render tree more than
+    // compensates for the occasional pop-in.
+    cullerBufferPixels: 80.0,
+    // Flat: Lod.full only at zoom ≥ 0.90; Lod.mini below. No compact
+    // middle tier — when zoomed out, drop all the way to single-painter
+    // mini nodes for maximum pan smoothness.
+    lodForZoom: _flatLod,
+    // Flat: chip-quality edges at every LOD — single-pass solid lines,
+    // no shadow sigma, no ridge. Compounds with allowEdgeShadowPass /
+    // allowEdgeRidgePass = false above.
+    edgeQualityForLod: _chipQualityForAllLods,
+    // Flat: 30 MB image cache — smaller than low-end's 40 MB. Avatars
+    // are only shown at near-zoom in flat mode, so the cache pressure
+    // is lower.
+    maxImageCacheBytes: 30 * 1024 * 1024, // 30 MB
+    // Flat: force mini when > 40 visible nodes (per user spec).
+    maxVisibleNodesBeforeForceMini: 40,
+    maxConcurrentAvatarRequests: 8,
+  );
+
   // ── LOD functions ───────────────────────────────────────────────
 
   /// High-end: always Lod.full (per user v5.112 request).
   static Lod _alwaysFull(double zoom) => Lod.full;
+
+  /// Flat: Lod.full only at zoom ≥ 0.90; Lod.mini below. No compact
+  /// middle tier — drops all the way to single-painter mini when
+  /// zoomed out for maximum pan smoothness.
+  static Lod _flatLod(double zoom) {
+    if (zoom >= 0.90) return Lod.full;
+    return Lod.mini;
+  }
 
   /// Mid-range: Lod.full for zoom >= 0.70, Lod.compact for 0.45–0.70,
   /// Lod.mini (single CustomPaint) below 0.45.

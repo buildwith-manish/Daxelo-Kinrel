@@ -21,6 +21,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/services/image_cache_manager.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 
 
 class FullScreenImageViewer extends StatefulWidget {
@@ -219,14 +220,23 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 4),
+                    // PERF (Flat): solid black 70% in flat mode; gradient
+                    // in rich mode. The scrim is a fixed-height header
+                    // overlay, so a flat 70% black is visually equivalent
+                    // for legibility.
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.7),
-                          Colors.transparent,
-                        ],
+                      color: KinrelFx.rich
+                          ? null
+                          : Colors.black.withValues(alpha: 0.7),
+                      gradient: KinrelFx.gradient(
+                        LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.7),
+                            Colors.transparent,
+                          ],
+                        ),
                       ),
                     ),
                     child: Row(

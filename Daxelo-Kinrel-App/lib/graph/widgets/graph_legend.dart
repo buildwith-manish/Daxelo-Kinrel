@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/kinship/kinship_edge_style.dart';
+import '../../core/theme/kinrel_fx.dart';
 import '../rendering/node_render_coordinator.dart' show KeyStrategy;
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -101,13 +102,13 @@ class GraphLegend extends ConsumerWidget {
                   color: const Color(0xFF0A0E1A).withValues(alpha: 0.95),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: KinrelColors.border),
-                  boxShadow: [
+                  boxShadow: KinrelFx.shadows([
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.3),
                       blurRadius: 12,
                       offset: const Offset(2, 4),
                     ),
-                  ],
+                  ]),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

@@ -22,6 +22,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/kinship/kinship_edge_style.dart';
+import '../../core/theme/kinrel_fx.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../analytics/analytics_tracker.dart';
 
@@ -419,13 +420,13 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
                 color: KinrelColors.orange.withValues(alpha: 0.3),
                 width: 1.5,
               ),
-              boxShadow: [
+              boxShadow: KinrelFx.shadows([
                 BoxShadow(
                   color: KinrelColors.orange.withValues(alpha: 0.1),
                   blurRadius: 20.0,
                   spreadRadius: 4.0,
                 ),
-              ],
+              ]),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -499,7 +500,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
                   shape: BoxShape.circle,
                   color: KinrelColors.darkCard,
                   border: Border.all(color: KinshipEdgeColors.self, width: 3.0),
-                  boxShadow: [
+                  boxShadow: KinrelFx.shadows([
                     BoxShadow(
                       color: KinshipEdgeColors.self.withValues(
                         alpha: _glowAnimation.value * 0.4,
@@ -507,7 +508,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
                       blurRadius: 16.0,
                       spreadRadius: 4.0,
                     ),
-                  ],
+                  ]),
                 ),
                 child: const Center(
                   child: Icon(
@@ -701,13 +702,13 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
           decoration: BoxDecoration(
             color: KinrelColors.darkCard.withValues(alpha: 0.95),
             borderRadius: BorderRadius.circular(24.0),
-            boxShadow: [
+            boxShadow: KinrelFx.shadows([
               BoxShadow(
                 color: KinrelColors.orange.withValues(alpha: 0.3),
                 blurRadius: 30.0,
                 spreadRadius: 10.0,
               ),
-            ],
+            ]),
           ),
           child: const Column(
             mainAxisSize: MainAxisSize.min,

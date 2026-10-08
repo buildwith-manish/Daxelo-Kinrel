@@ -24,6 +24,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/family/family_provider.dart';
 import '../../../../core/networking/dio_client.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'package:kinrel/core/utils/device_tier.dart';
 
@@ -182,20 +183,30 @@ class EmptyChatState extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── Greeting icon with ember glow ──────────────────────────
+            // ── Greeting icon with ember glow (rich mode only) ─────────
             Container(
               width: 80,
               height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: KinrelColors.ember.withValues(alpha: 0.10),
-                boxShadow: clampBoxShadows([
-                  BoxShadow(
-                    color: KinrelColors.ember.withValues(alpha: 0.18),
-                    blurRadius: 24,
-                    offset: const Offset(0, 0),
-                  ),
-                ]),
+                // PERF (Flat): no shadow in flat mode. Add a 1px
+                // ember hairline border for definition.
+                border: KinrelFx.rich
+                    ? null
+                    : Border.all(
+                        color: KinrelColors.ember.withValues(alpha: 0.20),
+                        width: 1,
+                      ),
+                boxShadow: KinrelFx.shadows(
+                  clampBoxShadows([
+                    BoxShadow(
+                      color: KinrelColors.ember.withValues(alpha: 0.18),
+                      blurRadius: 24,
+                      offset: const Offset(0, 0),
+                    ),
+                  ]),
+                ),
               ),
               child: const Center(
                 child: Text(
