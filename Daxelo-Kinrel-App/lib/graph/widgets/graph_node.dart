@@ -50,6 +50,7 @@ import '../../features/cameo/cameo.dart';
 // v5.140: RelationLabelOpacityScope hoists label-opacity computation
 // to the canvas level (one AnimatedBuilder → InheritedWidget).
 import '../interaction/camera_controller.dart' show CameraController;
+import '../rendering/graph_glow.dart';
 import '../rendering/relationship_label_opacity.dart'
     show
         relationLabelOpacityFor,
@@ -1136,6 +1137,14 @@ class _GraphNodeState extends ConsumerState<GraphNode>
           // RepaintBoundary, only the glow's small painter repaints and
           // the per-node boundary layer is NOT invalidated.
           // Saves ~3-5 ms/frame for the first 5 seconds after graph mount.
+          //
+          // PERF (Flat): in flat mode, the pulse controller is never
+          // created (gated on KinrelFx.decorativeAnimation). Mount a
+          // STATIC glow using GraphGlow (RadialGradient, no MaskFilter,
+          // no blur) so the anchor still has a small, restrained glow.
+          // The glow is drawn at GraphGlow.anchorAlpha (0.22) — subtle
+          // but visible. RepaintBoundary isolates the static glow from
+          // the per-node boundary.
           if (widget.isAnchor && _selfPulseAnimation != null)
             Positioned.fill(
               child: RepaintBoundary(
@@ -1150,6 +1159,17 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                       ),
                     );
                   },
+                ),
+              ),
+            )
+          else if (widget.isAnchor && !KinrelFx.rich)
+            Positioned.fill(
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: _FlatAnchorGlowPainter(
+                    color: KinshipEdgeColors.kSelfNodeColor,
+                    diameter: effectiveDiameter,
+                  ),
                 ),
               ),
             ),
@@ -1590,6 +1610,46 @@ class _SelfNodeGlowPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _SelfNodeGlowPainter old) =>
       old.pulse != pulse;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PERF (Flat): _FlatAnchorGlowPainter — static, blur-free anchor glow.
+//
+// Replaces _SelfNodeGlowPainter in flat mode. Uses the GraphGlow helper
+// (RadialGradient, no MaskFilter, no ImageFilter, no blur) to draw a
+// single static glow at GraphGlow.anchorAlpha (0.22). The glow radius
+// is `diameter * GraphGlow.radiusFactor * 0.5` — extends 50% beyond
+// the anchor's outer edge, matching the rich-mode visual footprint
+// without the MaskFilter.blur cost.
+//
+// The Paint + shader are cached per (color, size bucket) inside
+// GraphGlow — this painter allocates nothing per frame.
+// ═══════════════════════════════════════════════════════════════════════
+class _FlatAnchorGlowPainter extends CustomPainter {
+  const _FlatAnchorGlowPainter({
+    required this.color,
+    required this.diameter,
+  });
+
+  final Color color;
+  final double diameter;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (diameter * 0.5) * GraphGlow.radiusFactor;
+    GraphGlow.drawRadial(
+      canvas,
+      center: center,
+      radius: radius,
+      color: color,
+      alpha: GraphGlow.anchorAlpha,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _FlatAnchorGlowPainter old) =>
+      old.color != color || old.diameter != diameter;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

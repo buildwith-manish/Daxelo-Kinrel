@@ -478,6 +478,32 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
     return null;
   }
 
+  /// PERF (PR1 graph-glow-lite TASK 5): cached wrapper around
+  /// _findAnchorId. The result is a pure function of (flat,
+  /// viewerPersonId), so it's cached on (flat identity, viewerPersonId)
+  /// and reused across all 6 per-frame callsites. Previously each
+  /// callsite did its own O(N) linear scan of flat.persons (~715
+  /// entries) — ~2,145 String comparisons per rebuild, ~10K-21K/sec
+  /// during pan. Now the scan runs ONCE per flat-data change. LOSSLESS.
+  ///
+  /// NOTE: the result can legitimately be null (when viewerPersonId is
+  /// null or doesn't exist in flat.persons). _cachedAnchorIdHasValue
+  /// tracks whether the cache has been populated for the current key,
+  /// so a null result is also cached (no re-scan on subsequent calls).
+  String? _cachedFindAnchorId(FlatGraphResult flat, String? viewerPersonId) {
+    if (_cachedAnchorIdHasValue &&
+        identical(_cachedAnchorIdFlat, flat) &&
+        _cachedAnchorIdViewerId == viewerPersonId) {
+      return _cachedAnchorId;
+    }
+    final result = _findAnchorId(flat, viewerPersonId);
+    _cachedAnchorId = result;
+    _cachedAnchorIdHasValue = true;
+    _cachedAnchorIdFlat = flat;
+    _cachedAnchorIdViewerId = viewerPersonId;
+    return result;
+  }
+
 
 
   /// Resolves a kinship key (e.g. "father", "mothers_brother") to a

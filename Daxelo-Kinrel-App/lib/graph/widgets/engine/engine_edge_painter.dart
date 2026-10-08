@@ -16,11 +16,13 @@ import 'package:flutter/material.dart';
 
 import '../../../core/kinship/kinship_edge_style.dart';
 import '../../../core/kinship/heart_shape.dart' show HeartShape;
+import '../../../core/theme/kinrel_fx.dart';
 import '../../engine/edge_dedup.dart' show DedupedEdge;
 import '../../interaction/couple_union_model.dart'
     show CoupleUnion, resolveEffectiveEdgeEndpoints;
 import '../../rendering/edge_path_cache.dart' show EdgePathCache;
 import '../../rendering/edge_quality.dart' show EdgeQuality, EdgeQualityX;
+import '../../rendering/graph_glow.dart';
 import '../../rendering/graph_lighting.dart' show GraphLighting;
 import '../../../core/constants/brand_colors.dart' show KinrelColors;
 import '../../data/graph_data_models.dart' show GraphEdgeData;
@@ -1849,6 +1851,20 @@ class EngineEdgePainter extends CustomPainter {
     // pass. The aura is the only continuous pass; it is subtle and
     // does NOT obscure the dashes.
     final bool dashed = dashPattern.isNotEmpty && dashPattern.length >= 2;
+
+    // PERF (Flat): in flat mode (shadowSigma == 0), draw a wider
+    // low-alpha stroke under the body instead of the rich-mode PASS D
+    // blur aura. Uses GraphGlow.drawEdgeHalo (no MaskFilter, no
+    // ImageFilter, no blur). The halo is drawn FIRST so it sits
+    // underneath the body — same visual intent as the rich-mode aura.
+    if (shadowSigma == 0 && !KinrelFx.rich) {
+      GraphGlow.drawEdgeHalo(
+        canvas,
+        path: path,
+        bodyWidth: bodyWidth,
+        color: KinrelColors.orange,
+      );
+    }
 
     // PASS D — Kinrel orange interaction aura (drawn FIRST so it sits
     // underneath the body). Continuous even for dashed edges, but very
