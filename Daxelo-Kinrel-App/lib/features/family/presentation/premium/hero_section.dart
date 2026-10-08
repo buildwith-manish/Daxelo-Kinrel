@@ -562,6 +562,12 @@ class _FamilyInitialAvatar extends StatelessWidget {
               fit: BoxFit.cover,
               width: size,
               height: size,
+              // PERF (Tier G): cap avatar decode at 480×480 physical
+              // pixels — sufficient for any avatar size up to 160
+              // logical pixels at 3× DPR. Saves ~5MB pixel buffer per
+              // hero avatar on premium screen.
+              cacheWidth: 480,
+              cacheHeight: 480,
               errorBuilder: (_, __, ___) => _buildInitialFallback(),
             ),
           ),

@@ -27,6 +27,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/gamification_provider.dart';
+import 'package:kinrel/core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // AchievementsScreen
@@ -462,13 +463,13 @@ class _StreakCard extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          boxShadow: [
+          boxShadow: clampBoxShadows([
             const BoxShadow(
               color: KinrelColors.orangeGlow,
               blurRadius: 20,
               offset: Offset(0, 4),
             ),
-          ],
+          ]),
         ),
         child: Column(
           children: [
@@ -1080,13 +1081,13 @@ class _UnlockedBadgeCard extends StatelessWidget {
               decoration: const BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: KinrelGradients.achievementGradient,
-                boxShadow: [
+                boxShadow: clampBoxShadows([
                   BoxShadow(
                     color: KinrelColors.orangeGlowIntense,
                     blurRadius: 20,
                     spreadRadius: 2,
                   ),
-                ],
+                ]),
               ),
               child: Container(
                 margin: const EdgeInsets.all(4),

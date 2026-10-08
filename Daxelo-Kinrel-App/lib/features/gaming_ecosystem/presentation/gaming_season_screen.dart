@@ -16,6 +16,7 @@ import '../data/gaming_providers.dart';
 import '../../games/shared/icons/kinrel_icons.dart';
 import 'widgets/gaming_kit.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:kinrel/core/utils/device_tier.dart';
 
 class GamingSeasonScreen extends ConsumerWidget {
   const GamingSeasonScreen({super.key, required this.familyId});
@@ -166,13 +167,13 @@ class _CupHero extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: KinrelColors.gold.withValues(alpha: 0.45)),
-        boxShadow: [
+        boxShadow: clampBoxShadows([
           BoxShadow(
             color: KinrelColors.gold.withValues(alpha: 0.18),
             blurRadius: 26,
             offset: const Offset(0, 8),
           ),
-        ],
+        ]),
       ),
       child: Column(
         children: [

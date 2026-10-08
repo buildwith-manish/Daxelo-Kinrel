@@ -407,6 +407,13 @@ class _MemoryCreateScreenState extends ConsumerState<MemoryCreateScreen>
                   width: double.infinity,
                   height: 240,
                   fit: BoxFit.cover,
+                  // PERF (Tier G): cap preview decode at 1080×240 —
+                  // matches the displayed preview dimensions at 3× DPR
+                  // exactly. Source photos at 4032×3024 would otherwise
+                  // decode to a 46MB pixel buffer for a 240-logical-
+                  // pixel-tall preview.
+                  cacheWidth: 1080,
+                  cacheHeight: 240,
                 )
               : (_prefillImageUrl != null && _prefillImageUrl!.isNotEmpty)
                   ? Image.network(

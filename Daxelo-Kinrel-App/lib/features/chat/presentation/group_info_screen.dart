@@ -26,6 +26,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/networking/dio_client.dart';
 import '../../../l10n/app_localizations.dart';
 import '../providers/chat_socket_engagement_provider.dart';
+import 'package:kinrel/core/utils/device_tier.dart';
 
 /// Participant in a group chat.
 class GroupParticipant {
@@ -190,12 +191,12 @@ class GroupInfoScreen extends ConsumerWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: KinrelGradients.igniteGradient,
-                boxShadow: [
+                boxShadow: clampBoxShadows([
                   BoxShadow(
                     color: KinrelColors.ember.withValues(alpha: 0.25),
                     blurRadius: 20,
                   ),
-                ],
+                ]),
               ),
               child: Center(
                 child: Text(

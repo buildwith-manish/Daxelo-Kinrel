@@ -355,6 +355,12 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
                   Uint8List.fromList(snapshot.data!),
                   width: double.infinity,
                   fit: BoxFit.cover,
+                  // PERF (Tier G): cap decode to phone-screen physical
+                  // pixel budget. A 12MP camera photo (4032×3024) would
+                  // otherwise decode to a ~46MB pixel buffer; capped at
+                  // 1080px wide it drops to ~3MB. Visually identical at
+                  // any phone preview size.
+                  cacheWidth: 1080,
                   errorBuilder: (c, o, e) => Container(
                     color: Colors.black.withValues(alpha: 0.1),
                     child: const Center(

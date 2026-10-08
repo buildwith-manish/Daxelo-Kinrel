@@ -25,6 +25,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../chat/providers/chat_provider.dart';
 import '../data/group_provider.dart';
+import 'package:kinrel/core/utils/device_tier.dart';
 
 class GroupHubScreen extends ConsumerWidget {
   const GroupHubScreen({
@@ -150,7 +151,7 @@ class _GroupHero extends StatelessWidget {
             height: 120,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              boxShadow: [
+              boxShadow: clampBoxShadows([
                 BoxShadow(
                   color: group.groupType.color.withValues(alpha: 0.25),
                   blurRadius: 32,
@@ -161,7 +162,7 @@ class _GroupHero extends StatelessWidget {
                   blurRadius: 12,
                   offset: const Offset(0, 6),
                 ),
-              ],
+              ]),
             ),
             child: Container(
               decoration: BoxDecoration(
@@ -1049,7 +1050,7 @@ class _EnterGroupChatGateway extends StatelessWidget {
               color: group.groupType.color.withValues(alpha: 0.40),
               width: 1.5,
             ),
-            boxShadow: [
+            boxShadow: clampBoxShadows([
               BoxShadow(
                 color: group.groupType.color.withValues(alpha: 0.25),
                 blurRadius: 32,
@@ -1060,7 +1061,7 @@ class _EnterGroupChatGateway extends StatelessWidget {
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
-            ],
+            ]),
           ),
           child: Column(
             children: [
@@ -1081,12 +1082,12 @@ class _EnterGroupChatGateway extends StatelessWidget {
                     color: group.groupType.color.withValues(alpha: 0.55),
                     width: 1.5,
                   ),
-                  boxShadow: [
+                  boxShadow: clampBoxShadows([
                     BoxShadow(
                       color: group.groupType.color.withValues(alpha: 0.30),
                       blurRadius: 20,
                     ),
-                  ],
+                  ]),
                 ),
                 child: const Icon(
                   Icons.chat_rounded,

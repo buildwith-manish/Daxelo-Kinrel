@@ -59,6 +59,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../../../shared/widgets/kinrel_empty_state.dart';
 import '../providers/oral_history_provider.dart';
 import 'oral_history_audio_player.dart';
+import 'package:kinrel/core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Oral History Screen
@@ -889,13 +890,13 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(KinrelRadius.full),
           gradient: KinrelGradients.igniteGradient,
-          boxShadow: [
+          boxShadow: clampBoxShadows([
             const BoxShadow(
               color: KinrelColors.orangeGlowIntense,
               blurRadius: 20,
               offset: Offset(0, 4),
             ),
-          ],
+          ]),
         ),
         child: Material(
           color: Colors.transparent,
@@ -2376,13 +2377,13 @@ class _RecordingBottomSheetState extends State<_RecordingBottomSheet>
           top: Radius.circular(KinrelRadius.xxl),
         ),
         border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.2)),
-        boxShadow: [
+        boxShadow: clampBoxShadows([
           const BoxShadow(
             color: KinrelColors.orangeGlow,
             blurRadius: 20,
             offset: Offset(0, -4),
           ),
-        ],
+        ]),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

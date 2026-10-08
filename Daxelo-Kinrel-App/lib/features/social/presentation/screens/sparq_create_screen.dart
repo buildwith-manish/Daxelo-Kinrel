@@ -1299,6 +1299,11 @@ class _XFileImage extends StatelessWidget {
           fit: fit,
           width: width,
           height: height,
+          // PERF (Tier G): cap decode at 1080 physical pixels wide —
+          // sufficient for any phone preview width at 3× DPR. The
+          // height is left to scale proportionally with the source
+          // aspect ratio (cacheHeight omitted intentionally).
+          cacheWidth: 1080,
           errorBuilder: (c, o, e) => Container(
             color: Colors.black.withValues(alpha: 0.1),
             width: width,

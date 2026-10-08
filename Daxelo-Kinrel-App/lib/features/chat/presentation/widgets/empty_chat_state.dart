@@ -25,6 +25,7 @@ import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/family/family_provider.dart';
 import '../../../../core/networking/dio_client.dart';
 import '../../../../l10n/app_localizations.dart';
+import 'package:kinrel/core/utils/device_tier.dart';
 
 /// Snapshot of the empty-state nudge data fetched from the backend.
 class EmptyStateNudge {
@@ -188,13 +189,13 @@ class EmptyChatState extends ConsumerWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: KinrelColors.ember.withValues(alpha: 0.10),
-                boxShadow: [
+                boxShadow: clampBoxShadows([
                   BoxShadow(
                     color: KinrelColors.ember.withValues(alpha: 0.18),
                     blurRadius: 24,
                     offset: const Offset(0, 0),
                   ),
-                ],
+                ]),
               ),
               child: const Center(
                 child: Text(

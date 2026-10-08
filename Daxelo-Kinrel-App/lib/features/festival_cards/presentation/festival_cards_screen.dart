@@ -11,6 +11,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/supported_languages.dart';
 import '../providers/festival_cards_provider.dart';
+import 'package:kinrel/core/utils/device_tier.dart';
 
 class FestivalCardsScreen extends ConsumerStatefulWidget {
   FestivalCardsScreen({super.key});
@@ -914,19 +915,24 @@ class _CardPreviewView extends StatelessWidget {
             constraints: const BoxConstraints(maxHeight: 500),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
-              boxShadow: [
+              boxShadow: clampBoxShadows([
                 const BoxShadow(
                   color: KinrelColors.purpleGlow,
                   blurRadius: 30,
                   spreadRadius: 5,
                 ),
-              ],
+              ]),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
               child: Image.memory(
                 base64Decode(imageBase64),
                 fit: BoxFit.contain,
+                // PERF (Tier G): cap festival card image at 1080
+                // physical pixels wide — festival cards are typically
+                // 1080×1920 phone wallpaper size, so this matches the
+                // source resolution without overshooting.
+                cacheWidth: 1080,
                 errorBuilder: (context, error, stackTrace) {
                   return Container(
                     width: double.infinity,

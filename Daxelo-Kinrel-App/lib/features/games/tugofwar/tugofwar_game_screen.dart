@@ -36,6 +36,7 @@ import '../shared/widgets/reactions_bar.dart';
 import 'tugofwar_models.dart';
 import 'tugofwar_provider.dart';
 import 'tugofwar_rope.dart';
+import 'package:kinrel/core/utils/device_tier.dart';
 
 class TugOfWarGameScreen extends ConsumerStatefulWidget {
   const TugOfWarGameScreen({
@@ -1134,12 +1135,12 @@ class _WinnerBanner extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(KinrelRadius.xl),
         border: Border.all(color: winnerColor.withValues(alpha: 0.6)),
-        boxShadow: [
+        boxShadow: clampBoxShadows([
           BoxShadow(
             color: winnerColor.withValues(alpha: 0.3),
             blurRadius: 30,
           ),
-        ],
+        ]),
       ),
       child: Column(
         children: [

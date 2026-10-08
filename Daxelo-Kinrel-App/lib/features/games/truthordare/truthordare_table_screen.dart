@@ -18,6 +18,7 @@ import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/widgets/rematch_button.dart';
 import 'truthordare_models.dart';
 import 'truthordare_provider.dart';
+import 'package:kinrel/core/utils/device_tier.dart';
 
 class TodTableScreen extends ConsumerStatefulWidget {
   const TodTableScreen({super.key, required this.familyId, required this.gameId});
@@ -256,10 +257,10 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
           stops: [0.55, 1.0],
         ),
         border: Border.all(color: KinrelColors.amber.withValues(alpha: 0.45), width: 1.5),
-        boxShadow: [
+        boxShadow: clampBoxShadows([
           BoxShadow(color: Colors.black.withValues(alpha: 0.55), blurRadius: 26, offset: const Offset(0, 10)),
           BoxShadow(color: KinrelColors.amber.withValues(alpha: 0.08), blurRadius: 40, spreadRadius: 6),
-        ],
+        ]),
       ),
       child: Container(
         // Inner shadow ring — dark groove pressed into the felt.
@@ -438,10 +439,10 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: accent.withValues(alpha: 0.35), width: 1.5),
-        boxShadow: [
+        boxShadow: clampBoxShadows([
           BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 8)),
           BoxShadow(color: accent.withValues(alpha: 0.12), blurRadius: 24, offset: const Offset(0, 10)),
-        ],
+        ]),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),

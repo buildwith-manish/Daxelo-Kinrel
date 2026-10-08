@@ -31,6 +31,7 @@ import '../shared/widgets/rematch_button.dart';
 import 'antakshari_models.dart';
 import 'antakshari_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
+import 'package:kinrel/core/utils/device_tier.dart';
 
 class AntakshariGameScreen extends ConsumerStatefulWidget {
   const AntakshariGameScreen({
@@ -418,7 +419,7 @@ class _AntakshariGameScreenState
                     : KinrelColors.amber,
                 width: 3,
               ),
-              boxShadow: [
+              boxShadow: clampBoxShadows([
                 BoxShadow(
                   color: (isInChallengeWindow
                       ? KinrelColors.warning
@@ -427,7 +428,7 @@ class _AntakshariGameScreenState
                   blurRadius: 26,
                   spreadRadius: 3,
                 ),
-              ],
+              ]),
             ),
             child: Center(
               child: Text(
