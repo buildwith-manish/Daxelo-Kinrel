@@ -1078,10 +1078,14 @@ class _UnlockedBadgeCard extends StatelessWidget {
             Container(
               width: 80,
               height: 80,
-              decoration: const BoxDecoration(
+              // Note: BoxDecoration is no longer `const` because
+              // clampBoxShadows() is a runtime call that resolves the
+              // RasterBudget at runtime. The inner list is still `const`
+              // to keep the BoxShadow allocation free.
+              decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: KinrelGradients.achievementGradient,
-                boxShadow: clampBoxShadows([
+                boxShadow: clampBoxShadows(const [
                   BoxShadow(
                     color: KinrelColors.orangeGlowIntense,
                     blurRadius: 20,
