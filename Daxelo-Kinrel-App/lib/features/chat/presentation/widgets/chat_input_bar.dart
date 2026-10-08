@@ -26,6 +26,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/brand_colors.dart';
 import '../../../../../core/constants/brand_typography.dart';
+import '../../../../../core/theme/kinrel_fx.dart';
 import 'chat_meta.dart';
 
 class ChatInputBar extends StatelessWidget {
@@ -92,23 +93,25 @@ class ChatInputBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      // v133: Soft gradient surface — top is slightly lighter (lit
-      // from above by the AppBar glow), bottom is the base dark.
-      // Matches the v132 ChatBackground palette for cohesion.
+      // PERF (Flat): solid color in flat mode; gradient in rich mode.
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFF0E0F1C),
-            Color(0xFF0A0B16),
-          ],
+        color: KinrelFx.rich ? null : const Color(0xFF0A0B16),
+        gradient: KinrelFx.gradient(
+          const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF0E0F1C),
+              Color(0xFF0A0B16),
+            ],
+          ),
         ),
         border: Border(
           top: BorderSide(
               color: Colors.white.withValues(alpha: 0.06), width: 0.5),
         ),
-        boxShadow: [
+        // PERF (Flat): no shadow in flat mode.
+        boxShadow: KinrelFx.shadows([
           // v133: Subtle top shadow lifts the composer off the chat
           // content. 18% alpha, 8 blur — felt, not seen.
           BoxShadow(
@@ -116,7 +119,7 @@ class ChatInputBar extends StatelessWidget {
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),
-        ],
+        ]),
       ),
       child: SafeArea(
         top: false,
@@ -167,8 +170,10 @@ class ChatInputBar extends StatelessWidget {
                           : Colors.white.withValues(alpha: 0.06),
                       width: focusNode.hasFocus ? 1.2 : 0.75,
                     ),
+                    // PERF (Flat): no shadow in flat mode; rich mode
+                    // keeps the focus glow.
                     boxShadow: focusNode.hasFocus
-                        ? [
+                        ? KinrelFx.shadows([
                             // v133: Focus glow — soft ember ambient
                             // light when the field is active.
                             BoxShadow(
@@ -177,7 +182,7 @@ class ChatInputBar extends StatelessWidget {
                               blurRadius: 12,
                               offset: const Offset(0, 0),
                             ),
-                          ]
+                          ])
                         : null,
                   ),
                   child: Row(

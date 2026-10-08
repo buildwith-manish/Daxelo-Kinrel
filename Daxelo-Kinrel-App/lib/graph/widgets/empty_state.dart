@@ -28,6 +28,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/kinship/kinship_edge_style.dart';
+import '../../core/theme/kinrel_fx.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -299,7 +300,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
                   color: KinshipEdgeColors.self,
                   width: 3.0,
                 ),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   BoxShadow(
                     color: KinshipEdgeColors.self.withValues(alpha: 0.25),
                     blurRadius: 0.0,
@@ -310,7 +311,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
                     blurRadius: 20.0,
                     spreadRadius: 12.0,
                   ),
-                ],
+                ]),
               ),
               child: const Center(
                 child: Icon(

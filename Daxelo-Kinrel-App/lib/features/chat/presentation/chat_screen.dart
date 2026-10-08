@@ -43,6 +43,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../l10n/app_localizations.dart';
 // v3.3: AppTime import removed — date grouping moved to ChatMessageList.
@@ -106,13 +107,16 @@ import 'widgets/chat_theme_picker_sheet.dart';
 //
 // `KinrelColors.ember` is Color(0xFFC44A18). Multiplied by alpha 0.18
 // → Color(0x2EC44A18). RGB matches exactly; alpha is pre-multiplied.
-const List<BoxShadow> _kChatAvatarGlow = [
+//
+// PERF (Flat): KinrelFx.shadows returns the empty list in flat mode
+// (no avatar glow). The const list is preserved for rich mode.
+final List<BoxShadow> _kChatAvatarGlow = KinrelFx.shadows(const [
   BoxShadow(
     color: Color(0x2EC44A18), // KinrelColors.ember (#C44A18) × alpha 0.18
     blurRadius: 14,
     offset: Offset(0, 0),
   ),
-];
+]);
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({
@@ -1024,16 +1028,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       preferredSize: const Size.fromHeight(72),
       child: Container(
         decoration: BoxDecoration(
+          // PERF (Flat): solid color in flat mode; gradient in rich mode.
           // v134: Vertical gradient matches ChatBackground + composer
           // for full-screen cohesion. Top is slightly lighter (lit
           // from above), bottom darker.
-          gradient: const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF11132A), // top — warm dark navy
-              Color(0xFF0A0B16), // bottom — base dark
-            ],
+          color: KinrelFx.rich ? null : const Color(0xFF0A0B16),
+          gradient: KinrelFx.gradient(
+            const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF11132A), // top — warm dark navy
+                Color(0xFF0A0B16), // bottom — base dark
+              ],
+            ),
           ),
           border: Border(
             bottom: BorderSide(
@@ -1090,7 +1098,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     child: Container(
                       width: 48,
                       height: 48,
-                      decoration: const BoxDecoration(
+                      // PERF (Flat): BoxDecoration is no longer `const`
+                      // because _kChatAvatarGlow is now a runtime-final
+                      // list (KinrelFx.shadows() resolves at app start,
+                      // but the list identity isn't a compile-time const).
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         // v134: Soft ember ambient glow — felt behind the
                         // avatar, suggests warmth + human connection.
@@ -2590,25 +2602,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final seconds = _recordingDuration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFF0E0F1C),
-            Color(0xFF0A0B16),
-          ],
+        // PERF (Flat): solid color + no shadow in flat mode.
+        color: KinrelFx.rich ? null : const Color(0xFF0A0B16),
+        gradient: KinrelFx.gradient(
+          const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF0E0F1C),
+              Color(0xFF0A0B16),
+            ],
+          ),
         ),
         border: Border(
           top: BorderSide(
               color: Colors.white.withValues(alpha: 0.06), width: 0.5),
         ),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.18),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),
-        ],
+        ]),
       ),
       child: SafeArea(
         top: false,
@@ -2682,14 +2698,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     height: 38,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      gradient: KinrelGradients.igniteGradient,
-                      boxShadow: [
+                      gradient: KinrelGradients.igniteGradient, // EXEMPT — primary orange CTA
+                      // PERF (Flat): no shadow in flat mode.
+                      boxShadow: KinrelFx.shadows([
                         BoxShadow(
                           color: KinrelColors.orange.withValues(alpha: 0.35),
                           blurRadius: 12,
                           offset: const Offset(0, 3),
                         ),
-                      ],
+                      ]),
                     ),
                     child: const Icon(
                       Icons.send_rounded,

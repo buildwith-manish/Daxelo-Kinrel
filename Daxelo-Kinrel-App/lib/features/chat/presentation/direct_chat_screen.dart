@@ -51,6 +51,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/services/image_cache_manager.dart';
@@ -738,16 +739,20 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFF11132A), // top — warm dark navy (matches group)
-                Color(0xFF0A0B16), // bottom — base dark (matches group)
-              ],
+          // PERF (Flat): solid color in flat mode; gradient in rich mode.
+          decoration: BoxDecoration(
+            color: KinrelFx.rich ? null : const Color(0xFF0A0B16),
+            gradient: KinrelFx.gradient(
+              const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF11132A), // top — warm dark navy (matches group)
+                  Color(0xFF0A0B16), // bottom — base dark (matches group)
+                ],
+              ),
             ),
-            border: Border(
+            border: const Border(
               bottom: BorderSide(
                   color: Color(0x0FFFFFFF), width: 0.5),
             ),

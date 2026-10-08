@@ -56,6 +56,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../core/utils/accessibility_utils.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../shared/widgets/bottom_nav_repaint_guard.dart';
@@ -167,7 +168,13 @@ class FamilySpaceFloatingNav extends StatelessWidget {
               color: const Color(0xFF3A3A4A),
               width: 0.5,
             ),
-            boxShadow: lowRam
+          // PERF (Flat): KinrelFx.shadows collapses both branches to the
+          // empty list in flat mode. The 0.5px hairline border above
+          // provides visual separation against the chat background.
+          // In rich mode, the original lowRam/strong-phone ternary is
+          // preserved.
+          boxShadow: KinrelFx.shadows(
+            lowRam
                 ? [
                     // ── Low-RAM branch (PR 82 look): one shadow only ──
                     // Container is already at darkCard alpha 0.92, so the
@@ -202,6 +209,7 @@ class FamilySpaceFloatingNav extends StatelessWidget {
                         offset: const Offset(0, 6),
                       ),
                   ],
+          ),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(_cornerRadius),

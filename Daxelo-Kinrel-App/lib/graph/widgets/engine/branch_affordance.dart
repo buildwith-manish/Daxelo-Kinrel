@@ -170,13 +170,13 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
               color: chipAccentColor.withValues(alpha: 0.6),
               width: 1.2,
             ),
-            boxShadow: [
+            boxShadow: KinrelFx.shadows([
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.4),
                 blurRadius: 6,
                 offset: const Offset(1, 2),
               ),
-            ],
+            ]),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

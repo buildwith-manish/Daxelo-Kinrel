@@ -26,6 +26,7 @@ import 'package:just_audio/just_audio.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 /// A registry that ensures only one voice message plays at a time.
 /// When a new voice message starts playing, any previously-playing
@@ -229,14 +230,15 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
               height: 36,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: KinrelGradients.igniteGradient,
-                boxShadow: [
+                gradient: KinrelGradients.igniteGradient, // EXEMPT — primary orange CTA
+                // PERF (Flat): no shadow in flat mode.
+                boxShadow: KinrelFx.shadows([
                   BoxShadow(
                     color: KinrelColors.orange.withValues(alpha: 0.25),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
-                ],
+                ]),
               ),
               child: _isLoading
                   ? const Padding(

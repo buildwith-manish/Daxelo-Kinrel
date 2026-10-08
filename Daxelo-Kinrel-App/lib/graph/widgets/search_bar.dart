@@ -36,6 +36,7 @@ import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/kinship/kinship_edge_style.dart';
 import '../../core/services/image_cache_manager.dart';
+import '../../core/theme/kinrel_fx.dart';
 import '../analytics/analytics_tracker.dart';
 import '../interaction/graph_search_state.dart' show graphSearchProvider;
 // v5.175: fuzzy/phonetic search for Indian names.
@@ -508,13 +509,13 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
         border: Border.all(
           color: KinrelColors.orange.withValues(alpha: 0.3),
         ),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           const BoxShadow(
             color: KinrelColors.orangeGlow,
             blurRadius: 16.0,
             spreadRadius: 2.0,
           ),
-        ],
+        ]),
       ),
       child: Row(
         children: [

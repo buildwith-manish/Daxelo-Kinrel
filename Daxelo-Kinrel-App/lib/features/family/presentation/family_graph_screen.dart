@@ -143,6 +143,7 @@ import '../../../core/viewer/viewer_provider.dart'
 // v2.2: Lazy realtime subscription — subscribe to the active family only.
 import '../../../core/network/supabase_realtime_service.dart'
     show supabaseRealtimeProvider;
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../core/utils/device_tier.dart' show clampBoxShadows;
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2197,13 +2198,19 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
         // budget) keeps blur 12 unchanged. The const list keeps
         // allocation free; only the wrapper allocates the (possibly
         // truncated/clamped) output list at runtime.
-        boxShadow: clampBoxShadows(const [
-          BoxShadow(
-            color: Colors.black54,
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ]),
+        //
+        // PERF (Flat): KinrelFx.shadows returns the empty list in
+        // flat mode (no shadow). The 1px Border.all above provides
+        // visual separation.
+        boxShadow: KinrelFx.shadows(
+          clampBoxShadows(const [
+            BoxShadow(
+              color: Colors.black54,
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ]),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

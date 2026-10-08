@@ -17,6 +17,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/brand_colors.dart';
+import '../../core/theme/kinrel_fx.dart';
 
 /// The type of "on this day" event.
 enum OnThisDayEventType { birthday, anniversary, memory }
@@ -99,13 +100,13 @@ class OnThisDayBadge extends StatelessWidget {
             color: KinrelColors.darkCard.withValues(alpha: 0.95),
             shape: BoxShape.circle,
             border: Border.all(color: event.color, width: 1.5),
-            boxShadow: [
+            boxShadow: KinrelFx.shadows([
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.4),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
-            ],
+            ]),
           ),
           child: Icon(event.icon, size: 14, color: event.color),
         ),

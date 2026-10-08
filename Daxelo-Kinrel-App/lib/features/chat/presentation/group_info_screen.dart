@@ -24,6 +24,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/networking/dio_client.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../l10n/app_localizations.dart';
 import '../providers/chat_socket_engagement_provider.dart';
 import 'package:kinrel/core/utils/device_tier.dart';
@@ -190,13 +191,16 @@ class GroupInfoScreen extends ConsumerWidget {
               height: 96,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: KinrelGradients.igniteGradient,
-                boxShadow: clampBoxShadows([
-                  BoxShadow(
-                    color: KinrelColors.ember.withValues(alpha: 0.25),
-                    blurRadius: 20,
-                  ),
-                ]),
+                gradient: KinrelGradients.igniteGradient, // EXEMPT — brand fallback
+                // PERF (Flat): no shadow in flat mode.
+                boxShadow: KinrelFx.shadows(
+                  clampBoxShadows([
+                    BoxShadow(
+                      color: KinrelColors.ember.withValues(alpha: 0.25),
+                      blurRadius: 20,
+                    ),
+                  ]),
+                ),
               ),
               child: Center(
                 child: Text(
