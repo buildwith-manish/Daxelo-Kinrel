@@ -402,7 +402,7 @@ class _FlickArenaWaitingRoom extends StatelessWidget {
               Container(
                 width: 8,
                 height: 8,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: KinrelColors.orange,
                   shape: BoxShape.circle,
                   boxShadow: KinrelFx.shadows([

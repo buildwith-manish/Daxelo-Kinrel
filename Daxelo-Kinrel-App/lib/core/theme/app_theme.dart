@@ -31,6 +31,7 @@ import 'package:flutter/material.dart';
 import '../constants/brand_colors.dart';
 import '../constants/brand_typography.dart';
 import '../constants/brand_spacing.dart';
+import 'kinrel_fx.dart';
 import '../utils/device_tier.dart';
 
 // ── Theme Extension ───────────────────────────────────────────────────

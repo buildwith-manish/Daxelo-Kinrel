@@ -439,7 +439,7 @@ class _OralHistoryAudioPlayerState
               child: Container(
                 width: widget.compact ? 44 : 64,
                 height: widget.compact ? 44 : 64,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: KinrelGradients.igniteGradient,
                   boxShadow: KinrelFx.shadows([

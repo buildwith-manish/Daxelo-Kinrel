@@ -481,7 +481,7 @@ class _StreakCard extends StatelessWidget {
                 Container(
                   width: 48,
                   height: 48,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     gradient: KinrelGradients.igniteGradient,
                     shape: BoxShape.circle,
                     boxShadow: KinrelFx.shadows([
@@ -992,7 +992,7 @@ class _UnlockedBadgeCard extends StatelessWidget {
                         Container(
                           width: 56,
                           height: 56,
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             gradient: KinrelGradients.achievementGradient,
                             boxShadow: KinrelFx.shadows([

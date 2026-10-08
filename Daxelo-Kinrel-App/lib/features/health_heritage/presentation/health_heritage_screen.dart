@@ -387,7 +387,7 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
                   Container(
                     width: 32,
                     height: 32,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       gradient: KinrelGradients.igniteGradient,
                       shape: BoxShape.circle,
                       boxShadow: KinrelFx.shadows([

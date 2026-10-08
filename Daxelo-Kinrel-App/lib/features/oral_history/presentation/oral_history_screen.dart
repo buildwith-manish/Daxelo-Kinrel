@@ -2136,7 +2136,7 @@ class _StoryCard extends StatelessWidget {
                     Container(
                       width: 44,
                       height: 44,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: KinrelGradients.igniteGradient,
                         boxShadow: KinrelFx.shadows([
@@ -2588,7 +2588,7 @@ class _RecordingBottomSheetState extends State<_RecordingBottomSheet>
                 child: Container(
                   width: 52,
                   height: 52,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: KinrelGradients.igniteGradient,
                     boxShadow: KinrelFx.shadows([
