@@ -16,6 +16,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../shared/icons/kinrel_icons.dart';
 import '../shared/services/temporary_room_service.dart';
@@ -257,10 +258,10 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
             color: isSelected ? KinrelColors.orange : (isThreeOfAKind ? KinrelColors.success.withValues(alpha: 0.7) : KinrelColors.border),
             width: isSelected ? 2 : 1.5,
           ),
-          boxShadow: [
+          boxShadow: KinrelFx.shadows([
             BoxShadow(color: Colors.black.withValues(alpha: isSelected ? 0.5 : 0.35), blurRadius: isSelected ? 16 : 8, offset: Offset(0, isSelected ? 8 : 4)),
             if (isSelected) BoxShadow(color: KinrelColors.orange.withValues(alpha: 0.35), blurRadius: 18, spreadRadius: 1),
-          ],
+          ]),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12.5),
@@ -324,7 +325,7 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.75), width: 1.5),
-                      boxShadow: [BoxShadow(color: KinrelColors.orange.withValues(alpha: 0.35), blurRadius: 8)],
+                      boxShadow: KinrelFx.shadows([BoxShadow(color: KinrelColors.orange.withValues(alpha: 0.35), blurRadius: 8)]),
                     ),
                   )
                     .animate(onPlay: (c) => c.repeat(reverse: true))

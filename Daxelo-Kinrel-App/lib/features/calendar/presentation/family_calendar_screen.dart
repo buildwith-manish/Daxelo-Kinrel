@@ -11,6 +11,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../features/family/presentation/family_space_floating_nav.dart';
 import '../models/calendar_models.dart';
@@ -222,13 +223,13 @@ class _MonthView extends StatelessWidget {
                             shape: BoxShape.circle,
                             color: baseColor,
                             // Add a subtle glow for better visibility.
-                            boxShadow: [
+                            boxShadow: KinrelFx.shadows([
                               BoxShadow(
                                 color: baseColor.withValues(alpha: 0.4),
                                 blurRadius: 2,
                                 spreadRadius: 0,
                               ),
-                            ],
+                            ]),
                           ),
                         );
                       }).toList(),

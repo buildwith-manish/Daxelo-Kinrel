@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/constants/brand_colors.dart';
 import '../../../../../core/constants/brand_spacing.dart';
 import '../../../../../core/constants/brand_typography.dart';
+import '../../../../../core/theme/kinrel_fx.dart';
 import '../../../game_motion_tokens.dart';
 
 /// A labeled group of setup controls.

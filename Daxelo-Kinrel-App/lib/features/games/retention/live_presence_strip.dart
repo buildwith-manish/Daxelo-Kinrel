@@ -14,6 +14,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import 'retention_providers.dart';
 
 class LivePresenceStrip extends ConsumerWidget {
@@ -148,9 +149,9 @@ class _PresenceAvatar extends StatelessWidget {
                     shape: BoxShape.circle,
                     border: Border.all(
                         color: KinrelColors.darkSurface, width: 2),
-                    boxShadow: const [
+                    boxShadow: KinrelFx.shadows(const [
                       BoxShadow(color: KinrelColors.tealAccent, blurRadius: 4),
-                    ],
+                    ]),
                   ),
                 ),
               ),

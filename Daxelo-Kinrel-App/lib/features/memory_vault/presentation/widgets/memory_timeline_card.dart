@@ -39,6 +39,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/services/image_cache_manager.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import '../../data/memory_model.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────

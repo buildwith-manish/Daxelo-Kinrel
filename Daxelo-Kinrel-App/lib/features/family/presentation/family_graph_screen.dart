@@ -1377,7 +1377,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
               heroTag: 'recenter_anchor_fab',
               backgroundColor: KinrelColors.darkCard,
               foregroundColor: KinrelColors.orange,
-              elevation: 4,
+              elevation: (KinrelFx.rich ? 4 : 0),
               tooltip: 'Center on You',
               onPressed: _centerOnRootUser,
               child: const Icon(Icons.my_location, size: 20),
@@ -1518,13 +1518,13 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
+        boxShadow: KinrelFx.shadows(const [
           BoxShadow(
             color: Color(0x40000000),
             blurRadius: 12,
             offset: Offset(0, 4),
           ),
-        ],
+        ]),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1611,7 +1611,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
         // Orange is reserved for the single primary action (Share FAB).
         backgroundColor: KinrelColors.darkCard,
         foregroundColor: KinrelColors.textWhite,
-        elevation: 4,
+        elevation: (KinrelFx.rich ? 4 : 0),
         onPressed: () {
           if (inPathSelectMode) {
             ref.read(graphFocusProvider.notifier).exitPathSelectMode();
@@ -1654,7 +1654,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
         backgroundColor:
             isOn ? KinrelColors.tealAccent : KinrelColors.darkCard,
         foregroundColor: isOn ? Colors.black : KinrelColors.textWhite,
-        elevation: 4,
+        elevation: (KinrelFx.rich ? 4 : 0),
         onPressed: () {
           ref.read(rearrangeModeProvider.notifier).state = !isOn;
         },
@@ -1749,7 +1749,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
         heroTag: 'rearrange_reset_all',
         backgroundColor: KinrelColors.darkCard,
         foregroundColor: KinrelColors.orange,
-        elevation: 4,
+        elevation: (KinrelFx.rich ? 4 : 0),
         onPressed: () {
           // v5.34: Increment the reset-unsaved trigger. The engine
           // view watches this and clears _rearrangeLiveNodeOverrides +
@@ -1836,13 +1836,13 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
               color: KinrelColors.amber.withValues(alpha: 0.4),
               width: 1,
             ),
-            boxShadow: [
+            boxShadow: KinrelFx.shadows([
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.3),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
-            ],
+            ]),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1902,13 +1902,13 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
               color: KinrelColors.tealAccent.withValues(alpha: 0.4),
               width: 1,
             ),
-            boxShadow: [
+            boxShadow: KinrelFx.shadows([
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.3),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
-            ],
+            ]),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -2169,7 +2169,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
             heroTag: 'empty_add_member_fab',
             backgroundColor: KinrelColors.orange,
             foregroundColor: Colors.white,
-            elevation: 6,
+            elevation: (KinrelFx.rich ? 6 : 0),
             onPressed: _openAddMember,
             child: const Icon(Icons.person_add_alt_1_rounded, size: 24),
           ),
@@ -2458,13 +2458,13 @@ class _IndirectRelationCoachMarkState
                   color: const Color(0xFF14B8A6), // teal accent
                   width: 1.5,
                 ),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.5),
                     blurRadius: 16,
                     offset: const Offset(0, 4),
                   ),
-                ],
+                ]),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,

@@ -43,6 +43,7 @@ import '../../family/presentation/find_on_kinrel_flow.dart'
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../../family/presentation/premium/family_hub_sections.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../gaming_ecosystem/data/gaming_models.dart';
 import '../../gaming_ecosystem/data/gaming_providers.dart';
 import '../../gaming_ecosystem/presentation/widgets/gaming_kit.dart';
@@ -400,13 +401,13 @@ class _InviteFamilyBanner extends StatelessWidget {
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(18),
-          boxShadow: [
+          boxShadow: KinrelFx.shadows([
             BoxShadow(
               color: const Color(0xFFE8612A).withValues(alpha: 0.35),
               blurRadius: 18,
               offset: const Offset(0, 6),
             ),
-          ],
+          ]),
         ),
         child: Row(
           children: [

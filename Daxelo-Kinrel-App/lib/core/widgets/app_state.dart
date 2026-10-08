@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../constants/app_tokens.dart';
+import '../../core/theme/kinrel_fx.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // EMPTY STATE — invitation to act, not absence notice
@@ -128,13 +129,13 @@ class _EmptyStateCTA extends StatelessWidget {
             color: Colors.white.withValues(alpha: 0.18),
             width: 1,
           ),
-          boxShadow: [
+          boxShadow: KinrelFx.shadows([
             BoxShadow(
               color: AppColor.orange.withValues(alpha: 0.28),
               blurRadius: 14,
               offset: const Offset(0, 4),
             ),
-          ],
+          ]),
         ),
         child: Text(
           label,

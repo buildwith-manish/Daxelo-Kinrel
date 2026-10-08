@@ -22,6 +22,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/brand_colors.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../l10n/app_localizations.dart';
 import '../config/map_visual_constants.dart';
 import '../data/place_models.dart';
@@ -166,7 +167,7 @@ class _FamilyJourneyAnimationState
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: Colors.black.withValues(
               alpha: MapVisualConstants.timelineShadowOpacity,
@@ -174,7 +175,7 @@ class _FamilyJourneyAnimationState
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
-        ],
+        ]),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

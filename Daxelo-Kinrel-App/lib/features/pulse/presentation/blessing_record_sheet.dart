@@ -23,6 +23,7 @@ import 'package:record/record.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../providers/pulse_providers.dart';
 import 'package:go_router/go_router.dart';
 
@@ -291,7 +292,7 @@ class _BlessingRecordSheetState extends ConsumerState<BlessingRecordSheet> {
                   ? Colors.red.shade400
                   : KinrelColors.gold,
               shape: BoxShape.circle,
-              boxShadow: [
+              boxShadow: KinrelFx.shadows([
                 BoxShadow(
                   color: (isRecording
                           ? Colors.red.shade400
@@ -300,7 +301,7 @@ class _BlessingRecordSheetState extends ConsumerState<BlessingRecordSheet> {
                   blurRadius: 20,
                   spreadRadius: 2,
                 ),
-              ],
+              ]),
             ),
             child: Icon(
               isRecording ? Icons.stop : Icons.mic,

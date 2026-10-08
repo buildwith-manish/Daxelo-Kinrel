@@ -8,6 +8,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/widgets/game_board_shell.dart';
@@ -71,7 +72,7 @@ class _TtSubmitScreenState extends ConsumerState<TtSubmitScreen> {
       _statementCard(2, _c2, 'Statement 2', isAiMode ? false : _lieIndex == 2, () { GameMotionTokens.tap(); setState(() => _lieIndex = 2); }),
       const SizedBox(height: 10),
       if (isAiMode)
-        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(16), border: Border.all(color: KinrelColors.info.withValues(alpha: 0.3)), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))]),
+        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(16), border: Border.all(color: KinrelColors.info.withValues(alpha: 0.3)), boxShadow: KinrelFx.shadows([BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))])),
           child: Row(children: [Container(width: 30, height: 30, decoration: BoxDecoration(shape: BoxShape.circle, color: KinrelColors.info.withValues(alpha: 0.14), border: Border.all(color: KinrelColors.info.withValues(alpha: 0.4))), child: const Center(child: Icon(Icons.smart_toy, color: KinrelColors.info, size: 16))), const SizedBox(width: 10), const Expanded(child: Text('Statement 3 (the lie) will be AI-generated', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.info)))]))
       else
         _statementCard(3, _c3, 'Statement 3', _lieIndex == 3, () { GameMotionTokens.tap(); setState(() => _lieIndex = 3); }),

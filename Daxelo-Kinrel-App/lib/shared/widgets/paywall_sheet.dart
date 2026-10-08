@@ -67,6 +67,7 @@ import '../../core/constants/brand_typography.dart';
 import '../../core/constants/brand_spacing.dart' show KinrelRadius;
 import '../../core/services/haptic_service.dart';
 import '../../core/services/premium_service.dart';
+import '../../core/theme/kinrel_fx.dart';
 import 'bounce_button.dart';
 
 /// What triggered the paywall. Determines the copy + icon.
@@ -365,13 +366,13 @@ class PaywallSheet extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: KinrelGradients.igniteGradient,
           borderRadius: BorderRadius.circular(KinrelRadius.full),
-          boxShadow: [
+          boxShadow: KinrelFx.shadows([
             BoxShadow(
               color: KinrelColors.orange.withValues(alpha: 0.35),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
-          ],
+          ]),
         ),
         child: const Text(
           'Upgrade to Kinrel Plus',

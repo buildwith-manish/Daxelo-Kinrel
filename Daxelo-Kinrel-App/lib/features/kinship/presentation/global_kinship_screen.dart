@@ -8,6 +8,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/kinship/country_kinship_models.dart';
 import '../../../core/kinship/country_kinship_provider.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 
 /// Global Kinship Screen — Country-first approach to world kinship
@@ -169,13 +170,13 @@ class _GlobalKinshipScreenState extends ConsumerState<GlobalKinshipScreen> {
                 decoration: BoxDecoration(
                   gradient: DKColors.ctaGradient,
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  boxShadow: [
+                  boxShadow: KinrelFx.shadows([
                     BoxShadow(
                       color: DKColors.brandOrange.withValues(alpha: 0.3),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
-                  ],
+                  ]),
                 ),
                 child: const Center(
                   child: Text('🌐', style: TextStyle(fontSize: 24)),

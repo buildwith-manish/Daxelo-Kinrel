@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 import '../game_motion_tokens.dart';
 import '../shared/widgets/game_confetti.dart';
@@ -209,14 +210,14 @@ class _GhostPainterGuessScreenState
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
+                  boxShadow: KinrelFx.shadows([
                     BoxShadow(
                       color: (_focusNode.hasFocus ? kGhostAccent : Colors.black)
                           .withValues(alpha: 0.30),
                       blurRadius: 16,
                       offset: const Offset(0, 5),
                     ),
-                  ],
+                  ]),
                 ),
                 child: TextField(
                   controller: _guessController,

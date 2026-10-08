@@ -26,6 +26,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../../chat/providers/chat_provider.dart';
 import '../data/group_provider.dart';
 import 'package:kinrel/core/utils/device_tier.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 class GroupHubScreen extends ConsumerWidget {
   const GroupHubScreen({
@@ -151,7 +152,7 @@ class _GroupHero extends StatelessWidget {
             height: 120,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              boxShadow: clampBoxShadows([
+              boxShadow: KinrelFx.shadows(clampBoxShadows([
                 BoxShadow(
                   color: group.groupType.color.withValues(alpha: 0.25),
                   blurRadius: 32,
@@ -162,7 +163,7 @@ class _GroupHero extends StatelessWidget {
                   blurRadius: 12,
                   offset: const Offset(0, 6),
                 ),
-              ]),
+              ])),
             ),
             child: Container(
               decoration: BoxDecoration(
@@ -338,13 +339,13 @@ class _GroupMembersSection extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
             color: Colors.white.withValues(alpha: 0.06), width: 0.75),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.20),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
-        ],
+        ]),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -648,13 +649,13 @@ class _GroupSharedMediaSection extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
             color: Colors.white.withValues(alpha: 0.06), width: 0.75),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.20),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
-        ],
+        ]),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -773,13 +774,13 @@ class _GroupActivitySection extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
             color: Colors.white.withValues(alpha: 0.06), width: 0.75),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.20),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
-        ],
+        ]),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1050,7 +1051,7 @@ class _EnterGroupChatGateway extends StatelessWidget {
               color: group.groupType.color.withValues(alpha: 0.40),
               width: 1.5,
             ),
-            boxShadow: clampBoxShadows([
+            boxShadow: KinrelFx.shadows(clampBoxShadows([
               BoxShadow(
                 color: group.groupType.color.withValues(alpha: 0.25),
                 blurRadius: 32,
@@ -1061,7 +1062,7 @@ class _EnterGroupChatGateway extends StatelessWidget {
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
-            ]),
+            ])),
           ),
           child: Column(
             children: [
@@ -1082,12 +1083,12 @@ class _EnterGroupChatGateway extends StatelessWidget {
                     color: group.groupType.color.withValues(alpha: 0.55),
                     width: 1.5,
                   ),
-                  boxShadow: clampBoxShadows([
+                  boxShadow: KinrelFx.shadows(clampBoxShadows([
                     BoxShadow(
                       color: group.groupType.color.withValues(alpha: 0.30),
                       blurRadius: 20,
                     ),
-                  ]),
+                  ])),
                 ),
                 child: const Icon(
                   Icons.chat_rounded,
@@ -1131,13 +1132,13 @@ class _EnterGroupChatGateway extends StatelessWidget {
                     ],
                   ),
                   borderRadius: BorderRadius.circular(100),
-                  boxShadow: [
+                  boxShadow: KinrelFx.shadows([
                     BoxShadow(
                       color: group.groupType.color.withValues(alpha: 0.40),
                       blurRadius: 14,
                       offset: const Offset(0, 4),
                     ),
-                  ],
+                  ]),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,

@@ -40,6 +40,7 @@ import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/utils/share_helper.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../providers/share_provider.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────────
@@ -393,13 +394,13 @@ class _InviteTab extends ConsumerWidget {
               decoration: BoxDecoration(
                 gradient: KinrelGradients.igniteGradient,
                 borderRadius: BorderRadius.circular(KinrelRadius.lg),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   BoxShadow(
                     color: _cOrange.withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
-                ],
+                ]),
               ),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -495,13 +496,13 @@ class _InviteLinkCard extends StatelessWidget {
         gradient: KinrelGradients.cardGradient,
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
         border: Border.all(color: _cOrange.withValues(alpha: 0.15), width: 1),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: _cOrange.withValues(alpha: 0.05),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
-        ],
+        ]),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1505,13 +1506,13 @@ class _WhatsAppSheet extends StatelessWidget {
               decoration: BoxDecoration(
                 color: _cWhatsApp,
                 borderRadius: BorderRadius.circular(KinrelRadius.lg),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   BoxShadow(
                     color: _cWhatsApp.withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
-                ],
+                ]),
               ),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1616,13 +1617,13 @@ class _SMSSheet extends StatelessWidget {
               decoration: BoxDecoration(
                 color: _cSMS,
                 borderRadius: BorderRadius.circular(KinrelRadius.lg),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   BoxShadow(
                     color: _cSMS.withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
-                ],
+                ]),
               ),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1773,13 +1774,13 @@ class _EmailSheet extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: KinrelGradients.igniteGradient,
                 borderRadius: BorderRadius.circular(KinrelRadius.lg),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   BoxShadow(
                     color: _cOrange.withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
-                ],
+                ]),
               ),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1964,13 +1965,13 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
                     decoration: BoxDecoration(
                       color: _cWhatsApp,
                       borderRadius: BorderRadius.circular(KinrelRadius.lg),
-                      boxShadow: [
+                      boxShadow: KinrelFx.shadows([
                         BoxShadow(
                           color: _cWhatsApp.withValues(alpha: 0.25),
                           blurRadius: 10,
                           offset: const Offset(0, 3),
                         ),
-                      ],
+                      ]),
                     ),
                     child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -2017,13 +2018,13 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
                     decoration: BoxDecoration(
                       gradient: KinrelGradients.igniteGradient,
                       borderRadius: BorderRadius.circular(KinrelRadius.lg),
-                      boxShadow: [
+                      boxShadow: KinrelFx.shadows([
                         BoxShadow(
                           color: _cOrange.withValues(alpha: 0.25),
                           blurRadius: 10,
                           offset: const Offset(0, 3),
                         ),
-                      ],
+                      ]),
                     ),
                     child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -2127,13 +2128,13 @@ class _KinshipCardWidget extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
         border: Border.all(color: _cOrange.withValues(alpha: 0.2), width: 1.5),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: _cOrange.withValues(alpha: 0.08),
             blurRadius: 24,
             offset: const Offset(0, 8),
           ),
-        ],
+        ]),
       ),
       child: Stack(
         children: [
@@ -2500,13 +2501,13 @@ class _ShareGraphTab extends ConsumerWidget {
               decoration: BoxDecoration(
                 gradient: KinrelGradients.igniteGradient,
                 borderRadius: BorderRadius.circular(KinrelRadius.lg),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   BoxShadow(
                     color: _cOrange.withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
-                ],
+                ]),
               ),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,

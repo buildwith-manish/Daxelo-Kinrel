@@ -28,6 +28,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_tokens.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import '../../../kinrel_intelligence/data/kinrel_model.dart';
 import '../../../kinrel_intelligence/providers/kinrel_provider.dart';
 import '../../../kinrel_intelligence/widgets/kinrel_symbol_widget.dart';
@@ -453,7 +454,16 @@ class _BreathingMandalaState extends State<_BreathingMandala>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 6),
-    )..repeat(reverse: true);
+    );
+    // PERF (Flat): skip the decorative mandala loop in flat mode —
+    // the static mandala pattern is sufficient visual content.
+    if (KinrelFx.decorativeAnimation) {
+      _controller.repeat(reverse: true);
+    } else {
+      // Pin the value to mid-cycle so the painter renders a complete
+      // mandala without an animation tick.
+      _controller.value = 0.5;
+    }
   }
 
   @override

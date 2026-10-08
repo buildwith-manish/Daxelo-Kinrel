@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cross_file/cross_file.dart';
 import '../../../../core/constants/brand_colors.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import '../../data/providers/sparq_provider.dart';
 
 class SparqCreateScreen extends ConsumerStatefulWidget {
@@ -951,7 +952,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
                   inactiveTrackColor: Colors.transparent,
                   thumbShape: const RoundSliderThumbShape(
                     enabledThumbRadius: 8,
-                    elevation: 2,
+                    elevation: (KinrelFx.rich ? 2 : 0),
                   ),
                 ),
                 child: Slider(
@@ -1145,13 +1146,13 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
                   decoration: BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
-                    boxShadow: [
+                    boxShadow: KinrelFx.shadows([
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.3),
                         blurRadius: 4,
                         offset: const Offset(0, 1),
                       ),
-                    ],
+                    ]),
                   ),
                 ),
               ),

@@ -19,6 +19,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 
 class BadgesToast {
   BadgesToast._();
@@ -131,13 +132,13 @@ class _BadgesOverlayState extends State<_BadgesOverlay>
               border: Border.all(
                   color: KinrelColors.orange.withValues(alpha: 0.6),
                   width: 1.5),
-              boxShadow: [
+              boxShadow: KinrelFx.shadows([
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.4),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
-              ],
+              ]),
             ),
             child: Row(
               children: [

@@ -18,6 +18,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/kinrel_fx.dart';
 import '../data/kinrel_model.dart';
 import 'kinrel_symbol_painter.dart';
 
@@ -60,10 +61,14 @@ class _KinrelSymbolWidgetState extends State<KinrelSymbolWidget>
       vsync: this,
       duration: Duration(milliseconds: widget.parameters.pulseSpeedMs),
     );
-    if (widget.animate) {
+    // PERF (Flat): skip the pulse loop in flat mode — the symbol
+    // renders as a static icon.
+    if (widget.animate && KinrelFx.decorativeAnimation) {
       _controller.repeat(reverse: true);
     } else {
-      // Static render — leave the controller at 0 so progress=0.
+      // Static render — pin to mid-cycle so the painter renders the
+      // full symbol shape.
+      _controller.value = 0.5;
     }
   }
 
@@ -77,9 +82,11 @@ class _KinrelSymbolWidgetState extends State<KinrelSymbolWidget>
       _controller.duration =
           Duration(milliseconds: widget.parameters.pulseSpeedMs);
     }
-    if (widget.animate && !_controller.isAnimating) {
+    final shouldAnimate =
+        widget.animate && KinrelFx.decorativeAnimation;
+    if (shouldAnimate && !_controller.isAnimating) {
       _controller.repeat(reverse: true);
-    } else if (!widget.animate && _controller.isAnimating) {
+    } else if (!shouldAnimate && _controller.isAnimating) {
       _controller.stop();
     }
   }

@@ -29,6 +29,7 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/form_validators.dart';
 import '../../../core/services/analytics_service.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
   SignInScreen({super.key});

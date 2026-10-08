@@ -13,6 +13,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import 'nameplace_game_logic.dart';
@@ -117,10 +118,10 @@ class _NameplaceLetterPickScreenState extends ConsumerState<NameplaceLetterPickS
               colors: [Color(0xFFFFFDF6), Color(0xFFE7E0D4)],
             ),
             border: Border.all(color: pressed ? KinrelColors.orange : const Color(0xFFD9D3C7), width: pressed ? 2 : 1),
-            boxShadow: [
+            boxShadow: KinrelFx.shadows([
               BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 6, offset: const Offset(0, 3)),
               if (pressed) BoxShadow(color: KinrelColors.orange.withValues(alpha: 0.55), blurRadius: 12, spreadRadius: 2),
-            ],
+            ]),
           ),
           child: Center(child: Text(letter, style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF2A2118)))),
         ),

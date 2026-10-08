@@ -7,6 +7,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/icons/kinrel_icons.dart';
@@ -205,13 +206,13 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
         Transform.rotate(angle: 0.785, child: Container(width: 38, height: 6.5, decoration: BoxDecoration(
           gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [light, color]),
           borderRadius: BorderRadius.circular(3.5),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 5, offset: const Offset(0, 2.5))] +
+          boxShadow: KinrelFx.shadows([BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 5, offset: const Offset(0, 2.5))]) +
               (isWin ? [BoxShadow(color: color.withValues(alpha: 0.65), blurRadius: 12)] : <BoxShadow>[]),
         ))),
         Transform.rotate(angle: -0.785, child: Container(width: 38, height: 6.5, decoration: BoxDecoration(
           gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [light, color]),
           borderRadius: BorderRadius.circular(3.5),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 5, offset: const Offset(0, 2.5))] +
+          boxShadow: KinrelFx.shadows([BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 5, offset: const Offset(0, 2.5))]) +
               (isWin ? [BoxShadow(color: color.withValues(alpha: 0.65), blurRadius: 12)] : <BoxShadow>[]),
         ))),
       ])).animate().scale(begin: const Offset(0.3, 0.3), end: const Offset(1.0, 1.0), duration: 300.ms, curve: Curves.elasticOut);
@@ -220,7 +221,7 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
         decoration: BoxDecoration(shape: BoxShape.circle,
           gradient: RadialGradient(center: const Alignment(-0.35, -0.35), colors: [Color.lerp(color, Colors.white, 0.22)!, color, Color.lerp(color, Colors.black, 0.35)!]),
           border: Border.all(color: light, width: 4.5),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 5, offset: const Offset(0, 2.5))] +
+          boxShadow: KinrelFx.shadows([BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 5, offset: const Offset(0, 2.5))]) +
               (isWin ? [BoxShadow(color: color.withValues(alpha: 0.65), blurRadius: 12)] : <BoxShadow>[]),
         ),
       ).animate().scale(begin: const Offset(0.3, 0.3), end: const Offset(1.0, 1.0), duration: 300.ms, curve: Curves.elasticOut);

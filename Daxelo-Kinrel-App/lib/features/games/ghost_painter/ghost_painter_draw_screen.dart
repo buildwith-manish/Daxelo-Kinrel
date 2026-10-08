@@ -18,6 +18,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
@@ -206,13 +207,13 @@ class _GhostPainterDrawScreenState
                   colors: [Color(0xFFEC4899), Color(0xFFB14DB8)],
                 ),
                 borderRadius: BorderRadius.circular(28),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   BoxShadow(
                     color: kGhostAccent.withValues(alpha: 0.45),
                     blurRadius: 24,
                     offset: const Offset(0, 8),
                   ),
-                ],
+                ]),
               ),
               child: FilledButton.icon(
                 onPressed: _startRound,
@@ -356,13 +357,13 @@ class _GhostPainterDrawScreenState
                     colors: [Color(0xFFEC4899), Color(0xFFB14DB8)],
                   ),
                   borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
+                  boxShadow: KinrelFx.shadows([
                     BoxShadow(
                       color: kGhostAccent.withValues(alpha: 0.4),
                       blurRadius: 18,
                       offset: const Offset(0, 6),
                     ),
-                  ],
+                  ]),
                 ),
                 child: FilledButton.icon(
                   onPressed: _doneDrawing,
@@ -748,9 +749,9 @@ class _CountdownRingState extends State<_CountdownRing> {
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(color: color.withValues(alpha: 0.45), blurRadius: 14),
-        ],
+        ]),
       ),
       child: SizedBox(
         width: 46,

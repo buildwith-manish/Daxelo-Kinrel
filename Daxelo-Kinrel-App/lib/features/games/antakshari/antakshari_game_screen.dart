@@ -32,6 +32,7 @@ import 'antakshari_models.dart';
 import 'antakshari_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 import 'package:kinrel/core/utils/device_tier.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 class AntakshariGameScreen extends ConsumerStatefulWidget {
   const AntakshariGameScreen({
@@ -419,7 +420,7 @@ class _AntakshariGameScreenState
                     : KinrelColors.amber,
                 width: 3,
               ),
-              boxShadow: clampBoxShadows([
+              boxShadow: KinrelFx.shadows(clampBoxShadows([
                 BoxShadow(
                   color: (isInChallengeWindow
                       ? KinrelColors.warning
@@ -428,7 +429,7 @@ class _AntakshariGameScreenState
                   blurRadius: 26,
                   spreadRadius: 3,
                 ),
-              ]),
+              ])),
             ),
             child: Center(
               child: Text(

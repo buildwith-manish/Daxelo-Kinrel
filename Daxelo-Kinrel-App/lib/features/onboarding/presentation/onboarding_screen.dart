@@ -11,6 +11,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/storage/secure_storage.dart';
 import '../../../core/services/analytics_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -234,13 +235,13 @@ class _IgniteButtonState extends State<_IgniteButton> {
           decoration: BoxDecoration(
             gradient: KinrelGradients.igniteGradient,
             borderRadius: BorderRadius.circular(KinrelRadius.full),
-            boxShadow: [
+            boxShadow: KinrelFx.shadows([
               BoxShadow(
                 color: KinrelColors.orange.withValues(alpha: 0.35),
                 blurRadius: 20,
                 offset: const Offset(0, 6),
               ),
-            ],
+            ]),
           ),
           child: Center(
             child: Text(
@@ -678,13 +679,13 @@ class _KinshipCard extends StatelessWidget {
           color: KinrelColors.orange.withValues(alpha: 0.2),
           width: 1,
         ),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: KinrelColors.orange.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
-        ],
+        ]),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

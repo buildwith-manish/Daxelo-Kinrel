@@ -37,6 +37,7 @@ import 'tugofwar_models.dart';
 import 'tugofwar_provider.dart';
 import 'tugofwar_rope.dart';
 import 'package:kinrel/core/utils/device_tier.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 class TugOfWarGameScreen extends ConsumerStatefulWidget {
   const TugOfWarGameScreen({
@@ -513,12 +514,12 @@ class _AdvantageMeter extends StatelessWidget {
                       color: Colors.white.withValues(alpha: 0.9),
                       width: 1.5,
                     ),
-                    boxShadow: [
+                    boxShadow: KinrelFx.shadows([
                       BoxShadow(
                         color: KinrelColors.gold.withValues(alpha: 0.55),
                         blurRadius: 6,
                       ),
-                    ],
+                    ]),
                   ),
                 ),
               ),
@@ -638,9 +639,9 @@ class _TeamCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: color,
-                  boxShadow: [
+                  boxShadow: KinrelFx.shadows([
                     BoxShadow(color: color.withValues(alpha: 0.7), blurRadius: 5),
-                  ],
+                  ]),
                 ),
               ),
               const SizedBox(width: 5),
@@ -938,13 +939,13 @@ class _PullSection extends StatelessWidget {
                     ],
                   ),
                   borderRadius: BorderRadius.circular(KinrelRadius.xl),
-                  boxShadow: [
+                  boxShadow: KinrelFx.shadows([
                     BoxShadow(
                       color: color.withValues(alpha: pressed ? 0.55 : 0.35),
                       blurRadius: pressed ? 26 : 16,
                       offset: const Offset(0, 6),
                     ),
-                  ],
+                  ]),
                   border: Border.all(
                     color: Colors.white.withValues(alpha: 0.18),
                     width: 1.5,
@@ -1135,12 +1136,12 @@ class _WinnerBanner extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(KinrelRadius.xl),
         border: Border.all(color: winnerColor.withValues(alpha: 0.6)),
-        boxShadow: clampBoxShadows([
+        boxShadow: KinrelFx.shadows(clampBoxShadows([
           BoxShadow(
             color: winnerColor.withValues(alpha: 0.3),
             blurRadius: 30,
           ),
-        ]),
+        ])),
       ),
       child: Column(
         children: [

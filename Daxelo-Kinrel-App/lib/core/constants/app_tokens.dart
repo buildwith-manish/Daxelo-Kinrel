@@ -79,6 +79,7 @@ import 'package:flutter/material.dart';
 
 import 'brand_colors.dart';
 import 'brand_typography.dart';
+import '../../core/theme/kinrel_fx.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // SECTION 1 — APP COLOR
@@ -418,14 +419,14 @@ class AppCard {
         color: accentColor.withValues(alpha: 0.30),
         width: 1,
       ),
-      boxShadow: [
+      boxShadow: KinrelFx.shadows([
         BoxShadow(
           color: accentColor.withValues(alpha: 0.15),
           blurRadius: 20,
           spreadRadius: 1,
           offset: const Offset(0, 6),
         ),
-      ],
+      ]),
     );
   }
 
@@ -479,13 +480,13 @@ class AppCard {
         color: accentColor.withValues(alpha: 0.35),
         width: 1.5,
       ),
-      boxShadow: [
+      boxShadow: KinrelFx.shadows([
         BoxShadow(
           color: accentColor.withValues(alpha: 0.12),
           blurRadius: 16,
           offset: const Offset(0, 4),
         ),
-      ],
+      ]),
     );
   }
 

@@ -45,6 +45,7 @@ import '../../core/utils/accessibility_utils.dart';
 import '../../core/utils/device_tier.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/services/image_cache_manager.dart';
+import '../../core/theme/kinrel_fx.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // RASTER TIER A2 — dkShadow helper
@@ -876,13 +877,13 @@ class DKAvatar extends StatelessWidget {
       avatar = Container(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          boxShadow: [
+          boxShadow: KinrelFx.shadows([
             BoxShadow(
               color: DKColors.brandPurple.withValues(alpha: 0.4),
               blurRadius: _diameter * 0.4,
               spreadRadius: _diameter * 0.1,
             ),
-          ],
+          ]),
         ),
         child: avatar,
       );
@@ -1071,8 +1072,13 @@ class DKGlassCard extends StatelessWidget {
     // (sidebar scroll, route transition, setState in any ancestor).
     // Web uses an opaque Container (alpha 0.85) which is visually
     // equivalent at the card's small size and ~0 ms raster cost.
+    //
+    // PERF (Flat): when KinrelFx.rich is false (flat mode, the
+    // default), skip the BackdropFilter for ALL devices — flat mode
+    // uses the alpha-0.85 Container alone. In rich mode, retain the
+    // budget-aware skipBlur logic from Tier A1.
     final bool lowRam = DeviceTierCache.instance.lowRam;
-    final bool skipBlur = lowRam || kIsWeb;
+    final bool skipBlur = lowRam || kIsWeb || !KinrelFx.rich;
     final double bgAlpha = skipBlur ? 0.85 : (isLight ? 0.6 : 0.5);
 
     final Widget cardChild = Container(

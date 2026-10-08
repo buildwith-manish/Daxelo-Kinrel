@@ -25,6 +25,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/utils/device_tier.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 
 /// Surface material of the board playing area.
 enum BoardSurface {
@@ -358,7 +359,7 @@ class GamePiece3D extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           if (glow)
             BoxShadow(
               color: color.withValues(alpha: 0.65),
@@ -370,7 +371,7 @@ class GamePiece3D extends StatelessWidget {
             blurRadius: 6,
             offset: Offset(0, size * 0.14),
           ),
-        ],
+        ]),
       ),
       child: CustomPaint(
         painter: _ChipFacePainter(light: light, base: color, dark: dark, ring: ring),
@@ -590,12 +591,12 @@ class _PulsingDotState extends State<_PulsingDot>
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: widget.color,
-          boxShadow: [
+          boxShadow: KinrelFx.shadows([
             BoxShadow(
               color: widget.color.withValues(alpha: 0.7),
               blurRadius: 6,
             ),
-          ],
+          ]),
         ),
       ),
     );

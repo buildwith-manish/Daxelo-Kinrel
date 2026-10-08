@@ -14,6 +14,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/icons/kinrel_icons.dart';
@@ -92,7 +93,7 @@ class _NameplaceResultsScreenState extends ConsumerState<NameplaceResultsScreen>
             borderRadius: BorderRadius.circular(12),
             gradient: const RadialGradient(center: Alignment(-0.4, -0.4), radius: 1.25, colors: [Color(0xFFFFFDF6), Color(0xFFE7E0D4)]),
             border: Border.all(color: const Color(0xFFD9D3C7)),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 8, offset: const Offset(0, 3))],
+            boxShadow: KinrelFx.shadows([BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 8, offset: const Offset(0, 3))]),
           ),
           child: Center(child: Text(game.currentLetter ?? '?', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF2A2118)))),
         ),

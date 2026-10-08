@@ -38,6 +38,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 import '../../gaming_ecosystem/presentation/widgets/gaming_kit.dart';
@@ -428,9 +429,9 @@ class _TurnBanner extends StatelessWidget {
             decoration: BoxDecoration(
               color: seatColor,
               shape: BoxShape.circle,
-              boxShadow: [
+              boxShadow: KinrelFx.shadows([
                 BoxShadow(color: seatColor, blurRadius: 6),
-              ],
+              ]),
             ),
           ),
           const SizedBox(width: 10),

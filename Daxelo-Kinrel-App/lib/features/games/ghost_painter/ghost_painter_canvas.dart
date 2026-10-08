@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/utils/device_tier.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 /// Brand accent of Ghost Painter (matches fn__game_meta).
 const Color kGhostAccent = Color(0xFFEC4899);
@@ -184,13 +185,13 @@ class GhostGlassCard extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: accent.withValues(alpha: 0.35)),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: accent.withValues(alpha: 0.12),
             blurRadius: 18,
             offset: const Offset(0, 6),
           ),
-        ],
+        ]),
       ),
       child: child,
     );
@@ -225,13 +226,13 @@ class GhostMedallion extends StatelessWidget {
           ],
         ),
         border: Border.all(color: accent.withValues(alpha: 0.6)),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: accent.withValues(alpha: 0.35),
             blurRadius: size * 0.5,
             spreadRadius: 1,
           ),
-        ],
+        ]),
       ),
       child: Center(
         child: Text(emoji, style: TextStyle(fontSize: size * 0.42)),

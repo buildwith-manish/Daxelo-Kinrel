@@ -12,6 +12,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../shared/icons/kinrel_icons.dart';
 import '../shared/models/game_invite.dart';
@@ -311,9 +312,9 @@ class RedlightResultsScreen extends ConsumerWidget {
               ),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
               border: Border.all(color: accent.withValues(alpha: 0.65), width: 1.4),
-              boxShadow: [
+              boxShadow: KinrelFx.shadows([
                 BoxShadow(color: accent.withValues(alpha: 0.28), blurRadius: 14, offset: const Offset(0, 6)),
-              ],
+              ]),
             ),
             child: Center(
               child: Text(

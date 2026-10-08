@@ -13,6 +13,7 @@ import '../../../core/family/family_provider.dart' show Person;
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/member_detail_provider.dart';
 import '../../../core/services/image_cache_manager.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import 'add_person_sheet.dart';
 import 'path_finder_screen.dart';
 
@@ -992,13 +993,13 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: KinrelGradients.igniteGradient,
-                      boxShadow: [
+                      boxShadow: KinrelFx.shadows([
                         BoxShadow(
                           color: KinrelColors.orange.withValues(alpha: 0.4),
                           blurRadius: 6,
                           spreadRadius: 1,
                         ),
-                      ],
+                      ]),
                     ),
                     child: Center(
                       child: Container(
@@ -1245,13 +1246,13 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
       decoration: BoxDecoration(
         gradient: KinrelGradients.igniteGradient,
         shape: BoxShape.circle,
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: KinrelColors.orange.withValues(alpha: 0.4),
             blurRadius: 12,
             spreadRadius: 2,
           ),
-        ],
+        ]),
       ),
       child: FloatingActionButton(
         onPressed: _showAddNoteDialog,

@@ -32,6 +32,7 @@ import '../../../../core/constants/app_tokens.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import '../../../gaming_ecosystem/data/game_registry.dart';
 import '../../shared/icons/kinrel_icons.dart';
 
@@ -437,9 +438,9 @@ class _Avatar extends StatelessWidget {
                 color: KinrelColors.tealAccent,
                 shape: BoxShape.circle,
                 border: Border.all(color: KinrelColors.darkCard, width: 2),
-                boxShadow: const [
+                boxShadow: KinrelFx.shadows(const [
                   BoxShadow(color: KinrelColors.tealAccent, blurRadius: 6),
-                ],
+                ]),
               ),
             ),
           ),

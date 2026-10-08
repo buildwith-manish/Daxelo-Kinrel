@@ -29,6 +29,7 @@ import 'package:maplibre/maplibre.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../core/widgets/cached_avatar.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../l10n/app_localizations.dart';
 import '../config/map_visual_constants.dart';
 import '../providers/family_map_provider.dart';
@@ -83,7 +84,7 @@ class AvatarMarkerWidget extends StatelessWidget {
         // with the app's card surface token so pins read as native UI.
         color: KinrelColors.darkCard,
         border: Border.all(color: ringColor, width: ringWidth),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           // Soft glow halo.
           BoxShadow(
             color: KinrelColors.orange.withValues(
@@ -102,7 +103,7 @@ class AvatarMarkerWidget extends StatelessWidget {
             blurRadius: 4,
             offset: const Offset(0, MapVisualConstants.markerShadowOffset),
           ),
-        ],
+        ]),
       ),
       child: Center(child: avatar),
     );

@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../core/theme/kinrel_fx.dart';
 
 // ── DeviceTier Enum ──────────────────────────────────────────────────
 
@@ -343,9 +344,9 @@ Duration tierDelay(Duration original) {
 //   ```dart
 //   final budget = DeviceTierCache.instance.rasterBudget;
 //   ImageFilter.blur(sigmaX: budget.blurSigma, sigmaY: budget.blurSigma)
-//   boxShadow: [
+//   boxShadow: KinrelFx.shadows([
 //     BoxShadow(blurRadius: budget.clampShadowBlur(24), offset: ...),
-//   ]
+//   ])
 //   ```
 
 /// Three-step raster budget. Drives every clamp in the app.
@@ -486,16 +487,16 @@ extension RasterBudgetDeviceTierX on DeviceTierCache {
 // On the `minimal` budget it returns an empty list (no shadow at all).
 //
 // Usage — replace this:
-//   boxShadow: const [
-//     BoxShadow(color: Colors.black, blurRadius: 32, offset: Offset(0, 8)),
-//     BoxShadow(color: Colors.black, blurRadius: 24, offset: Offset(0, 4)),
-//   ],
-//
-// With this:
-//   boxShadow: clampBoxShadows(const [
+//   boxShadow: KinrelFx.shadows(const [
 //     BoxShadow(color: Colors.black, blurRadius: 32, offset: Offset(0, 8)),
 //     BoxShadow(color: Colors.black, blurRadius: 24, offset: Offset(0, 4)),
 //   ]),
+//
+// With this:
+//   boxShadow: KinrelFx.shadows(clampBoxShadows(const [
+//     BoxShadow(color: Colors.black, blurRadius: 32, offset: Offset(0, 8)),
+//     BoxShadow(color: Colors.black, blurRadius: 24, offset: Offset(0, 4)),
+//   ])),
 //
 // On a flagship phone (RasterBudget.full): each blur is clamped to 16,
 // both shadows are kept (maxShadowCount = 2). Visual: same dual-glow.

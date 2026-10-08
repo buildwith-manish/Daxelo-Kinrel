@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import 'package:kinrel/core/utils/device_tier.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // EXTENDED KINSHIP TERMS LOOKUP
@@ -213,9 +214,9 @@ class _RelationshipPopupWidgetState extends State<RelationshipPopupWidget>
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(16.0),
         border: Border.all(color: const Color(0x4DE8612A), width: 1.0),
-        boxShadow: clampBoxShadows(const [
+        boxShadow: KinrelFx.shadows(clampBoxShadows(const [
           BoxShadow(color: Color(0x66000000), blurRadius: 32.0, offset: Offset(0, 8)),
-        ]),
+        ])),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

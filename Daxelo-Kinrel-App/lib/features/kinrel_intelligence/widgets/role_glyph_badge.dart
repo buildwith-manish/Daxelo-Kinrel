@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 
 import '../data/archetype_strings.dart';
 import '../data/kinrel_model.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 /// A small badge showing a member's Kinrel role.
 ///
@@ -99,13 +100,13 @@ class _BadgeDot extends StatelessWidget {
           color: Theme.of(context).colorScheme.surface,
           width: 1.5,
         ),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: color.withValues(alpha: 0.5),
             blurRadius: 3,
             spreadRadius: 0.5,
           ),
-        ],
+        ]),
       ),
       child: Center(
         child: Text(

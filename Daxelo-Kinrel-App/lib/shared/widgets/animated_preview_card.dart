@@ -69,6 +69,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/constants/brand_spacing.dart';
+import '../../core/theme/kinrel_fx.dart';
 
 /// A shared shell for the animated preview cards used in empty states.
 ///

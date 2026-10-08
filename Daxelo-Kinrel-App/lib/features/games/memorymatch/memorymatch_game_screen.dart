@@ -29,6 +29,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 import '../game_motion_tokens.dart';
@@ -812,7 +813,7 @@ class _MemoryCardTileState extends State<_MemoryCardTile>
                   : KinrelColors.border,
           width: matched ? 2 : 1,
         ),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           if (matched)
             BoxShadow(
               color: ownerColor.withValues(alpha: 0.35),
@@ -825,7 +826,7 @@ class _MemoryCardTileState extends State<_MemoryCardTile>
               blurRadius: 10,
               offset: Offset(0, 2),
             ),
-        ],
+        ]),
       ),
       child: Stack(
         alignment: Alignment.center,
@@ -1055,13 +1056,13 @@ class _ResultsView extends ConsumerWidget {
           colors: [KinrelColors.orange, KinrelColors.amber],
         ),
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           const BoxShadow(
             color: KinrelColors.orangeGlow,
             blurRadius: 18,
             offset: Offset(0, 6),
           ),
-        ],
+        ]),
       ),
       child: Column(
         children: [
@@ -1239,9 +1240,9 @@ class _RankMedal extends StatelessWidget {
           ],
         ),
         border: Border.all(color: Colors.white.withValues(alpha: 0.55), width: 1.5),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(color: glow, blurRadius: 9, offset: const Offset(0, 2)),
-        ],
+        ]),
       ),
       child: Text(
         '$place',

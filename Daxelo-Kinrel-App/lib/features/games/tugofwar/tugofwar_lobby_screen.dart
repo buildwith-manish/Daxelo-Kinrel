@@ -17,6 +17,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart'
@@ -517,12 +518,12 @@ class TugTeamBoard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: myColor,
                       shape: BoxShape.circle,
-                      boxShadow: [
+                      boxShadow: KinrelFx.shadows([
                         BoxShadow(
                           color: myColor.withValues(alpha: 0.7),
                           blurRadius: 8,
                         ),
-                      ],
+                      ]),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -651,12 +652,12 @@ class _TeamColumn extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: color,
-                  boxShadow: [
+                  boxShadow: KinrelFx.shadows([
                     BoxShadow(
                       color: color.withValues(alpha: 0.6),
                       blurRadius: 6,
                     ),
-                  ],
+                  ]),
                 ),
               ),
               const SizedBox(width: 6),

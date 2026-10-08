@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import 'truthordare_models.dart';
 import 'truthordare_provider.dart';
@@ -58,7 +59,7 @@ class _TodReviewScreenState extends ConsumerState<TodReviewScreen> {
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: borderColor, width: p.flaggedByFilter ? 1.5 : 1),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.32), blurRadius: 12, offset: const Offset(0, 5))],
+        boxShadow: KinrelFx.shadows([BoxShadow(color: Colors.black.withValues(alpha: 0.32), blurRadius: 12, offset: const Offset(0, 5))]),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),

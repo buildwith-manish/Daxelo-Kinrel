@@ -58,6 +58,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/utils/share_helper.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import '../../../../shared/widgets/dk_components.dart';
 import '../../game_motion_tokens.dart';
 import '../icons/kinrel_icons.dart';
@@ -609,13 +610,13 @@ class _MatchStartCountdownState extends State<_MatchStartCountdown>
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: KinrelColors.orange,
-            boxShadow: [
+            boxShadow: KinrelFx.shadows([
               BoxShadow(
                 color: KinrelColors.orange.withValues(alpha: 0.5),
                 blurRadius: 18,
                 spreadRadius: 2,
               ),
-            ],
+            ]),
           ),
           child: Center(
             child: AnimatedSwitcher(

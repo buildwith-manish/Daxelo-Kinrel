@@ -60,6 +60,7 @@ import '../../../shared/widgets/kinrel_empty_state.dart';
 import '../providers/oral_history_provider.dart';
 import 'oral_history_audio_player.dart';
 import 'package:kinrel/core/utils/device_tier.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Oral History Screen
@@ -329,13 +330,13 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
               decoration: BoxDecoration(
                 gradient: KinrelGradients.igniteGradient,
                 borderRadius: BorderRadius.circular(KinrelRadius.full),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   const BoxShadow(
                     color: KinrelColors.orangeGlow,
                     blurRadius: 8,
                     offset: Offset(0, 2),
                   ),
-                ],
+                ]),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -890,13 +891,13 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(KinrelRadius.full),
           gradient: KinrelGradients.igniteGradient,
-          boxShadow: clampBoxShadows([
+          boxShadow: KinrelFx.shadows(clampBoxShadows([
             const BoxShadow(
               color: KinrelColors.orangeGlowIntense,
               blurRadius: 20,
               offset: Offset(0, 4),
             ),
-          ]),
+          ])),
         ),
         child: Material(
           color: Colors.transparent,
@@ -2135,16 +2136,16 @@ class _StoryCard extends StatelessWidget {
                     Container(
                       width: 44,
                       height: 44,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: KinrelGradients.igniteGradient,
-                        boxShadow: [
+                        boxShadow: KinrelFx.shadows([
                           BoxShadow(
                             color: KinrelColors.orangeGlow,
                             blurRadius: 10,
                             offset: Offset(0, 2),
                           ),
-                        ],
+                        ]),
                       ),
                       child: const Icon(
                         Icons.play_arrow_rounded,
@@ -2377,13 +2378,13 @@ class _RecordingBottomSheetState extends State<_RecordingBottomSheet>
           top: Radius.circular(KinrelRadius.xxl),
         ),
         border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.2)),
-        boxShadow: clampBoxShadows([
+        boxShadow: KinrelFx.shadows(clampBoxShadows([
           const BoxShadow(
             color: KinrelColors.orangeGlow,
             blurRadius: 20,
             offset: Offset(0, -4),
           ),
-        ]),
+        ])),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -2415,7 +2416,7 @@ class _RecordingBottomSheetState extends State<_RecordingBottomSheet>
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isPaused ? KinrelColors.amber : KinrelColors.coral,
-                      boxShadow: [
+                      boxShadow: KinrelFx.shadows([
                         BoxShadow(
                           color:
                               (isPaused
@@ -2426,7 +2427,7 @@ class _RecordingBottomSheetState extends State<_RecordingBottomSheet>
                                   ),
                           blurRadius: 6 + _pulseController.value * 6,
                         ),
-                      ],
+                      ]),
                     ),
                   );
                 },
@@ -2587,16 +2588,16 @@ class _RecordingBottomSheetState extends State<_RecordingBottomSheet>
                 child: Container(
                   width: 52,
                   height: 52,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: KinrelGradients.igniteGradient,
-                    boxShadow: [
+                    boxShadow: KinrelFx.shadows([
                       BoxShadow(
                         color: KinrelColors.orangeGlow,
                         blurRadius: 12,
                         offset: Offset(0, 2),
                       ),
-                    ],
+                    ]),
                   ),
                   child: const Icon(
                     Icons.stop_rounded,

@@ -30,6 +30,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/health_heritage_provider.dart';
 import 'package:kinrel/core/utils/device_tier.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // View mode enum
@@ -181,13 +182,13 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
               decoration: BoxDecoration(
                 gradient: KinrelGradients.igniteGradient,
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   const BoxShadow(
                     color: KinrelColors.orangeGlow,
                     blurRadius: 12,
                     offset: Offset(0, 4),
                   ),
-                ],
+                ]),
               ),
               child: const Icon(
                 Icons.local_hospital_rounded,
@@ -386,15 +387,15 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
                   Container(
                     width: 32,
                     height: 32,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       gradient: KinrelGradients.igniteGradient,
                       shape: BoxShape.circle,
-                      boxShadow: [
+                      boxShadow: KinrelFx.shadows([
                         BoxShadow(
                           color: KinrelColors.orangeGlow,
                           blurRadius: 8,
                         ),
-                      ],
+                      ]),
                     ),
                     child: Center(
                       child: Text(
@@ -524,13 +525,13 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
       decoration: BoxDecoration(
         gradient: KinrelGradients.igniteGradient,
         shape: BoxShape.circle,
-        boxShadow: clampBoxShadows(const [
+        boxShadow: KinrelFx.shadows(clampBoxShadows(const [
           BoxShadow(
             color: KinrelColors.orangeGlowIntense,
             blurRadius: 20,
             spreadRadius: 4,
           ),
-        ]),
+        ])),
       ),
       child: FloatingActionButton(
         onPressed: () => _showAddConditionSheet(),
@@ -783,13 +784,13 @@ class _RiskScoreCard extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              boxShadow: clampBoxShadows([
+              boxShadow: KinrelFx.shadows(clampBoxShadows([
                 const BoxShadow(
                   color: KinrelColors.orangeGlow,
                   blurRadius: 20,
                   offset: Offset(0, 4),
                 ),
-              ]),
+              ])),
             ),
             child: Row(
               children: [
@@ -3272,13 +3273,13 @@ class _AddConditionSheetState extends ConsumerState<_AddConditionSheet> {
                   decoration: BoxDecoration(
                     gradient: KinrelGradients.igniteGradient,
                     borderRadius: BorderRadius.circular(KinrelRadius.md),
-                    boxShadow: [
+                    boxShadow: KinrelFx.shadows([
                       const BoxShadow(
                         color: KinrelColors.orangeGlow,
                         blurRadius: 12,
                         offset: Offset(0, 4),
                       ),
-                    ],
+                    ]),
                   ),
                   child: Center(
                     child: Text(

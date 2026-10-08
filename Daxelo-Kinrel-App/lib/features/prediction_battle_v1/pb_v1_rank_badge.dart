@@ -22,6 +22,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../core/theme/kinrel_fx.dart';
 
 /// Custom branded ranking badge for the Prediction Battle leaderboard
 /// and reveal screen. Replaces the generic 🥇🥈🥉 emoji medals.
