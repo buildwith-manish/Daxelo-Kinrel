@@ -27,6 +27,7 @@ import '../../../core/networking/dio_client.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/analytics_service.dart';
 import '../../../core/routing/app_router.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
 const Color _bg = Color(0xFF13141E);

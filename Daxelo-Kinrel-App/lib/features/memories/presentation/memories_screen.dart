@@ -24,6 +24,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/image_cache_manager.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/animated_preview_card.dart';
 import '../../../shared/widgets/app_scroll_safe_area.dart';
 import '../../../shared/widgets/dk_components.dart';
@@ -917,13 +918,13 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(KinrelRadius.full),
           gradient: KinrelGradients.igniteGradient,
-          boxShadow: [
+          boxShadow: KinrelFx.shadows([
             const BoxShadow(
               color: KinrelColors.orangeGlowIntense,
               blurRadius: 16,
               offset: Offset(0, 4),
             ),
-          ],
+          ]),
         ),
         child: Material(
           color: Colors.transparent,
@@ -1529,7 +1530,7 @@ class _TimelineEventCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: event.accentColor,
-                      boxShadow: [
+                      boxShadow: KinrelFx.shadows([
                         BoxShadow(
                           color: event.accentColor.withValues(alpha: 0.5),
                           blurRadius: 8,
@@ -1540,7 +1541,7 @@ class _TimelineEventCard extends StatelessWidget {
                           blurRadius: 16,
                           spreadRadius: 3,
                         ),
-                      ],
+                      ]),
                     ),
                     child: Center(
                       child: Container(

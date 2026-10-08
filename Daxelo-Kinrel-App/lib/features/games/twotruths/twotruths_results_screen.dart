@@ -8,6 +8,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/game_board_shell.dart';
@@ -139,10 +140,10 @@ class _TtResultsScreenState extends ConsumerState<TtResultsScreen> {
         color: Color.lerp(KinrelColors.darkCard, accent, 0.08),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: accent.withValues(alpha: isLie ? 0.75 : 0.5), width: isLie ? 1.5 : 1),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(color: Colors.black.withValues(alpha: 0.32), blurRadius: 10, offset: const Offset(0, 4)),
           BoxShadow(color: accent.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, 6)),
-        ],
+        ]),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),

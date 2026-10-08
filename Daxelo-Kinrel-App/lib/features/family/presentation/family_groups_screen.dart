@@ -18,6 +18,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/group_provider.dart';
 import 'family_space_floating_nav.dart';
@@ -170,13 +171,13 @@ class _EmptyGroupsState extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: KinrelGradients.igniteGradient,
                   borderRadius: BorderRadius.circular(100),
-                  boxShadow: [
+                  boxShadow: KinrelFx.shadows([
                     BoxShadow(
                       color: KinrelColors.ember.withValues(alpha: 0.30),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
-                  ],
+                  ]),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
@@ -235,13 +236,13 @@ class _GroupCard extends StatelessWidget {
             color: Colors.white.withValues(alpha: 0.06),
             width: 0.75,
           ),
-          boxShadow: [
+          boxShadow: KinrelFx.shadows([
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.20),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
-          ],
+          ]),
         ),
         child: Row(
           children: [

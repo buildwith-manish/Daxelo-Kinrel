@@ -41,6 +41,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/services/image_cache_manager.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/widgets/cached_avatar.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../shared/widgets/kinrel_skeleton.dart';
 import '../../../shared/widgets/paywall_sheet.dart';
@@ -156,13 +157,13 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
       decoration: BoxDecoration(
         gradient: KinrelGradients.igniteGradient,
         borderRadius: BorderRadius.circular(KinrelRadius.full),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           const BoxShadow(
             color: KinrelColors.orangeGlow,
             blurRadius: 8,
             offset: Offset(0, 2),
           ),
-        ],
+        ]),
       ),
       child: Material(
         color: Colors.transparent,

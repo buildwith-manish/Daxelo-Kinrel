@@ -12,6 +12,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/utils/app_time.dart';
 import '../providers/referral_provider.dart';
 import 'package:kinrel/core/utils/device_tier.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 class ReferralScreen extends ConsumerStatefulWidget {
   ReferralScreen({super.key});
@@ -170,13 +171,13 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
           colors: [Color(0xFF1E1508), KinrelColors.darkCard],
         ),
         border: Border.all(color: KinrelColors.purple.withValues(alpha: 0.25)),
-        boxShadow: clampBoxShadows([
+        boxShadow: KinrelFx.shadows(clampBoxShadows([
           BoxShadow(
             color: KinrelColors.purple.withValues(alpha: 0.12),
             blurRadius: 32,
             offset: const Offset(0, 8),
           ),
-        ]),
+        ])),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -381,13 +382,13 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withValues(alpha: 0.2)),
-        boxShadow: clampBoxShadows([
+        boxShadow: KinrelFx.shadows(clampBoxShadows([
           BoxShadow(
             color: color.withValues(alpha: 0.10),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
-        ]),
+        ])),
       ),
       child: Column(
         children: [

@@ -15,6 +15,7 @@
 
 import 'package:flutter/material.dart';
 import '../../../../core/constants/brand_colors.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/trackc_providers.dart';
@@ -87,7 +88,7 @@ class _AdminLearningProfileScreen extends ConsumerWidget {
             children: [
               // Confidence card
               Card(
-                elevation: 2,
+                elevation: (KinrelFx.rich ? 2 : 0),
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
@@ -380,7 +381,7 @@ class _MemberLearningSummaryScreen extends ConsumerWidget {
             children: [
               // Summary card — the plain-language sentence
               Card(
-                elevation: 2,
+                elevation: (KinrelFx.rich ? 2 : 0),
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Column(

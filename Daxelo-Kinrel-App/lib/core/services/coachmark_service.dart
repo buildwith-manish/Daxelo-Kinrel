@@ -56,6 +56,7 @@ import '../constants/brand_colors.dart';
 import '../constants/brand_typography.dart';
 import '../utils/motion_preference.dart';
 import 'haptic_service.dart';
+import '../../core/theme/kinrel_fx.dart';
 
 /// Wraps a widget and shows a contextual tooltip the first time the
 /// user sees it.
@@ -312,13 +313,13 @@ class _Tooltip extends StatelessWidget {
             color: KinrelColors.orange.withValues(alpha: 0.3),
             width: 1,
           ),
-          boxShadow: [
+          boxShadow: KinrelFx.shadows([
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.4),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
-          ],
+          ]),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

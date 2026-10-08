@@ -15,12 +15,13 @@
 //   container Decoration = BoxDecoration(
 //     border: Border.all(color: colors.ring, width: 2),
 //     color: colors.background,
-//     boxShadow: [BoxShadow(color: colors.glow, blurRadius: 16)],
+//     boxShadow: KinrelFx.shadows([BoxShadow(color: colors.glow, blurRadius: 16)]),
 //   );
 // =============================================================================
 
 import 'package:flutter/material.dart';
 import '../../core/constants/brand_colors.dart';
+import '../../core/theme/kinrel_fx.dart';
 
 // ── Relationship Type Enum ──────────────────────────────────────────────────
 

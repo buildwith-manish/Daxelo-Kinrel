@@ -23,6 +23,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/app_time.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import 'family_ring_widget.dart' show ThinkingEmotion;
 
 class ThinkingInboxScreen extends ConsumerStatefulWidget {
@@ -204,13 +205,13 @@ class _TapCard extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(color: emotion.color.withValues(alpha: 0.4), width: 2),
-              boxShadow: [
+              boxShadow: KinrelFx.shadows([
                 BoxShadow(
                   color: emotion.color.withValues(alpha: 0.3),
                   blurRadius: 8,
                   spreadRadius: 1,
                 ),
-              ],
+              ]),
             ),
             child: ClipOval(
               child: (senderAvatar != null && senderAvatar.isNotEmpty)

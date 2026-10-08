@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/gaming_models.dart';
 import '../data/gaming_providers.dart';
@@ -145,13 +146,13 @@ class _TrophyRoomHero extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: KinrelColors.gold.withValues(alpha: 0.4)),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: KinrelColors.gold.withValues(alpha: 0.12),
             blurRadius: 20,
             offset: const Offset(0, 6),
           ),
-        ],
+        ]),
       ),
       child: Row(
         children: [

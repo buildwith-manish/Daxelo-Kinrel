@@ -16,6 +16,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../shared/widgets/kinrel_skeleton.dart';
 import '../../family/providers/member_detail_provider.dart';
@@ -169,13 +170,13 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
               decoration: BoxDecoration(
                 gradient: KinrelGradients.igniteGradient,
                 shape: BoxShape.circle,
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   BoxShadow(
                     color: _cOrange.withValues(alpha: 0.4),
                     blurRadius: 12,
                     spreadRadius: 2,
                   ),
-                ],
+                ]),
               ),
               child: FloatingActionButton(
                 onPressed: _showAddMilestoneSheet,

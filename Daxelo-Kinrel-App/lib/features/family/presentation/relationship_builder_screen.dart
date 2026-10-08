@@ -12,6 +12,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
 import '../../../core/family/relationship_permissions.dart'; // v5.15.1
 import '../../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider; // v5.15.1
+import '../../../core/theme/kinrel_fx.dart';
 // v5.215 (unified add-member entry-point fix): the Relationship
 // Builder screen's empty-state + FAB add-member entry points now
 // skip straight to Find on Kinrel search via the helper below. The

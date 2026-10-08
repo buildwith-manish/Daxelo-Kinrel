@@ -17,6 +17,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../gaming_ecosystem/presentation/widgets/gaming_kit.dart';
 import '../game_motion_tokens.dart';
@@ -404,10 +405,10 @@ class _FlickArenaWaitingRoom extends StatelessWidget {
                 decoration: const BoxDecoration(
                   color: KinrelColors.orange,
                   shape: BoxShape.circle,
-                  boxShadow: [
+                  boxShadow: KinrelFx.shadows([
                     BoxShadow(
                         color: KinrelColors.orange, blurRadius: 6),
-                  ],
+                  ]),
                 ),
               ),
               const SizedBox(width: 10),

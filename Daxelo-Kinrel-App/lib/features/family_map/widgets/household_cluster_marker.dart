@@ -33,6 +33,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../core/widgets/cached_avatar.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../l10n/app_localizations.dart';
 import '../config/map_visual_constants.dart';
 import '../providers/family_map_provider.dart';
@@ -285,7 +286,7 @@ class HouseholdClusterMarkerWidget extends StatelessWidget {
           color: KinrelColors.orange,
           width: MapVisualConstants.markerRingWidthNormal,
         ),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: KinrelColors.orange.withValues(
               alpha: MapVisualConstants.clusterGlowAlpha,
@@ -299,7 +300,7 @@ class HouseholdClusterMarkerWidget extends StatelessWidget {
             blurRadius: 4,
             offset: const Offset(0, MapVisualConstants.markerShadowOffset),
           ),
-        ],
+        ]),
       ),
       child: CachedAvatar(imageUrl: pin.photoUrl, radius: (size / 2) - 4),
     );

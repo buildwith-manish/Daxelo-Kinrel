@@ -10,6 +10,7 @@
 
 import 'package:flutter/material.dart';
 import '../../../../core/constants/brand_colors.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/trackc_providers.dart';
@@ -55,7 +56,7 @@ class TrackcAnalyticsScreen extends ConsumerWidget {
           children: [
             // Period
             Card(
-              elevation: 2,
+              elevation: (KinrelFx.rich ? 2 : 0),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(

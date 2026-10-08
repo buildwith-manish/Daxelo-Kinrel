@@ -25,6 +25,7 @@
 
 import 'package:flutter/material.dart';
 import '../../../../core/constants/brand_colors.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -90,7 +91,7 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
         children: [
           // Hero card
           Card(
-            elevation: 2,
+            elevation: (KinrelFx.rich ? 2 : 0),
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Row(

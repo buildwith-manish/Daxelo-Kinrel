@@ -26,6 +26,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show SupabaseClient;
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../data/gaming_models.dart';
 import '../data/gaming_providers.dart';
 import '../../games/shared/icons/kinrel_icons.dart';
@@ -193,13 +194,13 @@ class _VariableRewardBannerState extends ConsumerState<VariableRewardBanner> {
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: KinrelColors.amber.withValues(alpha: 0.5)),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: KinrelColors.amber.withValues(alpha: 0.16),
             blurRadius: 20,
             offset: const Offset(0, 5),
           ),
-        ],
+        ]),
       ),
       child: Row(
         children: [
@@ -324,13 +325,13 @@ class _RewardsBanner extends ConsumerWidget {
         ),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: KinrelColors.gold.withValues(alpha: 0.4)),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: KinrelColors.gold.withValues(alpha: 0.14),
             blurRadius: 22,
             offset: const Offset(0, 6),
           ),
-        ],
+        ]),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

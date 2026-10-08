@@ -38,6 +38,7 @@ import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/network/socket_service.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import '../icons/kinrel_icons.dart';
 
 class LobbyChatPanel extends ConsumerStatefulWidget {
@@ -536,14 +537,14 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
                             decoration: BoxDecoration(
                               color: KinrelColors.orange,
                               borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
+                              boxShadow: KinrelFx.shadows([
                                 BoxShadow(
                                   color: KinrelColors.orange
                                       .withValues(alpha: 0.4),
                                   blurRadius: 6,
                                   offset: const Offset(0, 2),
                                 ),
-                              ],
+                              ]),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,

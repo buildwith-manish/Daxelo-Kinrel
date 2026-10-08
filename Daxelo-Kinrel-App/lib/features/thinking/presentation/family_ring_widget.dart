@@ -36,6 +36,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/image_cache_manager.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../data/thinking_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -847,13 +848,13 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget>
                                           shape: BoxShape.circle,
                                           color: KinrelColors.orange,
                                           border: Border.all(color: KinrelColors.darkCard, width: 1.5),
-                                          boxShadow: [
+                                          boxShadow: KinrelFx.shadows([
                                             BoxShadow(
                                               color: KinrelColors.orange.withValues(alpha: 0.6),
                                               blurRadius: 4,
                                               spreadRadius: 1,
                                             ),
-                                          ],
+                                          ]),
                                         ),
                                       ),
                                     ),
@@ -1146,13 +1147,13 @@ class _BrandedReactionChip extends StatelessWidget {
               color: reaction.color.withValues(alpha: 0.4),
               width: 1.5,
             ),
-            boxShadow: [
+            boxShadow: KinrelFx.shadows([
               BoxShadow(
                 color: reaction.color.withValues(alpha: 0.2),
                 blurRadius: 8,
                 spreadRadius: 1,
               ),
-            ],
+            ]),
           ),
           child: CustomPaint(
             painter: _ReactionIconPainter(

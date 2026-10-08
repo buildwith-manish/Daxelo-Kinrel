@@ -12,6 +12,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/supported_languages.dart';
 import '../providers/festival_cards_provider.dart';
 import 'package:kinrel/core/utils/device_tier.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 class FestivalCardsScreen extends ConsumerStatefulWidget {
   FestivalCardsScreen({super.key});
@@ -915,13 +916,13 @@ class _CardPreviewView extends StatelessWidget {
             constraints: const BoxConstraints(maxHeight: 500),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
-              boxShadow: clampBoxShadows([
+              boxShadow: KinrelFx.shadows(clampBoxShadows([
                 const BoxShadow(
                   color: KinrelColors.purpleGlow,
                   blurRadius: 30,
                   spreadRadius: 5,
                 ),
-              ]),
+              ])),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),

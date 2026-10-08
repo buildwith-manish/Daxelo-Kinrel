@@ -7,6 +7,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 import '../../gaming_ecosystem/presentation/widgets/gaming_kit.dart';
@@ -116,7 +117,7 @@ class _PhaseBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14), border: Border.all(color: color.withValues(alpha: 0.4))),
       child: Row(children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color, blurRadius: 6)])),
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: KinrelFx.shadows([BoxShadow(color: color, blurRadius: 6)]))),
         const SizedBox(width: 10),
         Expanded(child: Text(label, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: round.phase == ColorTrapPhase.countdown ? 28 : 14, fontWeight: FontWeight.w800, color: KinrelColors.textWhite))),
         Text('$aliveCount alive', style: const TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, color: KinrelColors.textDim)),

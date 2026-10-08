@@ -24,6 +24,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import '../constants/brand_colors.dart';
 import '../constants/brand_typography.dart';
 import '../services/crashlytics_service.dart';
+import '../theme/kinrel_fx.dart';
 
 // Web-only imports for page reload.
 // On non-web platforms these are stubbed out via conditional export.
@@ -422,13 +423,13 @@ class _GlobalErrorWidgetState extends State<GlobalErrorWidget>
       decoration: BoxDecoration(
         gradient: KinrelGradients.igniteGradient,
         borderRadius: BorderRadius.circular(compact ? 10 : 12),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: KinrelColors.orange.withValues(alpha: 0.25),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
-        ],
+        ]),
       ),
       child: Material(
         color: Colors.transparent,

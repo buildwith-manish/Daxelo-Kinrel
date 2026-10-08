@@ -61,6 +61,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/services/haptic_service.dart';
+import '../../core/theme/kinrel_fx.dart';
 
 /// The type of toast to show. Determines color, icon, duration, and haptic.
 enum KinrelToastType {
@@ -244,13 +245,13 @@ class _ToastContent extends StatelessWidget {
           color: iconColor.withValues(alpha: 0.25),
           width: 1,
         ),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
-        ],
+        ]),
       ),
       child: Row(
         children: [

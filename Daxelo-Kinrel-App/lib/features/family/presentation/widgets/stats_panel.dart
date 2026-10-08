@@ -125,7 +125,7 @@ class StatsPanel extends StatelessWidget {
         // const list inside clampBoxShadows keeps the BoxShadow
         // allocation free; only the wrapper allocates the (possibly
         // truncated) output list at runtime.
-        boxShadow: clampBoxShadows(const [
+        boxShadow: KinrelFx.shadows(clampBoxShadows(const [
           BoxShadow(
             color: Colors.black54,
             // PERF (Tier A2): clamp blur radius on web — large blur
@@ -134,7 +134,7 @@ class StatsPanel extends StatelessWidget {
             blurRadius: kIsWeb ? 8 : 20,
             offset: kIsWeb ? const Offset(0, 4) : const Offset(0, 8),
           ),
-        ]),
+        ])),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

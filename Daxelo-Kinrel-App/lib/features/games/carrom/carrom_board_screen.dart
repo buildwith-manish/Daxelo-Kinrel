@@ -19,6 +19,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../shared/icons/kinrel_icons.dart';
 import '../shared/multiplayer/multiplayer.dart';
@@ -250,13 +251,13 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen>
               ? KinrelColors.amber.withValues(alpha: 0.45)
               : KinrelColors.border,
         ),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.4),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
-        ],
+        ]),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -277,12 +278,12 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen>
                 border: Border.all(
                   color: KinrelColors.error.withValues(alpha: 0.7),
                 ),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   BoxShadow(
                     color: KinrelColors.error.withValues(alpha: 0.35),
                     blurRadius: 12,
                   ),
-                ],
+                ]),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,

@@ -23,6 +23,7 @@ import '../../../core/services/premium_service.dart';
 import '../../../core/services/analytics_service.dart';
 import '../../../core/services/crashlytics_service.dart';
 import 'package:kinrel/core/utils/device_tier.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 class PaywallScreen extends ConsumerStatefulWidget {
   const PaywallScreen({super.key});
@@ -145,13 +146,13 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            boxShadow: clampBoxShadows([
+            boxShadow: KinrelFx.shadows(clampBoxShadows([
               BoxShadow(
                 color: KinrelColors.orange.withValues(alpha: 0.3),
                 blurRadius: 24,
                 offset: const Offset(0, 8),
               ),
-            ]),
+            ])),
           ),
           child: const Icon(
             Icons.workspace_premium_rounded,
@@ -369,13 +370,13 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen>
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         ),
-        boxShadow: clampBoxShadows([
+        boxShadow: KinrelFx.shadows(clampBoxShadows([
           BoxShadow(
             color: KinrelColors.orange.withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 6),
           ),
-        ]),
+        ])),
       ),
       child: Material(
         color: Colors.transparent,

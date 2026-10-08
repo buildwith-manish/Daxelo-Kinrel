@@ -31,6 +31,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:maplibre/maplibre.dart';
 
 import '../../../core/constants/brand_colors.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../config/map_visual_constants.dart';
 import '../data/place_models.dart';
 
@@ -189,7 +190,7 @@ class _HomeMarkerOverlayState extends State<HomeMarkerOverlay>
                         color: MapVisualConstants.homeMarkerRingColor,
                         width: 2.4,
                       ),
-                      boxShadow: [
+                      boxShadow: KinrelFx.shadows([
                         BoxShadow(
                           color: MapVisualConstants.homeMarkerFillColor
                               .withValues(alpha: 0.55),
@@ -201,7 +202,7 @@ class _HomeMarkerOverlayState extends State<HomeMarkerOverlay>
                           blurRadius: 8,
                           offset: const Offset(0, 3),
                         ),
-                      ],
+                      ]),
                     ),
                     child: Center(
                       child: Container(
@@ -214,14 +215,14 @@ class _HomeMarkerOverlayState extends State<HomeMarkerOverlay>
                             color: Colors.white.withValues(alpha: 0.85),
                             width: 1.6,
                           ),
-                          boxShadow: [
+                          boxShadow: KinrelFx.shadows([
                             BoxShadow(
                               color: MapVisualConstants.homeMarkerFillColor
                                   .withValues(alpha: 0.6),
                               blurRadius: 8,
                               spreadRadius: 1,
                             ),
-                          ],
+                          ]),
                         ),
                         child: const Center(
                           child: Icon(

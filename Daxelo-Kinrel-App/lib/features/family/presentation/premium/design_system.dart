@@ -32,6 +32,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // TYPE SCALE — exactly 4 sizes
@@ -326,7 +327,13 @@ class _FamilyHubSkeletonState extends State<FamilyHubSkeleton>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
-    )..repeat();
+    );
+    // PERF (Flat): skip the shimmer loop in flat mode.
+    if (KinrelFx.decorativeAnimation) {
+      _controller.repeat();
+    } else {
+      _controller.value = 0.5;
+    }
     _shimmer = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );

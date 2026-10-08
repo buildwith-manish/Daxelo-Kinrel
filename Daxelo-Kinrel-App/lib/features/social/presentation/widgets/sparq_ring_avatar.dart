@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/brand_colors.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import '../../data/providers/sparq_provider.dart';
 
 
@@ -166,13 +167,13 @@ class SparqRingAvatar extends ConsumerWidget {
         return Container(
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            boxShadow: [
+            boxShadow: KinrelFx.shadows([
               BoxShadow(
                 color: ringColor.withValues(alpha: 0.2 * glowValue),
                 blurRadius: 6 * glowValue,
                 spreadRadius: 1.5 * glowValue,
               ),
-            ],
+            ]),
           ),
           child: child,
         );

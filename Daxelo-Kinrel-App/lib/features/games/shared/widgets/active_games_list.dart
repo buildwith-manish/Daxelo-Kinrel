@@ -25,6 +25,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import '../models/game_invite.dart';
 import 'active_games_provider.dart';
 
@@ -301,13 +302,13 @@ class _PulsingDotState extends State<_PulsingDot>
           decoration: BoxDecoration(
             color: KinrelColors.orange,
             shape: BoxShape.circle,
-            boxShadow: [
+            boxShadow: KinrelFx.shadows([
               BoxShadow(
                 color: KinrelColors.orange.withValues(alpha: 0.35 + 0.5 * t),
                 blurRadius: 4 + 6 * t,
                 spreadRadius: 1 + 2 * t,
               ),
-            ],
+            ]),
           ),
         );
       },

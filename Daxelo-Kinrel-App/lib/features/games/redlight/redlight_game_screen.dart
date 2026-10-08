@@ -20,6 +20,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/services/temporary_room_service.dart';
@@ -621,9 +622,9 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(KinrelRadius.full),
                           color: KinrelColors.darkBackground,
-                          boxShadow: const [
+                          boxShadow: KinrelFx.shadows(const [
                             BoxShadow(color: Colors.black45, blurRadius: 3, offset: Offset(0, 1.5)),
-                          ],
+                          ]),
                         ),
                       ),
                       // Progress fill
@@ -634,7 +635,7 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(KinrelRadius.full),
                             gradient: LinearGradient(colors: [barColor.withValues(alpha: 0.55), barColor]),
-                            boxShadow: [BoxShadow(color: barColor.withValues(alpha: 0.5), blurRadius: 6)],
+                            boxShadow: KinrelFx.shadows([BoxShadow(color: barColor.withValues(alpha: 0.5), blurRadius: 6)]),
                           ),
                         ),
                       ),
@@ -702,7 +703,7 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
                     : KinrelColors.warning,
                 width: 2,
               ),
-              boxShadow: [
+              boxShadow: KinrelFx.shadows([
                 BoxShadow(
                   color: (pu.type == PowerupType.shield
                           ? KinrelColors.info
@@ -711,7 +712,7 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
                   blurRadius: 14,
                   spreadRadius: 1,
                 ),
-              ],
+              ]),
             ),
             child: Center(
               child: Text(pu.type.emoji, style: const TextStyle(fontSize: 18))

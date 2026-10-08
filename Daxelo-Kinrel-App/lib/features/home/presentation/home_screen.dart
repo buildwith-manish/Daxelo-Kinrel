@@ -49,6 +49,7 @@ import '../../stories/presentation/stories_viewer_screen.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
 import '../../occasions/widgets/upcoming_occasions_row.dart';
 import '../../../core/utils/accessibility_utils.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 // ── Color shortcuts for the Command Center ──────────────────────
 const _cOrange = KinrelColors.orange; // #E8612A
@@ -136,7 +137,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           _showQuickAddSheet(context, families);
         },
         backgroundColor: _cOrange,
-        elevation: 4,
+        elevation: (KinrelFx.rich ? 4 : 0),
         shape: const CircleBorder(),
         child: const Icon(Icons.add, size: 28, color: Colors.white),
       ),
@@ -1173,13 +1174,13 @@ class _HeroFamilyCard extends ConsumerWidget {
             // on-screen for every home screen render and 24px blur
             // forces a per-frame saveLayer. 8px is visually equivalent
             // at 1x DPR.
-            boxShadow: [
+            boxShadow: KinrelFx.shadows([
               BoxShadow(
                 color: _cOrange.withValues(alpha: 0.12),
                 blurRadius: kIsWeb ? 8 : 24,
                 spreadRadius: kIsWeb ? 1 : 2,
               ),
-            ],
+            ]),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(18),

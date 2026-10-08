@@ -40,6 +40,7 @@ import 'package:just_audio/just_audio.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../providers/oral_history_provider.dart';
 
 /// Real audio player for oral history stories.
@@ -441,13 +442,13 @@ class _OralHistoryAudioPlayerState
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: KinrelGradients.igniteGradient,
-                  boxShadow: [
+                  boxShadow: KinrelFx.shadows([
                     BoxShadow(
                       color: KinrelColors.orangeGlowIntense,
                       blurRadius: 16,
                       offset: Offset(0, 4),
                     ),
-                  ],
+                  ]),
                 ),
                 child: _isLoading
                     ? const Padding(

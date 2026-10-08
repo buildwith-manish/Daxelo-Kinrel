@@ -16,6 +16,7 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/form_validators.dart';
 // api_error_mapper removed — errors handled directly in _cleanErrorMessage
 import '../../../core/services/analytics_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
   SignUpScreen({super.key});

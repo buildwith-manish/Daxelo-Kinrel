@@ -23,6 +23,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../../core/constants/app_tokens.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import '../../../games/shared/icons/kinrel_icons.dart';
 
 /// Tier accent colors — bronze → platinum.

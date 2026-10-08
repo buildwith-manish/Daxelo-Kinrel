@@ -22,6 +22,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/kinship/heart_shape.dart';
 import '../../../../core/kinship/kinship_edge_style.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // EDGE DOT WIDGET
@@ -81,17 +82,23 @@ class _EdgeDotWidgetState extends State<EdgeDotWidget>
         curve: Curves.easeInOut,
       ),
     );
-    if (widget.isSelected) {
+    // PERF (Flat): skip the pulse loop in flat mode.
+    if (widget.isSelected && KinrelFx.decorativeAnimation) {
       _pulseController.repeat(reverse: true);
+    } else if (widget.isSelected) {
+      // Pin to mid-cycle so the painter renders a complete dot.
+      _pulseController.value = 0.5;
     }
   }
 
   @override
   void didUpdateWidget(covariant EdgeDotWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isSelected && !oldWidget.isSelected) {
+    final shouldAnimate =
+        widget.isSelected && KinrelFx.decorativeAnimation;
+    if (shouldAnimate && !oldWidget.isSelected) {
       _pulseController.repeat(reverse: true);
-    } else if (!widget.isSelected && oldWidget.isSelected) {
+    } else if (!shouldAnimate && oldWidget.isSelected) {
       _pulseController.stop();
       _pulseController.value = 0.0;
     }

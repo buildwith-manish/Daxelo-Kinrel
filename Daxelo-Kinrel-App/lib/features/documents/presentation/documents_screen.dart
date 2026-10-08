@@ -36,6 +36,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/documents_provider.dart';
 
@@ -133,13 +134,13 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(28),
           gradient: KinrelGradients.igniteGradient,
-          boxShadow: [
+          boxShadow: KinrelFx.shadows([
             BoxShadow(
               color: _cOrange.withValues(alpha: 0.35),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),
-          ],
+          ]),
         ),
         child: FloatingActionButton.extended(
           onPressed: () => _showUploadSheet(context),
@@ -776,13 +777,13 @@ class _DocumentCard extends ConsumerWidget {
             color: accentColor.withValues(alpha: 0.12),
             width: 1,
           ),
-          boxShadow: [
+          boxShadow: KinrelFx.shadows([
             BoxShadow(
               color: accentColor.withValues(alpha: 0.04),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
-          ],
+          ]),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1108,13 +1109,13 @@ class _DocumentCard extends ConsumerWidget {
               decoration: BoxDecoration(
                 gradient: KinrelGradients.igniteGradient,
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   BoxShadow(
                     color: _cOrange.withValues(alpha: 0.25),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
-                ],
+                ]),
               ),
               child: Material(
                 color: Colors.transparent,
@@ -1518,13 +1519,13 @@ class _EmptyState extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: KinrelGradients.igniteGradient,
                   borderRadius: BorderRadius.circular(KinrelRadius.full),
-                  boxShadow: [
+                  boxShadow: KinrelFx.shadows([
                     BoxShadow(
                       color: _cOrange.withValues(alpha: 0.3),
                       blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
-                  ],
+                  ]),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
@@ -2167,13 +2168,13 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
               decoration: BoxDecoration(
                 gradient: KinrelGradients.igniteGradient,
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   BoxShadow(
                     color: _cOrange.withValues(alpha: 0.25),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
-                ],
+                ]),
               ),
               child: Material(
                 color: Colors.transparent,

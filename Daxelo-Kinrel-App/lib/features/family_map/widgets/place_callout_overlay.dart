@@ -36,6 +36,7 @@ import 'package:maplibre/maplibre.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../config/map_visual_constants.dart';
 import '../data/place_models.dart';
 
@@ -61,7 +62,7 @@ class _PlaceCalloutChip extends StatelessWidget {
           color: meta.color.withValues(alpha: 0.85),
           width: 1.0,
         ),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: meta.color.withValues(alpha: 0.25),
             blurRadius: 8,
@@ -72,7 +73,7 @@ class _PlaceCalloutChip extends StatelessWidget {
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
-        ],
+        ]),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -300,7 +301,7 @@ class _PlaceCalloutOverlayState extends State<PlaceCalloutOverlay> {
           color: Colors.white.withValues(alpha: isSel ? 0.95 : 0.55),
           width: isSel ? 1.6 : 1.0,
         ),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: meta.color.withValues(alpha: 0.65),
             blurRadius: MapVisualConstants.calloutDotGlowBlur,
@@ -311,7 +312,7 @@ class _PlaceCalloutOverlayState extends State<PlaceCalloutOverlay> {
             blurRadius: 3,
             offset: const Offset(0, 1),
           ),
-        ],
+        ]),
       ),
     );
 

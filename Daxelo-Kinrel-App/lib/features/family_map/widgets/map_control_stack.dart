@@ -36,6 +36,7 @@ import 'package:maplibre/maplibre.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../l10n/app_localizations.dart';
 import '../config/map_visual_constants.dart';
 import '../data/place_models.dart';
@@ -130,7 +131,7 @@ class _ControlButtonState extends State<_ControlButton>
                       : KinrelColors.darkElevated,
                   width: 1.2,
                 ),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.35),
                     blurRadius: 10,
@@ -143,7 +144,7 @@ class _ControlButtonState extends State<_ControlButton>
                       blurRadius: 12,
                       spreadRadius: 1,
                     ),
-                ],
+                ]),
               ),
               child: Icon(
                 widget.icon,
@@ -452,13 +453,13 @@ class _LayersPopover extends StatelessWidget {
         color: KinrelColors.darkCard.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
         border: Border.all(color: KinrelColors.darkElevated, width: 1),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.45),
             blurRadius: 18,
             offset: const Offset(0, 6),
           ),
-        ],
+        ]),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

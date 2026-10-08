@@ -36,6 +36,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/widgets/cached_avatar.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../l10n/app_localizations.dart';
 import '../config/map_visual_constants.dart';
 import '../data/place_models.dart';
@@ -100,7 +101,7 @@ class _MapLegendWidgetState extends State<MapLegendWidget> {
             MapVisualConstants.legendPanelRadius,
           ),
           border: Border.all(color: KinrelColors.darkElevated, width: 1),
-          boxShadow: [
+          boxShadow: KinrelFx.shadows([
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.45),
               blurRadius: 16,
@@ -111,7 +112,7 @@ class _MapLegendWidgetState extends State<MapLegendWidget> {
               blurRadius: 14,
               spreadRadius: 0,
             ),
-          ],
+          ]),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(
@@ -523,13 +524,13 @@ class _StatusTierLegend extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: t.color,
-                  boxShadow: [
+                  boxShadow: KinrelFx.shadows([
                     BoxShadow(
                       color: t.color.withValues(alpha: 0.55),
                       blurRadius: 4,
                       spreadRadius: 1,
                     ),
-                  ],
+                  ]),
                 ),
               ),
               const SizedBox(width: 5),

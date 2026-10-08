@@ -18,6 +18,7 @@ import '../../../../core/constants/brand_colors.dart';
 // event timestamps are PERSONAL — each viewer sees their own device-
 // local date when the date-only fallback fires.
 import '../../../../core/utils/app_time.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -422,7 +423,7 @@ class TrackcTimelineEventDetailScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             children: [
               Card(
-                elevation: 2,
+                elevation: (KinrelFx.rich ? 2 : 0),
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(

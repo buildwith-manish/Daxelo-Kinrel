@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/constants/brand_colors.dart';
 import '../../../../../core/constants/brand_spacing.dart';
 import '../../../../../core/constants/brand_typography.dart';
+import '../../../../../core/theme/kinrel_fx.dart';
 import '../../icons/game_icon_tokens.dart';
 import '../../icons/game_icons.dart';
 
@@ -130,13 +131,13 @@ class _GameBadge extends StatelessWidget {
           ],
         ),
         border: Border.all(color: accent.withValues(alpha: 0.45), width: 1.5),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: accent.withValues(alpha: 0.25),
             blurRadius: 14,
             offset: const Offset(0, 4),
           ),
-        ],
+        ]),
       ),
       child: Padding(
         padding: const EdgeInsets.all(6),

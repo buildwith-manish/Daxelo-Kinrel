@@ -40,6 +40,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../presence/last_seen_provider.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
@@ -556,13 +557,13 @@ class FamilyProfileScreen extends ConsumerWidget {
             height: 96,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              boxShadow: [
+              boxShadow: KinrelFx.shadows([
                 BoxShadow(
                   color: KinrelColors.ember.withValues(alpha: 0.22),
                   blurRadius: 24,
                   offset: const Offset(0, 0),
                 ),
-              ],
+              ]),
               border: Border.all(
                 color: KinrelColors.ember.withValues(alpha: 0.35),
                 width: 1.5,

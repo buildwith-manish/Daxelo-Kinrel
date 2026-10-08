@@ -23,6 +23,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../shared/icons/kinrel_icons.dart';
 import '../shared/multiplayer/multiplayer.dart';
@@ -517,13 +518,13 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
                         color: KinrelColors.error.withValues(alpha: 0.9),
                         width: 2,
                       ),
-                      boxShadow: [
+                      boxShadow: KinrelFx.shadows([
                         BoxShadow(
                           color: KinrelColors.error.withValues(alpha: 0.55),
                           blurRadius: 10,
                           spreadRadius: 1,
                         ),
-                      ],
+                      ]),
                     ),
                   )
                       .animate(onPlay: (c) => c.repeat(reverse: true))

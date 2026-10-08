@@ -38,6 +38,7 @@ import '../../../../core/constants/app_tokens.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/constants/brand_spacing.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 import 'design_system.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -338,13 +339,13 @@ class InviteButton extends StatelessWidget {
               color: Colors.white.withValues(alpha: 0.18),
               width: 1,
             ),
-            boxShadow: [
+            boxShadow: KinrelFx.shadows([
               BoxShadow(
                 color: AppColor.orange.withValues(alpha: 0.28),
                 blurRadius: 16,
                 offset: const Offset(0, 6),
               ),
-            ],
+            ]),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,

@@ -33,6 +33,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/constants/brand_colors.dart';
 import '../../../../../core/constants/brand_spacing.dart';
 import '../../../../../core/constants/brand_typography.dart';
+import '../../../../../core/theme/kinrel_fx.dart';
 import '../../../game_motion_tokens.dart';
 import 'how_to_play_card.dart';
 import 'lobby_hero.dart';

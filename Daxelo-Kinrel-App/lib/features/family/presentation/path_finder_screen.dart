@@ -15,6 +15,7 @@ import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/kinship/kinship_models.dart';
 
 import '../../../core/widgets/person_avatar.dart';
+import '../../../core/theme/kinrel_fx.dart';
 // ────────────────────────────────────────────────────────────────
 // Path Finder Screen — Relationship Path Finder (#1 Wow Feature)
 // ────────────────────────────────────────────────────────────────
@@ -610,13 +611,13 @@ class _AnimatedConnector extends StatelessWidget {
               ],
             ),
             borderRadius: BorderRadius.circular(1),
-            boxShadow: [
+            boxShadow: KinrelFx.shadows([
               const BoxShadow(
                 color: KinrelColors.orangeGlow,
                 blurRadius: 8,
                 spreadRadius: 1,
               ),
-            ],
+            ]),
           ),
         ),
       );
@@ -996,14 +997,14 @@ class _HeroResultCard extends ConsumerWidget {
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelRadius.xl),
         border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           const BoxShadow(
             color: KinrelColors.orangeGlowSubtle,
             blurRadius: 24,
             spreadRadius: 0,
             offset: Offset(0, 8),
           ),
-        ],
+        ]),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,

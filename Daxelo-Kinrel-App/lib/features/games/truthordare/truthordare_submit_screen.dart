@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import 'truthordare_models.dart';
@@ -105,7 +106,7 @@ class _TodSubmitScreenState extends ConsumerState<TodSubmitScreen> {
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: cardAccent.withValues(alpha: 0.2)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: KinrelFx.shadows([BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))]),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),

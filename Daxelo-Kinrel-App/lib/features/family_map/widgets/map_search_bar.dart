@@ -39,6 +39,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/widgets/cached_avatar.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../l10n/app_localizations.dart';
 import '../config/map_visual_constants.dart';
 import '../data/city_coordinates.dart';
@@ -198,7 +199,7 @@ class _MapSearchBarState extends State<MapSearchBar> {
                     : KinrelColors.darkElevated,
                 width: 1.0,
               ),
-              boxShadow: [
+              boxShadow: KinrelFx.shadows([
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.35),
                   blurRadius: 12,
@@ -210,7 +211,7 @@ class _MapSearchBarState extends State<MapSearchBar> {
                     blurRadius: 14,
                     spreadRadius: 1,
                   ),
-              ],
+              ]),
             ),
             child: Row(
               children: [
@@ -304,13 +305,13 @@ class _MapSearchBarState extends State<MapSearchBar> {
                 color: KinrelColors.darkCard.withValues(alpha: 0.97),
                 borderRadius: BorderRadius.circular(KinrelRadius.lg),
                 border: Border.all(color: KinrelColors.darkElevated),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.45),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),
-                ],
+                ]),
               ),
               child: ListView.separated(
                 shrinkWrap: true,

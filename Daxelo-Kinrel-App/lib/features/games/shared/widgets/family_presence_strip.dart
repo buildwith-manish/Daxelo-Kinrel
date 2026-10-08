@@ -25,6 +25,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/theme/kinrel_fx.dart';
 
 /// Snapshot of family-wide presence returned by fn_get_family_presence.
 class FamilyPresence {
@@ -258,12 +259,12 @@ class _StripContent extends StatelessWidget {
             decoration: const BoxDecoration(
               color: KinrelColors.tealAccent,
               shape: BoxShape.circle,
-              boxShadow: [
+              boxShadow: KinrelFx.shadows([
                 BoxShadow(
                   color: KinrelColors.tealAccent,
                   blurRadius: 6,
                 ),
-              ],
+              ]),
             ),
           ),
         ],

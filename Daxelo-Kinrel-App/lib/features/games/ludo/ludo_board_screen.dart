@@ -25,6 +25,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/icons/kinrel_icons.dart';
@@ -549,13 +550,13 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
             decoration: BoxDecoration(
               color: KinrelColors.amber.withValues(alpha: 0.85),
               borderRadius: BorderRadius.circular(1.5),
-              boxShadow: [
+              boxShadow: KinrelFx.shadows([
                 BoxShadow(
                   color: KinrelColors.amber.withValues(alpha: 0.55),
                   blurRadius: 5,
                   spreadRadius: 1,
                 ),
-              ],
+              ]),
             ),
           ),
         ),
@@ -788,7 +789,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
             color: canRoll ? KinrelColors.orange : const Color(0xFFB9AB90),
             width: canRoll ? 2.5 : 1.5,
           ),
-          boxShadow: [
+          boxShadow: KinrelFx.shadows([
             if (canRoll)
               const BoxShadow(
                 color: KinrelColors.orangeGlowIntense,
@@ -801,7 +802,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
-          ],
+          ]),
         ),
         child: Center(
           child: state.isRolling
@@ -845,13 +846,13 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
         shape: BoxShape.circle,
         color: Colors.white,
         border: Border.all(color: pipRim, width: 1),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 1,
             offset: const Offset(0, 1),
           ),
-        ],
+        ]),
       ),
     );
 

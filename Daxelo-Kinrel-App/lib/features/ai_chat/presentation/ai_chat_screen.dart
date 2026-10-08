@@ -11,6 +11,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/utils/app_time.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../core/utils/error_boundary.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../providers/ai_chat_provider.dart';
 import 'package:go_router/go_router.dart';
 
@@ -470,13 +471,13 @@ class _KinshipCard extends StatelessWidget {
         color: KinrelColors.darkElevated,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: KinrelColors.amber.withValues(alpha: 0.25)),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(
             color: KinrelColors.amber.withValues(alpha: 0.06),
             blurRadius: 12,
             offset: const Offset(0, 2),
           ),
-        ],
+        ]),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

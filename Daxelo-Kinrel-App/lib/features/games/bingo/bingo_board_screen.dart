@@ -23,6 +23,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/icons/kinrel_icons.dart';
@@ -879,7 +880,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                                 ],
                               ),
                         border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: [
+                        boxShadow: KinrelFx.shadows([
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.45),
                             blurRadius: 5,
@@ -889,7 +890,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                             color: KinrelColors.orangeGlowIntense,
                             blurRadius: 7,
                           ),
-                        ],
+                        ]),
                       ),
                     ),
                   ),

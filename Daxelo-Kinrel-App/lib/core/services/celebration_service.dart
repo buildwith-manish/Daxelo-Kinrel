@@ -57,6 +57,7 @@ import '../constants/brand_colors.dart';
 import '../constants/brand_typography.dart';
 import 'haptic_service.dart';
 import 'package:kinrel/core/utils/device_tier.dart';
+import '../../core/theme/kinrel_fx.dart';
 
 /// Tracks user milestones and fires celebrations when they're hit.
 ///
@@ -279,13 +280,13 @@ class _CelebrationOverlay extends StatelessWidget {
           color: KinrelColors.orange.withValues(alpha: 0.3),
           width: 1,
         ),
-        boxShadow: clampBoxShadows([
+        boxShadow: KinrelFx.shadows(clampBoxShadows([
           BoxShadow(
             color: KinrelColors.orange.withValues(alpha: 0.25),
             blurRadius: 32,
             offset: const Offset(0, 8),
           ),
-        ]),
+        ])),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

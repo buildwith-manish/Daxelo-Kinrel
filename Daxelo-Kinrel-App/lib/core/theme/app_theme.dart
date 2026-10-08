@@ -620,7 +620,7 @@ DialogThemeData _dialogTheme(Brightness brightness) {
 
   return DialogThemeData(
     backgroundColor: cardColor,
-    elevation: 4,
+    elevation: (KinrelFx.rich ? 4 : 0),
     shadowColor: Colors.black26,
     surfaceTintColor: Colors.transparent,
     shape: RoundedRectangleBorder(
@@ -721,7 +721,7 @@ FloatingActionButtonThemeData _fabTheme(Brightness brightness) {
     backgroundColor: primaryColor,
     foregroundColor: Colors.white,
     disabledElevation: 0,
-    elevation: 2,
+    elevation: (KinrelFx.rich ? 2 : 0),
     highlightElevation: 4,
     // `extendedShape` defaults to StadiumBorder in M3 — leave it unset
     // so extended FABs render as pills, not circles.
@@ -746,7 +746,7 @@ SnackBarThemeData _snackbarTheme(Brightness brightness) {
       borderRadius: BorderRadius.circular(KinrelRadius.sm),
     ),
     behavior: SnackBarBehavior.floating,
-    elevation: 2,
+    elevation: (KinrelFx.rich ? 2 : 0),
   );
 }
 
@@ -964,7 +964,7 @@ ThemeData getAppTheme(Brightness brightness, {DeviceTier deviceTier = DeviceTier
     popupMenuTheme: PopupMenuThemeData(
       color: isDark ? KinrelColors.darkCard : KinrelColors.lightCard,
       surfaceTintColor: Colors.transparent,
-      elevation: 4,
+      elevation: (KinrelFx.rich ? 4 : 0),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(KinrelRadius.md),
         side: BorderSide(

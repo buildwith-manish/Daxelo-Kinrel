@@ -28,6 +28,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/gamification_provider.dart';
 import 'package:kinrel/core/utils/device_tier.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // AchievementsScreen
@@ -223,13 +224,13 @@ class _AchievementsScreenState extends ConsumerState<AchievementsScreen>
               decoration: BoxDecoration(
                 gradient: KinrelGradients.igniteGradient,
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   const BoxShadow(
                     color: KinrelColors.orangeGlow,
                     blurRadius: 12,
                     offset: Offset(0, 4),
                   ),
-                ],
+                ]),
               ),
               child: const Icon(
                 Icons.emoji_events_rounded,
@@ -463,13 +464,13 @@ class _StreakCard extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          boxShadow: clampBoxShadows([
+          boxShadow: KinrelFx.shadows(clampBoxShadows([
             const BoxShadow(
               color: KinrelColors.orangeGlow,
               blurRadius: 20,
               offset: Offset(0, 4),
             ),
-          ]),
+          ])),
         ),
         child: Column(
           children: [
@@ -483,13 +484,13 @@ class _StreakCard extends StatelessWidget {
                   decoration: const BoxDecoration(
                     gradient: KinrelGradients.igniteGradient,
                     shape: BoxShape.circle,
-                    boxShadow: [
+                    boxShadow: KinrelFx.shadows([
                       BoxShadow(
                         color: KinrelColors.orangeGlowIntense,
                         blurRadius: 16,
                         spreadRadius: 2,
                       ),
-                    ],
+                    ]),
                   ),
                   child: const Icon(
                     Icons.local_fire_department_rounded,
@@ -759,13 +760,13 @@ class _TreeCompletenessCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(
                             KinrelRadius.full,
                           ),
-                          boxShadow: [
+                          boxShadow: KinrelFx.shadows([
                             const BoxShadow(
                               color: KinrelColors.orangeGlow,
                               blurRadius: 6,
                               spreadRadius: 1,
                             ),
-                          ],
+                          ]),
                         ),
                       ),
                     ),
@@ -965,13 +966,13 @@ class _UnlockedBadgeCard extends StatelessWidget {
                   color: KinrelColors.orange.withValues(alpha: 0.25),
                   width: 1,
                 ),
-                boxShadow: [
+                boxShadow: KinrelFx.shadows([
                   const BoxShadow(
                     color: KinrelColors.orangeGlow,
                     blurRadius: 12,
                     offset: Offset(0, 4),
                   ),
-                ],
+                ]),
               ),
               child: Material(
                 color: Colors.transparent,
@@ -994,13 +995,13 @@ class _UnlockedBadgeCard extends StatelessWidget {
                           decoration: const BoxDecoration(
                             shape: BoxShape.circle,
                             gradient: KinrelGradients.achievementGradient,
-                            boxShadow: [
+                            boxShadow: KinrelFx.shadows([
                               BoxShadow(
                                 color: KinrelColors.orangeGlowIntense,
                                 blurRadius: 10,
                                 spreadRadius: 1,
                               ),
-                            ],
+                            ]),
                           ),
                           child: Container(
                             margin: const EdgeInsets.all(3),
@@ -1085,13 +1086,13 @@ class _UnlockedBadgeCard extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: KinrelGradients.achievementGradient,
-                boxShadow: clampBoxShadows(const [
+                boxShadow: KinrelFx.shadows(clampBoxShadows(const [
                   BoxShadow(
                     color: KinrelColors.orangeGlowIntense,
                     blurRadius: 20,
                     spreadRadius: 2,
                   ),
-                ]),
+                ])),
               ),
               child: Container(
                 margin: const EdgeInsets.all(4),

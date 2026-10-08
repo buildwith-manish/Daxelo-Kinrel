@@ -29,6 +29,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/kinship/kinship_models.dart';
+import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../shared/widgets/kinrel_skeleton.dart';
 
@@ -2433,13 +2434,13 @@ class _KinshipDetailSheet extends StatelessWidget {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
-                            boxShadow: [
+                            boxShadow: KinrelFx.shadows([
                               BoxShadow(
                                 color: _Tokens.orange.withValues(alpha: 0.3),
                                 blurRadius: 20,
                                 spreadRadius: 2,
                               ),
-                            ],
+                            ]),
                           ),
                           child: Center(
                             child: Text(
@@ -2495,13 +2496,13 @@ class _KinshipDetailSheet extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: _Tokens.orange,
                             shape: BoxShape.circle,
-                            boxShadow: [
+                            boxShadow: KinrelFx.shadows([
                               BoxShadow(
                                 color: _Tokens.orange.withValues(alpha: 0.3),
                                 blurRadius: 12,
                                 spreadRadius: 1,
                               ),
-                            ],
+                            ]),
                           ),
                           child: const Icon(
                             Icons.play_arrow_rounded,

@@ -19,6 +19,7 @@ import '../shared/widgets/rematch_button.dart';
 import 'truthordare_models.dart';
 import 'truthordare_provider.dart';
 import 'package:kinrel/core/utils/device_tier.dart';
+import '../../../core/theme/kinrel_fx.dart';
 
 class TodTableScreen extends ConsumerStatefulWidget {
   const TodTableScreen({super.key, required this.familyId, required this.gameId});
@@ -257,10 +258,10 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
           stops: [0.55, 1.0],
         ),
         border: Border.all(color: KinrelColors.amber.withValues(alpha: 0.45), width: 1.5),
-        boxShadow: clampBoxShadows([
+        boxShadow: KinrelFx.shadows(clampBoxShadows([
           BoxShadow(color: Colors.black.withValues(alpha: 0.55), blurRadius: 26, offset: const Offset(0, 10)),
           BoxShadow(color: KinrelColors.amber.withValues(alpha: 0.08), blurRadius: 40, spreadRadius: 6),
-        ]),
+        ])),
       ),
       child: Container(
         // Inner shadow ring — dark groove pressed into the felt.
@@ -304,7 +305,7 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: KinrelColors.success.withValues(alpha: 0.9), width: 2),
-                  boxShadow: [BoxShadow(color: KinrelColors.success.withValues(alpha: 0.45), blurRadius: 12, spreadRadius: 2)],
+                  boxShadow: KinrelFx.shadows([BoxShadow(color: KinrelColors.success.withValues(alpha: 0.45), blurRadius: 12, spreadRadius: 2)]),
                 ),
               )
                 .animate(onPlay: (c) => c.repeat(reverse: true))
@@ -315,7 +316,7 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: KinrelColors.amber.withValues(alpha: 0.85), width: 2),
-                  boxShadow: [BoxShadow(color: KinrelColors.amber.withValues(alpha: 0.40), blurRadius: 10)],
+                  boxShadow: KinrelFx.shadows([BoxShadow(color: KinrelColors.amber.withValues(alpha: 0.40), blurRadius: 10)]),
                 ),
               )
                 .animate(onPlay: (c) => c.repeat(reverse: true))
@@ -352,10 +353,10 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
           colors: [Color(0xFFD98A45), Color(0xFFA85A1E), Color(0xFF5E3010)],
         ),
         border: Border.all(color: Colors.black.withValues(alpha: 0.55), width: 1),
-        boxShadow: [
+        boxShadow: KinrelFx.shadows([
           BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 10, offset: const Offset(0, 5)),
           BoxShadow(color: KinrelColors.amber.withValues(alpha: 0.25), blurRadius: 16, spreadRadius: 1),
-        ],
+        ]),
       ),
       child: Stack(children: [
         // Glassy highlight stripe along the top of the bottle.
@@ -439,10 +440,10 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: accent.withValues(alpha: 0.35), width: 1.5),
-        boxShadow: clampBoxShadows([
+        boxShadow: KinrelFx.shadows(clampBoxShadows([
           BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 8)),
           BoxShadow(color: accent.withValues(alpha: 0.12), blurRadius: 24, offset: const Offset(0, 10)),
-        ]),
+        ])),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
@@ -473,10 +474,10 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
           gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [color.withValues(alpha: 0.22), color.withValues(alpha: 0.08)]),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: color.withValues(alpha: 0.55), width: 1.5),
-          boxShadow: [
+          boxShadow: KinrelFx.shadows([
             BoxShadow(color: color.withValues(alpha: 0.22), blurRadius: 18, offset: const Offset(0, 6)),
             BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 10, offset: const Offset(0, 4)),
-          ],
+          ]),
         ),
         child: Column(children: [
           Container(width: 40, height: 40, decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.18), border: Border.all(color: color.withValues(alpha: 0.6))),
