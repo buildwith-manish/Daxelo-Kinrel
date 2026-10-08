@@ -36,6 +36,7 @@ import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/family/family_provider.dart';
 import '../../core/family/relationship_edge_builder.dart';
+import '../../core/theme/kinrel_fx.dart';
 import '../../core/services/supabase_service.dart' show supabaseProvider;
 import '../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider;
 import '../../features/family/presentation/relationship_picker_sheet.dart';
@@ -1040,12 +1041,26 @@ class _ConnectorPainter extends CustomPainter {
     final midY = size.height / 2;
 
     // ── Glow ────────────────────────────────────────────────────────
-    final glowPaint = Paint()
-      ..color = color.withValues(alpha: 0.25)
-      ..strokeWidth = 8
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(ui.BlurStyle.normal, 6);
+    // PERF (Flat): skip the MaskFilter.blur glow in flat mode — draw a
+    // wider low-alpha stroke instead (visually similar, no saveLayer).
+    // The glow paint is only constructed in rich mode; in flat mode
+    // we use a single solid stroke with lower alpha.
+    final Paint glowPaint;
+    if (KinrelFx.rich) {
+      glowPaint = Paint()
+        ..color = color.withValues(alpha: 0.25)
+        ..strokeWidth = 8
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = const MaskFilter.blur(ui.BlurStyle.normal, 6);
+    } else {
+      // Flat: wider low-alpha stroke, no blur.
+      glowPaint = Paint()
+        ..color = color.withValues(alpha: 0.15)
+        ..strokeWidth = 8
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+    }
 
     // ── Dashed line ─────────────────────────────────────────────────
     final linePaint = Paint()

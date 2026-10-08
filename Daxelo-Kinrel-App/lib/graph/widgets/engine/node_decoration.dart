@@ -21,6 +21,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/brand_colors.dart';
+import '../../../core/theme/kinrel_fx.dart';
+import '../../rendering/graph_glow.dart';
 import 'node_state.dart' show NodeState;
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -234,6 +236,159 @@ class Pseudo3DNodePainter extends CustomPainter {
     final bw = params.borderWidth;
     final faceR = r - bw * 0.5;
     final extrusion = params.extrusionDepth;
+
+    // ── FLAT PATH (KinrelFx.rich == false) ─────────────────────────
+    //
+    // PR 1 of graph-glow-lite: in flat mode, skip the entire 10-layer
+    // pseudo-3D decoration and paint just:
+    //   1. One solid face circle in the dark card color (no gradient,
+    //      no shadow, no wall).
+    //   2. One thin ring stroke in the node's relationship/generation
+    //      color (width = 6% of radius, clamped 2..4 logical px).
+    //      The anchor ring is gold.
+    //   3. (Conditional) Layer 8 selected/focused glow, drawn via the
+    //      GraphGlow helper (RadialGradient, no MaskFilter, no blur).
+    //   4. (Conditional) Layer 5b dashed amber ring for unlinked
+    //      members (kept as-is — it's a functional "needs linking"
+    //      signal, not decoration).
+    //   5. (Conditional) Layer 9 birthday ring (sentinel-gated to a
+    //      static 0.45 alpha in flat profile — already uses
+    //      RadialGradient, no MaskFilter).
+    //   6. (Conditional) Layer 10 memorial candle (sentinel-gated to a
+    //      static 0.75 alpha in flat profile — already uses
+    //      RadialGradient, no MaskFilter).
+    //
+    // Pseudo3DNodeParams's size, hit area, and label fields are
+    // unchanged — the avatar image or initial and the labels that sit
+    // on top are not affected (they're rendered by the parent
+    // GraphNode widget, not by this painter).
+    //
+    // Rich mode (KinrelFx.rich == true) falls through to the original
+    // 10-layer code below.
+    if (!KinrelFx.pseudo3d) {
+      // 1. Solid face circle.
+      canvas.drawCircle(
+        center,
+        faceR,
+        Paint()
+          ..color = KinrelColors.darkCard
+          ..style = PaintingStyle.fill
+          ..isAntiAlias = true,
+      );
+
+      // 2. Thin ring stroke in the relationship/generation color.
+      //    Width = 6% of radius, clamped between 2 and 4 logical px.
+      //    The anchor ring is gold (KinshipEdgeColors.kSelfNodeColor).
+      final ringColor = params.isAnchor
+          ? const Color(0xFFD4A24C) // gold — anchor "You" ring
+          : params.borderColor;
+      final ringWidth = (r * 0.06).clamp(2.0, 4.0);
+      canvas.drawCircle(
+        center,
+        faceR,
+        Paint()
+          ..color = ringColor
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = ringWidth
+          ..isAntiAlias = true,
+      );
+
+      // 3. Layer 8 selected/focused glow via GraphGlow (no blur).
+      //    Replaces the rich-mode MaskFilter.blur contact glow.
+      if (params.glowAlpha > 0) {
+        GraphGlow.drawRadial(
+          canvas,
+          center: center,
+          radius: r * GraphGlow.radiusFactor,
+          color: params.borderColor,
+          alpha: params.glowAlpha,
+        );
+      }
+
+      // 4. Layer 5b: dashed amber ring for unlinked members (kept
+      //    as-is — functional "needs linking" signal).
+      if (params.isUnlinked) {
+        const dashCount = 16;
+        const dashArc = 2 * pi / dashCount * 0.5;
+        final dashRect = Rect.fromCircle(center: center, radius: r + 2);
+        for (int i = 0; i < dashCount; i++) {
+          final start = i * (2 * pi / dashCount);
+          canvas.drawArc(
+            dashRect,
+            start,
+            dashArc,
+            false,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2.0
+              ..color = KinrelColors.amber.withValues(alpha: 0.85),
+          );
+        }
+      }
+
+      // 5. Layer 9: static birthday glow ring (sentinel-gated in flat
+      //    profile — uses RadialGradient, no MaskFilter, no blur).
+      if (params.isNearBirthday) {
+        final bool reduced = params.birthdayPulseValue < 0;
+        final double bAlpha;
+        final double bRadiusFactor;
+        if (reduced) {
+          bAlpha = 0.45;
+          bRadiusFactor = 1.075;
+        } else {
+          bAlpha = 0.3 + 0.3 * params.birthdayPulseValue;
+          bRadiusFactor = 1.05 + 0.05 * params.birthdayPulseValue;
+        }
+        final glowRadius = r * bRadiusFactor;
+        final glowColor = params.isDeceased
+            ? const Color(0xFFF59240) // amber
+            : const Color(0xFFE8612A); // ember
+        final glowPaint = Paint()
+          ..shader = RadialGradient(
+            colors: [
+              glowColor.withValues(alpha: bAlpha),
+              glowColor.withValues(alpha: 0.0),
+            ],
+            stops: const [0.0, 1.0],
+          ).createShader(
+            Rect.fromCircle(center: center, radius: glowRadius),
+          );
+        canvas.drawCircle(center, glowRadius, glowPaint);
+      }
+
+      // 6. Layer 10: static memorial candle (sentinel-gated in flat
+      //    profile — uses RadialGradient, no MaskFilter, no blur).
+      if (params.isDeceased) {
+        final bool reduced = params.memorialCandleFlickerValue < 0;
+        final double cAlpha;
+        final double cRadiusFactor;
+        if (reduced) {
+          cAlpha = params.isRecentlyDeceased ? 0.85 : 0.75;
+          cRadiusFactor = 0.09;
+        } else {
+          final base = params.isRecentlyDeceased ? 0.8 : 0.6;
+          final range = params.isRecentlyDeceased ? 0.2 : 0.3;
+          cAlpha = base + range * params.memorialCandleFlickerValue;
+          cRadiusFactor = 0.08 + 0.02 * params.memorialCandleFlickerValue;
+        }
+        final candleRadius = d * cRadiusFactor;
+        const candleColor = Color(0xFFF59240); // amber
+        final candlePaint = Paint()
+          ..shader = RadialGradient(
+            colors: [
+              candleColor.withValues(alpha: cAlpha),
+              candleColor.withValues(alpha: 0.0),
+            ],
+            stops: const [0.0, 1.0],
+          ).createShader(
+            Rect.fromCircle(center: center, radius: candleRadius * 2),
+          );
+        canvas.drawCircle(center, candleRadius * 2, candlePaint);
+      }
+
+      // Flat path complete — skip the rich-mode 10-layer decoration.
+      return;
+    }
 
     // ══ LAYER 1: Contact + ambient shadow ══════════════════════════
     // Neutral dark shadow, offset down-right. NOT coloured.

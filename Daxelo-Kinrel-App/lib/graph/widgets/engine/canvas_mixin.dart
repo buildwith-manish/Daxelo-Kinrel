@@ -327,10 +327,19 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         _perfLogger.reset();
         _perfLogger.start('build');
 
-        final personById = <String, Map<String, dynamic>>{
-          for (final Map<String, dynamic> p in flat.persons)
-            if (p['id'] != null) p['id'] as String: p,
-        };
+        // PERF (PR1 graph-glow-lite TASK 5): the per-build local
+        // `personById` map (~700 entries from flat.persons, 1.5-5 ms/sec)
+        // has been REMOVED. The single consumer at the _buildNodeLayer
+        // call below now reads `_filteredGraph.personById` directly.
+        //
+        // Both consumers (node_layer.dart lines 102 + 233) iterate over
+        // `visible` only, and `visible ⊆ _filteredGraph.personById.keys`
+        // by FilteredGraph construction. The FilteredGraph is rebuilt
+        // (or reused) at line ~858 BELOW this point but BEFORE
+        // _buildNodeLayer is called — so `_filteredGraph.personById`
+        // is current by the time it's read.
+        //
+        // This is a LOSSLESS caching fix — no change to what is rendered.
 
         // v102 (semantic-zoom fix): Cache the member count so _lodFor
         // can pass it to computeSemanticTier. Small families (< 30)
@@ -373,6 +382,21 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           _cachedRelationCategories = _relationCategories(flat, viewerPersonId);
           // v83: Build custom colors map from relationship data
           _cachedCustomColors = _extractCustomColors(flat);
+          // PERF (PR1 graph-glow-lite TASK 5): cache the rawEdgeTuples
+          // (~950 entries from flat.relationships). Previously rebuilt
+          // per _buildCanvas (5-20 ms/sec). Now rebuilt only when the
+          // flat data identity changes. LOSSLESS — same list contents,
+          // same consumer code paths (computeCollapse, proximity
+          // adjacency, edgeFingerprint).
+          _cachedRawEdgeTuples = <({String fromId, String toId, String edgeId, String relationshipKey})>[
+            for (final r in flat.relationships)
+              (
+                fromId: (r['fromPersonId'] ?? '').toString(),
+                toId: (r['toPersonId'] ?? '').toString(),
+                edgeId: (r['id'] ?? '').toString(),
+                relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
+              ),
+          ];
           _lastFlat = flat;
           _lastViewerId = viewerPersonId;
         }
@@ -394,15 +418,11 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // visibility filtering. These are needed for computeCollapse
         // which must run BEFORE the visible-set derivation so the
         // hidden IDs are current (not one-frame stale).
-        final rawEdgeTuples = <({String fromId, String toId, String edgeId, String relationshipKey})>[
-          for (final r in flat.relationships)
-            (
-              fromId: (r['fromPersonId'] ?? '').toString(),
-              toId: (r['toPersonId'] ?? '').toString(),
-              edgeId: (r['id'] ?? '').toString(),
-              relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
-            ),
-        ];
+        //
+        // PERF (PR1 graph-glow-lite TASK 5): use the cached
+        // _cachedRawEdgeTuples (rebuilt only when flat data changes)
+        // instead of rebuilding ~950 entries per _buildCanvas.
+        final rawEdgeTuples = _cachedRawEdgeTuples!;
 
         // v5.123 (RIVERPOD FIX): Initialize the proximity notifier from
         // the WIDGET layer. graphLayoutProvider used to do this during
@@ -526,7 +546,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // them for a few seconds, then they disappear when the full
         // dataset loads and the layout recalculates with more
         // positions, pushing the count above the budget.
-        final protectedAnchorId = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
+        final protectedAnchorId = _cachedFindAnchorId(flat, viewerPersonId);
         if (protectedAnchorId != null) {
           protectedCollapseIds.add(protectedAnchorId);
           // v5.143 (HIDDEN-NODE AUDIT): Use the cached full adjacency
@@ -784,7 +804,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // and the edge segment crosses the viewport). This produces the
         // "edges converging on an empty point" bug where the anchor's
         // position has no visible circle/initials.
-        final String? anchorIdForVisible = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
+        final String? anchorIdForVisible = _cachedFindAnchorId(flat, viewerPersonId);
         if (anchorIdForVisible != null &&
             effectivePositions.containsKey(anchorIdForVisible) &&
             !densityHiddenIds.contains(anchorIdForVisible) &&
@@ -1272,7 +1292,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         //
         // v83: Also check customColors — if an edge has customColors in
         // the relationship data, use the custom line color instead.
-        final String? anchorId = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
+        final String? anchorId = _cachedFindAnchorId(flat, viewerPersonId);
         // v5.125 (Step 6): the anchor's center in the EDGE PAINTER's
         // coordinate space. This drives the bow-around-the-anchor routing
         // for ring-spanning chords and the sector fan-out for
@@ -1694,7 +1714,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     // only nodes inside viewport+buffer become
                     // GraphNode widgets (~25-50 at a time instead of
                     // all 715 in the Show-All state).
-                    layout, effectivePositions, renderVisible, personById, relationLabelById, relationCategoryById, customColorsByPersonId, viewerPersonId, flat,
+                    layout, effectivePositions, renderVisible, _filteredGraph.personById, relationLabelById, relationCategoryById, customColorsByPersonId, viewerPersonId, flat,
                     precomputedFirstDegreeIds: (selectedPerson != null &&
                             ref.read(graphFocusProvider).focusedPersonId == null &&
                             !ref.read(graphSearchProvider).isActive)

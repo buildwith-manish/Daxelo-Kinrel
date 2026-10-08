@@ -447,6 +447,30 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // v83: Cache custom colors per person (from customColors JSONB column)
   Map<String, Map<String, dynamic>>? _cachedCustomColors;
 
+  // PERF (PR1 graph-glow-lite TASK 5): Cache the rawEdgeTuples list so
+  // it doesn't rebuild (~950 entries from flat.relationships, 5-20 ms/sec)
+  // on every pan/zoom frame. Keyed on identical(_lastFlat, flat).
+  // CANNOT use _filteredGraph.rawEdgeTuples (different scope — filtered
+  // to visible↔visible edges only). This cache holds the FULL edge set
+  // needed by computeCollapse + proximity adjacency + edgeFingerprint.
+  List<({String fromId, String toId, String edgeId, String relationshipKey})>?
+      _cachedRawEdgeTuples;
+
+  // PERF (PR1 graph-glow-lite TASK 5): Cache _findAnchorId result.
+  // Previously called 6× per _buildCanvas (each an O(N) linear scan of
+  // flat.persons ~715 entries = ~2,145 String comparisons per rebuild,
+  // ~10K-21K comparisons/sec during pan). Now cached on
+  // (flat identity, viewerPersonId) and reused across all 6 callsites.
+  // Pure function of (flat, viewerPersonId) — LOSSLESS.
+  //
+  // NOTE: _cachedAnchorId can legitimately be null (when viewerPersonId
+  // is null or doesn't exist in flat.persons). _cachedAnchorIdHasValue
+  // tracks whether the cache has been populated for the current key.
+  String? _cachedAnchorId;
+  bool _cachedAnchorIdHasValue = false;
+  FlatGraphResult? _cachedAnchorIdFlat;
+  String? _cachedAnchorIdViewerId;
+
   // v5.143 (HIDDEN-NODE AUDIT): Cache the FilteredGraph so the 5-6
   // iterations of flat.relationships (1000 edges) happen ONCE per
   // graph-data change, NOT once per rebuild. The cache key is the
@@ -2272,7 +2296,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                           camera: _camera,
                           positions: layout.positions,
                           viewportSize: _viewportSize,
-                          anchorId: _SubtreeMethods._findAnchorId(flat, viewerPersonId),
+                          anchorId: _cachedFindAnchorId(flat, viewerPersonId),
                           onTap: (graphSpaceTarget) {
                             final bool reduced =
                                 MediaQuery.disableAnimationsOf(context);
@@ -2567,7 +2591,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       currentAnchorPos = layout.positions[viewerPersonId];
     }
     if (currentAnchorPos == null) {
-      final anchorId = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
+      final anchorId = _cachedFindAnchorId(flat, viewerPersonId);
       if (anchorId != null) {
         currentAnchorPos = layout.positions[anchorId];
       }
@@ -2644,7 +2668,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // tapping any node and hitting Reset centered THAT node instead of
     // the You node. The user said "center the base person (the green
     // 'You' node)", so anchor is now top priority.
-    String? focusId = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
+    String? focusId = _cachedFindAnchorId(flat, viewerPersonId);
     if (focusId == null || !layout.positions.containsKey(focusId)) {
       // No anchor — fall back to the selected node.
       final selectedNodeId = ref.read(selectedNodeProvider);
