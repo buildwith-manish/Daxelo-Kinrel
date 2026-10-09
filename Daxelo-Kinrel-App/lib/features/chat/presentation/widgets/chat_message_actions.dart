@@ -55,6 +55,9 @@
 // can be tested in isolation.
 
 import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
+
 import '../../providers/chat_provider.dart';
 
 @immutable

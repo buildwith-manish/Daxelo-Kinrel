@@ -286,9 +286,10 @@ class MessageBubble extends ConsumerWidget {
     // screen readers announce "selected" when focus moves to this row.
     // The selection controller separately announces the new count via
     // SemanticsService.announce (see chat_selection_controller.dart).
-    final Widget row = StatefulBuilder(
+    const selectionTint = Color(0xFF3D2515);
+    return StatefulBuilder(
       builder: (context, setLocalState) {
-        return GestureDetector(
+        final inner = GestureDetector(
           onLongPress: onLongPress,
           // v3.2: tapping a FAILED message opens a small sheet with
           // Retry and Delete. Only for the sender's own messages.
@@ -556,6 +557,19 @@ class MessageBubble extends ConsumerWidget {
         ),
       ),
         ); // close GestureDetector
+        // v3.6 (PR 1) — when [selected], wrap the row in a tinted
+        // ColoredBox + Semantics. Otherwise return as-is.
+        if (!selected) {
+          return inner;
+        }
+        return Semantics(
+          selected: true,
+          container: true,
+          child: ColoredBox(
+            color: selectionTint,
+            child: inner,
+          ),
+        );
       }, // close StatefulBuilder builder
     ); // close StatefulBuilder
   }
@@ -636,25 +650,6 @@ class MessageBubble extends ConsumerWidget {
           ),
         );
       },
-    );
-
-    // v3.6 (PR 1) — wrap the row in a tinted ColoredBox + Semantics
-    // when selected. The tint color is a pre-mixed dark terracotta
-    // (no Opacity widget — keeps the flat-style 10 ms raster budget).
-    // When NOT selected, return the row as-is (no extra widget layer).
-    if (!selected) {
-      return row;
-    }
-    // Solid terracotta tint — pre-mixed dark color with terracotta hue,
-    // works on the dark wallpaper. NOT an Opacity widget.
-    const selectionTint = Color(0xFF3D2515);
-    return Semantics(
-      selected: true,
-      container: true,
-      child: ColoredBox(
-        color: selectionTint,
-        child: row,
-      ),
     );
   }
 

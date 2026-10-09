@@ -156,7 +156,9 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
       // in the selection bar is gated to "all selected are own failed"
       // in direct chat — when triggered, it calls `deleteFailed`
       // per message (NOT deleteForMe — that's a no-op here).
-      deleteForMe: (_) async {},
+      deleteForMe: (_) async {
+        return;
+      },
       // DM provider has no delete-for-everyone endpoint — null hides.
       deleteForEveryone: null,
       // DM provider has no star endpoint — null hides.
@@ -186,7 +188,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
             .read(directChatProvider(widget.otherUserId).notifier)
             .retryMessage(msg.id);
       },
-      deleteFailed: (msg) {
+      deleteFailed: (msg) async {
         ref
             .read(directChatProvider(widget.otherUserId).notifier)
             .deleteFailedMessage(msg.id);
@@ -597,10 +599,10 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
       // v3.6 (PR 1) — selected messages (resolved against the adapter's
       // output so deleted messages don't linger in the selection).
       final selectedMessages = selectionState.inSelectionMode
-          ? chatMessages
+          ? (chatMessages
               .where((m) => selectionState.isSelected(m.id))
               .toList()
-            ..sort((a, b) => a.timestamp.compareTo(b.timestamp))
+            ..sort((a, b) => a.timestamp.compareTo(b.timestamp)))
           : <ChatMessage>[];
       // Stash for the appBar swap below.
       _lastSelectedMessages = selectedMessages;
