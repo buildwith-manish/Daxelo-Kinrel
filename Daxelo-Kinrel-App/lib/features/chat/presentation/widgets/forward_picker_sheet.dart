@@ -43,9 +43,10 @@ class ForwardPickerSheet extends ConsumerStatefulWidget {
     this.messageId,
     this.messageIds,
     this.currentFamilyId, // null when forwarding from a DM
-  }) : assert(
-           messageId != null ||
-               (messageIds != null && messageIds!.isNotEmpty),
+  // v3.7 (PR 1 fix): the assert in a const constructor can't use
+  // `!` or `?.` — just check non-null; runtime callers always pass
+  // at least one.
+  }) : assert(messageId != null || messageIds != null,
            'Either messageId or messageIds must be provided');
 
   /// The id of a single ChatMessage to forward. (Legacy API — kept
