@@ -173,6 +173,15 @@ class MessageBubble extends ConsumerWidget {
     /// provider.
     this.onRetryFailed,
     this.onDeleteFailed,
+    /// v3.6 (PR 1) — selection-mode flags passed down from
+    /// ChatMessageList. When [selectionMode] is true, the bubble's
+    /// failed-message-sheet tap is suppressed (the list's transparent
+    /// overlay handles row taps → toggle). When [selected] is true, the
+    /// full row is tinted with a solid terracotta color and
+    /// `Semantics(selected: true)` is set so screen readers announce it.
+    /// Both default false so legacy callers see no change.
+    this.selectionMode = false,
+    this.selected = false,
   });
 
   final ChatMessage message;
@@ -216,6 +225,16 @@ class MessageBubble extends ConsumerWidget {
   /// action). Null = the group path (chatProvider.deleteFailedMessage).
   final void Function(String messageId)? onDeleteFailed;
 
+  /// v3.6 (PR 1) — true while the chat is in selection mode. The bubble
+  /// suppresses its own tap-to-retry-failed-sheet behaviour; the list's
+  /// transparent overlay handles row taps and toggles selection.
+  final bool selectionMode;
+
+  /// v3.6 (PR 1) — true when THIS row is currently selected. Applies a
+  /// solid terracotta tinted color across the full row width and sets
+  /// `Semantics(selected: true)` so screen readers announce it.
+  final bool selected;
+
   /// v3.3: the family id to use for game-invite Join/Spectate routes.
   /// Prefers [inviteFamilyId] (set by the DM screen from the invite
   /// payload) and falls back to [familyId] (the group chat's family).
@@ -255,7 +274,19 @@ class MessageBubble extends ConsumerWidget {
 
     // Swipe-to-reply is handled by SwipeToReply in chat_meta.dart (chat_screen.dart wraps
     // each bubble). Do not add a second drag handler here: it would fight with it.
-    return StatefulBuilder(
+    //
+    // v3.6 (PR 1) — selection tint: when [selected], wrap the row in a
+    // solid terracotta-tinted ColoredBox (NOT an Opacity widget — the
+    // prompt explicitly forbids Opacity in lists because it creates an
+    // offscreen layer that breaks the flat-style 10 ms raster budget).
+    // The tint color is a pre-mixed dark-terracotta solid so it works
+    // on the dark wallpaper without any alpha blending.
+    //
+    // Semantics(selected: true) is set on the whole row container so
+    // screen readers announce "selected" when focus moves to this row.
+    // The selection controller separately announces the new count via
+    // SemanticsService.announce (see chat_selection_controller.dart).
+    final Widget row = StatefulBuilder(
       builder: (context, setLocalState) {
         return GestureDetector(
           onLongPress: onLongPress,
@@ -267,7 +298,13 @@ class MessageBubble extends ConsumerWidget {
           // retryMessage/deleteFailedMessage). The tap handler does
           // NOT fire for sent/delivered/read/sending messages — those
           // have no tap action (the existing onLongPress still works).
-          onTap: (isMe &&
+          //
+          // v3.6 (PR 1): suppress the failed-message tap when in
+          // selection mode — the list's transparent overlay handles
+          // row taps (toggle), and we don't want a tap on a failed
+          // row to BOTH toggle selection AND open the retry sheet.
+          onTap: (!selectionMode &&
+                  isMe &&
                   message.messageStatus == 'failed' &&
                   (familyId != null || onRetryFailed != null))
               ? () => _showFailedMessageSheet(context, ref)
@@ -286,10 +323,15 @@ class MessageBubble extends ConsumerWidget {
                 // the 40px spacer lets the bubble use the full width.
                 if (!isMe && !isSticker && !isDirectChat && isFirstInGroup)
                   GestureDetector(
-                    onTap: () => MemberProfileSheet.show(
-                      context,
-                      message.senderId,
-                    ),
+                    // v3.6 (PR 1): avatar tap is disabled while selecting
+                    // — the row-level overlay (in ChatMessageList) absorbs
+                    // taps before they reach this GestureDetector.
+                    onTap: selectionMode
+                        ? null
+                        : () => MemberProfileSheet.show(
+                              context,
+                              message.senderId,
+                            ),
                     child: Container(
                       width: 32,
                       height: 32,
@@ -331,7 +373,7 @@ class MessageBubble extends ConsumerWidget {
                     // Feature 6: tapping the quote scrolls to the original
                     // message (wired via onReplyPreviewTap in chat_screen).
                     if (message.replyToId != null)
-                      onReplyPreviewTap != null
+                      onReplyPreviewTap != null && !selectionMode
                           ? GestureDetector(
                               onTap: onReplyPreviewTap,
                               child: _buildReplyPreview(),
@@ -594,6 +636,25 @@ class MessageBubble extends ConsumerWidget {
           ),
         );
       },
+    );
+
+    // v3.6 (PR 1) — wrap the row in a tinted ColoredBox + Semantics
+    // when selected. The tint color is a pre-mixed dark terracotta
+    // (no Opacity widget — keeps the flat-style 10 ms raster budget).
+    // When NOT selected, return the row as-is (no extra widget layer).
+    if (!selected) {
+      return row;
+    }
+    // Solid terracotta tint — pre-mixed dark color with terracotta hue,
+    // works on the dark wallpaper. NOT an Opacity widget.
+    const selectionTint = Color(0xFF3D2515);
+    return Semantics(
+      selected: true,
+      container: true,
+      child: ColoredBox(
+        color: selectionTint,
+        child: row,
+      ),
     );
   }
 

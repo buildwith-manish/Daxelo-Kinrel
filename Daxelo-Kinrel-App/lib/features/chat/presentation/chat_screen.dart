@@ -84,7 +84,14 @@ import 'widgets/pinned_messages_bar.dart';
 // v3.4 — shared reply bar / peek-preview / scroll FAB (moved here from
 // this file so the DM screen renders the SAME widgets).
 import 'widgets/reply_preview_bar.dart';
-import 'widgets/message_preview_dialog.dart';
+// v3.6 (PR 1) — selection mode + capabilities + actions.
+import 'widgets/chat_capabilities.dart';
+import 'widgets/chat_message_actions.dart';
+import 'widgets/chat_selection_controller.dart';
+import 'widgets/chat_selection_bar.dart';
+import 'widgets/chat_reaction_bar.dart';
+import 'widgets/chat_delete_sheet.dart';
+import 'widgets/chat_reactors_sheet.dart';
 // v3.5 — shared engagement widgets (moved from this screen so the DM
 // renders the SAME indicator + reaction pickers).
 import 'widgets/typing_indicator.dart';
@@ -610,20 +617,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
-  void _showReactionPicker(String messageId) {
-    // v3.5: the overlay + full-emoji sheet were MOVED to the shared
-    // reaction_picker.dart (showReactionOverlay / showFullEmojiSheet)
-    // so the DM opens the SAME UI. The group passes its provider's
-    // toggleReaction as the emoji handler — identical behavior to the
-    // previous inline version.
-    showReactionOverlay(
-      context,
-      onEmojiSelected: (emoji) {
-        ref
-            .read(chatProvider(widget.familyId).notifier)
-            .toggleReaction(messageId, emoji);
-      },
-    );
+  String _resolveUserName(String userId) {
+    final membershipsAsync =
+        ref.read(familyMembershipsProvider(widget.familyId));
+    final memberships = membershipsAsync.valueOrNull ?? [];
+    final match = memberships
+        .where((m) => m.userId == userId)
+        .firstOrNull;
+    if (match != null) {
+      return match.displayName.isNotEmpty ? match.displayName : 'Family member';
+    }
+    // Fall back: look in the current messages for a senderName.
+    final chatState = ref.read(chatProvider(widget.familyId));
+    for (final m in chatState.messages) {
+      if (m.senderId == userId && m.senderName.isNotEmpty) {
+        return m.senderName;
+      }
+    }
+    return 'Family member';
   }
 
   // ── Build ────────────────────────────────────────────────────────
@@ -636,6 +647,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // in chatState — gives sub-second updates for the engagement signals.
     final engagement = ref.watch(chatEngagementProvider(widget.familyId));
     final rawMessages = chatState.messages;
+
+    // v3.6 (PR 1) — watch the selection state. When in selection mode,
+    // the normal AppBar is swapped for the ChatSelectionBar.
+    final selectionState = ref.watch(chatSelectionProvider(widget.familyId));
 
     // v112: Filter out messages that were deleted-for-me or
     // deleted-for-everyone. The ChatMessage model already has an
@@ -656,6 +671,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     } else {
       messages = messages.where((m) => m.groupId == null).toList();
     }
+
+    // v3.6 (PR 1) — selected messages, sorted ascending by timestamp
+    // (for the Copy/Share join). The controller stores ids; we resolve
+    // them against the filtered `messages` list so deleted-for-me rows
+    // never end up in the selection.
+    final selectedMessages = selectionState.inSelectionMode
+        ? messages
+            .where((m) => selectionState.isSelected(m.id))
+            .toList()
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp))
+        : <ChatMessage>[];
 
     // Loading state — show a centered spinner while the initial fetch
     // is in flight. Once _initialLoadDone is true (set by the notifier
@@ -713,6 +739,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     right: 0,
                     child: _buildInlineErrorBanner(chatState.error!),
                   ),
+                // v3.6 (PR 1) — floating reaction pill (Task 4).
+                // Docked directly under the selection bar (the prompt
+                // allows this fallback when screen-position-based
+                // anchoring is not feasible in the shared list — see
+                // the report).
+                if (selectionState.inSelectionMode &&
+                    selectedMessages.length == 1 &&
+                    _buildCapabilities().canReact)
+                  Positioned(
+                    top: 8,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: ChatReactionBar(
+                        chatId: widget.familyId,
+                        message: selectedMessages.first,
+                        actions: _buildActions(),
+                        currentUserId: _currentUserId,
+                        alignment: selectedMessages.first.senderId == _currentUserId
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -741,7 +791,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // v140 Family-Centric Chat Navigation: hideAppBar lets the parent
       // (e.g. FamilyChatListScreen with [Family]/[Direct] tabs) provide
       // its own header without a double-AppBar.
-      appBar: widget.hideAppBar ? null : _buildAppBar(chatState),
+      // v3.6 (PR 1) — when in selection mode, swap the normal AppBar
+      // for the shared ChatSelectionBar (with a 150 ms transition via
+      // AnimatedSwitcher — the bar's own internal widgets also animate
+      // when their state changes). When NOT in selection mode, the
+      // normal AppBar is shown.
+      appBar: widget.hideAppBar
+          ? null
+          : (selectionState.inSelectionMode
+              ? PreferredSize(
+                  preferredSize: const Size.fromHeight(56),
+                  child: ChatSelectionBar(
+                    chatId: widget.familyId,
+                    capabilities: _buildCapabilities(),
+                    actions: _buildActions(),
+                    selectedMessages: selectedMessages,
+                  ),
+                )
+              : _buildAppBar(chatState)),
       // v115: Only show the Family Space bottom nav when this screen
       // is the tab destination (showFamilyNav=true). When opened as a
       // pushed conversation from the chat list, the bottom nav is
@@ -2483,14 +2550,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       isDirectChat: false,
       inviteFamilyId: null,
       scrollController: _scrollController,
+      chatId: widget.familyId,
+      // v3.6 (PR 1) — capabilities + actions drive per-message behaviour.
+      capabilities: _buildCapabilities(),
+      actions: _buildActions(),
       onReply: (msg) {
         ref.read(chatProvider(widget.familyId).notifier).setReplyTo(msg);
       },
-      onReact: (msg) => _showReactionPicker(msg.id),
-      onLongPress: (msg) => _showMessageActions(msg),
+      // v3.6 (PR 1) — tapping a reaction chip below the bubble opens
+      // the reactors list (Task 5).
+      onShowReactors: (msg) {
+        ChatReactorsSheet.show(
+          context: context,
+          message: msg,
+          currentUserId: _currentUserId,
+          resolveUserName: _resolveUserName,
+        );
+      },
       onReplyPreviewTap: (msg) {
         if (msg.replyToId != null) _scrollToMessage(msg.replyToId!);
       },
+      // v3.5 — failed-send seam: pass null so MessageBubble uses the
+      // group's built-in chatProvider retry/delete paths.
+      onRetryFailed: null,
+      onDeleteFailed: null,
     );
   }
 
@@ -3238,21 +3321,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   /// Show a bottom sheet with the user's families. Tapping one
   /// forwards the [message] to that family's chat.
-  void _showForwardFamilyPicker(ChatMessage message) {
-    // Tier 1 / Forward Picker — replaced the old single-target picker
-    // with the new multi-select ForwardPickerSheet (family chats + DMs).
-    // The sheet calls ChatNotifier.forwardMessageToTargets which hits
-    // the fn_forward_message RPC. The RPC handles validation, the
-    // forwardedFrom field, and resets poll votes / reactions on copies.
-    ForwardPickerSheet.show(
-      context,
-      messageId: message.id,
-      currentFamilyId: widget.familyId,
-    );
-  }
-
-  // ── Edit Message Dialog (v109.10) ──────────────────────────────────
-
   void _showEditDialog(ChatMessage message) {
     final editController = TextEditingController(text: message.content);
     showDialog(
@@ -3301,421 +3369,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       ),
     );
   }
-
-  // ── Message Actions Bottom Sheet ─────────────────────────────────
-
-  void _showMessageActions(ChatMessage message) {
-    final isMe = _isMine(message);
-
-    // v122: Check if current user is admin/creator (for Pin permission).
-    final currentUserId = _currentUserId;
-    final detailAsync = ref.read(familyDetailProvider(widget.familyId));
-    final family = detailAsync.valueOrNull?.family;
-    final isCreator = family?.createdBy != null &&
-        family?.createdBy == currentUserId;
-    final membershipsAsync =
-        ref.read(familyMembershipsProvider(widget.familyId));
-    final memberships = membershipsAsync.valueOrNull ?? [];
-    final currentUserMembership = memberships
-        .where((m) => m.userId == currentUserId)
-        .firstOrNull;
-    final isAdminOrCreator = isCreator ||
-        currentUserMembership?.isAdmin == true;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: KinrelColors.darkCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.xxl),
-        ),
-      ),
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Quick reactions row — v3.5: MOVED to the shared
-              // MessageActionQuickReactions widget (reaction_picker.dart)
-              // so the DM long-press sheet renders the SAME row. The
-              // group passes its provider's toggleReaction — identical
-              // behavior to the previous inline version.
-              MessageActionQuickReactions(
-                reactions: message.reactions,
-                currentUserId: currentUserId,
-                onToggle: (emoji) {
-                  ref
-                      .read(chatProvider(widget.familyId).notifier)
-                      .toggleReaction(message.id, emoji);
-                  Navigator.pop(context);
-                },
-                onMoreTap: () {
-                  // Pop the message-actions sheet first, then
-                  // open the full emoji picker as a new sheet.
-                  Navigator.pop(context);
-                  _showFullEmojiPicker(message.id);
-                },
-              ),
-              const SizedBox(height: 8),
-              const Divider(
-                color: Color(0xFF3A3A4A),
-                height: 1,
-                thickness: 0.5,
-              ),
-              // Tier 3 / Peek Preview — opens a full-screen overlay
-              // showing the message in a larger format (especially
-              // useful for long text messages / photos that are
-              // truncated in the bubble).
-              ListTile(
-                leading: const Icon(
-                  Icons.zoom_out_map_rounded,
-                  color: KinrelColors.ember,
-                  size: 22,
-                ),
-                title: const Text(
-                  'Preview',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 15,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showMessagePreview(message);
-                },
-              ),
-              // Reply action
-              ListTile(
-                leading: const Icon(
-                  Icons.reply,
-                  color: KinrelColors.orange,
-                  size: 22,
-                ),
-                title: const Text(
-                  'Reply',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 15,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  ref
-                      .read(chatProvider(widget.familyId).notifier)
-                      .setReplyTo(message);
-                },
-              ),
-              // Copy action
-              ListTile(
-                leading: const Icon(
-                  Icons.copy_rounded,
-                  color: KinrelColors.textSilver,
-                  size: 22,
-                ),
-                title: const Text(
-                  'Copy',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 15,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  Clipboard.setData(ClipboardData(text: message.content));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Message copied'),
-                      backgroundColor: KinrelColors.darkCard,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
-              ),
-              // Forward action
-              ListTile(
-                leading: const Icon(
-                  Icons.forward,
-                  color: KinrelColors.textSilver,
-                  size: 22,
-                ),
-                title: const Text(
-                  'Forward',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 15,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showForwardFamilyPicker(message);
-                },
-              ),
-              // v125: Share (native share sheet)
-              ListTile(
-                leading: const Icon(
-                  Icons.share_outlined,
-                  color: KinrelColors.textSilver,
-                  size: 22,
-                ),
-                title: const Text(
-                  'Share',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 15,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  // Share text content or image URL via native share sheet.
-                  if (message.messageType == MessageType.photo &&
-                      message.mediaUrl != null &&
-                      message.mediaUrl!.isNotEmpty) {
-                    Share.share(
-                      message.mediaUrl!,
-                      subject: message.content.isNotEmpty
-                          ? message.content
-                          : 'Photo from ${message.senderName}',
-                    );
-                  } else if (message.content.isNotEmpty) {
-                    Share.share(
-                      message.content,
-                      subject: 'Message from ${message.senderName}',
-                    );
-                  }
-                },
-              ),
-              // Star action
-              ListTile(
-                leading: Icon(
-                  message.isStarred
-                      ? Icons.star_rounded
-                      : Icons.star_border_rounded,
-                  color: message.isStarred
-                      ? const Color(0xFFFFD700)
-                      : KinrelColors.textSilver,
-                  size: 22,
-                ),
-                title: Text(
-                  message.isStarred ? 'Unstar' : 'Star',
-                  style: const TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 15,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final service = ref.read(chatEnhancementServiceProvider);
-                  await service.starMessage(message.id, !message.isStarred);
-                  ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
-                },
-              ),
-              // v122: Pin / Unpin (admin/creator only — RPC enforces too)
-              if (isAdminOrCreator)
-                ListTile(
-                  leading: Icon(
-                    message.isPinned
-                        ? Icons.push_pin
-                        : Icons.push_pin_outlined,
-                    color: message.isPinned
-                        ? KinrelColors.orange
-                        : KinrelColors.textSilver,
-                    size: 22,
-                  ),
-                  title: Text(
-                    message.isPinned ? 'Unpin' : 'Pin',
-                    style: const TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 15,
-                      color: KinrelColors.textWhite,
-                    ),
-                  ),
-                  onTap: () async {
-                    Navigator.pop(context);
-                    final service = ref.read(chatEnhancementServiceProvider);
-                    await service.pinMessage(message.id, !message.isPinned);
-                    ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
-                  },
-                ),
-              // Edit (only for own text messages)
-              if (isMe && message.messageType == MessageType.text)
-                ListTile(
-                  leading: const Icon(
-                    Icons.edit_outlined,
-                    color: KinrelColors.textSilver,
-                    size: 22,
-                  ),
-                  title: const Text(
-                    'Edit',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 15,
-                      color: KinrelColors.textWhite,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showEditDialog(message);
-                  },
-                ),
-              // Delete for Me
-              ListTile(
-                leading: const Icon(
-                  Icons.delete_outline,
-                  color: KinrelColors.textSilver,
-                  size: 22,
-                ),
-                title: const Text(
-                  'Delete for Me',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 15,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final service = ref.read(chatEnhancementServiceProvider);
-                  final success = await service.deleteForMe(message.id);
-                  if (success) {
-                    ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
-                  }
-                },
-              ),
-              // Tier 2 / Message Info — opens the MessageInfoSheet
-              // showing "Delivered to" + "Read by" lists per family
-              // member. Shown for everyone (not just the sender) so
-              // any member can see who's read the message. Hidden for
-              // non-text message types (info is less useful for
-              // stickers / photos / voice notes in v1).
-              if (message.messageType == MessageType.text ||
-                  message.messageType == MessageType.photo)
-                ListTile(
-                  leading: const Icon(
-                    Icons.info_outline_rounded,
-                    color: KinrelColors.textSilver,
-                    size: 22,
-                  ),
-                  title: const Text(
-                    'Info',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 15,
-                      color: KinrelColors.textWhite,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    MessageInfoSheet.show(context, messageId: message.id);
-                  },
-                ),
-              // Delete for Everyone (only for own messages)
-              if (isMe)
-                ListTile(
-                  leading: const Icon(
-                    Icons.delete_forever,
-                    color: KinrelColors.error,
-                    size: 22,
-                  ),
-                  title: const Text(
-                    'Delete for Everyone',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 15,
-                      color: KinrelColors.error,
-                    ),
-                  ),
-                  onTap: () async {
-                    Navigator.pop(context);
-                    // Confirm
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        backgroundColor: KinrelColors.darkCard,
-                        title: const Text('Delete for Everyone?',
-                            style: TextStyle(color: KinrelColors.textWhite)),
-                        content: const Text(
-                            'This message will be deleted for everyone in the chat.',
-                            style: TextStyle(color: KinrelColors.textSilver)),
-                        actions: [
-                          TextButton(
-                              onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Cancel')),
-                          TextButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              child: const Text('Delete',
-                                  style: TextStyle(color: KinrelColors.error))),
-                        ],
-                      ),
-                    );
-                    if (confirmed == true) {
-                      final service =
-                          ref.read(chatEnhancementServiceProvider);
-                      final success =
-                          await service.deleteForEveryone(message.id);
-                      if (success) {
-                        ref
-                            .read(chatProvider(widget.familyId).notifier)
-                            .refreshMessages();
-                      }
-                    }
-                  },
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Tier 3 / Peek Preview — opens a full-screen overlay showing the
-  /// message in a larger format. Useful for long text messages that are
-  /// truncated in the bubble, or for getting a closer look at photos.
-  /// Dismissed by tapping outside the card.
-  void _showMessagePreview(ChatMessage message) {
-    // v3.4: the dialog's rendering was MOVED to the shared
-    // showMessagePeekPreview function (see message_preview_dialog.dart)
-    // so the DM long-press sheet can offer the SAME Preview action.
-    // Identical rendering + dismissal behavior to the previous inline
-    // version.
-    showMessagePeekPreview(context, message);
-  }
-
-  /// v113: Opens a full emoji picker (emoji_picker_flutter) as a bottom
-  /// sheet, themed to match the app's dark palette. When an emoji is
-  /// selected, calls the SAME toggleReaction(messageId, emoji) used by
-  /// the quick-react buttons, then pops the sheet. This gives users
-  /// access to ALL emojis for reactions, not just the 6 quick-react
-  /// defaults.
-  void _showFullEmojiPicker(String messageId) {
-    // v3.5: the sheet's rendering was MOVED to the shared
-    // showFullEmojiSheet function (see reaction_picker.dart) so the DM
-    // opens the SAME sheet. The group passes its provider's
-    // toggleReaction as the emoji handler — identical behavior to the
-    // previous inline version.
-    showFullEmojiSheet(
-      context,
-      onEmojiSelected: (emoji) {
-        ref
-            .read(chatProvider(widget.familyId).notifier)
-            .toggleReaction(messageId, emoji);
-      },
-    );
-  }
-
-  // v3.3: date grouping + date separator rendering was MOVED to the
-  // shared ChatMessageList widget (see chat_message_list.dart). The
-  // group chat now delegates to ChatMessageList via _buildMessagesList
-  // above.
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Message Bubble Widget
-// ═══════════════════════════════════════════════════════════════════════
 
