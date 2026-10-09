@@ -195,6 +195,87 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
   List<DateGroup> _groupedCache = const [];
   List<ChatMessage>? _groupedCacheKey;
 
+  // ── v3.9: Floating date indicator while scrolling ────────────────
+  // Shows the date of the topmost visible message group when the user
+  // scrolls, then fades out ~1.5s after scrolling stops.
+  //
+  // Performance:
+  //   - The scroll listener only sets 2 lightweight state variables
+  //     (_floatingDate string + _showFloatingDate bool). The ListView
+  //     itself is NOT rebuilt — the date pill is a separate widget in
+  //     a Stack above the list, wrapped in a RepaintBoundary.
+  //   - The date is computed in O(1) from the scroll fraction — no
+  //     widget tree traversal, no findRenderObject calls.
+  String? _floatingDate;
+  bool _showFloatingDate = false;
+  Timer? _hideFloatingDateTimer;
+  double _lastScrollOffset = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Attach scroll listener to detect scrolling.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.scrollController.addListener(_onScroll);
+    });
+  }
+
+  @override
+  void dispose() {
+    _hideFloatingDateTimer?.cancel();
+    widget.scrollController.removeListener(_onScroll);
+    super.dispose();
+  }
+
+  /// Scroll handler — computes the date for the current viewport
+  /// position and shows the floating date indicator.
+  void _onScroll() {
+    final controller = widget.scrollController;
+    if (!controller.hasClients) return;
+
+    final offset = controller.position.pixels;
+    final maxExtent = controller.position.maxScrollExtent;
+
+    // Only show the indicator when the list is scrollable (enough
+    // content to scroll).
+    if (maxExtent <= 0) return;
+
+    // Only show when the user is actually scrolling (offset changed).
+    if ((offset - _lastScrollOffset).abs() < 1.0) return;
+    _lastScrollOffset = offset;
+
+    // Compute the date for the current viewport position.
+    // The list is reversed (newest at bottom = offset 0). As offset
+    // increases, the viewport shows older messages. The grouped list
+    // is ordered newest-day-first (descending), so higher offset =
+    // higher group index = older date.
+    final grouped = _groupedCache;
+    if (grouped.isEmpty) return;
+
+    // scrollFraction: 0 = bottom (newest), 1 = top (oldest)
+    final scrollFraction = (offset / maxExtent).clamp(0.0, 1.0);
+    final groupIndex = (scrollFraction * (grouped.length - 1)).round();
+    final dateLabel = grouped[groupIndex].dateLabel;
+
+    if (dateLabel != _floatingDate || !_showFloatingDate) {
+      setState(() {
+        _floatingDate = dateLabel;
+        _showFloatingDate = true;
+      });
+    }
+
+    // Reset the hide timer — hides the indicator 1.5s after scrolling
+    // stops.
+    _hideFloatingDateTimer?.cancel();
+    _hideFloatingDateTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        setState(() {
+          _showFloatingDate = false;
+        });
+      }
+    });
+  }
+
   @override
   void didUpdateWidget(covariant ChatMessageList oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -250,8 +331,14 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
     // reversed ListView, padding.bottom is applied at the visual bottom.
     const fabClearance = 64.0;
 
-    return ListView.builder(
-      controller: widget.scrollController,
+    // v3.9: Wrap the ListView in a Stack with a floating date indicator
+    // that appears on scroll + fades out 1.5s after scrolling stops.
+    // The indicator is wrapped in a RepaintBoundary so it doesn't trigger
+    // repaints of the message list.
+    return Stack(
+      children: [
+        ListView.builder(
+          controller: widget.scrollController,
       // reverse: true means the visual BOTTOM of the viewport shows
       // index 0 (the newest message) and scrolling UP increases the
       // scroll offset (toward older messages at the end of the list).
@@ -392,6 +479,48 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
           ],
         );
       },
+    ),
+        // v3.9: Floating date indicator — appears on scroll + fades out.
+        // Wrapped in RepaintBoundary so the pill's opacity animation
+        // doesn't repaint the message list.
+        if (_floatingDate != null)
+          RepaintBoundary(
+            child: Positioned(
+              top: 8,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: AnimatedOpacity(
+                  opacity: _showFloatingDate ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 250),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF191B2C).withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(100),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Text(
+                      _floatingDate!,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.textSilver
+                            .withValues(alpha: 0.95),
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 

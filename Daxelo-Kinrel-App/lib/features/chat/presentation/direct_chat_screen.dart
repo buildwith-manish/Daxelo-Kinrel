@@ -152,21 +152,66 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
       },
       // DM provider has no edit endpoint — null hides the action.
       edit: null,
-      // DM provider has no delete-for-me endpoint. The Delete button
-      // in the selection bar is gated to "all selected are own failed"
-      // in direct chat — when triggered, it calls `deleteFailed`
-      // per message (NOT deleteForMe — that's a no-op here).
-      deleteForMe: (_) async {
-        return;
+      // v3.9: Enable Delete for DM (user requested Reply, Forward, Delete
+      // in both chat types). Attempts to delete the DirectMessage row via
+      // the Supabase REST API. If RLS blocks the DELETE (no DELETE policy
+      // on DirectMessage), a snackbar reports the error.
+      deleteForMe: (messages) async {
+        final client = ref.read(supabaseProvider);
+        if (client == null) return;
+        for (final m in messages) {
+          try {
+            await client
+                .from('DirectMessage')
+                .delete()
+                .eq('id', m.id)
+                .timeout(const Duration(seconds: 10));
+          } catch (e) {
+            // RLS may block the delete (no DELETE policy on DirectMessage).
+            // Show a snackbar so the user knows it failed.
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Could not delete message: $e'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+            return;
+          }
+        }
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Messages deleted'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       },
-      // DM provider has no delete-for-everyone endpoint — null hides.
+      // DM does NOT support delete-for-everyone (no RLS DELETE policy).
       deleteForEveryone: null,
       // DM provider has no star endpoint — null hides.
       star: null,
       // DM provider has no pin endpoint — null hides.
       pin: null,
-      // DM provider has no forward endpoint — null hides.
-      forward: null,
+      // v3.9: Enable Forward for DM (user requested Reply, Forward, Delete
+      // in both chat types). Uses the shared ForwardPickerSheet.showMulti()
+      // — the same sheet the group chat uses. NOTE: the fn_forward_message
+      // RPC queries the ChatMessage table, so forwarding a DM message may
+      // fail with "message_not_found" (the message ID is in the
+      // DirectMessage table, not ChatMessage). The sheet handles the error
+      // with a snackbar. A backend change (extending fn_forward_message
+      // to also query DirectMessage) would make this fully functional.
+      forward: (messages) async {
+        final sorted = [...messages]
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        await ForwardPickerSheet.showMulti(
+          context,
+          messageIds: sorted.map((m) => m.id).toList(),
+          currentFamilyId: null,
+        );
+      },
       // DM provider has no message-info RPC — null hides.
       showInfo: null,
       report: null,

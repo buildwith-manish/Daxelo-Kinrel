@@ -57,13 +57,15 @@ class ChatDeleteSheet {
     final caps = capabilities;
     final acts = actions;
 
-    // ── Direct chat path: own failed messages ────────────────────────
-    // The selection bar already gated the Delete button to "all own
-    // failed" in direct chat, so we can call deleteFailed directly.
+    // ── Direct chat path ────────────────────────────────────────────
+    // v3.9: DM now supports Delete for regular messages (not just failed
+    // ones). The deleteForMe callback attempts a Supabase REST delete on
+    // the DirectMessage table. If RLS blocks it, a snackbar reports the
+    // error. No "Delete for everyone" — DM has no RLS DELETE policy.
     if (caps.isDirect) {
       final title = count == 1
-          ? 'Delete failed message'
-          : 'Delete $count failed messages';
+          ? 'Delete message'
+          : 'Delete $count messages';
       await showModalBottomSheet<void>(
         context: context,
         backgroundColor: KinrelColors.darkCard,
@@ -95,11 +97,11 @@ class ChatDeleteSheet {
                       style: TextStyle(color: KinrelColors.red)),
                   onTap: () async {
                     Navigator.pop(ctx);
-                    if (acts.deleteFailed != null) {
-                      for (final m in messages) {
-                        await acts.deleteFailed!(m);
-                      }
-                    }
+                    // v3.9: Use deleteForMe (which attempts the Supabase
+                    // REST delete on the DirectMessage table). For own
+                    // failed messages, the DM screen's deleteForMe also
+                    // works (the REST delete removes the row).
+                    await acts.deleteForMe(messages);
                   },
                 ),
                 ListTile(

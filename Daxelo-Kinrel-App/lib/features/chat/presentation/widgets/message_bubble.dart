@@ -1100,103 +1100,24 @@ class MessageBubble extends ConsumerWidget {
       case MessageType.familyEvent:
         // Phase 18: Thinking of You messages are stored as familyEvent
         // with messageSubType='thinking_of_you'. Render them with a
-        // special heart-themed bubble instead of the generic celebration
-        // card, so recipients immediately recognize the message type.
+        // special heart-themed bubble instead of the generic system
+        // message, so recipients immediately recognize the message type.
         if (message.messageSubType == 'thinking_of_you') {
           return _buildThinkingOfYouBubble();
         }
-        return Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: KinrelColors.orange.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(KinrelRadius.md),
-            border: Border.all(
-              color: KinrelColors.orange.withValues(alpha: 0.2),
-              width: 1,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Event icon and type
-              Row(
-                children: [
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: KinrelGradients.igniteGradient,
-                    ),
-                    child: const Icon(
-                      Icons.celebration,
-                      size: 14,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Family Event',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.monoFont,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                        color: KinrelColors.orange,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // Event title
-              if (message.eventTitle != null)
-                Text(
-                  message.eventTitle!,
-                  style: const TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-              const SizedBox(height: 3),
-              // Event date
-              if (message.eventDate != null)
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.calendar_today_outlined,
-                      size: 12,
-                      color: KinrelColors.orange,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      message.eventDate!,
-                      style: const TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 12,
-                        color: KinrelColors.textSilver,
-                      ),
-                    ),
-                  ],
-                ),
-              if (message.content.isNotEmpty &&
-                  message.content != 'Event shared') ...[
-                const SizedBox(height: 6),
-                Text(
-                  message.content,
-                  style: const TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 12,
-                    color: KinrelColors.textSilver,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        );
+        // v3.9: Group activity events (joined, left, renamed, etc.) are
+        // rendered as centered muted system messages — NOT as regular
+        // chat bubbles. This matches WhatsApp/Telegram's group activity
+        // notification style.
+        //
+        // The message.content field contains the system event text (e.g.
+        // "Account 1 joined the group" or "Group name changed to X").
+        // The message.eventTitle field may contain a shorter label.
+        //
+        // System messages are NOT selectable (the ChatCapabilities.
+        // isSystemRow() method returns true for these, and the list's
+        // long-press handler skips them).
+        return _buildSystemMessage();
 
       case MessageType.gameInvite:
         // Persistent game-invite card — the second, durable surface for a
@@ -2110,6 +2031,56 @@ class MessageBubble extends ConsumerWidget {
         .where((w) => w.isNotEmpty)
         .map((w) => w[0].toUpperCase() + w.substring(1))
         .join(' ');
+  }
+
+  // ── v3.9: System message (group activity notifications) ──────────
+
+  /// Renders a group activity event as a centered muted text row —
+  /// similar to WhatsApp's "X joined the group" / "X left" / "Group
+  /// name changed to Y" notifications.
+  ///
+  /// The message.content field contains the full event text. If
+  /// message.eventTitle is set, it's used as the primary text;
+  /// otherwise message.content is used.
+  ///
+  /// The system message has:
+  ///   - No bubble background (transparent)
+  ///   - No avatar / sender name
+  ///   - No long-press handler (not selectable)
+  ///   - Centered text with muted color
+  ///   - A subtle pill background for readability
+  Widget _buildSystemMessage() {
+    final text = (message.eventTitle != null && message.eventTitle!.isNotEmpty)
+        ? message.eventTitle!
+        : (message.content.isNotEmpty ? message.content : '');
+    if (text.isEmpty) return const SizedBox.shrink();
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            // Subtle pill background — NOT a bubble. Uses a muted
+            // dark color so it blends with the wallpaper but is
+            // readable. No border, no shadow (flat style).
+            color: const Color(0xFF1A1B2C).withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+              color: KinrelColors.textSilver.withValues(alpha: 0.85),
+              height: 1.4,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   /// Phase 18: Thinking of You bubble — a warm, heart-themed card that

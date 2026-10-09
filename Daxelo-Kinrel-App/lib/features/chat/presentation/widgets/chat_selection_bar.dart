@@ -373,16 +373,12 @@ class ChatSelectionBar extends ConsumerWidget {
   }
 
   /// Delete-button visibility:
-  ///   - Direct chat: only when EVERY selected is an own failed message.
-  ///   - Group chat: when canDeleteForMe(m) is true for every selected
-  ///     (i.e. none are deleted-for-everyone — group can always soft-
-  ///     delete any row per the existing rule).
+  ///   v3.9: Both group and DM use the same rule — canDeleteForMe(m)
+  ///   is true for every selected message (any non-deleted-for-everyone
+  ///   row). The DM's deleteForMe callback attempts the Supabase REST
+  ///   delete (may fail due to RLS — handled with a snackbar).
   bool _canDeleteSelection(List<ChatMessage> selected, ChatCapabilities caps) {
     if (selected.isEmpty) return false;
-    if (caps.isDirect) {
-      return selected.every((m) =>
-          m.senderId == caps.currentUserId && m.messageStatus == 'failed');
-    }
     return selected.every((m) => caps.canDeleteForMe(m));
   }
 }

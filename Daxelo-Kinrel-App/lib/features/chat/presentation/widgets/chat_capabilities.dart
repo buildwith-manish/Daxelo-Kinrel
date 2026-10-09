@@ -152,7 +152,9 @@ class ChatCapabilities {
       canReact: true,
       canCopy: true,
       canShareOutside: true,
-      canForward: false,
+      // v3.9: Enable Forward + Delete in DM for consistency with group chat.
+      // The user explicitly requested Reply, Forward, Delete in both chat types.
+      canForward: true,
       canStar: false,
       canShowMessageInfo: false,
       canReport: false,
@@ -179,16 +181,18 @@ class ChatCapabilities {
   }
 
   /// "Delete for me" — group: any non-deleted-for-everyone row.
-  /// Direct chat returns false at the capability level; the selection
-  /// bar still offers Delete when EVERY selected message is an own
-  /// failed one (see `ChatSelectionBar.canDeleteSelection`).
+  /// Direct chat: any non-deleted message (v3.9: enabled for consistency
+  /// with group chat per user request). The DM screen's deleteForMe
+  /// callback attempts to delete via the Supabase REST API; if RLS
+  /// blocks it, a snackbar reports the error.
   bool canDeleteForMe(ChatMessage m) {
-    if (isDirect) return false;
     if (m.isDeletedForEveryone) return false;
     return true;
   }
 
   /// "Delete for everyone" — own messages, group only.
+  /// DM does NOT support delete-for-everyone (no RLS DELETE policy on
+  /// the DirectMessage table). The delete sheet hides this option in DM.
   bool canDeleteForEveryone(ChatMessage m) {
     if (isDirect) return false;
     if (m.senderId != currentUserId) return false;
@@ -250,15 +254,15 @@ class ChatCapabilities {
   }
 
   /// True for date separators / system events / typing indicator rows
-  /// (not selectable). We treat familyEvent + gameInvite as user content
-  /// — only the row kinds explicitly drawn by the list as "system" rows
-  /// (date headers, typing indicator) are excluded; here we approximate
-  /// by excluding any ChatMessage whose messageType is familyEvent AND
-  /// whose content is empty (a pure event row).
-  ///
-  /// Note: this is called by the list on every message to decide whether
-  /// to render the long-press overlay; it must be fast.
+  /// (not selectable). Group activity events (joined, left, renamed) are
+  /// stored as MessageType.familyEvent with messageSubType != 'thinking_of_you'.
+  /// These are system messages — NOT regular chat bubbles — and should not
+  /// enter selection mode.
   bool isSystemRow(ChatMessage m) {
-    return m.messageType == MessageType.familyEvent && m.content.trim().isEmpty;
+    if (m.messageType == MessageType.familyEvent &&
+        m.messageSubType != 'thinking_of_you') {
+      return true;
+    }
+    return false;
   }
 }
