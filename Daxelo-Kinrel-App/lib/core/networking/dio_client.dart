@@ -23,6 +23,18 @@ import '../widgets/offline_banner.dart';
 /// tier cold starts (the server can take 30-60s to wake up after idle).
 /// The RetryInterceptor handles transient 502/503 errors during the
 /// wake-up window with exponential backoff (1s, 2s, 4s).
+///
+/// v5.184 (CORS fix): Removed the `'apikey': AppConfig.supabaseAnonKey`
+/// default header. This header was vestigial — it was added in the
+/// initial commit when dio was used for BOTH Supabase REST calls AND
+/// NestJS backend calls. The Supabase `apikey` header is a Supabase
+/// convention that the NestJS backend doesn't understand; the backend's
+/// CORS `allowedHeaders` list doesn't include `apikey`, so every
+/// cross-origin request to the backend failed CORS preflight with:
+///   "Request header field apikey is not allowed by Access-Control-Allow-Headers"
+/// The Supabase anon key is no longer needed in the dio client because
+/// all Supabase calls go through `Supabase.instance.client` (which
+/// injects `apikey` internally for *.supabase.co requests only).
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(
     BaseOptions(
@@ -33,7 +45,6 @@ final dioProvider = Provider<Dio>((ref) {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'apikey': AppConfig.supabaseAnonKey,
       },
     ),
   );
