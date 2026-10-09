@@ -2659,16 +2659,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       focusNode: _focusNode,
       isComposing: _isComposing,
       onSend: _sendMessage,
-      showAttach: true,
-      showEmoji: true,
-      showStickers: true,
-      showPoll: true,
-      showVoice: true,
+      // v3.7 (PR 2) — capabilities drive button visibility (group shows
+      // everything; direct shows emoji + text + send only).
+      capabilities: _buildCapabilities(),
       onAttach: () => _showAttachmentMenu(),
       onEmojiToggle: _toggleStickerPanel,
       emojiActive: _showStickerPanel,
-      onStickerPacks: _openStickerPacks,
-      onPoll: _openPollComposer,
+      // v3.7: the sticker-pack + poll buttons moved into the emoji
+      // panel (tabs) + the attach sheet respectively — no separate
+      // entry points on the bar.
       onStartRecording: _startRecording,
       isSendingVoice: _isSendingVoice,
       inputLayerLink: _inputLayerLink,

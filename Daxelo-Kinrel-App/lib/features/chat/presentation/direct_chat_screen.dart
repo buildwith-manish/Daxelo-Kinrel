@@ -912,16 +912,17 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
           // elevated capsule, same send button as the group. DM passes
           // only text + send (showAttach/showEmoji/showStickers/showPoll/
           // showVoice all false — the DM backend supports text only).
+          // v3.7 (PR 2) — capabilities.direct drives the bar: emoji
+          // button (emoji tab only) + text field + Send. No attach,
+          // no mic (DM backend supports text only).
           ChatInputBar(
             textController: _textController,
             focusNode: _focusNode,
             isComposing: _isComposing,
             onSend: _sendMessage,
-            showAttach: false,
-            showEmoji: false,
-            showStickers: false,
-            showPoll: false,
-            showVoice: false,
+            capabilities: _buildCapabilities(),
+            // DM has no attach/emoji-panel/voice entry points wired
+            // (the callbacks stay null — the bar hides the buttons).
           ),
         ],
       ),
