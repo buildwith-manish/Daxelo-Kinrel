@@ -857,7 +857,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           Expanded(
             child: Stack(
               children: [
-                _buildMessagesList(messages, chatState),
+                _buildMessagesList(messages, chatState, cachedCaps, cachedActions),
                 // Scroll-to-bottom FAB
                 if (_showScrollFab) _buildScrollFab(),
                 // Inline error banner (non-blocking) if a send failed
@@ -2656,7 +2656,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   // ── Messages List ────────────────────────────────────────────────
 
-  Widget _buildMessagesList(List<ChatMessage> messages, ChatState chatState) {
+  Widget _buildMessagesList(List<ChatMessage> messages, ChatState chatState, ChatCapabilities caps, ChatMessageActions actions) {
     // v3.3: the message list logic (date grouping, first/last-in-group,
     // SwipeToReply wrapping, RepaintBoundary per bubble, reversed
     // ListView with cacheExtent=1500) was MOVED to the shared
@@ -2679,8 +2679,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       scrollController: _scrollController,
       chatId: widget.familyId,
       // v3.6 (PR 1) — capabilities + actions drive per-message behaviour.
-      capabilities: cachedCaps,
-      actions: cachedActions,
+      capabilities: caps,
+      actions: actions,
       onReply: (msg) {
         ref.read(chatProvider(widget.familyId).notifier).setReplyTo(msg);
       },
