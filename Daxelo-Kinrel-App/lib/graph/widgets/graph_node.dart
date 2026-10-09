@@ -1174,8 +1174,17 @@ class _GraphNodeState extends ConsumerState<GraphNode>
               ),
             ),
           // Layers 1-6: CustomPainter renders the entire pseudo-3D node
+          // PERF (graph-raster-deep): wrap the node painter in its own
+          // RepaintBoundary so that camera-driven label opacity changes
+          // (which rebuild the GraphNode widget) don't force the painter
+          // to re-rasterize. shouldRepaint already returns false when
+          // params haven't changed, but without this boundary the
+          // painter's layer is invalidated whenever ANY sibling in the
+          // Stack rebuilds (e.g. label text, avatar image load).
           Positioned.fill(
-            child: CustomPaint(painter: Pseudo3DNodePainter(nodeParams)),
+            child: RepaintBoundary(
+              child: CustomPaint(painter: Pseudo3DNodePainter(nodeParams)),
+            ),
           ),
           // Content layer (initials/photo) clipped to the circle
           // v5.100: Use effectiveDiameter for "You" node's larger size
