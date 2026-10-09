@@ -73,7 +73,15 @@ import 'widgets/chat_message_list.dart';
 // v3.4 — shared reply/preview/FAB widgets (the same ones the group chat
 // renders; see the header comment).
 import 'widgets/chat_meta.dart';
-import 'widgets/message_preview_dialog.dart';
+// v3.6 (PR 1) — selection mode + capabilities + actions.
+import 'widgets/chat_capabilities.dart';
+import 'widgets/chat_message_actions.dart';
+import 'widgets/chat_selection_controller.dart';
+import 'widgets/chat_selection_bar.dart';
+import 'widgets/chat_reaction_bar.dart';
+import 'widgets/chat_delete_sheet.dart';
+import 'widgets/chat_reactors_sheet.dart';
+import 'widgets/forward_picker_sheet.dart';
 import 'widgets/reply_preview_bar.dart';
 // v3.5 — shared engagement widgets (the SAME typing indicator +
 // reaction pickers the group chat renders).
@@ -104,6 +112,99 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   // v3.4 — scroll-to-bottom FAB state (the same flag + threshold the
   // group chat uses: FAB appears once the user scrolls >300px up).
   bool _showScrollFab = false;
+
+  // v3.6 (PR 1) — selected messages, stashed in build so the appBar
+  // swap (which happens AFTER bodyContent is built) can pass them to
+  // ChatSelectionBar without re-computing.
+  List<ChatMessage> _lastSelectedMessages = const <ChatMessage>[];
+
+  // ── v3.6 (PR 1) — ChatCapabilities + ChatMessageActions ──────────
+
+  /// Build the [ChatCapabilities] for this DM. Direct chat supports
+  /// Reply + React + Copy + Share outside Kinrel only — everything
+  /// else (forward, edit, delete, star, pin, message info, report,
+  /// memories, attachments, voice, poll, gif, stickers, mentions,
+  /// pinned bar) is false per the prompt.
+  ChatCapabilities _buildCapabilities() {
+    return ChatCapabilities.direct(
+      currentUserId: _currentUserId ?? '',
+    );
+  }
+
+  /// Build the [ChatMessageActions] for this DM. Only the callbacks
+  /// the DM provider supports are wired (reply, toggleReaction,
+  /// shareOutside). The Delete-failed-message exception is wired via
+  /// the `retry` + `deleteFailed` callbacks (called by the failed-
+  /// message sheet's Retry + Delete buttons, and by the selection
+  /// bar's Delete button when ALL selected are own failed messages).
+  ChatMessageActions _buildActions() {
+    final caps = _buildCapabilities();
+    return ChatMessageActions(
+      reply: (msg) {
+        ref
+            .read(directChatProvider(widget.otherUserId).notifier)
+            .setReplyTo(msg);
+      },
+      toggleReaction: (msg, emoji) async {
+        await ref
+            .read(directChatProvider(widget.otherUserId).notifier)
+            .toggleReaction(msg.id, emoji);
+      },
+      // DM provider has no edit endpoint — null hides the action.
+      edit: null,
+      // DM provider has no delete-for-me endpoint. The Delete button
+      // in the selection bar is gated to "all selected are own failed"
+      // in direct chat — when triggered, it calls `deleteFailed`
+      // per message (NOT deleteForMe — that's a no-op here).
+      deleteForMe: (_) async {
+        return;
+      },
+      // DM provider has no delete-for-everyone endpoint — null hides.
+      deleteForEveryone: null,
+      // DM provider has no star endpoint — null hides.
+      star: null,
+      // DM provider has no pin endpoint — null hides.
+      pin: null,
+      // DM provider has no forward endpoint — null hides.
+      forward: null,
+      // DM provider has no message-info RPC — null hides.
+      showInfo: null,
+      report: null,
+      addToMemories: null,
+      saveToGallery: null,
+      shareOutside: (messages) async {
+        // Join texts in time order (no sender-name prefix in DM —
+        // only two parties so the sender is unambiguous).
+        final text = ChatMessageActions.copyTexts(
+          messages: messages,
+          isDirect: caps.isDirect,
+        );
+        if (text.isNotEmpty) {
+          await Share.share(text, subject: 'Shared from a Kinrel DM');
+        }
+      },
+      retry: (msg) async {
+        await ref
+            .read(directChatProvider(widget.otherUserId).notifier)
+            .retryMessage(msg.id);
+      },
+      deleteFailed: (msg) async {
+        ref
+            .read(directChatProvider(widget.otherUserId).notifier)
+            .deleteFailedMessage(msg.id);
+      },
+    );
+  }
+
+  /// Resolve a user id to a display name for the reactors sheet.
+  /// In a DM there are only two parties: the current user → "You",
+  /// anyone else → the peer's name (from the chat state).
+  String _resolveUserName(String userId) {
+    if (userId == _currentUserId) return 'You';
+    final peer = ref.read(directChatProvider(widget.otherUserId)).peer;
+    if (peer?.name.isNotEmpty == true) return peer!.name;
+    return 'Them';
+  }
 
   @override
   void initState() {
@@ -332,185 +433,6 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     return null;
   }
 
-  /// v3.4: Long-press on a DM message shows the actions the DM backend
-  /// supports — styled EXACTLY like the group chat's sheet (same icons,
-  /// colors, ListTile typography, same KinrelRadius.xxl corners +
-  /// vertical-12 padding).
-  ///
-  /// v3.5: the sheet now ALSO leads with the SAME quick-reactions row
-  /// the group sheet shows (the shared MessageActionQuickReactions — 6
-  /// quick emojis + "+" for the full picker), wired to the DM's
-  /// toggleReaction. The group's remaining actions (Forward, Star,
-  /// Pin, Edit, Delete) are still backed by ChatMessage-table features
-  /// the DirectMessage table doesn't have.
-  void _showDmMessageActions(ChatMessage msg) {
-    final currentUserId = _currentUserId;
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: KinrelColors.darkCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.xxl),
-        ),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // v3.5 — Quick reactions row: the SAME shared widget the
-                // group sheet leads with (same 6 emojis, same 44x44
-                // circles, same has-reacted highlight, same "+").
-                MessageActionQuickReactions(
-                  reactions: msg.reactions,
-                  currentUserId: currentUserId,
-                  onToggle: (emoji) {
-                    ref
-                        .read(directChatProvider(widget.otherUserId).notifier)
-                        .toggleReaction(msg.id, emoji);
-                    Navigator.pop(ctx);
-                  },
-                  onMoreTap: () {
-                    // Pop the actions sheet first, then open the full
-                    // emoji sheet (same flow as the group).
-                    Navigator.pop(ctx);
-                    showFullEmojiSheet(
-                      context,
-                      onEmojiSelected: (emoji) {
-                        ref
-                            .read(directChatProvider(widget.otherUserId)
-                                .notifier)
-                            .toggleReaction(msg.id, emoji);
-                      },
-                    );
-                  },
-                ),
-                const SizedBox(height: 8),
-                const Divider(
-                  color: Color(0xFF3A3A4A),
-                  height: 1,
-                  thickness: 0.5,
-                ),
-                // Reply action — the same ListTile the group sheet has.
-                ListTile(
-                  leading: const Icon(
-                    Icons.reply,
-                    color: KinrelColors.orange,
-                    size: 22,
-                  ),
-                  title: const Text(
-                    'Reply',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 15,
-                      color: KinrelColors.textWhite,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    ref
-                        .read(directChatProvider(widget.otherUserId).notifier)
-                        .setReplyTo(msg);
-                  },
-                ),
-                // Copy action — the same ListTile + snackbar the group
-                // sheet shows.
-                if (msg.content.isNotEmpty)
-                  ListTile(
-                    leading: const Icon(Icons.copy_rounded,
-                        color: KinrelColors.textSilver, size: 22),
-                    title: const Text(
-                      'Copy',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 15,
-                        color: KinrelColors.textWhite,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      Clipboard.setData(ClipboardData(text: msg.content));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Message copied'),
-                          backgroundColor: KinrelColors.darkCard,
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
-                  ),
-                // Preview action — the SAME shared peek-preview dialog
-                // the group opens (message_preview_dialog.dart).
-                ListTile(
-                  leading: const Icon(
-                    Icons.zoom_out_map_rounded,
-                    color: KinrelColors.ember,
-                    size: 22,
-                  ),
-                  title: const Text(
-                    'Preview',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 15,
-                      color: KinrelColors.textWhite,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    showMessagePeekPreview(context, msg);
-                  },
-                ),
-                // Share action — the same ListTile + Share.share call
-                // the group sheet makes (DMs are text-only, so the text
-                // branch always applies here).
-                if (msg.content.isNotEmpty)
-                  ListTile(
-                    leading: const Icon(
-                      Icons.share_outlined,
-                      color: KinrelColors.textSilver,
-                      size: 22,
-                    ),
-                    title: const Text(
-                      'Share',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 15,
-                        color: KinrelColors.textWhite,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      Share.share(
-                        msg.content,
-                        subject: 'Message from ${msg.senderName}',
-                      );
-                    },
-                  ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// v3.5 — shows the SAME shared reaction overlay the group chat
-  /// opens (ReactionOverlay + full-emoji sheet), wired to the DM's
-  /// toggleReaction. Mirrors the group's _showReactionPicker exactly.
-  void _showReactionPicker(String messageId) {
-    showReactionOverlay(
-      context,
-      onEmojiSelected: (emoji) {
-        ref
-            .read(directChatProvider(widget.otherUserId).notifier)
-            .toggleReaction(messageId, emoji);
-      },
-    );
-  }
-
   /// v114: Shows the image-based wallpaper picker bottom sheet with
   /// three options: Choose from Gallery, Remove Wallpaper (only if one
   /// is set), and Set as Default Wallpaper.
@@ -645,6 +567,12 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     final peer = chatState.peer;
     final messages = chatState.messages;
 
+    // v3.6 (PR 1) — watch the selection state. The DM chat-id used to
+    // key the per-chat selection controller is 'dm_$otherUserId' so
+    // it doesn't collide with any group's familyId.
+    final dmChatId = 'dm_${widget.otherUserId}';
+    final selectionState = ref.watch(chatSelectionProvider(dmChatId));
+
     Widget bodyContent;
     if (chatState.isLoading) {
       bodyContent = const Center(
@@ -667,22 +595,17 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
       // same game-invite card, same RepaintBoundary/cacheExtent. The
       // DM messages are converted to ChatMessage via the memoized
       // directChatMessagesProvider (see direct_message_adapter.dart).
-      //
-      // isDirectChat=true → hides avatar + sender name (a DM only has
-      // two parties so both are unambiguous from bubble alignment).
-      // v3.4: enableSwipeReply=true → the SAME SwipeToReply wrapper the
-      // group uses (the DirectMessage table now persists reply fields).
-      // v3.5: showReactions=true → the DM reactions table exists
-      // (migration 20261007100000) and toggleReaction implements the
-      // group's exact optimistic + realtime flow — onReact opens the
-      // SAME shared reaction overlay. onRetryFailed/onDeleteFailed →
-      // the DM provider's retryMessage/deleteFailedMessage so the
-      // shared failed-message sheet works in DMs too.
-      // familyId=null → skips the relationship label + group chatProvider
-      // actions inside MessageBubble.
-      // inviteFamilyId → resolved from the DM invite payload so the
-      // game-invite Join button deep-links into the host's family space.
       final chatMessages = ref.watch(directChatMessagesProvider(widget.otherUserId));
+      // v3.6 (PR 1) — selected messages (resolved against the adapter's
+      // output so deleted messages don't linger in the selection).
+      final selectedMessages = selectionState.inSelectionMode
+          ? (chatMessages
+              .where((m) => selectionState.isSelected(m.id))
+              .toList()
+            ..sort((a, b) => a.timestamp.compareTo(b.timestamp)))
+          : <ChatMessage>[];
+      // Stash for the appBar swap below.
+      _lastSelectedMessages = selectedMessages;
       bodyContent = messages.isEmpty
           ? _buildEmptyState(peer?.name ?? 'them')
           : ChatMessageList(
@@ -692,18 +615,26 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
               isDirectChat: true,
               inviteFamilyId: _resolveInviteFamilyId(messages),
               scrollController: _scrollController,
-              // v3.4 — the SAME wiring the group chat uses: swipe/Reply
-              // sets the provider's replyToMessage, which renders the
-              // shared ReplyPreviewBar above the input.
+              chatId: dmChatId,
+              // v3.6 (PR 1) — DM capabilities (Reply + React + Copy +
+              // Share outside only). Everything else is false.
+              capabilities: _buildCapabilities(),
+              actions: _buildActions(),
               onReply: (msg) {
                 ref
                     .read(directChatProvider(widget.otherUserId).notifier)
                     .setReplyTo(msg);
               },
-              // v3.5 — the SAME reaction wiring the group uses: tapping
-              // the bubble opens the shared quick-reaction overlay.
-              onReact: (msg) => _showReactionPicker(msg.id),
-              onLongPress: (msg) => _showDmMessageActions(msg),
+              // v3.6 (PR 1) — tapping a reaction chip below the bubble
+              // opens the reactors list (Task 5).
+              onShowReactors: (msg) {
+                ChatReactorsSheet.show(
+                  context: context,
+                  message: msg,
+                  currentUserId: _currentUserId,
+                  resolveUserName: _resolveUserName,
+                );
+              },
               // v3.4 — tapping the quote block scrolls to the original
               // message, exactly like the group chat.
               onReplyPreviewTap: (msg) {
@@ -731,17 +662,31 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
 
     return DKScaffold(
       backgroundColor: const Color(0xFF13141E),
-      appBar: AppBar(
-        // v3.3: same header gradient as the group chat — vertical
-        // gradient (warm dark navy → base dark) + hairline bottom
-        // border. Uses flexibleSpace so the gradient fills the entire
-        // AppBar area including the status bar slot.
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        flexibleSpace: Container(
-          // PERF (Flat): solid color in flat mode; gradient in rich mode.
-          decoration: BoxDecoration(
-            color: KinrelFx.rich ? null : const Color(0xFF0A0B16),
+      // v3.6 (PR 1) — when in selection mode, swap the normal AppBar
+      // for the shared ChatSelectionBar (the SAME widget the group
+      // chat uses). DM capabilities are minimal so the bar shows
+      // only Reply (1 selected) + overflow (Copy, Share outside).
+      appBar: selectionState.inSelectionMode
+          ? PreferredSize(
+              preferredSize: const Size.fromHeight(56),
+              child: ChatSelectionBar(
+                chatId: dmChatId,
+                capabilities: _buildCapabilities(),
+                actions: _buildActions(),
+                selectedMessages: _lastSelectedMessages,
+              ),
+            )
+          : AppBar(
+            // v3.3: same header gradient as the group chat — vertical
+            // gradient (warm dark navy → base dark) + hairline bottom
+            // border. Uses flexibleSpace so the gradient fills the entire
+            // AppBar area including the status bar slot.
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            flexibleSpace: Container(
+              // PERF (Flat): solid color in flat mode; gradient in rich mode.
+              decoration: BoxDecoration(
+                color: KinrelFx.rich ? null : const Color(0xFF0A0B16),
             gradient: KinrelFx.gradient(
               const LinearGradient(
                 begin: Alignment.topCenter,
@@ -904,6 +849,30 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                   // Scroll-to-bottom FAB — the shared group widget.
                   if (_showScrollFab)
                     ScrollToBottomFab(onTap: _scrollToBottom),
+                  // v3.6 (PR 1) — floating reaction pill (Task 4).
+                  // Docked directly under the selection bar (same as
+                  // the group chat). DM capabilities.canReact is true
+                  // so the pill appears whenever 1 message is selected.
+                  if (selectionState.inSelectionMode &&
+                      _lastSelectedMessages.length == 1 &&
+                      _buildCapabilities().canReact)
+                    Positioned(
+                      top: 8,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: ChatReactionBar(
+                          chatId: dmChatId,
+                          message: _lastSelectedMessages.first,
+                          actions: _buildActions(),
+                          currentUserId: _currentUserId,
+                          alignment:
+                              _lastSelectedMessages.first.senderId == _currentUserId
+                                  ? Alignment.centerRight
+                                  : Alignment.centerLeft,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -945,16 +914,17 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
           // elevated capsule, same send button as the group. DM passes
           // only text + send (showAttach/showEmoji/showStickers/showPoll/
           // showVoice all false — the DM backend supports text only).
+          // v3.7 (PR 2) — capabilities.direct drives the bar: emoji
+          // button (emoji tab only) + text field + Send. No attach,
+          // no mic (DM backend supports text only).
           ChatInputBar(
             textController: _textController,
             focusNode: _focusNode,
             isComposing: _isComposing,
             onSend: _sendMessage,
-            showAttach: false,
-            showEmoji: false,
-            showStickers: false,
-            showPoll: false,
-            showVoice: false,
+            capabilities: _buildCapabilities(),
+            // DM has no attach/emoji-panel/voice entry points wired
+            // (the callbacks stay null — the bar hides the buttons).
           ),
         ],
       ),

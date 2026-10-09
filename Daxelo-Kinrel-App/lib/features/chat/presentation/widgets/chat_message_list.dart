@@ -57,15 +57,21 @@
 // enableSwipeReply=true (with onReply wired to its own setReplyTo) —
 // the same wrapper, the same drag physics, in both chat types.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/services/haptic_service.dart';
 import '../../../../core/theme/kinrel_fx.dart';
 import '../../../../core/utils/app_time.dart';
 import '../../providers/chat_provider.dart';
+import 'chat_capabilities.dart';
+import 'chat_message_actions.dart';
 import 'chat_meta.dart';
+import 'chat_selection_controller.dart';
 import 'message_bubble.dart';
 
 /// A single date group (label + the messages for that day). The class
@@ -81,8 +87,20 @@ class ChatMessageList extends ConsumerStatefulWidget {
     this.inviteFamilyId,
     required this.scrollController,
     required this.onReply,
-    required this.onReact,
-    required this.onLongPress,
+    /// v3.6 (PR 1) — chat capabilities + actions drive ALL per-message
+    /// behaviour. The screen builds one ChatCapabilities (group or
+    /// direct factory) + one ChatMessageActions (with its own provider
+    /// callbacks) and passes them down. The list never reaches into a
+    /// provider directly.
+    required this.capabilities,
+    required this.actions,
+    /// The chat id used to key the per-chat selection controller.
+    /// Group passes the familyId; DM passes 'dm_$otherUserId'.
+    required this.chatId,
+    /// v3.6 (PR 1) — tapping a reaction chip below a bubble opens a
+    /// list of who reacted (Task 5). Null = no reactors list (chips
+    /// are non-interactive).
+    this.onShowReactors,
     this.onReplyPreviewTap,
     this.onLoadOlder,
     this.enableSwipeReply = true,
@@ -119,11 +137,23 @@ class ChatMessageList extends ConsumerStatefulWidget {
   /// Per-message reply callback (the screen wires this to setReplyTo).
   final void Function(ChatMessage message) onReply;
 
-  /// Per-message react callback (the screen shows its reaction picker).
-  final void Function(ChatMessage message) onReact;
+  /// v3.6 (PR 1) — Capabilities (group vs direct) drive per-message
+  /// action availability. The list never reaches into a provider.
+  final ChatCapabilities capabilities;
 
-  /// Per-message long-press callback (the screen shows its action sheet).
-  final void Function(ChatMessage message) onLongPress;
+  /// v3.6 (PR 1) — Action callbacks (reply, toggleReaction, edit,
+  /// deleteForMe, deleteForEveryone, star, pin, forward, showInfo,
+  /// report, addToMemories, saveToGallery, shareOutside, retry,
+  /// deleteFailed). Null callbacks hide the action.
+  final ChatMessageActions actions;
+
+  /// The chat id used to key the per-chat selection controller.
+  /// Group passes the familyId; DM passes 'dm_$otherUserId'.
+  final String chatId;
+
+  /// v3.6 (PR 1) — Tapping a reaction chip below a bubble opens a
+  /// list of who reacted (Task 5). Null = chips are non-interactive.
+  final void Function(ChatMessage message)? onShowReactors;
 
   /// Per-message reply-preview-tap callback (scroll to the original
   /// message). Null = no tap handler.
@@ -166,8 +196,53 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
   List<ChatMessage>? _groupedCacheKey;
 
   @override
+  void didUpdateWidget(covariant ChatMessageList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Prune selection ids that no longer exist in the current message
+    // list. This is called every time the widget rebuilds with a new
+    // messages list (so deleted messages don't linger as ghost
+    // selections). If all selected ids are pruned, the controller exits
+    // selection mode automatically.
+    if (oldWidget.messages != widget.messages) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final notifier =
+            ref.read(chatSelectionProvider(widget.chatId).notifier);
+        notifier.pruneToExistingIds(
+          widget.messages.map((m) => m.id).toSet(),
+        );
+      });
+    }
+  }
+
+  /// v3.6 (PR 1) — Long-press handler. Light haptic; if the message
+  /// has at least one selectable action, enter (or toggle) selection
+  /// mode. Otherwise just give the haptic (e.g. direct-chat game
+  /// invites have no actions).
+  void _handleLongPress(ChatMessage msg) {
+    unawaited(HapticService.tap());
+    final caps = widget.capabilities;
+    if (caps.isSystemRow(msg)) return;
+    if (!caps.hasAnySelectableAction(msg)) return;
+    final notifier = ref.read(chatSelectionProvider(widget.chatId).notifier);
+    final state = ref.read(chatSelectionProvider(widget.chatId));
+    if (state.inSelectionMode) {
+      notifier.toggle(msg.id);
+    } else {
+      notifier.enter(msg.id);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final grouped = _groupByDate(widget.messages);
+
+    // v3.6 (PR 1) — watch selection state. Use select on
+    // `inSelectionMode` so the whole list rebuilds only when entering
+    // or leaving selection mode (not on every toggle — the per-row
+    // selected-state is read separately inside the itemBuilder).
+    final inSelectionMode = ref.watch(
+      chatSelectionProvider(widget.chatId).select((s) => s.inSelectionMode),
+    );
 
     // v130: Bottom padding reserves space for the scroll-to-bottom FAB
     // (40px tall, 8px from bottom = 48px footprint) plus a 16px buffer
@@ -229,8 +304,21 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
                       .inSeconds
                       .abs() > 60;
 
-              // Tighter spacing within groups (2px) vs between groups (8px).
-              final bottomPadding = isLastInGroup ? 8.0 : 2.0;
+              // v3.8 (PR 3 Task 1) — tighter spacing within groups
+              // (2px) vs ~10px between groups (was 8px — bumped to
+              // 10px per the prompt: "Consecutive messages of the same
+              // sender within 2 minutes are 2 pixels apart; different
+              // senders about 10").
+              final bottomPadding = isLastInGroup ? 10.0 : 2.0;
+
+              // v3.6 (PR 1) — read this row's selected-state via select
+              // so toggling one row rebuilds ONLY that row, not the
+              // whole list. The existing RepaintBoundary per item
+              // clips the repaint area to the row's bounds.
+              final isSelected = ref.watch(
+                chatSelectionProvider(widget.chatId)
+                    .select((s) => s.isSelected(msg.id)),
+              );
 
               final bubble = MessageBubble(
                 message: msg,
@@ -241,14 +329,22 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
                 isFirstInGroup: isFirstInGroup,
                 isLastInGroup: isLastInGroup,
                 onReply: () => widget.onReply(msg),
-                onReact: widget.showReactions ? () => widget.onReact(msg) : () {},
-                onLongPress: () => widget.onLongPress(msg),
+                // v3.6 (PR 1) — reaction chips below the bubble now
+                // open the reactors list (Task 5). The picker lives in
+                // the floating reaction bar above the bubble.
+                onReact: widget.onShowReactors != null
+                    ? () => widget.onShowReactors!(msg)
+                    : () {},
+                onLongPress: () => _handleLongPress(msg),
                 onReplyPreviewTap: msg.replyToId != null && widget.onReplyPreviewTap != null
                     ? () => widget.onReplyPreviewTap!(msg)
                     : null,
                 // v3.5 — failed-send seam (null = group's built-in path).
                 onRetryFailed: widget.onRetryFailed,
                 onDeleteFailed: widget.onDeleteFailed,
+                // v3.6 (PR 1) — selection state.
+                selectionMode: inSelectionMode,
+                selected: isSelected,
               );
 
               // RepaintBoundary per bubble so a single new/updated
@@ -256,19 +352,37 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
               // list. MOVED verbatim from chat_screen.dart.
               final bounded = RepaintBoundary(child: bubble);
 
-              // SwipeToReply wrapper — v3.4: BOTH the group chat and
-              // the DM wrap every bubble (the DM table persists reply
-              // columns now, so swipe-to-reply works identically in
-              // both chat types).
-              final wrapped = widget.enableSwipeReply
-                  ? SwipeToReply(
-                      key: ValueKey(msg.id),
-                      messageId: msg.id,
-                      isMe: isMe,
-                      onReply: () => widget.onReply(msg),
-                      child: bounded,
-                    )
-                  : bounded;
+              // v3.6 (PR 1) — wrap differently based on selection mode:
+              //  - When selecting: skip SwipeToReply (swipe is disabled
+              //    while selecting per the prompt) and overlay a
+              //    transparent tap target that toggles the row. The
+              //    overlay's HitTestBehavior.opaque absorbs inner taps
+              //    (image open, link, profile, reply preview, join
+              //    game) so they don't fire while selecting.
+              //  - When not selecting: keep the existing SwipeToReply
+              //    wrapper (v3.4: BOTH chat types pass enableSwipeReply=true).
+              final Widget wrapped;
+              if (inSelectionMode) {
+                wrapped = GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    unawaited(HapticService.tap());
+                    ref.read(chatSelectionProvider(widget.chatId).notifier).toggle(msg.id);
+                  },
+                  onLongPress: () => _handleLongPress(msg),
+                  child: bounded,
+                );
+              } else if (widget.enableSwipeReply) {
+                wrapped = SwipeToReply(
+                  key: ValueKey(msg.id),
+                  messageId: msg.id,
+                  isMe: isMe,
+                  onReply: () => widget.onReply(msg),
+                  child: bounded,
+                );
+              } else {
+                wrapped = bounded;
+              }
 
               return Padding(
                 padding: EdgeInsets.only(bottom: bottomPadding),
@@ -309,11 +423,14 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
           child: Text(
             label,
             style: TextStyle(
-              fontFamily: KinrelTypography.monoFont,
-              fontSize: 10.5,
+              // v3.8 (PR 3 Task 1) — use the normal body font, not
+              // monospace (the prompt: "Date separators and message
+              // times use the normal app font, not monospace").
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 11.5,
               fontWeight: FontWeight.w600,
               color: KinrelColors.textSilver.withValues(alpha: 0.9),
-              letterSpacing: 0.8,
+              letterSpacing: 0.4,
             ),
           ),
         ),
@@ -341,6 +458,21 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
 
+    // v3.8 (PR 3 Task 1) — weekday names for messages within the last
+    // 6 days (Today, Yesterday, then weekday name, then short date).
+    // The prompt: "Date text: Today, Yesterday, a weekday name within
+    // the last 6 days, otherwise a short date; keep the app's existing
+    // language and number format."
+    const weekdays = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+
     for (final msg in messages) {
       // Convert the server-returned UTC timestamp to the viewer's
       // device-local timezone before extracting year/month/day.
@@ -353,22 +485,32 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
       } else if (msgDate == yesterday) {
         label = 'Yesterday';
       } else {
-        const months = [
-          '',
-          'January',
-          'February',
-          'March',
-          'April',
-          'May',
-          'June',
-          'July',
-          'August',
-          'September',
-          'October',
-          'November',
-          'December',
-        ];
-        label = '${months[local.month]} ${local.day}, ${local.year}';
+        // Within the last 6 days? Show weekday name (e.g. "Wednesday").
+        // DateTime.weekday returns 1=Monday..7=Sunday (ISO 8601).
+        final daysAgo = today.difference(msgDate).inDays;
+        if (daysAgo > 0 && daysAgo <= 6) {
+          label = weekdays[local.weekday - 1];
+        } else {
+          // Older than a week → short date (e.g. "Oct 9, 2026").
+          // Keep the existing language + number format (the app's
+          // existing format was "Month D, Year" — preserved here).
+          const months = [
+            '',
+            'January',
+            'February',
+            'March',
+            'April',
+            'May',
+            'June',
+            'July',
+            'August',
+            'September',
+            'October',
+            'November',
+            'December',
+          ];
+          label = '${months[local.month]} ${local.day}, ${local.year}';
+        }
       }
 
       final existing = byLabel[label];

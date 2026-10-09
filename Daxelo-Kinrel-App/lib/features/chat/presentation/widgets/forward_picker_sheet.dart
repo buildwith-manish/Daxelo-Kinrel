@@ -33,25 +33,50 @@ import '../../../../core/family/family_provider.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../data/direct_message_provider.dart';
 
+/// v3.6 (PR 1) — max messages per forward (per the prompt).
+const int _kMaxForwardCount = 20;
+
+
 class ForwardPickerSheet extends ConsumerStatefulWidget {
   const ForwardPickerSheet({
     super.key,
-    required this.messageId,
+    this.messageId,
+    this.messageIds,
     this.currentFamilyId, // null when forwarding from a DM
-  });
+  // v3.7 (PR 1 fix): the assert in a const constructor can't use
+  // `!` or `?.` — just check non-null; runtime callers always pass
+  // at least one.
+  }) : assert(messageId != null || messageIds != null,
+           'Either messageId or messageIds must be provided');
 
-  /// The id of the ChatMessage to forward. (DMs aren't forwardable
-  /// yet — this sheet is only reached from the family chat's long-
-  /// press menu, so the source is always a ChatMessage.)
-  final String messageId;
+  /// The id of a single ChatMessage to forward. (Legacy API — kept
+  /// for backward compat with the existing single-message callers.
+  /// If [messageIds] is non-empty, it takes precedence.)
+  final String? messageId;
+
+  /// v3.6 (PR 1) — the ids of multiple ChatMessages to forward.
+  /// Takes precedence over [messageId]. The sheet sends them in
+  /// time order by calling `fn_forward_message` once per message,
+  /// one after the other, with a progress indicator. Capped at 20
+  /// messages per forward (per the prompt — see `_kMaxForwardCount`).
+  final List<String>? messageIds;
 
   /// The family chat the source message is in, if any. Excluded
   /// from the target list (no point forwarding to the same chat).
   /// Null when the sheet is opened from a DM context.
   final String? currentFamilyId;
 
-  /// Opens the sheet as a modal bottom sheet. Returns true if a
-  /// forward actually happened, false if the user dismissed.
+  /// v3.6 (PR 1) — the effective list of message ids to forward,
+  /// in the order they should be sent. Falls back to [messageId]
+  /// when [messageIds] is null/empty.
+  List<String> get _effectiveMessageIds =>
+      (messageIds != null && messageIds!.isNotEmpty)
+          ? messageIds!
+          : [messageId!];
+
+  /// Opens the sheet as a modal bottom sheet (single-message API).
+  /// Returns true if a forward actually happened, false if the user
+  /// dismissed.
   static Future<bool> show(
     BuildContext context, {
     required String messageId,
@@ -77,6 +102,60 @@ class ForwardPickerSheet extends ConsumerStatefulWidget {
     return result ?? false;
   }
 
+  /// v3.6 (PR 1) — multi-message forward. Opens the same sheet but
+  /// with a list of message ids. The sheet sends them in list order
+  /// (the caller is responsible for sorting by timestamp before
+  /// passing) by calling `fn_forward_message` once per message, one
+  /// after the other, with a progress indicator. Capped at 20
+  /// messages per forward (per the prompt); if [messageIds] is
+  /// longer than 20, the extra messages are dropped and a snackbar
+  /// warns the user.
+  static Future<bool> showMulti(
+    BuildContext context, {
+    required List<String> messageIds,
+    String? currentFamilyId,
+  }) async {
+    // Enforce 20-message limit (per the prompt).
+    List<String> effective = messageIds;
+    if (effective.length > _kMaxForwardCount) {
+      final excess = effective.length - _kMaxForwardCount;
+      effective = effective.take(_kMaxForwardCount).toList();
+      // Show a snackbar with the limit message ABOVE the sheet.
+      // We need to show this BEFORE opening the sheet so it doesn't
+      // get covered. The widget's build also shows the count + cap
+      // in the sheet header.
+      // Note: the snackbar's host is the calling screen's
+      // ScaffoldMessenger, not the sheet's.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'You can forward up to $_kMaxForwardCount messages at a time. '
+              'The last $excess message${excess == 1 ? "" : "s"} ${excess == 1 ? "was" : "were"} skipped.'),
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+        ),
+        child: ForwardPickerSheet(
+          messageIds: effective,
+          currentFamilyId: currentFamilyId,
+        ),
+      ),
+    );
+    return result ?? false;
+  }
+
   @override
   ConsumerState<ForwardPickerSheet> createState() =>
       _ForwardPickerSheetState();
@@ -86,6 +165,12 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
   final Set<String> _selectedFamilyIds = {};
   final Set<String> _selectedDmUserIds = {};
   bool _isSending = false;
+
+  // v3.6 (PR 1) — multi-message forward progress.
+  // Null when not in a multi-forward; otherwise 0..1 fraction.
+  double? _progress;
+  int _forwardedCount = 0;
+  int _totalCount = 0;
 
   int get _totalSelected =>
       _selectedFamilyIds.length + _selectedDmUserIds.length;
@@ -215,45 +300,62 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
                   ),
                 ),
               ),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _totalSelected == 0 || _isSending
-                          ? null
-                          : _submit,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: KinrelColors.ember,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor:
-                            KinrelColors.ember.withValues(alpha: 0.35),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: _totalSelected == 0 || _isSending
+                              ? null
+                              : _submit,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: KinrelColors.ember,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor:
+                                KinrelColors.ember.withValues(alpha: 0.35),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: _isSending
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.send_rounded, size: 18),
+                          label: Text(
+                            _isSending
+                                ? (_progress != null
+                                    ? 'Forwarding $_forwardedCount/$_totalCount…'
+                                    : 'Forwarding…')
+                                : 'Forward to $_totalSelected ${_totalSelected == 1 ? 'chat' : 'chats'}',
+                            style: const TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
-                      icon: _isSending
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.send_rounded, size: 18),
-                      label: Text(
-                        _isSending
-                            ? 'Forwarding…'
-                            : 'Forward to $_totalSelected ${_totalSelected == 1 ? 'chat' : 'chats'}',
-                        style: const TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                    ],
                   ),
+                  // v3.6 (PR 1) — multi-forward progress bar.
+                  if (_progress != null) ...[
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(
+                      value: _progress,
+                      backgroundColor: KinrelColors.darkElevated,
+                      color: KinrelColors.ember,
+                      minHeight: 4,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -449,6 +551,14 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
     if (_totalSelected == 0 || _isSending) return;
     setState(() => _isSending = true);
 
+    final messageIds = widget._effectiveMessageIds;
+    final isMulti = messageIds.length > 1;
+    if (isMulti) {
+      _totalCount = messageIds.length;
+      _forwardedCount = 0;
+      setState(() => _progress = 0.0);
+    }
+
     // Call fn_forward_message directly via the Supabase client. We
     // intentionally do NOT go through chatProvider(familyId) here
     // because (a) the RPC is SECURITY DEFINER + uses auth.uid(), so
@@ -457,40 +567,57 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
     // passing '' to chatProvider would create a broken ChatNotifier
     // that tries to subscribe to realtime for an empty family ID.
     final client = ref.read(supabaseProvider);
-    Map<String, dynamic>? result;
-    try {
-      result = await client?.rpc(
-        'fn_forward_message',
-        params: {
-          'p_message_id': widget.messageId,
-          'p_target_family_ids': _selectedFamilyIds.toList(),
-          'p_target_dm_user_ids': _selectedDmUserIds.toList(),
-        },
-      ).timeout(const Duration(seconds: 12)) as Map<String, dynamic>?;
-    } catch (e) {
-      result = {'success': false, 'error': e.toString()};
+
+    // v3.6 (PR 1) — multi-message forward: loop through message ids
+    // in order, calling fn_forward_message once per message. Stop on
+    // the first failure (the existing behavior for single-message).
+    int familyCountTotal = 0;
+    int dmCountTotal = 0;
+    String? lastError;
+
+    for (final msgId in messageIds) {
+      Map<String, dynamic>? result;
+      try {
+        result = await client?.rpc(
+          'fn_forward_message',
+          params: {
+            'p_message_id': msgId,
+            'p_target_family_ids': _selectedFamilyIds.toList(),
+            'p_target_dm_user_ids': _selectedDmUserIds.toList(),
+          },
+        ).timeout(const Duration(seconds: 12)) as Map<String, dynamic>?;
+      } catch (e) {
+        lastError = e.toString();
+        break;
+      }
+      if (result == null) {
+        lastError = 'no response';
+        break;
+      }
+      final success = result['success'] as bool? ?? false;
+      if (!success) {
+        lastError = result['error']?.toString() ?? 'unknown error';
+        break;
+      }
+      familyCountTotal +=
+          (result['familyChatsForwarded'] as num?)?.toInt() ?? 0;
+      dmCountTotal += (result['dmChatsForwarded'] as num?)?.toInt() ?? 0;
+      if (isMulti) {
+        _forwardedCount++;
+        setState(() => _progress = _forwardedCount / _totalCount);
+      }
     }
 
     if (!mounted) return;
-    setState(() => _isSending = false);
+    setState(() {
+      _isSending = false;
+      _progress = null;
+    });
 
-    if (result == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not forward — please try again'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      Navigator.of(context).pop(false);
-      return;
-    }
-
-    final success = result['success'] as bool? ?? false;
-    if (!success) {
-      final errMsg = result['error']?.toString() ?? 'unknown error';
+    if (lastError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to forward: $errMsg'),
+          content: Text('Failed to forward: $lastError'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -498,12 +625,13 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
       return;
     }
 
-    final familyCount = (result['familyChatsForwarded'] as num?)?.toInt() ?? 0;
-    final dmCount = (result['dmChatsForwarded'] as num?)?.toInt() ?? 0;
-    final total = familyCount + dmCount;
+    final total = familyCountTotal + dmCountTotal;
+    final msg = isMulti
+        ? 'Forwarded ${messageIds.length} message${messageIds.length == 1 ? "" : "s"} to $total ${total == 1 ? "chat" : "chats"}'
+        : 'Forwarded to $total ${total == 1 ? "chat" : "chats"}';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Forwarded to $total ${total == 1 ? 'chat' : 'chats'}'),
+        content: Text(msg),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
