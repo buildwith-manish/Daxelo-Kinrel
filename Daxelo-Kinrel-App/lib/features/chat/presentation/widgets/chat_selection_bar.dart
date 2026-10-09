@@ -41,6 +41,8 @@
 // After an action completes, the selection controller is cleared
 // (the bar calls `exit()` on the controller).
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

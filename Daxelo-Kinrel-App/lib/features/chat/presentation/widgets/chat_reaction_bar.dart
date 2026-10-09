@@ -36,6 +36,8 @@
 //     reaction_picker.dart.
 //   - On emoji selection: same as tapping a quick reaction.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
