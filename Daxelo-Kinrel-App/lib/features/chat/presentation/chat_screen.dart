@@ -617,6 +617,120 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
+  // ── v3.6 (PR 1) — ChatCapabilities + ChatMessageActions ──────────
+
+  /// Build the [ChatCapabilities] for this group chat. Re-computed on
+  /// every build (cheap — immutable struct). The current user id +
+  /// admin/creator status are read from the existing providers using
+  /// the same pattern as the legacy `_showMessageActions`.
+  ChatCapabilities _buildCapabilities() {
+    final currentUserId = _currentUserId;
+    final detailAsync = ref.read(familyDetailProvider(widget.familyId));
+    final family = detailAsync.valueOrNull?.family;
+    final isCreator = family?.createdBy != null &&
+        family?.createdBy == currentUserId;
+    final membershipsAsync =
+        ref.read(familyMembershipsProvider(widget.familyId));
+    final memberships = membershipsAsync.valueOrNull ?? [];
+    final currentUserMembership = memberships
+        .where((m) => m.userId == currentUserId)
+        .firstOrNull;
+    final isAdminOrCreator = isCreator ||
+        currentUserMembership?.isAdmin == true;
+    return ChatCapabilities.group(
+      currentUserId: currentUserId ?? '',
+      isAdminOrCreator: isAdminOrCreator,
+    );
+  }
+
+  /// Build the [ChatMessageActions] for this group chat. Each callback
+  /// wires to the chatProvider or chatEnhancementServiceProvider.
+  /// Null callbacks hide the corresponding UI (Report, Add to Memories
+  /// — not implemented in the codebase yet).
+  ChatMessageActions _buildActions() {
+    final caps = _buildCapabilities();
+    return ChatMessageActions(
+      reply: (msg) {
+        ref.read(chatProvider(widget.familyId).notifier).setReplyTo(msg);
+      },
+      toggleReaction: (msg, emoji) async {
+        await ref
+            .read(chatProvider(widget.familyId).notifier)
+            .toggleReaction(msg.id, emoji);
+      },
+      edit: (msg) => _showEditDialog(msg),
+      deleteForMe: (messages) async {
+        final service = ref.read(chatEnhancementServiceProvider);
+        for (final m in messages) {
+          await service.deleteForMe(m.id);
+        }
+        await ref
+            .read(chatProvider(widget.familyId).notifier)
+            .refreshMessages();
+      },
+      deleteForEveryone: (messages) async {
+        final service = ref.read(chatEnhancementServiceProvider);
+        for (final m in messages) {
+          await service.deleteForEveryone(m.id);
+        }
+        await ref
+            .read(chatProvider(widget.familyId).notifier)
+            .refreshMessages();
+      },
+      star: (msg, starred) async {
+        final service = ref.read(chatEnhancementServiceProvider);
+        await service.starMessage(msg.id, starred);
+        await ref
+            .read(chatProvider(widget.familyId).notifier)
+            .refreshMessages();
+      },
+      pin: (msg, pinned) async {
+        final service = ref.read(chatEnhancementServiceProvider);
+        await service.pinMessage(msg.id, pinned);
+        await ref
+            .read(chatProvider(widget.familyId).notifier)
+            .refreshMessages();
+      },
+      forward: (messages) async {
+        final sorted = [...messages]
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        await ForwardPickerSheet.showMulti(
+          context,
+          messageIds: sorted.map((m) => m.id).toList(),
+          currentFamilyId: widget.familyId,
+        );
+        await ref
+            .read(chatProvider(widget.familyId).notifier)
+            .refreshMessages();
+      },
+      showInfo: (msg) async {
+        await MessageInfoSheet.show(context, messageId: msg.id);
+      },
+      report: null,
+      addToMemories: null,
+      saveToGallery: null,
+      shareOutside: (messages) async {
+        final text = ChatMessageActions.copyTexts(
+          messages: messages,
+          isDirect: caps.isDirect,
+        );
+        if (text.isNotEmpty) {
+          await Share.share(text, subject: 'Forwarded from ${widget.familyName}');
+        }
+      },
+      retry: (msg) async {
+        await ref
+            .read(chatProvider(widget.familyId).notifier)
+            .retryMessage(msg.id);
+      },
+      deleteFailed: (msg) async {
+        ref
+            .read(chatProvider(widget.familyId).notifier)
+            .deleteFailedMessage(msg.id);
+      },
+    );
+  }
+
   String _resolveUserName(String userId) {
     final membershipsAsync =
         ref.read(familyMembershipsProvider(widget.familyId));
@@ -625,7 +739,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         .where((m) => m.userId == userId)
         .firstOrNull;
     if (match != null) {
-      return match.displayName.isNotEmpty ? match.displayName : 'Family member';
+      final name = match.user?.name;
+      return (name != null && name.isNotEmpty) ? name : 'Family member';
     }
     // Fall back: look in the current messages for a senderName.
     final chatState = ref.read(chatProvider(widget.familyId));
@@ -677,10 +792,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // them against the filtered `messages` list so deleted-for-me rows
     // never end up in the selection.
     final selectedMessages = selectionState.inSelectionMode
-        ? messages
+        ? (messages
             .where((m) => selectionState.isSelected(m.id))
             .toList()
-          ..sort((a, b) => a.timestamp.compareTo(b.timestamp))
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp)))
         : <ChatMessage>[];
 
     // Loading state — show a centered spinner while the initial fetch

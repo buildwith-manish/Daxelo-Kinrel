@@ -35,8 +35,10 @@
 // `Semantics(liveRegion: true)` text.
 
 import 'dart:collection';
+import 'dart:ui' show TextDirection;
+
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show SemanticsService;
+import 'package:flutter/semantics.dart' show SemanticsService;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/chat_provider.dart';
 
@@ -44,7 +46,7 @@ import '../../providers/chat_provider.dart';
 @immutable
 class ChatSelectionState {
   /// Ordered set of selected message ids.
-  final LinkedHashSet<String> selectedIds;
+  final Set<String> selectedIds;
 
   /// True while in selection mode (header is swapped for the selection bar).
   final bool inSelectionMode;
@@ -64,7 +66,7 @@ class ChatSelectionState {
   final String semanticsLabel;
 
   const ChatSelectionState({
-    this.selectedIds = const LinkedHashSet.empty(),
+    this.selectedIds = const <String>{},
     this.inSelectionMode = false,
     this.reactionBarAnchorId,
     this.count = 0,
@@ -74,7 +76,7 @@ class ChatSelectionState {
   bool isSelected(String messageId) => selectedIds.contains(messageId);
 
   ChatSelectionState copyWith({
-    LinkedHashSet<String>? selectedIds,
+    Set<String>? selectedIds,
     bool? inSelectionMode,
     String? reactionBarAnchorId,
     int? count,

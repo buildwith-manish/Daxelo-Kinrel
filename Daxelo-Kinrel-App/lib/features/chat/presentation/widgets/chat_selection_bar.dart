@@ -95,7 +95,7 @@ class ChatSelectionBar extends ConsumerWidget {
       primaryActions.add(_SelectionAction(
         icon: Icons.reply_rounded,
         semanticLabel: 'Reply',
-        onTap: () {
+        onTap: () async {
           acts.reply(selectedMessages.first);
           ref.read(chatSelectionProvider(chatId).notifier).exit();
         },
@@ -334,7 +334,7 @@ class ChatSelectionBar extends ConsumerWidget {
     // Add to Memories — exactly 1, only if actions.addToMemories != null.
     if (count == 1 && acts.addToMemories != null) {
       out.add(_OverflowItem(
-        icon: Icons.bookmark_add_out,
+        icon: Icons.bookmark_add_outlined,
         label: 'Add to Memories',
         onTap: () async {
           await acts.addToMemories!(selected.first);
