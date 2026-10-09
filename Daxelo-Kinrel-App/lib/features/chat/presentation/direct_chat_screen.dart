@@ -137,8 +137,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   /// the `retry` + `deleteFailed` callbacks (called by the failed-
   /// message sheet's Retry + Delete buttons, and by the selection
   /// bar's Delete button when ALL selected are own failed messages).
-  ChatMessageActions _buildActions() {
-    final caps = _buildCapabilities();
+  ChatMessageActions _buildActions(ChatCapabilities caps) {
     return ChatMessageActions(
       reply: (msg) {
         ref
@@ -612,11 +611,22 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     final peer = chatState.peer;
     final messages = chatState.messages;
 
-    // v3.6 (PR 1) — watch the selection state. The DM chat-id used to
-    // key the per-chat selection controller is 'dm_$otherUserId' so
-    // it doesn't collide with any group's familyId.
+    // v3.6 (PR 1) — The DM chat-id used to key the per-chat selection
+    // controller is 'dm_$otherUserId' so it doesn't collide with any
+    // group's familyId.
     final dmChatId = 'dm_${widget.otherUserId}';
-    final selectionState = ref.watch(chatSelectionProvider(dmChatId));
+
+    // v3.10 FIX: Watch ONLY inSelectionMode + selectedIds — NOT
+    // the full ChatSelectionState (avoids rebuild on semanticsLabel
+    // changes). Cache caps + actions (was 9 calls per build).
+    final inSelectionMode = ref.watch(
+      chatSelectionProvider(dmChatId).select((s) => s.inSelectionMode),
+    );
+    final selectedIds = ref.watch(
+      chatSelectionProvider(dmChatId).select((s) => s.selectedIds),
+    );
+    final cachedCaps = _buildCapabilities();
+    final cachedActions = _buildActions(cachedCaps);
 
     Widget bodyContent;
     if (chatState.isLoading) {
@@ -643,9 +653,9 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
       final chatMessages = ref.watch(directChatMessagesProvider(widget.otherUserId));
       // v3.6 (PR 1) — selected messages (resolved against the adapter's
       // output so deleted messages don't linger in the selection).
-      final selectedMessages = selectionState.inSelectionMode
+      final selectedMessages = inSelectionMode
           ? (chatMessages
-              .where((m) => selectionState.isSelected(m.id))
+              .where((m) => selectedIds.contains(m.id))
               .toList()
             ..sort((a, b) => a.timestamp.compareTo(b.timestamp)))
           : <ChatMessage>[];
@@ -663,8 +673,8 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
               chatId: dmChatId,
               // v3.6 (PR 1) — DM capabilities (Reply + React + Copy +
               // Share outside only). Everything else is false.
-              capabilities: _buildCapabilities(),
-              actions: _buildActions(),
+              capabilities: cachedCaps,
+              actions: cachedActions,
               onReply: (msg) {
                 ref
                     .read(directChatProvider(widget.otherUserId).notifier)
@@ -711,13 +721,13 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
       // for the shared ChatSelectionBar (the SAME widget the group
       // chat uses). DM capabilities are minimal so the bar shows
       // only Reply (1 selected) + overflow (Copy, Share outside).
-      appBar: selectionState.inSelectionMode
+      appBar: inSelectionMode
           ? PreferredSize(
               preferredSize: const Size.fromHeight(56),
               child: ChatSelectionBar(
                 chatId: dmChatId,
-                capabilities: _buildCapabilities(),
-                actions: _buildActions(),
+                capabilities: cachedCaps,
+                actions: cachedActions,
                 selectedMessages: _lastSelectedMessages,
               ),
             )
@@ -898,24 +908,22 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
                   // Docked directly under the selection bar (same as
                   // the group chat). DM capabilities.canReact is true
                   // so the pill appears whenever 1 message is selected.
-                  if (selectionState.inSelectionMode &&
+                  if (inSelectionMode &&
                       _lastSelectedMessages.length == 1 &&
-                      _buildCapabilities().canReact)
+                      cachedCaps.canReact)
                     Positioned(
                       top: 8,
                       left: 0,
                       right: 0,
-                      child: Center(
-                        child: ChatReactionBar(
-                          chatId: dmChatId,
-                          message: _lastSelectedMessages.first,
-                          actions: _buildActions(),
-                          currentUserId: _currentUserId,
-                          alignment:
-                              _lastSelectedMessages.first.senderId == _currentUserId
-                                  ? Alignment.centerRight
-                                  : Alignment.centerLeft,
-                        ),
+                      child: ChatReactionBar(
+                        chatId: dmChatId,
+                        message: _lastSelectedMessages.first,
+                        actions: cachedActions,
+                        currentUserId: _currentUserId,
+                        alignment:
+                            _lastSelectedMessages.first.senderId == _currentUserId
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
                       ),
                     ),
                 ],
@@ -967,7 +975,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
             focusNode: _focusNode,
             isComposing: _isComposing,
             onSend: _sendMessage,
-            capabilities: _buildCapabilities(),
+            capabilities: cachedCaps,
             // DM has no attach/emoji-panel/voice entry points wired
             // (the callbacks stay null — the bar hides the buttons).
           ),

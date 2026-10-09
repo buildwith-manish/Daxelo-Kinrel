@@ -35,10 +35,8 @@
 // `Semantics(liveRegion: true)` text.
 
 import 'dart:collection';
-import 'dart:ui' show TextDirection;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/semantics.dart' show SemanticsService;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/chat_provider.dart';
 
@@ -105,7 +103,6 @@ class ChatSelectionNotifier extends StateNotifier<ChatSelectionState> {
     final ids = LinkedHashSet<String>.from(state.selectedIds);
     ids.add(messageId);
     final count = ids.length;
-    _announce(count);
     state = ChatSelectionState(
       selectedIds: ids,
       inSelectionMode: true,
@@ -130,7 +127,6 @@ class ChatSelectionNotifier extends StateNotifier<ChatSelectionState> {
       return;
     }
     final count = ids.length;
-    _announce(count);
     state = ChatSelectionState(
       selectedIds: ids,
       inSelectionMode: true,
@@ -170,18 +166,11 @@ class ChatSelectionNotifier extends StateNotifier<ChatSelectionState> {
 
   // ── Helpers ─────────────────────────────────────────────────────────
 
-  /// Announce the new count to screen readers. Fire-and-forget.
-  void _announce(int count) {
-    if (kIsWeb) return;
-    // SemanticsService.announce requires a TextDirection; use the
-    // ambient direction (the caller's screen reads LTR by default).
-    try {
-      SemanticsService.announce(_labelForCount(count), TextDirection.ltr);
-    } catch (_) {
-      // Screen reader not available — silent.
-    }
-  }
-
+  /// v3.10 FIX: Removed SemanticsService.announce — it was blocking
+  /// the UI thread on some Android devices when accessibility services
+  /// were slow to respond. The selection bar's Semantics label still
+  /// announces the count to screen readers via the Semantics widget
+  /// (which is non-blocking).
   String _labelForCount(int count) {
     if (count == 0) return '';
     if (count == 1) return '1 message selected';

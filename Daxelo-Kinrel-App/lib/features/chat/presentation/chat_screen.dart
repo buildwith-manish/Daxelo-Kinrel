@@ -647,8 +647,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// wires to the chatProvider or chatEnhancementServiceProvider.
   /// Null callbacks hide the corresponding UI (Report, Add to Memories
   /// — not implemented in the codebase yet).
-  ChatMessageActions _buildActions() {
-    final caps = _buildCapabilities();
+  /// v3.10: Accepts caps parameter to avoid calling _buildCapabilities()
+  /// internally (was causing 9 calls per build — now 1 call).
+  ChatMessageActions _buildActions(ChatCapabilities caps) {
     return ChatMessageActions(
       reply: (msg) {
         ref.read(chatProvider(widget.familyId).notifier).setReplyTo(msg);
@@ -763,9 +764,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final engagement = ref.watch(chatEngagementProvider(widget.familyId));
     final rawMessages = chatState.messages;
 
-    // v3.6 (PR 1) — watch the selection state. When in selection mode,
-    // the normal AppBar is swapped for the ChatSelectionBar.
-    final selectionState = ref.watch(chatSelectionProvider(widget.familyId));
+    // v3.10 FIX: Watch ONLY inSelectionMode + selectedIds — NOT the
+    // full ChatSelectionState. The full state includes semanticsLabel
+    // which changes on every toggle, causing unnecessary rebuilds.
+    // By selecting only what the build method needs, we avoid rebuilding
+    // the entire chat screen when the semantics label changes.
+    final inSelectionMode = ref.watch(
+      chatSelectionProvider(widget.familyId).select((s) => s.inSelectionMode),
+    );
+    final selectedIds = ref.watch(
+      chatSelectionProvider(widget.familyId).select((s) => s.selectedIds),
+    );
+
+    // v3.10 FIX: Cache capabilities + actions — compute ONCE per build,
+    // not 9 times (was called 5 direct + 4 inside _buildActions()).
+    final cachedCaps = _buildCapabilities();
+    final cachedActions = _buildActions(cachedCaps);
 
     // v112: Filter out messages that were deleted-for-me or
     // deleted-for-everyone. The ChatMessage model already has an
@@ -791,9 +805,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // (for the Copy/Share join). The controller stores ids; we resolve
     // them against the filtered `messages` list so deleted-for-me rows
     // never end up in the selection.
-    final selectedMessages = selectionState.inSelectionMode
+    final selectedMessages = inSelectionMode
         ? (messages
-            .where((m) => selectionState.isSelected(m.id))
+            .where((m) => selectedIds.contains(m.id))
             .toList()
           ..sort((a, b) => a.timestamp.compareTo(b.timestamp)))
         : <ChatMessage>[];
@@ -859,23 +873,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // allows this fallback when screen-position-based
                 // anchoring is not feasible in the shared list — see
                 // the report).
-                if (selectionState.inSelectionMode &&
+                if (inSelectionMode &&
                     selectedMessages.length == 1 &&
-                    _buildCapabilities().canReact)
+                    cachedCaps.canReact)
                   Positioned(
                     top: 8,
                     left: 0,
                     right: 0,
-                    child: Center(
-                      child: ChatReactionBar(
-                        chatId: widget.familyId,
-                        message: selectedMessages.first,
-                        actions: _buildActions(),
-                        currentUserId: _currentUserId,
-                        alignment: selectedMessages.first.senderId == _currentUserId
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                      ),
+                    child: ChatReactionBar(
+                      chatId: widget.familyId,
+                      message: selectedMessages.first,
+                      actions: cachedActions,
+                      currentUserId: _currentUserId,
+                      alignment: selectedMessages.first.senderId == _currentUserId
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
                     ),
                   ),
               ],
@@ -913,13 +925,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // normal AppBar is shown.
       appBar: widget.hideAppBar
           ? null
-          : (selectionState.inSelectionMode
+          : (inSelectionMode
               ? PreferredSize(
                   preferredSize: const Size.fromHeight(56),
                   child: ChatSelectionBar(
                     chatId: widget.familyId,
-                    capabilities: _buildCapabilities(),
-                    actions: _buildActions(),
+                    capabilities: cachedCaps,
+                    actions: cachedActions,
                     selectedMessages: selectedMessages,
                   ),
                 )
@@ -2667,8 +2679,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       scrollController: _scrollController,
       chatId: widget.familyId,
       // v3.6 (PR 1) — capabilities + actions drive per-message behaviour.
-      capabilities: _buildCapabilities(),
-      actions: _buildActions(),
+      capabilities: cachedCaps,
+      actions: cachedActions,
       onReply: (msg) {
         ref.read(chatProvider(widget.familyId).notifier).setReplyTo(msg);
       },
