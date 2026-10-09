@@ -199,15 +199,14 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
   // Shows the date of the topmost visible message group when the user
   // scrolls, then fades out ~1.5s after scrolling stops.
   //
-  // Performance:
-  //   - The scroll listener only sets 2 lightweight state variables
-  //     (_floatingDate string + _showFloatingDate bool). The ListView
-  //     itself is NOT rebuilt — the date pill is a separate widget in
-  //     a Stack above the list, wrapped in a RepaintBoundary.
-  //   - The date is computed in O(1) from the scroll fraction — no
-  //     widget tree traversal, no findRenderObject calls.
-  String? _floatingDate;
-  bool _showFloatingDate = false;
+  // v3.10 FIX: Uses ValueNotifier instead of setState so the scroll
+  // listener does NOT rebuild the ListView. The date pill is a tiny
+  // ValueListenableBuilder that rebuilds independently — the message
+  // list stays untouched during scroll.
+  final ValueNotifier<String?> _floatingDateNotifier =
+      ValueNotifier<String?>(null);
+  final ValueNotifier<bool> _showFloatingDateNotifier =
+      ValueNotifier<bool>(false);
   Timer? _hideFloatingDateTimer;
   double _lastScrollOffset = 0;
 
@@ -224,11 +223,16 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
   void dispose() {
     _hideFloatingDateTimer?.cancel();
     widget.scrollController.removeListener(_onScroll);
+    _floatingDateNotifier.dispose();
+    _showFloatingDateNotifier.dispose();
     super.dispose();
   }
 
   /// Scroll handler — computes the date for the current viewport
   /// position and shows the floating date indicator.
+  ///
+  /// v3.10 FIX: Updates ValueNotifiers directly — NO setState.
+  /// The ListView.builder is never rebuilt by this listener.
   void _onScroll() {
     final controller = widget.scrollController;
     if (!controller.hasClients) return;
@@ -236,19 +240,15 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
     final offset = controller.position.pixels;
     final maxExtent = controller.position.maxScrollExtent;
 
-    // Only show the indicator when the list is scrollable (enough
-    // content to scroll).
+    // Only show the indicator when the list is scrollable.
     if (maxExtent <= 0) return;
 
-    // Only show when the user is actually scrolling (offset changed).
+    // Only show when the user is actually scrolling (offset changed
+    // by more than 1px — filters out layout-only notifications).
     if ((offset - _lastScrollOffset).abs() < 1.0) return;
     _lastScrollOffset = offset;
 
     // Compute the date for the current viewport position.
-    // The list is reversed (newest at bottom = offset 0). As offset
-    // increases, the viewport shows older messages. The grouped list
-    // is ordered newest-day-first (descending), so higher offset =
-    // higher group index = older date.
     final grouped = _groupedCache;
     if (grouped.isEmpty) return;
 
@@ -257,22 +257,21 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
     final groupIndex = (scrollFraction * (grouped.length - 1)).round();
     final dateLabel = grouped[groupIndex].dateLabel;
 
-    if (dateLabel != _floatingDate || !_showFloatingDate) {
-      setState(() {
-        _floatingDate = dateLabel;
-        _showFloatingDate = true;
-      });
+    // Update ValueNotifiers — these only rebuild the tiny date pill
+    // (via ValueListenableBuilder in the build method), NOT the
+    // entire ListView.
+    if (_floatingDateNotifier.value != dateLabel) {
+      _floatingDateNotifier.value = dateLabel;
+    }
+    if (!_showFloatingDateNotifier.value) {
+      _showFloatingDateNotifier.value = true;
     }
 
     // Reset the hide timer — hides the indicator 1.5s after scrolling
-    // stops.
+    // stops. Updates the ValueNotifier (no setState).
     _hideFloatingDateTimer?.cancel();
     _hideFloatingDateTimer = Timer(const Duration(milliseconds: 1500), () {
-      if (mounted) {
-        setState(() {
-          _showFloatingDate = false;
-        });
-      }
+      _showFloatingDateNotifier.value = false;
     });
   }
 
@@ -439,17 +438,24 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
               // list. MOVED verbatim from chat_screen.dart.
               final bounded = RepaintBoundary(child: bubble);
 
-              // v3.6 (PR 1) — wrap differently based on selection mode:
-              //  - When selecting: skip SwipeToReply (swipe is disabled
-              //    while selecting per the prompt) and overlay a
-              //    transparent tap target that toggles the row. The
-              //    overlay's HitTestBehavior.opaque absorbs inner taps
-              //    (image open, link, profile, reply preview, join
-              //    game) so they don't fire while selecting.
-              //  - When not selecting: keep the existing SwipeToReply
-              //    wrapper (v3.4: BOTH chat types pass enableSwipeReply=true).
+              // v3.10: Wrap each row in a FULL-WIDTH GestureDetector
+              // that captures long-press across the entire row —
+              // including the empty space beside the bubble. This
+              // matches WhatsApp/Telegram's behavior where long-
+              // pressing anywhere on the message row selects it.
+              //
+              // Uses HitTestBehavior.translucent so inner gestures
+              // (image tap, link, avatar, swipe-to-reply) still work
+              // — long-press and tap/drag don't conflict in Flutter's
+              // gesture arena (long-press wins if held 500ms, drag
+              // wins if moved before that, tap wins if released before
+              // 500ms).
+              //
+              // When already in selection mode, the existing opaque
+              // overlay handles full-row taps (toggle) + long-press.
               final Widget wrapped;
               if (inSelectionMode) {
+                // Selection mode: full-row overlay (existing behavior).
                 wrapped = GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
@@ -459,16 +465,30 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
                   onLongPress: () => _handleLongPress(msg),
                   child: bounded,
                 );
-              } else if (widget.enableSwipeReply) {
-                wrapped = SwipeToReply(
-                  key: ValueKey(msg.id),
-                  messageId: msg.id,
-                  isMe: isMe,
-                  onReply: () => widget.onReply(msg),
-                  child: bounded,
-                );
               } else {
-                wrapped = bounded;
+                // Normal mode: wrap in a full-width long-press
+                // detector (translucent — lets inner gestures work)
+                // that enters selection mode on long-press.
+                // SizedBox(width: double.infinity) forces the
+                // GestureDetector to cover the ENTIRE row width —
+                // including the empty space beside the bubble.
+                final inner = widget.enableSwipeReply
+                    ? SwipeToReply(
+                        key: ValueKey(msg.id),
+                        messageId: msg.id,
+                        isMe: isMe,
+                        onReply: () => widget.onReply(msg),
+                        child: bounded,
+                      )
+                    : bounded;
+                wrapped = GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onLongPress: () => _handleLongPress(msg),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: inner,
+                  ),
+                );
               }
 
               return Padding(
@@ -480,46 +500,58 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
         );
       },
     ),
-        // v3.9: Floating date indicator — appears on scroll + fades out.
-        // Wrapped in RepaintBoundary so the pill's opacity animation
-        // doesn't repaint the message list.
-        if (_floatingDate != null)
-          RepaintBoundary(
-            child: Positioned(
-              top: 8,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: AnimatedOpacity(
-                  opacity: _showFloatingDate ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 250),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF191B2C).withValues(alpha: 0.92),
-                      borderRadius: BorderRadius.circular(100),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        width: 0.5,
-                      ),
-                    ),
-                    child: Text(
-                      _floatingDate!,
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: KinrelColors.textSilver
-                            .withValues(alpha: 0.95),
-                        letterSpacing: 0.3,
+        // v3.10: Floating date indicator — uses ValueListenableBuilder
+        // so ONLY this tiny widget rebuilds on scroll. The ListView
+        // is never rebuilt by the scroll listener.
+        ValueListenableBuilder<String?>(
+          valueListenable: _floatingDateNotifier,
+          builder: (context, floatingDate, _) {
+            if (floatingDate == null) return const SizedBox.shrink();
+            return ValueListenableBuilder<bool>(
+              valueListenable: _showFloatingDateNotifier,
+              builder: (context, showFloating, _) {
+                return RepaintBoundary(
+                  child: Positioned(
+                    top: 8,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: AnimatedOpacity(
+                        opacity: showFloating ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 250),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF191B2C)
+                                .withValues(alpha: 0.92),
+                            borderRadius: BorderRadius.circular(100),
+                            border: Border.all(
+                              color:
+                                  Colors.white.withValues(alpha: 0.08),
+                              width: 0.5,
+                            ),
+                          ),
+                          child: Text(
+                            floatingDate,
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: KinrelColors.textSilver
+                                  .withValues(alpha: 0.95),
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-            ),
-          ),
+                );
+              },
+            );
+          },
+        ),
       ],
     );
   }
