@@ -438,26 +438,29 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
               // list. MOVED verbatim from chat_screen.dart.
               final bounded = RepaintBoundary(child: bubble);
 
-              // v3.10: Wrap each row in a FULL-WIDTH GestureDetector
-              // that captures long-press across the entire row —
-              // including the empty space beside the bubble. This
-              // matches WhatsApp/Telegram's behavior where long-
-              // pressing anywhere on the message row selects it.
+              // v3.11 FIX: Removed the full-width translucent
+              // GestureDetector wrapper — it was registering a
+              // LongPressGestureRecognizer on every row, causing a
+              // 500ms scroll delay on every touch (the gesture arena
+              // held the pointer for 500ms before letting the scroll
+              // gesture win). This made the list feel "frozen".
               //
-              // Uses HitTestBehavior.translucent so inner gestures
-              // (image tap, link, avatar, swipe-to-reply) still work
-              // — long-press and tap/drag don't conflict in Flutter's
-              // gesture arena (long-press wins if held 500ms, drag
-              // wins if moved before that, tap wins if released before
-              // 500ms).
+              // The MessageBubble's internal GestureDetector already
+              // handles long-press on the bubble area. Long-press on
+              // empty space beside the bubble can be added later by
+              // extending MessageBubble's internal layout.
               //
-              // When already in selection mode, the existing opaque
-              // overlay handles full-row taps (toggle) + long-press.
+              // In selection mode, changed HitTestBehavior from
+              // opaque to translucent — opaque was absorbing ALL
+              // touches (including vertical drags for scrolling),
+              // making the list unscrollable in selection mode.
+              // Translucent lets the ListView's scroll gesture work
+              // while also allowing tap-to-toggle + long-press.
               final Widget wrapped;
               if (inSelectionMode) {
-                // Selection mode: full-row overlay (existing behavior).
+                // Selection mode: translucent overlay (allows scrolling).
                 wrapped = GestureDetector(
-                  behavior: HitTestBehavior.opaque,
+                  behavior: HitTestBehavior.translucent,
                   onTap: () {
                     unawaited(HapticService.tap());
                     ref.read(chatSelectionProvider(widget.chatId).notifier).toggle(msg.id);
@@ -465,30 +468,17 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
                   onLongPress: () => _handleLongPress(msg),
                   child: bounded,
                 );
-              } else {
-                // Normal mode: wrap in a full-width long-press
-                // detector (translucent — lets inner gestures work)
-                // that enters selection mode on long-press.
-                // SizedBox(width: double.infinity) forces the
-                // GestureDetector to cover the ENTIRE row width —
-                // including the empty space beside the bubble.
-                final inner = widget.enableSwipeReply
-                    ? SwipeToReply(
-                        key: ValueKey(msg.id),
-                        messageId: msg.id,
-                        isMe: isMe,
-                        onReply: () => widget.onReply(msg),
-                        child: bounded,
-                      )
-                    : bounded;
-                wrapped = GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onLongPress: () => _handleLongPress(msg),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: inner,
-                  ),
+              } else if (widget.enableSwipeReply) {
+                // Normal mode: SwipeToReply only (no extra wrapper).
+                wrapped = SwipeToReply(
+                  key: ValueKey(msg.id),
+                  messageId: msg.id,
+                  isMe: isMe,
+                  onReply: () => widget.onReply(msg),
+                  child: bounded,
                 );
+              } else {
+                wrapped = bounded;
               }
 
               return Padding(
