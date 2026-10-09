@@ -229,8 +229,12 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
                       .inSeconds
                       .abs() > 60;
 
-              // Tighter spacing within groups (2px) vs between groups (8px).
-              final bottomPadding = isLastInGroup ? 8.0 : 2.0;
+              // v3.8 (PR 3 Task 1) — tighter spacing within groups
+              // (2px) vs ~10px between groups (was 8px — bumped to
+              // 10px per the prompt: "Consecutive messages of the same
+              // sender within 2 minutes are 2 pixels apart; different
+              // senders about 10").
+              final bottomPadding = isLastInGroup ? 10.0 : 2.0;
 
               final bubble = MessageBubble(
                 message: msg,
@@ -309,11 +313,14 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
           child: Text(
             label,
             style: TextStyle(
-              fontFamily: KinrelTypography.monoFont,
-              fontSize: 10.5,
+              // v3.8 (PR 3 Task 1) — use the normal body font, not
+              // monospace (the prompt: "Date separators and message
+              // times use the normal app font, not monospace").
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 11.5,
               fontWeight: FontWeight.w600,
               color: KinrelColors.textSilver.withValues(alpha: 0.9),
-              letterSpacing: 0.8,
+              letterSpacing: 0.4,
             ),
           ),
         ),
@@ -341,6 +348,21 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
 
+    // v3.8 (PR 3 Task 1) — weekday names for messages within the last
+    // 6 days (Today, Yesterday, then weekday name, then short date).
+    // The prompt: "Date text: Today, Yesterday, a weekday name within
+    // the last 6 days, otherwise a short date; keep the app's existing
+    // language and number format."
+    const weekdays = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+
     for (final msg in messages) {
       // Convert the server-returned UTC timestamp to the viewer's
       // device-local timezone before extracting year/month/day.
@@ -353,22 +375,32 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
       } else if (msgDate == yesterday) {
         label = 'Yesterday';
       } else {
-        const months = [
-          '',
-          'January',
-          'February',
-          'March',
-          'April',
-          'May',
-          'June',
-          'July',
-          'August',
-          'September',
-          'October',
-          'November',
-          'December',
-        ];
-        label = '${months[local.month]} ${local.day}, ${local.year}';
+        // Within the last 6 days? Show weekday name (e.g. "Wednesday").
+        // DateTime.weekday returns 1=Monday..7=Sunday (ISO 8601).
+        final daysAgo = today.difference(msgDate).inDays;
+        if (daysAgo > 0 && daysAgo <= 6) {
+          label = weekdays[local.weekday - 1];
+        } else {
+          // Older than a week → short date (e.g. "Oct 9, 2026").
+          // Keep the existing language + number format (the app's
+          // existing format was "Month D, Year" — preserved here).
+          const months = [
+            '',
+            'January',
+            'February',
+            'March',
+            'April',
+            'May',
+            'June',
+            'July',
+            'August',
+            'September',
+            'October',
+            'November',
+            'December',
+          ];
+          label = '${months[local.month]} ${local.day}, ${local.year}';
+        }
       }
 
       final existing = byLabel[label];
