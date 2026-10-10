@@ -33,6 +33,7 @@ import 'poll_card.dart';
 import '../voice_message_player.dart';
 import 'full_screen_image_viewer.dart';
 import '../../../../core/theme/kinrel_fx.dart';
+import 'selection_mode_toolbar.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // PERF (Tier K3): Const-hoisted gradients and shadow lists for the
@@ -170,6 +171,10 @@ class MessageBubble extends ConsumerWidget {
     /// provider.
     this.onRetryFailed,
     this.onDeleteFailed,
+    /// v6.0 — Selection mode state (Image 3 reference).
+    this.selectionMode = false,
+    this.isSelected = false,
+    this.onToggleSelection,
   });
 
   final ChatMessage message;
@@ -213,6 +218,19 @@ class MessageBubble extends ConsumerWidget {
   /// action). Null = the group path (chatProvider.deleteFailedMessage).
   final void Function(String messageId)? onDeleteFailed;
 
+  /// v6.0 — When true, the bubble is in selection mode. Tapping the
+  /// bubble toggles selection instead of opening the action sheet.
+  /// A selection checkbox is shown overlapping the leading edge.
+  final bool selectionMode;
+
+  /// v6.0 — Whether THIS bubble is currently selected. Renders an
+  /// orange ring + filled checkbox.
+  final bool isSelected;
+
+  /// v6.0 — Callback to toggle this message's selection state. Only
+  /// invoked when [selectionMode] is true.
+  final VoidCallback? onToggleSelection;
+
   /// v3.3: the family id to use for game-invite Join/Spectate routes.
   /// Prefers [inviteFamilyId] (set by the DM screen from the invite
   /// payload) and falls back to [familyId] (the group chat's family).
@@ -255,27 +273,42 @@ class MessageBubble extends ConsumerWidget {
     // each bubble). Do not add a second drag handler here: it would fight with it.
     return StatefulBuilder(
       builder: (context, setLocalState) {
+        // v6.0 — In selection mode, tapping the bubble toggles its
+        // selection state. The normal failed-message tap handler is
+        // disabled in selection mode (the user is bulk-selecting, not
+        // retrying a single failed send).
+        final VoidCallback? tapHandler = selectionMode
+            ? onToggleSelection
+            : (isMe &&
+                    message.messageStatus == 'failed' &&
+                    (familyId != null || onRetryFailed != null))
+                ? () => _showFailedMessageSheet(context, ref)
+                : null;
         return GestureDetector(
           onLongPress: onLongPress,
-          // v3.2: tapping a FAILED message opens a small sheet with
-          // Retry and Delete. Only for the sender's own messages.
-          // v3.5: works in BOTH chat types — the group path
-          // (familyId != null, built-in chatProvider calls) OR an
-          // injected handler pair (the DM passes its own provider's
-          // retryMessage/deleteFailedMessage). The tap handler does
-          // NOT fire for sent/delivered/read/sending messages — those
-          // have no tap action (the existing onLongPress still works).
-          onTap: (isMe &&
-                  message.messageStatus == 'failed' &&
-                  (familyId != null || onRetryFailed != null))
-              ? () => _showFailedMessageSheet(context, ref)
-              : null,
+          onTap: tapHandler,
           child: Align(
             alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // v6.0 — Selection checkbox (Image 3 reference).
+                // Shown on the leading side of the bubble when
+                // selection mode is active. For sent messages
+                // (right-aligned) the checkbox goes on the LEFT of the
+                // bubble; for received (left-aligned) it also goes on
+                // the left, before the avatar/spacer.
+                if (selectionMode) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6, bottom: 2),
+                    child: SelectionCheckbox(
+                      isSelected: isSelected,
+                      onTap: onToggleSelection ?? () {},
+                      isMe: isMe,
+                    ),
+                  ),
+                ],
                 // v127: Avatar only on first message in group.
                 // Non-first messages get an invisible spacer for alignment.
                 // v3.3: DMs (isDirectChat) hide the avatar AND the spacer
@@ -342,7 +375,12 @@ class MessageBubble extends ConsumerWidget {
                     // rounded rectangle, layered shadows for gentle
                     // elevation, and generous padding for readability.
                     // Inspired by iMessage's softness + Telegram's tail.
-                    Container(
+                    // v6.0 — Wrap the bubble in a SelectionRing when
+                    // selection mode is active and this bubble is
+                    // selected (Image 3 reference).
+                    SelectionRing(
+                      isSelected: isSelected,
+                      child: Container(
                       padding: isSticker
                           ? const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 8)
@@ -501,6 +539,7 @@ class MessageBubble extends ConsumerWidget {
                           if (!isSticker && isLastInGroup) _buildTimeRow(),
                           if (isSticker) _buildStickerTimeRow(),
                         ],
+                      ),
                       ),
                     ),
                     // v127: Reaction chips positioned overlapping bubble bottom

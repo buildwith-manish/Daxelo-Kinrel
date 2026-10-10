@@ -96,6 +96,7 @@ import '../data/chat_wallpaper_provider.dart';
 import '../data/wallpaper_picker.dart';
 import 'widgets/chat_background.dart';
 import 'widgets/chat_theme_picker_sheet.dart';
+import 'widgets/selection_mode_toolbar.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Chat Screen
@@ -225,6 +226,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   // Phase 14: Sticker panel toggle
   bool _showStickerPanel = false;
+
+  // ── Selection Mode (multi-select) ───────────────────────────────────
+  // When active, the AppBar is replaced with SelectionModeToolbar,
+  // bubbles get a selection checkbox + ring, and tapping a bubble
+  // toggles selection instead of opening the action sheet.
+  // Long-press on a bubble ENTERS selection mode + selects that bubble.
+  bool _selectionMode = false;
+  final Set<String> _selectedMessageIds = <String>{};
 
   // v112: Chat wallpaper color — loaded from ChatSettings in initState
   // and applied as the messages-list background. Updated immediately
@@ -794,7 +803,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // coach marks yet (hasSeenChatOnboarding flag in SharedPreferences).
     final showOnboarding = ref.watch(shouldShowChatOnboardingProvider(widget.familyId));
 
-    return Stack(
+    return PopScope(
+      // v6.0 — When selection mode is active, the back button exits
+      // selection mode instead of popping the screen (Image 3 reference).
+      canPop: !_selectionMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _selectionMode) {
+          _exitSelectionMode();
+        }
+      },
+      child: Stack(
       children: [
         DKScaffold(
       // v132: The background is now rendered by ChatBackground (a
@@ -809,7 +827,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // v140 Family-Centric Chat Navigation: hideAppBar lets the parent
       // (e.g. FamilyChatListScreen with [Family]/[Direct] tabs) provide
       // its own header without a double-AppBar.
-      appBar: widget.hideAppBar ? null : _buildAppBar(chatState),
+      // Selection mode: swap the normal AppBar for the selection toolbar
+      // when active, so the user sees count + bulk actions at the top.
+      appBar: widget.hideAppBar
+          ? null
+          : (_selectionMode
+              ? SelectionModeToolbar(
+                  selectedCount: _selectedMessageIds.length,
+                  onClose: _exitSelectionMode,
+                  onReply: _bulkReply,
+                  onForward: _bulkForward,
+                  onStar: _bulkStar,
+                  onDelete: _bulkDelete,
+                  onMore: _bulkMore,
+                )
+              : _buildAppBar(chatState)),
       // v115: Only show the Family Space bottom nav when this screen
       // is the tab destination (showFamilyNav=true). When opened as a
       // pushed conversation from the chat list, the bottom nav is
@@ -837,30 +869,35 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         child: bodyContent,
                       ),
                     ),
-                    // Typing indicator — shows if EITHER the Supabase
-                    // Realtime typing status OR the Socket.IO engagement
-                    // layer reports someone typing. The engagement layer
-                    // is preferred when both fire (it has the more recent
-                    // event + a richer multi-user label).
-                    if (chatState.isTyping || engagement.isSomeoneTyping)
-                      _buildTypingIndicator(chatState, engagement),
-                    // Reply preview bar
-                    if (chatState.replyToMessage != null)
-                      _buildReplyPreview(chatState.replyToMessage!),
-                    // Phase 14: Sticker panel (slides up when toggled)
-                    if (_showStickerPanel && !_isRecording)
-                      StickerPanel(
-                        onStickerSelected: _sendSticker,
-                        onClose: _toggleStickerPanel,
-                      ),
-                    // Input bar
-                    _buildInputBar(),
-                    // v128: On Flutter Web, resizeToAvoidBottomInset doesn't detect
-                    // the mobile keyboard. We add explicit bottom padding equal to
-                    // the visualViewport-measured keyboard height so the input bar
-                    // is always visible above the keyboard.
-                    if (kIsWeb && _webKeyboardHeight > 0)
-                      SizedBox(height: _webKeyboardHeight),
+                    // Selection mode hides the typing indicator, reply
+                    // preview, sticker panel, and input bar — the user
+                    // is picking messages, not composing.
+                    if (!_selectionMode) ...[
+                      // Typing indicator — shows if EITHER the Supabase
+                      // Realtime typing status OR the Socket.IO engagement
+                      // layer reports someone typing. The engagement layer
+                      // is preferred when both fire (it has the more recent
+                      // event + a richer multi-user label).
+                      if (chatState.isTyping || engagement.isSomeoneTyping)
+                        _buildTypingIndicator(chatState, engagement),
+                      // Reply preview bar
+                      if (chatState.replyToMessage != null)
+                        _buildReplyPreview(chatState.replyToMessage!),
+                      // Phase 14: Sticker panel (slides up when toggled)
+                      if (_showStickerPanel && !_isRecording)
+                        StickerPanel(
+                          onStickerSelected: _sendSticker,
+                          onClose: _toggleStickerPanel,
+                        ),
+                      // Input bar
+                      _buildInputBar(),
+                      // v128: On Flutter Web, resizeToAvoidBottomInset doesn't detect
+                      // the mobile keyboard. We add explicit bottom padding equal to
+                      // the visualViewport-measured keyboard height so the input bar
+                      // is always visible above the keyboard.
+                      if (kIsWeb && _webKeyboardHeight > 0)
+                        SizedBox(height: _webKeyboardHeight),
+                    ],
                   ],
                 ),
         ),
@@ -876,6 +913,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             },
           ),
       ],
+      ),
     );
   }
 
@@ -2796,6 +2834,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       onReplyPreviewTap: (msg) {
         if (msg.replyToId != null) _scrollToMessage(msg.replyToId!);
       },
+      // v6.0 — Selection mode state (Image 3 reference).
+      selectionMode: _selectionMode,
+      selectedMessageIds: _selectedMessageIds,
+      onToggleSelection: _toggleMessageSelection,
     );
   }
 
@@ -3713,6 +3755,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       .setReplyTo(message);
                 },
               ),
+              // Select action — enters multi-select mode with this
+              // message pre-selected (Image 3 reference).
+              ListTile(
+                leading: const Icon(
+                  Icons.check_circle_outline_rounded,
+                  color: KinrelColors.textSilver,
+                  size: 22,
+                ),
+                title: const Text(
+                  'Select',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 15,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _enterSelectionMode(message.id);
+                },
+              ),
               // Copy action
               ListTile(
                 leading: const Icon(
@@ -3899,12 +3962,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               // showing "Delivered to" + "Read by" lists per family
               // member. Shown for everyone (not just the sender) so
               // any member can see who's read the message. Hidden for
-              // non-text message types, and HIDDEN in direct chats
-              // (Kin Thread / C2 — the read-by list is group-only;
-              // the normal delivery/read ticks stay).
-              if (!widget.isDirectChat &&
-                  (message.messageType == MessageType.text ||
-                      message.messageType == MessageType.photo))
+              // non-text message types.
+              // v6.0 — Now enabled in direct chats too (DM message
+              // info shows delivery/read status for the 2 participants).
+              if (message.messageType == MessageType.text ||
+                  message.messageType == MessageType.photo)
                 ListTile(
                   leading: const Icon(
                     Icons.info_outline_rounded,
@@ -4015,6 +4077,203 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             .read(chatProvider(widget.familyId).notifier)
             .toggleReaction(messageId, emoji);
       },
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Selection Mode (multi-select) — Image 3 reference
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// Enter selection mode with [initialMessageId] pre-selected.
+  /// Called from the long-press handler when the user picks "Select"
+  /// from the actions sheet, OR from a direct long-press on a bubble
+  /// when an alternative gesture is used.
+  void _enterSelectionMode(String initialMessageId) {
+    HapticService.selection();
+    setState(() {
+      _selectionMode = true;
+      _selectedMessageIds.clear();
+      _selectedMessageIds.add(initialMessageId);
+    });
+  }
+
+  /// Exit selection mode and clear the selection.
+  void _exitSelectionMode() {
+    if (!_selectionMode) return;
+    setState(() {
+      _selectionMode = false;
+      _selectedMessageIds.clear();
+    });
+  }
+
+  /// Toggle a message's selection state. Called when the user taps a
+  /// bubble while in selection mode.
+  void _toggleMessageSelection(String messageId) {
+    HapticService.tap();
+    setState(() {
+      if (_selectedMessageIds.contains(messageId)) {
+        _selectedMessageIds.remove(messageId);
+        // If the user deselects the last message, keep selection mode
+        // active (per Image 3 which shows "1 selected" — but allow
+        // empty state so the user can re-pick). Exit only via X.
+      } else {
+        _selectedMessageIds.add(messageId);
+      }
+    });
+  }
+
+  /// Bulk reply — uses the most-recently selected message as the reply
+  /// target, then exits selection mode and focuses the input.
+  void _bulkReply() {
+    if (_selectedMessageIds.isEmpty) return;
+    // Find the most-recently-selected message in the messages list.
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final selected = chatState.messages
+        .where((m) => _selectedMessageIds.contains(m.id))
+        .toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    if (selected.isEmpty) return;
+    final target = selected.first;
+    _exitSelectionMode();
+    ref.read(chatProvider(widget.familyId).notifier).setReplyTo(target);
+    // Focus the input so the user can type their reply.
+    _focusNode.requestFocus();
+  }
+
+  /// Bulk forward — opens the forward picker with all selected messages.
+  void _bulkForward() {
+    if (_selectedMessageIds.isEmpty) return;
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final selected = chatState.messages
+        .where((m) => _selectedMessageIds.contains(m.id))
+        .toList();
+    _exitSelectionMode();
+    // Reuse the existing forward picker (single-message variant) for
+    // the first selected message — multi-message forwarding is a server
+    // limitation. The user can forward one at a time.
+    if (selected.isNotEmpty) {
+      _showForwardFamilyPicker(selected.first);
+    }
+  }
+
+  /// Bulk star — toggles star on all selected messages.
+  void _bulkStar() async {
+    if (_selectedMessageIds.isEmpty) return;
+    final service = ref.read(chatEnhancementServiceProvider);
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final selected = chatState.messages
+        .where((m) => _selectedMessageIds.contains(m.id))
+        .toList();
+    for (final msg in selected) {
+      await service.starMessage(msg.id, !msg.isStarred);
+    }
+    ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+    _exitSelectionMode();
+  }
+
+  /// Bulk delete — deletes all selected messages for the current user.
+  void _bulkDelete() async {
+    if (_selectedMessageIds.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: KinrelColors.darkCard,
+        title: Text(
+          'Delete ${_selectedMessageIds.length} message${_selectedMessageIds.length == 1 ? '' : 's'}?',
+          style: const TextStyle(color: KinrelColors.textWhite),
+        ),
+        content: const Text(
+          'These messages will be deleted for you. Other participants will still see them.',
+          style: TextStyle(color: KinrelColors.textDim),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete for me',
+                style: TextStyle(color: KinrelColors.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final service = ref.read(chatEnhancementServiceProvider);
+    final ids = Set<String>.from(_selectedMessageIds);
+    _exitSelectionMode();
+    for (final id in ids) {
+      await service.deleteForMe(id);
+    }
+    ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+  }
+
+  /// Bulk more actions — shows a bottom sheet with Pin, Copy, Share.
+  void _bulkMore() {
+    if (_selectedMessageIds.isEmpty) return;
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final selected = chatState.messages
+        .where((m) => _selectedMessageIds.contains(m.id))
+        .toList();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.content_copy, color: KinrelColors.orange),
+              title: const Text('Copy text',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              subtitle: const Text('Concatenate text from all selected messages',
+                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              onTap: () {
+                final text = selected
+                    .where((m) => m.messageType == MessageType.text)
+                    .map((m) => m.content)
+                    .join('\n\n');
+                if (text.isNotEmpty) {
+                  Clipboard.setData(ClipboardData(text: text));
+                }
+                Navigator.pop(ctx);
+                _exitSelectionMode();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.push_pin_outlined, color: KinrelColors.orange),
+              title: const Text('Pin messages',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final service = ref.read(chatEnhancementServiceProvider);
+                for (final msg in selected) {
+                  await service.pinMessage(msg.id, !msg.isPinned);
+                }
+                ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+                _exitSelectionMode();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.share_outlined, color: KinrelColors.orange),
+              title: const Text('Share outside Kinrel',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              onTap: () {
+                Navigator.pop(ctx);
+                final text = selected.map((m) => m.content).join('\n\n');
+                Share.share(text);
+                _exitSelectionMode();
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
     );
   }
 

@@ -85,6 +85,10 @@ class ChatMessageList extends ConsumerStatefulWidget {
     /// chatProvider retry/delete; the DM passes its own provider's).
     this.onRetryFailed,
     this.onDeleteFailed,
+    /// v6.0 — Selection mode state (Image 3 reference).
+    this.selectionMode = false,
+    this.selectedMessageIds = const <String>{},
+    this.onToggleSelection,
   });
 
   /// Newest-first list of messages (the same shape chat_provider and
@@ -149,6 +153,18 @@ class ChatMessageList extends ConsumerStatefulWidget {
   /// v3.5 — Delete a failed message (the failed-message sheet's Delete
   /// action). Null = the group path (chatProvider.deleteFailedMessage).
   final void Function(String messageId)? onDeleteFailed;
+
+  /// v6.0 — When true, bubbles render in selection mode (checkbox +
+  /// ring). Tapping a bubble toggles selection instead of opening the
+  /// action sheet.
+  final bool selectionMode;
+
+  /// v6.0 — The set of currently selected message ids. Bubbles whose
+  /// id is in this set render as selected (orange ring + filled checkbox).
+  final Set<String> selectedMessageIds;
+
+  /// v6.0 — Callback to toggle a message's selection state.
+  final void Function(String messageId)? onToggleSelection;
 
   @override
   ConsumerState<ChatMessageList> createState() => _ChatMessageListState();
@@ -326,6 +342,12 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
         // v3.5 — failed-send seam (null = group's built-in path).
         onRetryFailed: widget.onRetryFailed,
         onDeleteFailed: widget.onDeleteFailed,
+        // v6.0 — Selection mode state (Image 3 reference).
+        selectionMode: widget.selectionMode,
+        isSelected: widget.selectedMessageIds.contains(msg.id),
+        onToggleSelection: widget.onToggleSelection != null
+            ? () => widget.onToggleSelection!(msg.id)
+            : null,
       );
 
       // RepaintBoundary per bubble so a single new/updated
@@ -337,7 +359,9 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
       // the DM wrap every bubble (the DM table persists reply
       // columns now, so swipe-to-reply works identically in
       // both chat types).
-      final wrapped = widget.enableSwipeReply
+      // v6.0 — Skip SwipeToReply in selection mode so taps don't
+      // conflict with the selection toggle gesture.
+      final wrapped = widget.enableSwipeReply && !widget.selectionMode
           ? SwipeToReply(
               key: ValueKey(msg.id),
               messageId: msg.id,
