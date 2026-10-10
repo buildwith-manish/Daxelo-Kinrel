@@ -2,12 +2,10 @@
 //
 // DAXELO KINREL — Chat Module
 //
-// v2 — Tier 1 features: adds ScheduledMessages + Drafts + Saved
-// Messages services/controllers to the existing chat module. The
-// existing ChatService, ChatGateway, ChatPushScheduler, MediaService,
-// StreakService, ChatThrottlerService are unchanged in behavior;
-// ChatService.sendMessage and ChatPushScheduler are extended to pass
-// through the new silent + caption + view-once + HD + document fields.
+// v3 — Tier 2 features: adds GroupAdminService + GroupAdminController +
+// JoinViaLinkController. Extends ChatThrottlerService with slow-mode
+// support (loads Family.slowModeSeconds via Prisma + caches 60s).
+// Extends ChatService.sendMessage with isAnonymousAdmin + topicId.
 
 import { Module } from '@nestjs/common';
 import { ChatController } from './chat.controller';
@@ -23,6 +21,9 @@ import { ScheduledMessagesController } from './scheduled-messages.controller';
 import { DraftsService } from './drafts.service';
 import { DraftsController } from './drafts.controller';
 import { SavedMessagesController } from './saved-messages.controller';
+// Tier 2 features:
+import { GroupAdminService } from './group-admin.service';
+import { GroupAdminController, JoinViaLinkController } from './group-admin.controller';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { FcmModule } from '../notifications/fcm.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
@@ -39,6 +40,9 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     ScheduledMessagesController,
     DraftsController,
     SavedMessagesController,
+    // Tier 2 feature controllers:
+    GroupAdminController,
+    JoinViaLinkController,
   ],
   providers: [
     ChatService,
@@ -50,7 +54,9 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     // Tier 1 feature services:
     ScheduledMessagesService,
     DraftsService,
+    // Tier 2 feature services:
+    GroupAdminService,
   ],
-  exports: [ChatService, StreakService, MediaService, ChatThrottlerService],
+  exports: [ChatService, StreakService, MediaService, ChatThrottlerService, GroupAdminService],
 })
 export class ChatModule {}

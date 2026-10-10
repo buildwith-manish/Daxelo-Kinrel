@@ -648,6 +648,22 @@ model Family {
   createdBy       String? // User ID who created this family
   deletedAt       DateTime? // Soft-delete: archived for 30 days before permanent deletion
 
+  // ── Tier 2 Feature 2.6: Slow Mode ─────────────────────────────────
+  // When > 0, non-admins can send at most 1 message every slowModeSeconds.
+  // Admins/creators bypass slow mode. 0 = off. Valid: 0, 10, 30, 60, 300, 600, 3600.
+  slowModeSeconds Int      @default(0)
+
+  // ── Tier 2 Feature 2.11: Group Description ────────────────────────
+  // The base "description" column already exists on Family (line ~630).
+  // These two columns track the LAST EDITOR so the chat header can
+  // show "Edited by X at Y".
+  descriptionEditedBy String?
+  descriptionEditedAt DateTime?
+
+  // ── Tier 2 Feature 2.12: Group sticker pack + custom reactions ───
+  defaultStickerPackId String?
+  customReactions      Json     @default("[]")
+
   members          FamilyMember[]
   persons          Person[]
   invitations      Invitation[]
@@ -3943,6 +3959,15 @@ model ChatMessage {
   /// Page count for PDF documents. Null for non-PDF or unknown.
   documentPages Int?
 
+  // ── Tier 2 Feature 2.7: Anonymous Admin Messages ─────────────────
+  /// True when an admin chose to send as "Admin" (hides the admin's name).
+  isAnonymousAdmin Boolean @default(false)
+
+  // ── Tier 2 Feature 2.5: Forum topics ────────────────────────────
+  /// Topic this message belongs to (null = General). Set when the family
+  /// has topics enabled; ChatMessage.listMessages filters by topicId.
+  topicId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
@@ -4260,4 +4285,248 @@ model UserCoinBalance {
   @@id([userId, familyId])
   @@index([familyId, balance])
   @@map("user_coin_balances")
+}
+
+// ── Tier 2 Feature 2.8: Group Admin Audit Log ────────────────────────
+//
+// Records every admin action so admins can review group activity via
+// the "Admin actions" screen in group info. Writes go through the
+// SECURITY DEFINER RPC fn_log_group_audit (defined in
+// 20261020130000_tier2_admin_audit_log.sql).
+model GroupAuditLog {
+  id              String   @id
+  familyId        String
+  actorUserId     String
+  actionType      String   // member_joined | slow_mode_set | invite_link_created | ...
+  targetUserId    String?
+  targetMessageId String?
+  details         Json     @default("[]")
+  createdAt       DateTime @default(now()) @db.Timestamptz
+
+  @@index([familyId, createdAt])
+  @@index([actorUserId])
+  @@index([targetUserId])
+  @@map("GroupAuditLog")
+}
+
+// ── Tier 2 Feature 2.9: Group Invite Links ───────────────────────────
+model GroupInviteLink {
+  id              String    @id
+  familyId        String
+  token           String    @unique
+  createdBy       String
+  label           String?
+  expiresAt      DateTime? @db.Timestamptz
+  maxUses        Int?
+  useCount       Int       @default(0)
+  requireApproval Boolean   @default(false)
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  revokedAt       DateTime? @db.Timestamptz
+  updatedAt       DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([familyId])
+  @@map("GroupInviteLink")
+}
+
+// ── Tier 2 Feature 2.10: Join Requests ───────────────────────────────
+model GroupJoinRequest {
+  id              String    @id
+  familyId        String
+  requesterUserId String
+  status          String    @default("pending") // pending | approved | rejected
+  requestedAt     DateTime  @default(now()) @db.Timestamptz
+  decidedBy       String?
+  decidedAt      DateTime? @db.Timestamptz
+  viaInviteToken  String?
+  details         Json      @default("[]")
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([familyId])
+  @@index([requesterUserId])
+  @@map("GroupJoinRequest")
+}
+
+// ── Tier 2 Feature 2.5: Forum Topics ─────────────────────────────────
+model ChatTopic {
+  id            String    @id
+  familyId      String
+  name          String
+  emoji         String?
+  iconUrl       String?
+  createdBy     String
+  isLocked      Boolean   @default(false)
+  isGeneral     Boolean   @default(false)
+  lastMessageAt DateTime? @db.Timestamptz
+  createdAt     DateTime  @default(now()) @db.Timestamptz
+  updatedAt     DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([familyId])
+  @@map("ChatTopic")
+}
+
+// ── Tier 2 Feature 2.2: Channels (broadcast, one-to-many) ────────────
+model Channel {
+  id              String    @id
+  name            String
+  handle          String    @unique
+  description     String?
+  avatarUrl       String?
+  ownerId         String
+  isPublic        Boolean   @default(true)
+  subscriberCount Int       @default(0)
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([ownerId])
+  @@map("Channel")
+}
+
+model ChannelSubscriber {
+  id        String   @id
+  channelId String
+  userId    String
+  joinedAt  DateTime @default(now()) @db.Timestamptz
+  muted     Boolean  @default(false)
+
+  @@unique([channelId, userId])
+  @@index([channelId])
+  @@index([userId])
+  @@map("ChannelSubscriber")
+}
+
+model ChannelPost {
+  id            String    @id
+  channelId     String
+  senderId      String
+  content       String    @default("")
+  messageType   String    @default("text")
+  mediaUrl      String?
+  mediaType     String?
+  caption       String?
+  forwardedFrom String?
+  replyToId     String?
+  editedAt      DateTime? @db.Timestamptz
+  viewsCount    Int       @default(0)
+  createdAt     DateTime  @default(now()) @db.Timestamptz
+  updatedAt     DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([channelId, createdAt])
+  @@index([senderId])
+  @@map("ChannelPost")
+}
+
+model ChannelReaction {
+  id        String   @id
+  postId    String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@map("ChannelReaction")
+}
+
+// ── Tier 2 Feature 2.3: Communities (umbrella over multiple groups) ─
+// Named FamilyCommunity (not Community) to avoid collision with the
+// existing social-network Community table.
+model FamilyCommunity {
+  id                   String    @id
+  name                 String
+  description          String?
+  avatarUrl            String?
+  ownerUserId          String
+  announcementChannelId String?
+  createdAt            DateTime  @default(now()) @db.Timestamptz
+  updatedAt            DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([ownerUserId])
+  @@map("FamilyCommunity")
+}
+
+model FamilyCommunityGroup {
+  id          String   @id
+  communityId String
+  familyId    String
+  joinedAt    DateTime @default(now()) @db.Timestamptz
+
+  @@unique([familyId])
+  @@index([communityId])
+  @@map("FamilyCommunityGroup")
+}
+
+model FamilyCommunityAdmin {
+  id          String   @id
+  communityId String
+  userId      String
+  role        String   @default("admin") // owner | admin
+  addedAt     DateTime @default(now()) @db.Timestamptz
+
+  @@unique([communityId, userId])
+  @@index([communityId])
+  @@index([userId])
+  @@map("FamilyCommunityAdmin")
+}
+
+// ── Tier 2 Feature 2.4: Broadcast Lists ──────────────────────────────
+model BroadcastList {
+  id            String   @id
+  ownerId       String
+  name          String
+  memberUserIds Json     @default("[]") // array of userId strings, max 256
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  updatedAt     DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([ownerId])
+  @@map("BroadcastList")
+}
+
+model BroadcastSend {
+  id               String   @id
+  broadcastListId String
+  messageId        String
+  recipientUserId  String
+  status           String   @default("sent") // sent | failed | blocked
+  sentAt           DateTime @default(now()) @db.Timestamptz
+
+  @@index([broadcastListId])
+  @@index([recipientUserId])
+  @@map("BroadcastSend")
+}
+
+// ── Tier 2 Feature 2.1: Voice & Video Calls — SCHEMA ONLY ─────────────
+// The NestJS calls/ module + Flutter CallScreen + signaling gateway are
+// tracked as follow-up work — implementing real-time WebRTC requires a
+// LiveKit or mediasoup signaling server.
+model Call {
+  id            String    @id
+  type          String    // audio | video
+  scope         String    // dm | family
+  familyId      String?
+  startedBy     String
+  startedAt     DateTime  @default(now()) @db.Timestamptz
+  endedAt       DateTime? @db.Timestamptz
+  status        String    @default("active") // active | ended | missed | cancelled | failed
+  failureReason String?
+  createdAt      DateTime  @default(now()) @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([familyId])
+  @@index([startedBy])
+  @@map("Call")
+}
+
+model CallParticipant {
+  id         String    @id
+  callId     String
+  userId     String
+  joinedAt   DateTime  @default(now()) @db.Timestamptz
+  leftAt     DateTime? @db.Timestamptz
+  deviceInfo Json      @default("[]")
+
+  @@unique([callId, userId])
+  @@index([callId])
+  @@index([userId])
+  @@map("CallParticipant")
 }

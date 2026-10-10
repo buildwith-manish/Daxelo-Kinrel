@@ -67,6 +67,18 @@ export class SendChatMessageDto {
   @IsInt()
   @Min(0)
   documentPages?: number;
+
+  /// Tier 2 Feature 2.7: anonymous admin — only admins/creators can use.
+  /// The server silently downgrades to false if a non-admin passes it.
+  @IsOptional()
+  @IsBoolean()
+  isAnonymousAdmin?: boolean;
+
+  /// Tier 2 Feature 2.5: forum topic ID — null = General topic.
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  topicId?: string;
 }
 
 export class MarkAsReadDto {

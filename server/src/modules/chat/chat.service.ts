@@ -41,6 +41,20 @@ export class ChatService {
     return membership;
   }
 
+  /**
+   * Tier 2 Feature 2.6: public role lookup. Returns the user's role in
+   * the family ('member' | 'admin' | 'creator') or null if not a member.
+   * Used by ChatGateway to decide whether slow-mode should apply (admins
+   * bypass slow-mode).
+   */
+  async getMembershipRole(familyId: string, userId: string): Promise<string | null> {
+    const membership = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId } },
+      select: { role: true },
+    });
+    return membership?.role ?? null;
+  }
+
   /** Resolve the User's display name + initials for the chat message row. */
   private async resolveSender(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -136,10 +150,24 @@ export class ChatService {
       documentName?: string;
       /// Tier 1 Feature 1.11: document page count (for PDFs).
       documentPages?: number;
+      /// Tier 2 Feature 2.7: anonymous admin — only admins/creators can use.
+      isAnonymousAdmin?: boolean;
+      /// Tier 2 Feature 2.5: forum topic — null = General.
+      topicId?: string;
     } = {},
   ) {
-    await this.assertMember(familyId, userId);
+    const membership = await this.assertMember(familyId, userId);
     const { displayName, initials } = await this.resolveSender(userId);
+
+    // ── Tier 2 Feature 2.7: Anonymous admin messages ────────────────
+    // Only admins/creators can send anonymous-admin messages. If a non-
+    // admin passes isAnonymousAdmin=true, we silently downgrade to
+    // false (rather than throwing — matches WhatsApp's "no error, just
+    // ignore the flag" UX for unsupported client behavior).
+    let isAnonymousAdmin = opts.isAnonymousAdmin ?? false;
+    if (isAnonymousAdmin && membership.role !== 'admin' && membership.role !== 'creator') {
+      isAnonymousAdmin = false;
+    }
 
     // If replyToId given, fetch parent for denormalized reply fields.
     let replyToContent: string | null = null;
@@ -190,8 +218,12 @@ export class ChatService {
         familyId,
         senderId: userId,
         senderPersonId: opts.senderPersonId ?? null,
-        senderName: displayName,
-        senderInitials: opts.senderInitials ?? initials,
+        // Tier 2 Feature 2.7: when isAnonymousAdmin=true, the sender's
+        // DISPLAY name is overwritten with 'Admin' so the bubble shows
+        // "Admin" instead of the admin's real name. The senderId stays
+        // the user's id so audit + ownership checks still work.
+        senderName: isAnonymousAdmin ? 'Admin' : displayName,
+        senderInitials: isAnonymousAdmin ? 'A' : (opts.senderInitials ?? initials),
         content,
         messageType: opts.messageType ?? 'text',
         replyToId: opts.replyToId ?? null,
@@ -210,9 +242,19 @@ export class ChatService {
         qualityTier: opts.qualityTier ?? 'standard',
         documentName: opts.documentName ?? null,
         documentPages: opts.documentPages ?? null,
+        // Tier 2 Feature 2.7: anonymous admin flag.
+        isAnonymousAdmin,
+        // Tier 2 Feature 2.5: forum topics — null = General topic.
+        topicId: opts.topicId ?? null,
       },
       include: { reactions: true },
     });
+
+    // ── Tier 2 Feature 2.8: Admin audit log for anonymous messages ──
+    // Fire-and-forget — failures here don't break the send.
+    if (isAnonymousAdmin) {
+      this.prisma.$queryRaw`SELECT fn_log_group_audit(${familyId}, ${userId}, 'anonymous_admin_message_sent', NULL, ${id}, '[]'::jsonb)`.catch(() => {});
+    }
 
     // ── Feature 1: Analytics instrumentation ────────────────────────────
     // Fire-and-forget. Track the message_sent event + voice_note_sent if

@@ -131,9 +131,23 @@ export class ChatGateway {
     const familyId = data.familyId;
 
     // Feature 5: per-user, per-chat rate limit — max 30 messages/min.
+    // Tier 2 Feature 2.6: also applies the family's slow-mode window
+    // (1 message per slowModeSeconds) for non-admins.
     // If exceeded, emit a 'chat:rateLimitExceeded' event so the Flutter
     // client can show feedback (not just silently drop the message).
-    const rateLimit = this.chatThrottler.check('message_send', userId, familyId);
+    //
+    // The admin flag is resolved lazily here (one DB call per send) — the
+    // result is cached per-socket in a future optimization. For now, the
+    // cost is acceptable (one row lookup by composite PK).
+    let isAdmin = false;
+    try {
+      const membership = await this.chatService.getMembershipRole(familyId, userId);
+      isAdmin = membership === 'admin' || membership === 'creator';
+    } catch {
+      // Membership lookup failed — let the sendMessage call below fail
+      // with the proper ForbiddenException. Don't pre-emptively block.
+    }
+    const rateLimit = await this.chatThrottler.check('message_send', userId, familyId, isAdmin);
     if (!rateLimit.allowed) {
       this.logger.warn(
         `Rate limit exceeded: message_send by ${userId} in ${familyId} (retry in ${rateLimit.retryAfterMs}ms)`,
@@ -166,6 +180,9 @@ export class ChatGateway {
         qualityTier: data.qualityTier,
         documentName: data.documentName,
         documentPages: data.documentPages,
+        // Tier 2 features: anonymous admin + topic ID.
+        isAnonymousAdmin: data.isAnonymousAdmin,
+        topicId: data.topicId,
       });
 
       // Feature 3: record the streak event AFTER the message is persisted.
@@ -385,7 +402,7 @@ export class ChatGateway {
     // Feature 5: typing spam rate limit — max 1 emit per 2 seconds (per user,
     // global across all chats). Silently drop excess events (no error emit —
     // typing indicators are best-effort + shouldn't generate user-visible noise).
-    const rateLimit = this.chatThrottler.check('typing', userId, data.familyId);
+    const rateLimit = await this.chatThrottler.check('typing', userId, data.familyId);
     if (!rateLimit.allowed) {
       return; // silent drop — the 3s auto-clear timer handles the rest
     }
@@ -611,7 +628,7 @@ export class ChatGateway {
     }
 
     // Feature 5: reaction spam rate limit — max 20/min per user per chat.
-    const rateLimit = this.chatThrottler.check('reaction', userId, data.familyId);
+    const rateLimit = await this.chatThrottler.check('reaction', userId, data.familyId);
     if (!rateLimit.allowed) {
       this.logger.warn(
         `Rate limit exceeded: reaction by ${userId} in ${data.familyId} (retry in ${rateLimit.retryAfterMs}ms)`,

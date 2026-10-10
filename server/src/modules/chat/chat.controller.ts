@@ -74,6 +74,8 @@ export class ChatController {
       qualityTier: body.qualityTier,
       documentName: body.documentName,
       documentPages: body.documentPages,
+      isAnonymousAdmin: body.isAnonymousAdmin,
+      topicId: body.topicId,
     });
   }
 
