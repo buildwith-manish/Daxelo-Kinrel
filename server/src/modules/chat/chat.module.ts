@@ -54,6 +54,8 @@ import { BotsService } from './bots.service';
 import { BotsController } from './bots.controller';
 import { BotMiniAppsService } from './bot-mini-apps.service';
 import { BotMiniAppsController } from './bot-mini-apps.controller';
+// Tier 5 follow-up: chat export runner (the actual file-builder).
+import { ChatExportRunnerService } from './chat-export-runner.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { FcmModule } from '../notifications/fcm.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
@@ -116,6 +118,8 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     TranslationsService,
     BotsService,
     BotMiniAppsService,
+    // Tier 5 follow-up:
+    ChatExportRunnerService,
   ],
   exports: [
     ChatService,

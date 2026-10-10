@@ -1245,6 +1245,24 @@ export class ChatService {
   }> {
     await this.assertMember(familyId, userId);
 
+    // ── Tier 3 Feature 3.5: Read receipts privacy suppression ───────
+    // When the READER has readReceiptsEnabled=false, suppress the
+    // readBy writes (the sender can't see they read it). Symmetric:
+    // when the SENDER has readReceiptsEnabled=false, the reader's
+    // read state is also suppressed on their messages (matches
+    // WhatsApp — both directions are gated). We check the reader's
+    // flag here; per-sender flag is checked in the loop below.
+    const readerHasReceiptsEnabled = await this.privacyService.hasReadReceiptsEnabled(userId);
+    if (!readerHasReceiptsEnabled) {
+      // The reader disabled read receipts — silently no-op (the
+      // messages are still considered "read" by the client's local
+      // state, but the server doesn't persist a readBy entry).
+      this.logger.debug(
+        `markAsRead suppressed for ${userId} (readReceiptsEnabled=false)`,
+      );
+      return { markedReadIds: [], senderIds: [] };
+    }
+
     // Find unread messages NOT sent by this user.
     const where: Record<string, unknown> = {
       familyId,
@@ -1265,8 +1283,25 @@ export class ChatService {
       return { markedReadIds: [], senderIds: [] };
     }
 
+    // ── Tier 3 Feature 3.5: per-sender suppression ─────────────────
+    // Filter out messages whose SENDER has readReceiptsEnabled=false
+    // (the sender opted out, so the reader's read state isn't shared
+    // back to them).
+    const senderFlags = new Map<string, boolean>();
+    const uniqueSenderIds = [...new Set(unread.map((m) => m.senderId))];
+    await Promise.all(
+      uniqueSenderIds.map(async (sid) => {
+        senderFlags.set(sid, await this.privacyService.hasReadReceiptsEnabled(sid));
+      }),
+    );
+    const allowedUnread = unread.filter((m) => senderFlags.get(m.senderId) !== false);
+    if (allowedUnread.length === 0) {
+      // Every unread message's sender disabled read receipts — no-op.
+      return { markedReadIds: [], senderIds: [] };
+    }
+
     const now = new Date();
-    const ids = unread.map((m) => m.id);
+    const ids = allowedUnread.map((m) => m.id);
 
     // 1. Insert ChatReadReceipt rows (skip duplicates via onConflict).
     // Prisma doesn't have native upsertMany, so we use createMany with
@@ -1305,7 +1340,7 @@ export class ChatService {
     );
 
     // Unique sender IDs so the gateway can emit one readReceipt per sender.
-    const senderIds = [...new Set(unread.map((m) => m.senderId))];
+    const senderIds = [...new Set(allowedUnread.map((m) => m.senderId))];
 
     this.logger.debug(
       `markAsRead: ${ids.length} message(s) marked read for user ${userId} in family ${familyId}`,
