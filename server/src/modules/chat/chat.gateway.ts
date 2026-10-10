@@ -159,6 +159,13 @@ export class ChatGateway {
         // client sends the same tempId twice, the server returns the
         // existing message.
         clientMessageId: data.tempId,
+        // Tier 1 features: pass through the new fields.
+        silent: data.silent,
+        caption: data.caption,
+        isViewOnce: data.isViewOnce,
+        qualityTier: data.qualityTier,
+        documentName: data.documentName,
+        documentPages: data.documentPages,
       });
 
       // Feature 3: record the streak event AFTER the message is persisted.

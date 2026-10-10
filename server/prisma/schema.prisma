@@ -3916,6 +3916,33 @@ model ChatMessage {
   /// for this message. Prevents duplicate pushes on the next cron run.
   notified Boolean @default(false)
 
+  // ── Tier 1 Feature 1.4: Send Without Sound ─────────────────────────
+  /// True when the sender chose "send silently" — the FCM push is delivered
+  /// at low priority with no sound + no vibration. Default false.
+  silent Boolean @default(false)
+
+  // ── Tier 1 Feature 1.14: Caption on Media ─────────────────────────
+  /// Caption attached to a photo / video / document message. Renders below
+  /// the media inside the bubble. Null for non-media message types.
+  caption String?
+
+  // ── Tier 1 Feature 1.5: View-Once Media ────────────────────────────
+  /// True when the media disappears after one view. Default false.
+  isViewOnce Boolean @default(false)
+  /// Timestamp of the first view. Null until opened by the recipient.
+  /// Used by the nightly GC to delete the underlying media file 24h after.
+  viewedAt DateTime?
+
+  // ── Tier 1 Feature 1.6: HD Photo Quality Tier ─────────────────────
+  /// 'standard' (1600px, ~400KB) or 'hd' (original, JPEG 90%). Default standard.
+  qualityTier String @default("standard")
+
+  // ── Tier 1 Feature 1.11: Document Sharing ─────────────────────────
+  /// Display name for document messages (PDF/DOCX/etc.). Null for non-doc types.
+  documentName String?
+  /// Page count for PDF documents. Null for non-PDF or unknown.
+  documentPages Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
@@ -4124,6 +4151,70 @@ model ChatSettings {
   @@unique([userId, familyId])
   @@index([familyId])
   @@map("ChatSettings")
+}
+
+// ── Tier 1 Feature 1.2: Scheduled Messages ──────────────────────────
+//
+// Holds a message the user composed now but wants the server to deliver
+// at a future timestamp. The NestJS ChatPushScheduler picks up rows
+// where status='pending' AND scheduledFor <= now() every minute (and
+// the DB-side pg_cron job fn_send_scheduled_messages also fires as a
+// fallback). When delivered, the row is flipped to 'sent' + the actual
+// ChatMessage/DirectMessage id is stored in sentMessageId.
+//
+// A scheduled message targets EITHER a family chat (familyId set,
+// receiverId null) OR a DM (receiverId set, familyId null) — the
+// CHECK constraint enforces.
+
+model ScheduledMessage {
+  id             String   @id
+  senderId       String
+  familyId       String?  // null when this is a DM
+  receiverId     String? // null when this is a family-group message
+  content        String   @default("")
+  messageType    String   @default("text")
+  mediaUrl       String?
+  mediaType      String?
+  mentions       Json     @default("[]")
+  replyToId      String?
+  scheduledFor   DateTime
+  status         String   @default("pending") // pending | sent | cancelled | failed
+  sentMessageId  String?
+  failureReason  String?
+  createdAt      DateTime @default(now())
+  sentAt         DateTime?
+  updatedAt      DateTime @default(now()) @updatedAt
+
+  @@index([senderId])
+  @@index([familyId])
+  @@index([receiverId])
+  @@index([scheduledFor])
+  @@map("ScheduledMessage")
+}
+
+// ── Tier 1 Feature 1.3: Auto-saved Drafts ───────────────────────────
+//
+// Lets a user type a message, leave the chat, and come back to find the
+// text still there. Multi-device sync via Supabase Realtime publication
+// on this table. Targets EITHER familyId (group) OR receiverId (DM).
+//
+// One row per (userId, familyId-or-receiverId). Updated via upsert in
+// fn_save_draft; cleared (deleted) when the draft text becomes empty.
+
+model ChatDraft {
+  id         String   @id
+  userId     String
+  familyId   String?  // null when this is a DM draft
+  receiverId String? // null when this is a family-group draft
+  draftText  String   @default("")
+  replyToId  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@unique([userId, familyId, receiverId])
+  @@index([userId])
+  @@index([updatedAt])
+  @@map("ChatDraft")
 }
 
 // ── Phase 3.7 — Coin Economy ──────────────────────────────────────────

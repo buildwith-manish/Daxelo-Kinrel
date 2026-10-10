@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, MaxLength, IsInt, IsIn, Min } from 'class-validator';
 
 export class SendChatMessageDto {
   @IsString()
@@ -30,6 +30,43 @@ export class SendChatMessageDto {
   @IsString()
   @MaxLength(100)
   tempId?: string;
+
+  /// Tier 1 Feature 1.4: silent send. When true, FCM push for this
+  /// message is delivered at low priority with no sound + no vibration.
+  @IsOptional()
+  @IsBoolean()
+  silent?: boolean;
+
+  /// Tier 1 Feature 1.14: caption for media messages (photo / video /
+  /// document / gif). Renders below the media inside the bubble.
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  caption?: string;
+
+  /// Tier 1 Feature 1.5: view-once media. When true, the underlying media
+  /// is deleted 24h after the first view.
+  @IsOptional()
+  @IsBoolean()
+  isViewOnce?: boolean;
+
+  /// Tier 1 Feature 1.6: photo quality tier — 'standard' or 'hd'.
+  @IsOptional()
+  @IsString()
+  @IsIn(['standard', 'hd'])
+  qualityTier?: string;
+
+  /// Tier 1 Feature 1.11: document display name (PDF/DOCX/etc.).
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  documentName?: string;
+
+  /// Tier 1 Feature 1.11: document page count (for PDFs).
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  documentPages?: number;
 }
 
 export class MarkAsReadDto {

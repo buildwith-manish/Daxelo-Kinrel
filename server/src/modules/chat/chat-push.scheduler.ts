@@ -73,6 +73,17 @@ export class ChatPushScheduler {
           content: true,
           createdAt: true,
           readBy: true,
+          // Tier 1 Feature 1.4: load the silent flag so we can route
+          // silent messages through the low-priority FCM path.
+          silent: true,
+          // Tier 1 Feature 1.14: load the caption so the preview can
+          // show "📷 Photo" instead of an empty string for photo messages.
+          caption: true,
+          // Tier 1 Feature 1.5: load the view-once flag so we don't push
+          // a preview of view-once media (security: the preview would
+          // leak the content before the recipient opens it).
+          isViewOnce: true,
+          messageType: true,
         },
         orderBy: { createdAt: 'asc' },
       });
@@ -105,6 +116,9 @@ export class ChatPushScheduler {
           messageId: string;
           content: string;
           createdAt: Date;
+          silent: boolean;
+          isViewOnce: boolean;
+          messageType: string;
         }>
       >();
 
@@ -147,6 +161,9 @@ export class ChatPushScheduler {
             messageId: msg.id,
             content: msg.content,
             createdAt: msg.createdAt,
+            silent: msg.silent,
+            isViewOnce: msg.isViewOnce,
+            messageType: msg.messageType,
           });
           perRecipient.set(m.userId, list);
         }
@@ -229,9 +246,40 @@ export class ChatPushScheduler {
         }
 
         try {
+          // Tier 1 Feature 1.4: silent send — if EVERY message in the
+          // batch is silent, deliver the push at low priority with no
+          // sound. If ANY message is non-silent, use normal priority
+          // (a single loud message justifies a loud notification).
+          // This matches WhatsApp's "send without sound" behavior: a
+          // silent message doesn't silently downgrade a batch that
+          // also contains normal messages.
+          const anyNonSilent = messages.some((m) => !m.silent);
+          const allSilent = !anyNonSilent;
+
+          // Tier 1 Feature 1.5: view-once media — never leak the
+          // content preview. Replace the body with a generic
+          // placeholder ("📷 Photo") so the recipient knows they have
+          // a new message but the content stays hidden until they
+          // open it.
+          let safeBody = body;
+          if (messages.some((m) => m.isViewOnce)) {
+            safeBody = '📎 View-once media';
+          } else if (messages.some((m) => m.messageType === 'photo')) {
+            // Tier 1 Feature 1.14: for photo messages with a caption,
+            // use the caption as the preview (matches WhatsApp).
+            const photoMsg = messages.find((m) => m.messageType === 'photo');
+            if (photoMsg?.content && photoMsg.content.trim().length > 0) {
+              safeBody = '📷 ' + photoMsg.content.slice(0, 60);
+            } else {
+              safeBody = '📷 Photo';
+            }
+          }
+
           const sent = await this.fcmService.sendToUser(recipientUserId, {
             title,
-            body,
+            body: safeBody,
+            // Tier 1 Feature 1.4: propagate the silent flag.
+            silent: allSilent,
             data: {
               type: 'chat_message_batch',
               // Feature 2: deep-link payload. The Flutter

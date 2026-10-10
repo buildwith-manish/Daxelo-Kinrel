@@ -68,6 +68,12 @@ export class ChatController {
       replyToId: body.replyToId,
       senderPersonId: body.senderPersonId,
       senderInitials: body.senderInitials,
+      silent: body.silent,
+      caption: body.caption,
+      isViewOnce: body.isViewOnce,
+      qualityTier: body.qualityTier,
+      documentName: body.documentName,
+      documentPages: body.documentPages,
     });
   }
 

@@ -34,6 +34,9 @@ import '../../../core/utils/app_time.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/direct_message_provider.dart';
 import '../providers/chat_provider.dart';
+// Tier 1 features:
+import '../data/saved_messages_provider.dart';
+import 'widgets/saved_messages_inbox_row.dart';
 
 class ChatInboxScreen extends ConsumerStatefulWidget {
   const ChatInboxScreen({super.key});
@@ -173,8 +176,14 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
                     }
                   }
                   // ── Section 2: Direct Messages ──
-                  if (activeDms.isNotEmpty) {
+                  // Always render the Saved Messages row at the top of the
+                  // DM section (matches WhatsApp — the row is always there
+                  // even when no DMs exist yet). Tapping it opens the DM
+                  // screen with otherUserId = currentUserId (a self-DM).
+                  if (activeDms.isNotEmpty || true) {
                     rows.add(_buildSectionHeader('Direct Messages'));
+                    // Tier 1 Feature 1.1: Saved Messages row at the top.
+                    rows.add(const SavedMessagesInboxRow());
                     for (final dm in activeDms) {
                       rows.add(_DmChatRow(
                         item: dm,

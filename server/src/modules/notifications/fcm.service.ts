@@ -16,6 +16,10 @@ interface FcmNotification {
   title: string;
   body: string;
   data?: Record<string, string>;
+  /// Tier 1 Feature 1.4: silent send. When true, the FCM push is delivered
+  /// at low priority with no sound + no vibration. The notification still
+  /// appears, but doesn't interrupt the recipient. Default false.
+  silent?: boolean;
 }
 
 interface QueuedNotification {
@@ -161,14 +165,35 @@ export class FcmService implements OnModuleInit {
             body: notification.body,
           },
           data: notification.data || {},
+          // Tier 1 Feature 1.4: silent send — drop priority + clear the
+          // sound + use the passive interruption level on iOS so the
+          // recipient's phone doesn't vibrate or ring. The notification
+          // still appears in the system tray / notification center.
           android: {
-            priority: 'high',
+            // AndroidConfig.priority only accepts 'high' | 'normal'.
+            // For silent notifications, drop to 'normal' (still delivered
+            // but doesn't wake the device). The inner notification.priority
+            // further lowers to 'low' to suppress sound + vibration.
+            priority: notification.silent ? 'normal' : 'high',
+            notification: notification.silent
+              ? {
+                  priority: 'low' as const,
+                  sound: '',
+                  defaultSound: false,
+                  defaultVibrateTimings: false,
+                  tag: notification.data?.type,
+                }
+              : undefined,
           },
           apns: {
             payload: {
               aps: {
-                sound: 'default',
+                sound: notification.silent ? '' : 'default',
                 badge: 1,
+                // iOS 15+ interruptionLevel: 'passive' = doesn't light
+                // up the screen + doesn't make a sound. 'active' is the
+                // default (lights up + sound).
+                interruptionLevel: notification.silent ? 'passive' : 'active',
               },
             },
           },

@@ -118,6 +118,24 @@ export class ChatService {
       /// retries after reconnect safe (the client sends the same ID
       /// twice; the server deduplicates).
       clientMessageId?: string;
+      /// Tier 1 Feature 1.4: silent send. When true, FCM push for this
+      /// message is delivered at low priority with no sound + no
+      /// vibration. Default false.
+      silent?: boolean;
+      /// Tier 1 Feature 1.14: caption for media messages. Renders below
+      /// the photo/video inside the bubble. Null for non-media types.
+      caption?: string;
+      /// Tier 1 Feature 1.5: view-once media. When true, the recipient
+      /// sees a special bubble + the underlying media is deleted 24h
+      /// after the first view.
+      isViewOnce?: boolean;
+      /// Tier 1 Feature 1.6: photo quality tier — 'standard' (1600px)
+      /// or 'hd' (original resolution). Default 'standard'.
+      qualityTier?: string;
+      /// Tier 1 Feature 1.11: document display name (for PDF/DOCX/etc.).
+      documentName?: string;
+      /// Tier 1 Feature 1.11: document page count (for PDFs).
+      documentPages?: number;
     } = {},
   ) {
     await this.assertMember(familyId, userId);
@@ -185,6 +203,13 @@ export class ChatService {
         readBy: [], // no readers yet
         readAt: null,
         notified: false,
+        // Tier 1 features: silent + caption + view-once + HD + document.
+        silent: opts.silent ?? false,
+        caption: opts.caption ?? null,
+        isViewOnce: opts.isViewOnce ?? false,
+        qualityTier: opts.qualityTier ?? 'standard',
+        documentName: opts.documentName ?? null,
+        documentPages: opts.documentPages ?? null,
       },
       include: { reactions: true },
     });
