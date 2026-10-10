@@ -480,7 +480,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
         await sendDirectGroupGameInvite(
           notifier: chatNotifier,
           toUserId: m.user.id,
-          gameType: base.gameType,
+          gameType: base.gameType.routeSegment,
           gameId: base.gameId,
           roomCode: base.roomCode,
           maxPlayers: base.maxPlayers,

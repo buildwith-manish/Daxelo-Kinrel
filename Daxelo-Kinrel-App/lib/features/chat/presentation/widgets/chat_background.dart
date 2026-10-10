@@ -23,7 +23,6 @@
 //   - If no value is stored, we render the default Midnight theme.
 
 import 'dart:ui';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -80,7 +79,7 @@ class ChatBackground extends ConsumerWidget {
 
         // Constellation motif — one cached image-shader tile layer.
         if (isConstellation)
-          Positioned.fill(child: ConstellationPattern()),
+          const Positioned.fill(child: ConstellationPattern()),
 
         // Optional wallpaper image — rendered WITHOUT blur. A 50% dark
         // overlay keeps messages readable over any photo. Image is
@@ -149,7 +148,7 @@ class _RichBackground extends StatelessWidget {
               // tiles in rich mode (above the base gradient, below the
               // accent glow).
               if (theme.id == 'constellation' && !hasImage)
-                Positioned.fill(child: ConstellationPattern()),
+                const Positioned.fill(child: ConstellationPattern()),
 
               // Layer 2: accent corner glow (skipped on low-RAM).
               if (!lowRam)

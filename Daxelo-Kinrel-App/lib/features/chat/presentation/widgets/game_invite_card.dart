@@ -58,7 +58,7 @@ class GameInviteCard extends StatelessWidget {
   final bool isMe;
 
   /// The family id used for the Join/Spectate navigation route
-  /// (/family/<id>/<gameType>/lobby?join=<gameId>). Null disables the
+  /// (`/family/<id>/<gameType>/lobby?join=<gameId>`). Null disables the
   /// action buttons.
   final String? routeFamilyId;
 

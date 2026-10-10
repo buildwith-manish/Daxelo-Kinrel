@@ -292,7 +292,7 @@ final directGroupInboxProvider =
           .neq('userId', myUserId)
           .limit(1)
           .timeout(const Duration(seconds: 5));
-      if ((others as List).isEmpty) continue;
+      if (others.isEmpty) continue;
       final other = others.first as Map<String, dynamic>;
       final otherUserId = other['userId'] as String? ?? '';
       if (otherUserId.isEmpty) continue;
@@ -310,7 +310,7 @@ final directGroupInboxProvider =
             .order('createdAt', ascending: false)
             .limit(1)
             .timeout(const Duration(seconds: 5));
-        if ((lastResp as List).isNotEmpty) {
+        if (lastResp.isNotEmpty) {
           last = ChatMessage.fromJson(
               lastResp.first as Map<String, dynamic>);
         }

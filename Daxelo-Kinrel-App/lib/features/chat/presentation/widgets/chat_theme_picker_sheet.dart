@@ -292,7 +292,7 @@ class _ThemeSwatch extends StatelessWidget {
               // Kin Thread / PR2 T4: the Constellation swatch previews
               // the actual tiled motif (cached image shader).
               if (theme.id == 'constellation')
-                Positioned.fill(child: ConstellationPattern()),
+                const Positioned.fill(child: ConstellationPattern()),
               // Accent glow — only rendered in rich mode.
               if (KinrelFx.rich)
                 Positioned.fill(

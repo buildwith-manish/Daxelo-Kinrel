@@ -1323,7 +1323,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   child: Container(
                     width: 48,
                     height: 48,
-                    decoration: const BoxDecoration(
+                    // PERF note: NOT const — _kChatAvatarGlow is a
+                    // runtime-final list (same reason as the family
+                    // header's avatar decoration).
+                    decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       boxShadow: _kChatAvatarGlow,
                     ),
