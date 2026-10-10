@@ -2,9 +2,9 @@
 //
 // DAXELO KINREL — Chat Module
 //
-// v4 — Tier 3 features: adds ChatFoldersService + ChatReportsService +
-// PrivacyService + their controllers. Extends ChatService with
-// pin/forced-unread/mute-until methods + extended search filters.
+// v5 — Tier 4 features: adds StickerPacksService + EmojiPacksService +
+// their controllers. Extends ChatService with editMessage (text +
+// media swap + edit-history append).
 
 import { Module } from '@nestjs/common';
 import { ChatController } from './chat.controller';
@@ -30,29 +30,33 @@ import { ChatReportsService } from './chat-reports.service';
 import { ChatReportsController } from './chat-reports.controller';
 import { PrivacyService } from './privacy.service';
 import { PrivacyController } from './privacy.controller';
+// Tier 4 features:
+import { StickerPacksService } from './sticker-packs.service';
+import { StickerPacksController } from './sticker-packs.controller';
+import { EmojiPacksService } from './emoji-packs.service';
+import { EmojiPacksController } from './emoji-packs.controller';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { FcmModule } from '../notifications/fcm.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
-  // PrismaModule is global, but importing it explicitly here makes the
-  // dependency clear and lets this module be tested in isolation.
-  // FcmModule provides FcmService for the batched-push scheduler.
-  // AnalyticsModule provides ChatAnalyticsService for event tracking.
   imports: [PrismaModule, FcmModule, AnalyticsModule],
   controllers: [
     ChatController,
-    // Tier 1 feature controllers:
+    // Tier 1:
     ScheduledMessagesController,
     DraftsController,
     SavedMessagesController,
-    // Tier 2 feature controllers:
+    // Tier 2:
     GroupAdminController,
     JoinViaLinkController,
-    // Tier 3 feature controllers:
+    // Tier 3:
     ChatFoldersController,
     ChatReportsController,
     PrivacyController,
+    // Tier 4:
+    StickerPacksController,
+    EmojiPacksController,
   ],
   providers: [
     ChatService,
@@ -61,15 +65,18 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     ChatPushScheduler,
     MediaService,
     ChatThrottlerService,
-    // Tier 1 feature services:
+    // Tier 1:
     ScheduledMessagesService,
     DraftsService,
-    // Tier 2 feature services:
+    // Tier 2:
     GroupAdminService,
-    // Tier 3 feature services:
+    // Tier 3:
     ChatFoldersService,
     ChatReportsService,
     PrivacyService,
+    // Tier 4:
+    StickerPacksService,
+    EmojiPacksService,
   ],
   exports: [
     ChatService,
@@ -78,6 +85,8 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     ChatThrottlerService,
     GroupAdminService,
     PrivacyService,
+    StickerPacksService,
+    EmojiPacksService,
   ],
 })
 export class ChatModule {}

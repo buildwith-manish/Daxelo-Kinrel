@@ -300,6 +300,25 @@ export class ChatController {
     return this.chatService.pinMessage(familyId, userId, messageId);
   }
 
+  // ── Tier 4 Features 4.2 + 4.3: Edit message ─────────────────────────
+
+  /**
+   * PATCH /families/:familyId/chat/messages/:messageId
+   * Edit the caller's own message. Captures the previous content +
+   * mediaUrl + caption into editHistory, then applies the new values.
+   * Body: { newContent?, newMediaUrl?, newCaption? } — null/undefined
+   * for any field means "leave unchanged".
+   */
+  @Post('messages/:messageId/edit')
+  async editMessage(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+    @Param('messageId') messageId: string,
+    @Body() body: { newContent?: string | null; newMediaUrl?: string | null; newCaption?: string | null },
+  ) {
+    return this.chatService.editMessage(familyId, userId, messageId, body);
+  }
+
   /**
    * DELETE /families/:familyId/chat/messages/:messageId/pin
    * Unpin a message. Clears isPinned + pinnedBy + pinnedAt.

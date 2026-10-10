@@ -701,6 +701,93 @@ export class ChatService {
     });
   }
 
+  // ── Tier 4 Features 4.2 + 4.3: Edit message (text + media swap + history) ──
+  //
+  // Lets a sender edit their own message. Captures the previous (content,
+  // mediaUrl, caption) into editHistory BEFORE the update so the array
+  // grows monotonically. Sets isEdited=true + editedAt=now().
+  //
+  // Only the original sender can edit. Deleted-for-everyone messages
+  // can't be edited (matches WhatsApp — once you "delete for everyone"
+  // a message, you can't bring it back via the edit path).
+  //
+  // Returns the updated message so the gateway can broadcast it.
+  async editMessage(
+    familyId: string,
+    userId: string,
+    messageId: string,
+    params: {
+      newContent?: string | null;
+      newMediaUrl?: string | null;
+      newCaption?: string | null;
+    },
+  ) {
+    await this.assertMember(familyId, userId);
+
+    const existing = await this.prisma.chatMessage.findUnique({
+      where: { id: messageId },
+      select: {
+        senderId: true,
+        familyId: true,
+        content: true,
+        mediaUrl: true,
+        caption: true,
+        isDeletedForEveryone: true,
+        editHistory: true,
+      },
+    });
+    if (!existing) {
+      throw new NotFoundException('Message not found');
+    }
+    if (existing.familyId !== familyId) {
+      throw new ForbiddenException('Message belongs to a different family');
+    }
+    if (existing.senderId !== userId) {
+      throw new ForbiddenException('Only the sender can edit their message');
+    }
+    if (existing.isDeletedForEveryone) {
+      throw new BadRequestException('Cannot edit a deleted message');
+    }
+
+    // Build the previous-state snapshot (stored in editHistory).
+    // Note: editHistory grows monotonically — each edit appends one entry.
+    const now = new Date();
+    const oldSnapshot: any = {
+      content: existing.content,
+      mediaUrl: existing.mediaUrl,
+      caption: existing.caption,
+      editedAt: now.toISOString(),
+    };
+    const newHistory = [
+      ...((existing.editHistory as any[]) ?? []),
+      oldSnapshot,
+    ];
+
+    // Compute the new field values — null params mean "leave unchanged".
+    const data: any = {
+      isEdited: true,
+      editedAt: now,
+      editHistory: newHistory,
+      updatedAt: now,
+    };
+    if (params.newContent !== null && params.newContent !== undefined) {
+      data.content = params.newContent;
+    }
+    if (params.newMediaUrl !== null && params.newMediaUrl !== undefined) {
+      data.mediaUrl = params.newMediaUrl;
+    }
+    if (params.newCaption !== null && params.newCaption !== undefined) {
+      // Empty string clears the caption (matches WhatsApp behavior).
+      data.caption = params.newCaption === '' ? null : params.newCaption;
+    }
+
+    return this.prisma.chatMessage.update({
+      where: { id: messageId },
+      data,
+      include: { reactions: true },
+    });
+  }
+
   // ── Feature 6: Per-chat notification preferences ──────────────────────
   //
   // Mute/unmute a chat. The ChatPushScheduler checks ChatSettings.isMuted

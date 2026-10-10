@@ -102,40 +102,44 @@ enum SparqIntensity {
 // ── Core Models ──────────────────────────────────────────────────────
 
 model User {
-  id                String    @id @default(cuid())
-  email             String    @unique
-  name              String?
-  username          String?   @unique // Unique @username for display
-  passwordHash      String? // bcrypt hash for credentials auth (was SHA-256, now auto-upgraded)
-  avatarUrl         String? // User profile avatar (base64 data URL or remote URL)
-  photoThumb        String? // Avatar thumb: w_80,h_80,c_fill,q_auto,f_auto
-  photoCard         String? // Avatar card: w_150,h_150,c_fill,q_auto,f_auto
-  photoFull         String? // Avatar full: w_400,h_400,c_fill,q_auto,f_webp
-  bio               String? // Short biography
-  dateOfBirth       DateTime? // User's date of birth
-  gender            String? // male, female, other, prefer_not_to_say
-  profileVisibility String    @default("public") // public, private, connections_only
-  invitePermission  String    @default("anyone") // anyone, connections, nobody
-  authProvider      String    @default("email") // email, google, apple, phone
-  twoFactorEnabled  Boolean   @default(false) // Whether 2FA is enabled
-  twoFactorSecret   String? // TOTP base32 secret for 2FA
-  preferredLanguage String    @default("en")
-  role              String    @default("user") // user, admin, agent
-  phone             String?
+  id                      String    @id @default(cuid())
+  email                   String    @unique
+  name                    String?
+  username                String?   @unique // Unique @username for display
+  passwordHash            String? // bcrypt hash for credentials auth (was SHA-256, now auto-upgraded)
+  avatarUrl               String? // User profile avatar (base64 data URL or remote URL)
+  photoThumb              String? // Avatar thumb: w_80,h_80,c_fill,q_auto,f_auto
+  photoCard               String? // Avatar card: w_150,h_150,c_fill,q_auto,f_auto
+  photoFull               String? // Avatar full: w_400,h_400,c_fill,q_auto,f_webp
+  bio                     String? // Short biography
+  dateOfBirth             DateTime? // User's date of birth
+  gender                  String? // male, female, other, prefer_not_to_say
+  profileVisibility       String    @default("public") // public, private, connections_only
+  invitePermission        String    @default("anyone") // anyone, connections, nobody
+  authProvider            String    @default("email") // email, google, apple, phone
+  twoFactorEnabled        Boolean   @default(false) // Whether 2FA is enabled
+  twoFactorSecret         String? // TOTP base32 secret for 2FA
+  preferredLanguage       String    @default("en")
+  role                    String    @default("user") // user, admin, agent
+  phone                   String?
   // P1.3: ML-driven notification timing opt-in. Default OFF — no behavioral
   // data collection without explicit consent. When OFF, getBestSendHour
   // returns the fallback hour immediately and recordEngagement is a no-op.
-  notificationTimingOptIn Boolean @default(false)
+  notificationTimingOptIn Boolean   @default(false)
   // ── Tier 3 Feature 3.5: Privacy toggles ───────────────────────────
   /// 'everyone' (default) | 'contacts' | 'nobody'. Reciprocal: when
   /// set to 'nobody', the user can't see others' last-seen either.
-  lastSeenVisibility   String  @default("everyone")
+  lastSeenVisibility      String    @default("everyone")
   /// When false, the user's read receipts are suppressed both ways:
   /// they don't send readBy updates to others, and others can't see
   /// that this user has read their messages.
-  readReceiptsEnabled  Boolean @default(true)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  readReceiptsEnabled     Boolean   @default(true)
+  // ── Tier 4 Feature 4.7: Profile video ─────────────────────────────
+  /// Short looping video that plays in place of the avatar on the
+  /// member profile sheet. Null = fall back to avatarUrl.
+  profileVideoUrl         String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   subscription         Subscription?
   supportTickets       SupportTicket[]          @relation("SupportTicketUser")
@@ -659,7 +663,7 @@ model Family {
   // ── Tier 2 Feature 2.6: Slow Mode ─────────────────────────────────
   // When > 0, non-admins can send at most 1 message every slowModeSeconds.
   // Admins/creators bypass slow mode. 0 = off. Valid: 0, 10, 30, 60, 300, 600, 3600.
-  slowModeSeconds Int      @default(0)
+  slowModeSeconds Int @default(0)
 
   // ── Tier 2 Feature 2.11: Group Description ────────────────────────
   // The base "description" column already exists on Family (line ~630).
@@ -670,7 +674,7 @@ model Family {
 
   // ── Tier 2 Feature 2.12: Group sticker pack + custom reactions ───
   defaultStickerPackId String?
-  customReactions      Json     @default("[]")
+  customReactions      Json    @default("[]")
 
   members          FamilyMember[]
   persons          Person[]
@@ -721,28 +725,28 @@ model Family {
   isPublic Boolean @default(false) // Family visibility: true = non-members can see tree (read-only)
 
   // ── P10.1 — Family Atlas: family places ──
-  places                        Place[]                       @relation("FamilyPlaces")
+  places Place[] @relation("FamilyPlaces")
 
   // ── Track C v2.0 — Kinrel Governance Engine back-relations ──
-  constitution                 FamilyConstitution?           @relation("FamilyConstitution")
-  constitutionVersions         ConstitutionVersion[]         @relation("ConstitutionVersionFamily")
-  constitutionArticles         ConstitutionArticle[]         @relation("ConstitutionArticleFamily")
-  constitutionClauses          ConstitutionClause[]          @relation("ConstitutionClauseFamily")
-  decisions                    FamilyDecision[]              @relation("FamilyDecisions")
-  timelineEvents               KinrelTimelineEvent[]           @relation("FamilyTimelineEvents")
-  aiInsights                   AIInsight[]                   @relation("FamilyAIInsights")
-  learningSignals              LearningSignal[]              @relation("FamilyLearningSignals")
-  behaviorProfile              FamilyBehaviorProfile?        @relation("FamilyBehaviorProfile")
-  smartReminders               SmartReminder[]               @relation("FamilySmartReminders")
-  decisionMemory               DecisionMemory[]              @relation("FamilyDecisionMemory")
-  decisionImpacts              DecisionImpact[]              @relation("FamilyDecisionImpact")
-  meetingArtifacts             MeetingArtifact[]             @relation("FamilyMeetingArtifacts")
-  searchIndex                  SearchIndex[]                 @relation("FamilySearchIndex")
-  analyticsSnapshots           FamilyAnalyticsSnapshot[]     @relation("FamilyAnalyticsSnapshots")
-  aiCostBudgets                AICostBudget[]                @relation("FamilyAICostBudget")
+  constitution         FamilyConstitution?       @relation("FamilyConstitution")
+  constitutionVersions ConstitutionVersion[]     @relation("ConstitutionVersionFamily")
+  constitutionArticles ConstitutionArticle[]     @relation("ConstitutionArticleFamily")
+  constitutionClauses  ConstitutionClause[]      @relation("ConstitutionClauseFamily")
+  decisions            FamilyDecision[]          @relation("FamilyDecisions")
+  timelineEvents       KinrelTimelineEvent[]     @relation("FamilyTimelineEvents")
+  aiInsights           AIInsight[]               @relation("FamilyAIInsights")
+  learningSignals      LearningSignal[]          @relation("FamilyLearningSignals")
+  behaviorProfile      FamilyBehaviorProfile?    @relation("FamilyBehaviorProfile")
+  smartReminders       SmartReminder[]           @relation("FamilySmartReminders")
+  decisionMemory       DecisionMemory[]          @relation("FamilyDecisionMemory")
+  decisionImpacts      DecisionImpact[]          @relation("FamilyDecisionImpact")
+  meetingArtifacts     MeetingArtifact[]         @relation("FamilyMeetingArtifacts")
+  searchIndex          SearchIndex[]             @relation("FamilySearchIndex")
+  analyticsSnapshots   FamilyAnalyticsSnapshot[] @relation("FamilyAnalyticsSnapshots")
+  aiCostBudgets        AICostBudget[]            @relation("FamilyAICostBudget")
 
   // v5.129 Sibling Backfill (§3): review-queue flags on this family's edges.
-  relationshipReviewFlags       RelationshipReviewFlag[]
+  relationshipReviewFlags RelationshipReviewFlag[]
 
   // ── Pack 13: Chat Engagement ──────────────────────────────────────────
   chatMessages ChatMessage[]
@@ -1311,10 +1315,10 @@ model AuditLog {
 }
 
 model Relationship {
-  id               String    @id @default(cuid())
-  familyId         String
-  fromPersonId     String
-  toPersonId       String
+  id           String @id @default(cuid())
+  familyId     String
+  fromPersonId String
+  toPersonId   String
 
   // ── v4.1 FIX (spec §2): EdgeType enum strictly enforces the 4 fundamental edges ──
   // Only these values are allowed. Any attempt to insert "father", "uncle",
@@ -1322,15 +1326,15 @@ model Relationship {
   // The legacy `relationshipKey` / `relationshipType` columns are kept for
   // backward compatibility with existing rows but are now read-only and
   // should be migrated to `edgeType` (Phase D, see migration script).
-  edgeType         EdgeType  @default(PARENT) // spec §2 — PARENT | SPOUSE | ADOPTIVE_PARENT | STEP_PARENT only (default PARENT for migration safety; backfill script corrects per-row)
-  edgeTemporal     EdgeTemporal @default(CURRENT) // spec §6 (v3.1) — current | former | late
-  isInferred       Boolean   @default(false) // spec §9 — true for spouse inference suggestions
+  edgeType     EdgeType     @default(PARENT) // spec §2 — PARENT | SPOUSE | ADOPTIVE_PARENT | STEP_PARENT only (default PARENT for migration safety; backfill script corrects per-row)
+  edgeTemporal EdgeTemporal @default(CURRENT) // spec §6 (v3.1) — current | former | late
+  isInferred   Boolean      @default(false) // spec §9 — true for spouse inference suggestions
 
   // Legacy columns (KEPT for backward compat — read-only, but still NOT NULL
   // because existing code expects non-null values. The new `edgeType` enum is
   // the strict constraint; these legacy columns stay as-is for old code paths.)
-  relationshipKey  String   // Legacy: kinship key e.g. "fathers_sister", "spouse", "child"
-  relationshipType String   @default("custom") // Legacy: father, mother, son, daughter, brother, sister, husband, wife, custom
+  relationshipKey  String // Legacy: kinship key e.g. "fathers_sister", "spouse", "child"
+  relationshipType String    @default("custom") // Legacy: father, mother, son, daughter, brother, sister, husband, wife, custom
   direction        String    @default("from") // from: fromPerson is the type of toPerson (e.g. from=father means fromPerson is father of toPerson)
   isActive         Boolean   @default(true)
   label            String? // Custom user-defined label override
@@ -1357,7 +1361,6 @@ model Relationship {
 
   // v4.1: prevent duplicate fundamental edges (spec §12 rule 2)
   @@unique([familyId, fromPersonId, toPersonId, edgeType, edgeTemporal], name: "no_duplicate_fundamental_edge")
-
   @@index([familyId])
   @@index([fromPersonId])
   @@index([toPersonId])
@@ -1384,31 +1387,31 @@ model Relationship {
 //   'rejected' → admin dismissed the flag (e.g. it was a false positive)
 //   'superseded' → resolved by a separate edit that made the flag moot
 model RelationshipReviewFlag {
-  id               String   @id @default(cuid())
-  familyId         String
+  id                   String    @id @default(cuid())
+  familyId             String
   // The sibling edge that triggered the flag (forward row).
   sourceRelationshipId String
   // The two conflicting parent persons (for the UI to display side-by-side).
   // In the sibling_parent_mismatch case: parentA = fromPersonId's father/mother,
   // parentB = toPersonId's father/mother. Both non-null when the flag is
   // 'sibling_parent_mismatch'.
-  parentAPersonId  String?
-  parentBPersonId  String?
-  reason           String   @default("sibling_parent_mismatch")
-  status           String   @default("pending") // pending | accepted | rejected | superseded
-  note             String?  // optional admin note when resolving
-  createdByUserId  String?
-  resolvedByUserId String?
-  resolvedAt       DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  parentAPersonId      String?
+  parentBPersonId      String?
+  reason               String    @default("sibling_parent_mismatch")
+  status               String    @default("pending") // pending | accepted | rejected | superseded
+  note                 String? // optional admin note when resolving
+  createdByUserId      String?
+  resolvedByUserId     String?
+  resolvedAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
-  family            Family            @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  sourceRelationship Relationship       @relation("ReviewFlagSourceRelationship", fields: [sourceRelationshipId], references: [id], onDelete: Cascade)
-  parentA           Person?           @relation("ReviewFlagParentA", fields: [parentAPersonId], references: [id], onDelete: SetNull)
-  parentB           Person?           @relation("ReviewFlagParentB", fields: [parentBPersonId], references: [id], onDelete: SetNull)
-  createdBy         User?             @relation("ReviewFlagCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  resolvedBy        User?             @relation("ReviewFlagResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  family             Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  sourceRelationship Relationship @relation("ReviewFlagSourceRelationship", fields: [sourceRelationshipId], references: [id], onDelete: Cascade)
+  parentA            Person?      @relation("ReviewFlagParentA", fields: [parentAPersonId], references: [id], onDelete: SetNull)
+  parentB            Person?      @relation("ReviewFlagParentB", fields: [parentBPersonId], references: [id], onDelete: SetNull)
+  createdBy          User?        @relation("ReviewFlagCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  resolvedBy         User?        @relation("ReviewFlagResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([sourceRelationshipId, reason], name: "one_flag_per_reason_per_edge")
   @@index([familyId, status])
@@ -1419,17 +1422,17 @@ model RelationshipReviewFlag {
 // v4.1 (spec §2): The ONLY edge types allowed in the database.
 // Adding a 5th type requires a schema migration AND a spec amendment.
 enum EdgeType {
-  PARENT           // A → B: A's parent is B
-  SPOUSE           // A ↔ B: bidirectional
-  ADOPTIVE_PARENT  // A → B: A's adoptive parent is B
-  STEP_PARENT      // A → B: A's step-parent is B
+  PARENT // A → B: A's parent is B
+  SPOUSE // A ↔ B: bidirectional
+  ADOPTIVE_PARENT // A → B: A's adoptive parent is B
+  STEP_PARENT // A → B: A's step-parent is B
 }
 
 // v4.1 (spec §6 v3.1 temporal extension): first-class temporal state.
 enum EdgeTemporal {
-  CURRENT  // active relationship
-  FORMER   // divorced / severed — spec §6 temporal="former"
-  LATE     // deceased partner (still considered a relationship in the tree)
+  CURRENT // active relationship
+  FORMER // divorced / severed — spec §6 temporal="former"
+  LATE // deceased partner (still considered a relationship in the tree)
 }
 
 // ── Family Feed (Instagram-style family moments) ──────────────────────
@@ -3180,7 +3183,7 @@ model ThinkingOfYouTap {
   familyId   String
   tappedAt   DateTime @default(now()) @db.Timestamptz
 
-  sender   User   @relation("TapsSent",     fields: [senderId],   references: [id], onDelete: Cascade)
+  sender   User   @relation("TapsSent", fields: [senderId], references: [id], onDelete: Cascade)
   receiver User   @relation("TapsReceived", fields: [receiverId], references: [id], onDelete: Cascade)
   family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
@@ -3206,20 +3209,20 @@ model ThinkingOfYouTap {
 // ── Constitution (Section 5.2) ───────────────────────────────────────────
 
 model FamilyConstitution {
-  id                String   @id @default(cuid()) @db.Text
-  familyId          String   @unique @db.Text
-  title             String   @default("Family Constitution") @db.Text
-  preamble          String?  @db.Text
-  currentVersionId  String?  @unique @db.Text
-  draftVersionId    String?  @unique @db.Text
-  status            String   @default("draft") @db.Text // draft|in_review|published|archived
-  createdAt         DateTime @default(now()) @db.Timestamptz
-  updatedAt         DateTime @default(now()) @updatedAt @db.Timestamptz
+  id               String   @id @default(cuid()) @db.Text
+  familyId         String   @unique @db.Text
+  title            String   @default("Family Constitution") @db.Text
+  preamble         String?  @db.Text
+  currentVersionId String?  @unique @db.Text
+  draftVersionId   String?  @unique @db.Text
+  status           String   @default("draft") @db.Text // draft|in_review|published|archived
+  createdAt        DateTime @default(now()) @db.Timestamptz
+  updatedAt        DateTime @default(now()) @updatedAt @db.Timestamptz
 
-  family            Family                @relation("FamilyConstitution", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  versions          ConstitutionVersion[] @relation("ConstitutionVersions")
-  currentVersion    ConstitutionVersion?  @relation("ConstitutionCurrentVersion", fields: [currentVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  draftVersion      ConstitutionVersion?  @relation("ConstitutionDraftVersion",   fields: [draftVersionId],   references: [id], onDelete: NoAction, onUpdate: NoAction)
+  family         Family                @relation("FamilyConstitution", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  versions       ConstitutionVersion[] @relation("ConstitutionVersions")
+  currentVersion ConstitutionVersion?  @relation("ConstitutionCurrentVersion", fields: [currentVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  draftVersion   ConstitutionVersion?  @relation("ConstitutionDraftVersion", fields: [draftVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("FamilyConstitution")
 }
@@ -3239,12 +3242,12 @@ model ConstitutionVersion {
   createdAt           DateTime  @default(now()) @db.Timestamptz
   updatedAt           DateTime  @default(now()) @updatedAt @db.Timestamptz
 
-  constitution        FamilyConstitution    @relation("ConstitutionVersions", fields: [constitutionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  family              Family                @relation("ConstitutionVersionFamily", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  articles            ConstitutionArticle[]
-  clauses             ConstitutionClause[]
-  currentForConstitution  FamilyConstitution? @relation("ConstitutionCurrentVersion")
-  draftForConstitution    FamilyConstitution? @relation("ConstitutionDraftVersion")
+  constitution           FamilyConstitution    @relation("ConstitutionVersions", fields: [constitutionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  family                 Family                @relation("ConstitutionVersionFamily", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  articles               ConstitutionArticle[]
+  clauses                ConstitutionClause[]
+  currentForConstitution FamilyConstitution?   @relation("ConstitutionCurrentVersion")
+  draftForConstitution   FamilyConstitution?   @relation("ConstitutionDraftVersion")
 
   @@unique([constitutionId, versionNumber])
   @@index([familyId])
@@ -3262,9 +3265,9 @@ model ConstitutionArticle {
   createdAt  DateTime @default(now()) @db.Timestamptz
   updatedAt  DateTime @default(now()) @updatedAt @db.Timestamptz
 
-  version    ConstitutionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  family     Family              @relation("ConstitutionArticleFamily", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  clauses    ConstitutionClause[]
+  version ConstitutionVersion  @relation(fields: [versionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  family  Family               @relation("ConstitutionArticleFamily", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  clauses ConstitutionClause[]
 
   @@index([versionId])
   @@index([familyId])
@@ -3282,9 +3285,9 @@ model ConstitutionClause {
   createdAt  DateTime @default(now()) @db.Timestamptz
   updatedAt  DateTime @default(now()) @updatedAt @db.Timestamptz
 
-  article    ConstitutionArticle @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  version    ConstitutionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  family     Family              @relation("ConstitutionClauseFamily", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  article ConstitutionArticle @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  version ConstitutionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  family  Family              @relation("ConstitutionClauseFamily", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([articleId])
   @@index([versionId])
@@ -3296,7 +3299,7 @@ model ConstitutionClause {
 // Hash-partitioned on familyId. Composite PK (id, familyId) per ADR-004.
 
 model FamilyDecision {
-  id                    String     @default(cuid()) @db.Text
+  id                    String    @default(cuid()) @db.Text
   familyId              String    @db.Text
   createdById           String    @db.Text
   title                 String    @db.Text
@@ -3319,14 +3322,14 @@ model FamilyDecision {
   createdAt             DateTime  @default(now()) @db.Timestamptz
   updatedAt             DateTime  @default(now()) @updatedAt @db.Timestamptz
 
-  family                Family              @relation("FamilyDecisions", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  votes                 DecisionVote[]
-  memory                DecisionMemory?
-  impacts               DecisionImpact[]
-  insights              AIInsight[]
-  reminders             SmartReminder[]
-  meetingArtifacts      MeetingArtifact[]
-  timelineEvents        KinrelTimelineEvent[] @relation("DecisionTimelineEvents")
+  family           Family                @relation("FamilyDecisions", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  votes            DecisionVote[]
+  memory           DecisionMemory?
+  impacts          DecisionImpact[]
+  insights         AIInsight[]
+  reminders        SmartReminder[]
+  meetingArtifacts MeetingArtifact[]
+  timelineEvents   KinrelTimelineEvent[] @relation("DecisionTimelineEvents")
 
   @@id([id, familyId])
   @@index([familyId, status])
@@ -3345,7 +3348,7 @@ model DecisionVote {
   votedAt    DateTime @default(now()) @db.Timestamptz
   createdAt  DateTime @default(now()) @db.Timestamptz
 
-  decision   FamilyDecision @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: Cascade, onUpdate: Cascade)
+  decision FamilyDecision @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: Cascade, onUpdate: Cascade)
 
   @@unique([decisionId, userId])
   @@index([decisionId])
@@ -3358,23 +3361,23 @@ model DecisionVote {
 // Append-only — DB trigger rejects UPDATE/DELETE. Composite PK (id, familyId).
 
 model KinrelTimelineEvent {
-  id                String    @default(cuid()) @db.Text
-  familyId          String   @db.Text
-  kind              String   @db.Text
-  actorId           String?  @db.Text
-  targetEntityType  String?  @db.Text
-  targetEntityId    String?  @db.Text
-  title             String   @db.Text
-  description       String?  @db.Text
-  payload           Json     @default("{}")
-  parentEventId     String?  @db.Text
-  occurredAt        DateTime @default(now()) @db.Timestamptz
-  createdAt         DateTime @default(now()) @db.Timestamptz
+  id               String   @default(cuid()) @db.Text
+  familyId         String   @db.Text
+  kind             String   @db.Text
+  actorId          String?  @db.Text
+  targetEntityType String?  @db.Text
+  targetEntityId   String?  @db.Text
+  title            String   @db.Text
+  description      String?  @db.Text
+  payload          Json     @default("{}")
+  parentEventId    String?  @db.Text
+  occurredAt       DateTime @default(now()) @db.Timestamptz
+  createdAt        DateTime @default(now()) @db.Timestamptz
 
-  family            Family              @relation("FamilyTimelineEvents", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  parentEvent       KinrelTimelineEvent?  @relation("TimelineCorrection", fields: [parentEventId, familyId], references: [id, familyId], onDelete: NoAction, onUpdate: NoAction)
-  corrections       KinrelTimelineEvent[] @relation("TimelineCorrection")
-  decision          FamilyDecision?     @relation("DecisionTimelineEvents", fields: [targetEntityId, familyId], references: [id, familyId], onDelete: NoAction, onUpdate: NoAction)
+  family      Family                @relation("FamilyTimelineEvents", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  parentEvent KinrelTimelineEvent?  @relation("TimelineCorrection", fields: [parentEventId, familyId], references: [id, familyId], onDelete: NoAction, onUpdate: NoAction)
+  corrections KinrelTimelineEvent[] @relation("TimelineCorrection")
+  decision    FamilyDecision?       @relation("DecisionTimelineEvents", fields: [targetEntityId, familyId], references: [id, familyId], onDelete: NoAction, onUpdate: NoAction)
 
   @@id([id, familyId])
   @@index([familyId, occurredAt])
@@ -3389,7 +3392,7 @@ model KinrelTimelineEvent {
 // Hash-partitioned on familyId. Composite PK (id, familyId).
 
 model AIInsight {
-  id              String     @default(cuid()) @db.Text
+  id              String    @default(cuid()) @db.Text
   familyId        String    @db.Text
   decisionId      String?   @db.Text
   kind            String    @db.Text
@@ -3406,9 +3409,9 @@ model AIInsight {
   createdAt       DateTime  @default(now()) @db.Timestamptz
   updatedAt       DateTime  @default(now()) @updatedAt @db.Timestamptz
 
-  family          Family          @relation("FamilyAIInsights", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  decision        FamilyDecision? @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: Cascade, onUpdate: Cascade)
-  reminder        SmartReminder?
+  family   Family          @relation("FamilyAIInsights", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  decision FamilyDecision? @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: Cascade, onUpdate: Cascade)
+  reminder SmartReminder?
 
   @@id([id, familyId])
   @@index([familyId, kind, status])
@@ -3422,16 +3425,16 @@ model AIInsight {
 // LearningSignal is hash-partitioned. Composite PK (id, familyId).
 
 model LearningSignal {
-  id          String    @default(cuid()) @db.Text
-  familyId    String   @db.Text
-  signalType  String   @db.Text
-  targetType  String?  @db.Text
-  targetId    String?  @db.Text
-  payload     Json     @default("{}")
-  occurredAt  DateTime @default(now()) @db.Timestamptz
-  createdAt   DateTime @default(now()) @db.Timestamptz
+  id         String   @default(cuid()) @db.Text
+  familyId   String   @db.Text
+  signalType String   @db.Text
+  targetType String?  @db.Text
+  targetId   String?  @db.Text
+  payload    Json     @default("{}")
+  occurredAt DateTime @default(now()) @db.Timestamptz
+  createdAt  DateTime @default(now()) @db.Timestamptz
 
-  family      Family   @relation("FamilyLearningSignals", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  family Family @relation("FamilyLearningSignals", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@id([id, familyId])
   @@index([familyId, signalType, occurredAt])
@@ -3440,35 +3443,35 @@ model LearningSignal {
 }
 
 model FamilyBehaviorProfile {
-  id                           String    @id @default(cuid()) @db.Text
-  familyId                     String    @unique @db.Text
-  version                      Int       @default(1)
-  computedAt                   DateTime  @default(now()) @db.Timestamptz
-  preferredReminderLeadHours   Json      @default("{\"decision\":24,\"meeting\":48,\"event\":72}")
-  reminderActionRate           Json      @default("{\"6h\":0.0,\"12h\":0.0,\"24h\":0.0}")
-  preferredWeekdayDistribution Json      @default("{\"mon\":0.14,\"tue\":0.14,\"wed\":0.14,\"thu\":0.14,\"fri\":0.14,\"sat\":0.15,\"sun\":0.15}")
-  preferredTimeOfDayBuckets    Json      @default("{\"morning\":0.25,\"afternoon\":0.25,\"evening\":0.25,\"night\":0.25}")
-  elderAutoIncludeThreshold    Float     @default(0.6)
-  insightAcceptRateByKind      Json      @default("{}")
-  averageDecisionDurationHours Decimal?  @db.Decimal(10, 2)
+  id                           String   @id @default(cuid()) @db.Text
+  familyId                     String   @unique @db.Text
+  version                      Int      @default(1)
+  computedAt                   DateTime @default(now()) @db.Timestamptz
+  preferredReminderLeadHours   Json     @default("{\"decision\":24,\"meeting\":48,\"event\":72}")
+  reminderActionRate           Json     @default("{\"6h\":0.0,\"12h\":0.0,\"24h\":0.0}")
+  preferredWeekdayDistribution Json     @default("{\"mon\":0.14,\"tue\":0.14,\"wed\":0.14,\"thu\":0.14,\"fri\":0.14,\"sat\":0.15,\"sun\":0.15}")
+  preferredTimeOfDayBuckets    Json     @default("{\"morning\":0.25,\"afternoon\":0.25,\"evening\":0.25,\"night\":0.25}")
+  elderAutoIncludeThreshold    Float    @default(0.6)
+  insightAcceptRateByKind      Json     @default("{}")
+  averageDecisionDurationHours Decimal? @db.Decimal(10, 2)
   typicalQuorumMet             Boolean?
-  sampleSize                   Int       @default(0)
-  confidenceScore              Float     @default(0.0)
-  createdAt                    DateTime  @default(now()) @db.Timestamptz
-  updatedAt                    DateTime  @default(now()) @updatedAt @db.Timestamptz
+  sampleSize                   Int      @default(0)
+  confidenceScore              Float    @default(0.0)
+  createdAt                    DateTime @default(now()) @db.Timestamptz
+  updatedAt                    DateTime @default(now()) @updatedAt @db.Timestamptz
 
-  family                       Family   @relation("FamilyBehaviorProfile", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  family Family @relation("FamilyBehaviorProfile", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@map("FamilyBehaviorProfile")
 }
 
 model FamilyBehaviorProfileHistory {
-  id            String   @id @default(cuid()) @db.Text
-  familyId      String   @db.Text
-  version       Int
-  snapshot      Json
-  computedAt    DateTime @db.Timestamptz
-  archivedAt    DateTime @default(now()) @db.Timestamptz
+  id         String   @id @default(cuid()) @db.Text
+  familyId   String   @db.Text
+  version    Int
+  snapshot   Json
+  computedAt DateTime @db.Timestamptz
+  archivedAt DateTime @default(now()) @db.Timestamptz
 
   @@index([familyId, version])
   @@map("FamilyBehaviorProfileHistory")
@@ -3495,9 +3498,9 @@ model SmartReminder {
   createdAt              DateTime  @default(now()) @db.Timestamptz
   updatedAt              DateTime  @default(now()) @updatedAt @db.Timestamptz
 
-  family                 Family          @relation("FamilySmartReminders", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  decision               FamilyDecision? @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: Cascade, onUpdate: Cascade)
-  insight                AIInsight?      @relation(fields: [insightId, familyId], references: [id, familyId], onDelete: NoAction, onUpdate: NoAction)
+  family   Family          @relation("FamilySmartReminders", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  decision FamilyDecision? @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: Cascade, onUpdate: Cascade)
+  insight  AIInsight?      @relation(fields: [insightId, familyId], references: [id, familyId], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([insightId, familyId])
   @@index([familyId, status, scheduledFor])
@@ -3521,8 +3524,8 @@ model DecisionMemory {
   createdAt                     DateTime @default(now()) @db.Timestamptz
   updatedAt                     DateTime @default(now()) @updatedAt @db.Timestamptz
 
-  family                        Family          @relation("FamilyDecisionMemory", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  decision                      FamilyDecision  @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: Cascade, onUpdate: Cascade)
+  family   Family         @relation("FamilyDecisionMemory", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  decision FamilyDecision @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: Cascade, onUpdate: Cascade)
 
   @@unique([decisionId, familyId])
   @@index([familyId, createdAt])
@@ -3530,47 +3533,47 @@ model DecisionMemory {
 }
 
 model DecisionImpact {
-  id            String   @id @default(cuid()) @db.Text
-  familyId      String   @db.Text
-  decisionId    String   @db.Text
-  milestoneText String   @db.Text
+  id            String    @id @default(cuid()) @db.Text
+  familyId      String    @db.Text
+  decisionId    String    @db.Text
+  milestoneText String    @db.Text
   dueDate       DateTime? @db.Timestamptz
   completedAt   DateTime? @db.Timestamptz
-  evidenceUrls  Json     @default("[]")
-  notes         String?  @db.Text
-  createdAt     DateTime @default(now()) @db.Timestamptz
-  updatedAt     DateTime @default(now()) @updatedAt @db.Timestamptz
+  evidenceUrls  Json      @default("[]")
+  notes         String?   @db.Text
+  createdAt     DateTime  @default(now()) @db.Timestamptz
+  updatedAt     DateTime  @default(now()) @updatedAt @db.Timestamptz
 
-  family        Family          @relation("FamilyDecisionImpact", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  decision      FamilyDecision  @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: Cascade, onUpdate: Cascade)
+  family   Family         @relation("FamilyDecisionImpact", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  decision FamilyDecision @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([familyId, decisionId])
   @@map("DecisionImpact")
 }
 
 model MeetingArtifact {
-  id               String    @id @default(cuid()) @db.Text
-  familyId         String    @db.Text
-  decisionId       String?   @db.Text
-  title            String    @db.Text
-  heldAt           DateTime  @db.Timestamptz
-  participants     Json      @default("[]")
-  agenda           Json      @default("[]")
-  discussionPoints Json      @default("[]")
-  decisions        Json      @default("[]")
-  actionItems      Json      @default("[]")
-  draftMinutesMd   String    @default("") @db.Text
-  finalMinutesMd   String?   @db.Text
-  status           String    @default("draft") @db.Text // draft|reviewed|published
+  id               String   @id @default(cuid()) @db.Text
+  familyId         String   @db.Text
+  decisionId       String?  @db.Text
+  title            String   @db.Text
+  heldAt           DateTime @db.Timestamptz
+  participants     Json     @default("[]")
+  agenda           Json     @default("[]")
+  discussionPoints Json     @default("[]")
+  decisions        Json     @default("[]")
+  actionItems      Json     @default("[]")
+  draftMinutesMd   String   @default("") @db.Text
+  finalMinutesMd   String?  @db.Text
+  status           String   @default("draft") @db.Text // draft|reviewed|published
   /// Visibility control for Kinrel Secretary artifacts.
   /// 'family' = visible to all family members once published (default).
   /// 'participants_only' = visible only to participants + admins, even after publish.
-  visibility       String    @default("family") @db.Text
-  createdAt        DateTime  @default(now()) @db.Timestamptz
-  updatedAt        DateTime  @default(now()) @updatedAt @db.Timestamptz
+  visibility       String   @default("family") @db.Text
+  createdAt        DateTime @default(now()) @db.Timestamptz
+  updatedAt        DateTime @default(now()) @updatedAt @db.Timestamptz
 
-  family           Family          @relation("FamilyMeetingArtifacts", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  decision         FamilyDecision? @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: NoAction, onUpdate: NoAction)
+  family   Family          @relation("FamilyMeetingArtifacts", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  decision FamilyDecision? @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([familyId, heldAt])
   @@index([decisionId])
@@ -3581,17 +3584,17 @@ model MeetingArtifact {
 // ── Search Index (Section 5.9) ───────────────────────────────────────────
 
 model SearchIndex {
-  id            String   @id @default(cuid()) @db.Text
-  familyId      String   @db.Text
-  entityType    String   @db.Text
-  entityId      String   @db.Text
-  title         String   @default("") @db.Text
-  body          String   @default("") @db.Text
-  keywords      Json     @default("[]")
-  boostedScore  Decimal  @default(1.0) @db.Decimal(8, 4)
-  updatedAt     DateTime @default(now()) @updatedAt @db.Timestamptz
+  id           String   @id @default(cuid()) @db.Text
+  familyId     String   @db.Text
+  entityType   String   @db.Text
+  entityId     String   @db.Text
+  title        String   @default("") @db.Text
+  body         String   @default("") @db.Text
+  keywords     Json     @default("[]")
+  boostedScore Decimal  @default(1.0) @db.Decimal(8, 4)
+  updatedAt    DateTime @default(now()) @updatedAt @db.Timestamptz
 
-  family        Family   @relation("FamilySearchIndex", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  family Family @relation("FamilySearchIndex", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@unique([familyId, entityType, entityId])
   @@index([familyId, entityType])
@@ -3603,16 +3606,16 @@ model SearchIndex {
 // ── Analytics Snapshot (Section 5.9) ─────────────────────────────────────
 
 model FamilyAnalyticsSnapshot {
-  id           String   @id @default(cuid()) @db.Text
-  familyId     String   @db.Text
-  periodStart  DateTime @db.Timestamptz
-  periodEnd    DateTime @db.Timestamptz
-  granularity  String   @db.Text // weekly|monthly|quarterly
-  metrics      Json     @default("{}")
-  anomalies    Json?
-  createdAt    DateTime @default(now()) @db.Timestamptz
+  id          String   @id @default(cuid()) @db.Text
+  familyId    String   @db.Text
+  periodStart DateTime @db.Timestamptz
+  periodEnd   DateTime @db.Timestamptz
+  granularity String   @db.Text // weekly|monthly|quarterly
+  metrics     Json     @default("{}")
+  anomalies   Json?
+  createdAt   DateTime @default(now()) @db.Timestamptz
 
-  family       Family   @relation("FamilyAnalyticsSnapshots", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  family Family @relation("FamilyAnalyticsSnapshots", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@unique([familyId, granularity, periodStart])
   @@index([familyId, periodEnd])
@@ -3623,18 +3626,18 @@ model FamilyAnalyticsSnapshot {
 // ── Track C infrastructure tables (Section 7.2, 8.3, 9.4) ────────────────
 
 model GlobalLearningDefaults {
-  id                            String  @id @default("global") @db.Text
-  preferredReminderLeadHours    Json    @default("{\"decision\":24,\"meeting\":48,\"event\":72}")
-  reminderActionRate            Json    @default("{\"6h\":0.42,\"12h\":0.55,\"24h\":0.71}")
-  preferredWeekdayDistribution  Json    @default("{\"mon\":0.14,\"tue\":0.14,\"wed\":0.14,\"thu\":0.14,\"fri\":0.14,\"sat\":0.15,\"sun\":0.15}")
-  preferredTimeOfDayBuckets     Json    @default("{\"morning\":0.20,\"afternoon\":0.25,\"evening\":0.40,\"night\":0.15}")
-  elderAutoIncludeThreshold     Float   @default(0.6)
-  insightAcceptRateByKind       Json    @default("{}")
-  averageDecisionDurationHours  Decimal  @default(72.0) @db.Decimal(10, 2)
-  minSignalsForPersonalization  Int     @default(30)
-  lowConfidenceThreshold        Float   @default(0.4)
-  highConfidenceThreshold       Float   @default(0.7)
-  updatedAt                     DateTime @default(now()) @updatedAt @db.Timestamptz
+  id                           String   @id @default("global") @db.Text
+  preferredReminderLeadHours   Json     @default("{\"decision\":24,\"meeting\":48,\"event\":72}")
+  reminderActionRate           Json     @default("{\"6h\":0.42,\"12h\":0.55,\"24h\":0.71}")
+  preferredWeekdayDistribution Json     @default("{\"mon\":0.14,\"tue\":0.14,\"wed\":0.14,\"thu\":0.14,\"fri\":0.14,\"sat\":0.15,\"sun\":0.15}")
+  preferredTimeOfDayBuckets    Json     @default("{\"morning\":0.20,\"afternoon\":0.25,\"evening\":0.40,\"night\":0.15}")
+  elderAutoIncludeThreshold    Float    @default(0.6)
+  insightAcceptRateByKind      Json     @default("{}")
+  averageDecisionDurationHours Decimal  @default(72.0) @db.Decimal(10, 2)
+  minSignalsForPersonalization Int      @default(30)
+  lowConfidenceThreshold       Float    @default(0.4)
+  highConfidenceThreshold      Float    @default(0.7)
+  updatedAt                    DateTime @default(now()) @updatedAt @db.Timestamptz
 
   @@map("GlobalLearningDefaults")
 }
@@ -3649,7 +3652,7 @@ model AICostBudget {
   circuitOpen     Boolean   @default(false)
   circuitOpenedAt DateTime? @db.Timestamptz
 
-  family          Family    @relation("FamilyAICostBudget", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  family Family @relation("FamilyAICostBudget", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@unique([familyId, dateUtc])
   @@index([familyId, dateUtc])
@@ -3657,12 +3660,12 @@ model AICostBudget {
 }
 
 model SyncWatermark {
-  id         String   @id @default(cuid()) @db.Text
-  userId     String   @db.Text
-  familyId   String   @db.Text
-  deviceId   String   @db.Text
-  watermark  DateTime @default("1970-01-01T00:00:00Z") @db.Timestamptz
-  updatedAt  DateTime @default(now()) @updatedAt @db.Timestamptz
+  id        String   @id @default(cuid()) @db.Text
+  userId    String   @db.Text
+  familyId  String   @db.Text
+  deviceId  String   @db.Text
+  watermark DateTime @default("1970-01-01T00:00:00Z") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz
 
   @@unique([userId, familyId, deviceId])
   @@index([userId, familyId])
@@ -3680,14 +3683,14 @@ model SyncWatermark {
 // interface (just swap storage format and push cosine into SQL).
 
 model SearchEmbedding {
-  id          String   @id @default(cuid()) @db.Text
-  familyId    String   @db.Text
-  entityType  String   @db.Text
-  entityId    String   @db.Text
-  embedding   String   @db.Text
-  modelId     String   @default("all-MiniLM-L6-v2") @db.Text
-  createdAt   DateTime @default(now()) @db.Timestamptz
-  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamptz
+  id         String   @id @default(cuid()) @db.Text
+  familyId   String   @db.Text
+  entityType String   @db.Text
+  entityId   String   @db.Text
+  embedding  String   @db.Text
+  modelId    String   @default("all-MiniLM-L6-v2") @db.Text
+  createdAt  DateTime @default(now()) @db.Timestamptz
+  updatedAt  DateTime @default(now()) @updatedAt @db.Timestamptz
 
   @@unique([familyId, entityType, entityId])
   @@index([familyId])
@@ -3706,13 +3709,13 @@ model SearchEmbedding {
 // going through the family-scoped FamilyBehaviorProfile.
 
 model UserEngagementProfile {
-  userId            String    @id @db.Text
-  hourHistogram     String    @default("[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]") @db.Text
-  weekdayHistogram  String    @default("[0,0,0,0,0,0,0]") @db.Text
-  totalSamples      Int       @default(0)
-  lastEngagedAt     DateTime? @db.Timestamptz
-  createdAt         DateTime  @default(now()) @db.Timestamptz
-  updatedAt         DateTime  @default(now()) @updatedAt @db.Timestamptz
+  userId           String    @id @db.Text
+  hourHistogram    String    @default("[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]") @db.Text
+  weekdayHistogram String    @default("[0,0,0,0,0,0,0]") @db.Text
+  totalSamples     Int       @default(0)
+  lastEngagedAt    DateTime? @db.Timestamptz
+  createdAt        DateTime  @default(now()) @db.Timestamptz
+  updatedAt        DateTime  @default(now()) @updatedAt @db.Timestamptz
 
   @@index([updatedAt])
   @@map("UserEngagementProfile")
@@ -3724,19 +3727,19 @@ model UserEngagementProfile {
 // replace the hardcoded weights in pulse/closeness.ts.
 
 model BriefEngagement {
-  id              String   @id @default(cuid()) @db.Text
-  userId          String   @db.Text
-  familyId        String   @db.Text
-  briefDate       DateTime @db.Date
-  itemKey         String   @db.Text
-  itemType        String   @db.Text
-  targetPersonId  String?  @db.Text
-  signalScores    String   @db.Text
-  engagementType  String   @db.Text
-  engaged         Boolean  @default(false)
-  dismissed       Boolean  @default(false)
-  engagedAt       DateTime @default(now()) @db.Timestamptz
-  createdAt       DateTime @default(now()) @db.Timestamptz
+  id             String   @id @default(cuid()) @db.Text
+  userId         String   @db.Text
+  familyId       String   @db.Text
+  briefDate      DateTime @db.Date
+  itemKey        String   @db.Text
+  itemType       String   @db.Text
+  targetPersonId String?  @db.Text
+  signalScores   String   @db.Text
+  engagementType String   @db.Text
+  engaged        Boolean  @default(false)
+  dismissed      Boolean  @default(false)
+  engagedAt      DateTime @default(now()) @db.Timestamptz
+  createdAt      DateTime @default(now()) @db.Timestamptz
 
   @@index([userId, briefDate])
   @@index([familyId, briefDate])
@@ -3777,22 +3780,22 @@ model LearnedClosenessWeights {
 // scrubber (P10.7). Null on either side means "unbounded" on that side.
 
 model Place {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   familyId    String
   name        String
-  placeType   String   // current_home, childhood_home, ancestral_home,
-                       // birthplace, wedding, memorial, family_business,
-                       // school, important_place
+  placeType   String // current_home, childhood_home, ancestral_home,
+  // birthplace, wedding, memorial, family_business,
+  // school, important_place
   lat         Float
   lng         Float
   address     String?
-  personId    String?  // optional link to a Person
+  personId    String? // optional link to a Person
   description String?
   validFrom   DateTime? // for timeline filtering (P10.7)
   validTo     DateTime? // for timeline filtering (P10.7)
-  memoryCount Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  memoryCount Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   family Family  @relation("FamilyPlaces", fields: [familyId], references: [id], onDelete: Cascade)
   person Person? @relation("PersonPlaces", fields: [personId], references: [id])
@@ -3819,27 +3822,27 @@ model Place {
 // (reads kinrel-v3/vocabulary/daxelo_kinrel_vocabulary.csv)
 
 model KinshipVocabulary {
-  id                Int       @id @default(autoincrement())
-  rowId             Int       @unique
-  canonicalId       String    // PARENT | SPOUSE | ADOPTIVE_PARENT | STEP_PARENT | DERIVED
-  signatureKey      String    // composite deterministic lookup key
-  pathPattern       String    // traversal primitives, e.g. "UP_PARENT_UP_PARENT"
-  generationDelta   Int       // -8..+8
-  side              String    // paternal | maternal | none
-  consanguinity     String    // blood | half | step | adoptive | inLaw | foster | spiritual
-  genderAnchor      String    // male | female | neutral
-  seniority         String    // elder | younger | twin | none
-  removal           Int       // 0..8
-  doubleKinship     Boolean
-  temporal          String    @default("current") // current | former | late (v3.1)
-  category          String    // direct_ancestor | sibling | cousin | in_law | ...
-  englishTerm       String
-  notes             String?
-  languageCode      String    // ISO 639-1
-  languageName      String
-  localizedTerm     String
-  variantType       String    @default("primary") // primary | regional | dialectal
-  variantRank       Int       @default(0)         // 0 = engine default
+  id              Int     @id @default(autoincrement())
+  rowId           Int     @unique
+  canonicalId     String // PARENT | SPOUSE | ADOPTIVE_PARENT | STEP_PARENT | DERIVED
+  signatureKey    String // composite deterministic lookup key
+  pathPattern     String // traversal primitives, e.g. "UP_PARENT_UP_PARENT"
+  generationDelta Int // -8..+8
+  side            String // paternal | maternal | none
+  consanguinity   String // blood | half | step | adoptive | inLaw | foster | spiritual
+  genderAnchor    String // male | female | neutral
+  seniority       String // elder | younger | twin | none
+  removal         Int // 0..8
+  doubleKinship   Boolean
+  temporal        String  @default("current") // current | former | late (v3.1)
+  category        String // direct_ancestor | sibling | cousin | in_law | ...
+  englishTerm     String
+  notes           String?
+  languageCode    String // ISO 639-1
+  languageName    String
+  localizedTerm   String
+  variantType     String  @default("primary") // primary | regional | dialectal
+  variantRank     Int     @default(0) // 0 = engine default
 
   @@unique([signatureKey, languageCode, variantRank], name: "deterministic_lookup_idx")
   @@index([signatureKey, languageCode, variantRank])
@@ -3952,10 +3955,10 @@ model ChatMessage {
 
   // ── Tier 1 Feature 1.5: View-Once Media ────────────────────────────
   /// True when the media disappears after one view. Default false.
-  isViewOnce Boolean @default(false)
+  isViewOnce Boolean   @default(false)
   /// Timestamp of the first view. Null until opened by the recipient.
   /// Used by the nightly GC to delete the underlying media file 24h after.
-  viewedAt DateTime?
+  viewedAt   DateTime?
 
   // ── Tier 1 Feature 1.6: HD Photo Quality Tier ─────────────────────
   /// 'standard' (1600px, ~400KB) or 'hd' (original, JPEG 90%). Default standard.
@@ -3963,7 +3966,7 @@ model ChatMessage {
 
   // ── Tier 1 Feature 1.11: Document Sharing ─────────────────────────
   /// Display name for document messages (PDF/DOCX/etc.). Null for non-doc types.
-  documentName String?
+  documentName  String?
   /// Page count for PDF documents. Null for non-PDF or unknown.
   documentPages Int?
 
@@ -3976,12 +3979,18 @@ model ChatMessage {
   /// has topics enabled; ChatMessage.listMessages filters by topicId.
   topicId String?
 
+  // ── Tier 4 Feature 4.2 + 4.3: Edit history ───────────────────────
+  /// JSONB array of previous-content snapshots. Grows on every edit;
+  /// the Flutter client renders the array via a long-press "Edit history"
+  /// sheet. Format: [{ content, mediaUrl?, caption?, editedAt }]
+  editHistory Json @default("[]")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  family    Family         @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  replyTo   ChatMessage?   @relation("ChatMessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies   ChatMessage[]  @relation("ChatMessageReply")
+  family    Family            @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  replyTo   ChatMessage?      @relation("ChatMessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   ChatMessage[]     @relation("ChatMessageReply")
   reactions ChatReaction[]
   receipts  ChatReadReceipt[]
 
@@ -4056,13 +4065,13 @@ model ChatTypingStatus {
 // Feature 3 migration.
 
 model ChatStreak {
-  id             String   @id @default(cuid())
-  chatId         String   @unique // familyId for family group chats
-  currentStreak  Int      @default(1)
-  longestStreak  Int      @default(1)
-  lastMessageAt  DateTime @default(now())
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @default(now()) @updatedAt
+  id            String   @id @default(cuid())
+  chatId        String   @unique // familyId for family group chats
+  currentStreak Int      @default(1)
+  longestStreak Int      @default(1)
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
 
   @@index([currentStreak])
   @@map("ChatStreak")
@@ -4080,22 +4089,22 @@ model ChatStreak {
 // in the chat list. We add a Prisma model so the NestJS side can read it.
 
 model UserPresence {
-  userId     String   @id
-  isOnline   Boolean  @default(false)
+  userId     String    @id
+  isOnline   Boolean   @default(false)
   lastSeenAt DateTime?
-  updatedAt  DateTime @default(now()) @updatedAt
+  updatedAt  DateTime  @default(now()) @updatedAt
 
   @@map("UserPresence")
 }
 
 model MemberPresence {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   familyId   String
   userId     String
-  status     String   @default("offline") // online | offline | away
+  status     String    @default("offline") // online | offline | away
   lastSeenAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @default(now()) @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @default(now()) @updatedAt
 
   @@unique([familyId, userId])
   @@index([familyId])
@@ -4147,11 +4156,11 @@ model Event {
 // queryable index for "which messages mention me?"
 
 model ChatMention {
-  id               String   @id
-  messageId        String
-  mentionedUserId  String
-  mentionedByName  String
-  createdAt        DateTime @default(now())
+  id              String   @id
+  messageId       String
+  mentionedUserId String
+  mentionedByName String
+  createdAt       DateTime @default(now())
 
   @@index([messageId])
   @@index([mentionedUserId])
@@ -4180,13 +4189,13 @@ model ChatSettings {
   disappearingAfterHours Int?
   // Tier 3 features:
   /// 3.2 Pin chats — order in the pinned-chats strip (null = unpinned).
-  pinnedOrder           Int?
+  pinnedOrder            Int?
   /// 3.3 Mark as unread — when true, the inbox shows an unread badge
   /// even when all messages are read.
-  forcedUnread          Boolean   @default(false)
+  forcedUnread           Boolean   @default(false)
   /// 3.4 Mute with custom duration — null = no expiry; future = mute
   /// until that time (the push scheduler checks mutedUntil > now()).
-  mutedUntil            DateTime? @db.Timestamptz
+  mutedUntil             DateTime? @db.Timestamptz
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @default(now()) @updatedAt
 
@@ -4209,23 +4218,23 @@ model ChatSettings {
 // CHECK constraint enforces.
 
 model ScheduledMessage {
-  id             String   @id
-  senderId       String
-  familyId       String?  // null when this is a DM
-  receiverId     String? // null when this is a family-group message
-  content        String   @default("")
-  messageType    String   @default("text")
-  mediaUrl       String?
-  mediaType      String?
-  mentions       Json     @default("[]")
-  replyToId      String?
-  scheduledFor   DateTime
-  status         String   @default("pending") // pending | sent | cancelled | failed
-  sentMessageId  String?
-  failureReason  String?
-  createdAt      DateTime @default(now())
-  sentAt         DateTime?
-  updatedAt      DateTime @default(now()) @updatedAt
+  id            String    @id
+  senderId      String
+  familyId      String? // null when this is a DM
+  receiverId    String? // null when this is a family-group message
+  content       String    @default("")
+  messageType   String    @default("text")
+  mediaUrl      String?
+  mediaType     String?
+  mentions      Json      @default("[]")
+  replyToId     String?
+  scheduledFor  DateTime
+  status        String    @default("pending") // pending | sent | cancelled | failed
+  sentMessageId String?
+  failureReason String?
+  createdAt     DateTime  @default(now())
+  sentAt        DateTime?
+  updatedAt     DateTime  @default(now()) @updatedAt
 
   @@index([senderId])
   @@index([familyId])
@@ -4246,7 +4255,7 @@ model ScheduledMessage {
 model ChatDraft {
   id         String   @id
   userId     String
-  familyId   String?  // null when this is a DM draft
+  familyId   String? // null when this is a DM draft
   receiverId String? // null when this is a family-group draft
   draftText  String   @default("")
   replyToId  String?
@@ -4277,9 +4286,9 @@ model CoinLedger {
   id             String   @id @default(cuid())
   userId         String
   familyId       String
-  amount         Int      // can be negative for spends
-  reason         String   // 'prediction_winner' | 'prediction_streak_bonus' | 'prediction_close_guess' | 'prediction_participation' | future
-  idempotencyKey String?  // optional — e.g. round id, prevents double-award
+  amount         Int // can be negative for spends
+  reason         String // 'prediction_winner' | 'prediction_streak_bonus' | 'prediction_close_guess' | 'prediction_participation' | future
+  idempotencyKey String? // optional — e.g. round id, prevents double-award
   metadata       Json     @default("{}") // free-form: round_id, question_id, etc.
   createdAt      DateTime @default(now()) @db.Timestamptz
 
@@ -4295,8 +4304,8 @@ model CoinLedger {
 model UserCoinBalance {
   userId         String
   familyId       String
-  balance        Int     @default(0)
-  lifetimeEarned Int     @default(0)
+  balance        Int      @default(0)
+  lifetimeEarned Int      @default(0)
   updatedAt      DateTime @updatedAt @db.Timestamptz
 
   @@id([userId, familyId])
@@ -4314,7 +4323,7 @@ model GroupAuditLog {
   id              String   @id
   familyId        String
   actorUserId     String
-  actionType      String   // member_joined | slow_mode_set | invite_link_created | ...
+  actionType      String // member_joined | slow_mode_set | invite_link_created | ...
   targetUserId    String?
   targetMessageId String?
   details         Json     @default("[]")
@@ -4333,9 +4342,9 @@ model GroupInviteLink {
   token           String    @unique
   createdBy       String
   label           String?
-  expiresAt      DateTime? @db.Timestamptz
-  maxUses        Int?
-  useCount       Int       @default(0)
+  expiresAt       DateTime? @db.Timestamptz
+  maxUses         Int?
+  useCount        Int       @default(0)
   requireApproval Boolean   @default(false)
   createdAt       DateTime  @default(now()) @db.Timestamptz
   revokedAt       DateTime? @db.Timestamptz
@@ -4353,7 +4362,7 @@ model GroupJoinRequest {
   status          String    @default("pending") // pending | approved | rejected
   requestedAt     DateTime  @default(now()) @db.Timestamptz
   decidedBy       String?
-  decidedAt      DateTime? @db.Timestamptz
+  decidedAt       DateTime? @db.Timestamptz
   viaInviteToken  String?
   details         Json      @default("[]")
   createdAt       DateTime  @default(now()) @db.Timestamptz
@@ -4384,16 +4393,16 @@ model ChatTopic {
 
 // ── Tier 2 Feature 2.2: Channels (broadcast, one-to-many) ────────────
 model Channel {
-  id              String    @id
+  id              String   @id
   name            String
-  handle          String    @unique
+  handle          String   @unique
   description     String?
   avatarUrl       String?
   ownerId         String
-  isPublic        Boolean   @default(true)
-  subscriberCount Int       @default(0)
-  createdAt       DateTime  @default(now()) @db.Timestamptz
-  updatedAt       DateTime  @default(now()) @updatedAt @db.Timestamptz
+  isPublic        Boolean  @default(true)
+  subscriberCount Int      @default(0)
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @default(now()) @updatedAt @db.Timestamptz
 
   @@index([ownerId])
   @@map("Channel")
@@ -4449,14 +4458,14 @@ model ChannelReaction {
 // Named FamilyCommunity (not Community) to avoid collision with the
 // existing social-network Community table.
 model FamilyCommunity {
-  id                   String    @id
-  name                 String
-  description          String?
-  avatarUrl            String?
-  ownerUserId          String
+  id                    String   @id
+  name                  String
+  description           String?
+  avatarUrl             String?
+  ownerUserId           String
   announcementChannelId String?
-  createdAt            DateTime  @default(now()) @db.Timestamptz
-  updatedAt            DateTime  @default(now()) @updatedAt @db.Timestamptz
+  createdAt             DateTime @default(now()) @db.Timestamptz
+  updatedAt             DateTime @default(now()) @updatedAt @db.Timestamptz
 
   @@index([ownerUserId])
   @@map("FamilyCommunity")
@@ -4500,12 +4509,12 @@ model BroadcastList {
 }
 
 model BroadcastSend {
-  id               String   @id
+  id              String   @id
   broadcastListId String
-  messageId        String
-  recipientUserId  String
-  status           String   @default("sent") // sent | failed | blocked
-  sentAt           DateTime @default(now()) @db.Timestamptz
+  messageId       String
+  recipientUserId String
+  status          String   @default("sent") // sent | failed | blocked
+  sentAt          DateTime @default(now()) @db.Timestamptz
 
   @@index([broadcastListId])
   @@index([recipientUserId])
@@ -4518,16 +4527,16 @@ model BroadcastSend {
 // LiveKit or mediasoup signaling server.
 model Call {
   id            String    @id
-  type          String    // audio | video
-  scope         String    // dm | family
+  type          String // audio | video
+  scope         String // dm | family
   familyId      String?
   startedBy     String
   startedAt     DateTime  @default(now()) @db.Timestamptz
   endedAt       DateTime? @db.Timestamptz
   status        String    @default("active") // active | ended | missed | cancelled | failed
   failureReason String?
-  createdAt      DateTime  @default(now()) @db.Timestamptz
-  updatedAt      DateTime  @default(now()) @updatedAt @db.Timestamptz
+  createdAt     DateTime  @default(now()) @db.Timestamptz
+  updatedAt     DateTime  @default(now()) @updatedAt @db.Timestamptz
 
   @@index([familyId])
   @@index([startedBy])
@@ -4556,14 +4565,14 @@ model ChatFolder {
   userId        String
   name          String
   iconEmoji     String?
-  ruleType      String   @default("all")  // all | unread | family | dm | by-name | by-user-id
+  ruleType      String   @default("all") // all | unread | family | dm | by-name | by-user-id
   ruleValue     String?
   orderIndex    Int      @default(0)
   includeUnread Boolean  @default(false)
   createdAt     DateTime @default(now()) @db.Timestamptz
   updatedAt     DateTime @default(now()) @updatedAt @db.Timestamptz
 
-  @@unique([userId, name])  // case-insensitive unique is enforced at SQL level
+  @@unique([userId, name]) // case-insensitive unique is enforced at SQL level
   @@index([userId, orderIndex])
   @@map("ChatFolder")
 }
@@ -4571,19 +4580,107 @@ model ChatFolder {
 // ── Tier 3 Feature 3.6: Chat Reports ─────────────────────────────────
 // Records reports submitted from chat (DM or family) for moderation.
 model ChatReport {
-  id              String   @id
-  reporterId      String
-  reportedUserId  String?
-  familyId        String?
-  messageId       String?
-  reason          String   // spam | abuse | fake | harassment | other
-  details         String?
-  status          String   @default("pending") // pending | reviewing | resolved | dismissed
-  createdAt       DateTime @default(now()) @db.Timestamptz
-  updatedAt       DateTime @default(now()) @updatedAt @db.Timestamptz
+  id             String   @id
+  reporterId     String
+  reportedUserId String?
+  familyId       String?
+  messageId      String?
+  reason         String // spam | abuse | fake | harassment | other
+  details        String?
+  status         String   @default("pending") // pending | reviewing | resolved | dismissed
+  createdAt      DateTime @default(now()) @db.Timestamptz
+  updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz
 
   @@index([reporterId, createdAt])
   @@index([reportedUserId])
   @@index([status, createdAt])
   @@map("ChatReport")
+}
+
+// ── Tier 4 Features 4.4 + 4.5: Sticker packs from photos + Animated stickers ─
+// Lets a user create custom sticker packs from their own photos. Each pack
+// can contain a mix of static (PNG/WebP) and animated (Lottie JSON/TGS)
+// stickers. Packs sync across the user's devices via Supabase Realtime.
+model UserStickerPack {
+  id         String   @id
+  ownerId    String
+  name       String
+  thumbUrl   String?
+  isAnimated Boolean  @default(false)
+  isDefault  Boolean  @default(false) // true for the "My Stickers" auto-pack
+  createdAt  DateTime @default(now()) @db.Timestamptz
+  updatedAt  DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  items UserStickerItem[]
+
+  @@index([ownerId, createdAt])
+  @@map("UserStickerPack")
+}
+
+/// Back-relation shim — UserStickerItem.items is the inverse of
+/// UserStickerPack.items. Prisma requires the back-relation on the
+/// child model.
+model UserStickerItem {
+  id          String   @id
+  packId      String
+  stickerName String
+  imageUrl    String
+  isAnimated  Boolean  @default(false)
+  lottieUrl   String?
+  emoji       String?
+  createdAt   DateTime @default(now()) @db.Timestamptz
+
+  pack UserStickerPack @relation(fields: [packId], references: [id], onDelete: Cascade)
+
+  @@index([packId, createdAt])
+  @@map("UserStickerItem")
+}
+
+// ── Tier 4 Feature 4.6: Custom emoji packs ──────────────────────────
+// Lets a user install custom emoji packs (PNG or Lottie). EmojiPacks are
+// GLOBAL catalog rows; UserEmojiPackInstall tracks which packs a user has
+// installed (so the picker only shows installed packs).
+model EmojiPack {
+  id            String   @id
+  name          String
+  thumbUrl      String?
+  isAnimated    Boolean  @default(false)
+  isOfficial    Boolean  @default(false)
+  publisherName String?
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  updatedAt     DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  items    EmojiPackItem[]
+  installs UserEmojiPackInstall[]
+
+  @@index([isOfficial, name])
+  @@map("EmojiPack")
+}
+
+model EmojiPackItem {
+  id        String   @id
+  packId    String
+  emojiName String
+  imageUrl  String
+  lottieUrl String?
+  keywords  String[] @default([])
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  pack EmojiPack @relation(fields: [packId], references: [id], onDelete: Cascade)
+
+  @@index([packId])
+  @@map("EmojiPackItem")
+}
+
+model UserEmojiPackInstall {
+  id          String   @id
+  userId      String
+  packId      String
+  installedAt DateTime @default(now()) @db.Timestamptz
+
+  pack EmojiPack @relation(fields: [packId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, packId])
+  @@index([userId, installedAt])
+  @@map("UserEmojiPackInstall")
 }
