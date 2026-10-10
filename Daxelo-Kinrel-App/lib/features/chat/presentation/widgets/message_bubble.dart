@@ -343,16 +343,6 @@ class MessageBubble extends ConsumerWidget {
                 ),
                 margin: EdgeInsets.only(
                     left: isMe ? 48 : 0, right: isMe ? 0 : 48),
-                // WhatsApp-style selection highlight: a subtle blue tint
-                // on the entire message row when selected. Applied to
-                // the OUTER container (not the bubble) so the highlight
-                // covers the full row width, matching WhatsApp's behavior.
-                decoration: isSelected
-                    ? BoxDecoration(
-                        color: const Color(0xFF3B5998).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      )
-                    : null,
                 child: Column(
                   crossAxisAlignment: isMe
                       ? CrossAxisAlignment.end

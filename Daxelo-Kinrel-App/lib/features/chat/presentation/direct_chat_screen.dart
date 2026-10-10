@@ -67,9 +67,12 @@ import '../data/wallpaper_picker.dart';
 import '../data/direct_message_provider.dart';
 import '../data/direct_message_adapter.dart';
 import '../providers/chat_provider.dart';
+import '../providers/chat_selection_provider.dart';
 import 'widgets/chat_background.dart';
 import 'widgets/chat_input_bar.dart';
 import 'widgets/chat_message_list.dart';
+import 'widgets/selection_toolbar.dart';
+import 'widgets/delete_confirmation_dialog.dart';
 // v3.4 — shared reply/preview/FAB widgets (the same ones the group chat
 // renders; see the header comment).
 import 'widgets/chat_meta.dart';
@@ -642,8 +645,19 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(directChatProvider(widget.otherUserId));
+    // WhatsApp-style selection: watch the DM-scoped selection state so
+    // the AppBar swaps to the SelectionToolbar when selection mode is
+    // active. Uses the same ChatSelectionNotifier as the group chat —
+    // the only difference is the scope key ("dm:<otherUserId>").
+    final dmSelectionKey = 'dm:${widget.otherUserId}';
+    final selectionState = ref.watch(chatSelectionProvider(dmSelectionKey));
     final peer = chatState.peer;
     final messages = chatState.messages;
+    // chatMessages: the ChatMessage-adapted list (from the DM adapter).
+    // Defined at the top of build() so it's in scope for BOTH the
+    // ChatMessageList body content AND the _buildDmSelectionAppBar
+    // method (which needs List<ChatMessage>, not List<DirectMessage>).
+    final chatMessages = ref.watch(directChatMessagesProvider(widget.otherUserId));
 
     Widget bodyContent;
     if (chatState.isLoading) {
@@ -682,7 +696,8 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
       // actions inside MessageBubble.
       // inviteFamilyId → resolved from the DM invite payload so the
       // game-invite Join button deep-links into the host's family space.
-      final chatMessages = ref.watch(directChatMessagesProvider(widget.otherUserId));
+      // chatMessages is defined at the top of build() now (in scope for
+      // both ChatMessageList AND _buildDmSelectionAppBar).
       bodyContent = messages.isEmpty
           ? _buildEmptyState(peer?.name ?? 'them')
           : ChatMessageList(
@@ -691,6 +706,12 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
               familyId: null,
               isDirectChat: true,
               inviteFamilyId: _resolveInviteFamilyId(messages),
+              // DM selection: use a synthetic scope key so the selection
+              // state is scoped to this DM (independent of other DMs +
+              // group chats). Both group + DM share the SAME
+              // ChatSelectionNotifier logic — the only difference is the
+              // scope key.
+              selectionScopeKey: 'dm:${widget.otherUserId}',
               scrollController: _scrollController,
               // v3.4 — the SAME wiring the group chat uses: swipe/Reply
               // sets the provider's replyToMessage, which renders the
@@ -703,7 +724,12 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
               // v3.5 — the SAME reaction wiring the group uses: tapping
               // the bubble opens the shared quick-reaction overlay.
               onReact: (msg) => _showReactionPicker(msg.id),
-              onLongPress: (msg) => _showDmMessageActions(msg),
+              // WhatsApp-style selection: long-press enters selection mode
+              // (same as the group chat). The old bottom sheet is still
+              // available via the More (⋮) menu in the selection toolbar.
+              onLongPress: (msg) => ref
+                  .read(chatSelectionProvider('dm:${widget.otherUserId}').notifier)
+                  .enterSelection(msg.id),
               // v3.4 — tapping the quote block scrolls to the original
               // message, exactly like the group chat.
               onReplyPreviewTap: (msg) {
@@ -729,9 +755,22 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
             );
     }
 
-    return DKScaffold(
+    return PopScope(
+      // WhatsApp-style: pressing Back in selection mode exits
+      // selection instead of navigating away from the DM screen.
+      canPop: !selectionState.selectionMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && selectionState.selectionMode) {
+          ref.read(chatSelectionProvider(dmSelectionKey).notifier).exitSelection();
+        }
+      },
+      child: DKScaffold(
       backgroundColor: const Color(0xFF13141E),
-      appBar: AppBar(
+      // WhatsApp-style selection: swap the AppBar with the
+      // SelectionToolbar when selection mode is active.
+      appBar: selectionState.selectionMode
+          ? _buildDmSelectionAppBar(dmSelectionKey, selectionState, chatMessages)
+          : AppBar(
         // v3.3: same header gradient as the group chat — vertical
         // gradient (warm dark navy → base dark) + hairline bottom
         // border. Uses flexibleSpace so the gradient fills the entire
@@ -958,6 +997,107 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
           ),
         ],
       ),
+    ), // close DKScaffold
+    ); // close PopScope
+  }
+
+  // ── WhatsApp-style DM Selection AppBar ───────────────────────────
+
+  /// Builds the selection toolbar for the DM screen. Mirrors the
+  /// group chat's _buildSelectionAppBar() — same SelectionToolbar
+  /// widget, same actions (Close, Reply, Star, Forward, Delete, More).
+  /// The underlying provider calls use directChatProvider instead of
+  /// chatProvider, and the More menu opens _showDmMessageActions (the
+  /// DM's Copy/Preview/Share bottom sheet).
+  PreferredSizeWidget _buildDmSelectionAppBar(
+    String dmSelectionKey,
+    ChatSelectionState selection,
+    List<ChatMessage> messages,
+  ) {
+    final selectedIds = selection.selectedMessageIds;
+    final count = selectedIds.length;
+    final currentUserId = _currentUserId;
+
+    // Find the first selected message.
+    ChatMessage? firstSelected;
+    for (final m in messages) {
+      if (selectedIds.contains(m.id)) {
+        firstSelected = m;
+        break;
+      }
+    }
+
+    // DMs: the sender is always the current user OR the other party.
+    // "Delete for Everyone" is available when at least one selected
+    // message was sent by the current user.
+    final canDeleteForEveryone = firstSelected != null &&
+        firstSelected.senderId == currentUserId;
+
+    return SelectionToolbar(
+      selectedCount: count,
+      canReply: count == 1,
+      onClose: () => ref
+          .read(chatSelectionProvider(dmSelectionKey).notifier)
+          .exitSelection(),
+      onReply: (_) {
+        if (firstSelected != null) {
+          ref
+              .read(directChatProvider(widget.otherUserId).notifier)
+              .setReplyTo(firstSelected);
+        }
+        ref.read(chatSelectionProvider(dmSelectionKey).notifier).exitSelection();
+      },
+      onStar: (_) {
+        // DMs don't have a star column yet — exit selection mode.
+        // The More (⋮) menu can still open the old bottom sheet
+        // which has Copy/Preview/Share for DM messages.
+        ref.read(chatSelectionProvider(dmSelectionKey).notifier).exitSelection();
+      },
+      onForward: (_) {
+        // DMs are text-only — forwarding uses the same Share.share
+        // flow as the old bottom sheet.
+        if (firstSelected != null && firstSelected.content.isNotEmpty) {
+          Share.share(firstSelected.content,
+              subject: 'Message from ${firstSelected.senderName}');
+        }
+        ref.read(chatSelectionProvider(dmSelectionKey).notifier).exitSelection();
+      },
+      onDelete: (_) async {
+        await showDeleteConfirmationDialog(
+          context: context,
+          selectedCount: count,
+          canDeleteForEveryone: canDeleteForEveryone,
+          onDeleteForMe: () {
+            // DM delete: remove locally via the directChatProvider.
+            // The DirectMessage table supports soft-delete via the
+            // deletedForMe jsonb column (same pattern as ChatMessage).
+            for (final id in selectedIds) {
+              ref
+                  .read(directChatProvider(widget.otherUserId).notifier)
+                  .deleteFailedMessage(id);
+            }
+            ref.read(chatSelectionProvider(dmSelectionKey).notifier).exitSelection();
+          },
+          onDeleteForEveryone: () {
+            // DM delete for everyone: same local delete (the
+            // DirectMessage table doesn't have a server-side
+            // deleteForEveryone RPC yet — this is a TODO).
+            for (final id in selectedIds) {
+              ref
+                  .read(directChatProvider(widget.otherUserId).notifier)
+                  .deleteFailedMessage(id);
+            }
+            ref.read(chatSelectionProvider(dmSelectionKey).notifier).exitSelection();
+          },
+        );
+      },
+      onMore: (_) {
+        // Open the DM's existing bottom sheet (Copy, Preview, Share).
+        if (firstSelected != null) {
+          _showDmMessageActions(firstSelected);
+        }
+        ref.read(chatSelectionProvider(dmSelectionKey).notifier).exitSelection();
+      },
     );
   }
 

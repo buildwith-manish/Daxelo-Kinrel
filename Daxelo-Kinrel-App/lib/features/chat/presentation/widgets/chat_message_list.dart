@@ -92,6 +92,10 @@ class ChatMessageList extends ConsumerStatefulWidget {
     /// chatProvider retry/delete; the DM passes its own provider's).
     this.onRetryFailed,
     this.onDeleteFailed,
+    /// Selection scope key: familyId for group chats, "dm:<otherUserId>"
+    /// for DMs. When null, selection mode is disabled (legacy behavior).
+    /// Both chat types pass a non-null value so selection works everywhere.
+    this.selectionScopeKey,
   });
 
   /// Newest-first list of messages (the same shape chat_provider and
@@ -152,6 +156,10 @@ class ChatMessageList extends ConsumerStatefulWidget {
   /// action). Null = the group path (chatProvider.deleteFailedMessage).
   final void Function(String messageId)? onDeleteFailed;
 
+  /// Selection scope key: familyId for group chats, "dm:<otherUserId>"
+  /// for DMs. When null, selection mode is disabled (legacy behavior).
+  final String? selectionScopeKey;
+
   @override
   ConsumerState<ChatMessageList> createState() => _ChatMessageListState();
 }
@@ -170,11 +178,12 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
   Widget build(BuildContext context) {
     final grouped = _groupByDate(widget.messages);
 
-    // Watch the selection state for this chat (family-scoped). When
-    // selection mode is active, tapping a message toggles its selection
-    // instead of opening previews / triggering reply.
-    final selectionState = widget.familyId != null
-        ? ref.watch(chatSelectionProvider(widget.familyId!))
+    // Watch the selection state. Uses selectionScopeKey (familyId for
+    // group chats, "dm:<otherUserId>" for DMs) so BOTH chat types share
+    // the same selection logic. When null, selection mode is disabled.
+    final scopeKey = widget.selectionScopeKey ?? widget.familyId;
+    final selectionState = scopeKey != null
+        ? ref.watch(chatSelectionProvider(scopeKey))
         : const ChatSelectionState();
 
     // v130: Bottom padding reserves space for the scroll-to-bottom FAB
@@ -258,12 +267,12 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
                 // v3.5 — failed-send seam (null = group's built-in path).
                 onRetryFailed: widget.onRetryFailed,
                 onDeleteFailed: widget.onDeleteFailed,
-                // WhatsApp-style selection:
+                // WhatsApp-style selection (works for both group + DM):
                 isSelectionMode: selectionState.selectionMode,
                 isSelected: selectionState.isSelected(msg.id),
-                onSelectToggle: widget.familyId != null
+                onSelectToggle: scopeKey != null
                     ? () => ref
-                        .read(chatSelectionProvider(widget.familyId!).notifier)
+                        .read(chatSelectionProvider(scopeKey).notifier)
                         .toggleSelection(msg.id)
                     : null,
               );
@@ -287,9 +296,35 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
                     )
                   : bounded;
 
-              return Padding(
-                padding: EdgeInsets.only(bottom: bottomPadding),
-                child: wrapped,
+              // WhatsApp/Telegram-style full-row selection highlight.
+              // The highlight is a SEPARATE visual layer wrapping the
+              // entire message row (bubble + avatar + margins). It does
+              // NOT change the bubble's width, alignment, or layout —
+              // it's a background color behind the row content.
+              //
+              // Color: teal at 22% opacity — clearly distinguishable
+              // from the dark surface (#13141E) and both bubble colors
+              // (sent: orange tint, received: #282B45). Not so bright
+              // that it overwhelms the conversation.
+              final isSelected = selectionState.isSelected(msg.id);
+
+              return Container(
+                // Full-width background when selected. The negative
+                // horizontal margin expands the highlight beyond the
+                // list's 12px padding so it touches the screen edges
+                // (matching WhatsApp's full-bleed selection effect).
+                margin: isSelected
+                    ? const EdgeInsets.symmetric(horizontal: -12)
+                    : EdgeInsets.zero,
+                decoration: isSelected
+                    ? const BoxDecoration(
+                        color: Color(0x3826A69A), // Teal @ ~22% alpha
+                      )
+                    : null,
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: bottomPadding),
+                  child: wrapped,
+                ),
               );
             }),
           ],

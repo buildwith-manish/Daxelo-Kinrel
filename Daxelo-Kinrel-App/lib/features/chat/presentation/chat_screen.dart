@@ -2598,6 +2598,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       familyId: widget.familyId,
       isDirectChat: false,
       inviteFamilyId: null,
+      // Pass the familyId as the selection scope key so the selection
+      // state is family-scoped (each group chat has independent selection).
+      selectionScopeKey: widget.familyId,
       scrollController: _scrollController,
       onReply: (msg) {
         ref.read(chatProvider(widget.familyId).notifier).setReplyTo(msg);
