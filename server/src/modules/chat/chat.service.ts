@@ -2,11 +2,13 @@ import {
   Injectable,
   ForbiddenException,
   NotFoundException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StreakService } from './streak.service';
 import { ChatAnalyticsService } from '../analytics/chat-analytics.service';
+import { PrivacyService } from './privacy.service';
 import { AddReactionDto, RemoveReactionDto } from './dto/chat.dto';
 
 /**
@@ -28,6 +30,10 @@ export class ChatService {
     private readonly prisma: PrismaService,
     private readonly streakService: StreakService,
     private readonly analyticsService: ChatAnalyticsService,
+    // Tier 3 Feature 3.5: PrivacyService gates lastSeenAt visibility in
+    // getGroupInfo based on the OTHER user's lastSeenVisibility setting.
+    // We use forwardRef because PrivacyService is in the same module.
+    private readonly privacyService: PrivacyService,
   ) {}
 
   /** Throws ForbiddenException if the user is not a member of the family. */
@@ -430,20 +436,33 @@ export class ChatService {
     ]);
 
     // Merge presence into members for a single response.
+    // Tier 3 Feature 3.5: gate lastSeenAt visibility based on the
+    // participant's privacy setting + reciprocity (requester's own
+    // setting also applies — if they hide from everyone, they can't
+    // see anyone's last-seen either).
     const presenceMap = new Map(presence.map((p) => [p.userId, p]));
-    const participants = members.map((m) => {
-      const p = presenceMap.get(m.userId);
-      return {
-        userId: m.userId,
-        name: m.user.name ?? m.user.username ?? 'Unknown',
-        username: m.user.username,
-        avatarUrl: m.user.avatarUrl,
-        role: m.role,
-        joinedAt: m.joinedAt,
-        isOnline: p?.status === 'online',
-        lastSeenAt: p?.lastSeenAt ?? null,
-      };
-    });
+    const participants = await Promise.all(
+      members.map(async (m) => {
+        const p = presenceMap.get(m.userId);
+        // Gate lastSeenAt — the privacy check returns false for users
+        // who set lastSeenVisibility='nobody' or when the requester has
+        // lastSeenVisibility='nobody' themselves.
+        const canSeeLastSeen = await this.privacyService.canSeeLastSeenOf(userId, m.userId);
+        return {
+          userId: m.userId,
+          name: m.user.name ?? m.user.username ?? 'Unknown',
+          username: m.user.username,
+          avatarUrl: m.user.avatarUrl,
+          role: m.role,
+          joinedAt: m.joinedAt,
+          isOnline: p?.status === 'online',
+          // Hide the timestamp when the requester can't see it. isOnline
+          // stays visible (privacy is about the TIMESTAMP, not the online
+          // status — matches WhatsApp's "online" label vs. "last seen X ago").
+          lastSeenAt: canSeeLastSeen ? (p?.lastSeenAt ?? null) : null,
+        };
+      }),
+    );
 
     return {
       familyId: family?.id ?? familyId,
@@ -703,9 +722,13 @@ export class ChatService {
         userId,
         familyId,
         isMuted: muted,
+        // Tier 3 Feature 3.4: when unmuting, clear mutedUntil; when muting
+        // without a duration, leave mutedUntil null (= no expiry).
+        mutedUntil: muted ? null : null,
       },
       update: {
         isMuted: muted,
+        mutedUntil: null,
         updatedAt: new Date(),
       },
     });
@@ -713,21 +736,144 @@ export class ChatService {
     return { familyId, userId, isMuted: muted };
   }
 
+  // ── Tier 3 Feature 3.4: Mute with custom duration ────────────────────
+  // Mutes the chat until a specific future timestamp (e.g. now + 8h).
+  // Pass null to unmute immediately. The ChatPushScheduler checks
+  // (isMuted OR (mutedUntil > now())) to decide whether to suppress the push.
+  async setChatMutedUntil(
+    familyId: string,
+    userId: string,
+    mutedUntil: Date | null,
+  ): Promise<{ familyId: string; userId: string; isMuted: boolean; mutedUntil: Date | null }> {
+    await this.assertMember(familyId, userId);
+
+    // Effective mute: mutedUntil must be in the future.
+    const now = new Date();
+    const effectiveMuted = mutedUntil !== null && mutedUntil > now;
+
+    const id = `cs_${userId}_${familyId}`;
+    await this.prisma.chatSettings.upsert({
+      where: { id },
+      create: {
+        id,
+        userId,
+        familyId,
+        isMuted: effectiveMuted,
+        mutedUntil,
+      },
+      update: {
+        isMuted: effectiveMuted,
+        mutedUntil,
+        updatedAt: now,
+      },
+    });
+
+    return { familyId, userId, isMuted: effectiveMuted, mutedUntil };
+  }
+
+  // ── Tier 3 Feature 3.2: Pin chats ────────────────────────────────────
+  // Pin a chat at a given order, or unpin (when pinnedOrder is null).
+  // Caps at 5 pinned per user (matches WhatsApp).
+  async setChatPinned(
+    familyId: string,
+    userId: string,
+    pinnedOrder: number | null,
+  ): Promise<{ familyId: string; userId: string; pinnedOrder: number | null }> {
+    await this.assertMember(familyId, userId);
+
+    if (pinnedOrder !== null) {
+      // Enforce max 5 pinned per user.
+      const count = await this.prisma.chatSettings.count({
+        where: { userId, pinnedOrder: { not: null } },
+      });
+      // Allow the caller to RE-pin a chat they've already pinned (count
+      // stays the same), but block NEW pins beyond 5.
+      const existing = await this.prisma.chatSettings.findUnique({
+        where: { id: `cs_${userId}_${familyId}` },
+        select: { pinnedOrder: true },
+      });
+      const isAlreadyPinned = existing?.pinnedOrder !== null && existing?.pinnedOrder !== undefined;
+      if (count >= 5 && !isAlreadyPinned) {
+        throw new BadRequestException('You can pin at most 5 chats.');
+      }
+    }
+
+    const id = `cs_${userId}_${familyId}`;
+    await this.prisma.chatSettings.upsert({
+      where: { id },
+      create: {
+        id,
+        userId,
+        familyId,
+        pinnedOrder,
+      },
+      update: {
+        pinnedOrder,
+        updatedAt: new Date(),
+      },
+    });
+
+    return { familyId, userId, pinnedOrder };
+  }
+
+  // ── Tier 3 Feature 3.3: Mark as unread (toggle) ─────────────────────
+  async setChatForcedUnread(
+    familyId: string,
+    userId: string,
+    forcedUnread: boolean,
+  ): Promise<{ familyId: string; userId: string; forcedUnread: boolean }> {
+    await this.assertMember(familyId, userId);
+
+    const id = `cs_${userId}_${familyId}`;
+    await this.prisma.chatSettings.upsert({
+      where: { id },
+      create: {
+        id,
+        userId,
+        familyId,
+        forcedUnread,
+      },
+      update: {
+        forcedUnread,
+        updatedAt: new Date(),
+      },
+    });
+
+    return { familyId, userId, forcedUnread };
+  }
+
   async getChatSettings(
     familyId: string,
     userId: string,
-  ): Promise<{ isMuted: boolean; isPinned: boolean; isArchived: boolean }> {
+  ): Promise<{
+    isMuted: boolean;
+    isPinned: boolean;
+    isArchived: boolean;
+    pinnedOrder: number | null;
+    forcedUnread: boolean;
+    mutedUntil: Date | null;
+  }> {
     await this.assertMember(familyId, userId);
 
     const settings = await this.prisma.chatSettings.findUnique({
       where: { id: `cs_${userId}_${familyId}` },
-      select: { isMuted: true, isPinned: true, isArchived: true },
+      select: {
+        isMuted: true,
+        isPinned: true,
+        isArchived: true,
+        pinnedOrder: true,
+        forcedUnread: true,
+        mutedUntil: true,
+      },
     });
 
     return {
       isMuted: settings?.isMuted ?? false,
       isPinned: settings?.isPinned ?? false,
       isArchived: settings?.isArchived ?? false,
+      pinnedOrder: settings?.pinnedOrder ?? null,
+      forcedUnread: settings?.forcedUnread ?? false,
+      mutedUntil: settings?.mutedUntil ?? null,
     };
   }
 
@@ -867,6 +1013,12 @@ export class ChatService {
     userId: string,
     query: string,
     limit: number = 20,
+    filters?: {
+      mediaType?: string;       // Tier 3 Feature 3.8: filter by message media type
+      senderId?: string;       // Tier 3 Feature 3.8: filter by sender
+      fromDate?: Date;         // Tier 3 Feature 3.8: filter by date range
+      toDate?: Date;
+    },
   ): Promise<{
     results: Array<{
       id: string;
@@ -885,7 +1037,18 @@ export class ChatService {
     await this.assertMember(familyId, userId);
 
     const trimmed = query.trim();
-    if (trimmed.length === 0) {
+
+    // ── Tier 3 Feature 3.8: when filters are present (mediaType, senderId,
+    // date range), we allow an empty query — the user is browsing all
+    // photos from Mama ji in March, not searching for a specific string.
+    const hasFilters = !!(
+      filters?.mediaType ||
+      filters?.senderId ||
+      filters?.fromDate ||
+      filters?.toDate
+    );
+
+    if (trimmed.length === 0 && !hasFilters) {
       return { results: [], total: 0 };
     }
 
@@ -895,17 +1058,50 @@ export class ChatService {
     // contains mode.
     const escaped = trimmed.replace(/[%_\\]/g, '\\$&');
 
+    // Build the where clause with the Tier 3 filters applied.
+    const where: any = {
+      familyId,
+      isDeletedForEveryone: false,
+    };
+    if (trimmed.length > 0) {
+      where.content = { contains: escaped, mode: 'insensitive' };
+    }
+    if (filters?.mediaType) {
+      // mediaType filter — maps "photos" → messageType='photo', etc.
+      // The Flutter filter chip sends a human-readable category; we
+      // translate to the canonical messageType value here.
+      const mt = filters.mediaType.toLowerCase();
+      if (mt === 'photos' || mt === 'photo' || mt === 'image') {
+        where.messageType = 'photo';
+      } else if (mt === 'videos' || mt === 'video') {
+        where.messageType = 'video';
+      } else if (mt === 'voice' || mt === 'audio') {
+        where.messageType = 'voiceNote';
+      } else if (mt === 'documents' || mt === 'document' || mt === 'docs') {
+        where.messageType = 'document';
+      } else if (mt === 'links' || mt === 'link') {
+        // No 'link' messageType — search for messages containing "http"
+        // as a best-effort proxy.
+        where.content = { contains: 'http', mode: 'insensitive' };
+      } else {
+        // Pass-through for callers that already know the canonical type.
+        where.messageType = mt;
+      }
+    }
+    if (filters?.senderId) {
+      where.senderId = filters.senderId;
+    }
+    if (filters?.fromDate || filters?.toDate) {
+      const createdAtFilter: any = {};
+      if (filters.fromDate) createdAtFilter.gte = filters.fromDate;
+      if (filters.toDate) createdAtFilter.lte = filters.toDate;
+      where.createdAt = createdAtFilter;
+    }
+
     // Use Prisma's contains with insensitive mode — this compiles to
     // ILIKE '%query%' on Postgres. The search field is `content`.
     const messages = await this.prisma.chatMessage.findMany({
-      where: {
-        familyId,
-        isDeletedForEveryone: false,
-        content: {
-          contains: escaped,
-          mode: 'insensitive',
-        },
-      },
+      where,
       orderBy: { createdAt: 'desc' },
       take: Math.min(limit, 50),
       select: {
@@ -924,16 +1120,7 @@ export class ChatService {
 
     // Count total matches (for the search UI's "N results" label).
     // We do this in a separate query so the SELECT above can use LIMIT.
-    const total = await this.prisma.chatMessage.count({
-      where: {
-        familyId,
-        isDeletedForEveryone: false,
-        content: {
-          contains: escaped,
-          mode: 'insensitive',
-        },
-      },
-    });
+    const total = await this.prisma.chatMessage.count({ where });
 
     // Feature 1: Analytics — track search_used
     this.analyticsService

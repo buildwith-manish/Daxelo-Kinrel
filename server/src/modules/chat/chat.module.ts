@@ -2,10 +2,9 @@
 //
 // DAXELO KINREL — Chat Module
 //
-// v3 — Tier 2 features: adds GroupAdminService + GroupAdminController +
-// JoinViaLinkController. Extends ChatThrottlerService with slow-mode
-// support (loads Family.slowModeSeconds via Prisma + caches 60s).
-// Extends ChatService.sendMessage with isAnonymousAdmin + topicId.
+// v4 — Tier 3 features: adds ChatFoldersService + ChatReportsService +
+// PrivacyService + their controllers. Extends ChatService with
+// pin/forced-unread/mute-until methods + extended search filters.
 
 import { Module } from '@nestjs/common';
 import { ChatController } from './chat.controller';
@@ -24,6 +23,13 @@ import { SavedMessagesController } from './saved-messages.controller';
 // Tier 2 features:
 import { GroupAdminService } from './group-admin.service';
 import { GroupAdminController, JoinViaLinkController } from './group-admin.controller';
+// Tier 3 features:
+import { ChatFoldersService } from './chat-folders.service';
+import { ChatFoldersController } from './chat-folders.controller';
+import { ChatReportsService } from './chat-reports.service';
+import { ChatReportsController } from './chat-reports.controller';
+import { PrivacyService } from './privacy.service';
+import { PrivacyController } from './privacy.controller';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { FcmModule } from '../notifications/fcm.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
@@ -43,6 +49,10 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     // Tier 2 feature controllers:
     GroupAdminController,
     JoinViaLinkController,
+    // Tier 3 feature controllers:
+    ChatFoldersController,
+    ChatReportsController,
+    PrivacyController,
   ],
   providers: [
     ChatService,
@@ -56,7 +66,18 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     DraftsService,
     // Tier 2 feature services:
     GroupAdminService,
+    // Tier 3 feature services:
+    ChatFoldersService,
+    ChatReportsService,
+    PrivacyService,
   ],
-  exports: [ChatService, StreakService, MediaService, ChatThrottlerService, GroupAdminService],
+  exports: [
+    ChatService,
+    StreakService,
+    MediaService,
+    ChatThrottlerService,
+    GroupAdminService,
+    PrivacyService,
+  ],
 })
 export class ChatModule {}

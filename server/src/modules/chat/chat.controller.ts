@@ -266,12 +266,22 @@ export class ChatController {
     @CurrentUser('id') userId: string,
     @Query('q') query: string,
     @Query('limit') limit?: string,
+    @Query('mediaType') mediaType?: string,
+    @Query('senderId') senderId?: string,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
   ) {
     return this.chatService.searchMessages(
       familyId,
       userId,
       query ?? '',
       limit ? parseInt(limit, 10) : 20,
+      {
+        mediaType,
+        senderId,
+        fromDate: fromDate ? new Date(fromDate) : undefined,
+        toDate: toDate ? new Date(toDate) : undefined,
+      },
     );
   }
 
@@ -341,6 +351,59 @@ export class ChatController {
     @Body() body: { muted: boolean },
   ) {
     return this.chatService.setChatMuted(familyId, userId, body.muted);
+  }
+
+  // ── Tier 3 Feature 3.4: Mute with custom duration ────────────────────
+
+  /**
+   * POST /families/:familyId/chat/mute-until
+   * Mute the chat until a specific future timestamp (e.g. now + 8h).
+   * Pass mutedUntil=null to unmute immediately.
+   * The ChatPushScheduler checks (isMuted OR (mutedUntil > now())).
+   */
+  @Post('mute-until')
+  async setChatMutedUntil(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+    @Body() body: { mutedUntil: string | null },
+  ) {
+    const mutedUntil = body.mutedUntil ? new Date(body.mutedUntil) : null;
+    if (mutedUntil && Number.isNaN(mutedUntil.getTime())) {
+      throw new BadRequestException('mutedUntil must be a valid ISO 8601 timestamp');
+    }
+    return this.chatService.setChatMutedUntil(familyId, userId, mutedUntil);
+  }
+
+  // ── Tier 3 Feature 3.2: Pin chat in inbox ─────────────────────────────
+
+  /**
+   * POST /families/:familyId/chat/pin
+   * Pin the chat at a given order, or unpin (when pinnedOrder is null).
+   * Max 5 pinned per user (enforced in ChatService).
+   */
+  @Post('pin')
+  async setChatPinned(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+    @Body() body: { pinnedOrder: number | null },
+  ) {
+    return this.chatService.setChatPinned(familyId, userId, body.pinnedOrder);
+  }
+
+  // ── Tier 3 Feature 3.3: Mark as unread (toggle) ──────────────────────
+
+  /**
+   * POST /families/:familyId/chat/forced-unread
+   * Toggle the "mark as unread" badge. When true, the inbox shows an
+   * unread badge even when all messages are read.
+   */
+  @Post('forced-unread')
+  async setChatForcedUnread(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+    @Body() body: { forcedUnread: boolean },
+  ) {
+    return this.chatService.setChatForcedUnread(familyId, userId, body.forcedUnread);
   }
 
   // ── Feature 4: Media upload (images, voice notes, videos) ──────────

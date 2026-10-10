@@ -385,10 +385,11 @@ export class ChatPushScheduler {
     }
   }
 
-  /// Feature 6: check if the push should be skipped for this recipient.
+  /// Feature 6 + Tier 3 Feature 3.4: check if the push should be skipped.
   /// Returns true if:
   ///   1. The recipient has muted ALL the chats these messages came from
-  ///      (ChatSettings.isMuted = true for every familyId in the batch), OR
+  ///      (ChatSettings.isMuted=true OR mutedUntil > now() for every
+  ///      familyId in the batch), OR
   ///   2. The recipient is currently in their quiet-hours window
   ///      (NotificationPreference.quietHoursStart/End covers the current time).
   ///
@@ -405,12 +406,18 @@ export class ChatPushScheduler {
   ): Promise<boolean> {
     try {
       // 1. Check per-chat mute. If ALL messages are from muted chats, skip.
+      // Tier 3 Feature 3.4: also honor mutedUntil — a chat is "muted"
+      // when isMuted=true OR (mutedUntil IS NOT NULL AND mutedUntil > now()).
       const distinctFamilyIds = [...new Set(messages.map((m) => m.familyId))];
+      const now = new Date();
       const chatSettings = await this.prisma.chatSettings.findMany({
         where: {
           userId: recipientUserId,
           familyId: { in: distinctFamilyIds },
-          isMuted: true,
+          OR: [
+            { isMuted: true },
+            { mutedUntil: { gt: now } },
+          ],
         },
         select: { familyId: true },
       });

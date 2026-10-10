@@ -126,6 +126,14 @@ model User {
   // data collection without explicit consent. When OFF, getBestSendHour
   // returns the fallback hour immediately and recordEngagement is a no-op.
   notificationTimingOptIn Boolean @default(false)
+  // ── Tier 3 Feature 3.5: Privacy toggles ───────────────────────────
+  /// 'everyone' (default) | 'contacts' | 'nobody'. Reciprocal: when
+  /// set to 'nobody', the user can't see others' last-seen either.
+  lastSeenVisibility   String  @default("everyone")
+  /// When false, the user's read receipts are suppressed both ways:
+  /// they don't send readBy updates to others, and others can't see
+  /// that this user has read their messages.
+  readReceiptsEnabled  Boolean @default(true)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -4170,6 +4178,15 @@ model ChatSettings {
   isPinned               Boolean   @default(false)
   isArchived             Boolean   @default(false)
   disappearingAfterHours Int?
+  // Tier 3 features:
+  /// 3.2 Pin chats — order in the pinned-chats strip (null = unpinned).
+  pinnedOrder           Int?
+  /// 3.3 Mark as unread — when true, the inbox shows an unread badge
+  /// even when all messages are read.
+  forcedUnread          Boolean   @default(false)
+  /// 3.4 Mute with custom duration — null = no expiry; future = mute
+  /// until that time (the push scheduler checks mutedUntil > now()).
+  mutedUntil            DateTime? @db.Timestamptz
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @default(now()) @updatedAt
 
@@ -4529,4 +4546,44 @@ model CallParticipant {
   @@index([callId])
   @@index([userId])
   @@map("CallParticipant")
+}
+
+// ── Tier 3 Feature 3.1: Chat Folders ────────────────────────────────
+// Lets a user organize their inbox with custom folders. Each folder has
+// a ruleType + ruleValue used by the inbox to filter chats.
+model ChatFolder {
+  id            String   @id
+  userId        String
+  name          String
+  iconEmoji     String?
+  ruleType      String   @default("all")  // all | unread | family | dm | by-name | by-user-id
+  ruleValue     String?
+  orderIndex    Int      @default(0)
+  includeUnread Boolean  @default(false)
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  updatedAt     DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@unique([userId, name])  // case-insensitive unique is enforced at SQL level
+  @@index([userId, orderIndex])
+  @@map("ChatFolder")
+}
+
+// ── Tier 3 Feature 3.6: Chat Reports ─────────────────────────────────
+// Records reports submitted from chat (DM or family) for moderation.
+model ChatReport {
+  id              String   @id
+  reporterId      String
+  reportedUserId  String?
+  familyId        String?
+  messageId       String?
+  reason          String   // spam | abuse | fake | harassment | other
+  details         String?
+  status          String   @default("pending") // pending | reviewing | resolved | dismissed
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([reporterId, createdAt])
+  @@index([reportedUserId])
+  @@index([status, createdAt])
+  @@map("ChatReport")
 }

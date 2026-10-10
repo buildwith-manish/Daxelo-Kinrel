@@ -3,6 +3,7 @@ import { ChatService } from './chat.service';
 import { StreakService } from './streak.service';
 import { ChatAnalyticsService } from '../analytics/chat-analytics.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PrivacyService } from './privacy.service';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
 /**
@@ -64,6 +65,16 @@ describe('ChatService', () => {
     getEventCount: jest.fn(),
   };
 
+  // Tier 3 Feature 3.5: PrivacyService mock. Tests don't directly verify
+  // the privacy gating — they just need the dependency to be available
+  // so ChatService can be instantiated.
+  const mockPrivacyService = {
+    canSeeLastSeenOf: jest.fn().mockResolvedValue(true),
+    hasReadReceiptsEnabled: jest.fn().mockResolvedValue(true),
+    getMySettings: jest.fn().mockResolvedValue({ lastSeenVisibility: 'everyone', readReceiptsEnabled: true }),
+    updateMySettings: jest.fn().mockResolvedValue({ lastSeenVisibility: 'everyone', readReceiptsEnabled: true }),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -71,6 +82,7 @@ describe('ChatService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: StreakService, useValue: mockStreakService },
         { provide: ChatAnalyticsService, useValue: mockAnalyticsService },
+        { provide: PrivacyService, useValue: mockPrivacyService },
       ],
     }).compile();
     service = module.get<ChatService>(ChatService);
@@ -862,11 +874,22 @@ describe('ChatService', () => {
         isMuted: true,
         isPinned: false,
         isArchived: false,
+        // Tier 3 features: also returned by getChatSettings.
+        pinnedOrder: null,
+        forcedUnread: false,
+        mutedUntil: null,
       });
 
       const result = await service.getChatSettings('fam-1', 'user-1');
 
-      expect(result).toEqual({ isMuted: true, isPinned: false, isArchived: false });
+      expect(result).toEqual({
+        isMuted: true,
+        isPinned: false,
+        isArchived: false,
+        pinnedOrder: null,
+        forcedUnread: false,
+        mutedUntil: null,
+      });
     });
 
     it('returns defaults (all false) when no settings row exists', async () => {
@@ -875,7 +898,14 @@ describe('ChatService', () => {
 
       const result = await service.getChatSettings('fam-1', 'user-1');
 
-      expect(result).toEqual({ isMuted: false, isPinned: false, isArchived: false });
+      expect(result).toEqual({
+        isMuted: false,
+        isPinned: false,
+        isArchived: false,
+        pinnedOrder: null,
+        forcedUnread: false,
+        mutedUntil: null,
+      });
     });
   });
 });
