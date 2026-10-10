@@ -20,7 +20,6 @@
 //
 // Reachable from the message long-press menu's "Forward" action.
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 // Hide the riverpod `Family` typedef so it doesn't collide with the
 // `Family` model class from family_provider.dart (we render Family rows
