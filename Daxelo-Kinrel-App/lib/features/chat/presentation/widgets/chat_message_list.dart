@@ -65,6 +65,7 @@ import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/theme/kinrel_fx.dart';
 import '../../../../core/utils/app_time.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/chat_selection_provider.dart';
 import 'chat_meta.dart';
 import 'message_bubble.dart';
 
@@ -169,6 +170,13 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
   Widget build(BuildContext context) {
     final grouped = _groupByDate(widget.messages);
 
+    // Watch the selection state for this chat (family-scoped). When
+    // selection mode is active, tapping a message toggles its selection
+    // instead of opening previews / triggering reply.
+    final selectionState = widget.familyId != null
+        ? ref.watch(chatSelectionProvider(widget.familyId!))
+        : const ChatSelectionState();
+
     // v130: Bottom padding reserves space for the scroll-to-bottom FAB
     // (40px tall, 8px from bottom = 48px footprint) plus a 16px buffer
     // so the most recent message is never obscured by the FAB. In a
@@ -229,8 +237,9 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
                       .inSeconds
                       .abs() > 60;
 
-              // Tighter spacing within groups (2px) vs between groups (8px).
-              final bottomPadding = isLastInGroup ? 8.0 : 2.0;
+              // Compact spacing: 1px within groups, 6px between groups.
+              // (was 2px / 8px — reduced for a tighter conversation flow).
+              final bottomPadding = isLastInGroup ? 6.0 : 1.0;
 
               final bubble = MessageBubble(
                 message: msg,
@@ -249,6 +258,14 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
                 // v3.5 — failed-send seam (null = group's built-in path).
                 onRetryFailed: widget.onRetryFailed,
                 onDeleteFailed: widget.onDeleteFailed,
+                // WhatsApp-style selection:
+                isSelectionMode: selectionState.selectionMode,
+                isSelected: selectionState.isSelected(msg.id),
+                onSelectToggle: widget.familyId != null
+                    ? () => ref
+                        .read(chatSelectionProvider(widget.familyId!).notifier)
+                        .toggleSelection(msg.id)
+                    : null,
               );
 
               // RepaintBoundary per bubble so a single new/updated

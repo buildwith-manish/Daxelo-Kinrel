@@ -173,6 +173,12 @@ class MessageBubble extends ConsumerWidget {
     /// provider.
     this.onRetryFailed,
     this.onDeleteFailed,
+    /// WhatsApp-style selection mode (Stage 2): when true, tapping the
+    /// bubble toggles its selection state instead of opening previews
+    /// or triggering reply. Long-press enters selection mode.
+    this.isSelectionMode = false,
+    this.isSelected = false,
+    this.onSelectToggle,
   });
 
   final ChatMessage message;
@@ -216,6 +222,18 @@ class MessageBubble extends ConsumerWidget {
   /// action). Null = the group path (chatProvider.deleteFailedMessage).
   final void Function(String messageId)? onDeleteFailed;
 
+  /// WhatsApp-style selection: when true, tapping the bubble toggles
+  /// its selection instead of opening previews or triggering reply.
+  final bool isSelectionMode;
+
+  /// Whether THIS bubble is currently selected (drives the highlight
+  /// overlay — a subtle blue tint + check icon).
+  final bool isSelected;
+
+  /// Called when the user taps the bubble while in selection mode.
+  /// The parent (chat_screen) toggles the message ID in the selection set.
+  final VoidCallback? onSelectToggle;
+
   /// v3.3: the family id to use for game-invite Join/Spectate routes.
   /// Prefers [inviteFamilyId] (set by the DM screen from the invite
   /// payload) and falls back to [familyId] (the group chat's family).
@@ -258,20 +276,23 @@ class MessageBubble extends ConsumerWidget {
     return StatefulBuilder(
       builder: (context, setLocalState) {
         return GestureDetector(
-          onLongPress: onLongPress,
-          // v3.2: tapping a FAILED message opens a small sheet with
-          // Retry and Delete. Only for the sender's own messages.
-          // v3.5: works in BOTH chat types — the group path
-          // (familyId != null, built-in chatProvider calls) OR an
-          // injected handler pair (the DM passes its own provider's
-          // retryMessage/deleteFailedMessage). The tap handler does
-          // NOT fire for sent/delivered/read/sending messages — those
-          // have no tap action (the existing onLongPress still works).
-          onTap: (isMe &&
-                  message.messageStatus == 'failed' &&
-                  (familyId != null || onRetryFailed != null))
-              ? () => _showFailedMessageSheet(context, ref)
-              : null,
+          // WhatsApp-style selection: in selection mode, long-press is
+          // disabled (we're already in selection mode). The onTap below
+          // handles tap-to-select/deselect.
+          onLongPress: isSelectionMode ? null : onLongPress,
+          // In selection mode, tapping toggles selection. Otherwise, the
+          // existing behavior: tapping a FAILED message opens the retry
+          // sheet; other messages have no tap action.
+          onTap: isSelectionMode
+              ? onSelectToggle
+              : (isMe &&
+                      message.messageStatus == 'failed' &&
+                      (familyId != null || onRetryFailed != null))
+                  ? () => _showFailedMessageSheet(context, ref)
+                  : null,
+          // opaque behavior so the hit area covers the full message row
+          // (not just the bubble) — makes long-press easier on mobile.
+          behavior: HitTestBehavior.opaque,
           child: Align(
             alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
             child: Row(
@@ -322,6 +343,16 @@ class MessageBubble extends ConsumerWidget {
                 ),
                 margin: EdgeInsets.only(
                     left: isMe ? 48 : 0, right: isMe ? 0 : 48),
+                // WhatsApp-style selection highlight: a subtle blue tint
+                // on the entire message row when selected. Applied to
+                // the OUTER container (not the bubble) so the highlight
+                // covers the full row width, matching WhatsApp's behavior.
+                decoration: isSelected
+                    ? BoxDecoration(
+                        color: const Color(0xFF3B5998).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      )
+                    : null,
                 child: Column(
                   crossAxisAlignment: isMe
                       ? CrossAxisAlignment.end
@@ -345,12 +376,16 @@ class MessageBubble extends ConsumerWidget {
                     // elevation, and generous padding for readability.
                     // Inspired by iMessage's softness + Telegram's tail.
                     Container(
+                      // Compact vertical padding (was 11 → 7 for a ~36%
+                      // height reduction on short messages like "hi").
+                      // Horizontal padding unchanged (16px) so width is
+                      // preserved. Stickers stay at 8px vertical.
                       padding: isSticker
                           ? const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 8)
+                              horizontal: 14, vertical: 6)
                           : const EdgeInsets.symmetric(
                               horizontal: 16,
-                              vertical: 11,
+                              vertical: 7,
                             ),
                       decoration: BoxDecoration(
                         // v131: Subtle vertical gradient — top slightly

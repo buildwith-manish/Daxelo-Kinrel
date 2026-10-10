@@ -59,6 +59,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../data/chat_enhancement_service.dart';
 import '../data/chat_lock_service.dart';
 import '../providers/chat_provider.dart';
+import '../providers/chat_selection_provider.dart';
 import '../providers/chat_onboarding_provider.dart';
 import '../providers/chat_socket_engagement_provider.dart';
 import 'chat_onboarding_coach_marks.dart';
@@ -79,6 +80,8 @@ import 'widgets/sticker_pack_sheet.dart';
 import 'widgets/chat_meta.dart';
 import 'widgets/empty_chat_state.dart';
 import 'widgets/chat_message_list.dart';
+import 'widgets/selection_toolbar.dart';
+import 'widgets/delete_confirmation_dialog.dart';
 import 'widgets/chat_input_bar.dart';
 import 'widgets/pinned_messages_bar.dart';
 // v3.4 — shared reply bar / peek-preview / scroll FAB (moved here from
@@ -631,6 +634,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatProvider(widget.familyId));
+    // WhatsApp-style selection state (family-scoped). When selectionMode
+    // is true, the AppBar is replaced with a SelectionToolbar + tapping
+    // messages toggles selection instead of opening previews.
+    final selectionState = ref.watch(chatSelectionProvider(widget.familyId));
     // Pack 13: Socket.IO engagement state (typing / streak / presence /
     // read receipts / reactions). Additive to the Supabase Realtime state
     // in chatState — gives sub-second updates for the engagement signals.
@@ -728,7 +735,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
     return Stack(
       children: [
-        DKScaffold(
+        PopScope(
+          // WhatsApp-style: pressing Back in selection mode exits
+          // selection instead of navigating away from the chat.
+          canPop: !selectionState.selectionMode,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop && selectionState.selectionMode) {
+              ref
+                  .read(chatSelectionProvider(widget.familyId).notifier)
+                  .exitSelection();
+            }
+          },
+          child: DKScaffold(
       // v132: The background is now rendered by ChatBackground (a
       // multi-layer ambient gradient + optional blurred wallpaper).
       // The Scaffold background is a flat dark color that only shows
@@ -741,7 +759,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // v140 Family-Centric Chat Navigation: hideAppBar lets the parent
       // (e.g. FamilyChatListScreen with [Family]/[Direct] tabs) provide
       // its own header without a double-AppBar.
-      appBar: widget.hideAppBar ? null : _buildAppBar(chatState),
+      // WhatsApp-style selection: when selection mode is active, show
+      // the selection toolbar instead of the normal chat header.
+      appBar: widget.hideAppBar
+          ? null
+          : (ref.watch(chatSelectionProvider(widget.familyId)).selectionMode
+              ? _buildSelectionAppBar()
+              : _buildAppBar(chatState)),
       // v115: Only show the Family Space bottom nav when this screen
       // is the tab destination (showFamilyNav=true). When opened as a
       // pushed conversation from the chat list, the bottom nav is
@@ -794,6 +818,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ],
                 ),
         ),
+        ), // close PopScope
         // Feature 7: onboarding coach-mark overlay (shown once after
         // the user's first message ever).
         if (showOnboarding)
@@ -966,6 +991,97 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ),
         ],
       ),
+    );
+  }
+
+  // ── WhatsApp-style Selection AppBar ──────────────────────────────
+
+  /// Builds the selection toolbar that replaces the normal chat header
+  /// when selection mode is active. Shows: Close, "N selected", Reply,
+  /// Star, Forward, Delete, More (⋮).
+  PreferredSizeWidget _buildSelectionAppBar() {
+    final selection = ref.watch(chatSelectionProvider(widget.familyId));
+    final selectedIds = selection.selectedMessageIds;
+    final count = selectedIds.length;
+
+    // Find the first selected message (for Reply — you can only reply
+    // to one message at a time).
+    final messages = ref.read(chatProvider(widget.familyId)).messages;
+    ChatMessage? firstSelected;
+    for (final m in messages) {
+      if (selectedIds.contains(m.id)) {
+        firstSelected = m;
+        break;
+      }
+    }
+
+    // Check if ANY selected message was sent by the current user (for
+    // "Delete for Everyone" — only the sender can delete for everyone).
+    final currentUserId = _currentUserId;
+    final canDeleteForEveryone = firstSelected != null &&
+        firstSelected.senderId == currentUserId;
+
+    return SelectionToolbar(
+      selectedCount: count,
+      canReply: count == 1, // can only reply to one message
+      onClose: () => ref
+          .read(chatSelectionProvider(widget.familyId).notifier)
+          .exitSelection(),
+      onReply: (_) {
+        if (firstSelected != null) {
+          ref.read(chatProvider(widget.familyId).notifier).setReplyTo(firstSelected);
+        }
+        ref.read(chatSelectionProvider(widget.familyId).notifier).exitSelection();
+      },
+      onStar: (_) async {
+        final service = ref.read(chatEnhancementServiceProvider);
+        for (final id in selectedIds) {
+          // Find the message to check if it's already starred.
+          final msg = messages.where((m) => m.id == id).firstOrNull;
+          if (msg != null) {
+            await service.starMessage(id, !msg.isStarred);
+          }
+        }
+        ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+        ref.read(chatSelectionProvider(widget.familyId).notifier).exitSelection();
+      },
+      onForward: (_) {
+        if (firstSelected != null) {
+          _showForwardFamilyPicker(firstSelected);
+        }
+        ref.read(chatSelectionProvider(widget.familyId).notifier).exitSelection();
+      },
+      onDelete: (_) async {
+        await showDeleteConfirmationDialog(
+          context: context,
+          selectedCount: count,
+          canDeleteForEveryone: canDeleteForEveryone,
+          onDeleteForMe: () async {
+            final service = ref.read(chatEnhancementServiceProvider);
+            for (final id in selectedIds) {
+              await service.deleteForMe(id);
+            }
+            ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+            ref.read(chatSelectionProvider(widget.familyId).notifier).exitSelection();
+          },
+          onDeleteForEveryone: () async {
+            final service = ref.read(chatEnhancementServiceProvider);
+            for (final id in selectedIds) {
+              await service.deleteForEveryone(id);
+            }
+            ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+            ref.read(chatSelectionProvider(widget.familyId).notifier).exitSelection();
+          },
+        );
+      },
+      onMore: (_) {
+        // Open the old bottom-sheet with secondary actions (Copy, Share,
+        // Info, Pin, Edit, Preview) for the first selected message.
+        if (firstSelected != null) {
+          _showMessageActions(firstSelected);
+        }
+        ref.read(chatSelectionProvider(widget.familyId).notifier).exitSelection();
+      },
     );
   }
 
@@ -2487,7 +2603,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ref.read(chatProvider(widget.familyId).notifier).setReplyTo(msg);
       },
       onReact: (msg) => _showReactionPicker(msg.id),
-      onLongPress: (msg) => _showMessageActions(msg),
+      // WhatsApp-style selection: long-press enters selection mode
+      // (instead of opening the bottom action sheet). The old bottom
+      // sheet is still available via the More (⋮) menu in the toolbar.
+      onLongPress: (msg) => ref
+          .read(chatSelectionProvider(widget.familyId).notifier)
+          .enterSelection(msg.id),
       onReplyPreviewTap: (msg) {
         if (msg.replyToId != null) _scrollToMessage(msg.replyToId!);
       },
