@@ -156,7 +156,7 @@ class DraftsNotifier extends StateNotifier<DraftsState> {
   /// by the chat inbox screen.
   Future<void> loadAll() async {
     try {
-      final response = await _dio.dio.get('/chat/drafts/list');
+      final response = await _dio.get('/chat/drafts/list');
       final list = (response.data as List<dynamic>?)
               ?.map((e) => ChatDraft.fromJson(e as Map<String, dynamic>))
               .toList() ??
@@ -205,7 +205,7 @@ class DraftsNotifier extends StateNotifier<DraftsState> {
     required String text,
   }) async {
     try {
-      await _dio.dio.post('/chat/drafts', data: {
+      await _dio.post('/chat/drafts', data: {
         if (familyId != null) 'familyId': familyId,
         if (receiverId != null) 'receiverId': receiverId,
         'draftText': text,
@@ -222,7 +222,7 @@ class DraftsNotifier extends StateNotifier<DraftsState> {
   /// Load the draft for a single chat (used by chat_screen on open).
   Future<void> load({String? familyId, String? receiverId}) async {
     try {
-      final response = await _dio.dio.get('/chat/drafts', queryParameters: {
+      final response = await _dio.get('/chat/drafts', queryParameters: {
         if (familyId != null) 'familyId': familyId,
         if (receiverId != null) 'receiverId': receiverId,
       });

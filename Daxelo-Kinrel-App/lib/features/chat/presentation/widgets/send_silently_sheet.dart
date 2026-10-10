@@ -88,13 +88,13 @@ class _SendSilentlySheet extends ConsumerWidget {
           // ── Send normally ───────────────────────────────────────
           _SendOptionTile(
             icon: Icons.send_rounded,
-            iconColor: KinrelColors.igniteOrange,
+            iconColor: KinrelColors.orange,
             title: 'Send normally',
             subtitle:
                 "The recipient's phone will ring or vibrate based on their settings.",
             onTap: () => Navigator.of(context).pop(false),
           ),
-          const Divider(color: KinrelColors.darkDivider, height: 1),
+          const Divider(color: KinrelColors.darkElevated, height: 1),
           // ── Send silently ───────────────────────────────────────
           _SendOptionTile(
             icon: Icons.notifications_off_outlined,

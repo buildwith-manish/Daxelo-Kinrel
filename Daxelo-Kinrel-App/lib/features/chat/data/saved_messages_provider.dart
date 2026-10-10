@@ -76,7 +76,7 @@ class SavedMessagesNotifier extends StateNotifier<SavedMessagesPreview?> {
   /// pull-to-refresh + whenever a new DM-to-self is detected.
   Future<void> refresh() async {
     try {
-      final response = await _dio.dio.get('/chat/saved-messages');
+      final response = await _dio.get('/chat/saved-messages');
       final data = response.data as Map<String, dynamic>?;
       if (data != null && (data['success'] as bool? ?? false)) {
         state = SavedMessagesPreview.fromJson(data);

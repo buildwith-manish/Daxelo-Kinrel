@@ -144,7 +144,7 @@ class ScheduledMessagesNotifier extends StateNotifier<ScheduledMessagesState> {
   Future<void> refresh() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final response = await _dio.dio.get('/chat/scheduled');
+      final response = await _dio.get('/chat/scheduled');
       final data = response.data;
       final list = (data as List<dynamic>?)
               ?.map((e) => ScheduledMessage.fromJson(e as Map<String, dynamic>))
@@ -172,7 +172,7 @@ class ScheduledMessagesNotifier extends StateNotifier<ScheduledMessagesState> {
     String? replyToId,
     String? clientScheduleId,
   }) async {
-    final response = await _dio.dio.post('/chat/scheduled', data: {
+    final response = await _dio.post('/chat/scheduled', data: {
       if (familyId != null) 'familyId': familyId,
       if (receiverId != null) 'receiverId': receiverId,
       'content': content,
@@ -194,7 +194,7 @@ class ScheduledMessagesNotifier extends StateNotifier<ScheduledMessagesState> {
   /// Cancel a pending scheduled message. Returns true on success.
   Future<bool> cancel(String scheduledId) async {
     try {
-      await _dio.dio.delete('/chat/scheduled/$scheduledId');
+      await _dio.delete('/chat/scheduled/$scheduledId');
       // Optimistically remove the row from the local state.
       state = state.copyWith(
         items: state.items.where((m) => m.id != scheduledId).toList(),

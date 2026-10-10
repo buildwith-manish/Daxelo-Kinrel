@@ -82,12 +82,12 @@ class _Row extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: KinrelColors.igniteOrange.withOpacity(0.18),
+                color: KinrelColors.orange.withOpacity(0.18),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.bookmark_rounded,
-                color: KinrelColors.igniteOrange,
+                color: KinrelColors.orange,
                 size: 22,
               ),
             ),

@@ -169,7 +169,7 @@ class _ScheduleMessageSheetState extends ConsumerState<_ScheduleMessageSheet> {
           // ── Quick presets ────────────────────────────────────────
           for (final p in presets)
             ListTile(
-              leading: Icon(p.icon, color: KinrelColors.igniteOrange),
+              leading: Icon(p.icon, color: KinrelColors.orange),
               title: Text(p.label,
                   style: const TextStyle(color: KinrelColors.textWhite)),
               subtitle: Text(
@@ -181,7 +181,7 @@ class _ScheduleMessageSheetState extends ConsumerState<_ScheduleMessageSheet> {
               ),
               onTap: _isScheduling ? null : () => _schedule(p.when),
             ),
-          const Divider(color: KinrelColors.darkDivider, height: 1),
+          const Divider(color: KinrelColors.darkElevated, height: 1),
           // ── Custom date/time picker ──────────────────────────────
           ListTile(
             leading: const Icon(Icons.calendar_month_rounded,
@@ -219,7 +219,7 @@ class _ScheduleMessageSheetState extends ConsumerState<_ScheduleMessageSheet> {
               padding: const EdgeInsets.only(top: 12),
               child: Text(
                 _error!,
-                style: const TextStyle(color: KinrelColors.igniteOrange),
+                style: const TextStyle(color: KinrelColors.orange),
               ),
             ),
           if (_isScheduling)
@@ -231,7 +231,7 @@ class _ScheduleMessageSheetState extends ConsumerState<_ScheduleMessageSheet> {
                   height: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: KinrelColors.igniteOrange,
+                    color: KinrelColors.orange,
                   ),
                 ),
               ),
