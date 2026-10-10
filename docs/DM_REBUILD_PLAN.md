@@ -1,207 +1,211 @@
 # DM Rebuild Plan — Direct Chat → Private 2-Person Group
 
 **Branch:** `feat/kin-thread`
-**Date:** 2026-10-10
+**Date:** 2026-10-10 (updated after the C1 migration rewrite)
 **Flags:** `RUN_DM_REBUILD = YES` | `BACKFILL_OLD_DMS = NO`
+
+> Correction vs the first draft: the groups tables are **`"Group"` and
+> `"GroupMember"`** (created in `20260813000000_create_family_groups.sql`).
+> `Group.name`, `GroupMember.displayName`, `Group.groupType` (documented
+> values `cousins|parents|siblings|family_event|travel|custom`, **no CHECK
+> constraint**). The first draft wrongly put `groupType`/`directKey` on
+> `"Family"` and used `"FamilyMember"` rows as the "group members"; that
+> design is scrapped. The migration file
+> `20261101120000_dm_rebuild_direct_groups.sql` was rewritten to the real
+> Group design.
 
 ## C0 — Audit + Safety Gate (read-only)
 
 ### STOP ITEM 1: Privacy — ChatMessage RLS with groupId
 
-**Finding:** ChatMessage's SELECT policy is:
+**Finding:** The LIVE ChatMessage policies (replaced in
+`20260813000000`) are:
+
 ```sql
 CREATE POLICY chatmessage_select_policy ON "ChatMessage"
-    FOR SELECT USING (fn_user_is_family_member("familyId"));
+    FOR SELECT USING (
+        ("groupId" IS NULL AND fn_user_is_family_member("familyId"))
+        OR ("groupId" IS NOT NULL AND fn_user_is_group_member("groupId")) );
 ```
 
-This means **ANY family member can read ALL ChatMessage rows** in that family,
-including messages with a `groupId` set (which would be direct-chat-scoped rows).
+`fn_user_is_group_member(group_id)` passes for a **GroupMember row OR any
+FamilyMember of the group's family** (second branch). For a direct group
+that lives inside a real family, every family member would pass — i.e.
+**the whole family could read the direct chat**.
 
 **Verdict:** ⛔ **STOP — privacy fix required.**
 
-**Proposed fix (in the C1 migration):**
-Add a new RLS policy that scopes group-scoped messages to only the two group members:
-```sql
--- New policy: group-scoped messages only readable by group members
-CREATE POLICY chatmessage_select_group_scoped ON "ChatMessage"
-    FOR SELECT USING (
-        "groupId" IS NULL  -- family-wide chat: all family members can read
-        OR EXISTS (
-            SELECT 1 FROM "GroupMember" gm
-            WHERE gm."groupId" = "ChatMessage"."groupId"
-              AND gm."userId" = auth.uid()::text
-        )
-    );
--- Drop the old policy (or make it apply only to groupId IS NULL).
+**Fix (inside the C1 migration, smallest possible):** a new
+`fn_user_can_access_group_chat(group_id)` helper that is strict
+(GroupMember rows only) **only for `groupType='direct'` groups** and
+delegates to `fn_user_is_group_member` for every other group. The
+ChatMessage (select/insert/update), `GroupMember` (select),
+`Group` (select), `ChatMessageReaction` (select/insert) and
+`ChatReadReceipt` (select/insert) policies are recreated with it. Family
+-wide chat (`groupId IS NULL`) and existing groups keep EXACTLY their
+previous visibility.
+
+### STOP ITEM 2: Notifications for new ChatMessage rows
+
+**Finding (every notifier path):**
+1. **No DB trigger** creates notifications on ChatMessage inserts.
+2. Push + in-app notifications are produced by the **NestJS
+   ChatPushScheduler** (`server/src/modules/chat/chat-push.scheduler.ts`,
+   cron every 5 min): it batches `ChatMessage` rows with `notified=false`
+   and resolves recipients via **`FamilyMember` on `msg.familyId`** — it
+   never reads `groupId`, so it would notify the whole family about a
+   direct-group message.
+3. RPC-level notifications (`fn_send_thinking_of_you`,
+   `fn_accept_graph_invitation`) insert into `"Notification"` directly —
+   the rewritten `fn_send_thinking_of_you` targets only the receiver.
+4. Edge functions: none touch chat notifications (8 functions, all
+   games/push-utilities).
+
+**Verdict:** ⛔ **STOP — notification fix required (NestJS code, not SQL).**
+
+**Fix (described exactly; server/ is not modified in this PR since C1 is
+SQL+docs and C2 is Dart only):** in `chat-push.scheduler.ts`, branch the
+recipient resolution on `msg.groupId`:
+
+```ts
+const members = msg.groupId != null
+  ? await this.prisma.groupMember.findMany({
+      where: { groupId: msg.groupId },
+      select: { userId: true },
+    })
+  : await this.prisma.familyMember.findMany({
+      where: { familyId: msg.familyId },
+      select: { userId: true },
+    });
 ```
 
-This preserves family-wide chat (groupId NULL) visibility while restricting
-group-scoped (direct) messages to the two participants.
+(Sender-skip, readBy-skip, mute and quiet-hours logic stay unchanged.)
 
-### STOP ITEM 2: Notifications — triggers that notify for new ChatMessage
+### 3. Family-wide queries never return group-scoped rows
 
-**Finding:** The ChatMessage table has these triggers:
-1. `trg_chatmessage_set_updated_at` — sets updatedAt on UPDATE (no notification)
-2. `trg_chatmessage_gen_id` — generates message ID on INSERT (no notification)
-3. `trg_chatmessage_mark_read` — on ChatReadReceipt INSERT, updates readBy (no notification)
+**Finding:** `ChatNotifier._loadMessages()` selects by `familyId` only;
+the SCREEN then filters client-side — family-wide chat shows
+`groupId == null` rows only, group chat shows `groupId == widget.groupId`
+(`chat_screen.dart`). Realtime subscriptions filter by `familyId`
+(not groupId), but the same client-side filter applies before rendering,
+so no group-scoped row ever renders in the family chat.
 
-Push notifications are sent by the **NestJS server** (ChatPushScheduler), not
-by DB triggers. The server queries `ChatMessage` rows where `notified=false`
-and sends FCM pushes to family members.
+**Verdict:** ✅ Safe — behavior preserved. (Documented nuance: the
+subscription itself is family-wide; extra events are filtered client-
+side — same as existing group chats today.)
 
-**For direct groups:** the NestJS server currently pushes to ALL family members
-(not just the two group members). This would leak the existence of a direct
-message to other family members via the push notification.
+### 4. Every place that reads or writes DirectMessage / direct chat
 
-**Verdict:** ⛔ **STOP — notification fix required.**
-
-**Proposed fix (in the C1 migration + NestJS code):**
-The NestJS `ChatPushScheduler` needs to check `groupId` on each message and
-only push to the two `GroupMember` rows for that group (not all family members).
-This is a NestJS code change, not a SQL change — but the C1 migration should
-document the requirement.
-
-### 3. Family-wide chat queries (groupId NULL) never return group-scoped rows
-
-**Finding:** The current queries in `ChatNotifier._loadMessages()` fetch all
-ChatMessage rows where `familyId = X` (no groupId filter). After the DM
-rebuild, these queries must filter: `groupId IS NULL` for family-wide chat
-and `groupId = Y` for direct chats.
-
-**Verdict:** ✅ **Safe — this is a Dart code change (C2), not a SQL change.**
-The C2 PR must update every query that loads ChatMessage to filter by groupId.
-
-### 4. Every place that reads or writes DirectMessage or direct chat
-
-**Dart files (188 references found):**
-- `lib/features/chat/data/direct_message_provider.dart` — DirectChatNotifier
-- `lib/features/chat/data/direct_message_adapter.dart` — converts DirectMessage → ChatMessage
+**Dart (app):**
+- `lib/features/chat/data/direct_message_provider.dart` — `DirectChatNotifier`, `DmInboxItem`, `sendGameInviteDm`, `fn_sync_dm_game_invites` caller
+- `lib/features/chat/data/direct_message_adapter.dart` — DirectMessage → ChatMessage adapter (`directChatMessagesProvider`)
 - `lib/features/chat/presentation/direct_chat_screen.dart` — the DM screen
-- `lib/features/chat/presentation/chat_inbox_screen.dart` — DM inbox section
-- `lib/features/thinking/data/thinking_service.dart` — fn_send_thinking_of_you
-- `lib/features/games/shared/data/game_invite_chat_sync.dart` — DM game invite sync
-- `lib/features/games/shared/widgets/invite_family_sheet.dart` — DM invite flow
-- `lib/features/chat/providers/chat_provider.dart` — sendGameInviteDm + system message inserts
-- `lib/core/routing/app_router.dart` — `/dm/:otherUserId` route
-- `lib/core/services/notification_reply_handler.dart` — DM notification reply
+- `lib/features/chat/presentation/chat_inbox_screen.dart` — DM inbox rows + member suggestions
+- `lib/features/chat/presentation/archived_chats_screen.dart` — archived DM rows
+- `lib/features/family/presentation/family_chat_list_screen.dart` — Direct tab (partners list)
+- `lib/features/thinking/data/thinking_service.dart` — `fn_send_thinking_of_you` caller (signature unchanged → no change needed)
+- `lib/features/thinking/presentation/family_ring_widget.dart` — DM entry point ×2
+- `lib/features/games/shared/data/game_invite_chat_sync.dart` — DM leg (`fn_sync_dm_game_invites` RPC)
+- `lib/features/games/shared/widgets/invite_family_sheet.dart` — `sendGameInviteDm` callers (single + multi invite)
+- `lib/features/notifications/presentation/notifications_screen.dart` — notification tap → `/dm/:id`
+- `lib/core/services/notification_reply_handler.dart` — DM notification replies
 - `lib/core/services/local_notification_service.dart` — DM vs family routing
+- `lib/core/routing/app_router.dart` — `/dm/:otherUserId` route
+- `lib/features/profile/presentation/member_profile_sheet.dart` — message button
+- `lib/graph/widgets/graph_quick_actions.dart` — graph "Message" action → `/dm/$linkedUserId` (**graph code is off-limits** → handled via the `/dm/:otherUserId` route redirect instead of editing the graph)
 
-**SQL functions:**
-- `fn_send_thinking_of_you(p_receiver_id, p_family_id)` — currently inserts a DirectMessage row.
-  Must be rewritten to insert a ChatMessage into the direct group.
+**Tests:** `test/features/chat/dm_game_invite_adapter_test.dart` (DM adapter — deleted with the adapter).
 
-**Edge functions:** None found that directly reference DirectMessage.
+**SQL:** `fn_send_thinking_of_you` (rewritten in C1), `fn_forward_message`
+DM variant (tier-1, unmerged), `fn_sync_dm_game_invites` (stays — old rows
+keep syncing, but nothing calls it after C2).
 
-### 5. Group-only things shown in group chat (to be HIDDEN in direct chat)
+**Edge functions:** none. **NestJS server:** zero DirectMessage references
+(DMs were Supabase-RPC + Flutter only).
 
-After C2, direct chat should use the SAME group chat screen + provider but
-hide these UI elements:
-- Group info screen (member list, add member, leave, invite link)
-- Admin roles + admin actions
-- Mentions picker (no @mentions in 1:1)
-- Family chip (the "Family" relationship label in the header)
-- Sender name label + avatar (both participants know who sent each message)
-- Relationship pills + rails (the 3px left band)
-- Read-by list (keep normal read ticks, but not the "Read by" sheet)
-- Group name + photo editing
+### 5. Group-only things shown in group chat (HIDDEN in direct chat)
 
-**Keep everything else:** reply, swipe-to-reply, reactions, selection mode,
-Forward/Delete/Star/Pin/Edit/Copy/Share, photos, files, voice notes, stickers,
-GIFs, polls, location, search, wallpapers, disappearing messages, typing
-indicator, game invites.
+Group info screen (members/add/leave/invite link), admin roles + admin
+actions, mentions picker, Family chip, sender names + avatars,
+relationship pills + 3px rails, read-by list (normal ticks stay), group
+name/photo editing.
+
+KEEP everything else: reply, swipe-to-reply, reactions, selection mode
+with Forward/Delete/Star/Pin/Edit/Copy/Share, photos, files, voice
+notes, stickers, GIFs, polls, location, search, wallpapers (incl. the
+new Constellation preset), game invites with the same lifecycle, the
+unread divider, the floating date chip, and system notices.
+
+Reported deviations (documented, not silently dropped):
+- **Typing indicator:** `ChatTypingStatus` is family-scoped
+  (`UNIQUE("familyId","userId")`, no groupId column), so a private typing
+  signal would leak into the family chat. Direct chats therefore do not
+  write typing status (the indicator won't trigger there). A private
+  mechanism needs a follow-up (scoped typing table).
+- **Disappearing messages:** `fn_set_disappearing_messages` is
+  family-scoped; the menu entry stays available but affects the family
+  chat's settings (noted in the PR).
 
 ### 6. Design: direct chat via directKey
 
-**Table changes (C1 migration):**
-- Add `directKey text` to `Group` (or `Family` if groups use that table).
-  `directKey` = the two user IDs sorted + joined (e.g. `"userA_userB"`).
-- Add a UNIQUE INDEX on `directKey WHERE directKey IS NOT NULL`.
-- Add `groupType text DEFAULT 'family'` if not already present
-  (valid values: 'family', 'group', 'direct').
-- The `get_or_create_direct_group` RPC verifies both users are in the
-  same family, creates the Group + 2 GroupMember rows if needed, returns
-  the groupId.
+- `Group.directKey text` = the two user ids sorted + joined with `_`
+  (nullable; unique partial index `WHERE directKey IS NOT NULL`).
+- `groupType = 'direct'` (no CHECK constraint exists, so no constraint
+  change; documented values extended by comment).
+- `Group.name = 'Direct'` (neutral — the app always shows the other
+  person); two `GroupMember` rows with each user's display name.
+- The direct group lives in **a family both users belong to** — the
+  family it was started from, or the oldest shared family when unknown
+  (the RPC resolves it when `p_family_id` is null). **No shared family →
+  no message button** (`no_shared_family` error).
+- Direct groups never appear in group lists (app-side
+  `groupType <> 'direct'` filters in `group_provider` + inbox) and their
+  `Group`/`GroupMember` rows are RLS-hidden from other family members.
 
-**Inbox:** Direct groups appear as person rows (other user's name, avatar,
-last message, unread count). Excluded from every group list.
+## C1 — SQL Migration (additive + idempotent; this branch, NOT merged)
 
-**No shared family → no message button:** If the two users share no family,
-direct chat is not available (the message button is hidden).
+**File:** `supabase/migrations/20261101120000_dm_rebuild_direct_groups.sql`
+(timestamp later than every existing migration).
 
-## C1 — SQL Migration Plan (additive, idempotent, not to be merged)
+Contents:
+1. `Group.directKey` + unique partial index + `GroupMember.userId` index.
+2. `fn_user_can_access_group_chat` + the strict policy set (STOP ITEM 1).
+3. `fn_get_or_create_direct_group(other_user_id, family_id)` —
+   SECURITY DEFINER house style, self-chat rejection, shared-family
+   resolution, directKey lookup, Group + 2 GroupMember creation.
+4. Rewritten `fn_send_thinking_of_you` — same cooldowns/templates,
+   inserts a ChatMessage (familyEvent + thinking_of_you) into the direct
+   group, correct `"Notification"` columns (eventType/channels/priority/
+   read/actionUrl — the first draft used non-existent columns).
+5. Verification SELECTs.
 
-**Migration file:** `supabase/migrations/20261101120000_dm_rebuild_direct_groups.sql`
+**Proof file:** `supabase/manual/dm_privacy_proof.sql` — run as user A,
+B and a third family member C; every C query must return 0 rows (or a
+policy violation).
 
-**Contents:**
-1. ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "groupType" text DEFAULT 'family';
-2. ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "directKey" text;
-3. CREATE UNIQUE INDEX IF NOT EXISTS "Family_directKey_uniq" ON "Family"("directKey") WHERE "directKey" IS NOT NULL;
-4. New RLS policy for group-scoped ChatMessage (STOP ITEM 1 fix).
-5. `get_or_create_direct_group(other_user_id, family_id)` RPC.
-6. Rewrite `fn_send_thinking_of_you` to insert ChatMessage into direct group.
-7. Verification queries at the end.
-8. SQL proof file: `supabase/manual/dm_privacy_proof.sql` — queries a user
-   can run as two DM participants + a third family member to prove the third
-   cannot see the direct chat.
+**Safe apply order:** backup → migration → verification SELECTs →
+privacy proof → deploy C2 Dart → apply the NestJS scheduler snippet.
 
-**Safe apply order:**
-1. Back up the database first.
-2. Apply the migration.
-3. Run the verification SELECTs.
-4. Apply the C2 Dart changes (separate branch).
-5. Test with two users.
+**Rollback:** see the migration header (functions, policies, direct
+groups + their cascade-deleted messages, index, column).
 
-**Rollback steps:**
-1. `DROP FUNCTION IF EXISTS get_or_create_direct_group;`
-2. `DROP FUNCTION IF EXISTS fn_send_thinking_of_you;` (re-run the old definition)
-3. `DROP INDEX IF EXISTS "Family_directKey_uniq";`
-4. `ALTER TABLE "Family" DROP COLUMN IF EXISTS "directKey";`
-5. `ALTER TABLE "Family" DROP COLUMN IF EXISTS "groupType";`
-6. Restore the old ChatMessage RLS policy.
+## C2 — Dart Rewrite (depends on C1 being applied to the database)
 
-## C2 — Dart Rewrite Plan (depends on C1 being applied)
+**New:** `direct_group_service.dart` (`openDirectChat` helper +
+`getOrCreateDirectGroup` RPC wrapper + `directGroupInboxProvider`),
+route `/family/:id/direct/:otherUserId` (DirectChatEntryScreen), and the
+legacy `/dm/:otherUserId` route kept as a redirect.
 
-**Branch:** `feat/dm-app` from `main` (but all work goes to `feat/kin-thread`)
+**ChatScreen** gains `isDirectChat` + `directOtherUserId` (hides
+group-only UI; header shows the other person's name/avatar with the
+relationship or online status as subtitle; wallpaper keyed
+`dm_<otherUserId>` so existing saved DM wallpapers keep working).
 
-**New helper:** `openDirectChat(otherUserId, familyId)` — calls
-`get_or_create_direct_group`, opens the group chat screen with `isDirect`
-derived from groupType.
+**Deleted:** `direct_chat_screen.dart`, `direct_message_provider.dart`,
+`direct_message_adapter.dart`, DM-only tests, `sendGameInviteDm`, the DM
+leg of `game_invite_chat_sync.dart`, and DM inbox items. **NOT deleted:**
+the `DirectMessage` table or any SQL.
 
-**Files to DELETE (after C2 is verified working):**
-- `lib/features/chat/presentation/direct_chat_screen.dart`
-- `lib/features/chat/data/direct_message_provider.dart`
-- `lib/features/chat/data/direct_message_adapter.dart`
-- DM-only models, inbox items, routes, tests
-- `sendGameInviteDm` method + DM-only invite card code
-
-**Files to UPDATE:**
-- `lib/core/routing/app_router.dart` — replace `/dm/:otherUserId` with the
-  group chat route + a redirect for old DM routes.
-- `lib/features/chat/presentation/chat_inbox_screen.dart` — show direct
-  groups as person rows, exclude from group lists.
-- `lib/features/thinking/data/thinking_service.dart` — call the rewritten
-  `fn_send_thinking_of_you`.
-- `lib/features/games/shared/data/game_invite_chat_sync.dart` — use the
-  direct groupId for game invites.
-- `lib/features/games/shared/widgets/invite_family_sheet.dart` — use
-  `openDirectChat` instead of `sendGameInviteDm`.
-- `lib/features/chat/providers/chat_provider.dart` — load messages filtered
-  by groupId (null for family-wide, groupId for direct).
-- `lib/core/services/notification_reply_handler.dart` — route to the
-  direct group instead of DM.
-- `lib/core/services/local_notification_service.dart` — DM vs family routing.
-
-**Do NOT delete:**
-- The `DirectMessage` table (keep it for historical data).
-- Any SQL migration files.
-
-## Summary
-
-| STOP Item | Status | Fix Location |
-|-----------|--------|--------------|
-| 1. Privacy (ChatMessage RLS) | ⛔ STOP | C1 migration (new RLS policy) |
-| 2. Notifications (push to all family members) | ⛔ STOP | C1 migration (document) + NestJS code |
-| 3. Family-wide queries | ✅ Safe | C2 Dart (filter by groupId) |
-| 4. DM entry points | ✅ 188 references found | C2 Dart (rewrite all) |
-| 5. Group-only UI | ✅ Design ready | C2 Dart (hide in direct chat) |
-| 6. DirectKey design | ✅ Design ready | C1 SQL + C2 Dart |
+**Game invites:** `invite_family_sheet` single/multi invites now go
+through `ChatNotifier.sendGameInvite(groupId: <direct group id>)` — the
+same code path, card, and lifecycle sync as the group chat.
