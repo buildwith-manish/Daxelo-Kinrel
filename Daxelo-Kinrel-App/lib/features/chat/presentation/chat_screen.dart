@@ -1743,6 +1743,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         case MessageType.location:
           contentLabel = '[Location shared]';
           break;
+        case MessageType.system:
+          contentLabel = msg.content;
+          break;
         case MessageType.text:
           contentLabel = msg.content;
       }

@@ -64,7 +64,7 @@ import '../../presence/last_seen_provider.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Message type — drives the bubble content and layout.
-enum MessageType { text, photo, voiceNote, familyEvent, sticker, gameInvite, poll, gif, document, location }
+enum MessageType { text, photo, voiceNote, familyEvent, sticker, gameInvite, poll, gif, document, location, system }
 
 /// A single emoji reaction on a message.
 class MessageReaction {
@@ -697,6 +697,8 @@ class ChatMessage {
         return MessageType.document;
       case 'location':
         return MessageType.location;
+      case 'system':
+        return MessageType.system;
       case 'text':
       default:
         return MessageType.text;
@@ -781,6 +783,8 @@ class ChatMessage {
         return 'document';
       case MessageType.location:
         return 'location';
+      case MessageType.system:
+        return 'system';
       case MessageType.text:
         return 'text';
     }

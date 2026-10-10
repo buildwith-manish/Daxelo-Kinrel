@@ -796,6 +796,10 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
         final total = msg.pollTotalVotes;
         final prefix = total > 0 ? 'Poll ($total ${total == 1 ? 'vote' : 'votes'}) · ' : 'Poll · ';
         return prefix + (msg.pollQuestion ?? msg.content);
+      case MessageType.system:
+        // System notices (join notices) show the content directly in the
+        // inbox preview (e.g. "Manish joined the family").
+        return msg.content;
       case MessageType.text:
       default:
         return msg.content;

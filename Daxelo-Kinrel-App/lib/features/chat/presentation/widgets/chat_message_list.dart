@@ -67,6 +67,7 @@ import '../../../../core/utils/app_time.dart';
 import '../../providers/chat_provider.dart';
 import 'chat_meta.dart';
 import 'message_bubble.dart';
+import 'chat_system_notice.dart';
 
 /// A single date group (label + the messages for that day). The class
 /// DateGroup already exists in chat_meta.dart; we just use it directly.
@@ -231,6 +232,18 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
 
               // Tighter spacing within groups (2px) vs between groups (8px).
               final bottomPadding = isLastInGroup ? 8.0 : 2.0;
+
+              // System notices (join notices, etc.) render as a centered
+              // muted pill instead of a normal message bubble. No sender
+              // label, no avatar, no bubble, no rail, no ticks, no reactions,
+              // no reply, no swipe, not selectable. Breaks message clustering.
+              if (msg.messageType == MessageType.system) {
+                final notice = ChatSystemNotice(content: msg.content);
+                return Padding(
+                  padding: EdgeInsets.only(bottom: bottomPadding),
+                  child: notice,
+                );
+              }
 
               final bubble = MessageBubble(
                 message: msg,
