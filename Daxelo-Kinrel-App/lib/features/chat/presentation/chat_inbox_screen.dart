@@ -10,7 +10,8 @@
 // Shows a unified inbox across ALL families the user belongs to PLUS
 // all 1:1 DM conversations. Each row shows the latest message, sender
 // name, timestamp, and unread badge. Tapping a group row opens that
-// family's ChatScreen; tapping a DM row opens the DirectChatScreen.
+// family's ChatScreen; tapping a DM row opens the private direct group
+// (the SAME ChatScreen — see direct_group_service.dart).
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -32,7 +33,7 @@ import '../../../core/services/image_cache_manager.dart';
 // PERSONAL — each viewer sees their own device-local time.
 import '../../../core/utils/app_time.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../data/direct_message_provider.dart';
+import '../data/direct_group_service.dart';
 import '../providers/chat_provider.dart';
 
 class ChatInboxScreen extends ConsumerStatefulWidget {
@@ -71,7 +72,9 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
   @override
   Widget build(BuildContext context) {
     final familiesAsync = ref.watch(familyListProvider);
-    final dmInboxAsync = ref.watch(dmInboxProvider);
+    // Kin Thread / C2: DM rows are now DIRECT GROUPS (private 2-person
+    // groups on the same backend as group chat).
+    final dmInboxAsync = ref.watch(directGroupInboxProvider);
 
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
@@ -262,11 +265,11 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
   }
 
   /// v113: Archives a DM by setting a shared_preferences flag, then
-  /// invalidates the dmInboxProvider so the list refreshes.
+  /// invalidates the directGroupInboxProvider so the list refreshes.
   Future<void> _archiveDm(String otherUserId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dm_archived_$otherUserId', true);
-    if (mounted) ref.invalidate(dmInboxProvider);
+    if (mounted) ref.invalidate(directGroupInboxProvider);
   }
 
   /// v113: Opens a bottom sheet listing all family members (across all
@@ -371,7 +374,12 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
                             ),
                             onTap: () {
                               Navigator.pop(ctx);
-                              context.push('/dm/${m.userId}');
+                              // Kin Thread / C2: open the private direct
+                              // group chat (resolves/creates it).
+                              openDirectChat(
+                                context,
+                                otherUserId: m.userId,
+                              );
                             },
                           );
                         },
@@ -819,11 +827,12 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
 // DM Chat Row (with swipe-to-archive)
 // ═══════════════════════════════════════════════════════════════════════
 
-/// A single DM conversation row, wrapped in a Dismissible for
-/// swipe-to-archive.
+/// A single direct-group conversation row, wrapped in a Dismissible for
+/// swipe-to-archive. (Kin Thread / C2: direct groups are private 2-person
+/// groups — the row shows the OTHER person.)
 class _DmChatRow extends StatelessWidget {
   const _DmChatRow({required this.item, required this.onArchived});
-  final DmInboxItem item;
+  final DirectGroupInboxItem item;
   final VoidCallback onArchived;
 
   @override
@@ -855,7 +864,11 @@ class _DmChatRow extends StatelessWidget {
         ),
       ),
       child: ListTile(
-        onTap: () => context.push('/dm/${item.otherUserId}'),
+        onTap: () => openDirectChat(
+              context,
+              otherUserId: item.otherUserId,
+              familyId: item.familyId,
+            ),
         leading: CircleAvatar(
           radius: 26,
           backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),

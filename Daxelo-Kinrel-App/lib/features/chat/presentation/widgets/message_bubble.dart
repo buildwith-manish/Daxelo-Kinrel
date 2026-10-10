@@ -1269,6 +1269,13 @@ class MessageBubble extends ConsumerWidget {
         // with the lat/lng. Tap → open in the system maps app.
         // (A future v2 would render an inline mini-map.)
         return _buildLocationCard(context);
+
+      case MessageType.system:
+        // Kin Thread / PR 1: system rows (join notices) never reach the
+        // bubble — ChatMessageList short-circuits them into
+        // ChatSystemNotice pills before any bubble is built. This case
+        // only exists so the switch stays exhaustive over the enum.
+        return const SizedBox.shrink();
     }
   }
 

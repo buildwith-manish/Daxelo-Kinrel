@@ -111,22 +111,11 @@ Future<void> syncGameInviteChatCards({
     debugPrint('⚠️ syncGameInviteChatCards($gameId) failed: $e');
   }
 
-  // ── DM parity: mirror the same values onto the DirectMessage invite
-  // payloads through the server-side twin RPC. SECURITY DEFINER handles
-  // the DirectMessage RLS (only the two DM parties could UPDATE directly,
-  // which would drop counts when a third family member joins), and the
-  // winner privacy gate inside the RPC matches the group-side gate.
-  // Best-effort — never blocks the game flow.
-  try {
-    await client.rpc('fn_sync_dm_game_invites', params: {
-      'p_game_id': gameId,
-      if (inviteStatus != null) 'p_status': inviteStatus,
-      if (currentPlayers != null) 'p_current_players': currentPlayers,
-      if (winnerName != null) 'p_winner_name': winnerName,
-      if (completedAt != null)
-        'p_completed_at': completedAt.toUtc().toIso8601String(),
-    });
-  } catch (e) {
-    debugPrint('⚠️ syncGameInviteChatCards($gameId) DM leg failed: $e');
-  }
+  // Kin Thread / C2: the DM leg (fn_sync_dm_game_invites, which wrote
+  // the same values into DirectMessage payload JSON) was REMOVED —
+  // direct invites are now ordinary group-scoped ChatMessage rows, so
+  // the single UPDATE above already covers BOTH chat types (it matches
+  // every gameInvite row for the gameId, whatever its groupId). The
+  // RPC itself stays in the database for old rows; nothing calls it
+  // from the app anymore.
 }

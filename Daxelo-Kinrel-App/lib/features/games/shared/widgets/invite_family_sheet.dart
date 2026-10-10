@@ -63,7 +63,7 @@ import '../../../../core/network/socket_service.dart';
 import '../../../../core/services/image_cache_manager.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../chat/providers/chat_provider.dart';
-import '../../../chat/data/direct_message_provider.dart';
+import '../../../chat/data/direct_group_service.dart';
 import '../../../family/presentation/add_member_source.dart';
 import '../../../presence/last_seen_provider.dart';
 import '../models/game_invite.dart';
@@ -298,7 +298,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
   /// Task 4 routing rule: ONLY the "Entire Family" bulk path calls this —
   /// a group-wide invitation is visible to the whole family thread.
   /// Specific-member invites are delivered as private DMs instead
-  /// (sendGameInviteDm) and never touch the family chat.
+  /// (sendDirectGroupGameInvite) and never touch the family chat.
   ///
   /// One card per invite-send ACTION — it represents the room as a whole,
   /// not one card per recipient — so this is called exactly once per user
@@ -382,6 +382,11 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     // are in flight (ref must never be touched after dispose).
     final socket = ref.read(socketServiceProvider);
     final client = ref.read(supabaseProvider);
+    // Kin Thread / C2: the chat card is now a direct-group ChatMessage
+    // (same path as the group chat) — capture the notifier before the
+    // awaits for the same dispose-safety reason.
+    final chatNotifier =
+        ref.read(chatProvider(widget.familyId).notifier);
     final base = _buildInvite();
     final invite = GameInvite(
       inviteId:
@@ -464,18 +469,24 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
         );
       }
     } finally {
-      // 4. Task 4 — deliver the invite as a PRIVATE direct message to
-      //    this specific member only (never the family group chat). The
-      //    DM is a durable, visible surface: it appears in the member's
-      //    DM thread + inbox with a Join action, live via DirectMessage
-      //    realtime. Tied to the durable game_invites row so a fully
-      //    failed action never posts a DM. Best-effort, never blocks or
-      //    rolls back the invite flow above.
-      if (inviteRowInserted && client != null) {
-        await sendGameInviteDm(
-          client: client,
+      // 4. Kin Thread / C2 — deliver the invite as a PRIVATE
+      //    direct-group message to this specific member only (never the
+      //    family group chat): the SAME ChatNotifier.sendGameInvite code
+      //    path, card, and lifecycle sync as the group chat, scoped to
+      //    the pair's direct group. Tied to the durable game_invites
+      //    row so a fully failed action never posts a card. Best-effort,
+      //    never blocks or rolls back the invite flow above.
+      if (inviteRowInserted) {
+        await sendDirectGroupGameInvite(
+          notifier: chatNotifier,
           toUserId: m.user.id,
-          inviteJson: invite.toJson(),
+          gameType: base.gameType,
+          gameId: base.gameId,
+          roomCode: base.roomCode,
+          maxPlayers: base.maxPlayers,
+          currentPlayers: base.currentPlayers,
+          content: base.message,
+          familyId: widget.familyId,
         );
       }
     }
@@ -504,6 +515,9 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     // in flight (ref must never be touched after dispose).
     final socket = ref.read(socketServiceProvider);
     final client = ref.read(supabaseProvider);
+    // Kin Thread / C2: direct-group invite cards share the group path.
+    final chatNotifier =
+        ref.read(chatProvider(widget.familyId).notifier);
     final base = _buildInvite();
     int sent = 0;
     // Durable invites persisted to game_invites (row + FCM push trigger).
@@ -573,16 +587,24 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
           .markManyPending(records);
     }
 
-    // Task 4 — one private invite DM per selected member (never the
-    // family group chat). Tied to the durable game_invites rows, so a
-    // fully-failed action (or socket outage) posts nothing, while every
-    // persisted invite reaches its recipient's DM thread + inbox.
-    if (inserted > 0 && client != null) {
+    // Kin Thread / C2 — one private DIRECT-GROUP invite per selected
+    // member (never the family group chat): the same
+    // ChatNotifier.sendGameInvite path, card, and lifecycle sync, scoped
+    // to each pair's direct group. Tied to the durable game_invites
+    // rows, so a fully-failed action (or socket outage) posts nothing.
+    if (inserted > 0) {
       for (final entry in dmTargets.entries) {
-        await sendGameInviteDm(
-          client: client,
+        final j = entry.value;
+        await sendDirectGroupGameInvite(
+          notifier: chatNotifier,
           toUserId: entry.key,
-          inviteJson: entry.value,
+          gameType: j['gameType'] as String? ?? '',
+          gameId: j['gameId'] as String? ?? '',
+          roomCode: j['roomCode'] as String? ?? '',
+          maxPlayers: (j['maxPlayers'] as num?)?.toInt() ?? 2,
+          currentPlayers: (j['currentPlayers'] as num?)?.toInt() ?? 1,
+          content: j['message'] as String?,
+          familyId: widget.familyId,
         );
       }
     }

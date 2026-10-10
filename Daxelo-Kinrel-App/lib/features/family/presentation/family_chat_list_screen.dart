@@ -34,7 +34,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../chat/data/direct_message_provider.dart';
+import '../../chat/data/direct_group_service.dart';
 import '../../chat/presentation/chat_screen.dart';
 import 'family_space_floating_nav.dart';
 
@@ -367,7 +367,11 @@ class _DirectTab extends ConsumerWidget {
           for (final partner in recent) {
             rows.add(_DmRow(
               partner: partner,
-              onTap: () => context.push('/dm/${partner.userId}'),
+              onTap: () => openDirectChat(
+                context,
+                otherUserId: partner.userId,
+                familyId: familyId,
+              ),
             ));
           }
         }
@@ -381,7 +385,11 @@ class _DirectTab extends ConsumerWidget {
           for (final partner in available) {
             rows.add(_AvailableMemberRow(
               partner: partner,
-              onTap: () => context.push('/dm/${partner.userId}'),
+              onTap: () => openDirectChat(
+                context,
+                otherUserId: partner.userId,
+                familyId: familyId,
+              ),
             ));
           }
         }

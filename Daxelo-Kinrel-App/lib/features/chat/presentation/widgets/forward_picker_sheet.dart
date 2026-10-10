@@ -31,7 +31,6 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/family/family_provider.dart';
 import '../../../../core/services/supabase_service.dart';
-import '../../data/direct_message_provider.dart';
 
 class ForwardPickerSheet extends ConsumerStatefulWidget {
   const ForwardPickerSheet({
@@ -84,16 +83,18 @@ class ForwardPickerSheet extends ConsumerStatefulWidget {
 
 class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
   final Set<String> _selectedFamilyIds = {};
-  final Set<String> _selectedDmUserIds = {};
   bool _isSending = false;
 
-  int get _totalSelected =>
-      _selectedFamilyIds.length + _selectedDmUserIds.length;
+  // Kin Thread / C2: DM targets were removed — fn_forward_message's DM
+  // leg writes DirectMessage rows, which are no longer rendered (direct
+  // chats are now group-scoped ChatMessage rows). Forwarding to family
+  // + group chats works exactly as before; a direct-group forward path
+  // would need the RPC extended (reported in the PR).
+  int get _totalSelected => _selectedFamilyIds.length;
 
   @override
   Widget build(BuildContext context) {
     final familiesAsync = ref.watch(familyListProvider);
-    final dmInboxAsync = ref.watch(dmInboxProvider);
 
     // Compute the height as ~70% of screen, capped at 600.
     final maxSheetHeight = MediaQuery.of(context).size.height * 0.7;
@@ -147,39 +148,26 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
               ),
             ),
             Divider(height: 1, color: Colors.white.withValues(alpha: 0.06)),
-            // Body: families + DMs
+            // Body: family chats (DM targets removed — see _totalSelected)
             Expanded(
               child: familiesAsync.when(
                 data: (families) {
-                  final dmItems = dmInboxAsync.valueOrNull ?? [];
                   // Filter out the current family from the list (no
                   // point forwarding to the same chat).
                   final targetFamilies = families
                       .where((f) => f.id != widget.currentFamilyId)
                       .toList();
-                  if (targetFamilies.isEmpty && dmItems.isEmpty) {
+                  if (targetFamilies.isEmpty) {
                     return _buildEmptyState();
                   }
                   // v114 — Step 4 perf: build a flat list of rows then
-                  // use ListView.builder so family/DM rows are built
+                  // use ListView.builder so family rows are built
                   // lazily. Section headers stay as direct children of
                   // the flat list (small, fixed count).
                   final rows = <Widget>[];
-                  if (targetFamilies.isNotEmpty) {
-                    rows.add(_sectionHeader('Family chats'));
-                    for (final f in targetFamilies) {
-                      rows.add(_familyRow(f));
-                    }
-                  }
-                  // Preserve original behavior: the "Direct messages"
-                  // section header is shown whenever any DM exists
-                  // (archived or not), but only non-archived DMs render
-                  // as rows.
-                  if (dmItems.isNotEmpty) {
-                    rows.add(_sectionHeader('Direct messages'));
-                    for (final d in dmItems.where((d) => !d.isArchived)) {
-                      rows.add(_dmRow(d));
-                    }
+                  rows.add(_sectionHeader('Family chats'));
+                  for (final f in targetFamilies) {
+                    rows.add(_familyRow(f));
                   }
                   return ListView.builder(
                     padding: const EdgeInsets.only(bottom: 80),
@@ -374,73 +362,12 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
     );
   }
 
-  Widget _dmRow(DmInboxItem d) {
-    final isSelected = _selectedDmUserIds.contains(d.otherUserId);
-    return InkWell(
-      onTap: () => _toggleDm(d.otherUserId),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          children: [
-            _Checkbox(checked: isSelected),
-            const SizedBox(width: 10),
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
-              backgroundImage: d.otherUserAvatar != null &&
-                      d.otherUserAvatar!.isNotEmpty
-                  ? CachedNetworkImageProvider(d.otherUserAvatar!)
-                  : null,
-              child: d.otherUserAvatar == null || d.otherUserAvatar!.isEmpty
-                  ? Text(
-                      (d.otherUserName.isNotEmpty
-                              ? d.otherUserName[0]
-                              : '?')
-                          .toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: KinrelColors.orange,
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                d.otherUserName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _toggleFamily(String id) {
     setState(() {
       if (_selectedFamilyIds.contains(id)) {
         _selectedFamilyIds.remove(id);
       } else {
         _selectedFamilyIds.add(id);
-      }
-    });
-  }
-
-  void _toggleDm(String userId) {
-    setState(() {
-      if (_selectedDmUserIds.contains(userId)) {
-        _selectedDmUserIds.remove(userId);
-      } else {
-        _selectedDmUserIds.add(userId);
       }
     });
   }
@@ -464,7 +391,8 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
         params: {
           'p_message_id': widget.messageId,
           'p_target_family_ids': _selectedFamilyIds.toList(),
-          'p_target_dm_user_ids': _selectedDmUserIds.toList(),
+          // Kin Thread / C2: no DM targets anymore (see _totalSelected).
+          'p_target_dm_user_ids': const <String>[],
         },
       ).timeout(const Duration(seconds: 12)) as Map<String, dynamic>?;
     } catch (e) {
