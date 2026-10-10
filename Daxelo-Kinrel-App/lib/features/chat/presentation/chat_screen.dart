@@ -1096,7 +1096,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           .toUpperCase(),
       style: const TextStyle(
         fontFamily: KinrelTypography.displayFont,
-        fontSize: 16,
+        fontSize: 18, // increased from 16
         fontWeight: FontWeight.w700,
         color: Colors.white,
       ),
@@ -1141,7 +1141,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         : chatState.members.length;
 
     return PreferredSize(
-      preferredSize: const Size.fromHeight(72),
+      preferredSize: const Size.fromHeight(80), // increased from 72 for better visual presence
       child: Container(
         decoration: BoxDecoration(
           // PERF (Flat): solid color in flat mode; gradient in rich mode.
@@ -1167,14 +1167,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         child: SafeArea(
           bottom: false,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8), // increased from 6
             child: Row(
               children: [
                 // ── Back button ────────────────────────────────────────
                 IconButton(
                   icon: const Icon(
                     Icons.arrow_back_ios_new,
-                    size: 18,
+                    size: 22, // increased from 18
                     color: KinrelColors.textSilver,
                   ),
                   onPressed: () {
@@ -1212,8 +1212,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     onTap: () =>
                         context.push('/family/${widget.familyId}/profile'),
                     child: Container(
-                      width: 48,
-                      height: 48,
+                      width: 54, // increased from 48
+                      height: 54,
                       // PERF (Flat): BoxDecoration is no longer `const`
                       // because _kChatAvatarGlow is now a runtime-final
                       // list (KinrelFx.shadows() resolves at app start,
@@ -1246,18 +1246,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                       base64Decode(avatarUrl.substring(
                                           avatarUrl.indexOf(',') + 1)),
                                       fit: BoxFit.cover,
-                                      width: 46,
-                                      height: 46,
+                                      width: 52,
+                                      height: 52,
                                       // Phase 4 — cap decode at the
-                                      // 46×46 display size × DPR so a 4K
+                                      // 52×52 display size × DPR so a 4K
                                       // family-avatar URL doesn't
                                       // allocate a 4K bitmap in memory.
                                       cacheWidth:
-                                          (46 * MediaQuery.devicePixelRatioOf(
+                                          (52 * MediaQuery.devicePixelRatioOf(
                                                   context))
                                               .round(),
                                       cacheHeight:
-                                          (46 * MediaQuery.devicePixelRatioOf(
+                                          (52 * MediaQuery.devicePixelRatioOf(
                                                   context))
                                               .round(),
                                       errorBuilder: (_, __, ___) =>
@@ -1268,8 +1268,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                       cacheManager:
                                           KinrelImageCacheManager.instance,
                                       fit: BoxFit.cover,
-                                      width: 46,
-                                      height: 46,
+                                      width: 52,
+                                      height: 52,
                                       // Phase 4 — consolidated cache
                                       // manager + cap decode at the on-
                                       // screen 46×46 size × DPR. Without
@@ -1279,11 +1279,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                       // shared ImageCache, evicting
                                       // message thumbnails.
                                       memCacheWidth:
-                                          (46 * MediaQuery.devicePixelRatioOf(
+                                          (52 * MediaQuery.devicePixelRatioOf(
                                                   context))
                                               .round(),
                                       memCacheHeight:
-                                          (46 * MediaQuery.devicePixelRatioOf(
+                                          (52 * MediaQuery.devicePixelRatioOf(
                                                   context))
                                               .round(),
                                       placeholder: (_, __) =>
@@ -1337,7 +1337,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           widget.groupName ?? widget.familyName,
                           style: const TextStyle(
                             fontFamily: KinrelTypography.displayFont,
-                            fontSize: 16.5,
+                            fontSize: 18, // increased from 16.5
                             fontWeight: FontWeight.w700,
                             color: KinrelColors.textWhite,
                             letterSpacing: 0.1,
@@ -1579,14 +1579,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // discoverability (also accessible via the more menu).
                 HeaderActionButton(
                   icon: Icons.search,
-                  size: 20,
+                  size: 22,
                   onPressed: () {
                     context.push('/family/${widget.familyId}/chat/search');
                   },
                 ),
                 HeaderActionButton(
                   icon: Icons.videocam_outlined,
-                  size: 20,
+                  size: 22,
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -1599,7 +1599,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
                 HeaderActionButton(
                   icon: Icons.call_outlined,
-                  size: 18,
+                  size: 20,
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -1613,7 +1613,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // More menu — settings, wallpaper, mute, etc.
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert,
-                      color: KinrelColors.textSilver, size: 20),
+                      color: KinrelColors.textSilver, size: 22),
                   color: KinrelColors.darkCard,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),

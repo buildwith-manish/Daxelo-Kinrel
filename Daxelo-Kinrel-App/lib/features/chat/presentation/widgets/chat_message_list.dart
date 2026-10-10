@@ -67,6 +67,7 @@ import '../../../../core/utils/app_time.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/chat_selection_provider.dart';
 import 'chat_meta.dart';
+import 'floating_date_indicator.dart';
 import 'message_bubble.dart';
 
 /// A single date group (label + the messages for that day). The class
@@ -192,7 +193,9 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
     // reversed ListView, padding.bottom is applied at the visual bottom.
     const fabClearance = 64.0;
 
-    return ListView.builder(
+    return Stack(
+      children: [
+        ListView.builder(
       controller: widget.scrollController,
       // reverse: true means the visual BOTTOM of the viewport shows
       // index 0 (the newest message) and scrolling UP increases the
@@ -330,7 +333,16 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
           ],
         );
       },
-    );
+        ), // close ListView.builder
+        // Floating date indicator overlay (WhatsApp/Telegram-style).
+        // Shows the date of the messages currently at the top of the
+        // viewport while scrolling, then fades out after ~1.5s.
+        FloatingDateIndicator(
+          scrollController: widget.scrollController,
+          grouped: grouped,
+        ),
+      ], // close Stack children
+    ); // close Stack
   }
 
   /// Date separator pill — MOVED verbatim from chat_screen.dart's
