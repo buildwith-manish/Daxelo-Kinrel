@@ -293,7 +293,7 @@ final directGroupInboxProvider =
           .limit(1)
           .timeout(const Duration(seconds: 5));
       if (others.isEmpty) continue;
-      final other = others.first as Map<String, dynamic>;
+      final other = others.first;
       final otherUserId = other['userId'] as String? ?? '';
       if (otherUserId.isEmpty) continue;
       final otherUserName =
@@ -311,8 +311,7 @@ final directGroupInboxProvider =
             .limit(1)
             .timeout(const Duration(seconds: 5));
         if (lastResp.isNotEmpty) {
-          last = ChatMessage.fromJson(
-              lastResp.first as Map<String, dynamic>);
+          last = ChatMessage.fromJson(lastResp.first);
         }
       } catch (_) {}
 
