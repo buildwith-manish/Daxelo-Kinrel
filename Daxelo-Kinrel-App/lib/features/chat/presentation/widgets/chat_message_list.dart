@@ -167,13 +167,94 @@ class ChatMessageList extends ConsumerStatefulWidget {
 
 class _ChatMessageListState extends ConsumerState<ChatMessageList> {
   // ── Phase 2 / memoization ───────────────────────────────────────
-  // Cache the date grouping so it doesn't re-run on every rebuild. The
-  // cache key is the IDENTITY of the messages list (chat_provider's
-  // ChatState.messages is immutable — any state change creates a fresh
-  // List, so identical() is a perfect invalidation signal). MOVED
-  // verbatim from chat_screen.dart's _groupedCache.
   List<DateGroup> _groupedCache = const [];
   List<ChatMessage>? _groupedCacheKey;
+
+  // ── Floating Date Indicator ──────────────────────────────────────
+  // Track the active date using ACTUAL rendered positions (not
+  // estimation). A GlobalKey per date separator lets us check each
+  // separator's RenderBox.localToGlobal on scroll to find which one is
+  // at the top of the viewport. Only visible items have live keys
+  // (scrolled-out items are disposed) so iteration is O(visible) = fast.
+  final Map<int, GlobalKey> _separatorKeys = {};
+  final ValueNotifier<String?> _activeDateNotifier = ValueNotifier(null);
+  final ValueNotifier<bool> _separatorVisibleNotifier = ValueNotifier(false);
+
+  @override
+  void initState() {
+    super.initState();
+    widget.scrollController.addListener(_onScrollForDate);
+  }
+
+  @override
+  void dispose() {
+    widget.scrollController.removeListener(_onScrollForDate);
+    _activeDateNotifier.dispose();
+    _separatorVisibleNotifier.dispose();
+    super.dispose();
+  }
+
+  /// Called on each scroll event. Schedules a post-frame callback to
+  /// check the actual rendered positions of the date separators.
+  void _onScrollForDate() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _computeActiveDate());
+  }
+
+  /// Iterates through the live separator keys, finds the topmost
+  /// visible one, checks if it's in the viewport, and updates the
+  /// notifiers. Uses ACTUAL RenderBox positions — 100% accurate.
+  void _computeActiveDate() {
+    if (!mounted || _groupedCache.isEmpty) return;
+
+    final scrollPos = widget.scrollController.position;
+    final viewportTop = scrollPos.pixels;
+    final viewportBottom = scrollPos.pixels + scrollPos.viewportDimension;
+
+    String? topDateLabel;
+    bool separatorInView = false;
+
+    // Iterate from index 0 (newest) to last (oldest). In a reversed
+    // ListView, higher indices are at the TOP of the viewport.
+    for (int i = _groupedCache.length - 1; i >= 0; i--) {
+      final key = _separatorKeys[i];
+      if (key == null || key.currentContext == null) continue;
+
+      final renderBox = key.currentContext!.findRenderObject() as RenderBox?;
+      if (renderBox == null || !renderBox.hasSize) continue;
+
+      // Get the separator's global position.
+      final pos = renderBox.localToGlobal(Offset.zero);
+      final separatorTop = pos.dy;
+      final separatorBottom = pos.dy + renderBox.size.height;
+
+      // Check if this separator is in the viewport.
+      if (separatorBottom > 0 && separatorTop < viewportBottom) {
+        // This separator is visible — it's a candidate for the active date.
+        if (topDateLabel == null) {
+          topDateLabel = _groupedCache[i].dateLabel;
+          separatorInView = true;
+        }
+      } else if (separatorBottom <= 0) {
+        // This separator has scrolled ABOVE the viewport. If we haven't
+        // found a visible separator yet, this date group's messages are
+        // what the user is currently viewing — use this date for the
+        // floating badge.
+        if (topDateLabel == null) {
+          topDateLabel = _groupedCache[i].dateLabel;
+          separatorInView = false;
+        }
+      }
+    }
+
+    // Update the notifiers (only if changed — avoids unnecessary rebuilds).
+    if (_activeDateNotifier.value != topDateLabel) {
+      _activeDateNotifier.value = topDateLabel;
+    }
+    if (_separatorVisibleNotifier.value != separatorInView) {
+      _separatorVisibleNotifier.value = separatorInView;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -220,10 +301,17 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
       cacheExtent: 800,
       itemBuilder: (context, index) {
         final group = grouped[index];
+        // Create/reuse a GlobalKey for this date separator so the
+        // _computeActiveDate() method can check its rendered position.
+        _separatorKeys[index] ??= GlobalKey();
         return Column(
           children: [
-            // Date separator pill
-            _buildDateSeparator(group.dateLabel),
+            // Date separator pill — wrapped in a Container with the
+            // GlobalKey so its position can be tracked during scrolling.
+            Container(
+              key: _separatorKeys[index],
+              child: _buildDateSeparator(group.dateLabel),
+            ),
             const SizedBox(height: 8),
             // Messages for this date — with sender grouping
             ...group.messages.asMap().entries.map((entry) {
@@ -338,8 +426,9 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
         // Shows the date of the messages currently at the top of the
         // viewport while scrolling, then fades out after ~1.5s.
         FloatingDateIndicator(
+          activeDateNotifier: _activeDateNotifier,
+          separatorVisibleNotifier: _separatorVisibleNotifier,
           scrollController: widget.scrollController,
-          grouped: grouped,
         ),
       ], // close Stack children
     ); // close Stack
