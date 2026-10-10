@@ -138,6 +138,13 @@ model User {
   /// Short looping video that plays in place of the avatar on the
   /// member profile sheet. Null = fall back to avatarUrl.
   profileVideoUrl         String?
+  // ── Tier 5 Feature 5.2: Username-only accounts ────────────────────
+  isUsernameOnlyAccount   Boolean   @default(false)
+  showOnUsernameSearch    Boolean   @default(true)
+  // ── Tier 5 Feature 5.3: People Nearby ──────────────────────────────
+  nearbyDiscoveryEnabled  Boolean   @default(false)
+  // ── Tier 5 Feature 5.5: Cloud backup ──────────────────────────────
+  lastCloudBackupAt       DateTime? @db.Timestamptz
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
 
@@ -4683,4 +4690,108 @@ model UserEmojiPackInstall {
   @@unique([userId, packId])
   @@index([userId, installedAt])
   @@map("UserEmojiPackInstall")
+}
+
+// ── Tier 5 Feature 5.1: Secret Chats (E2E encrypted) ───────────────
+// The server stores ONLY ciphertext. The key exchange happens client-side
+// via X25519 (each user posts a public key; the peer computes the shared
+// secret locally). The SecretChat row carries a keyFingerprint (SHA-256
+// of the shared secret) that both sides verify on accept.
+model SecretChat {
+  id              String    @id
+  userA           String
+  userB           String
+  initiatorUserId String
+  keyFingerprint  String
+  status          String    @default("pending") // pending | active | rejected | closed
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  acceptedAt      DateTime? @db.Timestamptz
+  closedAt        DateTime? @db.Timestamptz
+  updatedAt       DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  messages SecretMessage[]
+
+  @@index([userA, createdAt])
+  @@index([userB, createdAt])
+  @@map("SecretChat")
+}
+
+model SecretMessage {
+  id           String    @id
+  secretChatId String
+  senderId     String
+  ciphertext   String // base64 AES-GCM ciphertext
+  iv           String // base64 nonce
+  messageType  String    @default("text")
+  expiresAt    DateTime? @db.Timestamptz
+  isRead       Boolean   @default(false)
+  createdAt    DateTime  @default(now()) @db.Timestamptz
+
+  secretChat SecretChat @relation(fields: [secretChatId], references: [id], onDelete: Cascade)
+
+  @@index([secretChatId, createdAt])
+  @@index([expiresAt])
+  @@map("SecretMessage")
+}
+
+model UserPublicKey {
+  userId       String
+  keyType      String // 'x25519' | 'ed25519'
+  publicKeyB64 String
+  createdAt    DateTime @default(now()) @db.Timestamptz
+  updatedAt    DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@id([userId, keyType])
+  @@index([keyType])
+  @@map("UserPublicKey")
+}
+
+// ── Tier 5 Feature 5.3: People Nearby ────────────────────────────────
+model UserLastLocation {
+  userId    String   @id
+  lat       Float
+  lng       Float
+  accuracyM Float?
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([updatedAt])
+  @@map("UserLastLocation")
+}
+
+// ── Tier 5 Feature 5.4: Chat export jobs ─────────────────────────────
+model ChatExportJob {
+  id              String    @id
+  requesterId     String
+  familyId        String
+  scope           String // 'text' | 'full'
+  status          String    @default("pending") // pending | running | completed | failed
+  resultUrl       String?
+  resultSizeBytes BigInt?
+  resultFormat    String?
+  messageCount    Int?
+  failureReason   String?
+  expiresAt       DateTime? @db.Timestamptz
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  completedAt     DateTime? @db.Timestamptz
+  updatedAt       DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([requesterId, createdAt])
+  @@map("ChatExportJob")
+}
+
+// ── Tier 5 Feature 5.5: Cloud backup records ─────────────────────────
+model CloudBackupRecord {
+  id           String   @id
+  userId       String
+  provider     String // 'google_drive' | 'icloud'
+  backupKey    String
+  sizeBytes    BigInt
+  messageCount Int      @default(0)
+  mediaCount   Int      @default(0)
+  deviceLabel  String?
+  fileId       String?
+  createdAt    DateTime @default(now()) @db.Timestamptz
+
+  @@index([userId, createdAt])
+  @@map("CloudBackupRecord")
 }
