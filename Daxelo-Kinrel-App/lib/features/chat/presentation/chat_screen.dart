@@ -271,11 +271,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // and only animates while mounted. The ref.listen calls that
     // started/stopped the screen-side controller are gone with it.
 
-    // Mark all as read on enter
+    // Mark all as read on enter (this chat's scope only).
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(chatProvider(widget.familyId).notifier).markAllRead();
+      if (!mounted) return;
+      ref
+          .read(chatProvider(widget.familyId).notifier)
+          .markAllRead(groupId: widget.groupId);
       // v112: Load saved wallpaper color so it's applied on first render.
       _loadWallpaperColor();
+    });
+  }
+
+  /// Kin Thread / PR2 Task 3 — the provider no longer auto-marks
+  /// messages read after its initial load (that cleared the family
+  /// badge whenever a group/direct chat was opened). This screen now
+  /// marks its OWN scope read, once, as soon as its messages arrive.
+  /// The unread-divider snapshot is captured inside markAllRead BEFORE
+  /// the isRead flags flip, so the divider survives marking.
+  bool _markedReadOnOpen = false;
+  void _maybeMarkReadOnOpen(ChatState chatState) {
+    if (_markedReadOnOpen) return;
+    if (chatState.isLoading || chatState.messages.isEmpty) return;
+    _markedReadOnOpen = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref
+          .read(chatProvider(widget.familyId).notifier)
+          .markAllRead(groupId: widget.groupId);
     });
   }
 
@@ -631,6 +653,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatProvider(widget.familyId));
+    // Kin Thread / PR2 T3: mark THIS chat's scope read once its
+    // messages have loaded (the provider no longer auto-marks the
+    // whole family — see markAllRead({groupId})).
+    _maybeMarkReadOnOpen(chatState);
     // Pack 13: Socket.IO engagement state (typing / streak / presence /
     // read receipts / reactions). Additive to the Supabase Realtime state
     // in chatState — gives sub-second updates for the engagement signals.
@@ -1528,6 +1554,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       case 'theme':
                         _showThemePicker();
                         break;
+                      case 'constellation':
+                        // Kin Thread / PR2 T4: one-tap access to the
+                        // Constellation preset (also in Chat Atmosphere).
+                        ref.read(chatWallpaperProvider.notifier).setWallpaper(
+                              widget.familyId,
+                              'theme:constellation',
+                            );
+                        break;
                       case 'wallpaper':
                         _showImageWallpaperPicker(context, widget.familyId);
                         break;
@@ -1566,6 +1600,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           Text('Search all chats'),
                         ])),
                     const PopupMenuDivider(),
+                    const PopupMenuItem(
+                        value: 'constellation',
+                        child: Text('Constellation (default wallpaper)')),
                     const PopupMenuItem(
                         value: 'theme', child: Text('Chat Atmosphere')),
                     const PopupMenuItem(
@@ -2485,6 +2522,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       familyId: widget.familyId,
       isDirectChat: false,
       inviteFamilyId: null,
+      // Kin Thread / PR2 T3: the unread divider snapshot (captured by
+      // the provider before marking read; null when the chat opened
+      // fully read). Only rendered if the id is present in THIS chat's
+      // filtered message list.
+      unreadDividerMessageId: chatState.unreadDividerMessageId,
+      unreadDividerCount: chatState.unreadDividerCount,
       scrollController: _scrollController,
       onReply: (msg) {
         ref.read(chatProvider(widget.familyId).notifier).setReplyTo(msg);

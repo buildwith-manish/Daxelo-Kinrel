@@ -528,12 +528,15 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
       final client = ref.read(supabaseProvider);
       if (client == null) return;
 
-      // Fetch the latest message for this family
+      // Fetch the latest FAMILY-WIDE message for this family.
+      // Kin Thread: group-scoped rows (sub-groups + direct groups)
+      // never appear in the family chat row — only groupId IS NULL.
       final response = await client
           .from('ChatMessage')
           .select()
           .eq('familyId', widget.family.id)
           .eq('isDeletedForEveryone', false)
+          .isFilter('groupId', null)
           .order('createdAt', ascending: false)
           .limit(1);
 
@@ -546,7 +549,10 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
         }
       }
 
-      // Fetch unread count (messages not sent by me, not yet read)
+      // Fetch unread count (messages not sent by me, not yet read).
+      // Kin Thread / PR1 (e): system rows (join notices) NEVER count
+      // toward the unread badge, and only FAMILY-WIDE messages count
+      // (group-scoped + direct-group rows belong to their own rows).
       final myUserId = client.auth.currentUser?.id;
       if (myUserId != null) {
         final unreadResponse = await client
@@ -556,6 +562,8 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
             .eq('isDeletedForEveryone', false)
             .eq('isRead', false)
             .neq('senderId', myUserId)
+            .isFilter('groupId', null)
+            .neq('messageType', 'system')
             .count();
 
         if (mounted) {
