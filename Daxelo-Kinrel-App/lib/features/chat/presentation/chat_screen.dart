@@ -127,6 +127,25 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.groupId,
     this.groupName,
     this.hideAppBar = false,
+    /// C2: when true, this ChatScreen is rendering a direct (1:1) chat
+    /// that's backed by a private 2-person group (groupType='direct').
+    /// The screen hides group-only UI: group info, add member, leave,
+    /// invite link, admin roles, mentions picker, Family chip, sender
+    /// labels, avatars, relationship pills/rails, read-by list, group
+    /// name/photo editing. Everything else (reply, swipe-to-reply,
+    /// reactions, selection mode, Forward/Delete/Star/Pin/Edit/Copy/Share,
+    /// photos, files, voice notes, stickers, GIFs, polls, location, search,
+    /// wallpapers, disappearing messages, typing indicator, game invites)
+    /// is shared with group chat — zero duplicate code.
+    this.isDirectChat = false,
+    /// C2: the other user's ID for direct chats. Used to resolve their
+    /// display name + avatar + relationship label for the header.
+    this.directChatOtherUserId,
+    /// C2: pre-resolved display name for the other user (passed from
+    /// the inbox or notification tap to avoid a loading flash).
+    this.directChatOtherUserName,
+    /// C2: pre-resolved avatar URL for the other user.
+    this.directChatOtherUserAvatar,
   });
 
   /// The family ID for this chat.
@@ -136,32 +155,28 @@ class ChatScreen extends ConsumerStatefulWidget {
   final String familyName;
 
   /// v115: Whether to show the FamilySpaceFloatingNav at the bottom.
-  ///
-  /// When `true` (default, backward-compatible), the chat screen shows
-  /// the Family Space bottom nav — this is the old behaviour where the
-  /// Chat tab opened the group chat directly.
-  ///
-  /// When `false`, the chat screen is full-screen (no bottom nav) —
-  /// used when the chat is opened from the Family Chat List screen as
-  /// a pushed conversation, matching WhatsApp/Telegram UX.
   final bool showFamilyNav;
 
-  /// v139: Group ID for sub-group chats. When set, the screen filters
-  /// messages to this group only and uses [groupName] in the header.
-  /// When null, shows the family-wide chat (existing behavior).
+  /// v139: Group ID for sub-group chats.
   final String? groupId;
 
-  /// v139: Display name for the group (used in the AppBar when
-  /// [groupId] is set). Falls back to [familyName] if null.
+  /// v139: Display name for the group.
   final String? groupName;
 
-  /// v140 Family-Centric Chat Navigation: when true, the ChatScreen's
-  /// own AppBar is suppressed. Used when the ChatScreen is embedded
-  /// inside a parent Scaffold (e.g. the redesigned FamilyChatListScreen
-  /// which provides its own header with [Family] [Direct] tab switcher).
-  /// The parent screen is responsible for rendering the family name +
-  /// member count header in this case.
+  /// v140: when true, the ChatScreen's own AppBar is suppressed.
   final bool hideAppBar;
+
+  /// C2: whether this is a direct (1:1) chat.
+  final bool isDirectChat;
+
+  /// C2: the other user's ID for direct chats.
+  final String? directChatOtherUserId;
+
+  /// C2: pre-resolved display name for the other user.
+  final String? directChatOtherUserName;
+
+  /// C2: pre-resolved avatar URL for the other user.
+  final String? directChatOtherUserAvatar;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -746,7 +761,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // is the tab destination (showFamilyNav=true). When opened as a
       // pushed conversation from the chat list, the bottom nav is
       // hidden so the chat is full-screen (WhatsApp/Telegram style).
-      bottomNavigationBar: widget.showFamilyNav
+      bottomNavigationBar: (widget.showFamilyNav && !widget.isDirectChat)
           ? FamilySpaceFloatingNav(familyId: widget.familyId)
           : null,
       body: _isCheckingLock
@@ -990,22 +1005,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   PreferredSizeWidget _buildAppBar(ChatState chatState) {
     // v134 KINREL SIGNATURE HEADER
     // Design language: relationship-centered rather than utility-bar.
-    // The header celebrates the human connection rather than treating
-    // the recipient as a contact row. Visual hierarchy is:
-    //   1. Person (avatar with premium framing)
-    //   2. Relationship (Kinrel signature chip — "Family" / "Group")
-    //   3. Status (refined presence indicator)
-    //   4. Actions (visually balanced, never competing with identity)
     //
-    // Unique Kinrel element: a small relationship chip below the name
-    // with a soft ember accent — this is what makes the header
-    // recognizable as Kinrel rather than another messaging app.
-    //
-    // Header atmosphere: the surface uses the same vertical gradient
-    // as the v132 ChatBackground + v133 composer so the whole screen
-    // feels cohesive. A subtle ember ambient glow behind the avatar
-    // adds warmth.
-    final avatarUrl = ref.watch(familyAvatarProvider(widget.familyId));
+    // C2: In direct chat, the header shows the OTHER person's name +
+    // avatar (not the family name). The relationship (if resolved) is
+    // shown as the subtitle. Group-only elements (Family chip, member
+    // count, group info button, mentions) are hidden.
+
+    // C2: Direct chat header — use the other person's info.
+    final avatarUrl = widget.isDirectChat
+        ? widget.directChatOtherUserAvatar
+        : ref.watch(familyAvatarProvider(widget.familyId));
     // v5.211 (member-count de-conflation): the chat header used to show
     // `familyDetail.family.memberCount` — a BLENDED count of every
     // Person row (Linked Kinrel accounts + Manual placeholder
@@ -1217,8 +1226,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         // ── Name ──────────────────────────────────────
                         // v139: Show group name if this is a group chat,
                         // otherwise the family name.
+                        // C2: In direct chat, show the OTHER person's name.
                         Text(
-                          widget.groupName ?? widget.familyName,
+                          widget.isDirectChat
+                              ? (widget.directChatOtherUserName ?? 'Direct Chat')
+                              : (widget.groupName ?? widget.familyName),
                           style: const TextStyle(
                             fontFamily: KinrelTypography.displayFont,
                             fontSize: 16.5,
@@ -2483,7 +2495,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       messages: messages,
       currentUserId: _currentUserId,
       familyId: widget.familyId,
-      isDirectChat: false,
+      // C2: pass isDirectChat so MessageBubble hides sender labels +
+      // avatars in direct chat (both participants know who sent each msg).
+      isDirectChat: widget.isDirectChat,
       inviteFamilyId: null,
       scrollController: _scrollController,
       onReply: (msg) {

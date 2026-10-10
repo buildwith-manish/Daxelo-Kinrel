@@ -272,6 +272,7 @@ import '../../features/chat/presentation/chat_screen.dart';
 import '../../features/chat/presentation/chat_search_screen.dart';
 import '../../features/chat/presentation/group_info_screen.dart';
 import '../../features/chat/presentation/direct_chat_screen.dart';
+import '../../features/chat/data/open_direct_chat.dart';
 import '../../features/share/presentation/share_screen.dart';
 import '../../features/oral_history/presentation/oral_history_screen.dart';
 import '../../features/gamification/presentation/achievements_screen.dart';
@@ -2718,14 +2719,27 @@ final routerProvider = Provider<GoRouter>((ref) {
       // the conversation is full-screen like WhatsApp/Telegram.
       GoRoute(
         path: '/family/:id/chat',
-        pageBuilder: (context, state) => _fastFadePage(
-          key: state.pageKey,
-          child: ChatScreen(
-            familyId: state.pathParameters['id']!,
-            familyName: state.uri.queryParameters['name'] ?? 'Family',
-            showFamilyNav: false,
-          ),
-        ),
+        pageBuilder: (context, state) {
+          // C2: support direct chat via the `extra` map (pushed by
+          // openDirectChat). The extra map carries isDirectChat +
+          // the other user's resolved name/avatar.
+          final extra = state.extra as Map<String, dynamic>?;
+          final isDirect = extra?['isDirectChat'] as bool? ?? false;
+          return _fastFadePage(
+            key: state.pageKey,
+            child: ChatScreen(
+              familyId: state.pathParameters['id']!,
+              familyName: isDirect
+                  ? (extra?['otherUserName'] as String? ?? 'Direct Chat')
+                  : (state.uri.queryParameters['name'] ?? 'Family'),
+              showFamilyNav: false,
+              isDirectChat: isDirect,
+              directChatOtherUserId: extra?['otherUserId'] as String?,
+              directChatOtherUserName: extra?['otherUserName'] as String?,
+              directChatOtherUserAvatar: extra?['otherUserAvatar'] as String?,
+            ),
+          );
+        },
       ),
 
       // Tier 1 / Message Search — search within a single family chat.
@@ -2793,14 +2807,22 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // ── Direct (1:1) Chat — private conversation between two users ──
-      // Used by the Thinking of You feature (notification tap opens this)
-      // and will be used by a future DM inbox section.
+      // ── Direct (1:1) Chat — C2: now uses the SAME ChatScreen as group
+      // chat, with isDirectChat=true. The old DirectChatScreen is kept for
+      // backward compatibility (notifications + deep links that haven't
+      // been migrated yet). New DM entry points use openDirectChat() which
+      // calls fn_get_or_create_direct_group + opens /family/<groupId>/chat.
+      //
+      // OLD ROUTE: /dm/:otherUserId → DirectChatScreen (deprecated)
+      // NEW ROUTE: /family/<directGroupId>/chat?isDirectChat=true
+      //
+      // This route is kept as a REDIRECT — it calls openDirectChat() which
+      // resolves the direct group + navigates to the group chat route.
       GoRoute(
         path: '/dm/:otherUserId',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: DirectChatScreen(
+          child: _DirectChatRedirect(
             otherUserId: state.pathParameters['otherUserId']!,
           ),
         ),
@@ -3812,6 +3834,112 @@ class _DeepLinkShareScreen extends ConsumerWidget {
           ShareScreen(familyId: familyId, familyName: name ?? 'Family'),
       loading: () => ShareScreen(familyId: familyId, familyName: 'Family'),
       error: (_, __) => ShareScreen(familyId: familyId, familyName: 'Family'),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// C2: Direct Chat Redirect — replaces the old DirectChatScreen with a
+// redirect to the group chat route. Calls fn_get_or_create_direct_group
+// to find/create the direct group, then navigates to /family/<groupId>/chat
+// with isDirectChat=true. Shows a brief loading indicator while the RPC
+// resolves.
+// ═══════════════════════════════════════════════════════════════════════
+class _DirectChatRedirect extends ConsumerStatefulWidget {
+  const _DirectChatRedirect({required this.otherUserId});
+
+  final String otherUserId;
+
+  @override
+  ConsumerState<_DirectChatRedirect> createState() =>
+      _DirectChatRedirectState();
+}
+
+class _DirectChatRedirectState extends ConsumerState<_DirectChatRedirect> {
+  @override
+  void initState() {
+    super.initState();
+    // Resolve the direct group + redirect on the next frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _redirect());
+  }
+
+  Future<void> _redirect() async {
+    if (!mounted) return;
+
+    // Find a family both users share (the caller + the other user).
+    // The caller's first family that the other user is also a member of.
+    final client = ref.read(supabaseProvider);
+    if (client == null) {
+      if (mounted) context.go('/chats');
+      return;
+    }
+
+    try {
+      // Get the caller's families.
+      final myFamilies = await client
+          .from('FamilyMember')
+          .select('familyId')
+          .eq('userId', client.auth.currentUser!.id);
+
+      if (myFamilies.isEmpty) {
+        if (mounted) context.go('/chats');
+        return;
+      }
+
+      // Find a family the other user is also a member of.
+      String? sharedFamilyId;
+      for (final row in myFamilies) {
+        final familyId = row['familyId'] as String;
+        final otherMembership = await client
+            .from('FamilyMember')
+            .select('id')
+            .eq('familyId', familyId)
+            .eq('userId', widget.otherUserId)
+            .maybeSingle();
+        if (otherMembership != null) {
+          sharedFamilyId = familyId;
+          break;
+        }
+      }
+
+      if (sharedFamilyId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('You don\'t share a family with this user.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          context.go('/chats');
+        }
+        return;
+      }
+
+      // Call openDirectChat to find/create the direct group + navigate.
+      await openDirectChat(
+        context,
+        ref,
+        widget.otherUserId,
+        sharedFamilyId,
+      );
+      // openDirectChat pushes the new route — replace the redirect route.
+      if (mounted) context.replace('/chats');
+    } catch (e) {
+      debugPrint('⚠️ _DirectChatRedirect: $e');
+      if (mounted) context.go('/chats');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color(0xFF13141E),
+      body: Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFFE8612A),
+          strokeWidth: 2.5,
+        ),
+      ),
     );
   }
 }
