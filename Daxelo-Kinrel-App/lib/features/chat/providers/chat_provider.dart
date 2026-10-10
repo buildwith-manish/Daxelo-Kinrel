@@ -3188,6 +3188,45 @@ class ChatNotifier extends StateNotifier<ChatState> {
     await _loadMessages();
   }
 
+  /// ── Delete for Me with Undo ──────────────────────────────────────
+  /// Locally marks messages as deleted-for-me (adds the current user's
+  /// ID to each message's deletedForMe list). The messages disappear
+  /// immediately from the filtered list (isHiddenFor returns true).
+  /// No backend call is made — the caller should call this BEFORE
+  /// showing the Undo SnackBar, and commit to the backend only after
+  /// the Undo timer expires.
+  void hideMessagesLocally(Set<String> messageIds) {
+    final myUserId = _currentUserId;
+    if (myUserId == null) return;
+    final updated = state.messages.map((m) {
+      if (messageIds.contains(m.id)) {
+        return m.copyWith(
+          deletedForMe: [...m.deletedForMe, myUserId],
+        );
+      }
+      return m;
+    }).toList();
+    state = state.copyWith(messages: updated);
+  }
+
+  /// Restores messages that were locally hidden by hideMessagesLocally.
+  /// Removes the current user's ID from each message's deletedForMe
+  /// list. Called when the user taps Undo on the SnackBar.
+  void restoreMessagesLocally(Set<String> messageIds) {
+    final myUserId = _currentUserId;
+    if (myUserId == null) return;
+    final updated = state.messages.map((m) {
+      if (messageIds.contains(m.id)) {
+        return m.copyWith(
+          deletedForMe:
+              m.deletedForMe.where((u) => u != myUserId).toList(),
+        );
+      }
+      return m;
+    }).toList();
+    state = state.copyWith(messages: updated);
+  }
+
   /// Mark all messages as read. Called when the chat screen is opened.
   /// Bulk-inserts ChatReadReceipt rows for all messages not sent by me
   /// that don't already have a receipt from me.

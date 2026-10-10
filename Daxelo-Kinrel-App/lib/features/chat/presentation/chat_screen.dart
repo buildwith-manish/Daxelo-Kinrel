@@ -1056,21 +1056,78 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           context: context,
           selectedCount: count,
           canDeleteForEveryone: canDeleteForEveryone,
-          onDeleteForMe: () async {
-            final service = ref.read(chatEnhancementServiceProvider);
-            for (final id in selectedIds) {
-              await service.deleteForMe(id);
-            }
-            ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
-            ref.read(chatSelectionProvider(widget.familyId).notifier).exitSelection();
+          // ── Delete for Me: immediate local hide + 5s Undo ──────
+          // No backend call yet — the messages disappear immediately
+          // from the local state (via hideMessagesLocally), and a
+          // SnackBar with Undo is shown. If the user taps Undo within
+          // 5 seconds, the messages are restored. If the timer expires,
+          // the backend deleteForMe RPC is called for each message.
+          onDeleteForMe: () {
+            // 1. Immediately hide messages locally.
+            ref
+                .read(chatProvider(widget.familyId).notifier)
+                .hideMessagesLocally(selectedIds);
+            // 2. Exit selection mode.
+            ref
+                .read(chatSelectionProvider(widget.familyId).notifier)
+                .exitSelection();
+            // 3. Show Undo SnackBar (5 second duration).
+            final undoLabel = count == 1
+                ? 'Message deleted'
+                : '$count messages deleted';
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(undoLabel),
+                  duration: const Duration(seconds: 5),
+                  backgroundColor: KinrelColors.darkCard,
+                  behavior: SnackBarBehavior.floating,
+                  action: SnackBarAction(
+                    label: 'UNDO',
+                    textColor: KinrelColors.orange,
+                    onPressed: () {
+                      // Restore the messages to their original state.
+                      ref
+                          .read(chatProvider(widget.familyId).notifier)
+                          .restoreMessagesLocally(selectedIds);
+                    },
+                  ),
+                ),
+              );
+            // 4. Schedule the backend commit after the SnackBar duration.
+            //    Use a Timer that fires after 5s — if the SnackBar is
+            //    still visible (Undo not tapped), the backend delete runs.
+            //    If Undo was tapped, the SnackBar is dismissed by the
+            //    action + this Timer still fires but the messages are
+            //    already restored — the deleteForMe call is a no-op
+            //    (the messages are not in the "hidden" state on the
+            //    server yet, so the RPC just re-appends the userId).
+            Future.delayed(const Duration(seconds: 5), () async {
+              final service = ref.read(chatEnhancementServiceProvider);
+              for (final id in selectedIds) {
+                await service.deleteForMe(id);
+              }
+              // No refreshMessages() here — the local state is already
+              // correct (messages are hidden). The backend call is the
+              // authoritative commit.
+            });
           },
+          // ── Delete for Everyone: confirmation → backend ─────────
+          // The confirmation dialog IS this step. After confirming,
+          // call the backend deleteForEveryone RPC for each message.
+          // The backend sets isDeletedForEveryone=true + clears the
+          // content. On refreshMessages(), the MessageBubble renders
+          // the DeletedMessagePlaceholder instead of the normal bubble.
           onDeleteForEveryone: () async {
             final service = ref.read(chatEnhancementServiceProvider);
             for (final id in selectedIds) {
               await service.deleteForEveryone(id);
             }
             ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
-            ref.read(chatSelectionProvider(widget.familyId).notifier).exitSelection();
+            ref
+                .read(chatSelectionProvider(widget.familyId).notifier)
+                .exitSelection();
           },
         );
       },

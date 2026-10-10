@@ -29,6 +29,7 @@ import '../../../games/shared/models/game_invite.dart';
 import '../../../profile/presentation/member_profile_sheet.dart';
 import '../../providers/chat_provider.dart';
 import 'chat_meta.dart';
+import 'deleted_message_placeholder.dart';
 import 'game_invite_status_chip.dart';
 import 'link_preview_card.dart';
 import 'mention_picker.dart';
@@ -253,6 +254,21 @@ class MessageBubble extends ConsumerWidget {
     // just the emoji + a small timestamp underneath. They are centered
     // for solo emoji impact, like WhatsApp stickers.
     final isSticker = message.messageType == MessageType.sticker;
+
+    // ── Deleted Message Placeholder ──────────────────────────────────
+    // When a message has been deleted for everyone, skip the normal
+    // bubble rendering + show the compact DeletedMessagePlaceholder
+    // instead. The placeholder is personalized: "You deleted this
+    // message." for the current user's own messages, "[Name] deleted
+    // this message." for others. Consistent height regardless of the
+    // name length (single-line + truncation).
+    if (message.isDeletedForEveryone) {
+      return DeletedMessagePlaceholder(
+        isMe: isMe,
+        senderName: message.senderName,
+        isRightAligned: isMe,
+      );
+    }
 
     // v140: Kinship-category generation bands. Resolve the sender's
     // relationship key to the current viewer, classify it into a
