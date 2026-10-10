@@ -15,7 +15,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../../core/constants/brand_colors.dart';
 import '../../../../../core/constants/brand_spacing.dart';
@@ -24,18 +23,17 @@ import '../../../../../core/kinship/kinship_edge_style.dart';
 import '../../../../../core/services/image_cache_manager.dart';
 import '../../../../../core/utils/device_tier.dart';
 import '../../../family/data/relationship_label_provider.dart';
-import '../../../games/shared/icons/game_icons.dart';
-import '../../../games/shared/models/game_invite.dart';
 import '../../../profile/presentation/member_profile_sheet.dart';
 import '../../providers/chat_provider.dart';
 import 'chat_meta.dart';
-import 'game_invite_status_chip.dart';
+import 'game_invite_card.dart';
 import 'link_preview_card.dart';
 import 'mention_picker.dart';
 import 'poll_card.dart';
 import '../voice_message_player.dart';
 import 'full_screen_image_viewer.dart';
 import '../../../../core/theme/kinrel_fx.dart';
+import 'selection_mode_toolbar.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // PERF (Tier K3): Const-hoisted gradients and shadow lists for the
@@ -173,6 +171,10 @@ class MessageBubble extends ConsumerWidget {
     /// provider.
     this.onRetryFailed,
     this.onDeleteFailed,
+    /// v6.0 — Selection mode state (Image 3 reference).
+    this.selectionMode = false,
+    this.isSelected = false,
+    this.onToggleSelection,
   });
 
   final ChatMessage message;
@@ -216,6 +218,19 @@ class MessageBubble extends ConsumerWidget {
   /// action). Null = the group path (chatProvider.deleteFailedMessage).
   final void Function(String messageId)? onDeleteFailed;
 
+  /// v6.0 — When true, the bubble is in selection mode. Tapping the
+  /// bubble toggles selection instead of opening the action sheet.
+  /// A selection checkbox is shown overlapping the leading edge.
+  final bool selectionMode;
+
+  /// v6.0 — Whether THIS bubble is currently selected. Renders an
+  /// orange ring + filled checkbox.
+  final bool isSelected;
+
+  /// v6.0 — Callback to toggle this message's selection state. Only
+  /// invoked when [selectionMode] is true.
+  final VoidCallback? onToggleSelection;
+
   /// v3.3: the family id to use for game-invite Join/Spectate routes.
   /// Prefers [inviteFamilyId] (set by the DM screen from the invite
   /// payload) and falls back to [familyId] (the group chat's family).
@@ -242,8 +257,9 @@ class MessageBubble extends ConsumerWidget {
     // color is applied as a 3px left border + 6% background fill on
     // the message bubble. Only for family/group chats, not DMs, and
     // only for received messages (not isMe). Self/indirect → no band.
+    // Kin Thread / C2: also skipped in direct chats (no rails there).
     Color? kinshipBandColor;
-    if (familyId != null && !isMe && !isSticker) {
+    if (familyId != null && !isMe && !isSticker && !isDirectChat) {
       final rawKey = ref.watch(relationshipKeyProvider(
         (familyId: familyId!, senderUserId: message.senderId),
       ));
@@ -257,27 +273,42 @@ class MessageBubble extends ConsumerWidget {
     // each bubble). Do not add a second drag handler here: it would fight with it.
     return StatefulBuilder(
       builder: (context, setLocalState) {
+        // v6.0 — In selection mode, tapping the bubble toggles its
+        // selection state. The normal failed-message tap handler is
+        // disabled in selection mode (the user is bulk-selecting, not
+        // retrying a single failed send).
+        final VoidCallback? tapHandler = selectionMode
+            ? onToggleSelection
+            : (isMe &&
+                    message.messageStatus == 'failed' &&
+                    (familyId != null || onRetryFailed != null))
+                ? () => _showFailedMessageSheet(context, ref)
+                : null;
         return GestureDetector(
           onLongPress: onLongPress,
-          // v3.2: tapping a FAILED message opens a small sheet with
-          // Retry and Delete. Only for the sender's own messages.
-          // v3.5: works in BOTH chat types — the group path
-          // (familyId != null, built-in chatProvider calls) OR an
-          // injected handler pair (the DM passes its own provider's
-          // retryMessage/deleteFailedMessage). The tap handler does
-          // NOT fire for sent/delivered/read/sending messages — those
-          // have no tap action (the existing onLongPress still works).
-          onTap: (isMe &&
-                  message.messageStatus == 'failed' &&
-                  (familyId != null || onRetryFailed != null))
-              ? () => _showFailedMessageSheet(context, ref)
-              : null,
+          onTap: tapHandler,
           child: Align(
             alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // v6.0 — Selection checkbox (Image 3 reference).
+                // Shown on the leading side of the bubble when
+                // selection mode is active. For sent messages
+                // (right-aligned) the checkbox goes on the LEFT of the
+                // bubble; for received (left-aligned) it also goes on
+                // the left, before the avatar/spacer.
+                if (selectionMode) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6, bottom: 2),
+                    child: SelectionCheckbox(
+                      isSelected: isSelected,
+                      onTap: onToggleSelection ?? () {},
+                      isMe: isMe,
+                    ),
+                  ),
+                ],
                 // v127: Avatar only on first message in group.
                 // Non-first messages get an invisible spacer for alignment.
                 // v3.3: DMs (isDirectChat) hide the avatar AND the spacer
@@ -344,7 +375,12 @@ class MessageBubble extends ConsumerWidget {
                     // rounded rectangle, layered shadows for gentle
                     // elevation, and generous padding for readability.
                     // Inspired by iMessage's softness + Telegram's tail.
-                    Container(
+                    // v6.0 — Wrap the bubble in a SelectionRing when
+                    // selection mode is active and this bubble is
+                    // selected (Image 3 reference).
+                    SelectionRing(
+                      isSelected: isSelected,
+                      child: Container(
                       padding: isSticker
                           ? const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 8)
@@ -485,8 +521,10 @@ class MessageBubble extends ConsumerWidget {
                           // v127: Sender name only on first message in group
                           // v3.3: DMs (isDirectChat) hide the sender name —
                           // a DM only has two parties so the name is redundant.
+                          // Kin Thread / PR2 T1: the relationship pill is
+                          // tinted with the sender's kinship band color.
                           if (!isMe && !isSticker && !isDirectChat && isFirstInGroup)
-                            _buildSenderName(ref),
+                            _buildSenderName(ref, kinshipBandColor),
                           // Tier 1 / Forwarded label — show a small
                           // "Forwarded from <name>" tag above the content
                           // when the message is a forwarded copy. The
@@ -501,6 +539,7 @@ class MessageBubble extends ConsumerWidget {
                           if (!isSticker && isLastInGroup) _buildTimeRow(),
                           if (isSticker) _buildStickerTimeRow(),
                         ],
+                      ),
                       ),
                     ),
                     // v127: Reaction chips positioned overlapping bubble bottom
@@ -642,7 +681,7 @@ class MessageBubble extends ConsumerWidget {
     );
   }
 
-  Widget _buildSenderName(WidgetRef ref) {
+  Widget _buildSenderName(WidgetRef ref, Color? kinshipColor) {
     // v131: Premium sender label — slightly larger, letter-spaced,
     // with a refined online dot. Reads as a quiet header above the
     // message rather than competing with it.
@@ -651,8 +690,17 @@ class MessageBubble extends ConsumerWidget {
     // differentiator. For family/group chats (familyId != null),
     // resolve the sender's relationship to the current viewer from
     // the K-Graph (e.g. "Chacha", "Bhaiya", "Nani"). The relationship
-    // label appears as a small amber tag BEFORE the sender's name.
+    // label appears as a small tag BEFORE the sender's name.
     // Falls back to sender name only if no relationship is found.
+    //
+    // Kin Thread / PR2 Task 1: the pill now uses the sender's KINSHIP
+    // BAND COLOR (12% tinted background, the color for the text, and
+    // a 0.5px border) instead of ember for everyone — so the pill,
+    // the 3px left band, and the graph edge all speak the same color
+    // language. Falls back to a neutral silver pill when a
+    // relationship resolves but its kinship category has no color
+    // (self/indirect). No relationship → name in orange, no pill,
+    // neutral band (today's fallback, unchanged).
     //
     // Viewer-specific: the label changes based on who is logged in.
     // Not applied to 1-on-1 DMs (familyId == null).
@@ -662,6 +710,10 @@ class MessageBubble extends ConsumerWidget {
         (familyId: familyId!, senderUserId: message.senderId),
       ));
     }
+
+    // The pill color: the sender's kinship band color when available,
+    // otherwise a neutral silver (self/indirect relationships).
+    final Color pillColor = kinshipColor ?? KinrelColors.textSilver;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
@@ -686,29 +738,40 @@ class MessageBubble extends ConsumerWidget {
                 ],
               ),
             ),
-          // v139: Relationship label (amber, small, before the name)
-          // — the Kinrel signature differentiator. Only shown for
-          // family/group chats where a relationship was resolved.
+          // v139 / Kin Thread T1: Relationship pill (kinship-band colored,
+          // small, before the name) — the Kinrel signature differentiator.
+          // Only shown for family/group chats where a relationship was
+          // resolved. Format: Relationship · Name.
           if (relationshipLabel != null) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-              margin: const EdgeInsets.only(right: 5),
               decoration: BoxDecoration(
-                color: KinrelColors.ember.withValues(alpha: 0.12),
+                color: pillColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(100),
                 border: Border.all(
-                  color: KinrelColors.ember.withValues(alpha: 0.30),
+                  color: pillColor.withValues(alpha: 0.5),
                   width: 0.5,
                 ),
               ),
               child: Text(
                 relationshipLabel,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 9.5,
                   fontWeight: FontWeight.w600,
-                  color: KinrelColors.ember,
+                  color: pillColor,
                   letterSpacing: 0.3,
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                '·',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 10,
+                  color: KinrelColors.textDim,
                 ),
               ),
             ),
@@ -1143,11 +1206,16 @@ class MessageBubble extends ConsumerWidget {
         );
 
       case MessageType.gameInvite:
-        // Persistent game-invite card — the second, durable surface for a
-        // game-room invite (the first being the realtime GameInviteListener
-        // popup that only reaches members who are online right now).
-        // Rendered full width within the normal bubble constraints.
-        return _buildGameInviteCard(context);
+        // Kin Thread / PR2 Task 5: the ONE shared invite card (active
+        // invites = slim card with 40px icon, title, players count and
+        // the Join/status button; expired/completed = one-line row).
+        // Extracted from this file into game_invite_card.dart so group
+        // + direct chat share it with no duplicate invite-card code.
+        return GameInviteCard(
+          message: message,
+          isMe: isMe,
+          routeFamilyId: _inviteRouteFamilyId,
+        );
 
       case MessageType.poll:
         // Phase 22 / Task 5 — Poll card. Reuses the gameInvite card
@@ -1239,6 +1307,13 @@ class MessageBubble extends ConsumerWidget {
         // with the lat/lng. Tap → open in the system maps app.
         // (A future v2 would render an inline mini-map.)
         return _buildLocationCard(context);
+
+      case MessageType.system:
+        // Kin Thread / PR 1: system rows (join notices) never reach the
+        // bubble — ChatMessageList short-circuits them into
+        // ChatSystemNotice pills before any bubble is built. This case
+        // only exists so the switch stays exhaustive over the enum.
+        return const SizedBox.shrink();
     }
   }
 
@@ -1471,589 +1546,6 @@ class MessageBubble extends ConsumerWidget {
       await Clipboard.setData(ClipboardData(text: url));
       debugPrint('📍 Maps URL copied: $url');
     } catch (_) {/* best-effort */}
-  }
-
-  /// Game-invite card bubble (MessageType.gameInvite).
-  ///
-  /// Distinct card inside the standard bubble: game icon + display name,
-  /// "<current>/<max> players", the room code as a small mono chip, and a
-  /// primary Join button that navigates exactly like
-  /// GameInviteListener._acceptInvite (same '/family/<id>/<gameType>/lobby?
-  /// join=<gameId>' route). The button is disabled ("Full") once the room
-  /// is full, and "Started"/"Ended" once the invite's lifecycle closes
-  /// (gameInviteStatus accepted/expired/cancelled). The sender's own card
-  /// never shows Join — they are already in the game — and shows a
-  /// waiting/status label instead.
-  Widget _buildGameInviteCard(BuildContext context) {
-    final rawGameType = message.gameType ?? '';
-    final parsedGameType = GameTypeX.fromRouteSegment(rawGameType);
-    final displayName =
-        parsedGameType?.displayName ?? _titleCaseSegment(rawGameType);
-    final maxPlayers = message.gameMaxPlayers ?? 2;
-    final currentPlayers = message.gameCurrentPlayers ?? 1;
-    final roomCode = (message.roomCode ?? '').trim();
-    final status = message.gameInviteStatus ?? 'pending';
-    final isFull = currentPlayers >= maxPlayers;
-
-    // ── 5-state lifecycle: action button resolution ──────────────────
-    // The action button (or static label) below the status chip depends
-    // on the room's lifecycle state. Possible treatments:
-    //
-    //   • waitingForPlayers / openToJoin (pending, not full):
-    //       → "Join" button (solid orange, tappable)
-    //   • full (pending, at capacity):
-    //       → "Full" label (flat, disabled — but the room is still live,
-    //         just at capacity. Transitional: will progress to inProgress
-    //         or expired)
-    //   • inProgress:
-    //       → "Watch" button (spectator-style, tappable if the game
-    //         supports spectating — falls back to static label otherwise)
-    //   • completed:
-    //       → static "Game completed" label (with optional winner name
-    //         shown above if the viewer is a participant — privacy-gated)
-    //   • expired / cancelled:
-    //       → static "Expired" / "Cancelled" label (no interaction)
-    //
-    // Sender's own card (isMe == true) never shows Join — they're the
-    // host. They get the Watch/Rejoin button for inProgress, the
-    // completed label for completed, and empty for waiting/full (since
-    // the chip above already conveys the status).
-
-    final bool isPreGame = status == 'pending' || status.isEmpty;
-    final bool isInProgress = status == 'in_progress' ||
-        status == 'accepted' ||
-        status == 'active';
-    final bool isCompleted = status == 'completed';
-    final bool isExpired = status == 'expired' || status == 'cancelled';
-
-    // Action button label + tap target.
-    String actionLabel;
-    bool actionEnabled;
-    VoidCallback? actionCallback;
-
-    if (isPreGame && !isFull && !isMe) {
-      // Open to join — solid orange "Join" button.
-      // Per spec: when spectatorsAllowed is true but the room still has
-      // open player slots, the primary action is "Join" (as a player),
-      // NOT "Spectate". Spectate only becomes available once the room is
-      // full or in-progress.
-      actionLabel = 'Join';
-      actionEnabled = (message.gameId ?? '').isNotEmpty;
-      actionCallback =
-          actionEnabled ? () => _joinGameFromCard(context) : null;
-    } else if (isPreGame && isFull && !isMe) {
-      // Room is at capacity. Per spec:
-      //   • spectatorsAllowed=true  → show "Spectate" button (tappable)
-      //     so the user can watch even though they can't join as a player.
-      //   • spectatorsAllowed=false → disabled "Full" label (no Spectate
-      //     option at any point in the room's lifecycle).
-      if (message.effectiveSpectatorsEnabled) {
-        actionLabel = 'Spectate';
-        actionEnabled = (message.gameId ?? '').isNotEmpty;
-        actionCallback =
-            actionEnabled ? () => _watchGameFromCard(context) : null;
-      } else {
-        actionLabel = 'Full';
-        actionEnabled = false;
-        actionCallback = null;
-      }
-    } else if (isInProgress) {
-      // Game in progress. Spectate-button logic per spec:
-      //   • Sender (isMe)            → always show "Rejoin" (they're a
-      //                               participant; route re-enters the game).
-      //   • Recipient + spectators
-      //     enabled                  → show "Spectate" button (host allows
-      //                               watchers; route enters as spectator).
-      //   • Recipient + spectators
-      //     disabled                 → NO button. The chip already shows
-      //                               "LIVE NOW" so the user knows the
-      //                               game is in progress; they simply
-      //                               can't watch. Per spec: "If Spectator
-      //                               Mode is disabled: Do not show any
-      //                               Spectate option."
-      if (isMe) {
-        actionLabel = 'Rejoin';
-        actionEnabled = (message.gameId ?? '').isNotEmpty;
-        actionCallback =
-            actionEnabled ? () => _watchGameFromCard(context) : null;
-      } else if (message.effectiveSpectatorsEnabled) {
-        actionLabel = 'Spectate';
-        actionEnabled = (message.gameId ?? '').isNotEmpty;
-        actionCallback =
-            actionEnabled ? () => _watchGameFromCard(context) : null;
-      } else {
-        // Spectators disabled and recipient is not the host — no action.
-        // Show a static "In Game" label so the card still communicates
-        // state, but the user can't tap to enter.
-        actionLabel = 'In Game';
-        actionEnabled = false;
-        actionCallback = null;
-      }
-    } else if (isCompleted) {
-      // Game finished — static label, no interaction.
-      actionLabel = 'Game completed';
-      actionEnabled = false;
-      actionCallback = null;
-    } else if (isExpired) {
-      // Room expired (15-min inactivity timeout) or cancelled by host.
-      // Per spec: render a single "Expired" label matching the brevity of
-      // the other states (Full, Waiting, Live). The entire card is dimmed
-      // (see the Opacity wrapper below), and the status area uses a smaller,
-      // quieter treatment — not a full-width button-shaped element that
-      // would visually compete with active Join/Spectate buttons. The Join
-      // button is removed entirely.
-      actionLabel = 'Expired';
-      actionEnabled = false;
-      actionCallback = null;
-    } else {
-      // Fallback (shouldn't happen — pre-game + isMe + full = sender's
-      // own card before they start; just show nothing actionable).
-      actionLabel = isMe ? 'Tap to start' : 'Join';
-      actionEnabled = !isMe && (message.gameId ?? '').isNotEmpty;
-      actionCallback =
-          actionEnabled ? () => _joinGameFromCard(context) : null;
-    }
-
-    // For sender's own card in waiting/open-to-join state, don't show
-    // the action button at all (the chip + their lobby navigation
-    // already covers it).
-    //
-    // Spectators-disabled + in-progress + non-host case: we DO render the
-    // button area, but as a static "In Game" label (no tap target) so the
-    // card still communicates state. This matches the spec's "show In Game
-    // only" rule for the spectators-disabled case.
-    final bool showActionButton = !isMe ||
-        isInProgress ||
-        isCompleted ||
-        isExpired;
-
-    // Visual-weight control for the Spectate button:
-    //   • Spectate on a LIVE NOW (in-progress) room → URGENT treatment
-    //     (orange-tinted background, matching the pulsing LIVE NOW chip).
-    //   • Spectate on a full-but-not-started room → CALM treatment
-    //     (darkElevated background with orange text + icon, less attention-
-    //     grabbing). A merely-full room is a settled/neutral state; the
-    //     urgent CTA treatment should be reserved for genuinely live games.
-    final bool isSpectateOnLiveRoom = isInProgress &&
-        actionEnabled &&
-        actionLabel == 'Spectate';
-    final bool isSpectateOnFullRoom = isPreGame &&
-        isFull &&
-        actionEnabled &&
-        actionLabel == 'Spectate';
-
-    // ── Full-card dimming for expired state ──────────────────────────
-    // When expired, the ENTIRE card dims together as one visually settled
-    // unit — icon, game title, invite text, and status area all reduce
-    // opacity together. The card border/background also shifts from the
-    // active orange tint to a muted grey, so it's clearly inactive at a
-    // glance. Per spec: "icon, game title, invite text, and status area
-    // should all dim together as one visually settled unit."
-    //
-    // PERF (Part C1): previously implemented as a wrapping Opacity(...) widget
-    // that forced an offscreen saveLayer per card. Now done by multiplying
-    // the alpha of every inline color by 0.5 when expired — visually
-    // identical (the GPU still composites the same pixels) but without the
-    // saveLayer cost. The card itself is also wrapped in a RepaintBoundary
-    // so it repaints independently of the message list.
-    final bool isExpiredCard = isExpired;
-
-    // Helper: halve the alpha of a color when the card is expired. Opaque
-    // colors (alpha == 1.0) become alpha 0.5; already-translucent colors
-    // (e.g. 0.8) become 0.4. This matches what Opacity(opacity: 0.5) would
-    // have produced for that color, but at the paint level instead of via
-    // a saveLayer.
-    Color dim(Color c) => isExpiredCard
-        ? c.withValues(alpha: (c.a * 0.5).clamp(0.0, 1.0))
-        : c;
-
-    return RepaintBoundary(
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(KinrelSpacing.md),
-        decoration: BoxDecoration(
-          // Expired cards use a muted grey tint instead of the active
-          // orange tint — visually communicates "inactive, don't engage".
-          // Alpha is already halved by the expired branch (0.06 vs 0.08);
-          // dim() then halves it AGAIN so the final alpha matches what the
-          // previous Opacity(opacity: 0.5) wrapper would have produced.
-          color: dim(isExpiredCard
-              ? KinrelColors.textDim.withValues(alpha: 0.06)
-              : KinrelColors.orange.withValues(alpha: 0.08)),
-          borderRadius: BorderRadius.circular(KinrelRadius.md),
-          border: Border.all(
-            color: dim(isExpiredCard
-                ? KinrelColors.textDim.withValues(alpha: 0.15)
-                : KinrelColors.orange.withValues(alpha: 0.2)),
-            width: 1,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-          // Header: game icon + game display name
-          Row(
-            children: [
-              SizedBox(
-                width: 40,
-                height: 40,
-                child: parsedGameType != null
-                    ? GameIcon(
-                        gameId: rawGameType,
-                        size: 40,
-                        // PERF (Part C1): dim the asset-backed icon via
-                        // BlendMode.modulate + white*0.5 — applied at
-                        // the paint level, no saveLayer.
-                        color: isExpiredCard
-                            ? Colors.white.withValues(alpha: 0.5)
-                            : null,
-                        colorBlendMode: isExpiredCard
-                            ? BlendMode.modulate
-                            : null,
-                      )
-                    : Icon(Icons.sports_esports,
-                        size: 26, color: dim(KinrelColors.orange)),
-              ),
-              const SizedBox(width: KinrelSpacing.sm + 2),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      displayName,
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.displayFont,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: dim(KinrelColors.textWhite),
-                      ),
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      'GAME INVITE',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.monoFont,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w500,
-                        color: dim(KinrelColors.orange),
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: KinrelSpacing.sm),
-          // Players + room code chip
-          Row(
-            children: [
-              Icon(
-                Icons.group_outlined,
-                size: 13,
-                color: dim(KinrelColors.textSilver.withValues(alpha: 0.8)),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                '$currentPlayers/$maxPlayers players',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: dim(KinrelColors.textSilver),
-                ),
-              ),
-              // ── "X spots left" pill — explicit slot count per spec ──
-              // Always visible while the room is in a pre-game state and
-              // not yet full. Hidden once the room is full, in-progress,
-              // completed, or expired (the chip + action button already
-              // convey those states).
-              if (isPreGame && !isFull && maxPlayers > currentPlayers) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: dim(KinrelColors.success.withValues(alpha: 0.10)),
-                    borderRadius: BorderRadius.circular(5),
-                    border: Border.all(
-                      color: dim(KinrelColors.success.withValues(alpha: 0.25)),
-                      width: 0.6,
-                    ),
-                  ),
-                  child: Text(
-                    () {
-                      final spots = maxPlayers - currentPlayers;
-                      return '$spots spot${spots == 1 ? '' : 's'} left';
-                    }(),
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      color: dim(KinrelColors.success),
-                      height: 1.2,
-                    ),
-                  ),
-                ),
-              ],
-              if (roomCode.isNotEmpty) ...[
-                const SizedBox(width: KinrelSpacing.sm),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: dim(KinrelColors.orange.withValues(alpha: 0.12)),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: dim(KinrelColors.orange.withValues(alpha: 0.3)),
-                      width: 0.75,
-                    ),
-                  ),
-                  child: Text(
-                    roomCode,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.monoFont,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: dim(KinrelColors.orange),
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          // Fallback text ("<sender> started a <game> game") if present
-          if (message.content.isNotEmpty) ...[
-            const SizedBox(height: KinrelSpacing.sm - 2),
-            Text(
-              message.content,
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 12,
-                color: dim(KinrelColors.textSilver.withValues(alpha: 0.85)),
-                height: 1.35,
-              ),
-            ),
-          ],
-          const SizedBox(height: KinrelSpacing.sm + 2),
-          // ── 5-state lifecycle: unified status chip ────────────────
-          // Renders the appropriate color-coded chip per the lifecycle
-          // state. The inProgress chip pulses (LIVE NOW treatment).
-          //
-          // EXPIRED cards skip the chip — the expired state is conveyed by
-          // a single quiet label below (icon + "Expired" text) plus full-
-          // card dimming. Showing the chip AND the quiet label would
-          // display "Expired" twice, which is redundant. Per spec: "Keep a
-          // single status indicator per card."
-          //
-          // PERF (Tier K5): wrap the GameInviteStatusChip in its own
-          // RepaintBoundary. The chip has its own AnimationController for
-          // inProgress kind (pulses at ~60fps). Without this boundary,
-          // every pulse tick propagates a repaint request up to the
-          // invite card's RepaintBoundary, re-rasterizing the entire
-          // card subtree (game icon, action buttons, room-code chip)
-          // every tick. With K2's chip-internal RepaintBoundary AND this
-          // outer wrap, the chip's pulses are fully isolated from the
-          // card's static content. Saves ~2-4 ms/frame when ≥2 inProgress
-          // cards are visible simultaneously.
-          if (!isExpiredCard)
-            RepaintBoundary(child: GameInviteStatusChip.forMessage(message)),
-          // ── 5-state lifecycle: privacy-gated winner display ────────
-          // Shown only for completed state AND only if gameWinnerName
-          // is non-null. The server-side fn_sync_game_invite_status RPC
-          // only writes gameWinnerName when the requesting user is a
-          // participant (privacy gate per the existing match-result
-          // model). Non-participants see gameWinnerName = null and the
-          // card renders just the chip without a winner line.
-          if (isCompleted && message.gameWinnerName != null) ...[
-            const SizedBox(height: KinrelSpacing.sm),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: KinrelSpacing.sm,
-                vertical: 4,
-              ),
-              decoration: BoxDecoration(
-                color: KinrelColors.success.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(KinrelRadius.xs),
-                border: Border.all(
-                  color: KinrelColors.success.withValues(alpha: 0.2),
-                  width: 0.6,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.emoji_events,
-                    size: 14,
-                    color: KinrelColors.success,
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      'Winner: ${message.gameWinnerName}',
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: KinrelColors.success,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          // ── 5-state lifecycle: action button / static label ────────
-          // Expired state: small, quiet label (icon + "Expired"), NOT a
-          // full-width button-shaped element. Per spec: "replace it with a
-          // smaller, quieter treatment — e.g., a small grey icon + 'Expired'
-          // label, sized and weighted clearly below the prominence of any
-          // actionable button." NOT tappable — no ripple/press feedback.
-          if (isExpiredCard) ...[
-            const SizedBox(height: KinrelSpacing.sm),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.event_busy,
-                  size: 13,
-                  color: dim(KinrelColors.textDim),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'Expired',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: dim(KinrelColors.textDim),
-                  ),
-                ),
-              ],
-            ),
-          ] else if (showActionButton) ...[
-            const SizedBox(height: KinrelSpacing.sm),
-            SizedBox(
-              width: double.infinity,
-              child: Material(
-                // Visual treatment depends on state:
-                //   • Join (orange, tappable)           — solid orange background
-                //   • Spectate on LIVE NOW (in-progress) — orange-tinted (urgent)
-                //   • Spectate on full-but-not-started   — darkElevated bg + orange
-                //     text/icon (calmer — a merely-full room is settled, not urgent)
-                //   • Rejoin (in-progress, host)         — orange-tinted
-                //   • Static labels (Full/In Game/etc.)  — darkElevated, muted text
-                color: isSpectateOnFullRoom
-                    ? KinrelColors.darkElevated
-                    : (actionEnabled
-                        ? (isInProgress
-                            ? KinrelColors.orange.withValues(alpha: 0.15)
-                            : KinrelColors.orange)
-                        : KinrelColors.darkElevated),
-                borderRadius: BorderRadius.circular(KinrelRadius.sm),
-                child: InkWell(
-                  onTap: actionCallback,
-                  borderRadius: BorderRadius.circular(KinrelRadius.sm),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Center(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Show icon for Spectate/Rejoin actions.
-                          // Spectate-on-full gets the icon too, but in a calmer color.
-                          if (actionEnabled && (isInProgress || isSpectateOnFullRoom)) ...[
-                            Icon(
-                              isMe
-                                  ? Icons.replay
-                                  : Icons.visibility_outlined,
-                              size: 14,
-                              color: isSpectateOnFullRoom
-                                  ? KinrelColors.textSilver
-                                  : KinrelColors.orange,
-                            ),
-                            const SizedBox(width: 5),
-                          ],
-                          Text(
-                            actionLabel,
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 13,
-                              fontWeight: isSpectateOnFullRoom
-                                  ? FontWeight.w600 // calmer weight
-                                  : FontWeight.w700,
-                              color: isSpectateOnFullRoom
-                                  ? KinrelColors.textSilver // calmer color
-                                  : (actionEnabled
-                                      ? (isInProgress
-                                          ? KinrelColors.orange
-                                          : KinrelColors.textWhite)
-                                      : KinrelColors.textDim),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-      ),
-    );
-  }
-
-  /// Navigate into the game lobby from a chat invite card (Watch/Rejoin
-  /// variant for in-progress games — same route, but the lobby screen
-  /// will detect the game is already in_progress and route the user
-  /// directly to the spectate view if they're not a participant, or
-  /// to the game view if they are).
-  ///
-  /// Replicates GameInviteListener._acceptInvite's join route exactly
-  /// (GameInvite.joinRoute): '/family/<familyId>/<gameType>/lobby?join=<gameId>'.
-  void _watchGameFromCard(BuildContext context) {
-    final gameType = message.gameType ?? '';
-    final gameId = message.gameId ?? '';
-    // v3.3: use _inviteRouteFamilyId so DM invites (familyId null,
-    // inviteFamilyId set from the payload) can still navigate.
-    final famId = _inviteRouteFamilyId;
-    if (gameType.isEmpty || gameId.isEmpty || famId == null) return;
-    // Same route as Join — the lobby decides spectate vs. rejoin based on
-    // the game's current status + the user's participant status. This
-    // keeps the chat card's surface area minimal (one route) and lets
-    // the lobby handle the routing complexity.
-    context.go('/family/$famId/$gameType/lobby?join=$gameId');
-  }
-
-  /// Navigate into the game lobby from a chat invite card.
-  ///
-  /// Replicates GameInviteListener._acceptInvite's join route exactly
-  /// (GameInvite.joinRoute): '/family/<familyId>/<gameType>/lobby?join=<gameId>'.
-  /// The lobby screen picks up the `join` query param and joins the room.
-  void _joinGameFromCard(BuildContext context) {
-    final gameType = message.gameType ?? '';
-    final gameId = message.gameId ?? '';
-    // v3.3: use _inviteRouteFamilyId so DM invites (familyId null,
-    // inviteFamilyId set from the payload) can still navigate.
-    final famId = _inviteRouteFamilyId;
-    if (gameType.isEmpty || gameId.isEmpty || famId == null) return;
-    context.go('/family/$famId/$gameType/lobby?join=$gameId');
-  }
-
-  /// Title-case fallback for game types not in the GameType enum
-  /// (e.g. 'somegame' → 'Somegame', 'my-game' → 'My Game').
-  String _titleCaseSegment(String s) {
-    if (s.isEmpty) return s;
-    return s
-        .split(RegExp(r'[-_\s]+'))
-        .where((w) => w.isNotEmpty)
-        .map((w) => w[0].toUpperCase() + w.substring(1))
-        .join(' ');
   }
 
   /// Phase 18: Thinking of You bubble — a warm, heart-themed card that

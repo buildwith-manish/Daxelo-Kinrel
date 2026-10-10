@@ -23,7 +23,6 @@
 //   - If no value is stored, we render the default Midnight theme.
 
 import 'dart:ui';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -31,6 +30,7 @@ import '../../../../core/theme/kinrel_fx.dart';
 import '../../../../core/utils/device_tier.dart';
 import '../../data/chat_wallpaper_provider.dart';
 import 'chat_background_theme.dart';
+import 'constellation_pattern.dart';
 // Conditional import: web vs native image rendering for custom wallpapers.
 import 'wallpaper_image_web.dart' if (dart.library.io) 'wallpaper_image_native.dart'
     as platform;
@@ -68,10 +68,18 @@ class ChatBackground extends ConsumerWidget {
 
     // Flat mode: single solid color + optional unblurred image with overlay.
     final Color baseColor = theme.baseColors.last;
+    // Kin Thread / PR2 Task 4: the Constellation preset tiles its
+    // cached dots-and-lines motif above the flat base (skipped when a
+    // custom image wallpaper is set — a saved choice always wins).
+    final bool isConstellation = theme.id == 'constellation' && !hasImage;
     return Stack(
       children: [
         // Solid color base — always rendered as the bottom layer.
         Positioned.fill(child: ColoredBox(color: baseColor, child: const SizedBox.expand())),
+
+        // Constellation motif — one cached image-shader tile layer.
+        if (isConstellation)
+          const Positioned.fill(child: ConstellationPattern()),
 
         // Optional wallpaper image — rendered WITHOUT blur. A 50% dark
         // overlay keeps messages readable over any photo. Image is
@@ -135,6 +143,12 @@ class _RichBackground extends StatelessWidget {
                   ),
                 ),
               ),
+
+              // Kin Thread / PR2 Task 4: the Constellation motif also
+              // tiles in rich mode (above the base gradient, below the
+              // accent glow).
+              if (theme.id == 'constellation' && !hasImage)
+                const Positioned.fill(child: ConstellationPattern()),
 
               // Layer 2: accent corner glow (skipped on low-RAM).
               if (!lowRam)

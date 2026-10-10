@@ -19,7 +19,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../data/direct_message_provider.dart';
+import '../data/direct_group_service.dart';
 
 class ArchivedChatsScreen extends ConsumerStatefulWidget {
   const ArchivedChatsScreen({super.key});
@@ -56,7 +56,8 @@ class _ArchivedChatsScreenState extends ConsumerState<ArchivedChatsScreen> {
   @override
   Widget build(BuildContext context) {
     final familiesAsync = ref.watch(familyListProvider);
-    final dmInboxAsync = ref.watch(dmInboxProvider);
+    // Kin Thread / C2: archived DM rows are direct groups.
+    final dmInboxAsync = ref.watch(directGroupInboxProvider);
 
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
@@ -202,7 +203,7 @@ class _ArchivedChatsScreenState extends ConsumerState<ArchivedChatsScreen> {
   Future<void> _unarchiveDm(String otherUserId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dm_archived_$otherUserId', false);
-    if (mounted) ref.invalidate(dmInboxProvider);
+    if (mounted) ref.invalidate(directGroupInboxProvider);
   }
 }
 
@@ -299,7 +300,7 @@ class _ArchivedGroupRowState extends ConsumerState<_ArchivedGroupRow> {
 
 class _ArchivedDmRow extends StatelessWidget {
   const _ArchivedDmRow({required this.item, required this.onUnarchived});
-  final DmInboxItem item;
+  final DirectGroupInboxItem item;
   final VoidCallback onUnarchived;
 
   @override
@@ -329,7 +330,11 @@ class _ArchivedDmRow extends StatelessWidget {
         ),
       ),
       child: ListTile(
-        onTap: () => context.push('/dm/${item.otherUserId}'),
+        onTap: () => openDirectChat(
+              context,
+              otherUserId: item.otherUserId,
+              familyId: item.familyId,
+            ),
         leading: CircleAvatar(
           radius: 26,
           backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),

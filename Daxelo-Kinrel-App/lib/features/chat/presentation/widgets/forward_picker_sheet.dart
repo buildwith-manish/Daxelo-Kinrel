@@ -20,7 +20,6 @@
 //
 // Reachable from the message long-press menu's "Forward" action.
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 // Hide the riverpod `Family` typedef so it doesn't collide with the
 // `Family` model class from family_provider.dart (we render Family rows
@@ -31,7 +30,8 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/family/family_provider.dart';
 import '../../../../core/services/supabase_service.dart';
-import '../../data/direct_message_provider.dart';
+import '../../data/direct_group_service.dart';
+import '../../providers/chat_provider.dart';
 
 class ForwardPickerSheet extends ConsumerStatefulWidget {
   const ForwardPickerSheet({
@@ -84,16 +84,19 @@ class ForwardPickerSheet extends ConsumerStatefulWidget {
 
 class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
   final Set<String> _selectedFamilyIds = {};
-  final Set<String> _selectedDmUserIds = {};
+  // v6.0 — DM targets (DirectGroupInboxItem.groupId). Forwarding to a
+  // direct group resolves the group (if not already) then inserts a
+  // forwarded ChatMessage copy into that group's thread via the
+  // fn_forward_message RPC's p_target_dm_user_ids parameter.
+  final Set<String> _selectedDmGroupIds = {};
   bool _isSending = false;
 
   int get _totalSelected =>
-      _selectedFamilyIds.length + _selectedDmUserIds.length;
+      _selectedFamilyIds.length + _selectedDmGroupIds.length;
 
   @override
   Widget build(BuildContext context) {
     final familiesAsync = ref.watch(familyListProvider);
-    final dmInboxAsync = ref.watch(dmInboxProvider);
 
     // Compute the height as ~70% of screen, capped at 600.
     final maxSheetHeight = MediaQuery.of(context).size.height * 0.7;
@@ -147,40 +150,31 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
               ),
             ),
             Divider(height: 1, color: Colors.white.withValues(alpha: 0.06)),
-            // Body: families + DMs
+            // Body: family chats + direct messages (DM targets re-enabled
+            // v6.0 — Image 3 reference shows unified forward picker).
             Expanded(
               child: familiesAsync.when(
                 data: (families) {
-                  final dmItems = dmInboxAsync.valueOrNull ?? [];
                   // Filter out the current family from the list (no
                   // point forwarding to the same chat).
                   final targetFamilies = families
                       .where((f) => f.id != widget.currentFamilyId)
                       .toList();
-                  if (targetFamilies.isEmpty && dmItems.isEmpty) {
+                  if (targetFamilies.isEmpty) {
                     return _buildEmptyState();
                   }
                   // v114 — Step 4 perf: build a flat list of rows then
-                  // use ListView.builder so family/DM rows are built
+                  // use ListView.builder so family rows are built
                   // lazily. Section headers stay as direct children of
                   // the flat list (small, fixed count).
                   final rows = <Widget>[];
-                  if (targetFamilies.isNotEmpty) {
-                    rows.add(_sectionHeader('Family chats'));
-                    for (final f in targetFamilies) {
-                      rows.add(_familyRow(f));
-                    }
+                  rows.add(_sectionHeader('Family chats'));
+                  for (final f in targetFamilies) {
+                    rows.add(_familyRow(f));
                   }
-                  // Preserve original behavior: the "Direct messages"
-                  // section header is shown whenever any DM exists
-                  // (archived or not), but only non-archived DMs render
-                  // as rows.
-                  if (dmItems.isNotEmpty) {
-                    rows.add(_sectionHeader('Direct messages'));
-                    for (final d in dmItems.where((d) => !d.isArchived)) {
-                      rows.add(_dmRow(d));
-                    }
-                  }
+                  // v6.0 — Direct messages section.
+                  rows.add(_sectionHeader('Direct messages'));
+                  rows.add(_buildDmSection());
                   return ListView.builder(
                     padding: const EdgeInsets.only(bottom: 80),
                     itemCount: rows.length,
@@ -374,57 +368,6 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
     );
   }
 
-  Widget _dmRow(DmInboxItem d) {
-    final isSelected = _selectedDmUserIds.contains(d.otherUserId);
-    return InkWell(
-      onTap: () => _toggleDm(d.otherUserId),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          children: [
-            _Checkbox(checked: isSelected),
-            const SizedBox(width: 10),
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
-              backgroundImage: d.otherUserAvatar != null &&
-                      d.otherUserAvatar!.isNotEmpty
-                  ? CachedNetworkImageProvider(d.otherUserAvatar!)
-                  : null,
-              child: d.otherUserAvatar == null || d.otherUserAvatar!.isEmpty
-                  ? Text(
-                      (d.otherUserName.isNotEmpty
-                              ? d.otherUserName[0]
-                              : '?')
-                          .toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: KinrelColors.orange,
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                d.otherUserName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _toggleFamily(String id) {
     setState(() {
       if (_selectedFamilyIds.contains(id)) {
@@ -435,19 +378,136 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
     });
   }
 
-  void _toggleDm(String userId) {
+  void _toggleDm(String groupId) {
     setState(() {
-      if (_selectedDmUserIds.contains(userId)) {
-        _selectedDmUserIds.remove(userId);
+      if (_selectedDmGroupIds.contains(groupId)) {
+        _selectedDmGroupIds.remove(groupId);
       } else {
-        _selectedDmUserIds.add(userId);
+        _selectedDmGroupIds.add(groupId);
       }
     });
+  }
+
+  /// v6.0 — Builds the Direct messages section using
+  /// directGroupInboxProvider. Renders a Consumer widget so it can
+  /// watch the async provider. Each row shows the other user's avatar,
+  /// name, and last-message preview.
+  Widget _buildDmSection() {
+    return Consumer(
+      builder: (context, ref, _) {
+        final dmAsync = ref.watch(directGroupInboxProvider);
+        return dmAsync.when(
+          data: (items) {
+            if (items.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 12),
+                child: Text(
+                  'No direct messages yet',
+                  style: TextStyle(
+                    color: KinrelColors.textDim.withValues(alpha: 0.7),
+                    fontSize: 13,
+                  ),
+                ),
+              );
+            }
+            return Column(
+              children: items.map((item) => _dmRow(item)).toList(),
+            );
+          },
+          loading: () => const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: KinrelColors.ember),
+              ),
+            ),
+          ),
+          error: (_, __) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: Text(
+              'Could not load direct messages',
+              style: TextStyle(color: KinrelColors.textDim, fontSize: 13),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _dmRow(DirectGroupInboxItem item) {
+    final isSelected = _selectedDmGroupIds.contains(item.groupId);
+    return InkWell(
+      onTap: () => _toggleDm(item.groupId),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            _Checkbox(checked: isSelected),
+            const SizedBox(width: 10),
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
+              child: Text(
+                (item.otherUserName.isNotEmpty
+                        ? item.otherUserName[0]
+                        : '?')
+                    .toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.orange,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.otherUserName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.textWhite,
+                    ),
+                  ),
+                  Text(
+                    item.lastMessage,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 11.5,
+                      color: KinrelColors.textDim,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _submit() async {
     if (_totalSelected == 0 || _isSending) return;
     setState(() => _isSending = true);
+
+    // Resolve DM group IDs → other user IDs for the RPC.
+    final dmItems = await ref.read(directGroupInboxProvider.future);
+    final dmUserIds = dmItems
+        .where((i) => _selectedDmGroupIds.contains(i.groupId))
+        .map((i) => i.otherUserId)
+        .toList();
 
     // Call fn_forward_message directly via the Supabase client. We
     // intentionally do NOT go through chatProvider(familyId) here
@@ -464,7 +524,8 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
         params: {
           'p_message_id': widget.messageId,
           'p_target_family_ids': _selectedFamilyIds.toList(),
-          'p_target_dm_user_ids': _selectedDmUserIds.toList(),
+          // v6.0 — DM targets re-enabled (Image 3 reference).
+          'p_target_dm_user_ids': dmUserIds,
         },
       ).timeout(const Duration(seconds: 12)) as Map<String, dynamic>?;
     } catch (e) {

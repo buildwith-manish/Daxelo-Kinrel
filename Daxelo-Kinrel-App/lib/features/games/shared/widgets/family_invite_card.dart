@@ -28,7 +28,8 @@ import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/network/socket_service.dart';
 import '../../../../core/services/image_cache_manager.dart';
 import '../../../../core/services/supabase_service.dart';
-import '../../../chat/data/direct_message_provider.dart';
+import '../../../chat/data/direct_group_service.dart';
+import '../../../chat/providers/chat_provider.dart';
 import '../../../presence/last_seen_provider.dart';
 import '../icons/kinrel_icons.dart';
 import '../models/game_invite.dart';
@@ -289,14 +290,24 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
       // The durable row already guarantees delivery.
     }
 
-    // 4. Private invite DM — best-effort, tied to the durable row.
-    if (mounted) setState(() => _sendingTo.remove(m.user.id));
-    if (rowInserted && client != null) {
+    // 4. Kin Thread / C2 — private DIRECT-GROUP invite card (the same
+    //    ChatNotifier.sendGameInvite path as the group chat), best-effort
+    //    and tied to the durable row. Wrapped in try/catch so a popped
+    //    sheet (disposed ref) never breaks the invite flow.
+    if (rowInserted) {
       try {
-        await sendGameInviteDm(
-          client: client,
+        final chatNotifier =
+            ref.read(chatProvider(widget.familyId).notifier);
+        await sendDirectGroupGameInvite(
+          notifier: chatNotifier,
           toUserId: m.user.id,
-          inviteJson: invite.toJson(),
+          gameType: gameType.routeSegment,
+          gameId: widget.gameId,
+          roomCode: widget.roomCode,
+          maxPlayers: widget.maxPlayers,
+          currentPlayers: widget.currentPlayers,
+          content: invite.message,
+          familyId: widget.familyId,
         );
       } catch (_) {
         // Never blocks the invite itself.

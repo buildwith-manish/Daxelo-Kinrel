@@ -10,7 +10,8 @@
 // Shows a unified inbox across ALL families the user belongs to PLUS
 // all 1:1 DM conversations. Each row shows the latest message, sender
 // name, timestamp, and unread badge. Tapping a group row opens that
-// family's ChatScreen; tapping a DM row opens the DirectChatScreen.
+// family's ChatScreen; tapping a DM row opens the private direct group
+// (the SAME ChatScreen — see direct_group_service.dart).
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -32,7 +33,7 @@ import '../../../core/services/image_cache_manager.dart';
 // PERSONAL — each viewer sees their own device-local time.
 import '../../../core/utils/app_time.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../data/direct_message_provider.dart';
+import '../data/direct_group_service.dart';
 import '../providers/chat_provider.dart';
 
 class ChatInboxScreen extends ConsumerStatefulWidget {
@@ -71,7 +72,9 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
   @override
   Widget build(BuildContext context) {
     final familiesAsync = ref.watch(familyListProvider);
-    final dmInboxAsync = ref.watch(dmInboxProvider);
+    // Kin Thread / C2: DM rows are now DIRECT GROUPS (private 2-person
+    // groups on the same backend as group chat).
+    final dmInboxAsync = ref.watch(directGroupInboxProvider);
 
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
@@ -262,11 +265,11 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
   }
 
   /// v113: Archives a DM by setting a shared_preferences flag, then
-  /// invalidates the dmInboxProvider so the list refreshes.
+  /// invalidates the directGroupInboxProvider so the list refreshes.
   Future<void> _archiveDm(String otherUserId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dm_archived_$otherUserId', true);
-    if (mounted) ref.invalidate(dmInboxProvider);
+    if (mounted) ref.invalidate(directGroupInboxProvider);
   }
 
   /// v113: Opens a bottom sheet listing all family members (across all
@@ -371,7 +374,12 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
                             ),
                             onTap: () {
                               Navigator.pop(ctx);
-                              context.push('/dm/${m.userId}');
+                              // Kin Thread / C2: open the private direct
+                              // group chat (resolves/creates it).
+                              openDirectChat(
+                                context,
+                                otherUserId: m.userId,
+                              );
                             },
                           );
                         },
@@ -528,12 +536,15 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
       final client = ref.read(supabaseProvider);
       if (client == null) return;
 
-      // Fetch the latest message for this family
+      // Fetch the latest FAMILY-WIDE message for this family.
+      // Kin Thread: group-scoped rows (sub-groups + direct groups)
+      // never appear in the family chat row — only groupId IS NULL.
       final response = await client
           .from('ChatMessage')
           .select()
           .eq('familyId', widget.family.id)
           .eq('isDeletedForEveryone', false)
+          .isFilter('groupId', null)
           .order('createdAt', ascending: false)
           .limit(1);
 
@@ -546,7 +557,10 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
         }
       }
 
-      // Fetch unread count (messages not sent by me, not yet read)
+      // Fetch unread count (messages not sent by me, not yet read).
+      // Kin Thread / PR1 (e): system rows (join notices) NEVER count
+      // toward the unread badge, and only FAMILY-WIDE messages count
+      // (group-scoped + direct-group rows belong to their own rows).
       final myUserId = client.auth.currentUser?.id;
       if (myUserId != null) {
         final unreadResponse = await client
@@ -556,6 +570,8 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
             .eq('isDeletedForEveryone', false)
             .eq('isRead', false)
             .neq('senderId', myUserId)
+            .isFilter('groupId', null)
+            .neq('messageType', 'system')
             .count();
 
         if (mounted) {
@@ -796,6 +812,10 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
         final total = msg.pollTotalVotes;
         final prefix = total > 0 ? 'Poll ($total ${total == 1 ? 'vote' : 'votes'}) · ' : 'Poll · ';
         return prefix + (msg.pollQuestion ?? msg.content);
+      case MessageType.system:
+        // System notices (join notices) show the content directly in the
+        // inbox preview (e.g. "Manish joined the family").
+        return msg.content;
       case MessageType.text:
       default:
         return msg.content;
@@ -807,11 +827,12 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
 // DM Chat Row (with swipe-to-archive)
 // ═══════════════════════════════════════════════════════════════════════
 
-/// A single DM conversation row, wrapped in a Dismissible for
-/// swipe-to-archive.
+/// A single direct-group conversation row, wrapped in a Dismissible for
+/// swipe-to-archive. (Kin Thread / C2: direct groups are private 2-person
+/// groups — the row shows the OTHER person.)
 class _DmChatRow extends StatelessWidget {
   const _DmChatRow({required this.item, required this.onArchived});
-  final DmInboxItem item;
+  final DirectGroupInboxItem item;
   final VoidCallback onArchived;
 
   @override
@@ -843,7 +864,11 @@ class _DmChatRow extends StatelessWidget {
         ),
       ),
       child: ListTile(
-        onTap: () => context.push('/dm/${item.otherUserId}'),
+        onTap: () => openDirectChat(
+              context,
+              otherUserId: item.otherUserId,
+              familyId: item.familyId,
+            ),
         leading: CircleAvatar(
           radius: 26,
           backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
