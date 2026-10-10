@@ -2,12 +2,12 @@
 //
 // DAXELO KINREL — Chat Module
 //
-// v6 — Tier 5 features: adds SecretChatsService + NearbyService +
-// ChatExportsService + CloudBackupsService + UsernameDiscoveryService +
-// their controllers. All wrap existing RPCs (the actual crypto / file-
-// building / OAuth happens Flutter-side).
+// v7 — Tier 6 features: adds TranslationsService + BotsService +
+// BotMiniAppsService + their controllers. Extends ChatService.sendMessage
+// with effectType (iOS-style message effects).
 
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
@@ -47,12 +47,19 @@ import { CloudBackupsService } from './cloud-backups.service';
 import { CloudBackupsController } from './cloud-backups.controller';
 import { UsernameDiscoveryService } from './username-discovery.service';
 import { UsernameDiscoveryController } from './username-discovery.controller';
+// Tier 6 features:
+import { TranslationsService } from './translations.service';
+import { TranslationsController } from './translations.controller';
+import { BotsService } from './bots.service';
+import { BotsController } from './bots.controller';
+import { BotMiniAppsService } from './bot-mini-apps.service';
+import { BotMiniAppsController } from './bot-mini-apps.controller';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { FcmModule } from '../notifications/fcm.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
-  imports: [PrismaModule, FcmModule, AnalyticsModule],
+  imports: [PrismaModule, FcmModule, AnalyticsModule, ConfigModule],
   controllers: [
     ChatController,
     // Tier 1:
@@ -75,6 +82,10 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     ChatExportsController,
     CloudBackupsController,
     UsernameDiscoveryController,
+    // Tier 6:
+    TranslationsController,
+    BotsController,
+    BotMiniAppsController,
   ],
   providers: [
     ChatService,
@@ -101,6 +112,10 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     ChatExportsService,
     CloudBackupsService,
     UsernameDiscoveryService,
+    // Tier 6:
+    TranslationsService,
+    BotsService,
+    BotMiniAppsService,
   ],
   exports: [
     ChatService,
@@ -113,6 +128,9 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     EmojiPacksService,
     SecretChatsService,
     NearbyService,
+    TranslationsService,
+    BotsService,
+    BotMiniAppsService,
   ],
 })
 export class ChatModule {}

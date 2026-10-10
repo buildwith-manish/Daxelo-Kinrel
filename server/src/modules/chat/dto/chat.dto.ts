@@ -79,6 +79,13 @@ export class SendChatMessageDto {
   @IsString()
   @MaxLength(100)
   topicId?: string;
+
+  /// Tier 6 Feature 6.5: message effect — 'gentle' | 'loud' |
+  /// 'invisibleInk' | 'confetti' | 'fireworks' | 'balloons'.
+  @IsOptional()
+  @IsString()
+  @IsIn(['gentle', 'loud', 'invisibleInk', 'confetti', 'fireworks', 'balloons'])
+  effectType?: string;
 }
 
 export class MarkAsReadDto {

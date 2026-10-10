@@ -3992,6 +3992,14 @@ model ChatMessage {
   /// sheet. Format: [{ content, mediaUrl?, caption?, editedAt }]
   editHistory Json @default("[]")
 
+  // ── Tier 6 Feature 6.5: Message Effects ───────────────────────────
+  /// 'gentle' | 'loud' | 'invisibleInk' | 'confetti' | 'fireworks' | 'balloons'.
+  /// Null = no effect. The Flutter client renders the effect on receipt.
+  effectType     String?
+  /// When the recipient's device last played the effect. Used to suppress
+  /// replays on scroll. Set by the fn_mark_effect_played RPC.
+  effectPlayedAt DateTime? @db.Timestamptz
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
@@ -4794,4 +4802,90 @@ model CloudBackupRecord {
 
   @@index([userId, createdAt])
   @@map("CloudBackupRecord")
+}
+
+// ── Tier 6 Feature 6.4: Message translations ───────────────────────
+// Cached translations per (messageId, targetLang). The actual translation
+// happens server-side via a provider (DeepL / Google / LibreTranslate).
+model MessageTranslation {
+  id              String   @id
+  messageId       String
+  isDirectMessage Boolean  @default(false)
+  targetLang      String // ISO 639-1 (en, hi, es, fr, ...)
+  sourceLang      String? // detected by the provider
+  translatedText  String
+  provider        String // 'deepl' | 'google' | 'libretranslate'
+  confidence      Float?
+  createdAt       DateTime @default(now()) @db.Timestamptz
+
+  @@unique([messageId, targetLang])
+  @@index([messageId])
+  @@map("MessageTranslation")
+}
+
+// ── Tier 6 Features 6.6 + 6.7: Bots + Inline bots + Mini-apps ────────
+model Bot {
+  id          String   @id
+  name        String
+  handle      String   @unique
+  ownerUserId String
+  webhookUrl  String?
+  isInline    Boolean  @default(false)
+  description String?
+  avatarUrl   String?
+  isVerified  Boolean  @default(false)
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  messages BotMessage[]
+  installs UserBotInstall[]
+  sessions BotMiniAppSession[]
+
+  @@index([ownerUserId])
+  @@map("Bot")
+}
+
+model BotMessage {
+  id        String   @id
+  botId     String
+  userId    String
+  direction String // 'incoming' | 'outgoing'
+  content   String   @default("")
+  payload   Json     @default("[]")
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@index([botId, userId, createdAt])
+  @@map("BotMessage")
+}
+
+model UserBotInstall {
+  id          String   @id
+  userId      String
+  botId       String
+  installedAt DateTime @default(now()) @db.Timestamptz
+
+  bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, botId])
+  @@index([userId, installedAt])
+  @@map("UserBotInstall")
+}
+
+model BotMiniAppSession {
+  id         String   @id
+  botId      String
+  userId     String
+  familyId   String?
+  receiverId String?
+  initData   String // signed HMAC-SHA256 token
+  expiresAt  DateTime @db.Timestamptz
+  createdAt  DateTime @default(now()) @db.Timestamptz
+
+  bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@index([botId, userId, createdAt])
+  @@index([expiresAt])
+  @@map("BotMiniAppSession")
 }

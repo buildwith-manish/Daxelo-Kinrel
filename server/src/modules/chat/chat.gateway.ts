@@ -183,6 +183,8 @@ export class ChatGateway {
         // Tier 2 features: anonymous admin + topic ID.
         isAnonymousAdmin: data.isAnonymousAdmin,
         topicId: data.topicId,
+        // Tier 6 Feature 6.5: message effects.
+        effectType: data.effectType,
       });
 
       // Feature 3: record the streak event AFTER the message is persisted.

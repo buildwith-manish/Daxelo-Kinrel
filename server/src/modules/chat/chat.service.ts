@@ -160,6 +160,9 @@ export class ChatService {
       isAnonymousAdmin?: boolean;
       /// Tier 2 Feature 2.5: forum topic — null = General.
       topicId?: string;
+      /// Tier 6 Feature 6.5: message effect — 'gentle' | 'loud' |
+      /// 'invisibleInk' | 'confetti' | 'fireworks' | 'balloons'. Null = none.
+      effectType?: string;
     } = {},
   ) {
     const membership = await this.assertMember(familyId, userId);
@@ -252,6 +255,8 @@ export class ChatService {
         isAnonymousAdmin,
         // Tier 2 Feature 2.5: forum topics — null = General topic.
         topicId: opts.topicId ?? null,
+        // Tier 6 Feature 6.5: message effects (null = no effect).
+        effectType: opts.effectType ?? null,
       },
       include: { reactions: true },
     });

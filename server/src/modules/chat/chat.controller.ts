@@ -76,6 +76,7 @@ export class ChatController {
       documentPages: body.documentPages,
       isAnonymousAdmin: body.isAnonymousAdmin,
       topicId: body.topicId,
+      effectType: body.effectType,
     });
   }
 
