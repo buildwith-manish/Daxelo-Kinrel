@@ -64,7 +64,7 @@ import '../../presence/last_seen_provider.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Message type — drives the bubble content and layout.
-enum MessageType { text, photo, voiceNote, familyEvent, sticker, gameInvite, poll, gif, document, location }
+enum MessageType { text, photo, voiceNote, familyEvent, sticker, gameInvite, poll, gif, document, location, system }
 
 /// A single emoji reaction on a message.
 class MessageReaction {
@@ -697,6 +697,8 @@ class ChatMessage {
         return MessageType.document;
       case 'location':
         return MessageType.location;
+      case 'system':
+        return MessageType.system;
       case 'text':
       default:
         return MessageType.text;
@@ -781,6 +783,8 @@ class ChatMessage {
         return 'document';
       case MessageType.location:
         return 'location';
+      case MessageType.system:
+        return 'system';
       case MessageType.text:
         return 'text';
     }
@@ -832,6 +836,8 @@ class ChatState {
     this.error,
     this.hasMoreMessages = true,
     this.isLoadingMoreMessages = false,
+    this.unreadDividerMessageId,
+    this.unreadDividerCount = 0,
   });
 
   /// All messages in the chat, sorted newest-first (UI displays with
@@ -865,6 +871,16 @@ class ChatState {
   /// at the top of the message list).
   final bool isLoadingMoreMessages;
 
+  /// Kin Thread / PR2 Task 3 — id of the FIRST unread message captured
+  /// once, BEFORE the messages are marked read on chat open. The
+  /// unread divider pill renders above this message. System rows
+  /// (join notices) never start or count toward the divider.
+  final String? unreadDividerMessageId;
+
+  /// Kin Thread / PR2 Task 3 — unread message count captured at the
+  /// same moment as [unreadDividerMessageId] (excludes system rows).
+  final int unreadDividerCount;
+
   /// Number of online members.
   int get onlineCount => members.where((m) => m.isOnline).length;
 
@@ -884,6 +900,8 @@ class ChatState {
     bool clearError = false,
     bool? hasMoreMessages,
     bool? isLoadingMoreMessages,
+    String? unreadDividerMessageId,
+    int? unreadDividerCount,
   }) {
     return ChatState(
       messages: messages ?? this.messages,
@@ -899,6 +917,9 @@ class ChatState {
       error: clearError ? null : (error ?? this.error),
       hasMoreMessages: hasMoreMessages ?? this.hasMoreMessages,
       isLoadingMoreMessages: isLoadingMoreMessages ?? this.isLoadingMoreMessages,
+      unreadDividerMessageId:
+          unreadDividerMessageId ?? this.unreadDividerMessageId,
+      unreadDividerCount: unreadDividerCount ?? this.unreadDividerCount,
     );
   }
 }
@@ -949,6 +970,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
   StreamSubscription<List<Map<String, dynamic>>>? _membersSub;
   // Whether we've completed the initial load
   bool _initialLoadDone = false;
+  // Kin Thread / PR2 Task 3 — guards the once-per-open unread divider
+  // snapshot captured in markAllRead (before messages are flipped read).
+  bool _unreadSnapshotCaptured = false;
   // v5.2: Listener for family member changes — refreshes the chat
   // member roster when a Person is added/deleted.
   // ref.listen returns a ProviderSubscription.
@@ -1380,9 +1404,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
       // (privacy: locked chat messages never land on the device).
       _writeMessagesToCache(rawRows);
 
-      // Mark all unread messages not sent by me as read. Fire-and-forget
-      // so it never blocks the reactions merge below.
-      unawaited(_markUnreadAsRead());
+      // Kin Thread / C2: the screen (family-wide, group, or direct) now
+      // owns the once-per-open capture + mark-read of ITS OWN scope
+      // (see markAllRead({groupId})). The old provider-wide auto-mark
+      // cleared the family-wide unread badge even when the user had
+      // only opened a group/direct chat, so it was removed.
 
       // Fetch reactions for these messages in a single query and merge
       // them into the already-rendered list. This is the same reaction
@@ -2948,6 +2974,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     required int currentPlayers,
     bool? spectatorsEnabled,
     String? content,
+    String? groupId,
   }) async {
     final client = _client;
     final myUserId = _currentUserId;
@@ -2973,7 +3000,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // the same gameId (shouldn't happen, but defensive) would get a fresh
     // card. In practice, gameId is a UUID so collisions are impossible.
     try {
-      final existing = await client
+      // Kin Thread / C2: when [groupId] is set (a direct-group invite),
+      // the dedup is scoped to that group's rows so a private invite
+      // and a family-wide invite for the same room never collide.
+      var dedupQuery = client
           .from('ChatMessage')
           .select('id')
           .eq('familyId', familyId)
@@ -2984,7 +3014,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
             'in_progress',
             'accepted',
             'active'
-          ])
+          ]);
+      if (groupId != null) {
+        dedupQuery = dedupQuery.eq('groupId', groupId);
+      }
+      final existing = await dedupQuery
           .order('createdAt', ascending: false)
           .limit(1)
           .maybeSingle();
@@ -3049,6 +3083,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
       gameMaxPlayers: maxPlayers,
       gameCurrentPlayers: currentPlayers,
       gameInviteStatus: 'pending',
+      // Kin Thread / C2: direct-group invites carry the direct group's
+      // id so the row is scoped to the private 2-person chat (family-
+      // wide invites keep groupId null).
+      groupId: groupId,
       // Persist the host's spectator-mode setting at invite-sent time so
       // the chat card can render the Spectate button (or hide it) without
       // a per-render round-trip to the game table. Kept in sync afterwards
@@ -3188,24 +3226,52 @@ class ChatNotifier extends StateNotifier<ChatState> {
     await _loadMessages();
   }
 
-  /// Mark all messages as read. Called when the chat screen is opened.
-  /// Bulk-inserts ChatReadReceipt rows for all messages not sent by me
-  /// that don't already have a receipt from me.
-  Future<void> markAllRead() async {
+  /// Kin Thread / PR2 Task 3 — Mark all messages in this chat's scope
+  /// as read. Called by the chat screen once its messages have loaded.
+  ///
+  /// [groupId] scopes the operation: null = the family-wide chat
+  /// (rows with groupId IS NULL); non-null = a group or direct chat
+  /// (rows with that exact groupId). This fixes the previous behavior
+  /// where opening any chat in a family marked EVERY message in the
+  /// family (including other groups' and, later, direct chats') read.
+  ///
+  /// Before flipping the local isRead flags, the FIRST call captures
+  /// the unread divider snapshot (first unread message id + count) —
+  /// see [ChatState.unreadDividerMessageId]. System rows never count.
+  Future<void> markAllRead({String? groupId}) async {
     final client = _client;
     final myUserId = _currentUserId;
     if (client == null || myUserId == null) return;
     if (!_initialLoadDone) return;
 
-    // Find messages not sent by me that aren't yet marked read.
-    final unread = state.messages
-        .where((m) => m.senderId != myUserId && !m.isRead)
-        .toList();
+    // Find messages in this chat's scope: not sent by me, not yet read,
+    // not system rows (join notices never count as unread).
+    final unread = state.messages.where((m) {
+      if (m.senderId == myUserId || m.isRead) return false;
+      if (m.messageType == MessageType.system) return false;
+      return groupId == null ? m.groupId == null : m.groupId == groupId;
+    }).toList();
     if (unread.isEmpty) return;
 
-    // Optimistic: mark all as read locally.
+    // Kin Thread / PR2 Task 3 — capture the unread divider snapshot
+    // BEFORE the messages are marked read (once per provider life;
+    // the provider is autoDispose, so a fresh open re-captures).
+    if (!_unreadSnapshotCaptured) {
+      _unreadSnapshotCaptured = true;
+      final ordered = [...unread]
+        ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      state = state.copyWith(
+        unreadDividerMessageId: ordered.first.id,
+        unreadDividerCount: ordered.length,
+      );
+    }
+
+    // Optimistic: mark only the IN-SCOPE messages as read locally.
     final optimistic = state.messages.map((m) {
       if (m.senderId == myUserId || m.isRead) return m;
+      final inThisChat =
+          groupId == null ? m.groupId == null : m.groupId == groupId;
+      if (!inThisChat) return m;
       return m.copyWith(isRead: true);
     }).toList();
     state = state.copyWith(messages: optimistic);
@@ -3228,13 +3294,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
     } catch (e) {
       debugPrint('⚠️ ChatNotifier.markAllRead error: $e');
     }
-  }
-
-  /// Mark all unread messages (not sent by me) as read. Called after
-  /// the initial load completes — ensures the chat opens with
-  /// everything read.
-  Future<void> _markUnreadAsRead() async {
-    await markAllRead();
   }
 
   /// Simulate typing indicator. (Disabled in production — would broadcast

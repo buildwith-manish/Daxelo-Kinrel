@@ -147,17 +147,25 @@ class GroupMemberInfo {
 
 /// Fetches all groups in a family that the current user can see.
 /// Family members see ALL groups. Guests see only groups they're in.
+/// Kin Thread / C2: DIRECT groups (private 2-person chats) are
+/// excluded from every group list — they only ever appear as person
+/// rows in the chat inbox.
 final familyGroupsProvider =
     FutureProvider.family<List<FamilyGroup>, String>((ref, familyId) async {
   final client = ref.read(supabaseProvider);
   if (client == null) return [];
 
-  final response = await client
+  var query = client
       .from('Group')
       .select('*, memberCount:GroupMember.count()')
       .eq('familyId', familyId)
-      .eq('isArchived', false)
-      .order('lastActivityAt', ascending: false);
+      .eq('isArchived', false);
+  // .neq on a nullable column: rows with groupType IS NULL still match
+  // '<> direct' in SQL only when the column is NOT NULL (it has a
+  // DEFAULT 'custom', so legacy rows are fine). Add an OR for nulls to
+  // be safe.
+  query = query.or('groupType.neq.direct,groupType.is.null');
+  final response = await query.order('lastActivityAt', ascending: false);
 
   return (response as List)
       .map((e) => FamilyGroup.fromJson(e as Map<String, dynamic>))

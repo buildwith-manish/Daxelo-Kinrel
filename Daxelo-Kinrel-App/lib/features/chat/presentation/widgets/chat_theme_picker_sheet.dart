@@ -25,6 +25,7 @@ import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/theme/kinrel_fx.dart';
 import '../../data/chat_wallpaper_provider.dart';
 import 'chat_background_theme.dart';
+import 'constellation_pattern.dart';
 
 /// Opens a modal bottom sheet showing the theme catalog.
 ///
@@ -218,7 +219,7 @@ class _ChatThemePickerSheet extends ConsumerWidget {
                   ),
                 ),
                 subtitle: const Text(
-                  'Reset to default Midnight atmosphere',
+                  'Reset to the default Constellation atmosphere',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
@@ -288,6 +289,10 @@ class _ThemeSwatch extends StatelessWidget {
                   ),
                 ),
               ),
+              // Kin Thread / PR2 T4: the Constellation swatch previews
+              // the actual tiled motif (cached image shader).
+              if (theme.id == 'constellation')
+                const Positioned.fill(child: ConstellationPattern()),
               // Accent glow — only rendered in rich mode.
               if (KinrelFx.rich)
                 Positioned.fill(

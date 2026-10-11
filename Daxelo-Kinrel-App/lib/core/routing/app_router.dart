@@ -271,7 +271,7 @@ import '../../features/memory_vault/presentation/memory_create_screen.dart';
 import '../../features/chat/presentation/chat_screen.dart';
 import '../../features/chat/presentation/chat_search_screen.dart';
 import '../../features/chat/presentation/group_info_screen.dart';
-import '../../features/chat/presentation/direct_chat_screen.dart';
+import '../../features/chat/presentation/direct_chat_entry_screen.dart';
 import '../../features/share/presentation/share_screen.dart';
 import '../../features/oral_history/presentation/oral_history_screen.dart';
 import '../../features/gamification/presentation/achievements_screen.dart';
@@ -2793,15 +2793,32 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // ── Direct (1:1) Chat — private conversation between two users ──
-      // Used by the Thinking of You feature (notification tap opens this)
-      // and will be used by a future DM inbox section.
+      // ── Direct (1:1) Chat — private 2-person direct group ──────
+      // Kin Thread / C2: /dm/:otherUserId is kept as the LEGACY
+      // redirect — old deep links, notifications, and the graph's
+      // "Message" action still point here. It resolves (or creates)
+      // the direct group via the RPC (choosing the oldest shared
+      // family when unknown) and opens the SAME group chat screen.
       GoRoute(
         path: '/dm/:otherUserId',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: DirectChatScreen(
+          child: DirectChatEntryScreen(
             otherUserId: state.pathParameters['otherUserId']!,
+          ),
+        ),
+      ),
+
+      // ── Direct Chat (canonical, family context known) ─────────────
+      // Used by openDirectChat() — the family the chat was started
+      // from is part of the path.
+      GoRoute(
+        path: '/family/:id/direct/:otherUserId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: DirectChatEntryScreen(
+            otherUserId: state.pathParameters['otherUserId']!,
+            familyId: state.pathParameters['id'],
           ),
         ),
       ),

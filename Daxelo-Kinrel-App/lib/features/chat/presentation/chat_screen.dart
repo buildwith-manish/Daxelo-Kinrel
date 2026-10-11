@@ -56,6 +56,8 @@ import '../../../core/services/celebration_service.dart';
 // and decode at display-size × DPR instead of native resolution).
 import '../../../core/services/image_cache_manager.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../family/data/relationship_label_provider.dart';
+import '../../profile/presentation/member_profile_sheet.dart';
 import '../data/chat_enhancement_service.dart';
 import '../data/chat_lock_service.dart';
 import '../providers/chat_provider.dart';
@@ -94,6 +96,7 @@ import '../data/chat_wallpaper_provider.dart';
 import '../data/wallpaper_picker.dart';
 import 'widgets/chat_background.dart';
 import 'widgets/chat_theme_picker_sheet.dart';
+import 'widgets/selection_mode_toolbar.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Chat Screen
@@ -127,6 +130,8 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.groupId,
     this.groupName,
     this.hideAppBar = false,
+    this.isDirectChat = false,
+    this.directOtherUserId,
   });
 
   /// The family ID for this chat.
@@ -162,6 +167,21 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// The parent screen is responsible for rendering the family name +
   /// member count header in this case.
   final bool hideAppBar;
+
+  /// Kin Thread / C2: true when this chat is a PRIVATE 2-person direct
+  /// group (groupType='direct'). The screen is the SAME group chat
+  /// screen; direct capabilities hide the group-only UI (Family chip,
+  /// group info header tap, mentions picker, read-by info, sender
+  /// identity, relationship pills + rails) and swap the header for the
+  /// other person's identity. Everything else (reply, swipe, reactions,
+  /// selection-mode actions, attachments, invites, wallpapers, the
+  /// unread divider, the floating date chip) is identical.
+  final bool isDirectChat;
+
+  /// Kin Thread / C2: the other person's user id (set when
+  /// [isDirectChat] is true). Used for the header identity + subtitle,
+  /// and to keep the dm_-keyed wallpaper/lock keys stable.
+  final String? directOtherUserId;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -207,6 +227,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // Phase 14: Sticker panel toggle
   bool _showStickerPanel = false;
 
+  // ── Selection Mode (multi-select) ───────────────────────────────────
+  // When active, the AppBar is replaced with SelectionModeToolbar,
+  // bubbles get a selection checkbox + ring, and tapping a bubble
+  // toggles selection instead of opening the action sheet.
+  // Long-press on a bubble ENTERS selection mode + selects that bubble.
+  bool _selectionMode = false;
+  final Set<String> _selectedMessageIds = <String>{};
+
   // v112: Chat wallpaper color — loaded from ChatSettings in initState
   // and applied as the messages-list background. Updated immediately
   // in _showWallpaperPicker's onTap so the change is visible without
@@ -231,6 +259,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// Returns true if [msg] was sent by the current user.
   bool _isMine(ChatMessage msg) =>
       msg.senderId == _currentUserId;
+
+  /// Kin Thread / C2 — the wallpaper (and lock) key: direct chats keep
+  /// the OLD dm_-prefixed keys so users' saved wallpapers/locks carry
+  /// over from the DirectMessage era; family + group chats keep using
+  /// familyId (existing behavior).
+  String get _chatSettingsKey =>
+      widget.isDirectChat && widget.directOtherUserId != null
+          ? 'dm_${widget.directOtherUserId}'
+          : widget.familyId;
 
   @override
   void initState() {
@@ -271,11 +308,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // and only animates while mounted. The ref.listen calls that
     // started/stopped the screen-side controller are gone with it.
 
-    // Mark all as read on enter
+    // Mark all as read on enter (this chat's scope only).
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(chatProvider(widget.familyId).notifier).markAllRead();
+      if (!mounted) return;
+      ref
+          .read(chatProvider(widget.familyId).notifier)
+          .markAllRead(groupId: widget.groupId);
       // v112: Load saved wallpaper color so it's applied on first render.
       _loadWallpaperColor();
+    });
+  }
+
+  /// Kin Thread / PR2 Task 3 — the provider no longer auto-marks
+  /// messages read after its initial load (that cleared the family
+  /// badge whenever a group/direct chat was opened). This screen now
+  /// marks its OWN scope read, once, as soon as its messages arrive.
+  /// The unread-divider snapshot is captured inside markAllRead BEFORE
+  /// the isRead flags flip, so the divider survives marking.
+  bool _markedReadOnOpen = false;
+  void _maybeMarkReadOnOpen(ChatState chatState) {
+    if (_markedReadOnOpen) return;
+    if (chatState.isLoading || chatState.messages.isEmpty) return;
+    _markedReadOnOpen = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref
+          .read(chatProvider(widget.familyId).notifier)
+          .markAllRead(groupId: widget.groupId);
     });
   }
 
@@ -360,17 +419,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (mounted) {
         setState(() => _isComposing = composing);
       }
-      // v109.11: Send typing status to Supabase
-      final service = ref.read(chatEnhancementServiceProvider);
-      service.setTypingStatus(widget.familyId, composing);
-      _lastTypingWriteAt = DateTime.now();
+      // v109.11: Send typing status to Supabase.
+      // Kin Thread / C2: skipped in direct chats — ChatTypingStatus is
+      // family-scoped (UNIQUE(familyId, userId), no groupId), so a
+      // private typing signal would leak into the family chat's
+      // indicator. Documented in docs/DM_REBUILD_PLAN.md.
+      if (!widget.isDirectChat) {
+        final service = ref.read(chatEnhancementServiceProvider);
+        service.setTypingStatus(widget.familyId, composing);
+        _lastTypingWriteAt = DateTime.now();
+      }
     } else if (composing) {
       // v3.5 — throttled keystroke refresh: the receiver-side indicator
       // auto-clears 3s after the last event, so an actively-typing user
       // must keep the ChatTypingStatus row fresh (≤2s cadence).
       final now = DateTime.now();
       final last = _lastTypingWriteAt;
-      if (last == null || now.difference(last).inMilliseconds >= 2000) {
+      if (!widget.isDirectChat &&
+          (last == null ||
+              now.difference(last).inMilliseconds >= 2000)) {
         final service = ref.read(chatEnhancementServiceProvider);
         service.setTypingStatus(widget.familyId, true);
         _lastTypingWriteAt = now;
@@ -382,6 +449,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // start of input or preceded by whitespace. If found, the text
     // between "@" and the cursor becomes the search query and the
     // picker overlay is shown (or updated with the new query).
+    // Kin Thread / C2: no mentions picker in direct chats (2 people
+    // only — a group-only feature).
+    if (widget.isDirectChat) {
+      if (_mentionOverlay != null) _hideMentionPicker();
+      return;
+    }
     final trigger = _mentionTracker.detectTrigger();
     if (trigger != null) {
       _showMentionPicker(trigger);
@@ -631,6 +704,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatProvider(widget.familyId));
+    // Kin Thread / PR2 T3: mark THIS chat's scope read once its
+    // messages have loaded (the provider no longer auto-marks the
+    // whole family — see markAllRead({groupId})).
+    _maybeMarkReadOnOpen(chatState);
     // Pack 13: Socket.IO engagement state (typing / streak / presence /
     // read receipts / reactions). Additive to the Supabase Realtime state
     // in chatState — gives sub-second updates for the engagement signals.
@@ -726,7 +803,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // coach marks yet (hasSeenChatOnboarding flag in SharedPreferences).
     final showOnboarding = ref.watch(shouldShowChatOnboardingProvider(widget.familyId));
 
-    return Stack(
+    return PopScope(
+      // v6.0 — When selection mode is active, the back button exits
+      // selection mode instead of popping the screen (Image 3 reference).
+      canPop: !_selectionMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _selectionMode) {
+          _exitSelectionMode();
+        }
+      },
+      child: Stack(
       children: [
         DKScaffold(
       // v132: The background is now rendered by ChatBackground (a
@@ -741,7 +827,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // v140 Family-Centric Chat Navigation: hideAppBar lets the parent
       // (e.g. FamilyChatListScreen with [Family]/[Direct] tabs) provide
       // its own header without a double-AppBar.
-      appBar: widget.hideAppBar ? null : _buildAppBar(chatState),
+      // Selection mode: swap the normal AppBar for the selection toolbar
+      // when active, so the user sees count + bulk actions at the top.
+      appBar: widget.hideAppBar
+          ? null
+          : (_selectionMode
+              ? SelectionModeToolbar(
+                  selectedCount: _selectedMessageIds.length,
+                  onClose: _exitSelectionMode,
+                  onReply: _bulkReply,
+                  onForward: _bulkForward,
+                  onStar: _bulkStar,
+                  onDelete: _bulkDelete,
+                  onMore: _bulkMore,
+                )
+              : _buildAppBar(chatState)),
       // v115: Only show the Family Space bottom nav when this screen
       // is the tab destination (showFamilyNav=true). When opened as a
       // pushed conversation from the chat list, the bottom nav is
@@ -763,34 +863,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     // Gives the chat space depth without competing with bubbles.
                     Expanded(
                       child: ChatBackground(
-                        chatId: widget.familyId,
+                        // Kin Thread / C2: direct chats keep the dm_-keyed
+                        // wallpaper slot so saved choices carry over.
+                        chatId: _chatSettingsKey,
                         child: bodyContent,
                       ),
                     ),
-                    // Typing indicator — shows if EITHER the Supabase
-                    // Realtime typing status OR the Socket.IO engagement
-                    // layer reports someone typing. The engagement layer
-                    // is preferred when both fire (it has the more recent
-                    // event + a richer multi-user label).
-                    if (chatState.isTyping || engagement.isSomeoneTyping)
-                      _buildTypingIndicator(chatState, engagement),
-                    // Reply preview bar
-                    if (chatState.replyToMessage != null)
-                      _buildReplyPreview(chatState.replyToMessage!),
-                    // Phase 14: Sticker panel (slides up when toggled)
-                    if (_showStickerPanel && !_isRecording)
-                      StickerPanel(
-                        onStickerSelected: _sendSticker,
-                        onClose: _toggleStickerPanel,
-                      ),
-                    // Input bar
-                    _buildInputBar(),
-                    // v128: On Flutter Web, resizeToAvoidBottomInset doesn't detect
-                    // the mobile keyboard. We add explicit bottom padding equal to
-                    // the visualViewport-measured keyboard height so the input bar
-                    // is always visible above the keyboard.
-                    if (kIsWeb && _webKeyboardHeight > 0)
-                      SizedBox(height: _webKeyboardHeight),
+                    // Selection mode hides the typing indicator, reply
+                    // preview, sticker panel, and input bar — the user
+                    // is picking messages, not composing.
+                    if (!_selectionMode) ...[
+                      // Typing indicator — shows if EITHER the Supabase
+                      // Realtime typing status OR the Socket.IO engagement
+                      // layer reports someone typing. The engagement layer
+                      // is preferred when both fire (it has the more recent
+                      // event + a richer multi-user label).
+                      if (chatState.isTyping || engagement.isSomeoneTyping)
+                        _buildTypingIndicator(chatState, engagement),
+                      // Reply preview bar
+                      if (chatState.replyToMessage != null)
+                        _buildReplyPreview(chatState.replyToMessage!),
+                      // Phase 14: Sticker panel (slides up when toggled)
+                      if (_showStickerPanel && !_isRecording)
+                        StickerPanel(
+                          onStickerSelected: _sendSticker,
+                          onClose: _toggleStickerPanel,
+                        ),
+                      // Input bar
+                      _buildInputBar(),
+                      // v128: On Flutter Web, resizeToAvoidBottomInset doesn't detect
+                      // the mobile keyboard. We add explicit bottom padding equal to
+                      // the visualViewport-measured keyboard height so the input bar
+                      // is always visible above the keyboard.
+                      if (kIsWeb && _webKeyboardHeight > 0)
+                        SizedBox(height: _webKeyboardHeight),
+                    ],
                   ],
                 ),
         ),
@@ -806,6 +913,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             },
           ),
       ],
+      ),
     );
   }
 
@@ -987,7 +1095,388 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
+
+  /// Kin Thread / C2: the header action buttons (search, video,
+  /// call, and the â® menu) — ONE implementation shared by the
+  /// family header AND the direct-chat header. The differences
+  /// between group and direct chat come from capabilities and per
+  /// screen wiring — never from copy-pasted UI.
+  Widget _buildHeaderActions() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ── Action buttons (visually balanced, secondary) ────
+        // v134: Actions use a softer icon style (outline, 20px,
+        // silver) so they never compete with the identity column.
+        // The members button is dropped — redundant with tapping
+        // the avatar/header which navigates to family detail.
+        // Feature 5: search icon added before video/voice for
+        // discoverability (also accessible via the more menu).
+        HeaderActionButton(
+          icon: Icons.search,
+          size: 20,
+          onPressed: () {
+            context.push('/family/${widget.familyId}/chat/search');
+          },
+        ),
+        HeaderActionButton(
+          icon: Icons.videocam_outlined,
+          size: 20,
+          onPressed: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Video call coming soon!'),
+                backgroundColor: KinrelColors.darkCard,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
+        ),
+        HeaderActionButton(
+          icon: Icons.call_outlined,
+          size: 18,
+          onPressed: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Voice call coming soon!'),
+                backgroundColor: KinrelColors.darkCard,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
+        ),
+        // More menu — settings, wallpaper, mute, etc.
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert,
+              color: KinrelColors.textSilver, size: 20),
+          color: KinrelColors.darkCard,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          onSelected: (value) {
+            switch (value) {
+              case 'search':
+                context.push('/family/${widget.familyId}/chat/search');
+                break;
+              case 'search_all':
+                context.push('/chats/search');
+                break;
+              case 'disappearing':
+                DisappearingMessagesSheet.show(
+                  context,
+                  familyId: widget.familyId,
+                );
+                break;
+              case 'lock':
+                _toggleChatLock();
+                break;
+              case 'export':
+                _exportChat();
+                break;
+              case 'live_location':
+                _shareLiveLocation();
+                break;
+              case 'theme':
+                _showThemePicker();
+                break;
+              case 'constellation':
+                // Kin Thread / PR2 T4: one-tap access to the
+                // Constellation preset (also in Chat Atmosphere).
+                ref.read(chatWallpaperProvider.notifier).setWallpaper(
+                      _chatSettingsKey,
+                      'theme:constellation',
+                    );
+                break;
+              case 'wallpaper':
+                _showImageWallpaperPicker(context, _chatSettingsKey);
+                break;
+              case 'wallpaper_color':
+                _showWallpaperColorPicker();
+                break;
+              case 'mute':
+                _toggleMute();
+                break;
+              case 'starred':
+                _showStarredMessages();
+                break;
+              case 'pinned':
+                _showPinnedMessages();
+                break;
+            }
+          },
+          itemBuilder: (ctx) => [
+            // Tier 1 / Message Search — put search at the top of
+            // the menu since it's the most-used action. Two
+            // scopes: this chat + all chats.
+            const PopupMenuItem(
+                value: 'search',
+                child: Row(children: [
+                  Icon(Icons.search_rounded, size: 18,
+                      color: KinrelColors.ember),
+                  SizedBox(width: 12),
+                  Text('Search this chat'),
+                ])),
+            const PopupMenuItem(
+                value: 'search_all',
+                child: Row(children: [
+                  Icon(Icons.manage_search_rounded, size: 18,
+                      color: KinrelColors.ember),
+                  SizedBox(width: 12),
+                  Text('Search all chats'),
+                ])),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+                value: 'constellation',
+                child: Text('Constellation (default wallpaper)')),
+            const PopupMenuItem(
+                value: 'theme', child: Text('Chat Atmosphere')),
+            const PopupMenuItem(
+                value: 'wallpaper', child: Text('Custom Wallpaper')),
+            const PopupMenuItem(
+                value: 'wallpaper_color', child: Text('Solid Color')),
+            const PopupMenuItem(
+                value: 'mute', child: Text('Mute notifications')),
+            // Tier 2 / Disappearing Messages — opens the
+            // DisappearingMessagesSheet to enable/disable per-chat
+            // auto-deletion (24h / 7d / 90d / off).
+            const PopupMenuItem(
+                value: 'disappearing',
+                child: Row(children: [
+                  Icon(Icons.timer_outlined, size: 18,
+                      color: KinrelColors.ember),
+                  SizedBox(width: 12),
+                  Text('Disappearing messages'),
+                ])),
+            // Tier 2 / Chat Lock — toggle per-chat biometric lock.
+            const PopupMenuItem(
+                value: 'lock',
+                child: Row(children: [
+                  Icon(Icons.lock_outline, size: 18,
+                      color: KinrelColors.ember),
+                  SizedBox(width: 12),
+                  Text('Chat lock'),
+                ])),
+            // Tier 3 / Export chat — exports conversation as text
+            const PopupMenuItem(
+                value: 'export',
+                child: Row(children: [
+                  Icon(Icons.file_download_outlined, size: 18,
+                      color: KinrelColors.ember),
+                  SizedBox(width: 12),
+                  Text('Export chat'),
+                ])),
+            // Tier 3 / Live location — share live location with
+            // duration options (15min / 1h / 8h)
+            const PopupMenuItem(
+                value: 'live_location',
+                child: Row(children: [
+                  Icon(Icons.my_location_rounded, size: 18,
+                      color: KinrelColors.ember),
+                  SizedBox(width: 12),
+                  Text('Share live location'),
+                ])),
+            const PopupMenuItem(
+                value: 'starred', child: Text('Starred messages')),
+            const PopupMenuItem(
+                value: 'pinned', child: Text('Pinned messages')),
+          ],
+        ),
+        const SizedBox(width: 4),
+      ],
+    );
+  }
+
+
+  /// Kin Thread / C2 — the DIRECT chat header: the other person's
+  /// identity (avatar + name) with the RELATIONSHIP to the viewer as
+  /// the subtitle when it resolves (e.g. "Father"), otherwise their
+  /// online status. No Family chip, no member count, no family-profile
+  /// tap targets; tapping the identity opens the person's profile
+  /// sheet. Shares _buildHeaderActions() with the family header.
+  PreferredSizeWidget _buildDirectAppBar(ChatState chatState) {
+    final otherUserId = widget.directOtherUserId;
+    final displayName = widget.groupName ?? widget.familyName;
+    String? relationship;
+    if (widget.familyId.isNotEmpty && otherUserId != null) {
+      relationship = ref.watch(relationshipLabelProvider(
+        (familyId: widget.familyId, senderUserId: otherUserId),
+      ));
+    }
+    final otherMember = otherUserId == null
+        ? null
+        : chatState.members.where((m) => m.id == otherUserId).firstOrNull;
+    final isOnline = otherMember?.isOnline ?? false;
+    final subtitle = relationship ?? (isOnline ? 'Active now' : 'Offline');
+
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(72),
+      child: Container(
+        decoration: BoxDecoration(
+          // Same flat surface as the family header (one visual language).
+          color: KinrelFx.rich ? null : const Color(0xFF0A0B16),
+          gradient: KinrelFx.gradient(
+            const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF11132A),
+                Color(0xFF0A0B16),
+              ],
+            ),
+          ),
+          border: Border(
+            bottom: BorderSide(
+                color: Colors.white.withValues(alpha: 0.06), width: 0.5),
+          ),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            child: Row(
+              children: [
+                // ── Back ──────────────────────────────────────────────
+                IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new,
+                    size: 18,
+                    color: KinrelColors.textSilver,
+                  ),
+                  onPressed: () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else if (widget.directOtherUserId != null) {
+                      context.go(
+                          '/family/${widget.familyId}/direct/${widget.directOtherUserId}');
+                    } else {
+                      context.go('/family/${widget.familyId}');
+                    }
+                  },
+                ),
+                // ── The other person's avatar (tap → profile) ─────────
+                GestureDetector(
+                  onTap: otherUserId != null
+                      ? () => MemberProfileSheet.show(context, otherUserId)
+                      : null,
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    // PERF note: NOT const — _kChatAvatarGlow is a
+                    // runtime-final list (same reason as the family
+                    // header's avatar decoration).
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: _kChatAvatarGlow,
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: KinrelColors.ember.withValues(alpha: 0.35),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: ClipOval(
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: KinrelGradients.igniteGradient,
+                          ),
+                          child: Center(
+                            child: Text(
+                              displayName.isNotEmpty
+                                  ? displayName.substring(0, 1).toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                fontFamily: KinrelTypography.displayFont,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // ── Identity + subtitle (tap → profile) ───────────────
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: otherUserId != null
+                        ? () => MemberProfileSheet.show(context, otherUserId)
+                        : null,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          displayName,
+                          style: const TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w700,
+                            color: KinrelColors.textWhite,
+                            letterSpacing: 0.1,
+                            height: 1.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 7,
+                              height: 7,
+                              margin: const EdgeInsets.only(right: 5),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isOnline
+                                    ? KinrelColors.success
+                                    : KinrelColors.textDim,
+                              ),
+                            ),
+                            Text(
+                              subtitle,
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w500,
+                                color: KinrelColors.textSilver
+                                    .withValues(alpha: 0.8),
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // ── Shared actions (search / video / call / ⋮ menu) ────
+                _buildHeaderActions(),
+                const SizedBox(width: 4),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   PreferredSizeWidget _buildAppBar(ChatState chatState) {
+    // Kin Thread / C2 — direct chats render a PERSON header (the other
+    // person's name + avatar, relationship/online subtitle) instead of
+    // the FAMILY header. No Family chip, no family-profile tap targets,
+    // no member count. Tapping the identity opens the other person's
+    // profile sheet (not the family profile).
+    if (widget.isDirectChat) {
+      return _buildDirectAppBar(chatState);
+    }
     // v134 KINREL SIGNATURE HEADER
     // Design language: relationship-centered rather than utility-bar.
     // The header celebrates the human connection rather than treating
@@ -1454,172 +1943,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ),
                 ),
 
-                // ── Action buttons (visually balanced, secondary) ────
-                // v134: Actions use a softer icon style (outline, 20px,
-                // silver) so they never compete with the identity column.
-                // The members button is dropped — redundant with tapping
-                // the avatar/header which navigates to family detail.
-                // Feature 5: search icon added before video/voice for
-                // discoverability (also accessible via the more menu).
-                HeaderActionButton(
-                  icon: Icons.search,
-                  size: 20,
-                  onPressed: () {
-                    context.push('/family/${widget.familyId}/chat/search');
-                  },
-                ),
-                HeaderActionButton(
-                  icon: Icons.videocam_outlined,
-                  size: 20,
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Video call coming soon!'),
-                        backgroundColor: KinrelColors.darkCard,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
-                ),
-                HeaderActionButton(
-                  icon: Icons.call_outlined,
-                  size: 18,
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Voice call coming soon!'),
-                        backgroundColor: KinrelColors.darkCard,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
-                ),
-                // More menu — settings, wallpaper, mute, etc.
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert,
-                      color: KinrelColors.textSilver, size: 20),
-                  color: KinrelColors.darkCard,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'search':
-                        context.push('/family/${widget.familyId}/chat/search');
-                        break;
-                      case 'search_all':
-                        context.push('/chats/search');
-                        break;
-                      case 'disappearing':
-                        DisappearingMessagesSheet.show(
-                          context,
-                          familyId: widget.familyId,
-                        );
-                        break;
-                      case 'lock':
-                        _toggleChatLock();
-                        break;
-                      case 'export':
-                        _exportChat();
-                        break;
-                      case 'live_location':
-                        _shareLiveLocation();
-                        break;
-                      case 'theme':
-                        _showThemePicker();
-                        break;
-                      case 'wallpaper':
-                        _showImageWallpaperPicker(context, widget.familyId);
-                        break;
-                      case 'wallpaper_color':
-                        _showWallpaperColorPicker();
-                        break;
-                      case 'mute':
-                        _toggleMute();
-                        break;
-                      case 'starred':
-                        _showStarredMessages();
-                        break;
-                      case 'pinned':
-                        _showPinnedMessages();
-                        break;
-                    }
-                  },
-                  itemBuilder: (ctx) => [
-                    // Tier 1 / Message Search — put search at the top of
-                    // the menu since it's the most-used action. Two
-                    // scopes: this chat + all chats.
-                    const PopupMenuItem(
-                        value: 'search',
-                        child: Row(children: [
-                          Icon(Icons.search_rounded, size: 18,
-                              color: KinrelColors.ember),
-                          SizedBox(width: 12),
-                          Text('Search this chat'),
-                        ])),
-                    const PopupMenuItem(
-                        value: 'search_all',
-                        child: Row(children: [
-                          Icon(Icons.manage_search_rounded, size: 18,
-                              color: KinrelColors.ember),
-                          SizedBox(width: 12),
-                          Text('Search all chats'),
-                        ])),
-                    const PopupMenuDivider(),
-                    const PopupMenuItem(
-                        value: 'theme', child: Text('Chat Atmosphere')),
-                    const PopupMenuItem(
-                        value: 'wallpaper', child: Text('Custom Wallpaper')),
-                    const PopupMenuItem(
-                        value: 'wallpaper_color', child: Text('Solid Color')),
-                    const PopupMenuItem(
-                        value: 'mute', child: Text('Mute notifications')),
-                    // Tier 2 / Disappearing Messages — opens the
-                    // DisappearingMessagesSheet to enable/disable per-chat
-                    // auto-deletion (24h / 7d / 90d / off).
-                    const PopupMenuItem(
-                        value: 'disappearing',
-                        child: Row(children: [
-                          Icon(Icons.timer_outlined, size: 18,
-                              color: KinrelColors.ember),
-                          SizedBox(width: 12),
-                          Text('Disappearing messages'),
-                        ])),
-                    // Tier 2 / Chat Lock — toggle per-chat biometric lock.
-                    const PopupMenuItem(
-                        value: 'lock',
-                        child: Row(children: [
-                          Icon(Icons.lock_outline, size: 18,
-                              color: KinrelColors.ember),
-                          SizedBox(width: 12),
-                          Text('Chat lock'),
-                        ])),
-                    // Tier 3 / Export chat — exports conversation as text
-                    const PopupMenuItem(
-                        value: 'export',
-                        child: Row(children: [
-                          Icon(Icons.file_download_outlined, size: 18,
-                              color: KinrelColors.ember),
-                          SizedBox(width: 12),
-                          Text('Export chat'),
-                        ])),
-                    // Tier 3 / Live location — share live location with
-                    // duration options (15min / 1h / 8h)
-                    const PopupMenuItem(
-                        value: 'live_location',
-                        child: Row(children: [
-                          Icon(Icons.my_location_rounded, size: 18,
-                              color: KinrelColors.ember),
-                          SizedBox(width: 12),
-                          Text('Share live location'),
-                        ])),
-                    const PopupMenuItem(
-                        value: 'starred', child: Text('Starred messages')),
-                    const PopupMenuItem(
-                        value: 'pinned', child: Text('Pinned messages')),
-                  ],
-                ),
-                const SizedBox(width: 4),
+                // ── Action buttons — ONE shared implementation,
+                // used by the family header AND the direct header.
+                _buildHeaderActions(),
               ],
             ),
           ),
@@ -1640,7 +1966,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// + prompt biometrics if so. Called from initState.
   Future<void> _checkChatLock() async {
     final lockService = ref.read(chatLockServiceProvider);
-    final isLocked = await lockService.isLocked(widget.familyId);
+    // Kin Thread / C2: direct chats lock under their own dm_-key (the
+    // same key the old DM screen used) so locking a private chat never
+    // locks the family chat.
+    final isLocked = await lockService.isLocked(_chatSettingsKey);
     if (!mounted) return;
 
     if (isLocked) {
@@ -1742,6 +2071,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           break;
         case MessageType.location:
           contentLabel = '[Location shared]';
+          break;
+        case MessageType.system:
+          contentLabel = msg.content;
           break;
         case MessageType.text:
           contentLabel = msg.content;
@@ -1941,14 +2273,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       }
       return;
     }
-    final isLocked = await lockService.isLocked(widget.familyId);
+    final isLocked = await lockService.isLocked(_chatSettingsKey);
     if (isLocked) {
       // Unlocking requires biometric auth.
       final success = await lockService.authenticate(
         'Authenticate to unlock this chat',
       );
       if (success) {
-        await lockService.setLocked(widget.familyId, false);
+        await lockService.setLocked(_chatSettingsKey, false);
         if (mounted) {
           setState(() => _isChatLocked = false);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1971,7 +2303,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       }
     } else {
       // Locking doesn't require auth.
-      await lockService.setLocked(widget.familyId, true);
+      await lockService.setLocked(_chatSettingsKey, true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -1991,9 +2323,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   void _showThemePicker() {
     showChatThemePickerSheet(
       context,
-      chatId: widget.familyId,
+      // Kin Thread / C2: direct chats pick their own atmosphere (the
+      // dm_-keyed wallpaper slot).
+      chatId: _chatSettingsKey,
       onPickCustomWallpaper: () =>
-          _showImageWallpaperPicker(context, widget.familyId),
+          _showImageWallpaperPicker(context, _chatSettingsKey),
       ref: ref,
     );
   }
@@ -2480,8 +2814,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       messages: messages,
       currentUserId: _currentUserId,
       familyId: widget.familyId,
-      isDirectChat: false,
+      // Kin Thread / C2: direct chats hide sender identity, avatars,
+      // relationship pills and rails (the shared list/bubble code gates
+      // on this flag).
+      isDirectChat: widget.isDirectChat,
       inviteFamilyId: null,
+      // Kin Thread / PR2 T3: the unread divider snapshot (captured by
+      // the provider before marking read; null when the chat opened
+      // fully read). Only rendered if the id is present in THIS chat's
+      // filtered message list.
+      unreadDividerMessageId: chatState.unreadDividerMessageId,
+      unreadDividerCount: chatState.unreadDividerCount,
       scrollController: _scrollController,
       onReply: (msg) {
         ref.read(chatProvider(widget.familyId).notifier).setReplyTo(msg);
@@ -2491,6 +2834,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       onReplyPreviewTap: (msg) {
         if (msg.replyToId != null) _scrollToMessage(msg.replyToId!);
       },
+      // v6.0 — Selection mode state (Image 3 reference).
+      selectionMode: _selectionMode,
+      selectedMessageIds: _selectedMessageIds,
+      onToggleSelection: _toggleMessageSelection,
     );
   }
 
@@ -3408,6 +3755,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       .setReplyTo(message);
                 },
               ),
+              // Select action — enters multi-select mode with this
+              // message pre-selected (Image 3 reference).
+              ListTile(
+                leading: const Icon(
+                  Icons.check_circle_outline_rounded,
+                  color: KinrelColors.textSilver,
+                  size: 22,
+                ),
+                title: const Text(
+                  'Select',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 15,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _enterSelectionMode(message.id);
+                },
+              ),
               // Copy action
               ListTile(
                 leading: const Icon(
@@ -3516,8 +3884,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
                 },
               ),
-              // v122: Pin / Unpin (admin/creator only — RPC enforces too)
-              if (isAdminOrCreator)
+              // v122: Pin / Unpin — group rule is admin/creator (RPC
+              // enforces too); Kin Thread / C2: EITHER person may pin in
+              // a direct chat.
+              if (isAdminOrCreator || widget.isDirectChat)
                 ListTile(
                   leading: Icon(
                     message.isPinned
@@ -3592,8 +3962,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               // showing "Delivered to" + "Read by" lists per family
               // member. Shown for everyone (not just the sender) so
               // any member can see who's read the message. Hidden for
-              // non-text message types (info is less useful for
-              // stickers / photos / voice notes in v1).
+              // non-text message types.
+              // v6.0 — Now enabled in direct chats too (DM message
+              // info shows delivery/read status for the 2 participants).
               if (message.messageType == MessageType.text ||
                   message.messageType == MessageType.photo)
                 ListTile(
@@ -3706,6 +4077,203 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             .read(chatProvider(widget.familyId).notifier)
             .toggleReaction(messageId, emoji);
       },
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Selection Mode (multi-select) — Image 3 reference
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// Enter selection mode with [initialMessageId] pre-selected.
+  /// Called from the long-press handler when the user picks "Select"
+  /// from the actions sheet, OR from a direct long-press on a bubble
+  /// when an alternative gesture is used.
+  void _enterSelectionMode(String initialMessageId) {
+    HapticService.selection();
+    setState(() {
+      _selectionMode = true;
+      _selectedMessageIds.clear();
+      _selectedMessageIds.add(initialMessageId);
+    });
+  }
+
+  /// Exit selection mode and clear the selection.
+  void _exitSelectionMode() {
+    if (!_selectionMode) return;
+    setState(() {
+      _selectionMode = false;
+      _selectedMessageIds.clear();
+    });
+  }
+
+  /// Toggle a message's selection state. Called when the user taps a
+  /// bubble while in selection mode.
+  void _toggleMessageSelection(String messageId) {
+    HapticService.tap();
+    setState(() {
+      if (_selectedMessageIds.contains(messageId)) {
+        _selectedMessageIds.remove(messageId);
+        // If the user deselects the last message, keep selection mode
+        // active (per Image 3 which shows "1 selected" — but allow
+        // empty state so the user can re-pick). Exit only via X.
+      } else {
+        _selectedMessageIds.add(messageId);
+      }
+    });
+  }
+
+  /// Bulk reply — uses the most-recently selected message as the reply
+  /// target, then exits selection mode and focuses the input.
+  void _bulkReply() {
+    if (_selectedMessageIds.isEmpty) return;
+    // Find the most-recently-selected message in the messages list.
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final selected = chatState.messages
+        .where((m) => _selectedMessageIds.contains(m.id))
+        .toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    if (selected.isEmpty) return;
+    final target = selected.first;
+    _exitSelectionMode();
+    ref.read(chatProvider(widget.familyId).notifier).setReplyTo(target);
+    // Focus the input so the user can type their reply.
+    _focusNode.requestFocus();
+  }
+
+  /// Bulk forward — opens the forward picker with all selected messages.
+  void _bulkForward() {
+    if (_selectedMessageIds.isEmpty) return;
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final selected = chatState.messages
+        .where((m) => _selectedMessageIds.contains(m.id))
+        .toList();
+    _exitSelectionMode();
+    // Reuse the existing forward picker (single-message variant) for
+    // the first selected message — multi-message forwarding is a server
+    // limitation. The user can forward one at a time.
+    if (selected.isNotEmpty) {
+      _showForwardFamilyPicker(selected.first);
+    }
+  }
+
+  /// Bulk star — toggles star on all selected messages.
+  void _bulkStar() async {
+    if (_selectedMessageIds.isEmpty) return;
+    final service = ref.read(chatEnhancementServiceProvider);
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final selected = chatState.messages
+        .where((m) => _selectedMessageIds.contains(m.id))
+        .toList();
+    for (final msg in selected) {
+      await service.starMessage(msg.id, !msg.isStarred);
+    }
+    ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+    _exitSelectionMode();
+  }
+
+  /// Bulk delete — deletes all selected messages for the current user.
+  void _bulkDelete() async {
+    if (_selectedMessageIds.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: KinrelColors.darkCard,
+        title: Text(
+          'Delete ${_selectedMessageIds.length} message${_selectedMessageIds.length == 1 ? '' : 's'}?',
+          style: const TextStyle(color: KinrelColors.textWhite),
+        ),
+        content: const Text(
+          'These messages will be deleted for you. Other participants will still see them.',
+          style: TextStyle(color: KinrelColors.textDim),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete for me',
+                style: TextStyle(color: KinrelColors.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final service = ref.read(chatEnhancementServiceProvider);
+    final ids = Set<String>.from(_selectedMessageIds);
+    _exitSelectionMode();
+    for (final id in ids) {
+      await service.deleteForMe(id);
+    }
+    ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+  }
+
+  /// Bulk more actions — shows a bottom sheet with Pin, Copy, Share.
+  void _bulkMore() {
+    if (_selectedMessageIds.isEmpty) return;
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final selected = chatState.messages
+        .where((m) => _selectedMessageIds.contains(m.id))
+        .toList();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.content_copy, color: KinrelColors.orange),
+              title: const Text('Copy text',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              subtitle: const Text('Concatenate text from all selected messages',
+                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              onTap: () {
+                final text = selected
+                    .where((m) => m.messageType == MessageType.text)
+                    .map((m) => m.content)
+                    .join('\n\n');
+                if (text.isNotEmpty) {
+                  Clipboard.setData(ClipboardData(text: text));
+                }
+                Navigator.pop(ctx);
+                _exitSelectionMode();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.push_pin_outlined, color: KinrelColors.orange),
+              title: const Text('Pin messages',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final service = ref.read(chatEnhancementServiceProvider);
+                for (final msg in selected) {
+                  await service.pinMessage(msg.id, !msg.isPinned);
+                }
+                ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+                _exitSelectionMode();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.share_outlined, color: KinrelColors.orange),
+              title: const Text('Share outside Kinrel',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              onTap: () {
+                Navigator.pop(ctx);
+                final text = selected.map((m) => m.content).join('\n\n');
+                Share.share(text);
+                _exitSelectionMode();
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
     );
   }
 

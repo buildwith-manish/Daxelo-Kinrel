@@ -38,7 +38,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/local_notification_service.dart';
 import '../../features/chat/providers/chat_provider.dart';
-import '../../features/chat/data/direct_message_provider.dart';
+import '../../features/chat/data/direct_group_service.dart';
 
 class NotificationReplyHandler {
   NotificationReplyHandler._();
@@ -80,11 +80,23 @@ class NotificationReplyHandler {
             .sendMessage(replyText, replyToId: replyToMessageId);
         debugPrint('💬 Reply sent to family chat $familyId: "$replyText"');
       } else if (dmUserId != null && dmUserId.isNotEmpty) {
-        // DM reply
-        container
-            .read(directChatProvider(dmUserId).notifier)
-            .sendText(replyText, replyToId: replyToMessageId);
-        debugPrint('💬 Reply sent to DM $dmUserId: "$replyText"');
+        // Kin Thread / C2 — DM replies now go through the private
+        // DIRECT GROUP (the same backend as group chat): resolve the
+        // group, then send a group-scoped message. Fire-and-forget,
+        // best-effort (the user isn't in the app to see errors).
+        () async {
+          final group = await getOrCreateDirectGroup(otherUserId: dmUserId);
+          if (group == null) {
+            debugPrint(
+                '⚠️ NotificationReplyHandler: could not resolve direct group for $dmUserId');
+            return;
+          }
+          container
+              .read(chatProvider(group.familyId).notifier)
+              .sendMessage(replyText,
+                  replyToId: replyToMessageId, groupId: group.groupId);
+          debugPrint('💬 Reply sent to direct group ${group.groupId}: "$replyText"');
+        }();
       } else {
         debugPrint('⚠️ NotificationReplyHandler: payload missing familyId + dmUserId');
       }

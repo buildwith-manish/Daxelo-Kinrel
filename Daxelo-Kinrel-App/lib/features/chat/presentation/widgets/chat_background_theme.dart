@@ -89,11 +89,11 @@ class ChatBackgroundTheme {
     );
   }
 
-  /// The default atmosphere used when no theme and no image wallpaper
-  /// is selected. "Midnight" — a deep blue-black with a faint cool
-  /// top-right glow suggesting a distant window. Quiet, premium,
-  /// universally readable.
-  static const ChatBackgroundTheme defaultTheme = ChatBackgroundTheme(
+  /// "Midnight" — the pre-Kin-Thread default atmosphere: a deep
+  /// blue-black with a faint cool top-right glow suggesting a distant
+  /// window. Quiet, premium, universally readable. Still selectable
+  /// from the picker; existing saved choices keep working.
+  static const ChatBackgroundTheme midnight = ChatBackgroundTheme(
     id: 'midnight',
     name: 'Midnight',
     description: 'Deep blue-black with a soft cool glow',
@@ -108,9 +108,11 @@ class ChatBackgroundTheme {
   );
 
   /// The full curated catalog. Order = display order in the picker.
-  /// Midnight is first because it's the default; the rest are sorted
-  /// by mood (cool → warm → dark) for a natural browsing flow.
+  /// Constellation is first because it's the Kin Thread default; the
+  /// rest are sorted by mood (cool → warm → dark) for a natural
+  /// browsing flow.
   static const List<ChatBackgroundTheme> allThemes = [
+    constellation,
     midnight,
     aurora,
     ocean,
@@ -123,7 +125,29 @@ class ChatBackgroundTheme {
 
   // ── Individual theme definitions ────────────────────────────────
 
-  static const ChatBackgroundTheme midnight = defaultTheme;
+  /// Kin Thread / PR2 Task 4 — Constellation: the new DEFAULT
+  /// wallpaper for chats with no saved choice. A tiny pattern of
+  /// ~40 dots and thin lines (the family-graph motif), drawn once
+  /// into a cached image and tiled with an image shader at very low
+  /// contrast (~6% lighter than darkBackground). No gradient, no
+  /// blur. A saved user choice is NEVER overridden — this only
+  /// applies when nothing is stored for the chat.
+  static const ChatBackgroundTheme constellation = ChatBackgroundTheme(
+    id: 'constellation',
+    name: 'Constellation',
+    description: 'Family graph motif — quiet dots and lines',
+    baseColors: [
+      Color(0xFF131416), // KinrelColors.darkBackground (flat solid base)
+      Color(0xFF131416),
+      Color(0xFF131416),
+    ],
+    accentColor: Color(0xFF2A2A3D),
+    accentAlignment: Alignment.topRight,
+    vignetteColor: Color(0xFF0A0B0D),
+  );
+
+  /// The default atmosphere: Constellation (see above).
+  static const ChatBackgroundTheme defaultTheme = constellation;
 
   /// Aurora — a faint green-teal wash suggesting northern lights.
   /// Cool, calming, slightly mystical without being theatrical.
