@@ -21,10 +21,9 @@ import '../../../../../core/constants/brand_spacing.dart';
 import '../../../../../core/constants/brand_typography.dart';
 import '../../../../../core/kinship/kinship_edge_style.dart';
 import '../../../../../core/services/image_cache_manager.dart';
-import '../../../../../core/utils/device_tier.dart';
 import '../../../family/data/relationship_label_provider.dart';
-import '../../../profile/presentation/member_profile_sheet.dart';
 import '../../providers/chat_provider.dart';
+import '../chat_ui_tokens.dart';
 import 'chat_meta.dart';
 import 'game_invite_card.dart';
 import 'link_preview_card.dart';
@@ -32,108 +31,19 @@ import 'mention_picker.dart';
 import 'poll_card.dart';
 import '../voice_message_player.dart';
 import 'full_screen_image_viewer.dart';
-import '../../../../core/theme/kinrel_fx.dart';
-import 'selection_mode_toolbar.dart';
 
 // ═══════════════════════════════════════════════════════════════════
-// PERF (Tier K3): Const-hoisted gradients and shadow lists for the
-// chat message bubble. The chat_screen rebuilds on every typing tick,
-// presence update, and new message — each rebuild re-runs every
-// visible bubble's build(), allocating fresh LinearGradient, BoxShadow
-// list, and Color.withValues() instances. These allocations mark the
-// bubble's RenderDecoratedBox dirty, which forces a full repaint of
-// the bubble subtree even though nothing visually changed.
-//
-// Pre-computing the gradients/shadows as `static const` means:
-//   1. The LinearGradient/BoxShadow identity is stable across builds
-//      → RenderDecoratedBox is NOT marked dirty on rebuild
-//      → RepaintBoundary actually isolates the bubble correctly
-//      → Steady-state raster drops by ~5-15ms/frame on the invite-list
-//        screen (10+ visible bubbles × redundant repaint).
-//
-// PERF (Flat): KinrelFx.rich defaults to false. In flat mode:
-//   - All shadow lists return empty (KinrelFx.shadows()).
-//   - All gradients return null (KinrelFx.gradient()) — the bubble
-//     falls back to its solid color argument.
-//
-// Color pre-multiplication math:
-//   KinrelColors.ember = Color(0xFFC44A18)
-//   withValues(alpha: 0.18) → 0.18 × 255 = 45.9 → 46 → 0x2E → Color(0x2EC44A18)
-//   withValues(alpha: 0.08) → 0.08 × 255 = 20.4 → 20 → 0x14 → Color(0x14C44A18)
-//   withValues(alpha: 0.10) → 0.10 × 255 = 25.5 → 26 → 0x1A → Color(0x1AC44A18)
-//   withValues(alpha: 0.28) → 0.28 × 255 = 71.4 → 71 → 0x47 → Color(0x47C44A18)
-//   Colors.black.withValues(alpha: 0.18) → Color(0x2E000000)
-//   Colors.black.withValues(alpha: 0.30) → Color(0x4D000000)
-//   Colors.white.withValues(alpha: 0.06) → Color(0x0FFFFFFF)
+// Chat UI Reference (Kin Thread) — flat bubbles:
+//   • Solid fills only: sent = ChatUi.chatSent (#34201A), received =
+//     ChatUi.chatReceived (#2A2D48). No gradients, no shadows, no blur.
+//   • Radius 14 on all four corners (no tails).
+//   • All colors, sizes and typography come from chat_ui_tokens.dart
+//     (class ChatUi) — nothing is hard-coded here.
 // ═══════════════════════════════════════════════════════════════════
-
-/// Vertical top-down gradient for "sent" message bubbles.
-/// Top slightly lighter (lit-from-above ember tint), bottom darker.
-/// Returned as null in flat mode (caller falls back to solid color).
-final LinearGradient? _kSentBubbleGradient =
-    KinrelFx.gradient(const LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [Color(0x2EC44A18), Color(0x14C44A18)],
-    )) as LinearGradient?;
-
-/// Vertical top-down gradient for "received" message bubbles (no kinship band).
-final LinearGradient? _kReceivedBubbleGradient =
-    KinrelFx.gradient(const LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [Color(0xFF2E3150), Color(0xFF23263B)],
-    )) as LinearGradient?;
-
-/// Cache of received-bubble gradients keyed by kinship band color, so
-/// the Color.lerp() only runs once per unique band color (max ~6
-/// kinship categories). Without this cache, every chat_screen rebuild
-/// would re-run Color.lerp twice per visible received bubble.
-final Map<Color, LinearGradient> _kReceivedBubbleGradientByKinshipBand = {};
-
-/// Look up (or build + cache) the received-bubble gradient for a given
-/// kinship band color. Returns null in flat mode (caller falls back to
-/// solid color). The LinearGradient identity is stable so
-/// RenderDecoratedBox is NOT marked dirty across rebuilds.
-LinearGradient? _receivedBubbleGradientFor(Color kinshipBandColor) {
-  if (!KinrelFx.rich) return null;
-  return _kReceivedBubbleGradientByKinshipBand.putIfAbsent(
-    kinshipBandColor,
-    () => LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [
-        Color.lerp(const Color(0xFF2E3150), kinshipBandColor, 0.06)!,
-        Color.lerp(const Color(0xFF23263B), kinshipBandColor, 0.06)!,
-      ],
-    ),
-  );
-}
-
-/// Const BoxShadow list for received messages on non-lowRam devices.
-/// Returns empty list in flat mode.
-final List<BoxShadow> _kReceivedBubbleShadows = KinrelFx.shadows(const [
-  BoxShadow(color: Color(0x4D000000), blurRadius: 12, offset: Offset(0, 4)),
-]);
-
-/// Const BoxShadow list for sent messages on non-lowRam devices (with ember glow).
-final List<BoxShadow> _kSentBubbleShadows = KinrelFx.shadows(const [
-  BoxShadow(color: Color(0x2E000000), blurRadius: 8, offset: Offset(0, 2)),
-  BoxShadow(color: Color(0x1AC44A18), blurRadius: 14, offset: Offset(0, 0)),
-]);
-
-/// Const BoxShadow list for received messages on lowRam devices (single shadow, blur 6).
-final List<BoxShadow> _kReceivedBubbleShadowsLowRam = KinrelFx.shadows(const [
-  BoxShadow(color: Color(0x4D000000), blurRadius: 6, offset: Offset(0, 4)),
-]);
-
-/// Const BoxShadow list for sent messages on lowRam devices (single shadow, blur 6, no glow).
-final List<BoxShadow> _kSentBubbleShadowsLowRam = KinrelFx.shadows(const [
-  BoxShadow(color: Color(0x2E000000), blurRadius: 6, offset: Offset(0, 2)),
-]);
 
 class MessageBubble extends ConsumerWidget {
-  const MessageBubble({super.key,
+  const MessageBubble({
+    super.key,
     required this.message,
     required this.isMe,
     required this.onReply,
@@ -143,9 +53,11 @@ class MessageBubble extends ConsumerWidget {
     this.isFirstInGroup = true,
     this.isLastInGroup = true,
     this.animateIn = false,
+
     /// Feature 6: callback when the user taps the quoted reply preview.
     /// The chat_screen wires this to scroll to the original message.
     this.onReplyPreviewTap,
+
     /// v3.3 (shared chat UI): when true, this bubble is rendering inside
     /// a 1:1 DM. The bubble hides the sender-name label above the bubble
     /// and hides the avatar + its spacer (a DM only has two parties, so
@@ -154,6 +66,7 @@ class MessageBubble extends ConsumerWidget {
     /// card — is identical to the group chat. Default false so the group
     /// chat is unchanged.
     this.isDirectChat = false,
+
     /// v3.3 (shared chat UI): the family id used ONLY by the game-invite
     /// Join/Spectate navigation routes
     /// (/family/<id>/<gameType>/lobby?join=<gameId>). Falls back to
@@ -163,6 +76,7 @@ class MessageBubble extends ConsumerWidget {
     /// AND inviteFamilyId from the DM invite payload (so the Join button
     /// still deep-links into the host's family space).
     this.inviteFamilyId,
+
     /// v3.5 — Retry/Delete handlers for the failed-message sheet. The
     /// group chat passes null (the sheet falls back to its built-in
     /// chatProvider calls — unchanged behavior); the DM screen passes
@@ -171,6 +85,7 @@ class MessageBubble extends ConsumerWidget {
     /// provider.
     this.onRetryFailed,
     this.onDeleteFailed,
+
     /// v6.0 — Selection mode state (Image 3 reference).
     this.selectionMode = false,
     this.isSelected = false,
@@ -246,28 +161,52 @@ class MessageBubble extends ConsumerWidget {
     // can't use the _currentUserId getter — it reads the provider directly.
     final currentUserId = ref.watch(chatCurrentUserIdProvider);
 
-    // Phase 14: Sticker messages render WITHOUT the bubble background —
-    // just the emoji + a small timestamp underneath. They are centered
-    // for solo emoji impact, like WhatsApp stickers.
+    // Sticker messages render WITHOUT the bubble background — just the
+    // emoji + a small timestamp underneath.
     final isSticker = message.messageType == MessageType.sticker;
 
-    // v140: Kinship-category generation bands. Resolve the sender's
+    // "Thinking of you" moments render as a CENTERED card (D11) — no
+    // bubble, no band, no sender line, no avatar.
+    final isThinkingOfYou =
+        message.messageType == MessageType.familyEvent &&
+        message.messageSubType == 'thinking_of_you';
+
+    // Terminal game invites (expired / cancelled / completed) render as
+    // a quiet one-line row with NO bubble (D18c).
+    final _inviteStatus = message.gameInviteStatus ?? 'pending';
+    final isTerminalInvite =
+        message.messageType == MessageType.gameInvite &&
+        (_inviteStatus == 'expired' ||
+            _inviteStatus == 'cancelled' ||
+            _inviteStatus == 'completed');
+
+    // v140/D3: Kinship-category generation bands. Resolve the sender's
     // relationship key to the current viewer, classify it into a
-    // KinshipEdgeCategory, and map to a generation-band color. The
-    // color is applied as a 3px left band strip (v141: painted as a
-    // Positioned overlay in the bubble Stack, NOT as a Border side) +
-    // 6% background fill on the message bubble. Only for family/group
+    // KinshipEdgeCategory, and map to a generation-band color. The color
+    // is applied as a 3 dp left band strip painted as a Positioned
+    // overlay inside the bubble's rounded clip. Only for family/group
     // chats, not DMs, and only for received messages (not isMe).
-    // Self/indirect → no band.
-    // Kin Thread / C2: also skipped in direct chats (no rails there).
+    // Unresolved relationship → extended band color (D3) + orange name.
     Color? kinshipBandColor;
+    var kinshipResolved = false;
     if (familyId != null && !isMe && !isSticker && !isDirectChat) {
-      final rawKey = ref.watch(relationshipKeyProvider(
-        (familyId: familyId!, senderUserId: message.senderId),
-      ));
+      final rawKey = ref.watch(
+        relationshipKeyProvider((
+          familyId: familyId!,
+          senderUserId: message.senderId,
+        )),
+      );
       if (rawKey != null) {
         final category = KinshipEdgeClassifier.classify(rawKey);
-        kinshipBandColor = kinshipCategoryColor(category);
+        final color = kinshipCategoryColor(category);
+        if (color != null) {
+          kinshipBandColor = color;
+          kinshipResolved = true;
+        }
+      }
+      if (!kinshipResolved) {
+        // D3: unresolved relationship → band color extended #64748B.
+        kinshipBandColor = KinrelColors.nodeExtended;
       }
     }
 
@@ -282,10 +221,41 @@ class MessageBubble extends ConsumerWidget {
         final VoidCallback? tapHandler = selectionMode
             ? onToggleSelection
             : (isMe &&
-                    message.messageStatus == 'failed' &&
-                    (familyId != null || onRetryFailed != null))
-                ? () => _showFailedMessageSheet(context, ref)
-                : null;
+                  message.messageStatus == 'failed' &&
+                  (familyId != null || onRetryFailed != null))
+            ? () => _showFailedMessageSheet(context, ref)
+            : null;
+
+        // ── D11: thinking-of-you → centered card, no bubble ──────────
+        if (isThinkingOfYou) {
+          return GestureDetector(
+            onLongPress: onLongPress,
+            onTap: tapHandler,
+            child: Align(
+              alignment: Alignment.center,
+              widthFactor: 1,
+              child: _buildThinkingOfYouMoment(),
+            ),
+          );
+        }
+
+        // ── D18c: terminal invite → quiet one-line row, no bubble ────
+        if (isTerminalInvite) {
+          return GestureDetector(
+            onLongPress: onLongPress,
+            onTap: tapHandler,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              widthFactor: 1,
+              child: GameInviteCard(
+                message: message,
+                isMe: isMe,
+                routeFamilyId: _inviteRouteFamilyId,
+              ),
+            ),
+          );
+        }
+
         return GestureDetector(
           onLongPress: onLongPress,
           onTap: tapHandler,
@@ -295,292 +265,156 @@ class MessageBubble extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // v6.0 — Selection checkbox (Image 3 reference).
-                // Shown on the leading side of the bubble when
-                // selection mode is active. For sent messages
-                // (right-aligned) the checkbox goes on the LEFT of the
-                // bubble; for received (left-aligned) it also goes on
-                // the left, before the avatar/spacer.
-                if (selectionMode) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6, bottom: 2),
-                    child: SelectionCheckbox(
-                      isSelected: isSelected,
-                      onTap: onToggleSelection ?? () {},
-                      isMe: isMe,
+                Flexible(
+                  child: Container(
+                    constraints: BoxConstraints(
+                      maxWidth:
+                          MediaQuery.sizeOf(context).width *
+                          ChatUi.bubbleMaxWidthFactor,
                     ),
-                  ),
-                ],
-                // v127: Avatar only on first message in group.
-                // Non-first messages get an invisible spacer for alignment.
-                // v3.3: DMs (isDirectChat) hide the avatar AND the spacer
-                // entirely — a DM only has two parties so the sender is
-                // unambiguous from the bubble alignment, and removing
-                // the 40px spacer lets the bubble use the full width.
-                if (!isMe && !isSticker && !isDirectChat && isFirstInGroup)
-                  GestureDetector(
-                    onTap: () => MemberProfileSheet.show(
-                      context,
-                      message.senderId,
+                    margin: EdgeInsets.only(
+                      left: isMe ? 48 : 0,
+                      right: isMe ? 0 : 48,
                     ),
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      margin: const EdgeInsets.only(right: 8, bottom: 2),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: KinrelColors.orange.withValues(alpha: 0.15),
-                      ),
-                      child: Center(
-                        child: Text(
-                          (message.senderName.isNotEmpty
-                              ? message.senderName[0].toUpperCase()
-                              : '?'),
-                          style: const TextStyle(
-                            fontFamily: KinrelTypography.displayFont,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: KinrelColors.orange,
-                          ),
-                        ),
-                      ),
-                    ),
-                  )
-                else if (!isMe && !isSticker && !isDirectChat && !isFirstInGroup)
-                  const SizedBox(width: 40), // invisible spacer for alignment
-            Flexible(
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.sizeOf(context).width * 0.78,
-                ),
-                margin: EdgeInsets.only(
-                    left: isMe ? 48 : 0, right: isMe ? 0 : 48),
-                child: Column(
-                  crossAxisAlignment: isMe
-                      ? CrossAxisAlignment.end
-                      : CrossAxisAlignment.start,
-                  children: [
-                    // Reply preview (if replying to a message).
-                    // Feature 6: tapping the quote scrolls to the original
-                    // message (wired via onReplyPreviewTap in chat_screen).
-                    if (message.replyToId != null)
-                      onReplyPreviewTap != null
-                          ? GestureDetector(
-                              onTap: onReplyPreviewTap,
-                              child: _buildReplyPreview(),
-                            )
-                          : _buildReplyPreview(),
-                    // v131 PREMIUM: Redesigned bubble system.
-                    // Design language: soft gradient fills for depth,
-                    // organic asymmetric corners (22px base / 6px tail)
-                    // for a crafted silhouette instead of a mechanical
-                    // rounded rectangle, layered shadows for gentle
-                    // elevation, and generous padding for readability.
-                    // Inspired by iMessage's softness + Telegram's tail.
-                    // v6.0 — Wrap the bubble in a SelectionRing when
-                    // selection mode is active and this bubble is
-                    // selected (Image 3 reference).
-                    //
-                    // v141 — Stack-based kinship band: the bubble sits in
-                    // a Stack so the 3px band strip can be painted as a
-                    // Positioned overlay on the left edge (bottom of the
-                    // children list). The previous non-uniform Border
-                    // (3px kinship left + 0.75px white hairline sides =
-                    // two visible colors) made Border.paint assert
-                    // "A borderRadius can only be given on borders with
-                    // uniform colors" in debug mode with this
-                    // borderRadius.
-                    SelectionRing(
-                      isSelected: isSelected,
-                      child: Stack(
-                        children: [
-                          Container(
-                      padding: isSticker
-                          ? const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 8)
-                          : const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 11,
-                            ),
-                      decoration: BoxDecoration(
-                        // v131: Subtle vertical gradient — top slightly
-                        // lighter (lit-from-above), bottom darker. Stays
-                        // within the tinted-glass palette so the ember
-                        // accent remains understated, not saturated.
-                        //
-                        // PERF (Tier K3): use const-hoisted gradients
-                        // (_kSentBubbleGradient, _kReceivedBubbleGradient,
-                        // _receivedBubbleGradientFor(kinshipBandColor))
-                        // so the LinearGradient identity is stable across
-                        // chat_screen rebuilds (typing ticks, presence
-                        // updates, new messages). Without hoisting, every
-                        // rebuild re-allocated the LinearGradient with
-                        // Color.withValues() calls, marking the bubble's
-                        // RenderDecoratedBox dirty and forcing a full
-                        // repaint even though the visual was unchanged.
-                        gradient: isSticker
-                            ? null
-                            : (isMe
-                                ? _kSentBubbleGradient
-                                : kinshipBandColor != null
-                                    // v140: Blend 6% kinship band color
-                                    // into the received-message gradient
-                                    // so the generation band is felt as
-                                    // a subtle background tint, not just
-                                    // the left border. Cached per color so
-                                    // Color.lerp only runs once per band.
-                                    ? _receivedBubbleGradientFor(kinshipBandColor)
-                                    : _kReceivedBubbleGradient),
-                        // PERF (Flat): when KinrelFx.rich is false, the
-                        // gradient resolves to null. Fall back to a flat
-                        // solid color: sent = ember tint, received = dark
-                        // surface. The hairline border (defined below)
-                        // provides visual separation without shadows.
-                        color: isSticker
-                            ? Colors.transparent
-                            : (KinrelFx.rich
-                                ? null
-                                : (isMe
-                                    ? const Color(0x2EC44A18) // ember @ 0.18 (matches _kSentBubbleGradient)
-                                    : kinshipBandColor != null
-                                        ? Color.lerp(const Color(0xFF2E3150), kinshipBandColor, 0.06)!
-                                        : const Color(0xFF282B45))), // average of _kReceivedBubbleGradient
-                        // v131: Organic corners — 22px base, tail corner
-                        // drops to 6px on isLastInGroup. Less mechanical
-                        // than equal radii; mirrors Telegram's silhouette.
-                        // Stickers get a soft 18px pill so they feel
-                        // integrated rather than floating.
-                        borderRadius: isSticker
-                            ? BorderRadius.circular(18)
-                            : BorderRadius.only(
-                                topLeft: const Radius.circular(22),
-                                topRight: const Radius.circular(22),
-                                bottomLeft: Radius.circular(
-                                    isMe ? 22 : (isLastInGroup ? 6 : 22)),
-                                bottomRight: Radius.circular(
-                                    isMe ? (isLastInGroup ? 6 : 22) : 22),
-                              ),
-                        // v131: Hairline border for definition. Sent:
-                        // ember at 28% (softer than v129's 35%). Received:
-                        // white at 6% (subtle edge to lift off wallpaper).
-                        // v141: Received bubbles keep the UNIFORM hairline
-                        // border — the 3px kinship band is painted as a
-                        // Positioned strip in the surrounding Stack, so
-                        // this Border must stay uniform (Border.paint
-                        // asserts on non-uniform colors + borderRadius).
-                        border: isSticker
-                            ? null
-                            : (isMe
-                                ? Border.all(
-                                    color: KinrelColors.ember
-                                        .withValues(alpha: 0.28),
-                                    width: 0.75,
-                                  )
-                                : Border.all(
-                                    color: Colors.white
-                                        .withValues(alpha: 0.06),
-                                    width: 0.75,
-                                  )),
-                        // v131: Layered elevation shadows for soft depth.
-                        // Received: deeper shadow anchors it to the wall.
-                        // Sent: gentler shadow lifts it + a faint ember
-                        // ambient glow for warmth. Stickers: none.
-                        //
-                        // PERF (Part E4): On low-RAM phones, collapse to a
-                        // single shadow with blurRadius capped at 6 (per
-                        // spec) and skip the ember glow on sent bubbles.
-                        // Strong phones keep both shadows as before.
-                        //
-                        // PERF (Tier K3): use const-hoisted shadow lists
-                        // so the List<BoxShadow> identity is stable across
-                        // rebuilds. Combined with clampBoxShadows() the
-                        // mid-tier budget (sigma 6, single-shadow) is
-                        // applied at runtime without re-allocating the
-                        // source list. Steady-state: bubble RenderDecoratedBox
-                        // is NOT marked dirty on chat_screen rebuild.
-                        boxShadow: isSticker
-                            ? null
-                            : clampBoxShadows(
-                                DeviceTierCache.instance.lowRam
-                                    ? (isMe
-                                        ? _kSentBubbleShadowsLowRam
-                                        : _kReceivedBubbleShadowsLowRam)
+                    child: Column(
+                      crossAxisAlignment: isMe
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                      children: [
+                        // Reply preview (if replying to a message).
+                        // Feature 6: tapping the quote scrolls to the original
+                        // message (wired via onReplyPreviewTap in chat_screen).
+                        if (message.replyToId != null)
+                          onReplyPreviewTap != null
+                              ? GestureDetector(
+                                  onTap: onReplyPreviewTap,
+                                  child: _buildReplyPreview(),
+                                )
+                              : _buildReplyPreview(),
+                        // Chat UI Reference D3/D4/D5 — flat bubble:
+                        // solid fill, radius 14 on all four corners,
+                        // spec padding, no shadows, no gradients.
+                        Stack(
+                          children: [
+                            Container(
+                              padding: _bubblePadding(isSticker: isSticker),
+                              decoration: BoxDecoration(
+                                color: isSticker
+                                    ? Colors.transparent
                                     : (isMe
-                                        ? _kSentBubbleShadows
-                                        : _kReceivedBubbleShadows),
+                                          ? ChatUi.chatSent
+                                          : ChatUi.chatReceived),
+                                borderRadius: BorderRadius.circular(
+                                  ChatUi.bubbleRadius,
+                                ),
+                                border: isSticker
+                                    ? null
+                                    : (isMe
+                                          ? Border.all(
+                                              color: ChatUi.chatSentBorder,
+                                              width: ChatUi.sentBorderWidth,
+                                            )
+                                          : null),
                               ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: isMe
-                            ? CrossAxisAlignment.end
-                            : CrossAxisAlignment.start,
-                        children: [
-                          // v127: Sender name only on first message in group
-                          // v3.3: DMs (isDirectChat) hide the sender name —
-                          // a DM only has two parties so the name is redundant.
-                          // Kin Thread / PR2 T1: the relationship pill is
-                          // tinted with the sender's kinship band color.
-                          if (!isMe && !isSticker && !isDirectChat && isFirstInGroup)
-                            _buildSenderName(ref, kinshipBandColor),
-                          // Tier 1 / Forwarded label — show a small
-                          // "Forwarded from <name>" tag above the content
-                          // when the message is a forwarded copy. The
-                          // forwardedFrom field is set by fn_forward_message
-                          // on the new copy; the original keeps null.
-                          if (message.forwardedFrom != null &&
-                              message.forwardedFrom!.isNotEmpty)
-                            _buildForwardedLabel(),
-                          // Message content
-                          _buildMessageContent(context, ref, currentUserId),
-                          // v127: Inline timestamp only on last-in-group
-                          if (!isSticker && isLastInGroup) _buildTimeRow(),
-                          if (isSticker) _buildStickerTimeRow(),
-                        ],
-                      ),
-                          ), // close bubble Container
-                          // v141: Kinship band — 3px strip pinned to the
-                          // bubble's left edge, rounded to match the
-                          // silhouette (topLeft 22 / bottomLeft tail 6).
-                          // Received-family only: kinshipBandColor is
-                          // null for isMe / stickers / DMs.
-                          // IgnorePointer: purely decorative overlay —
-                          // the ancestor GestureDetector wrapping the
-                          // bubble row handles all taps/long-presses.
-                          if (kinshipBandColor != null)
-                            Positioned(
-                              left: 0,
-                              top: 0,
-                              bottom: 0,
-                              child: IgnorePointer(
-                                child: Container(
-                                  width: 3,
-                                  decoration: BoxDecoration(
-                                    color: kinshipBandColor,
-                                    borderRadius: BorderRadius.only(
-                                      topLeft: const Radius.circular(22),
-                                      bottomLeft: Radius.circular(
-                                          isLastInGroup ? 6 : 22),
+                              child: Column(
+                                crossAxisAlignment: isMe
+                                    ? CrossAxisAlignment.end
+                                    : CrossAxisAlignment.start,
+                                children: [
+                                  // v127: Sender name only on first message in group
+                                  // v3.3: DMs (isDirectChat) hide the sender name —
+                                  // a DM only has two parties so the name is redundant.
+                                  // Kin Thread / PR2 T1: the relationship pill is
+                                  // tinted with the sender's kinship band color.
+                                  if (!isMe &&
+                                      !isSticker &&
+                                      !isDirectChat &&
+                                      isFirstInGroup)
+                                    _buildSenderName(
+                                      ref,
+                                      kinshipBandColor,
+                                      kinshipResolved,
+                                    ),
+                                  // Tier 1 / Forwarded label — show a small
+                                  // "Forwarded from <name>" tag above the content
+                                  // when the message is a forwarded copy.
+                                  if (message.forwardedFrom != null &&
+                                      message.forwardedFrom!.isNotEmpty)
+                                    _buildForwardedLabel(),
+                                  // Message content
+                                  _buildMessageContent(
+                                    context,
+                                    ref,
+                                    currentUserId,
+                                  ),
+                                  // v127: Inline timestamp only on last-in-group
+                                  if (!isSticker && isLastInGroup)
+                                    _buildTimeRow(),
+                                  if (isSticker) _buildStickerTimeRow(),
+                                ],
+                              ),
+                            ),
+                            // D3: Kinship band — a 3 dp strip pinned to the
+                            // bubble's left edge, inside the rounded clip
+                            // (the Stack is clipped by the bubble's radius
+                            // via a ClipRRect-equivalent decoration on the
+                            // Positioned child). Received-family only:
+                            // kinshipBandColor is null for isMe / stickers /
+                            // DMs. IgnorePointer: purely decorative overlay.
+                            if (kinshipBandColor != null)
+                              Positioned(
+                                left: 0,
+                                top: 0,
+                                bottom: 0,
+                                child: IgnorePointer(
+                                  child: Container(
+                                    width: ChatUi.bandWidth,
+                                    decoration: BoxDecoration(
+                                      color: kinshipBandColor,
+                                      borderRadius: const BorderRadius.only(
+                                        topLeft: Radius.circular(
+                                          ChatUi.bubbleRadius,
+                                        ),
+                                        bottomLeft: Radius.circular(
+                                          ChatUi.bubbleRadius,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                        ],
-                      ), // close Stack
-                    ), // close SelectionRing
-                    // v127: Reaction chips positioned overlapping bubble bottom
-                    if (message.reactions.isNotEmpty)
-                      _buildReactionChips(currentUserId),
-                  ],
+                          ],
+                        ), // close Stack
+                        // v127: Reaction chips positioned overlapping bubble bottom
+                        if (message.reactions.isNotEmpty)
+                          _buildReactionChips(currentUserId),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
-        ); // close GestureDetector
+          ),
+        );
       }, // close StatefulBuilder builder
     ); // close StatefulBuilder
+  }
+
+  /// D3/D4/D5 bubble padding:
+  ///   • received group: left 14, top 6, right 10, bottom 5
+  ///   • received direct: left 10, top 6, right 10, bottom 5
+  ///   • sent (both): left 10, top 6, right 10, bottom 5
+  ///   • stickers keep their looser symmetric padding.
+  EdgeInsets _bubblePadding({required bool isSticker}) {
+    if (isSticker) {
+      return const EdgeInsets.symmetric(horizontal: 14, vertical: 8);
+    }
+    return EdgeInsets.only(
+      left: (!isMe && !isDirectChat) ? 14 : 10,
+      top: 6,
+      right: 10,
+      bottom: 5,
+    );
   }
 
   /// v3.2: Shows a small modal bottom sheet with Retry and Delete
@@ -613,13 +447,19 @@ class MessageBubble extends ConsumerWidget {
                 ),
               ),
               ListTile(
-                leading: const Icon(Icons.refresh_rounded,
-                    color: KinrelColors.orange, size: 22),
-                title: const Text('Retry',
-                    style: TextStyle(
-                        fontFamily: KinrelTypography.displayFont,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600)),
+                leading: const Icon(
+                  Icons.refresh_rounded,
+                  color: KinrelColors.orange,
+                  size: 22,
+                ),
+                title: const Text(
+                  'Retry',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   // v3.5 — injected handler (DM) or the built-in group
@@ -634,13 +474,19 @@ class MessageBubble extends ConsumerWidget {
                 },
               ),
               ListTile(
-                leading: Icon(Icons.delete_outline_rounded,
-                    color: Colors.red.shade400, size: 22),
-                title: const Text('Delete',
-                    style: TextStyle(
-                        fontFamily: KinrelTypography.displayFont,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600)),
+                leading: Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.red.shade400,
+                  size: 22,
+                ),
+                title: const Text(
+                  'Delete',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   // v3.5 — injected handler (DM) or the built-in group
@@ -674,7 +520,9 @@ class MessageBubble extends ConsumerWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border(
           left: BorderSide(
-              color: KinrelColors.orange.withValues(alpha: 0.7), width: 2.5),
+            color: KinrelColors.orange.withValues(alpha: 0.7),
+            width: 2.5,
+          ),
         ),
       ),
       child: Column(
@@ -707,112 +555,66 @@ class MessageBubble extends ConsumerWidget {
     );
   }
 
-  Widget _buildSenderName(WidgetRef ref, Color? kinshipColor) {
-    // v131: Premium sender label — slightly larger, letter-spaced,
-    // with a refined online dot. Reads as a quiet header above the
-    // message rather than competing with it.
+  Widget _buildSenderName(
+    WidgetRef ref,
+    Color? kinshipColor,
+    bool kinshipResolved,
+  ) {
+    // D6: Sender line (group, first message of a cluster only).
+    // A row with 6 gap and 2 bottom margin: the relationship tag FIRST,
+    // then the name. Tag: radius full, padding 1 vertical / 6 horizontal,
+    // 11/500, text in the kinship color, background the kinship color at
+    // 12 percent alpha, border 0.5 dp the kinship color at 30 percent.
+    // Name: sender name style (12 / 400, silver).
     //
-    // v139: Relationship-aware sender labels — Kinrel's signature
-    // differentiator. For family/group chats (familyId != null),
-    // resolve the sender's relationship to the current viewer from
-    // the K-Graph (e.g. "Chacha", "Bhaiya", "Nani"). The relationship
-    // label appears as a small tag BEFORE the sender's name.
-    // Falls back to sender name only if no relationship is found.
-    //
-    // Kin Thread / PR2 Task 1: the pill now uses the sender's KINSHIP
-    // BAND COLOR (12% tinted background, the color for the text, and
-    // a 0.5px border) instead of ember for everyone — so the pill,
-    // the 3px left band, and the graph edge all speak the same color
-    // language. Falls back to a neutral silver pill when a
-    // relationship resolves but its kinship category has no color
-    // (self/indirect). No relationship → name in orange, no pill,
-    // neutral band (today's fallback, unchanged).
+    // D3 unresolved relationship: NO pill, sender name in orange 12/500.
     //
     // Viewer-specific: the label changes based on who is logged in.
     // Not applied to 1-on-1 DMs (familyId == null).
     String? relationshipLabel;
     if (familyId != null && !isMe) {
-      relationshipLabel = ref.watch(relationshipLabelProvider(
-        (familyId: familyId!, senderUserId: message.senderId),
-      ));
+      relationshipLabel = ref.watch(
+        relationshipLabelProvider((
+          familyId: familyId!,
+          senderUserId: message.senderId,
+        )),
+      );
     }
 
-    // The pill color: the sender's kinship band color when available,
-    // otherwise a neutral silver (self/indirect relationships).
-    final Color pillColor = kinshipColor ?? KinrelColors.textSilver;
+    final bool showPill =
+        kinshipResolved && relationshipLabel != null && !isDirectChat;
+    final Color? pillColor = kinshipColor == null
+        ? null
+        : ChatUi.kinshipPillText(kinshipColor);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 2),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Online dot — softer presence dot, slightly larger for elegance
-          if (message.isOnline)
+          if (showPill && pillColor != null) ...[
             Container(
-              width: 7,
-              height: 7,
-              margin: const EdgeInsets.only(right: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: KinrelColors.success,
-                boxShadow: [
-                  BoxShadow(
-                    color: KinrelColors.success.withValues(alpha: 0.4),
-                    blurRadius: 4,
-                    offset: const Offset(0, 0),
-                  ),
-                ],
-              ),
-            ),
-          // v139 / Kin Thread T1: Relationship pill (kinship-band colored,
-          // small, before the name) — the Kinrel signature differentiator.
-          // Only shown for family/group chats where a relationship was
-          // resolved. Format: Relationship · Name.
-          if (relationshipLabel != null) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-              decoration: BoxDecoration(
-                color: pillColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(100),
+                color: kinshipColor!.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(KinrelRadius.full),
                 border: Border.all(
-                  color: pillColor.withValues(alpha: 0.5),
+                  color: kinshipColor.withValues(alpha: 0.30),
                   width: 0.5,
                 ),
               ),
               child: Text(
                 relationshipLabel,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w600,
-                  color: pillColor,
-                  letterSpacing: 0.3,
-                ),
+                style: ChatUi.relationshipTag.copyWith(color: pillColor),
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                '·',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 10,
-                  color: KinrelColors.textDim,
-                ),
-              ),
-            ),
+            const SizedBox(width: 6),
           ],
           Text(
             message.senderName,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-              color: relationshipLabel != null
-                  ? KinrelColors.textSilver.withValues(alpha: 0.85)
-                  : KinrelColors.orange,
-              letterSpacing: 0.2,
-            ),
+            style: showPill
+                ? ChatUi.senderNameText
+                : ChatUi.senderNameUnresolved,
           ),
         ],
       ),
@@ -830,8 +632,11 @@ class MessageBubble extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.forward_rounded,
-              size: 11, color: KinrelColors.textDim),
+          const Icon(
+            Icons.forward_rounded,
+            size: 11,
+            color: KinrelColors.textDim,
+          ),
           const SizedBox(width: 4),
           Flexible(
             child: Text(
@@ -853,7 +658,11 @@ class MessageBubble extends ConsumerWidget {
     );
   }
 
-  Widget _buildMessageContent(BuildContext context, WidgetRef ref, String? currentUserId) {
+  Widget _buildMessageContent(
+    BuildContext context,
+    WidgetRef ref,
+    String? currentUserId,
+  ) {
     switch (message.messageType) {
       case MessageType.text:
         // v131: Premium typography — comfortable line height (1.5),
@@ -876,41 +685,18 @@ class MessageBubble extends ConsumerWidget {
                 content: message.content,
                 mentions: message.mentions,
                 currentUserId: currentUserId ?? '',
-                baseStyle: const TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 15,
-                  color: KinrelColors.textWhite,
-                  height: 1.5,
-                  letterSpacing: 0.1,
+                baseStyle: ChatUi.messageText,
+                mentionStyle: ChatUi.messageText.copyWith(
+                  fontWeight: FontWeight.w500,
+                  color: ChatUi.accent,
                 ),
-                mentionStyle: const TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.ember,
-                  height: 1.5,
-                  letterSpacing: 0.1,
-                ),
-                selfMentionStyle: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: KinrelColors.ember,
-                  backgroundColor: KinrelColors.ember.withValues(alpha: 0.18),
-                  height: 1.5,
-                  letterSpacing: 0.1,
+                selfMentionStyle: ChatUi.messageText.copyWith(
+                  fontWeight: FontWeight.w500,
+                  color: ChatUi.accent,
+                  backgroundColor: ChatUi.accent.withValues(alpha: 0.18),
                 ),
               )
-            : Text(
-                message.content,
-                style: const TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 15,
-                  color: KinrelColors.textWhite,
-                  height: 1.5,
-                  letterSpacing: 0.1,
-                ),
-              );
+            : Text(message.content, style: ChatUi.messageText);
         // Wrap with link previews. Max width ~280px so the card doesn't
         // overflow the bubble's typical width (the bubble itself caps
         // at ~85% of screen width, minus padding).
@@ -929,8 +715,7 @@ class MessageBubble extends ConsumerWidget {
             // voiceNote case below which correctly branches on
             // mediaUrl. Previously this ALWAYS showed the placeholder
             // and never checked message.mediaUrl.
-            if (message.mediaUrl != null &&
-                message.mediaUrl!.isNotEmpty)
+            if (message.mediaUrl != null && message.mediaUrl!.isNotEmpty)
               Builder(
                 builder: (ctx) => GestureDetector(
                   onTap: () => FullScreenImageViewer.show(
@@ -940,69 +725,71 @@ class MessageBubble extends ConsumerWidget {
                     timestamp: message.timestamp,
                   ),
                   child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: CachedNetworkImage(
-                  imageUrl: message.mediaUrl!,
-                  cacheManager: KinrelImageCacheManager.instance,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: 200,
-                  // Bubble caps at ~85% of screen width. Decode at
-                  // the screen width × DPR (slightly larger than the
-                  // actual bubble display, but well below a 4K decode).
-                  memCacheWidth: (MediaQuery.sizeOf(context).width *
-                          MediaQuery.devicePixelRatioOf(context))
-                      .toInt(),
-                  memCacheHeight:
-                      (200 * MediaQuery.devicePixelRatioOf(context))
-                          .toInt(),
-                  placeholder: (context, url) => Container(
-                    width: double.infinity,
-                    height: 200,
-                    color: const Color(0xFF202338),
-                    child: const Center(
-                      child: SizedBox(
-                        width: 26,
-                        height: 26,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: KinrelColors.orange,
+                    borderRadius: BorderRadius.circular(14),
+                    child: CachedNetworkImage(
+                      imageUrl: message.mediaUrl!,
+                      cacheManager: KinrelImageCacheManager.instance,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: 200,
+                      // Bubble caps at ~85% of screen width. Decode at
+                      // the screen width × DPR (slightly larger than the
+                      // actual bubble display, but well below a 4K decode).
+                      memCacheWidth:
+                          (MediaQuery.sizeOf(context).width *
+                                  MediaQuery.devicePixelRatioOf(context))
+                              .toInt(),
+                      memCacheHeight:
+                          (200 * MediaQuery.devicePixelRatioOf(context))
+                              .toInt(),
+                      placeholder: (context, url) => Container(
+                        width: double.infinity,
+                        height: 200,
+                        color: const Color(0xFF202338),
+                        child: const Center(
+                          child: SizedBox(
+                            width: 26,
+                            height: 26,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: KinrelColors.orange,
+                            ),
+                          ),
+                        ),
+                      ),
+                      errorWidget: (_, __, ___) => Container(
+                        width: double.infinity,
+                        height: 200,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF202338),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.broken_image_outlined,
+                              size: 36,
+                              color: KinrelColors.textSilver.withValues(
+                                alpha: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Failed to load',
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 12,
+                                color: KinrelColors.textSilver.withValues(
+                                  alpha: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                  errorWidget: (_, __, ___) => Container(
-                    width: double.infinity,
-                    height: 200,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF202338),
-                      borderRadius:
-                          BorderRadius.circular(14),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.broken_image_outlined,
-                          size: 36,
-                          color: KinrelColors.textSilver
-                              .withValues(alpha: 0.5),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Failed to load',
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.bodyFont,
-                            fontSize: 12,
-                            color: KinrelColors.textSilver
-                                .withValues(alpha: 0.5),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
                 ),
               )
             else
@@ -1074,7 +861,11 @@ class MessageBubble extends ConsumerWidget {
                   shape: BoxShape.circle,
                   gradient: KinrelGradients.igniteGradient,
                 ),
-                child: const Icon(Icons.play_arrow, size: 18, color: Colors.white),
+                child: const Icon(
+                  Icons.play_arrow,
+                  size: 18,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -1123,10 +914,7 @@ class MessageBubble extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: Text(
             message.content,
-            style: const TextStyle(
-              fontSize: 46,
-              height: 1.0,
-            ),
+            style: const TextStyle(fontSize: 46, height: 1.0),
           ),
         );
 
@@ -1136,7 +924,9 @@ class MessageBubble extends ConsumerWidget {
         // special heart-themed bubble instead of the generic celebration
         // card, so recipients immediately recognize the message type.
         if (message.messageSubType == 'thinking_of_you') {
-          return _buildThinkingOfYouBubble();
+          // D11: normally intercepted by build(); kept for safety if a
+          // future call path reaches the content builder.
+          return _buildThinkingOfYouMoment();
         }
         return Container(
           padding: const EdgeInsets.all(10),
@@ -1301,23 +1091,29 @@ class MessageBubble extends ConsumerWidget {
                         width: 24,
                         height: 24,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: KinrelColors.ember),
+                          strokeWidth: 2,
+                          color: KinrelColors.ember,
+                        ),
                       ),
                     ),
                     errorWidget: (_, __, ___) => Container(
                       color: const Color(0xFF11132A),
                       height: 120,
                       alignment: Alignment.center,
-                      child: const Icon(Icons.broken_image_outlined,
-                          color: KinrelColors.textDim),
+                      child: const Icon(
+                        Icons.broken_image_outlined,
+                        color: KinrelColors.textDim,
+                      ),
                     ),
                   )
                 : Container(
                     color: const Color(0xFF11132A),
                     height: 120,
                     alignment: Alignment.center,
-                    child: const Icon(Icons.gif_box_outlined,
-                        color: KinrelColors.textDim),
+                    child: const Icon(
+                      Icons.gif_box_outlined,
+                      color: KinrelColors.textDim,
+                    ),
                   ),
           ),
         );
@@ -1410,8 +1206,11 @@ class MessageBubble extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(Icons.download_rounded,
-                  size: 18, color: KinrelColors.textDim),
+              const Icon(
+                Icons.download_rounded,
+                size: 18,
+                color: KinrelColors.textDim,
+              ),
             ],
           ),
         ),
@@ -1472,8 +1271,11 @@ class MessageBubble extends ConsumerWidget {
                   color: KinrelColors.ember.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.location_on_rounded,
-                    size: 18, color: KinrelColors.ember),
+                child: const Icon(
+                  Icons.location_on_rounded,
+                  size: 18,
+                  color: KinrelColors.ember,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1505,7 +1307,11 @@ class MessageBubble extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(Icons.map_outlined, size: 18, color: KinrelColors.textDim),
+              const Icon(
+                Icons.map_outlined,
+                size: 18,
+                color: KinrelColors.textDim,
+              ),
             ],
           ),
         ),
@@ -1554,7 +1360,9 @@ class MessageBubble extends ConsumerWidget {
     try {
       await Clipboard.setData(ClipboardData(text: url));
       debugPrint('📎 Document URL copied: $url');
-    } catch (_) {/* best-effort */}
+    } catch (_) {
+      /* best-effort */
+    }
   }
 
   Future<void> _openMaps(double lat, double lng, String label) async {
@@ -1564,91 +1372,53 @@ class MessageBubble extends ConsumerWidget {
     if (Platform.isAndroid) {
       url = 'geo:$lat,$lng?q=$lat,$lng(${Uri.encodeComponent(label)})';
     } else if (Platform.isIOS) {
-      url = 'https://maps.apple.com/?ll=$lat,$lng&q=${Uri.encodeComponent(label)}';
+      url =
+          'https://maps.apple.com/?ll=$lat,$lng&q=${Uri.encodeComponent(label)}';
     } else {
       url = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
     }
     try {
       await Clipboard.setData(ClipboardData(text: url));
       debugPrint('📍 Maps URL copied: $url');
-    } catch (_) {/* best-effort */}
+    } catch (_) {
+      /* best-effort */
+    }
   }
 
   /// Phase 18: Thinking of You bubble — a warm, heart-themed card that
   /// stands out from regular text messages. Renders the sender's name
   /// and the warm message in a soft pink/orange card.
-  Widget _buildThinkingOfYouBubble() {
-    // Use a warm pink-coral accent for Thinking of You (distinct from
-    // the orange used for regular family events).
-    const accent = Color(0xFFE91E63); // pink
-    const accentDim = Color(0x1FE91E63); // 12% alpha
-    const accentBorder = Color(0x33E91E63); // 20% alpha
-
+  /// D11: Thinking of you moment — a CENTERED card: background chatCard,
+  /// border chatCardBorder 0.5, radius 12, padding 8 vertical / 12
+  /// horizontal, row with 8 gap: heart icon 18 in orange, then text 13
+  /// textPrimary (for example "Papa is thinking of you").
+  Widget _buildThinkingOfYouMoment() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: accentDim,
-        borderRadius: BorderRadius.circular(KinrelRadius.md),
+        color: ChatUi.chatCard,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: accentBorder,
-          width: 1,
+          color: ChatUi.chatCardBorder,
+          width: ChatUi.cardBorderWidth,
         ),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Heart icon in a pink circle
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: accent.withValues(alpha: 0.18),
-              border: Border.all(
-                color: accent.withValues(alpha: 0.4),
-                width: 1,
-              ),
-            ),
-            child: const Icon(
-              Icons.favorite,
-              size: 16,
-              color: accent,
-            ),
+          const Icon(
+            Icons.favorite,
+            size: ChatUi.iconHeart,
+            color: ChatUi.accent,
           ),
-          const SizedBox(width: 10),
-          // Message text
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Thinking of You',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.monoFont,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    color: accent,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  // Phase 22 fix: the RPC now stores the FULL grammatical
-                  // sentence in content (e.g. "Manish is thinking of you."),
-                  // so we render it as-is. The previous code prepended
-                  // senderName.split(' ').first — which produced broken
-                  // output ("You is thinking of you.") when the sender's
-                  // name resolved to the "You" fallback. See migration
-                  // 20260906150000_fix_thinking_of_you_grammar_and_per_receiver_cooldown.sql.
-                  message.content,
-                  style: const TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 13,
-                    color: KinrelColors.textWhite,
-                    height: 1.3,
-                  ),
-                ),
-              ],
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              // The RPC stores the FULL grammatical sentence in content
+              // (e.g. "Manish is thinking of you."), rendered as-is.
+              message.content,
+              style: ChatUi.thinkingText,
             ),
           ),
         ],
@@ -1657,26 +1427,16 @@ class MessageBubble extends ConsumerWidget {
   }
 
   Widget _buildTimeRow() {
-    // v131: Refined timestamp — smaller, dimmer, letter-spaced.
-    // Reads as supporting information, not a primary element.
-    // Aligned tightly with the read-receipt for visual balance.
+    // D7: Time row inside every bubble — RIGHT aligned, 2 top margin,
+    // 11 / textMeta; for sent messages add a 4 gap and the ticks icon
+    // 13 after the time (existing tick colors and states stay as-is).
     return Padding(
-      padding: const EdgeInsets.only(top: 5),
+      padding: const EdgeInsets.only(top: 2),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: isMe
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Text(
-            message.formattedTime,
-            style: TextStyle(
-              fontFamily: KinrelTypography.monoFont,
-              fontSize: 9.5,
-              color: KinrelColors.textDim.withValues(alpha: 0.85),
-              letterSpacing: 0.3,
-            ),
-          ),
+          Text(message.formattedTime, style: ChatUi.timeText),
           // Read receipts (only for sent messages)
           if (isMe) ...[
             const SizedBox(width: 4),
@@ -1690,24 +1450,14 @@ class MessageBubble extends ConsumerWidget {
     );
   }
 
-  /// Phase 14: A minimal time row for stickers — right-aligned below the
-  /// emoji, no read receipts (stickers don't need delivery confirmation).
+  /// Phase 14: A minimal time row for stickers — below the emoji, no
+  /// read receipts (stickers don't need delivery confirmation).
   Widget _buildStickerTimeRow() {
-    // v131: Sticker timestamp matches the refined text-bubble timestamp
-    // style for consistency across message types.
     return Padding(
       padding: const EdgeInsets.only(top: 2),
       child: Align(
         alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: Text(
-          message.formattedTime,
-          style: TextStyle(
-            fontFamily: KinrelTypography.monoFont,
-            fontSize: 9.5,
-            color: KinrelColors.textDim.withValues(alpha: 0.85),
-            letterSpacing: 0.3,
-          ),
-        ),
+        child: Text(message.formattedTime, style: ChatUi.timeText),
       ),
     );
   }

@@ -28,7 +28,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/brand_colors.dart';
-import '../../../../core/constants/brand_typography.dart';
+
+import '../chat_ui_tokens.dart';
 
 class ChatSystemNotice extends StatelessWidget {
   const ChatSystemNotice({super.key, required this.content, this.onViewInTree});
@@ -53,8 +54,9 @@ class ChatSystemNotice extends StatelessWidget {
       // Remove a leading emoji + optional space. Common emojis used in
       // system messages: 🎉 (U+1F389), 🎊 (U+1F38A), 👋 (U+1F44B).
       final emojiPattern = RegExp(
-          r'^[\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}]\s?',
-          unicode: true);
+        r'^[\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}]\s?',
+        unicode: true,
+      );
       text = text.replaceFirst(emojiPattern, '');
     }
     return text.trim();
@@ -68,7 +70,8 @@ class ChatSystemNotice extends StatelessWidget {
     final hasAction = onViewInTree != null;
 
     return Semantics(
-      label: 'Family notice: $label'
+      label:
+          'Family notice: $label'
           '${hasAction ? '. Opens the family tree.' : ''}',
       button: hasAction,
       child: Center(
@@ -78,18 +81,18 @@ class ChatSystemNotice extends StatelessWidget {
             onTap: onViewInTree,
             borderRadius: BorderRadius.circular(12),
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // ── The notice pill (muted, non-bubbled) ────────────
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 5),
+                      horizontal: 12,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
-                      color: KinrelColors.darkSurface
-                          .withValues(alpha: 0.9),
+                      color: KinrelColors.darkSurface.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(100),
                       border: Border.all(
                         color: Colors.white.withValues(alpha: 0.07),
@@ -99,11 +102,11 @@ class ChatSystemNotice extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
+                        // D9: sparkle icon 14 in accent (orange).
+                        const Icon(
                           Icons.auto_awesome,
-                          size: 12,
-                          color: KinrelColors.textSilver
-                              .withValues(alpha: 0.45),
+                          size: ChatUi.iconSparkle,
+                          color: ChatUi.accent,
                         ),
                         const SizedBox(width: 6),
                         Flexible(
@@ -112,12 +115,7 @@ class ChatSystemNotice extends StatelessWidget {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 12,
-                              color: KinrelColors.textSilver
-                                  .withValues(alpha: 0.65),
-                            ),
+                            style: ChatUi.pillText,
                           ),
                         ),
                       ],
@@ -137,18 +135,14 @@ class ChatSystemNotice extends StatelessWidget {
                             Icon(
                               Icons.account_tree_outlined,
                               size: 13,
-                              color: KinrelColors.orange
-                                  .withValues(alpha: 0.9),
+                              color: KinrelColors.orange.withValues(alpha: 0.9),
                             ),
                             const SizedBox(width: 5),
                             Text(
                               'View in tree',
-                              style: TextStyle(
-                                fontFamily: KinrelTypography.bodyFont,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: KinrelColors.orange
-                                    .withValues(alpha: 0.9),
+                              style: ChatUi.pillText.copyWith(
+                                fontWeight: FontWeight.w500,
+                                color: ChatUi.accent,
                               ),
                             ),
                           ],
