@@ -24,9 +24,7 @@
 //   - Scroll-to-bottom FAB when scrolled up
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
-import 'package:cached_network_image/cached_network_image.dart';
 // v3.5: the emoji_picker_flutter import moved with the full-emoji sheet
 // into the shared reaction_picker.dart (this screen now delegates).
 import 'package:file_selector/file_selector.dart';
@@ -43,7 +41,6 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
-import '../../../core/theme/kinrel_fx.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../l10n/app_localizations.dart';
 // v3.3: AppTime import removed — date grouping moved to ChatMessageList.
@@ -54,9 +51,10 @@ import '../../../core/services/celebration_service.dart';
 // Phase 4 — consolidated image cache manager (used for the header avatar
 // + MessageInfoSheet photo/gif previews so they share the singleton cache
 // and decode at display-size × DPR instead of native resolution).
-import '../../../core/services/image_cache_manager.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../family/data/relationship_label_provider.dart';
+import '../../../core/kinship/kinship_edge_style.dart';
+import '../../thinking/data/thinking_service.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
 import '../data/chat_enhancement_service.dart';
 import '../data/chat_lock_service.dart';
@@ -81,6 +79,8 @@ import 'widgets/sticker_pack_sheet.dart';
 import 'widgets/chat_meta.dart';
 import 'widgets/empty_chat_state.dart';
 import 'widgets/chat_message_list.dart';
+import 'widgets/chat_header_bar.dart';
+import 'chat_ui_tokens.dart';
 import 'widgets/chat_input_bar.dart';
 import 'widgets/pinned_messages_bar.dart';
 // v3.4 — shared reply bar / peek-preview / scroll FAB (moved here from
@@ -111,15 +111,6 @@ import 'widgets/selection_mode_toolbar.dart';
 // `KinrelColors.ember` is Color(0xFFC44A18). Multiplied by alpha 0.18
 // → Color(0x2EC44A18). RGB matches exactly; alpha is pre-multiplied.
 //
-// PERF (Flat): KinrelFx.shadows returns the empty list in flat mode
-// (no avatar glow). The const list is preserved for rich mode.
-final List<BoxShadow> _kChatAvatarGlow = KinrelFx.shadows(const [
-  BoxShadow(
-    color: Color(0x2EC44A18), // KinrelColors.ember (#C44A18) × alpha 0.18
-    blurRadius: 14,
-    offset: Offset(0, 0),
-  ),
-]);
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({
@@ -253,12 +244,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   // The real current user id (replaces the old hard-coded 'user_me' check).
   // Read from chatCurrentUserIdProvider which is wired to Supabase auth.
-  String? get _currentUserId =>
-      ref.read(chatCurrentUserIdProvider);
+  String? get _currentUserId => ref.read(chatCurrentUserIdProvider);
 
   /// Returns true if [msg] was sent by the current user.
-  bool _isMine(ChatMessage msg) =>
-      msg.senderId == _currentUserId;
+  bool _isMine(ChatMessage msg) => msg.senderId == _currentUserId;
 
   /// Kin Thread / C2 — the wallpaper (and lock) key: direct chats keep
   /// the OLD dm_-prefixed keys so users' saved wallpapers/locks carry
@@ -266,8 +255,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// familyId (existing behavior).
   String get _chatSettingsKey =>
       widget.isDirectChat && widget.directOtherUserId != null
-          ? 'dm_${widget.directOtherUserId}'
-          : widget.familyId;
+      ? 'dm_${widget.directOtherUserId}'
+      : widget.familyId;
 
   @override
   void initState() {
@@ -387,7 +376,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // If we're mid-recording when the screen closes, stop it
     // (best-effort; ignore errors since the recorder may already be gone).
     if (_isRecording) {
-      try { _recorder.stop(); } catch (_) {}
+      try {
+        _recorder.stop();
+      } catch (_) {}
     }
     _recorder.dispose();
     super.dispose();
@@ -436,8 +427,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       final now = DateTime.now();
       final last = _lastTypingWriteAt;
       if (!widget.isDirectChat &&
-          (last == null ||
-              now.difference(last).inMilliseconds >= 2000)) {
+          (last == null || now.difference(last).inMilliseconds >= 2000)) {
         final service = ref.read(chatEnhancementServiceProvider);
         service.setTypingStatus(widget.familyId, true);
         _lastTypingWriteAt = now;
@@ -539,8 +529,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             // Feature 7: localized snackbar
-            content: Text(S.of(context)?.chatReplyToOriginalNotFound ??
-                'Message is older than loaded history — scroll up to find it.'),
+            content: Text(
+              S.of(context)?.chatReplyToOriginalNotFound ??
+                  'Message is older than loaded history — scroll up to find it.',
+            ),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
@@ -604,7 +596,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             .read(chatProvider(widget.familyId).notifier)
             .sendMessage(text, replyToId: replyToId, groupId: widget.groupId);
       } else {
-        ref.read(chatProvider(widget.familyId).notifier).sendMessageWithMentions(
+        ref
+            .read(chatProvider(widget.familyId).notifier)
+            .sendMessageWithMentions(
               text,
               mentions: pendingMentions,
               replyToId: replyToId,
@@ -662,10 +656,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     await StickerPackSheet.show(
       context,
       onStickerSelected: (stickerUrl, title) {
-        ref.read(chatProvider(widget.familyId).notifier).sendGif(
-              gifUrl: stickerUrl,
-              title: title,
-            );
+        ref
+            .read(chatProvider(widget.familyId).notifier)
+            .sendGif(gifUrl: stickerUrl, title: title);
       },
     );
   }
@@ -675,7 +668,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       setState(() => _showStickerPanel = false);
     }
     _focusNode.unfocus();
-    final replyToId = ref.read(chatProvider(widget.familyId)).replyToMessage?.id;
+    final replyToId = ref
+        .read(chatProvider(widget.familyId))
+        .replyToMessage
+        ?.id;
     await PollComposerSheet.show(
       context,
       familyId: widget.familyId,
@@ -770,10 +766,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             familyId: widget.familyId,
             onMessageTap: (messageId) => _scrollToMessage(messageId),
             onUnpin: (messageId) {
-              ref.read(socketServiceProvider).emitUnpinMessage(
-                familyId: widget.familyId,
-                messageId: messageId,
-              );
+              ref
+                  .read(socketServiceProvider)
+                  .emitUnpinMessage(
+                    familyId: widget.familyId,
+                    messageId: messageId,
+                  );
             },
           ),
           Expanded(
@@ -801,7 +799,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Triggered after the user sends their first message ever (based on
     // the first_message_in_chat analytics event) AND hasn't seen the
     // coach marks yet (hasSeenChatOnboarding flag in SharedPreferences).
-    final showOnboarding = ref.watch(shouldShowChatOnboardingProvider(widget.familyId));
+    final showOnboarding = ref.watch(
+      shouldShowChatOnboardingProvider(widget.familyId),
+    );
 
     return PopScope(
       // v6.0 — When selection mode is active, the back button exits
@@ -813,106 +813,106 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         }
       },
       child: Stack(
-      children: [
-        DKScaffold(
-      // v132: The background is now rendered by ChatBackground (a
-      // multi-layer ambient gradient + optional blurred wallpaper).
-      // The Scaffold background is a flat dark color that only shows
-      // behind the AppBar/input bar — the messages area is fully
-      // covered by ChatBackground.
-      backgroundColor: const Color(0xFF0A0B16),
-      // v126: Explicitly enable keyboard resizing so the input bar
-      // moves above the keyboard (WhatsApp-style).
-      resizeToAvoidBottomInset: true,
-      // v140 Family-Centric Chat Navigation: hideAppBar lets the parent
-      // (e.g. FamilyChatListScreen with [Family]/[Direct] tabs) provide
-      // its own header without a double-AppBar.
-      // Selection mode: swap the normal AppBar for the selection toolbar
-      // when active, so the user sees count + bulk actions at the top.
-      appBar: widget.hideAppBar
-          ? null
-          : (_selectionMode
-              ? SelectionModeToolbar(
-                  selectedCount: _selectedMessageIds.length,
-                  onClose: _exitSelectionMode,
-                  onReply: _bulkReply,
-                  onForward: _bulkForward,
-                  onStar: _bulkStar,
-                  onDelete: _bulkDelete,
-                  onMore: _bulkMore,
-                )
-              : _buildAppBar(chatState)),
-      // v115: Only show the Family Space bottom nav when this screen
-      // is the tab destination (showFamilyNav=true). When opened as a
-      // pushed conversation from the chat list, the bottom nav is
-      // hidden so the chat is full-screen (WhatsApp/Telegram style).
-      bottomNavigationBar: widget.showFamilyNav
-          ? FamilySpaceFloatingNav(familyId: widget.familyId)
-          : null,
-      body: _isCheckingLock
-          ? const Center(
-              child: CircularProgressIndicator(color: KinrelColors.ember),
-            )
-          : _isChatLocked
-              ? _buildLockScreen()
-              : Column(
-                  children: [
-                    // v132: Messages list wrapped with ChatBackground — a
-                    // multi-layer ambient gradient (base + accent glow +
-                    // vignette) plus optional blurred custom wallpaper.
-                    // Gives the chat space depth without competing with bubbles.
-                    Expanded(
-                      child: ChatBackground(
-                        // Kin Thread / C2: direct chats keep the dm_-keyed
-                        // wallpaper slot so saved choices carry over.
-                        chatId: _chatSettingsKey,
-                        child: bodyContent,
-                      ),
-                    ),
-                    // Selection mode hides the typing indicator, reply
-                    // preview, sticker panel, and input bar — the user
-                    // is picking messages, not composing.
-                    if (!_selectionMode) ...[
-                      // Typing indicator — shows if EITHER the Supabase
-                      // Realtime typing status OR the Socket.IO engagement
-                      // layer reports someone typing. The engagement layer
-                      // is preferred when both fire (it has the more recent
-                      // event + a richer multi-user label).
-                      if (chatState.isTyping || engagement.isSomeoneTyping)
-                        _buildTypingIndicator(chatState, engagement),
-                      // Reply preview bar
-                      if (chatState.replyToMessage != null)
-                        _buildReplyPreview(chatState.replyToMessage!),
-                      // Phase 14: Sticker panel (slides up when toggled)
-                      if (_showStickerPanel && !_isRecording)
-                        StickerPanel(
-                          onStickerSelected: _sendSticker,
-                          onClose: _toggleStickerPanel,
+        children: [
+          DKScaffold(
+            // v132: The background is now rendered by ChatBackground (a
+            // multi-layer ambient gradient + optional blurred wallpaper).
+            // The Scaffold background is a flat dark color that only shows
+            // behind the AppBar/input bar — the messages area is fully
+            // covered by ChatBackground.
+            backgroundColor: ChatUi.chatBackground,
+            // v126: Explicitly enable keyboard resizing so the input bar
+            // moves above the keyboard (WhatsApp-style).
+            resizeToAvoidBottomInset: true,
+            // v140 Family-Centric Chat Navigation: hideAppBar lets the parent
+            // (e.g. FamilyChatListScreen with [Family]/[Direct] tabs) provide
+            // its own header without a double-AppBar.
+            // Selection mode: swap the normal AppBar for the selection toolbar
+            // when active, so the user sees count + bulk actions at the top.
+            appBar: widget.hideAppBar
+                ? null
+                : (_selectionMode
+                      ? SelectionModeToolbar(
+                          selectedCount: _selectedMessageIds.length,
+                          onClose: _exitSelectionMode,
+                          onReply: _bulkReply,
+                          onForward: _bulkForward,
+                          onStar: _bulkStar,
+                          onDelete: _bulkDelete,
+                          onMore: _bulkMore,
+                        )
+                      : _buildAppBar(chatState)),
+            // v115: Only show the Family Space bottom nav when this screen
+            // is the tab destination (showFamilyNav=true). When opened as a
+            // pushed conversation from the chat list, the bottom nav is
+            // hidden so the chat is full-screen (WhatsApp/Telegram style).
+            bottomNavigationBar: widget.showFamilyNav
+                ? FamilySpaceFloatingNav(familyId: widget.familyId)
+                : null,
+            body: _isCheckingLock
+                ? const Center(
+                    child: CircularProgressIndicator(color: KinrelColors.ember),
+                  )
+                : _isChatLocked
+                ? _buildLockScreen()
+                : Column(
+                    children: [
+                      // v132: Messages list wrapped with ChatBackground — a
+                      // multi-layer ambient gradient (base + accent glow +
+                      // vignette) plus optional blurred custom wallpaper.
+                      // Gives the chat space depth without competing with bubbles.
+                      Expanded(
+                        child: ChatBackground(
+                          // Kin Thread / C2: direct chats keep the dm_-keyed
+                          // wallpaper slot so saved choices carry over.
+                          chatId: _chatSettingsKey,
+                          child: bodyContent,
                         ),
-                      // Input bar
-                      _buildInputBar(),
-                      // v128: On Flutter Web, resizeToAvoidBottomInset doesn't detect
-                      // the mobile keyboard. We add explicit bottom padding equal to
-                      // the visualViewport-measured keyboard height so the input bar
-                      // is always visible above the keyboard.
-                      if (kIsWeb && _webKeyboardHeight > 0)
-                        SizedBox(height: _webKeyboardHeight),
+                      ),
+                      // Selection mode hides the typing indicator, reply
+                      // preview, sticker panel, and input bar — the user
+                      // is picking messages, not composing.
+                      if (!_selectionMode) ...[
+                        // Typing indicator — shows if EITHER the Supabase
+                        // Realtime typing status OR the Socket.IO engagement
+                        // layer reports someone typing. The engagement layer
+                        // is preferred when both fire (it has the more recent
+                        // event + a richer multi-user label).
+                        if (chatState.isTyping || engagement.isSomeoneTyping)
+                          _buildTypingIndicator(chatState, engagement),
+                        // Reply preview bar
+                        if (chatState.replyToMessage != null)
+                          _buildReplyPreview(chatState.replyToMessage!),
+                        // Phase 14: Sticker panel (slides up when toggled)
+                        if (_showStickerPanel && !_isRecording)
+                          StickerPanel(
+                            onStickerSelected: _sendSticker,
+                            onClose: _toggleStickerPanel,
+                          ),
+                        // Input bar
+                        _buildInputBar(),
+                        // v128: On Flutter Web, resizeToAvoidBottomInset doesn't detect
+                        // the mobile keyboard. We add explicit bottom padding equal to
+                        // the visualViewport-measured keyboard height so the input bar
+                        // is always visible above the keyboard.
+                        if (kIsWeb && _webKeyboardHeight > 0)
+                          SizedBox(height: _webKeyboardHeight),
+                      ],
                     ],
-                  ],
-                ),
-        ),
-        // Feature 7: onboarding coach-mark overlay (shown once after
-        // the user's first message ever).
-        if (showOnboarding)
-          ChatOnboardingCoachMarks(
-            onComplete: () {
-              // Invalidate the onboarding status provider so it refetches
-              // (the hasSeenChatOnboarding flag is now true, so
-              // shouldShowChatOnboardingProvider returns false).
-              ref.invalidate(chatOnboardingStatusProvider(widget.familyId));
-            },
+                  ),
           ),
-      ],
+          // Feature 7: onboarding coach-mark overlay (shown once after
+          // the user's first message ever).
+          if (showOnboarding)
+            ChatOnboardingCoachMarks(
+              onComplete: () {
+                // Invalidate the onboarding status provider so it refetches
+                // (the hasSeenChatOnboarding flag is now true, so
+                // shouldShowChatOnboardingProvider returns false).
+                ref.invalidate(chatOnboardingStatusProvider(widget.familyId));
+              },
+            ),
+        ],
       ),
     );
   }
@@ -979,7 +979,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     backgroundColor: KinrelColors.ember,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 32, vertical: 14),
+                      horizontal: 32,
+                      vertical: 14,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -1030,10 +1032,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             Text(
               error,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: KinrelColors.textDim,
-                fontSize: 13,
-              ),
+              style: const TextStyle(color: KinrelColors.textDim, fontSize: 13),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
@@ -1064,10 +1063,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           Expanded(
             child: Text(
               error,
-              style: const TextStyle(
-                color: Colors.redAccent,
-                fontSize: 12,
-              ),
+              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -1080,877 +1076,195 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // ── AppBar ───────────────────────────────────────────────────────
 
   /// v124: Builds the default letter avatar (fallback when no image).
-  Widget _buildLetterAvatar() {
-    return Text(
-      (widget.familyName.isNotEmpty
-              ? widget.familyName.substring(0, 1)
-              : 'F')
-          .toUpperCase(),
-      style: const TextStyle(
-        fontFamily: KinrelTypography.displayFont,
-        fontSize: 16,
-        fontWeight: FontWeight.w700,
-        color: Colors.white,
-      ),
+  /// D1 — the GROUP chat header (ChatHeaderBar): title, member/online
+  /// subtitle, orange letter avatar, phone + more_vert actions.
+  PreferredSizeWidget _buildAppBar(ChatState chatState) {
+    // Kin Thread / C2 — direct chats render a PERSON header instead.
+    if (widget.isDirectChat) {
+      return _buildDirectAppBar(chatState);
+    }
+    // v5.211: count only real, linked Kinrel accounts (falls back to
+    // the chat state's members while the family detail loads).
+    final linkedCount = ref.watch(linkedMemberCountProvider(widget.familyId));
+    final memberCount = linkedCount > 0
+        ? linkedCount
+        : chatState.members.length;
+    // Presence: prefer the Socket.IO engagement layer (instant), fall
+    // back to the Supabase Realtime count.
+    final engagement = ref.watch(chatEngagementProvider(widget.familyId));
+    final onlineCount =
+        engagement.presence.values.where((p) => p.isOnline).length + 0;
+    final shownOnline = onlineCount > 0 ? onlineCount : chatState.onlineCount;
+
+    final title = widget.groupName ?? widget.familyName;
+
+    return ChatHeaderBar(
+      title: title,
+      subtitle: '$memberCount members · $shownOnline online',
+      avatarInitial: title.isNotEmpty ? title : 'F',
+      onBack: () {
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/family/${widget.familyId}');
+        }
+      },
+      onAvatarTap: () => context.push('/family/${widget.familyId}/profile'),
+      onPhoneTap: _showCallComingSoon,
+      onMoreTap: () => _showChatOverflowMenu(),
     );
   }
 
-
-  /// Kin Thread / C2: the header action buttons (search, video,
-  /// call, and the â® menu) — ONE implementation shared by the
-  /// family header AND the direct-chat header. The differences
-  /// between group and direct chat come from capabilities and per
-  /// screen wiring — never from copy-pasted UI.
-  Widget _buildHeaderActions() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // ── Action buttons (visually balanced, secondary) ────
-        // v134: Actions use a softer icon style (outline, 20px,
-        // silver) so they never compete with the identity column.
-        // The members button is dropped — redundant with tapping
-        // the avatar/header which navigates to family detail.
-        // Feature 5: search icon added before video/voice for
-        // discoverability (also accessible via the more menu).
-        HeaderActionButton(
-          icon: Icons.search,
-          size: 20,
-          onPressed: () {
-            context.push('/family/${widget.familyId}/chat/search');
-          },
-        ),
-        HeaderActionButton(
-          icon: Icons.videocam_outlined,
-          size: 20,
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Video call coming soon!'),
-                backgroundColor: KinrelColors.darkCard,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          },
-        ),
-        HeaderActionButton(
-          icon: Icons.call_outlined,
-          size: 18,
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Voice call coming soon!'),
-                backgroundColor: KinrelColors.darkCard,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          },
-        ),
-        // More menu — settings, wallpaper, mute, etc.
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert,
-              color: KinrelColors.textSilver, size: 20),
-          color: KinrelColors.darkCard,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          onSelected: (value) {
-            switch (value) {
-              case 'search':
-                context.push('/family/${widget.familyId}/chat/search');
-                break;
-              case 'search_all':
-                context.push('/chats/search');
-                break;
-              case 'disappearing':
-                DisappearingMessagesSheet.show(
-                  context,
-                  familyId: widget.familyId,
-                );
-                break;
-              case 'lock':
-                _toggleChatLock();
-                break;
-              case 'export':
-                _exportChat();
-                break;
-              case 'live_location':
-                _shareLiveLocation();
-                break;
-              case 'theme':
-                _showThemePicker();
-                break;
-              case 'constellation':
-                // Kin Thread / PR2 T4: one-tap access to the
-                // Constellation preset (also in Chat Atmosphere).
-                ref.read(chatWallpaperProvider.notifier).setWallpaper(
-                      _chatSettingsKey,
-                      'theme:constellation',
-                    );
-                break;
-              case 'wallpaper':
-                _showImageWallpaperPicker(context, _chatSettingsKey);
-                break;
-              case 'wallpaper_color':
-                _showWallpaperColorPicker();
-                break;
-              case 'mute':
-                _toggleMute();
-                break;
-              case 'starred':
-                _showStarredMessages();
-                break;
-              case 'pinned':
-                _showPinnedMessages();
-                break;
-            }
-          },
-          itemBuilder: (ctx) => [
-            // Tier 1 / Message Search — put search at the top of
-            // the menu since it's the most-used action. Two
-            // scopes: this chat + all chats.
-            const PopupMenuItem(
-                value: 'search',
-                child: Row(children: [
-                  Icon(Icons.search_rounded, size: 18,
-                      color: KinrelColors.ember),
-                  SizedBox(width: 12),
-                  Text('Search this chat'),
-                ])),
-            const PopupMenuItem(
-                value: 'search_all',
-                child: Row(children: [
-                  Icon(Icons.manage_search_rounded, size: 18,
-                      color: KinrelColors.ember),
-                  SizedBox(width: 12),
-                  Text('Search all chats'),
-                ])),
-            const PopupMenuDivider(),
-            const PopupMenuItem(
-                value: 'constellation',
-                child: Text('Constellation (default wallpaper)')),
-            const PopupMenuItem(
-                value: 'theme', child: Text('Chat Atmosphere')),
-            const PopupMenuItem(
-                value: 'wallpaper', child: Text('Custom Wallpaper')),
-            const PopupMenuItem(
-                value: 'wallpaper_color', child: Text('Solid Color')),
-            const PopupMenuItem(
-                value: 'mute', child: Text('Mute notifications')),
-            // Tier 2 / Disappearing Messages — opens the
-            // DisappearingMessagesSheet to enable/disable per-chat
-            // auto-deletion (24h / 7d / 90d / off).
-            const PopupMenuItem(
-                value: 'disappearing',
-                child: Row(children: [
-                  Icon(Icons.timer_outlined, size: 18,
-                      color: KinrelColors.ember),
-                  SizedBox(width: 12),
-                  Text('Disappearing messages'),
-                ])),
-            // Tier 2 / Chat Lock — toggle per-chat biometric lock.
-            const PopupMenuItem(
-                value: 'lock',
-                child: Row(children: [
-                  Icon(Icons.lock_outline, size: 18,
-                      color: KinrelColors.ember),
-                  SizedBox(width: 12),
-                  Text('Chat lock'),
-                ])),
-            // Tier 3 / Export chat — exports conversation as text
-            const PopupMenuItem(
-                value: 'export',
-                child: Row(children: [
-                  Icon(Icons.file_download_outlined, size: 18,
-                      color: KinrelColors.ember),
-                  SizedBox(width: 12),
-                  Text('Export chat'),
-                ])),
-            // Tier 3 / Live location — share live location with
-            // duration options (15min / 1h / 8h)
-            const PopupMenuItem(
-                value: 'live_location',
-                child: Row(children: [
-                  Icon(Icons.my_location_rounded, size: 18,
-                      color: KinrelColors.ember),
-                  SizedBox(width: 12),
-                  Text('Share live location'),
-                ])),
-            const PopupMenuItem(
-                value: 'starred', child: Text('Starred messages')),
-            const PopupMenuItem(
-                value: 'pinned', child: Text('Pinned messages')),
-          ],
-        ),
-        const SizedBox(width: 4),
-      ],
-    );
-  }
-
-
-  /// Kin Thread / C2 — the DIRECT chat header: the other person's
-  /// identity (avatar + name) with the RELATIONSHIP to the viewer as
-  /// the subtitle when it resolves (e.g. "Father"), otherwise their
-  /// online status. No Family chip, no member count, no family-profile
-  /// tap targets; tapping the identity opens the person's profile
-  /// sheet. Shares _buildHeaderActions() with the family header.
+  /// D1 — the DIRECT chat header: the other person's identity with the
+  /// RELATIONSHIP to the viewer as the subtitle ("Father · online"),
+  /// chatReceived avatar with the initial in the relationship color.
   PreferredSizeWidget _buildDirectAppBar(ChatState chatState) {
     final otherUserId = widget.directOtherUserId;
     final displayName = widget.groupName ?? widget.familyName;
     String? relationship;
+    Color? relationshipColor;
     if (widget.familyId.isNotEmpty && otherUserId != null) {
-      relationship = ref.watch(relationshipLabelProvider(
-        (familyId: widget.familyId, senderUserId: otherUserId),
-      ));
+      relationship = ref.watch(
+        relationshipLabelProvider((
+          familyId: widget.familyId,
+          senderUserId: otherUserId,
+        )),
+      );
+      final rawKey = ref.watch(
+        relationshipKeyProvider((
+          familyId: widget.familyId,
+          senderUserId: otherUserId,
+        )),
+      );
+      if (rawKey != null) {
+        relationshipColor = kinshipCategoryColor(
+          KinshipEdgeClassifier.classify(rawKey),
+        );
+      }
     }
     final otherMember = otherUserId == null
         ? null
         : chatState.members.where((m) => m.id == otherUserId).firstOrNull;
     final isOnline = otherMember?.isOnline ?? false;
-    final subtitle = relationship ?? (isOnline ? 'Active now' : 'Offline');
+    final status = isOnline ? 'online' : 'offline';
+    final subtitle = (relationship != null && relationship.isNotEmpty)
+        ? '$relationship · $status'
+        : status;
 
-    return PreferredSize(
-      preferredSize: const Size.fromHeight(72),
-      child: Container(
-        decoration: BoxDecoration(
-          // Same flat surface as the family header (one visual language).
-          color: KinrelFx.rich ? null : const Color(0xFF0A0B16),
-          gradient: KinrelFx.gradient(
-            const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFF11132A),
-                Color(0xFF0A0B16),
-              ],
-            ),
-          ),
-          border: Border(
-            bottom: BorderSide(
-                color: Colors.white.withValues(alpha: 0.06), width: 0.5),
-          ),
-        ),
-        child: SafeArea(
-          bottom: false,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-            child: Row(
-              children: [
-                // ── Back ──────────────────────────────────────────────
-                IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_ios_new,
-                    size: 18,
-                    color: KinrelColors.textSilver,
-                  ),
-                  onPressed: () {
-                    if (context.canPop()) {
-                      context.pop();
-                    } else if (widget.directOtherUserId != null) {
-                      context.go(
-                          '/family/${widget.familyId}/direct/${widget.directOtherUserId}');
-                    } else {
-                      context.go('/family/${widget.familyId}');
-                    }
-                  },
-                ),
-                // ── The other person's avatar (tap → profile) ─────────
-                GestureDetector(
-                  onTap: otherUserId != null
-                      ? () => MemberProfileSheet.show(context, otherUserId)
-                      : null,
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    // PERF note: NOT const — _kChatAvatarGlow is a
-                    // runtime-final list (same reason as the family
-                    // header's avatar decoration).
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: _kChatAvatarGlow,
-                    ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: KinrelColors.ember.withValues(alpha: 0.35),
-                          width: 1.2,
-                        ),
-                      ),
-                      child: ClipOval(
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: KinrelGradients.igniteGradient,
-                          ),
-                          child: Center(
-                            child: Text(
-                              displayName.isNotEmpty
-                                  ? displayName.substring(0, 1).toUpperCase()
-                                  : '?',
-                              style: const TextStyle(
-                                fontFamily: KinrelTypography.displayFont,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // ── Identity + subtitle (tap → profile) ───────────────
-                Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: otherUserId != null
-                        ? () => MemberProfileSheet.show(context, otherUserId)
-                        : null,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          displayName,
-                          style: const TextStyle(
-                            fontFamily: KinrelTypography.displayFont,
-                            fontSize: 16.5,
-                            fontWeight: FontWeight.w700,
-                            color: KinrelColors.textWhite,
-                            letterSpacing: 0.1,
-                            height: 1.2,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 7,
-                              height: 7,
-                              margin: const EdgeInsets.only(right: 5),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isOnline
-                                    ? KinrelColors.success
-                                    : KinrelColors.textDim,
-                              ),
-                            ),
-                            Text(
-                              subtitle,
-                              style: TextStyle(
-                                fontFamily: KinrelTypography.bodyFont,
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w500,
-                                color: KinrelColors.textSilver
-                                    .withValues(alpha: 0.8),
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // ── Shared actions (search / video / call / ⋮ menu) ────
-                _buildHeaderActions(),
-                const SizedBox(width: 4),
-              ],
-            ),
-          ),
-        ),
+    return ChatHeaderBar(
+      title: displayName,
+      subtitle: subtitle,
+      avatarInitial: displayName,
+      isDirect: true,
+      initialColor: relationshipColor,
+      onBack: () {
+        if (context.canPop()) {
+          context.pop();
+        } else if (widget.directOtherUserId != null) {
+          context.go(
+            '/family/${widget.familyId}/direct/${widget.directOtherUserId}',
+          );
+        } else {
+          context.go('/family/${widget.familyId}');
+        }
+      },
+      onAvatarTap: otherUserId != null
+          ? () => MemberProfileSheet.show(context, otherUserId)
+          : null,
+      onPhoneTap: _showCallComingSoon,
+      onMoreTap: () => _showChatOverflowMenu(),
+    );
+  }
+
+  /// Phone action (both headers) — calling is not built yet.
+  void _showCallComingSoon() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Voice call coming soon!'),
+        backgroundColor: KinrelColors.darkCard,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar(ChatState chatState) {
-    // Kin Thread / C2 — direct chats render a PERSON header (the other
-    // person's name + avatar, relationship/online subtitle) instead of
-    // the FAMILY header. No Family chip, no family-profile tap targets,
-    // no member count. Tapping the identity opens the other person's
-    // profile sheet (not the family profile).
-    if (widget.isDirectChat) {
-      return _buildDirectAppBar(chatState);
-    }
-    // v134 KINREL SIGNATURE HEADER
-    // Design language: relationship-centered rather than utility-bar.
-    // The header celebrates the human connection rather than treating
-    // the recipient as a contact row. Visual hierarchy is:
-    //   1. Person (avatar with premium framing)
-    //   2. Relationship (Kinrel signature chip — "Family" / "Group")
-    //   3. Status (refined presence indicator)
-    //   4. Actions (visually balanced, never competing with identity)
-    //
-    // Unique Kinrel element: a small relationship chip below the name
-    // with a soft ember accent — this is what makes the header
-    // recognizable as Kinrel rather than another messaging app.
-    //
-    // Header atmosphere: the surface uses the same vertical gradient
-    // as the v132 ChatBackground + v133 composer so the whole screen
-    // feels cohesive. A subtle ember ambient glow behind the avatar
-    // adds warmth.
-    final avatarUrl = ref.watch(familyAvatarProvider(widget.familyId));
-    // v5.211 (member-count de-conflation): the chat header used to show
-    // `familyDetail.family.memberCount` — a BLENDED count of every
-    // Person row (Linked Kinrel accounts + Manual placeholder
-    // relatives). That was misleading: a placeholder relative can
-    // never send or receive a chat message, so "Family · 5" in a chat
-    // context implies 5 real people who could chat — not 5 tree nodes.
-    //
-    // Now we read [linkedMemberCountProvider] which counts only real,
-    // active Kinrel accounts (Linked status). Falls back to the chat
-    // state's `members.length` while the family detail provider is
-    // still loading — chat-state members are themselves Linked-only
-    // (sourced from the membership table), so the fallback is also a
-    // real-people count.
-    final linkedCount = ref.watch(linkedMemberCountProvider(widget.familyId));
-    final memberCount = linkedCount > 0
-        ? linkedCount
-        : chatState.members.length;
-
-    return PreferredSize(
-      preferredSize: const Size.fromHeight(72),
-      child: Container(
-        decoration: BoxDecoration(
-          // PERF (Flat): solid color in flat mode; gradient in rich mode.
-          // v134: Vertical gradient matches ChatBackground + composer
-          // for full-screen cohesion. Top is slightly lighter (lit
-          // from above), bottom darker.
-          color: KinrelFx.rich ? null : const Color(0xFF0A0B16),
-          gradient: KinrelFx.gradient(
-            const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFF11132A), // top — warm dark navy
-                Color(0xFF0A0B16), // bottom — base dark
-              ],
-            ),
-          ),
-          border: Border(
-            bottom: BorderSide(
-                color: Colors.white.withValues(alpha: 0.06), width: 0.5),
+  /// D17 — the header ⋮ overflow menu (same card as the selection
+  /// "more" menu): 210 dp wide, chatMenu card, icon + label rows.
+  /// Every action is the existing behavior, restyled.
+  void _showChatOverflowMenu() {
+    showChatOverflowMenu(
+      context,
+      items: [
+        ChatOverflowMenuItem(
+          label: 'Search this chat',
+          icon: Icons.search,
+          onTap: () => context.push('/family/${widget.familyId}/chat/search'),
+        ),
+        ChatOverflowMenuItem(
+          label: 'Search all chats',
+          icon: Icons.manage_search,
+          onTap: () => context.push('/chats/search'),
+        ),
+        ChatOverflowMenuItem(
+          label: 'Constellation wallpaper',
+          icon: Icons.auto_awesome,
+          onTap: () => ref
+              .read(chatWallpaperProvider.notifier)
+              .setWallpaper(_chatSettingsKey, 'theme:constellation'),
+        ),
+        ChatOverflowMenuItem(
+          label: 'Chat Atmosphere',
+          icon: Icons.palette_outlined,
+          onTap: _showThemePicker,
+        ),
+        ChatOverflowMenuItem(
+          label: 'Custom Wallpaper',
+          icon: Icons.image_outlined,
+          onTap: () => _showImageWallpaperPicker(context, _chatSettingsKey),
+        ),
+        ChatOverflowMenuItem(
+          label: 'Solid Color',
+          icon: Icons.format_color_fill,
+          onTap: _showWallpaperColorPicker,
+        ),
+        ChatOverflowMenuItem(
+          label: 'Mute notifications',
+          icon: Icons.notifications_off_outlined,
+          onTap: _toggleMute,
+        ),
+        ChatOverflowMenuItem(
+          label: 'Disappearing messages',
+          icon: Icons.timer_outlined,
+          onTap: () => DisappearingMessagesSheet.show(
+            context,
+            familyId: widget.familyId,
           ),
         ),
-        child: SafeArea(
-          bottom: false,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-            child: Row(
-              children: [
-                // ── Back button ────────────────────────────────────────
-                IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_ios_new,
-                    size: 18,
-                    color: KinrelColors.textSilver,
-                  ),
-                  onPressed: () {
-                    if (context.canPop()) {
-                      context.pop();
-                    } else {
-                      context.go('/family/${widget.familyId}');
-                    }
-                  },
-                ),
-
-                // ── Premium avatar with ambient glow ──────────────────
-                // v134: Avatar gets a soft ember ambient glow behind it
-                // so it feels like the visual anchor of the header.
-                // Double-ring framing: outer hairline ember ring + inner
-                // image. This is the Kinrel signature avatar treatment.
-                //
-                // Phase 22 / Header Nav Fix (revised): Tapping the avatar
-                // opens the FAMILY Profile screen (/family/<id>/profile),
-                // NOT an individual member's profile. The family chat
-                // header represents the FAMILY (family name, family
-                // avatar, family member count), so a header tap is a
-                // family-level action. Individual member profiles are
-                // opened from member-specific UI (message bubble avatars)
-                // via MemberProfileSheet, not from the header.
-                //
-                // ── Phase 6 / RepaintBoundary ─────────────────────────
-                // Wrap the avatar in a RepaintBoundary so the CachedNetwork
-                // image decode + circle clip doesn't repaint on every
-                // chatState change (which fires on every new message,
-                // read-receipt flip, etc.). The avatar only changes when
-                // the family's avatarUrl changes — a separate concern.
-                RepaintBoundary(
-                  child: GestureDetector(
-                    onTap: () =>
-                        context.push('/family/${widget.familyId}/profile'),
-                    child: Container(
-                      width: 48,
-                      height: 48,
-                      // PERF (Flat): BoxDecoration is no longer `const`
-                      // because _kChatAvatarGlow is now a runtime-final
-                      // list (KinrelFx.shadows() resolves at app start,
-                      // but the list identity isn't a compile-time const).
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        // v134: Soft ember ambient glow — felt behind the
-                        // avatar, suggests warmth + human connection.
-                        //
-                        // PERF (Tier C3): hoisted to a top-level _kAvatarGlow
-                        // const below this file so the BoxShadow list is
-                        // allocated ONCE at app start (not per chat rebuild).
-                        // The chat avatar mounts on every chat-thread frame
-                        // so even one shadow allocation per build is wasteful.
-                        boxShadow: _kChatAvatarGlow,
-                      ),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          // v134: Hairline ember ring frames the avatar.
-                          border: Border.all(
-                            color: KinrelColors.ember.withValues(alpha: 0.35),
-                            width: 1.2,
-                          ),
-                        ),
-                        child: ClipOval(
-                          child: avatarUrl != null && avatarUrl.isNotEmpty
-                              ? (avatarUrl.startsWith('data:')
-                                  ? Image.memory(
-                                      base64Decode(avatarUrl.substring(
-                                          avatarUrl.indexOf(',') + 1)),
-                                      fit: BoxFit.cover,
-                                      width: 46,
-                                      height: 46,
-                                      // Phase 4 — cap decode at the
-                                      // 46×46 display size × DPR so a 4K
-                                      // family-avatar URL doesn't
-                                      // allocate a 4K bitmap in memory.
-                                      cacheWidth:
-                                          (46 * MediaQuery.devicePixelRatioOf(
-                                                  context))
-                                              .round(),
-                                      cacheHeight:
-                                          (46 * MediaQuery.devicePixelRatioOf(
-                                                  context))
-                                              .round(),
-                                      errorBuilder: (_, __, ___) =>
-                                          _buildLetterAvatar(),
-                                    )
-                                  : CachedNetworkImage(
-                                      imageUrl: avatarUrl,
-                                      cacheManager:
-                                          KinrelImageCacheManager.instance,
-                                      fit: BoxFit.cover,
-                                      width: 46,
-                                      height: 46,
-                                      // Phase 4 — consolidated cache
-                                      // manager + cap decode at the on-
-                                      // screen 46×46 size × DPR. Without
-                                      // these the family avatar would
-                                      // decode at full source resolution
-                                      // (often 512×512) and pollute the
-                                      // shared ImageCache, evicting
-                                      // message thumbnails.
-                                      memCacheWidth:
-                                          (46 * MediaQuery.devicePixelRatioOf(
-                                                  context))
-                                              .round(),
-                                      memCacheHeight:
-                                          (46 * MediaQuery.devicePixelRatioOf(
-                                                  context))
-                                              .round(),
-                                      placeholder: (_, __) =>
-                                          _buildLetterAvatar(),
-                                      errorWidget: (_, __, ___) =>
-                                          _buildLetterAvatar(),
-                                    ))
-                              : Container(
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: KinrelGradients.igniteGradient,
-                                  ),
-                                  child: Center(child: _buildLetterAvatar()),
-                                ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(width: 12),
-
-                // ── Identity + relationship + status column ───────────
-                // Visual hierarchy: name (primary) → relationship chip
-                // (Kinrel signature) → presence status (supporting).
-                //
-                // Phase 22 / Header Nav Fix (revised): The outer
-                // GestureDetector wraps the name + presence status
-                // ("1 active") and routes to the FAMILY Profile screen
-                // (/family/<id>/profile). The family chat header
-                // represents the FAMILY, so a tap here is a family-level
-                // action — NOT an individual member profile. Individual
-                // member profiles are opened from message bubble avatars.
-                //
-                // The relationship chip ("Family · N") has its own
-                // GestureDetector inside that ALSO routes to the Family
-                // Profile (it's part of the header's family-info area).
-                Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () =>
-                        context.push('/family/${widget.familyId}/profile'),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // ── Name ──────────────────────────────────────
-                        // v139: Show group name if this is a group chat,
-                        // otherwise the family name.
-                        Text(
-                          widget.groupName ?? widget.familyName,
-                          style: const TextStyle(
-                            fontFamily: KinrelTypography.displayFont,
-                            fontSize: 16.5,
-                            fontWeight: FontWeight.w700,
-                            color: KinrelColors.textWhite,
-                            letterSpacing: 0.1,
-                            height: 1.2,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        // ── Relationship chip + presence row ──────────
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // v134: KINREL SIGNATURE RELATIONSHIP CHIP
-                            // A small pill with a soft ember tint +
-                            // hairline border. Communicates the type of
-                            // connection. This is the unique Kinrel
-                            // element that distinguishes the header
-                            // from standard messaging apps.
-                            //
-                            // Phase 22 / Header Nav Fix: This chip is a
-                            // SEPARATE tap target from the surrounding
-                            // name+status column, but it ALSO routes to
-                            // the Family Profile (it's part of the
-                            // header's family-info area). The inner
-                            // GestureDetector with HitTestBehavior.opaque
-                            // captures the tap before the outer
-                            // GestureDetector can fire. Tapping anywhere
-                            // in the header's profile area — avatar,
-                            // name, status, OR badge — all consistently
-                            // open the Family Profile.
-                            GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: () => context.push(
-                                  '/family/${widget.familyId}/profile'),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 2.5),
-                                decoration: BoxDecoration(
-                                  color: KinrelColors.ember
-                                      .withValues(alpha: 0.10),
-                                  borderRadius: BorderRadius.circular(100),
-                                  border: Border.all(
-                                    color: KinrelColors.ember
-                                        .withValues(alpha: 0.30),
-                                    width: 0.6,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    // Small family icon — heart for
-                                    // family connection (warmth, care)
-                                    const Icon(
-                                      Icons.favorite_rounded,
-                                      size: 9,
-                                      color:
-                                          KinrelColors.ember,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      memberCount > 2
-                                          ? 'Family · $memberCount'
-                                          : 'Family',
-                                      style: TextStyle(
-                                        fontFamily: KinrelTypography.bodyFont,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        color: KinrelColors.ember
-                                            .withValues(alpha: 0.95),
-                                        letterSpacing: 0.3,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            // ── Feature 3: Chat streak flame badge ─────
-                            // Shows a flame icon + current streak count
-                            // when streak >= 2 (1-day streaks aren't worth
-                            // showing — every chat has at least 1).
-                            // Sourced from the Socket.IO engagement
-                            // provider, which is updated instantly on
-                            // chat:streakUpdated events.
-                            Builder(builder: (context) {
-                              final streak = ref
-                                  .watch(chatEngagementProvider(widget.familyId))
-                                  .streak;
-                              if (streak < 2) return const SizedBox.shrink();
-                              return Padding(
-                                padding: const EdgeInsets.only(left: 6),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 7, vertical: 2.5),
-                                  decoration: BoxDecoration(
-                                    color: KinrelColors.orange
-                                        .withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(100),
-                                    border: Border.all(
-                                      color: KinrelColors.orange
-                                          .withValues(alpha: 0.35),
-                                      width: 0.6,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Text(
-                                        '🔥',
-                                        style: TextStyle(
-                                          fontSize: 9,
-                                          height: 1.0,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        '$streak',
-                                        style: const TextStyle(
-                                          fontFamily: KinrelTypography.bodyFont,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700,
-                                          color: KinrelColors.orange,
-                                          letterSpacing: 0.3,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }),
-                            // ── Presence indicator ────────────────────
-                            // v134: Refined status — small glowing dot
-                            // (with subtle ambient glow, not flat) +
-                            // letter-spaced count text. Feels integrated
-                            // rather than a generic green dot.
-                            //
-                            // Feature 4: presence is now driven by the
-                            // Socket.IO engagement provider (instant updates
-                            // via 'presenceUpdate' events) in addition to
-                            // the Supabase-Realtime-based chatState.onlineCount.
-                            // The engagement provider updates within
-                            // milliseconds of a user connecting/disconnecting;
-                            // the Supabase Realtime update arrives 100-500ms
-                            // later. We show "Active now" when 1+ member is
-                            // online (matches WhatsApp/Telegram UX), or fall
-                            // back to "Last seen" via the engagement provider's
-                            // presence map when no one is online.
-                            Builder(builder: (context) {
-                              final eng = ref.watch(
-                                  chatEngagementProvider(widget.familyId));
-                              final onlineCount = eng.presence.values
-                                  .where((p) => p.isOnline)
-                                  .length;
-                              final showOnline = onlineCount > 0 ||
-                                  chatState.onlineCount > 0;
-                              // For the "Last seen X ago" fallback, find the
-                              // most recently seen offline user.
-                              final lastSeenPresence = eng.presence.values
-                                  .where((p) => !p.isOnline && p.lastSeenAt != null)
-                                  .toList()
-                                ..sort((a, b) => b.lastSeenAt!
-                                    .compareTo(a.lastSeenAt!));
-                              // Feature 7: locale-aware presence labels.
-                              final l10n = S.of(context);
-                              if (!showOnline &&
-                                  lastSeenPresence.isNotEmpty &&
-                                  lastSeenPresence.first.lastSeenAt!.year > 1970) {
-                                return Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      lastSeenPresence.first.lastSeenLabelLocalized(l10n),
-                                      style: TextStyle(
-                                        fontFamily: KinrelTypography.bodyFont,
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w500,
-                                        color: KinrelColors.textSilver
-                                            .withValues(alpha: 0.7),
-                                        letterSpacing: 0.2,
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }
-                              if (!showOnline) return const SizedBox.shrink();
-                              return Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    width: 5,
-                                    height: 5,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: KinrelColors.success,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: KinrelColors.success
-                                              .withValues(alpha: 0.5),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 0),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    // Feature 7: localized "Active now" / "N active"
-                                    (onlineCount == 1 || chatState.onlineCount == 1)
-                                        ? (l10n?.chatActiveNow ?? 'Active now')
-                                        : (l10n?.chatNActive(onlineCount > 0 ? onlineCount : chatState.onlineCount) ??
-                                            '${onlineCount > 0 ? onlineCount : chatState.onlineCount} active'),
-                                    style: TextStyle(
-                                      fontFamily: KinrelTypography.bodyFont,
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w500,
-                                      color: KinrelColors.textSilver
-                                          .withValues(alpha: 0.85),
-                                      letterSpacing: 0.2,
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // ── Action buttons — ONE shared implementation,
-                // used by the family header AND the direct header.
-                _buildHeaderActions(),
-              ],
-            ),
-          ),
+        ChatOverflowMenuItem(
+          label: 'Chat lock',
+          icon: Icons.lock_outline,
+          onTap: _toggleChatLock,
         ),
-      ),
+        ChatOverflowMenuItem(
+          label: 'Export chat',
+          icon: Icons.file_download_outlined,
+          onTap: _exportChat,
+        ),
+        ChatOverflowMenuItem(
+          label: 'Share live location',
+          icon: Icons.my_location,
+          onTap: _shareLiveLocation,
+        ),
+        ChatOverflowMenuItem(
+          label: 'Starred messages',
+          icon: Icons.star_outline,
+          onTap: _showStarredMessages,
+        ),
+        ChatOverflowMenuItem(
+          label: 'Pinned messages',
+          icon: Icons.push_pin_outlined,
+          onTap: _showPinnedMessages,
+        ),
+      ],
     );
   }
 
@@ -2099,10 +1413,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       await file.writeAsString(exportText);
 
       if (mounted) {
-        await Share.shareXFiles(
-          [XFile(file.path)],
-          text: 'Chat export: ${widget.familyName}',
-        );
+        await Share.shareXFiles([
+          XFile(file.path),
+        ], text: 'Chat export: ${widget.familyName}');
       }
     } catch (e) {
       if (mounted) {
@@ -2146,24 +1459,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.access_time_rounded,
-                  color: KinrelColors.ember),
-              title: const Text('15 minutes',
-                  style: TextStyle(color: KinrelColors.textWhite)),
+              leading: const Icon(
+                Icons.access_time_rounded,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                '15 minutes',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
               onTap: () => Navigator.pop(ctx, 15),
             ),
             ListTile(
-              leading: const Icon(Icons.schedule_rounded,
-                  color: KinrelColors.ember),
-              title: const Text('1 hour',
-                  style: TextStyle(color: KinrelColors.textWhite)),
+              leading: const Icon(
+                Icons.schedule_rounded,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                '1 hour',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
               onTap: () => Navigator.pop(ctx, 60),
             ),
             ListTile(
-              leading: const Icon(Icons.update_rounded,
-                  color: KinrelColors.ember),
-              title: const Text('8 hours',
-                  style: TextStyle(color: KinrelColors.textWhite)),
+              leading: const Icon(
+                Icons.update_rounded,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                '8 hours',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
               onTap: () => Navigator.pop(ctx, 480),
             ),
             const SizedBox(height: 8),
@@ -2183,7 +1508,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ),
       );
 
-      await ref.read(chatProvider(widget.familyId).notifier).sendLocation(
+      await ref
+          .read(chatProvider(widget.familyId).notifier)
+          .sendLocation(
             lat: position.latitude,
             lng: position.longitude,
             label: 'Live location (sharing for ${_durationLabel(duration)})',
@@ -2193,7 +1520,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-                'Live location shared for ${_durationLabel(duration)}'),
+              'Live location shared for ${_durationLabel(duration)}',
+            ),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
@@ -2208,7 +1536,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // is a balance between freshness + battery.
       _liveLocationTimer?.cancel();
       var remaining = duration;
-      _liveLocationTimer = Timer.periodic(const Duration(seconds: 30), (t) async {
+      _liveLocationTimer = Timer.periodic(const Duration(seconds: 30), (
+        t,
+      ) async {
         remaining -= 1;
         if (remaining <= 0) {
           t.cancel();
@@ -2222,11 +1552,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
           );
           if (mounted) {
-            ref.read(chatProvider(widget.familyId).notifier).sendLocation(
+            ref
+                .read(chatProvider(widget.familyId).notifier)
+                .sendLocation(
                   lat: pos.latitude,
                   lng: pos.longitude,
-                  label:
-                      'Live location update (${remaining * 30}s remaining)',
+                  label: 'Live location update (${remaining * 30}s remaining)',
                 );
           }
         } catch (e) {
@@ -2266,7 +1597,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Biometric authentication is not available on this device.'),
+            content: Text(
+              'Biometric authentication is not available on this device.',
+            ),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -2307,7 +1640,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Chat locked. You\'ll need biometrics to open it next time.'),
+            content: Text(
+              'Chat locked. You\'ll need biometrics to open it next time.',
+            ),
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
           ),
@@ -2369,13 +1704,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Chat Wallpaper',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: KinrelColors.textWhite,
-                )),
+            const Text(
+              'Chat Wallpaper',
+              style: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.textWhite,
+              ),
+            ),
             const SizedBox(height: 4),
             const Text(
               'Pick a color — changes instantly',
@@ -2398,10 +1735,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               itemCount: colors.length,
               itemBuilder: (ctx, index) {
                 final c = colors[index];
-                final colorValue = int.parse(c['color']!.substring(1, 7), radix: 16);
+                final colorValue = int.parse(
+                  c['color']!.substring(1, 7),
+                  radix: 16,
+                );
                 // v113: Checkmark overlay on the active swatch so users
                 // get visual confirmation of which wallpaper is applied.
-                final isActive = _wallpaperColor != null &&
+                final isActive =
+                    _wallpaperColor != null &&
                     _wallpaperColor!.toARGB32() == 0xFF000000 + colorValue;
                 return GestureDetector(
                   onTap: () async {
@@ -2590,7 +1931,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final service = ref.read(chatEnhancementServiceProvider);
     final settings = await service.getChatSettings(widget.familyId);
     final isMuted = settings?['isMuted'] as bool? ?? false;
-    await service.saveChatSettings(familyId: widget.familyId, isMuted: !isMuted);
+    await service.saveChatSettings(
+      familyId: widget.familyId,
+      isMuted: !isMuted,
+    );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -2620,26 +1964,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         builder: (ctx, controller) => Column(
           children: [
             Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               margin: const EdgeInsets.only(top: 12, bottom: 16),
               decoration: BoxDecoration(
                 color: KinrelColors.border,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const Text('Starred Messages',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: KinrelColors.textWhite,
-                )),
+            const Text(
+              'Starred Messages',
+              style: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.textWhite,
+              ),
+            ),
             const SizedBox(height: 16),
             Expanded(
               child: starred.isEmpty
                   ? const Center(
-                      child: Text('No starred messages',
-                          style: TextStyle(color: KinrelColors.textDim)))
+                      child: Text(
+                        'No starred messages',
+                        style: TextStyle(color: KinrelColors.textDim),
+                      ),
+                    )
                   : ListView.builder(
                       controller: controller,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -2657,21 +2007,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(msg.senderName,
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: KinrelColors.orange)),
+                              Text(
+                                msg.senderName,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: KinrelColors.orange,
+                                ),
+                              ),
                               const SizedBox(height: 4),
-                              Text(msg.content,
-                                  style: const TextStyle(
-                                      fontSize: 13,
-                                      color: KinrelColors.textWhite)),
+                              Text(
+                                msg.content,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: KinrelColors.textWhite,
+                                ),
+                              ),
                               const SizedBox(height: 4),
-                              Text(msg.formattedTime,
-                                  style: const TextStyle(
-                                      fontSize: 10,
-                                      color: KinrelColors.textDim)),
+                              Text(
+                                msg.formattedTime,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: KinrelColors.textDim,
+                                ),
+                              ),
                             ],
                           ),
                         );
@@ -2705,7 +2064,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         builder: (ctx, controller) => Column(
           children: [
             Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               margin: const EdgeInsets.only(top: 12, bottom: 16),
               decoration: BoxDecoration(
                 color: KinrelColors.border,
@@ -2717,21 +2077,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               children: [
                 Icon(Icons.push_pin, size: 18, color: KinrelColors.orange),
                 SizedBox(width: 6),
-                Text('Pinned Messages',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.displayFont,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: KinrelColors.textWhite,
-                    )),
+                Text(
+                  'Pinned Messages',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
             Expanded(
               child: pinned.isEmpty
                   ? const Center(
-                      child: Text('No pinned messages',
-                          style: TextStyle(color: KinrelColors.textDim)))
+                      child: Text(
+                        'No pinned messages',
+                        style: TextStyle(color: KinrelColors.textDim),
+                      ),
+                    )
                   : ListView.builder(
                       controller: controller,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -2751,22 +2116,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             children: [
                               Row(
                                 children: [
-                                  const Icon(Icons.push_pin,
-                                      size: 14, color: KinrelColors.orange),
+                                  const Icon(
+                                    Icons.push_pin,
+                                    size: 14,
+                                    color: KinrelColors.orange,
+                                  ),
                                   const SizedBox(width: 4),
-                                  Text(msg.senderName,
-                                      style: const TextStyle(
-                                        fontFamily: KinrelTypography.bodyFont,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: KinrelColors.orange,
-                                      )),
+                                  Text(
+                                    msg.senderName,
+                                    style: const TextStyle(
+                                      fontFamily: KinrelTypography.bodyFont,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: KinrelColors.orange,
+                                    ),
+                                  ),
                                   const Spacer(),
-                                  Text(msg.formattedTime,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: KinrelColors.textDim,
-                                      )),
+                                  Text(
+                                    msg.formattedTime,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: KinrelColors.textDim,
+                                    ),
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 4),
@@ -2852,7 +2224,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   // ── Typing Indicator ─────────────────────────────────────────────
 
-  Widget _buildTypingIndicator(ChatState chatState, ChatEngagementState engagement) {
+  Widget _buildTypingIndicator(
+    ChatState chatState,
+    ChatEngagementState engagement,
+  ) {
     // Feature 7: use the locale-aware typing label (Hindi/Marathi/Tamil/etc.)
     // Falls back to English if localization is unavailable.
     final l10n = S.of(context);
@@ -2862,21 +2237,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final label = engagement.isSomeoneTyping
         ? engagement.typingLabelLocalized(l10n)
         : (l10n?.chatTypingSingle(chatState.typingUserName ?? 'Someone') ??
-            '${chatState.typingUserName ?? 'Someone'} is typing');
+              '${chatState.typingUserName ?? 'Someone'} is typing');
     final firstInitial = engagement.isSomeoneTyping
         ? (engagement.typingUserNames.values.isNotEmpty
-            ? engagement.typingUserNames.values.first
-            : 'Someone')
+              ? engagement.typingUserNames.values.first
+              : 'Someone')
         : (chatState.typingUserName ?? 'Someone');
     // v3.5: the indicator's rendering was MOVED to the shared
     // TypingIndicator widget (see typing_indicator.dart) so the DM
     // screen renders the SAME indicator (avatar initial + label +
     // bouncing dots, same animation). Identical rendering to the
     // previous inline version — the group just supplies its label.
-    return TypingIndicator(
-      name: firstInitial,
-      label: label,
-    );
+    return TypingIndicator(name: firstInitial, label: label);
   }
 
   // ── Reply Preview Bar ────────────────────────────────────────────
@@ -2936,76 +2308,50 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       onStartRecording: _startRecording,
       isSendingVoice: _isSendingVoice,
       inputLayerLink: _inputLayerLink,
+      // D12: the thinking-of-you heart (the app's existing
+      // fn_send_thinking_of_you feature), wired into the composer.
+      onThinkingOfYou: _sendThinkingOfYouFromComposer,
     );
   }
 
   // ── Phase 13: Voice recording bar ──────────────────────────────────
 
   Widget _buildRecordingBar() {
-    // v133: Premium recording bar — matches the unified capsule
-    // aesthetic of the input bar. Same gradient surface, same hairline
-    // top border, same elevated inner capsule.
-    final minutes = _recordingDuration.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = _recordingDuration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    // D12-style flat recording bar: chatBar surface, chatCard capsule,
+    // radius 20, no gradients/shadows.
+    final minutes = _recordingDuration.inMinutes
+        .remainder(60)
+        .toString()
+        .padLeft(2, '0');
+    final seconds = _recordingDuration.inSeconds
+        .remainder(60)
+        .toString()
+        .padLeft(2, '0');
     return Container(
-      decoration: BoxDecoration(
-        // PERF (Flat): solid color + no shadow in flat mode.
-        color: KinrelFx.rich ? null : const Color(0xFF0A0B16),
-        gradient: KinrelFx.gradient(
-          const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF0E0F1C),
-              Color(0xFF0A0B16),
-            ],
-          ),
-        ),
-        border: Border(
-          top: BorderSide(
-              color: Colors.white.withValues(alpha: 0.06), width: 0.5),
-        ),
-        boxShadow: KinrelFx.shadows([
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ]),
-      ),
+      color: ChatUi.chatBar,
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+          padding: const EdgeInsets.all(8),
           child: Container(
-            // v133: Inner capsule matches the text-field capsule.
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFF1A1D2E),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.redAccent.withValues(alpha: 0.25),
-                width: 0.75,
-              ),
+              color: ChatUi.chatCard,
+              borderRadius: BorderRadius.circular(20),
             ),
             child: Row(
               children: [
-                // Pulsing red recording dot.
-                // PERF (Part C3): wrapped in a RepaintBoundary so the
-                // recording dot's 900ms pulse animation (which repaints
-                // ~every 16ms while recording) doesn't bleed into the
-                // rest of the chat header / message list.
+                // Pulsing red recording dot (RepaintBoundary isolates
+                // its 900ms pulse animation from the rest of the screen).
                 const RepaintBoundary(child: RecordingDot()),
                 const SizedBox(width: 12),
-                // Timer
                 Text(
                   '$minutes:$seconds',
                   style: const TextStyle(
-                    fontFamily: KinrelTypography.monoFont,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: KinrelColors.textWhite,
-                    letterSpacing: 1,
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: ChatUi.textPrimary,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -3013,51 +2359,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   'Recording',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 12.5,
-                    color: KinrelColors.textDim,
-                    letterSpacing: 0.2,
+                    fontSize: 12,
+                    color: ChatUi.textSecondary,
                   ),
                 ),
                 const Spacer(),
-                // Cancel button — matches the refined button style
+                // Cancel button
                 GestureDetector(
                   onTap: _cancelRecording,
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.06),
-                    ),
-                    child: const Icon(
-                      Icons.close_rounded,
-                      size: 19,
-                      color: KinrelColors.textSilver,
+                  child: const SizedBox(
+                    width: ChatUi.tapTarget,
+                    height: ChatUi.tapTarget,
+                    child: const Center(
+                      child: Icon(
+                        Icons.close,
+                        size: 22,
+                        color: ChatUi.textSecondary,
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                // Send button — premium gradient with glow
+                // Send button — 40×40 orange circle
                 GestureDetector(
                   onTap: _sendRecording,
                   child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
+                    width: 40,
+                    height: 40,
+                    decoration: const BoxDecoration(
                       shape: BoxShape.circle,
-                      gradient: KinrelGradients.igniteGradient, // EXEMPT — primary orange CTA
-                      // PERF (Flat): no shadow in flat mode.
-                      boxShadow: KinrelFx.shadows([
-                        BoxShadow(
-                          color: KinrelColors.orange.withValues(alpha: 0.35),
-                          blurRadius: 12,
-                          offset: const Offset(0, 3),
-                        ),
-                      ]),
+                      color: ChatUi.accent,
                     ),
                     child: const Icon(
-                      Icons.send_rounded,
-                      size: 18,
+                      Icons.send,
+                      size: 20,
                       color: Colors.white,
                     ),
                   ),
@@ -3190,14 +2524,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       final xfile = XFile(path);
       final bytes = await xfile.readAsBytes();
       final mimeType = _audioMimeType();
-      final fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.${_audioFileExtension()}';
+      final fileName =
+          'voice_${DateTime.now().millisecondsSinceEpoch}.${_audioFileExtension()}';
 
-      await ref.read(chatProvider(widget.familyId).notifier).sendVoiceMessage(
-        bytes: Uint8List.fromList(bytes),
-        durationSeconds: durationSeconds,
-        mimeType: mimeType,
-        fileName: fileName,
-      );
+      await ref
+          .read(chatProvider(widget.familyId).notifier)
+          .sendVoiceMessage(
+            bytes: Uint8List.fromList(bytes),
+            durationSeconds: durationSeconds,
+            mimeType: mimeType,
+            fileName: fileName,
+          );
 
       // Clean up temp file on native (ignore on web)
       _tryDeleteFile(path);
@@ -3263,6 +2600,125 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// Replaces the previous direct-to-photo-picker behavior. The user
   /// now picks what kind of attachment they want, then the appropriate
   /// picker / sheet opens.
+  /// D12 composer heart — direct chat sends straight to the other
+  /// person; group chat first asks WHICH member (existing members data)
+  /// then sends. Uses the existing ThinkingService/fn_send_thinking_of_you.
+  Future<void> _sendThinkingOfYouFromComposer() async {
+    if (widget.isDirectChat && widget.directOtherUserId != null) {
+      await _sendThinkingOfYou(widget.directOtherUserId!);
+      return;
+    }
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final uid = _currentUserId;
+    final others = chatState.members
+        .where((m) => m.id != uid)
+        .toList(growable: false);
+    if (others.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No one to send it to yet.'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+    if (others.length == 1) {
+      await _sendThinkingOfYou(others.first.id);
+      return;
+    }
+    // Group: pick the receiver (member data already in the chat state).
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.xxl),
+        ),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Thinking of you',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+              ),
+            ),
+            for (final member in others)
+              ListTile(
+                leading: Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: ChatUi.chatReceived,
+                  ),
+                  child: Text(
+                    member.name.isNotEmpty
+                        ? member.name.substring(0, 1).toUpperCase()
+                        : '?',
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: KinrelColors.textWhite,
+                    ),
+                  ),
+                ),
+                title: Text(
+                  member.name,
+                  style: const TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 14,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _sendThinkingOfYou(member.id);
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendThinkingOfYou(String receiverId) async {
+    final service = ref.read(thinkingServiceProvider);
+    final result = await service.sendTap(
+      receiverId: receiverId,
+      familyId: widget.familyId,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result.success
+              ? (result.message ?? 'Thinking of you sent')
+              : (result.message ?? 'Could not send right now.'),
+        ),
+        backgroundColor: KinrelColors.darkCard,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Future<void> _showAttachmentMenu() async {
     final choice = await showModalBottomSheet<String>(
       context: context,
@@ -3287,40 +2743,96 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_outlined,
-                  color: KinrelColors.ember),
-              title: const Text('Photo',
-                  style: TextStyle(color: KinrelColors.textWhite)),
-              subtitle: const Text('From gallery',
-                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              leading: const Icon(
+                Icons.photo_outlined,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                'Photo',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
+              subtitle: const Text(
+                'From gallery',
+                style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+              ),
               onTap: () => Navigator.pop(ctx, 'photo'),
             ),
             ListTile(
-              leading: const Icon(Icons.insert_drive_file_outlined,
-                  color: KinrelColors.ember),
-              title: const Text('Document',
-                  style: TextStyle(color: KinrelColors.textWhite)),
-              subtitle: const Text('PDF, DOC, XLS, etc.',
-                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              leading: const Icon(
+                Icons.insert_drive_file_outlined,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                'Document',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
+              subtitle: const Text(
+                'PDF, DOC, XLS, etc.',
+                style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+              ),
               onTap: () => Navigator.pop(ctx, 'document'),
             ),
             ListTile(
-              leading: const Icon(Icons.location_on_outlined,
-                  color: KinrelColors.ember),
-              title: const Text('Location',
-                  style: TextStyle(color: KinrelColors.textWhite)),
-              subtitle: const Text('Share your current location',
-                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              leading: const Icon(
+                Icons.location_on_outlined,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                'Location',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
+              subtitle: const Text(
+                'Share your current location',
+                style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+              ),
               onTap: () => Navigator.pop(ctx, 'location'),
             ),
             ListTile(
-              leading: const Icon(Icons.gif_box_outlined,
-                  color: KinrelColors.ember),
-              title: const Text('GIF',
-                  style: TextStyle(color: KinrelColors.textWhite)),
-              subtitle: const Text('Search Giphy',
-                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              leading: const Icon(
+                Icons.gif_box_outlined,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                'GIF',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
+              subtitle: const Text(
+                'Search Giphy',
+                style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+              ),
               onTap: () => Navigator.pop(ctx, 'gif'),
+            ),
+            // D12: sticker packs + poll composer moved here from the
+            // old composer button row (same callbacks, new home).
+            ListTile(
+              leading: const Icon(
+                Icons.emoji_emotions_outlined,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                'Stickers',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
+              subtitle: const Text(
+                'Giphy sticker packs',
+                style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+              ),
+              onTap: () => Navigator.pop(ctx, 'stickers'),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.poll_outlined,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                'Poll',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
+              subtitle: const Text(
+                'Create a poll',
+                style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+              ),
+              onTap: () => Navigator.pop(ctx, 'poll'),
             ),
             const SizedBox(height: 8),
           ],
@@ -3343,13 +2855,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           await GifSearchSheet.show(
             context,
             onGifSelected: (gif) {
-              ref.read(chatProvider(widget.familyId).notifier).sendGif(
+              ref
+                  .read(chatProvider(widget.familyId).notifier)
+                  .sendGif(
                     gifUrl: gif.fullUrl,
                     title: gif.title.isNotEmpty ? gif.title : 'GIF',
                   );
             },
           );
         }
+        break;
+      case 'stickers':
+        await _openStickerPacks();
+        break;
+      case 'poll':
+        await _openPollComposer();
         break;
     }
   }
@@ -3379,7 +2899,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             content: Row(
               children: [
                 SizedBox(
-                  width: 16, height: 16,
+                  width: 16,
+                  height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     color: KinrelColors.orange,
@@ -3396,11 +2917,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         );
       }
 
-      await ref.read(chatProvider(widget.familyId).notifier).sendAttachment(
-        bytes: Uint8List.fromList(bytes),
-        fileName: fileName,
-        mimeType: mimeType,
-      );
+      await ref
+          .read(chatProvider(widget.familyId).notifier)
+          .sendAttachment(
+            bytes: Uint8List.fromList(bytes),
+            fileName: fileName,
+            mimeType: mimeType,
+          );
 
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -3446,9 +2969,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             content: Row(
               children: [
                 const SizedBox(
-                  width: 16, height: 16,
+                  width: 16,
+                  height: 16,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2, color: KinrelColors.orange,
+                    strokeWidth: 2,
+                    color: KinrelColors.orange,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -3486,10 +3011,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           .from('chat-attachments')
           .getPublicUrl(storagePath);
 
-      await ref.read(chatProvider(widget.familyId).notifier).sendDocument(
-            documentUrl: publicUrl,
-            fileName: fileName,
-          );
+      await ref
+          .read(chatProvider(widget.familyId).notifier)
+          .sendDocument(documentUrl: publicUrl, fileName: fileName);
 
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -3526,9 +3050,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             content: Row(
               children: [
                 SizedBox(
-                  width: 16, height: 16,
+                  width: 16,
+                  height: 16,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2, color: KinrelColors.orange,
+                    strokeWidth: 2,
+                    color: KinrelColors.orange,
                   ),
                 ),
                 SizedBox(width: 12),
@@ -3550,7 +3076,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ),
       );
 
-      await ref.read(chatProvider(widget.familyId).notifier).sendLocation(
+      await ref
+          .read(chatProvider(widget.familyId).notifier)
+          .sendLocation(
             lat: position.latitude,
             lng: position.longitude,
             label: 'My location',
@@ -3606,8 +3134,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: KinrelColors.darkCard,
-        title: const Text('Edit Message',
-            style: TextStyle(color: KinrelColors.textWhite)),
+        title: const Text(
+          'Edit Message',
+          style: TextStyle(color: KinrelColors.textWhite),
+        ),
         content: TextField(
           controller: editController,
           maxLines: null,
@@ -3626,8 +3156,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () async {
               final newContent = editController.text.trim();
@@ -3639,10 +3170,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               final service = ref.read(chatEnhancementServiceProvider);
               final success = await service.editMessage(message.id, newContent);
               if (success) {
-                ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+                ref
+                    .read(chatProvider(widget.familyId).notifier)
+                    .refreshMessages();
               }
             },
-            child: const Text('Save', style: TextStyle(color: KinrelColors.orange)),
+            child: const Text(
+              'Save',
+              style: TextStyle(color: KinrelColors.orange),
+            ),
           ),
         ],
       ),
@@ -3658,16 +3194,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final currentUserId = _currentUserId;
     final detailAsync = ref.read(familyDetailProvider(widget.familyId));
     final family = detailAsync.valueOrNull?.family;
-    final isCreator = family?.createdBy != null &&
-        family?.createdBy == currentUserId;
-    final membershipsAsync =
-        ref.read(familyMembershipsProvider(widget.familyId));
+    final isCreator =
+        family?.createdBy != null && family?.createdBy == currentUserId;
+    final membershipsAsync = ref.read(
+      familyMembershipsProvider(widget.familyId),
+    );
     final memberships = membershipsAsync.valueOrNull ?? [];
     final currentUserMembership = memberships
         .where((m) => m.userId == currentUserId)
         .firstOrNull;
-    final isAdminOrCreator = isCreator ||
-        currentUserMembership?.isAdmin == true;
+    final isAdminOrCreator =
+        isCreator || currentUserMembership?.isAdmin == true;
 
     showModalBottomSheet(
       context: context,
@@ -3881,7 +3418,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   Navigator.pop(context);
                   final service = ref.read(chatEnhancementServiceProvider);
                   await service.starMessage(message.id, !message.isStarred);
-                  ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+                  ref
+                      .read(chatProvider(widget.familyId).notifier)
+                      .refreshMessages();
                 },
               ),
               // v122: Pin / Unpin — group rule is admin/creator (RPC
@@ -3890,9 +3429,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               if (isAdminOrCreator || widget.isDirectChat)
                 ListTile(
                   leading: Icon(
-                    message.isPinned
-                        ? Icons.push_pin
-                        : Icons.push_pin_outlined,
+                    message.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
                     color: message.isPinned
                         ? KinrelColors.orange
                         : KinrelColors.textSilver,
@@ -3910,7 +3447,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     Navigator.pop(context);
                     final service = ref.read(chatEnhancementServiceProvider);
                     await service.pinMessage(message.id, !message.isPinned);
-                    ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+                    ref
+                        .read(chatProvider(widget.familyId).notifier)
+                        .refreshMessages();
                   },
                 ),
               // Edit (only for own text messages)
@@ -3954,7 +3493,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   final service = ref.read(chatEnhancementServiceProvider);
                   final success = await service.deleteForMe(message.id);
                   if (success) {
-                    ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+                    ref
+                        .read(chatProvider(widget.familyId).notifier)
+                        .refreshMessages();
                   }
                 },
               ),
@@ -4009,27 +3550,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       context: context,
                       builder: (ctx) => AlertDialog(
                         backgroundColor: KinrelColors.darkCard,
-                        title: const Text('Delete for Everyone?',
-                            style: TextStyle(color: KinrelColors.textWhite)),
+                        title: const Text(
+                          'Delete for Everyone?',
+                          style: TextStyle(color: KinrelColors.textWhite),
+                        ),
                         content: const Text(
-                            'This message will be deleted for everyone in the chat.',
-                            style: TextStyle(color: KinrelColors.textSilver)),
+                          'This message will be deleted for everyone in the chat.',
+                          style: TextStyle(color: KinrelColors.textSilver),
+                        ),
                         actions: [
                           TextButton(
-                              onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Cancel')),
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Cancel'),
+                          ),
                           TextButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              child: const Text('Delete',
-                                  style: TextStyle(color: KinrelColors.error))),
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text(
+                              'Delete',
+                              style: TextStyle(color: KinrelColors.error),
+                            ),
+                          ),
                         ],
                       ),
                     );
                     if (confirmed == true) {
-                      final service =
-                          ref.read(chatEnhancementServiceProvider);
-                      final success =
-                          await service.deleteForEveryone(message.id);
+                      final service = ref.read(chatEnhancementServiceProvider);
+                      final success = await service.deleteForEveryone(
+                        message.id,
+                      );
                       if (success) {
                         ref
                             .read(chatProvider(widget.familyId).notifier)
@@ -4128,10 +3676,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (_selectedMessageIds.isEmpty) return;
     // Find the most-recently-selected message in the messages list.
     final chatState = ref.read(chatProvider(widget.familyId));
-    final selected = chatState.messages
-        .where((m) => _selectedMessageIds.contains(m.id))
-        .toList()
-      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    final selected =
+        chatState.messages
+            .where((m) => _selectedMessageIds.contains(m.id))
+            .toList()
+          ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
     if (selected.isEmpty) return;
     final target = selected.first;
     _exitSelectionMode();
@@ -4193,8 +3742,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete for me',
-                style: TextStyle(color: KinrelColors.error)),
+            child: const Text(
+              'Delete for me',
+              style: TextStyle(color: KinrelColors.error),
+            ),
           ),
         ],
       ),
@@ -4209,71 +3760,79 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
   }
 
-  /// Bulk more actions — shows a bottom sheet with Pin, Copy, Share.
+  /// Bulk more actions — the D17 overflow menu (Copy, Star, Pin,
+  /// Message info, Share outside Kinrel), replacing the old bottom
+  /// sheet. Same behaviors, restyled card.
   void _bulkMore() {
     if (_selectedMessageIds.isEmpty) return;
     final chatState = ref.read(chatProvider(widget.familyId));
     final selected = chatState.messages
         .where((m) => _selectedMessageIds.contains(m.id))
         .toList();
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: KinrelColors.darkCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            ListTile(
-              leading: const Icon(Icons.content_copy, color: KinrelColors.orange),
-              title: const Text('Copy text',
-                  style: TextStyle(color: KinrelColors.textWhite)),
-              subtitle: const Text('Concatenate text from all selected messages',
-                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
-              onTap: () {
-                final text = selected
-                    .where((m) => m.messageType == MessageType.text)
-                    .map((m) => m.content)
-                    .join('\n\n');
-                if (text.isNotEmpty) {
-                  Clipboard.setData(ClipboardData(text: text));
-                }
-                Navigator.pop(ctx);
-                _exitSelectionMode();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.push_pin_outlined, color: KinrelColors.orange),
-              title: const Text('Pin messages',
-                  style: TextStyle(color: KinrelColors.textWhite)),
-              onTap: () async {
-                Navigator.pop(ctx);
-                final service = ref.read(chatEnhancementServiceProvider);
-                for (final msg in selected) {
-                  await service.pinMessage(msg.id, !msg.isPinned);
-                }
-                ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
-                _exitSelectionMode();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.share_outlined, color: KinrelColors.orange),
-              title: const Text('Share outside Kinrel',
-                  style: TextStyle(color: KinrelColors.textWhite)),
-              onTap: () {
-                Navigator.pop(ctx);
-                final text = selected.map((m) => m.content).join('\n\n');
-                Share.share(text);
-                _exitSelectionMode();
-              },
-            ),
-            const SizedBox(height: 12),
-          ],
+    showChatOverflowMenu(
+      context,
+      items: [
+        ChatOverflowMenuItem(
+          label: 'Copy',
+          icon: Icons.copy,
+          onTap: () {
+            final text = selected
+                .where((m) => m.messageType == MessageType.text)
+                .map((m) => m.content)
+                .join('\n\n');
+            if (text.isNotEmpty) {
+              Clipboard.setData(ClipboardData(text: text));
+            }
+            _exitSelectionMode();
+          },
         ),
-      ),
+        ChatOverflowMenuItem(
+          label: 'Star',
+          icon: Icons.star_outline,
+          onTap: () async {
+            final service = ref.read(chatEnhancementServiceProvider);
+            for (final msg in selected) {
+              await service.starMessage(msg.id, !msg.isStarred);
+            }
+            ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+            _exitSelectionMode();
+          },
+        ),
+        ChatOverflowMenuItem(
+          label: 'Pin',
+          icon: Icons.push_pin_outlined,
+          onTap: () async {
+            final service = ref.read(chatEnhancementServiceProvider);
+            for (final msg in selected) {
+              await service.pinMessage(msg.id, !msg.isPinned);
+            }
+            ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+            _exitSelectionMode();
+          },
+        ),
+        if (selected.length == 1 &&
+            (selected.first.messageType == MessageType.text ||
+                selected.first.messageType == MessageType.photo))
+          ChatOverflowMenuItem(
+            label: 'Message info',
+            icon: Icons.info_outline,
+            onTap: () {
+              MessageInfoSheet.show(context, messageId: selected.first.id);
+              _exitSelectionMode();
+            },
+          ),
+        ChatOverflowMenuItem(
+          label: 'Share outside Kinrel',
+          icon: Icons.share,
+          onTap: () {
+            final text = selected.map((m) => m.content).join('\n\n');
+            if (text.isNotEmpty) {
+              Share.share(text);
+            }
+            _exitSelectionMode();
+          },
+        ),
+      ],
     );
   }
 
@@ -4286,4 +3845,3 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 // ═══════════════════════════════════════════════════════════════════════
 // Message Bubble Widget
 // ═══════════════════════════════════════════════════════════════════════
-

@@ -1,26 +1,26 @@
 // lib/features/chat/presentation/widgets/selection_mode_toolbar.dart
 //
-// DAXELO KINREL — Selection Mode Toolbar + Context Menu (v1.0)
+// DAXELO KINREL — Selection Mode Toolbar + Context Menu
+// (Chat UI Reference D14 + D17)
 //
-// Implements the multi-select toolbar (Image 3 reference) and the
-// iOS-style context menu popover for message actions.
-//
-// Selection Mode:
-//   - Top bar replaces the chat AppBar when active
+// Selection Mode (D14):
+//   - Top bar replaces the chat AppBar when active — same 56 dp
+//     height and chatBar surface as the D1 header, flat (no border,
+//     no shadow)
 //   - Left: X (close) + selected count
 //   - Right: Reply, Forward, Star, Delete, More actions
-//   - Bubbles get a selection ring + checkbox
+//   - Selected rows get a full-bleed chatSelectedRow tint (D16 —
+//     handled by ChatMessageList, no ring/checkbox per spec)
 //
-// Context Menu:
+// Context Menu (D17 card style):
 //   - iOS-style popover anchored to the message bubble
 //   - Items: Copy, Star, Pin, Message info, Share outside Kinrel
 //   - Uses OverlayEntry for precise positioning
-//   - Matches the dark theme (bg #232336, white text, rounded 12px)
+//   - chatMenu card, radius 12, 20 dp icons, flat (no shadow)
 
 import 'package:flutter/material.dart';
 
-import '../../../../../core/constants/brand_colors.dart';
-import '../../../../../core/constants/brand_typography.dart';
+import '../chat_ui_tokens.dart';
 
 /// Callback signature for bulk actions on a set of selected message ids.
 typedef SelectionActionCallback = void Function(Set<String> messageIds);
@@ -35,7 +35,8 @@ typedef SelectionActionCallback = void Function(Set<String> messageIds);
 /// can be dropped into the Scaffold's `appBar` slot when selection mode
 /// is active. The parent screen toggles selection mode and passes the
 /// current selection set + callbacks.
-class SelectionModeToolbar extends StatelessWidget implements PreferredSizeWidget {
+class SelectionModeToolbar extends StatelessWidget
+    implements PreferredSizeWidget {
   const SelectionModeToolbar({
     super.key,
     required this.selectedCount,
@@ -76,23 +77,20 @@ class SelectionModeToolbar extends StatelessWidget implements PreferredSizeWidge
   @override
   Widget build(BuildContext context) {
     final hasSelection = selectedCount > 0;
+    // D14: chatBar surface, flat — no bottom border, no shadow.
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF11132A),
-        border: Border(
-          bottom: BorderSide(
-            color: Color(0x14FFFFFF),
-            width: 0.5,
-          ),
-        ),
-      ),
+      color: ChatUi.chatBar,
       child: SafeArea(
         bottom: false,
         child: SizedBox(
-          height: 56,
+          height: ChatUi.headerHeight,
           child: NavigationToolbar(
             leading: IconButton(
-              icon: const Icon(Icons.close_rounded, color: KinrelColors.textWhite, size: 24),
+              icon: const Icon(
+                Icons.close_rounded,
+                color: ChatUi.textPrimary,
+                size: ChatUi.headerIconSize,
+              ),
               onPressed: onClose,
               tooltip: 'Close selection mode',
             ),
@@ -100,12 +98,7 @@ class SelectionModeToolbar extends StatelessWidget implements PreferredSizeWidge
               selectedCount == 0
                   ? 'Select messages'
                   : '$selectedCount selected',
-              style: const TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: KinrelColors.textWhite,
-              ),
+              style: ChatUi.titleText,
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
@@ -163,8 +156,8 @@ class _ToolbarIconButton extends StatelessWidget {
     return IconButton(
       icon: Icon(
         icon,
-        color: enabled ? KinrelColors.textWhite : KinrelColors.textDim,
-        size: 22,
+        color: enabled ? ChatUi.textPrimary : ChatUi.textMeta,
+        size: ChatUi.headerIconSize,
       ),
       onPressed: onPressed,
       tooltip: tooltip,
@@ -295,7 +288,10 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay> {
                   ignoring: false,
                   child: Material(
                     color: Colors.transparent,
-                    child: _MenuCard(items: widget.items, onDismiss: widget.onDismiss),
+                    child: _MenuCard(
+                      items: widget.items,
+                      onDismiss: widget.onDismiss,
+                    ),
                   ),
                 ),
               ),
@@ -315,22 +311,17 @@ class _MenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // D17 card: chatMenu fill, radius 12, 210 dp wide, flat (no
+    // shadow), hairline border.
     return Container(
-      constraints: const BoxConstraints(minWidth: 200, maxWidth: 260),
+      constraints: const BoxConstraints(minWidth: ChatUi.menuWidth),
       decoration: BoxDecoration(
-        color: const Color(0xFF232336),
-        borderRadius: BorderRadius.circular(12),
+        color: ChatUi.chatMenu,
+        borderRadius: BorderRadius.circular(ChatUi.menuRadius),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.06),
-          width: 0.5,
+          color: ChatUi.chatCardBorder,
+          width: ChatUi.cardBorderWidth,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -339,11 +330,7 @@ class _MenuCard extends StatelessWidget {
           for (int i = 0; i < items.length; i++) ...[
             _MenuItemTile(item: items[i], onDismiss: onDismiss),
             if (i < items.length - 1)
-              Divider(
-                height: 1,
-                thickness: 0.5,
-                color: Colors.white.withValues(alpha: 0.06),
-              ),
+              Divider(height: 1, thickness: 0.5, color: ChatUi.chatCardBorder),
           ],
         ],
       ),
@@ -359,30 +346,23 @@ class _MenuItemTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = item.isDestructive
-        ? Colors.red.shade300
-        : KinrelColors.textWhite;
+    final color = item.isDestructive ? Colors.red.shade300 : ChatUi.textPrimary;
     return InkWell(
       onTap: () {
         onDismiss();
         item.onTap();
       },
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(ChatUi.menuRadius),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
         child: Row(
           children: [
-            Icon(item.icon, size: 18, color: color),
-            const SizedBox(width: 14),
+            Icon(item.icon, size: ChatUi.menuIconSize, color: color),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 item.label,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w400,
-                  color: color,
-                ),
+                style: ChatUi.menuText.copyWith(color: color),
               ),
             ),
           ],
@@ -404,10 +384,7 @@ class _MenuItemTile extends StatelessWidget {
 /// Then on long-press, call:
 ///   MessageContextMenu.show(context: context, anchorLink: link, items: [...])
 class BubbleAnchor extends StatefulWidget {
-  const BubbleAnchor({
-    super.key,
-    required this.child,
-  });
+  const BubbleAnchor({super.key, required this.child});
 
   final Widget child;
 
@@ -420,17 +397,16 @@ class BubbleAnchorState extends State<BubbleAnchor> {
 
   @override
   Widget build(BuildContext context) {
-    return CompositedTransformTarget(
-      link: link,
-      child: widget.child,
-    );
+    return CompositedTransformTarget(link: link, child: widget.child);
   }
 }
 
 /// Selection highlight ring painted around a selected message bubble.
 ///
-/// Renders an orange-tinted border + subtle orange glow around the
-/// bubble when [isSelected] is true. Otherwise renders nothing.
+/// LEGACY (pre-D16): kept for API compatibility. The unified chat UI
+/// marks selection with a full-bleed chatSelectedRow row tint in
+/// ChatMessageList (D16) — no ring, no checkbox. This widget renders
+/// nothing extra unless explicitly used.
 class SelectionRing extends StatelessWidget {
   const SelectionRing({
     super.key,
@@ -447,17 +423,10 @@ class SelectionRing extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         border: Border.all(
-          color: KinrelColors.orange.withValues(alpha: 0.6),
+          color: ChatUi.accent.withValues(alpha: 0.6),
           width: 1.5,
         ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: KinrelColors.orange.withValues(alpha: 0.15),
-            blurRadius: 12,
-            offset: const Offset(0, 0),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(ChatUi.bubbleRadius + 10),
       ),
       child: child,
     );
@@ -466,6 +435,9 @@ class SelectionRing extends StatelessWidget {
 
 /// A circular checkbox shown overlapping the bubble's leading edge
 /// when selection mode is active. Tapping toggles selection.
+///
+/// LEGACY (pre-D16): the unified chat UI toggles selection by tapping
+/// the row itself (no checkbox icon per D16).
 class SelectionCheckbox extends StatelessWidget {
   const SelectionCheckbox({
     super.key,
@@ -488,21 +460,17 @@ class SelectionCheckbox extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: isSelected
-              ? KinrelColors.orange
+              ? ChatUi.accent
               : Colors.black.withValues(alpha: 0.4),
           border: Border.all(
             color: isSelected
-                ? KinrelColors.orange
+                ? ChatUi.accent
                 : Colors.white.withValues(alpha: 0.4),
             width: 1.5,
           ),
         ),
         child: isSelected
-            ? const Icon(
-                Icons.check_rounded,
-                size: 16,
-                color: Colors.white,
-              )
+            ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
             : null,
       ),
     );
