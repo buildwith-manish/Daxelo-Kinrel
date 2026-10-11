@@ -1,24 +1,30 @@
 // lib/features/chat/presentation/widgets/constellation_pattern.dart
 //
-// DAXELO KINREL — Constellation Wallpaper Pattern (Kin Thread / PR2 T4)
+// DAXELO KINREL — Constellation Wallpaper Pattern (Chat UI Reference
+// D13)
 //
-// A tiny pattern of ~40 dots and thin lines (the family-graph motif)
-// drawn ONCE into a cached ui.Image and tiled with an ImageShader —
-// one drawRect per frame, no per-tile widgets, no gradient, no blur.
+// The quiet family-graph motif behind the chat. The tile is drawn ONCE
+// into a cached ui.Image and tiled with an ImageShader — one drawRect
+// per frame, no per-tile widgets, no gradient, no blur.
 //
-// Contrast: the pattern color is ~6% lighter than the brand
-// darkBackground (#131416), i.e. ~#212224 — visible enough to read as
-// "quiet starfield / kin graph", dark enough to never compete with
-// message bubbles.
+// Exact geometry (D13):
+//   • Tile: 320×480 logical pixels, tiled edge-to-edge.
+//   • 14 dots, color #1F2230 (ChatUi.wallDot).
+//   • 9 lines, color #1A1C27 (ChatUi.wallLine), 1 dp wide.
+//   • Deterministic placement (seeded) — the identical pattern on
+//     every device and restart.
+//
+// Contrast: both colors sit a few percent above chatBackground
+// (#131416) — visible enough to read as "quiet starfield / kin
+// graph", dark enough to never compete with message bubbles.
 //
 // Performance notes:
-//   • The tile is rasterized at logical 280×280 × devicePixelRatio and
+//   • The tile is rasterized at logical 320×480 × devicePixelRatio and
 //     cached per DPR bucket (static map) — generation happens once per
 //     device, then every chat shares the same GPU texture.
 //   • The painter is a single canvas.drawRect with a repeated
 //     ImageShader and shouldRepaint: false — effectively free (~0.1ms
 //     CPU; the GPU just tiles the cached texture).
-//   • Seeded RNG → the identical pattern on every device and restart.
 //   • Decorative only: excluded from semantics.
 //
 // Used by: ChatBackground when the resolved theme id is 'constellation'.
@@ -28,23 +34,22 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/brand_colors.dart';
+import '../chat_ui_tokens.dart';
 
-/// Logical size of one repeating tile.
-const double _kTileSize = 280.0;
+/// Logical size of one repeating tile — 320×480 (D13).
+const Size _kTileSize = Size(320, 480);
 
-/// Total dots per tile (the "about 40" from the spec).
-const int _kDotCount = 40;
+/// Dots per tile (D13: 14).
+const int _kDotCount = 14;
+
+/// Lines per tile (D13: 9), 1 dp wide.
+const int _kLineCount = 9;
 
 /// Static per-DPR image cache (shared across all chats).
 final Map<int, ui.Image> _constellationCache = <int, ui.Image>{};
 
 /// True while a decode/generation is in flight (guards double loads).
 bool _constellationLoading = false;
-
-/// The pattern color: ~6% lighter than darkBackground.
-Color get _patternColor =>
-    Color.lerp(KinrelColors.darkBackground, Colors.white, 0.06)!;
 
 /// Builds (once) and returns the cached tile image for [dpr].
 Future<ui.Image?> _tileImageFor(int dprBucket) async {
@@ -57,8 +62,9 @@ Future<ui.Image?> _tileImageFor(int dprBucket) async {
     final canvas = Canvas(recorder);
     _paintTile(canvas, _kTileSize);
     final picture = recorder.endRecording();
-    final px = (_kTileSize * dprBucket).round();
-    final image = await picture.toImage(px, px);
+    final px = (_kTileSize.width * dprBucket).round();
+    final py = (_kTileSize.height * dprBucket).round();
+    final image = await picture.toImage(px, py);
     _constellationCache[dprBucket] = image;
     return image;
   } catch (_) {
@@ -68,31 +74,34 @@ Future<ui.Image?> _tileImageFor(int dprBucket) async {
   }
 }
 
-/// Paints one tile of the constellation motif onto [canvas].
+/// Paints one 320×480 tile of the constellation motif onto [canvas].
 /// Transparent background — the base color layer sits beneath.
-void _paintTile(Canvas canvas, double tile) {
-  final dotPaint = Paint()..color = _patternColor;
+void _paintTile(Canvas canvas, Size tile) {
+  final dotPaint = Paint()..color = ChatUi.wallDot;
   final linePaint = Paint()
-    ..color = _patternColor.withValues(alpha: 0.55)
-    ..strokeWidth = 0.6
+    ..color = ChatUi.wallLine
+    ..strokeWidth =
+        1 // D13: 1 dp lines
     ..style = PaintingStyle.stroke;
 
   // Deterministic layout: the same seed everywhere.
-  final rng = math.Random(7);
+  final rng = math.Random(13);
 
   final dots = <Offset>[];
   for (var i = 0; i < _kDotCount; i++) {
-    dots.add(Offset(rng.nextDouble() * tile, rng.nextDouble() * tile));
+    dots.add(
+      Offset(rng.nextDouble() * tile.width, rng.nextDouble() * tile.height),
+    );
   }
 
-  // Thin "constellation" lines: connect nearby pairs (≤ 90px apart),
-  // a few per cluster — reads as the family graph, not a grid.
-  final maxLineLength = tile * 0.32;
+  // Exactly _kLineCount constellation lines: connect each dot (in
+  // order) to its nearest neighbour, skipping duplicates — reads as
+  // the family graph, not a grid.
+  final connected = <int>{};
   var linesDrawn = 0;
-  final maxLines = 14;
-  for (var i = 0; i < dots.length && linesDrawn < maxLines; i++) {
-    // Nearest neighbor of dot i.
+  for (var i = 0; i < dots.length && linesDrawn < _kLineCount; i++) {
     Offset? nearest;
+    var nearestIdx = -1;
     var nearestDist = double.infinity;
     for (var j = 0; j < dots.length; j++) {
       if (i == j) continue;
@@ -100,17 +109,20 @@ void _paintTile(Canvas canvas, double tile) {
       if (d < nearestDist) {
         nearestDist = d;
         nearest = dots[j];
+        nearestIdx = j;
       }
     }
-    if (nearest != null && nearestDist <= maxLineLength) {
+    if (nearest != null && !connected.contains(i * 100 + nearestIdx)) {
       canvas.drawLine(dots[i], nearest, linePaint);
+      connected.add(i * 100 + nearestIdx);
+      connected.add(nearestIdx * 100 + i);
       linesDrawn++;
     }
   }
 
-  // The dots themselves — a mix of "star" sizes (1.0–2.2 radius).
+  // The dots themselves — a quiet mix of "star" sizes (1.2–2.4 radius).
   for (var i = 0; i < dots.length; i++) {
-    final r = 1.0 + rng.nextDouble() * 1.2;
+    final r = 1.2 + rng.nextDouble() * 1.2;
     canvas.drawCircle(dots[i], r, dotPaint);
   }
 }
@@ -172,10 +184,7 @@ class _ConstellationPatternState extends State<ConstellationPattern> {
 /// ImageShader. One drawRect; shouldRepaint is false so it is cached
 /// by the raster cache behind the RepaintBoundary.
 class _ConstellationTilePainter extends CustomPainter {
-  const _ConstellationTilePainter({
-    required this.image,
-    required this.scale,
-  });
+  const _ConstellationTilePainter({required this.image, required this.scale});
 
   final ui.Image image;
   final double scale;
@@ -191,10 +200,7 @@ class _ConstellationTilePainter extends CustomPainter {
       TileMode.repeated,
       matrix.storage,
     );
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..shader = shader,
-    );
+    canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
   }
 
   @override

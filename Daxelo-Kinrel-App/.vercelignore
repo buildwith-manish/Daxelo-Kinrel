@@ -1,0 +1,9 @@
+build
+.dart_tool
+node_modules
+ios
+android
+macos
+windows
+linux
+.cxx
