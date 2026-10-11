@@ -11,7 +11,7 @@
 --   • User C: a third member of the SAME family (the "attacker").
 --
 -- The RLS policies under test live in
---   supabase/migrations/20261101120000_dm_rebuild_direct_groups.sql
+--   supabase/migrations/20261011120000_dm_rebuild_direct_groups.sql
 -- (ChatMessage / GroupMember / Group / ChatMessageReaction /
 --  ChatReadReceipt — groupType='direct' groups are GroupMember-only).
 --
