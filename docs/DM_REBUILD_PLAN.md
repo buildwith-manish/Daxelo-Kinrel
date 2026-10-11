@@ -1,6 +1,6 @@
 # DM Rebuild Plan — Direct Chat → Private 2-Person Group
 
-**Branch:** `feat/kin-thread`
+**Branch:** `feat/kin-thread` (merged to `main` on 2026-10-11; `feat/kin-thread` was renamed to `main` and the old `main` was deleted)
 **Date:** 2026-10-10 (updated after the C1 migration rewrite)
 **Flags:** `RUN_DM_REBUILD = YES` | `BACKFILL_OLD_DMS = NO`
 
