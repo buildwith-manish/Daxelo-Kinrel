@@ -254,9 +254,11 @@ class MessageBubble extends ConsumerWidget {
     // v140: Kinship-category generation bands. Resolve the sender's
     // relationship key to the current viewer, classify it into a
     // KinshipEdgeCategory, and map to a generation-band color. The
-    // color is applied as a 3px left border + 6% background fill on
-    // the message bubble. Only for family/group chats, not DMs, and
-    // only for received messages (not isMe). Self/indirect → no band.
+    // color is applied as a 3px left band strip (v141: painted as a
+    // Positioned overlay in the bubble Stack, NOT as a Border side) +
+    // 6% background fill on the message bubble. Only for family/group
+    // chats, not DMs, and only for received messages (not isMe).
+    // Self/indirect → no band.
     // Kin Thread / C2: also skipped in direct chats (no rails there).
     Color? kinshipBandColor;
     if (familyId != null && !isMe && !isSticker && !isDirectChat) {
@@ -378,9 +380,21 @@ class MessageBubble extends ConsumerWidget {
                     // v6.0 — Wrap the bubble in a SelectionRing when
                     // selection mode is active and this bubble is
                     // selected (Image 3 reference).
+                    //
+                    // v141 — Stack-based kinship band: the bubble sits in
+                    // a Stack so the 3px band strip can be painted as a
+                    // Positioned overlay on the left edge (bottom of the
+                    // children list). The previous non-uniform Border
+                    // (3px kinship left + 0.75px white hairline sides =
+                    // two visible colors) made Border.paint assert
+                    // "A borderRadius can only be given on borders with
+                    // uniform colors" in debug mode with this
+                    // borderRadius.
                     SelectionRing(
                       isSelected: isSelected,
-                      child: Container(
+                      child: Stack(
+                        children: [
+                          Container(
                       padding: isSticker
                           ? const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 8)
@@ -449,10 +463,11 @@ class MessageBubble extends ConsumerWidget {
                         // v131: Hairline border for definition. Sent:
                         // ember at 28% (softer than v129's 35%). Received:
                         // white at 6% (subtle edge to lift off wallpaper).
-                        // v140: When a kinship band color is resolved,
-                        // replace the uniform border with an asymmetric
-                        // Border that has a 3px left side in the kinship
-                        // color + hairline on the other 3 sides.
+                        // v141: Received bubbles keep the UNIFORM hairline
+                        // border — the 3px kinship band is painted as a
+                        // Positioned strip in the surrounding Stack, so
+                        // this Border must stay uniform (Border.paint
+                        // asserts on non-uniform colors + borderRadius).
                         border: isSticker
                             ? null
                             : (isMe
@@ -461,29 +476,11 @@ class MessageBubble extends ConsumerWidget {
                                         .withValues(alpha: 0.28),
                                     width: 0.75,
                                   )
-                                : kinshipBandColor != null
-                                    ? Border(
-                                        left: BorderSide(
-                                            color: kinshipBandColor,
-                                            width: 3),
-                                        top: BorderSide(
-                                            color: Colors.white
-                                                .withValues(alpha: 0.06),
-                                            width: 0.75),
-                                        right: BorderSide(
-                                            color: Colors.white
-                                                .withValues(alpha: 0.06),
-                                            width: 0.75),
-                                        bottom: BorderSide(
-                                            color: Colors.white
-                                                .withValues(alpha: 0.06),
-                                            width: 0.75),
-                                      )
-                                    : Border.all(
-                                        color: Colors.white
-                                            .withValues(alpha: 0.06),
-                                        width: 0.75,
-                                      )),
+                                : Border.all(
+                                    color: Colors.white
+                                        .withValues(alpha: 0.06),
+                                    width: 0.75,
+                                  )),
                         // v131: Layered elevation shadows for soft depth.
                         // Received: deeper shadow anchors it to the wall.
                         // Sent: gentler shadow lifts it + a faint ember
@@ -540,8 +537,37 @@ class MessageBubble extends ConsumerWidget {
                           if (isSticker) _buildStickerTimeRow(),
                         ],
                       ),
-                      ),
-                    ),
+                          ), // close bubble Container
+                          // v141: Kinship band — 3px strip pinned to the
+                          // bubble's left edge, rounded to match the
+                          // silhouette (topLeft 22 / bottomLeft tail 6).
+                          // Received-family only: kinshipBandColor is
+                          // null for isMe / stickers / DMs.
+                          // IgnorePointer: purely decorative overlay —
+                          // the ancestor GestureDetector wrapping the
+                          // bubble row handles all taps/long-presses.
+                          if (kinshipBandColor != null)
+                            Positioned(
+                              left: 0,
+                              top: 0,
+                              bottom: 0,
+                              child: IgnorePointer(
+                                child: Container(
+                                  width: 3,
+                                  decoration: BoxDecoration(
+                                    color: kinshipBandColor,
+                                    borderRadius: BorderRadius.only(
+                                      topLeft: const Radius.circular(22),
+                                      bottomLeft: Radius.circular(
+                                          isLastInGroup ? 6 : 22),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ), // close Stack
+                    ), // close SelectionRing
                     // v127: Reaction chips positioned overlapping bubble bottom
                     if (message.reactions.isNotEmpty)
                       _buildReactionChips(currentUserId),
