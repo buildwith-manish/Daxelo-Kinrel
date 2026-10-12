@@ -2259,8 +2259,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // SAME bar with the same layout/spacing/typography/colors. The group
     // passes its provider's clearReplyTo as the close action — identical
     // behavior to the previous inline version.
+    //
+    // v143 / Signature §G: ReplyPreviewBar is now a ConsumerWidget that
+    // resolves the replied-to sender's kinship band color + relationship
+    // label from the family graph. We pass familyId + currentUserId so
+    // it can do the lookup; null familyId (DM) → orange band + name.
     return ReplyPreviewBar(
       replyTo: replyTo,
+      familyId: widget.familyId,
+      currentUserId: _currentUserId,
       onClose: () {
         ref.read(chatProvider(widget.familyId).notifier).clearReplyTo();
       },

@@ -167,13 +167,18 @@ class MessageBubble extends ConsumerWidget {
     // a safe "deleted" reference so the original content is not exposed
     // through the reply preview. (Section G will rebuild the reply
     // preview with the new look; this lookup stays so it can use it.)
+    // We ALSO capture the replied-to sender's userId + whether the
+    // relationship resolved + the relationship label, so §G's band
+    // color + "RELATIONSHIP, NAME" title can use them.
     bool replyTargetDeleted = false;
+    String? replyTargetSenderId;
     if (message.replyToId != null && familyId != null) {
       try {
         final chatState = ref.read(chatProvider(familyId!));
         final target =
             chatState.messages.firstWhere((m) => m.id == message.replyToId);
         replyTargetDeleted = target.isDeletedForEveryone;
+        replyTargetSenderId = target.senderId;
       } catch (_) {
         // Reply target not in the local 50-message cache — assume
         // not-deleted. The denormalized replyToContent snapshot is
@@ -356,9 +361,12 @@ class MessageBubble extends ConsumerWidget {
                           onReplyPreviewTap != null
                               ? GestureDetector(
                                   onTap: onReplyPreviewTap,
-                                  child: _buildReplyPreview(replyTargetDeleted),
+                                  child: _buildReplyPreview(
+                                      replyTargetDeleted,
+                                      replyTargetSenderId),
                                 )
-                              : _buildReplyPreview(replyTargetDeleted),
+                              : _buildReplyPreview(
+                                  replyTargetDeleted, replyTargetSenderId),
                         // Chat UI Reference D3/D4/D5 — flat bubble:
                         // solid fill, radius 14 on all four corners,
                         // spec padding, no shadows, no gradients.
@@ -576,15 +584,74 @@ class MessageBubble extends ConsumerWidget {
     );
   }
 
-  Widget _buildReplyPreview([bool replyTargetDeleted = false]) {
-    // v131: Premium reply preview — softer background, refined accent
-    // bar, gentler radius. Sits naturally above the bubble without
-    // feeling like a separate floating card.
+  Widget _buildReplyPreview(
+      [bool replyTargetDeleted = false, String? replyTargetSenderId]) {
+    // v143 / Signature §G — reply quote with relationship band.
+    // Container: radius 8, background black at 22 percent alpha
+    // (plain color via blendOver, NOT a Flutter Opacity layer — flat
+    // style), padding 4 top, 8 right, 4 bottom, 12 left, bottom margin
+    // 4. A 3 dp band on the left in the replied-to sender's kinship
+    // color (own messages: orange; unresolved: extended).
     //
-    // v143: when the replied-to message has been deleted for everyone,
-    // show a muted "This message was deleted." text instead of the
-    // original quoted content so we don't leak deleted text through
-    // the reply preview. Section G will redesign this look.
+    // Title row: 11/500 in the readable text variant of that color
+    // (ChatUi.readableKinshipLabel), reading "RELATIONSHIP, NAME" (for
+    // example "Papa, Father") when the relationship resolved, OR "You"
+    // for the current user's own message, OR just the name in orange
+    // when no relationship resolved.
+    //
+    // Quoted text: 12/400/textSecondary, max 2 lines with ellipsis.
+    // When [replyTargetDeleted] is true, the quoted text is replaced
+    // with "This message was deleted." (italic, textSubtitle @ 0.6).
+    //
+    // Tap behavior (jump to message) is unchanged — handled by the
+    // parent GestureDetector that wraps _buildReplyPreview's output.
+    final bool replyOwnsTarget = replyTargetSenderId != null &&
+        currentUserId == replyTargetSenderId;
+
+    // Resolve the replied-to sender's relationship band color.
+    Color? replyBandColor;
+    bool replyKinshipResolved = false;
+    String? replyRelationshipLabel;
+    if (familyId != null && replyTargetSenderId != null && !replyOwnsTarget) {
+      final rawKey = ref.watch(relationshipKeyProvider(
+        (familyId: familyId!, senderUserId: replyTargetSenderId),
+      ));
+      if (rawKey != null) {
+        final category = KinshipEdgeClassifier.classify(rawKey);
+        final color = kinshipCategoryColor(category);
+        if (color != null) {
+          replyBandColor = color;
+          replyKinshipResolved = true;
+        }
+      }
+      if (!replyKinshipResolved) {
+        replyBandColor = KinrelColors.nodeExtended;
+      }
+      replyRelationshipLabel = ref.watch(relationshipLabelProvider(
+        (familyId: familyId!, senderUserId: replyTargetSenderId),
+      ));
+    }
+
+    // Determine the title-row color + text.
+    final Color titleColor;
+    final String titleText;
+    if (replyOwnsTarget) {
+      // Own message replied to → orange band, "You" title.
+      replyBandColor = KinrelColors.orange;
+      titleColor = KinrelColors.orange;
+      titleText = 'You';
+    } else if (replyKinshipResolved && replyRelationshipLabel != null) {
+      titleColor =
+          ChatUi.readableKinshipLabel(replyBandColor!);
+      titleText = '$replyRelationshipLabel, ${message.replyToSenderName ?? ''}';
+    } else {
+      // Unresolved → orange name, just the name (no relationship prefix).
+      replyBandColor = KinrelColors.orange;
+      titleColor = KinrelColors.orange;
+      titleText = message.replyToSenderName ?? '';
+    }
+
+    // Quoted content + style — handle the deleted-target case.
     final String previewContent = replyTargetDeleted
         ? 'This message was deleted.'
         : (message.replyToContent ?? '');
@@ -593,49 +660,74 @@ class MessageBubble extends ConsumerWidget {
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 12,
             fontStyle: FontStyle.italic,
-            color: KinrelColors.textSilver.withValues(alpha: 0.6),
+            color: ChatUi.textSubtitle.withValues(alpha: 0.6),
             height: 1.3,
           )
-        : TextStyle(
-            fontFamily: KinrelTypography.bodyFont,
-            fontSize: 12,
-            color: KinrelColors.textSilver.withValues(alpha: 0.85),
-            height: 1.3,
-          );
+        : ChatUi.replyQuoteText;
+
+    // Background: black at 22% alpha over the chat wallpaper (a solid
+    // opaque color via blendOver — flat style, no Opacity layer).
+    final Color quoteBackground = ChatUi.blendOver(
+        ChatUi.chatBackground, Colors.black, 0.22);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(10),
-        border: Border(
-          left: BorderSide(
-            color: KinrelColors.orange.withValues(alpha: 0.7),
-            width: 2.5,
+      margin: const EdgeInsets.only(bottom: ChatUi.replyBottomMargin),
+      child: ClipRRect(
+        // Clip the band to the rounded corners so the left band
+        // doesn't bleed past the radius.
+        borderRadius: BorderRadius.circular(ChatUi.replyRadius),
+        child: Container(
+          decoration: BoxDecoration(
+            color: quoteBackground,
+            borderRadius: BorderRadius.circular(ChatUi.replyRadius),
           ),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            message.replyToSenderName ?? '',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: KinrelColors.orange.withValues(alpha: 0.95),
-              letterSpacing: 0.2,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Left band — kinship color (own: orange, unresolved:
+                // extended, resolved: kinshipCategoryColor).
+                Container(width: ChatUi.replyBandWidth, color: replyBandColor),
+                // Content.
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                      top: ChatUi.replyTopPad,
+                      right: ChatUi.replyRightPad,
+                      bottom: ChatUi.replyBottomPad,
+                      left: 8, // gap between band and content
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          titleText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: titleColor,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          previewContent,
+                          style: previewStyle,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            previewContent,
-            style: previewStyle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+        ),
       ),
     );
   }
