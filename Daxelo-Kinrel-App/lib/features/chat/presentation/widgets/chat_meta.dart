@@ -3,35 +3,30 @@
 // DAXELO KINREL — Chat meta widgets extracted from chat_screen.dart (v5.184)
 //
 // Leaf widgets that have zero dependencies on _ChatScreenState:
-//   - ReadReceipt (single/double tick)
-//   - DoubleTickPainter (CustomPaint for tick marks)
-//   - SendButton (Ignite gradient circle)
-//   - HeaderActionButton (video/voice call buttons)
-//   - AttachmentButton (attach file icon)
-//   - MicButton (voice message trigger)
-//   - StickerButton (emoji panel toggle)
-//   - StickerPackButton (Giphy stickers)
-//   - PollButton (poll composer)
+//   - ReadReceipt (done / done_all ticks, D7)
 //   - RecordingDot (pulsing red dot while recording)
-//   - ReactionOverlay (emoji reaction popup)
+//   - ReactionOverlay (D15 reaction bar pill)
 //   - DateGroup (helper class for date separators)
 //   - Tier3SwipeToReply (swipe-to-reply Dismissible wrapper)
-//   - ScrollToBottomFab (scroll-to-bottom FAB — v3.4 MOVED from
-//     chat_screen.dart's _buildScrollFab so the DM renders the same FAB)
-//   - _kinshipCategoryColor (helper function for edge colors)
+//   - ScrollToBottomFab (scroll-to-bottom FAB)
+//   - kinshipCategoryColor (helper function for edge colors)
+//
+// Chat UI Reference: composer buttons (Send/Mic/Attach/Sticker/Poll)
+// moved into the D12 ChatInputBar capsule; the header actions live in
+// chat_header_bar.dart (ChatHeaderBar).
 //
 // Pure mechanical extraction — every class keeps its exact API.
 // chat_screen.dart imports this file instead of defining them inline.
 
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../../core/constants/brand_colors.dart';
 import '../../../../../core/constants/brand_spacing.dart';
 import '../../../../../core/kinship/kinship_edge_style.dart';
+import '../chat_ui_tokens.dart';
 import '../../../../../core/theme/kinrel_fx.dart';
 import '../../providers/chat_provider.dart';
 
@@ -51,26 +46,29 @@ class ReadReceipt extends StatelessWidget {
 
     // Feature 1: 'sending' shows a small clock icon (no ticks yet — the
     // message hasn't reached the server). 'failed' shows a red error
-    // circle with a retry affordance handled by the bubble (tapping the
+    // icon; retry affordance is handled by the bubble (tapping the
     // whole bubble retries, not just the receipt).
+    //
+    // D7/C: ticks render as the Material done_all glyph at 13 dp (the
+    // existing tick COLORS and states stay exactly as they were).
     if (status == 'sending') {
       return SizedBox(
-        width: 10,
-        height: 10,
+        width: 13,
+        height: 13,
         child: Icon(
           Icons.access_time,
-          size: 10,
+          size: 13,
           color: KinrelColors.textDim.withValues(alpha: 0.7),
         ),
       );
     }
     if (status == 'failed') {
       return SizedBox(
-        width: 12,
-        height: 12,
+        width: 13,
+        height: 13,
         child: Icon(
           Icons.error_outline,
-          size: 12,
+          size: 13,
           color: Colors.red.shade400,
         ),
       );
@@ -92,57 +90,15 @@ class ReadReceipt extends StatelessWidget {
     }
 
     return SizedBox(
-      width: showDouble ? 16 : 10,
-      height: 10,
-      child: CustomPaint(painter: DoubleTickPainter(color: color, showDouble: showDouble)),
+      width: 13,
+      height: 13,
+      child: Icon(
+        showDouble ? Icons.done_all : Icons.done,
+        size: 13,
+        color: color,
+      ),
     );
   }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Double Tick Painter
-// ═══════════════════════════════════════════════════════════════════════
-
-class DoubleTickPainter extends CustomPainter {
-  const DoubleTickPainter({required this.color, this.showDouble = true});
-
-  final Color color;
-  final bool showDouble;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    if (showDouble) {
-      final path1 = Path();
-      path1.moveTo(0, size.height * 0.55);
-      path1.lineTo(size.width * 0.2, size.height * 0.85);
-      path1.lineTo(size.width * 0.42, size.height * 0.15);
-
-      final path2 = Path();
-      path2.moveTo(size.width * 0.35, size.height * 0.55);
-      path2.lineTo(size.width * 0.55, size.height * 0.85);
-      path2.lineTo(size.width * 0.95, size.height * 0.15);
-
-      canvas.drawPath(path1, paint);
-      canvas.drawPath(path2, paint);
-    } else {
-      final path = Path();
-      path.moveTo(0, size.height * 0.55);
-      path.lineTo(size.width * 0.25, size.height * 0.85);
-      path.lineTo(size.width * 0.95, size.height * 0.15);
-      canvas.drawPath(path, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant DoubleTickPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.showDouble != showDouble;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -172,273 +128,6 @@ Color? kinshipCategoryColor(KinshipEdgeCategory category) {
     case KinshipEdgeCategory.self:
     case KinshipEdgeCategory.indirect:
       return null;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Send Button
-// ═══════════════════════════════════════════════════════════════════════
-
-class SendButton extends StatelessWidget {
-  const SendButton({super.key, required this.isActive, required this.onTap});
-
-  final bool isActive;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: isActive ? onTap : null,
-      child: AnimatedContainer(
-        duration: KinrelMotion.fast,
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          // PERF (Flat): EXEMPT — primary orange CTA keep igniteGradient.
-          // Inactive branch falls back to a solid color (was a degenerate
-          // gradient with both stops equal — equivalent to a flat color).
-          color: KinrelFx.rich ? null : const Color(0xFF202338),
-          gradient: isActive
-              ? KinrelGradients.igniteGradient
-              : KinrelFx.gradient(
-                  const LinearGradient(
-                    colors: [Color(0xFF202338), Color(0xFF202338)],
-                  ),
-                ),
-          // PERF (Flat): no shadow in flat mode (rich keeps the orange glow).
-          boxShadow: isActive
-              ? KinrelFx.shadows([
-                  BoxShadow(
-                    color: KinrelColors.orange.withValues(alpha: 0.35),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ])
-              : null,
-        ),
-        child: Icon(
-          Icons.send_rounded,
-          size: 18,
-          color: isActive ? Colors.white : KinrelColors.textDim,
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Header Action Button
-// ═══════════════════════════════════════════════════════════════════════
-
-class HeaderActionButton extends StatelessWidget {
-  const HeaderActionButton({
-    super.key,
-    required this.icon,
-    required this.onPressed,
-    this.size = 20,
-  });
-
-  final IconData icon;
-  final VoidCallback onPressed;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onPressed,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        width: 36,
-        height: 36,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.transparent,
-        ),
-        child: Icon(
-          icon,
-          size: size,
-          color: KinrelColors.textSilver,
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Attachment Button
-// ═══════════════════════════════════════════════════════════════════════
-
-class AttachmentButton extends StatelessWidget {
-  const AttachmentButton({super.key, required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: KinrelMotion.fast,
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: const Color(0xFF1A1D2E),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.06),
-            width: 0.75,
-          ),
-        ),
-        child: const Icon(
-          Icons.attach_file_rounded,
-          size: 21,
-          color: KinrelColors.textSilver,
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Mic Button
-// ═══════════════════════════════════════════════════════════════════════
-
-class MicButton extends StatelessWidget {
-  const MicButton({super.key, required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: KinrelMotion.fast,
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white.withValues(alpha: 0.06),
-        ),
-        child: const Icon(
-          Icons.mic_rounded,
-          size: 19,
-          color: KinrelColors.textSilver,
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Sticker Button
-// ═══════════════════════════════════════════════════════════════════════
-
-class StickerButton extends StatelessWidget {
-  const StickerButton({super.key, required this.isActive, required this.onTap});
-
-  final bool isActive;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: isActive
-              ? KinrelColors.ember.withValues(alpha: 0.15)
-              : const Color(0xFF1A1D2E),
-          border: isActive
-              ? Border.all(
-                  color: KinrelColors.ember.withValues(alpha: 0.4),
-                  width: 1)
-              : Border.all(
-                  color: Colors.white.withValues(alpha: 0.06),
-                  width: 0.75,
-                ),
-        ),
-        child: Icon(
-          Icons.emoji_emotions_rounded,
-          size: 21,
-          color: isActive ? KinrelColors.orange : KinrelColors.textSilver,
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Sticker Pack Button
-// ═══════════════════════════════════════════════════════════════════════
-
-class StickerPackButton extends StatelessWidget {
-  const StickerPackButton({super.key, required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: const Color(0xFF1A1D2E),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.06),
-            width: 0.75,
-          ),
-        ),
-        child: const Icon(
-          Icons.emoji_emotions_outlined,
-          size: 21,
-          color: KinrelColors.textSilver,
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Poll Button
-// ═══════════════════════════════════════════════════════════════════════
-
-class PollButton extends StatelessWidget {
-  const PollButton({super.key, required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: const Color(0xFF1A1D2E),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.06),
-            width: 0.75,
-          ),
-        ),
-        child: const Icon(
-          Icons.poll_rounded,
-          size: 21,
-          color: KinrelColors.textSilver,
-        ),
-      ),
-    );
   }
 }
 
@@ -521,6 +210,9 @@ class ReactionOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // D15: pill, radius full, background chatMenu, margin 4 vertical /
+    // 12 horizontal, padding 8 vertical / 12 horizontal, six reaction
+    // glyphs of size 22 evenly spaced and a plus button last.
     return GestureDetector(
       onTap: onDismiss,
       behavior: HitTestBehavior.opaque,
@@ -528,71 +220,51 @@ class ReactionOverlay extends StatelessWidget {
         children: [
           const SizedBox.expand(),
           Positioned(
-            left: 0,
-            right: 0,
+            left: 12,
+            right: 12,
             top: MediaQuery.of(context).size.height * 0.55,
             child: Center(
               child: Material(
                 color: Colors.transparent,
                 child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 4),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF202338),
-                    borderRadius: BorderRadius.circular(KinrelRadius.xxl),
-                    border: Border.all(
-                      color: const Color(0xFF3A3A4A),
-                      width: 0.5,
-                    ),
-                    // PERF (Tier A2): clamp shadow blur on web. This
-                    // FAB is visible during the entire chat session
-                    // and the 20px blur was the chat-thread screen's
-                    // largest per-frame shadow cost. 8px is visually
-                    // equivalent at 1x DPR and ~3x cheaper.
-                    //
-                    // PERF (Flat): no shadow in flat mode.
-                    boxShadow: KinrelFx.shadows([
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.4),
-                        blurRadius: kIsWeb ? 8 : 20,
-                        offset: kIsWeb ? const Offset(0, 3) : const Offset(0, 8),
-                      ),
-                    ]),
+                    color: ChatUi.chatMenu,
+                    borderRadius: BorderRadius.circular(KinrelRadius.full),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      ..._emojis.map((emoji) {
-                        return GestureDetector(
+                      for (final emoji in _emojis)
+                        GestureDetector(
                           onTap: () => onEmojiSelected(emoji),
-                          child: Container(
-                            width: 42,
-                            height: 42,
-                            margin: const EdgeInsets.symmetric(horizontal: 2),
-                            decoration: const BoxDecoration(shape: BoxShape.circle),
+                          behavior: HitTestBehavior.opaque,
+                          child: SizedBox(
+                            width: 40,
+                            height: 40,
                             child: Center(
-                              child: Text(emoji, style: const TextStyle(fontSize: 24)),
+                              child: Text(
+                                emoji,
+                                style: const TextStyle(fontSize: 22),
+                              ),
                             ),
                           ),
-                        );
-                      }),
+                        ),
                       if (onMoreTap != null)
                         GestureDetector(
                           onTap: onMoreTap,
-                          child: Container(
-                            width: 42,
-                            height: 42,
-                            margin: const EdgeInsets.symmetric(horizontal: 2),
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: KinrelColors.darkElevated,
-                            ),
+                          behavior: HitTestBehavior.opaque,
+                          child: SizedBox(
+                            width: 40,
+                            height: 40,
                             child: const Center(
                               child: Icon(
                                 Icons.add,
-                                color: KinrelColors.textSilver,
+                                color: ChatUi.reactionPlus,
                                 size: 22,
                               ),
                             ),
@@ -802,20 +474,13 @@ class ScrollToBottomFab extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: KinrelColors.darkCard,
-              border: Border.all(color: const Color(0xFF3A3A4A), width: 1),
-              // PERF (Flat): no shadow in flat mode.
-              boxShadow: KinrelFx.shadows([
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]),
+              color: ChatUi.chatCard,
+              border: Border.all(
+                  color: ChatUi.chatMenuBorder, width: ChatUi.menuBorderWidth),
             ),
             child: const Icon(
               Icons.keyboard_arrow_down,
-              color: KinrelColors.textSilver,
+              color: ChatUi.textSecondary,
               size: 24,
             ),
           ),

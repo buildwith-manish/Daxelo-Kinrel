@@ -49,14 +49,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/brand_colors.dart';
+import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
-import '../../../../core/theme/kinrel_fx.dart';
 import '../../../../core/utils/app_time.dart';
 import '../../../../core/family/family_provider.dart';
 import '../../../../graph/interaction/graph_focus_state.dart';
 import '../../providers/chat_provider.dart';
 import 'chat_meta.dart';
 import 'message_bubble.dart';
+import '../chat_ui_tokens.dart';
 import 'chat_system_notice.dart';
 import 'floating_date_indicator.dart';
 import 'game_invite_card.dart';
@@ -192,11 +193,11 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
   Widget build(BuildContext context) {
     final grouped = _groupByDate(widget.messages);
 
-    // v130: Bottom padding reserves space for the scroll-to-bottom FAB
-    // (40px tall, 8px from bottom = 48px footprint) plus a 16px buffer
-    // so the most recent message is never obscured by the FAB. In a
-    // reversed ListView, padding.bottom is applied at the visual bottom.
-    const fabClearance = 64.0;
+    // D2: top padding 10; bottom padding 12 (+ FAB clearance so the
+    // newest message is never obscured by the scroll-to-bottom FAB).
+    // Horizontal padding is applied per-row (not on the list) so a
+    // SELECTED row can tint the full screen width edge-to-edge (D16).
+    const fabClearance = 60.0;
 
     return Stack(
       children: [
@@ -210,7 +211,7 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
       // animation on screen entry — the list naturally opens at offset
       // 0 = the most recent message, exactly like WhatsApp.
       reverse: true,
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, fabClearance),
+      padding: const EdgeInsets.fromLTRB(0, 10, 0, fabClearance),
       itemCount: grouped.length,
       // PERF (Tier K4): cacheExtent reduced from 1500 → 800.
       // 1500px kept ~2 screens of offscreen content alive in the render
@@ -222,8 +223,11 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
         final group = grouped[index];
         return Column(
           children: [
-            // Date separator pill
-            _buildDateSeparator(group.dateLabel),
+            // Date separator pill (D8: centered, chatCard pill)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: _buildDateSeparator(group.dateLabel),
+            ),
             const SizedBox(height: 8),
             // Messages for this date — with sender grouping, system
             // notice short-circuit, unread divider, and terminal invite
@@ -276,10 +280,13 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
           run.add(msgs[j]);
           j++;
         }
-        rows.add(CollapsedGameInvites(
-          messages: run,
-          isMe: msg.senderId == widget.currentUserId,
-          routeFamilyId: widget.inviteFamilyId ?? widget.familyId,
+        rows.add(Padding(
+          padding: const EdgeInsets.only(left: 12, right: 12),
+          child: CollapsedGameInvites(
+            messages: run,
+            isMe: msg.senderId == widget.currentUserId,
+            routeFamilyId: widget.inviteFamilyId ?? widget.familyId,
+          ),
         ));
         i = j;
         continue;
@@ -290,7 +297,7 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
       // ── System notice (PR 1): no bubble, breaks clustering ─────────
       if (msg.messageType == MessageType.system) {
         rows.add(Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.only(bottom: 8, left: 12, right: 12),
           child: ChatSystemNotice(
             content: msg.content,
             onViewInTree:
@@ -312,7 +319,8 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
       final bool isFirstInGroup = _clusterBreakBefore(msg, prev);
       final bool isLastInGroup = _clusterBreakAfter(msg, next);
 
-      // Tighter spacing within groups (2px) vs between groups (8px).
+      // D2: vertical gap 8 between different senders/clusters, 2
+      // between consecutive messages of the same sender within 2 minutes.
       final bottomPadding = isLastInGroup ? 8.0 : 2.0;
 
       // ── Unread divider (PR2 Task 3) ───────────────────────────────
@@ -322,7 +330,10 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
           widget.unreadDividerMessageId == msg.id &&
               widget.unreadDividerCount > 0;
       if (showUnreadDivider) {
-        rows.add(_buildUnreadDivider());
+        rows.add(Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: _buildUnreadDivider(),
+        ));
       }
 
       final bubble = MessageBubble(
@@ -371,38 +382,60 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
             )
           : bounded;
 
-      rows.add(Padding(
-        padding: EdgeInsets.only(bottom: bottomPadding),
-        child: wrapped,
-      ));
+      // D16: the whole row width gets chatSelectedRow behind it while
+      // selected (padding 3 vertical / 12 horizontal, no border, no
+      // check icon — tapping the row toggles selection, handled by the
+      // bubble's GestureDetector). The tint spans the full screen width
+      // because the list itself has no horizontal padding.
+      final bool selectedRow =
+          widget.selectionMode && widget.selectedMessageIds.contains(msg.id);
+      if (selectedRow) {
+        rows.add(Container(
+          width: double.infinity,
+          color: ChatUi.chatSelectedRow,
+          padding: EdgeInsets.fromLTRB(12, 3, 12, 3 + bottomPadding),
+          child: wrapped,
+        ));
+      } else {
+        rows.add(Padding(
+          padding: EdgeInsets.only(left: 12, right: 12, bottom: bottomPadding),
+          child: wrapped,
+        ));
+      }
       i++;
     }
     return rows;
   }
 
   /// Whether the cluster breaks between [prev] and [msg] (different
-  /// sender, >60s gap, or the previous row is a system notice).
+  /// sender, >2min gap (D2), or the previous row is a system notice).
   bool _clusterBreakBefore(ChatMessage msg, ChatMessage? prev) {
     if (prev == null) return true;
     if (prev.messageType == MessageType.system) return true;
     return prev.senderId != msg.senderId ||
-        msg.timestamp.difference(prev.timestamp).inSeconds.abs() > 60;
+        msg.timestamp.difference(prev.timestamp).inSeconds.abs() > 120;
   }
 
   /// Whether the cluster breaks between [msg] and [next] (different
-  /// sender, >60s gap, or the next row is a system notice).
+  /// sender, >2min gap (D2), or the next row is a system notice).
   bool _clusterBreakAfter(ChatMessage msg, ChatMessage? next) {
     if (next == null) return true;
     if (next.messageType == MessageType.system) return true;
     return next.senderId != msg.senderId ||
-        next.timestamp.difference(msg.timestamp).inSeconds.abs() > 60;
+        next.timestamp.difference(msg.timestamp).inSeconds.abs() > 120;
   }
 
-  /// A terminal game invite (expired / cancelled / completed).
+  /// A terminal game invite that renders as a one-line row (expired /
+  /// cancelled / completed-without-winner). Completed games WITH a
+  /// winner render as the D18b result card and never collapse.
   bool _isTerminalInvite(ChatMessage msg) {
     if (msg.messageType != MessageType.gameInvite) return false;
     final s = msg.gameInviteStatus ?? 'pending';
-    return s == 'expired' || s == 'cancelled' || s == 'completed';
+    if (s == 'expired' || s == 'cancelled') return true;
+    if (s == 'completed') {
+      return (msg.gameWinnerName ?? '').isEmpty;
+    }
+    return false;
   }
 
   // ── Unread divider pill (PR2 Task 3) ──────────────────────────────
@@ -418,35 +451,14 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
           child: Center(
             child: Container(
               padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: KinrelColors.orange.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(100),
-                border: Border.all(
-                  color: KinrelColors.orange.withValues(alpha: 0.35),
-                  width: 0.5,
-                ),
+                color: ChatUi.chatReceived,
+                borderRadius: BorderRadius.circular(KinrelRadius.full),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.mark_email_unread_outlined,
-                    size: 12,
-                    color: KinrelColors.orange,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    '$count unread message${count == 1 ? '' : 's'}',
-                    style: const TextStyle(
-                      fontFamily: KinrelTypography.monoFont,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w600,
-                      color: KinrelColors.orange,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                ],
+              child: Text(
+                '$count unread message${count == 1 ? '' : 's'}',
+                style: ChatUi.unreadPillText,
               ),
             ),
           ),
@@ -531,40 +543,22 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
     });
   }
 
-  /// Date separator pill — MOVED verbatim from chat_screen.dart's
-  /// _buildDateSeparator. Frosted-glass pill with the day label.
+  /// D8: Date separator (static) — centered pill, radius full,
+  /// padding 4 vertical / 12 horizontal, background chatCard, text 12
+  /// textSecondary. Normal font — never monospace.
   Widget _buildDateSeparator(String label) {
     return RepaintBoundary(
       child: Center(
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF13141E).withValues(alpha: 0.78),
-            borderRadius: BorderRadius.circular(100),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.08),
-              width: 0.5,
-            ),
-            // PERF (Flat): no shadow in flat mode. The 0.5px hairline
-            // border already provides separation against the wallpaper.
-            boxShadow: KinrelFx.shadows([
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ]),
+            color: ChatUi.chatCard,
+            borderRadius: BorderRadius.circular(KinrelRadius.full),
           ),
           child: Text(
             label,
-            style: TextStyle(
-              fontFamily: KinrelTypography.monoFont,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w600,
-              color: KinrelColors.textSilver.withValues(alpha: 0.9),
-              letterSpacing: 0.8,
-            ),
+            style: ChatUi.pillText,
           ),
         ),
       ),

@@ -34,9 +34,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
-import '../../../../core/constants/brand_colors.dart';
-import '../../../../core/constants/brand_typography.dart';
-import '../../../../core/theme/kinrel_fx.dart';
+import '../../../../core/constants/brand_spacing.dart';
+import '../chat_ui_tokens.dart';
 
 const _kHideDelay = Duration(milliseconds: 1200);
 const _kThrottleMs = 100;
@@ -222,7 +221,8 @@ class _FloatingDateIndicatorState extends State<FloatingDateIndicator>
     }
 
     return Positioned(
-      top: 6,
+      // D8: floating chip placed top center 8 below the header.
+      top: 8,
       left: 0,
       right: 0,
       child: IgnorePointer(
@@ -230,32 +230,16 @@ class _FloatingDateIndicatorState extends State<FloatingDateIndicator>
           child: FadeTransition(
             opacity: _animController,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                // Match the inline date separator's styling exactly.
-                color: const Color(0xFF13141E).withValues(alpha: 0.78),
-                borderRadius: BorderRadius.circular(100),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  width: 0.5,
-                ),
-                boxShadow: KinrelFx.shadows([
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.25),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ]),
+                // D8 floating chip: same size as the static separator,
+                // background chatReceived, text textPrimary.
+                color: ChatUi.chatReceived,
+                borderRadius: BorderRadius.circular(KinrelRadius.full),
               ),
               child: Text(
                 _currentLabel!,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.monoFont,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.textSilver.withValues(alpha: 0.9),
-                  letterSpacing: 0.8,
-                ),
+                style: ChatUi.floatingDateText,
               ),
             ),
           ),

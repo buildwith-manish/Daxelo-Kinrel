@@ -1,57 +1,69 @@
 // lib/features/chat/presentation/widgets/game_invite_card.dart
 //
-// DAXELO KINREL — Shared Game Invite Card (Kin Thread / PR2 Task 5)
+// DAXELO KINREL — Shared Game Invite Card (Chat UI Reference D18)
 //
-// ONE invite card used by BOTH chat types (group + direct). Extracted
-// from the ~580-line inline builder in message_bubble.dart so no
-// duplicate invite-card code exists anywhere.
+// ONE invite card used by BOTH chat types (group + direct). Four states:
 //
-// Layout rules (per the Kin Thread spec):
-//   • ACTIVE invites (pending / waiting / live):
-//       a slim card of ~100 logical pixels: 40px game icon, title,
-//       players count (+ room code), and the Join / status button.
-//   • EXPIRED or COMPLETED invites:
-//       a one-line row (small icon, game name, status — or the winner
-//       when known — and the time).
-//   • Three or more consecutive expired/completed invites collapse
-//     into one row "N game invites · expired" — see
-//     [CollapsedGameInvites] (wired by ChatMessageList, which owns the
-//     run detection).
+//   a) ACTIVE (pending / waiting / live): rendered INSIDE the message
+//      bubble (sent color for own invites, received color for others —
+//      the bubble provides the surface). Row with 10 gap: a 40×40 tile
+//      (radius 8, background chatReceived, game icon 22 in orange, the
+//      game image when one exists), a column (title 14/500 textPrimary;
+//      players · room code line 12 textSecondary — plain text, never
+//      monospace), and the Join/status button (transparent background,
+//      0.5 orange border, orange 13/500, radius 8, padding 5/12, 48 dp
+//      tap target). The bubble renders the D7 time row below.
 //
-// Status source is unchanged: the ChatMessage row's game columns
-// (group + direct-group chats share the same lifecycle sync RPCs).
+//   b) RESULT (completed WITH a winner): the bubble renders a row with
+//      10 gap: trophy icon 22 in #F59E0B, text 14 textPrimary
+//      ("<Winner> won <Game>" — the message row stores no numeric
+//      score, so the ", 3 to 2" part is omitted until score data
+//      exists), and a Rematch button styled like Join that opens the
+//      game's lobby (existing navigation, same route a fresh invite
+//      uses).
 //
-// Result card: the message row holds gameWinnerName but NO score
-// (scores live only inside per-game tables; game_match_history has
-// winnerNames but no numeric score). Per spec, the full
-// "Papa won Tic-Tac-Toe, 3 to 2" + Rematch result card was therefore
-// NOT built — completed invites show the winner line instead.
+//   c) EXPIRED / CANCELLED / COMPLETED WITHOUT WINNER: a quiet
+//      one-line row with NO bubble — padding 4 vertical / 6 horizontal,
+//      row with 8 gap: game icon 16, text 13 textSubtitle
+//      ("SOS · Expired"), the time 11 textMeta right.
 //
-// Flat style: solid colors, no gradients/blur/shadows. Tap targets are
-// at least 48 logical pixels; every state carries a text label (never
-// color alone); text scales to 1.3 without overflow.
+//   d) COLLAPSED run of 3+ consecutive one-liners: radius 10,
+//      background chatCard, padding 8/10, row with 8 gap: game icon 16,
+//      "3 game invites · expired" 13 textSubtitle, chevron down 16 at
+//      the right. Wired by ChatMessageList (run detection).
+//
+// Status source is unchanged: the ChatMessage row's game columns.
+// Behavior of join, status and expiry stays exactly as it is today.
+// Flat style: solid colors, no gradients/blur/shadows.
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../../core/constants/brand_colors.dart';
-import '../../../../../core/constants/brand_typography.dart';
 import '../../../games/shared/icons/game_icons.dart';
 import '../../../games/shared/models/game_invite.dart';
 import '../../providers/chat_provider.dart';
+import '../chat_ui_tokens.dart';
 
-/// The one shared game-invite card. Rendered inside the message bubble.
+/// The one shared game-invite card. Rendered inside the message bubble
+/// (states a/b) or as a bubble-less one-liner (state c).
 class GameInviteCard extends StatelessWidget {
   const GameInviteCard({
     super.key,
     required this.message,
     required this.isMe,
     required this.routeFamilyId,
+    this.scoreLine,
   });
 
   /// The invite message (gameType/gameId/roomCode/players/status/
   /// winnerName columns are parsed by ChatMessage.fromJson).
   final ChatMessage message;
+
+  /// Optional score suffix for the result card (e.g. ', 3 to 2').
+  /// The ChatMessage row stores no numeric score today, so real chats
+  /// pass nothing; the UI gallery passes the reference sample. The
+  /// moment a score column exists it can be forwarded here.
+  final String? scoreLine;
 
   /// Whether the current user is the invite sender (host never sees
   /// "Join" — they get Rejoin/Spectate or a status label).
@@ -75,100 +87,102 @@ class GameInviteCard extends StatelessWidget {
 
   bool get _isExpired => _status == 'expired' || _status == 'cancelled';
 
-  bool get _isTerminal => _isCompleted || _isExpired;
+  bool get _hasWinner =>
+      _isCompleted &&
+      message.gameWinnerName != null &&
+      message.gameWinnerName!.isNotEmpty;
 
   // ── Build ──────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    if (_isTerminal) {
+    // b) Result card — completed with a known winner.
+    if (_hasWinner) {
+      return _buildResultCard(context);
+    }
+    // c) Expired / cancelled / completed-without-winner one-liner.
+    if (_isCompleted || _isExpired) {
       return _buildTerminalRow();
     }
+    // a) Active invite — slim card inside the bubble.
     return _buildActiveCard(context);
   }
 
-  // ── Active (pending / live): slim card ─────────────────────────────
+  // ── Helpers ─────────────────────────────────────────────────────────
+
+  String get _displayName {
+    final rawGameType = message.gameType ?? '';
+    final parsed = GameTypeX.fromRouteSegment(rawGameType);
+    return parsed?.displayName ?? _titleCaseSegment(rawGameType);
+  }
+
+  // ── a) Active (pending / live): slim card inside the bubble ────────
 
   Widget _buildActiveCard(BuildContext context) {
     final rawGameType = message.gameType ?? '';
     final parsedGameType = GameTypeX.fromRouteSegment(rawGameType);
-    final displayName =
-        parsedGameType?.displayName ?? _titleCaseSegment(rawGameType);
     final maxPlayers = message.gameMaxPlayers ?? 2;
     final currentPlayers = message.gameCurrentPlayers ?? 1;
     final roomCode = (message.roomCode ?? '').trim();
     final isFull = currentPlayers >= maxPlayers;
 
-    // Action button resolution — unchanged from the previous inline
-    // card (Join / Spectate / Full / In Game / Rejoin).
+    // Action button resolution — unchanged from the previous card
+    // (Join / Spectate / Full / In Game / Rejoin).
     final action = _resolveAction(context: context, isFull: isFull);
 
     return RepaintBoundary(
       child: Semantics(
         container: true,
         label:
-            'Game invite: $displayName, $currentPlayers of $maxPlayers players.'
+            'Game invite: $_displayName, $currentPlayers of $maxPlayers players.'
             '${action.label != null ? ' Action: ${action.label}.' : ''}',
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: KinrelColors.orange.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: KinrelColors.orange.withValues(alpha: 0.2),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              // 40px game icon
-              SizedBox(
-                width: 40,
-                height: 40,
+        child: Row(
+          children: [
+            // 40×40 tile — radius 8, chatReceived, game icon 22 orange
+            // (the game image when one exists).
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: ChatUi.chatReceived,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
                 child: parsedGameType != null
-                    ? GameIcon(gameId: rawGameType, size: 40)
-                    : const Icon(Icons.sports_esports,
-                        size: 26, color: KinrelColors.orange),
-              ),
-              const SizedBox(width: 10),
-              // Title + players count (+ room code)
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontFamily: KinrelTypography.displayFont,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: KinrelColors.textWhite,
+                    ? GameIcon(gameId: rawGameType, size: 22)
+                    : const Icon(
+                        Icons.sports_esports_outlined,
+                        size: ChatUi.iconGameTile,
+                        color: ChatUi.accent,
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '$currentPlayers/$maxPlayers players'
-                      '${roomCode.isNotEmpty ? ' • $roomCode' : ''}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontFamily: KinrelTypography.monoFont,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w500,
-                        color: KinrelColors.textSilver,
-                        letterSpacing: 0.4,
-                      ),
-                    ),
-                  ],
-                ),
               ),
-              const SizedBox(width: 8),
-              if (action.label != null) _buildActionButton(context, action),
-            ],
-          ),
+            ),
+            const SizedBox(width: 10),
+            // Title + players · room code (plain text, no monospace).
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: ChatUi.inviteTitle,
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    '$currentPlayers/$maxPlayers players'
+                    '${roomCode.isNotEmpty ? ' · $roomCode' : ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: ChatUi.invitePlayers,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (action.label != null) _buildInviteButton(context, action),
+          ],
         ),
       ),
     );
@@ -226,53 +240,41 @@ class GameInviteCard extends StatelessWidget {
     return (label: null, onTap: null, urgent: false, enabled: false);
   }
 
-  Widget _buildActionButton(
+  /// The Join / Spectate / Rejoin / Rematch button: transparent
+  /// background, 0.5 orange border, orange 13/500 text, radius 8,
+  /// padding 5 vertical / 12 horizontal, ≥48 dp tap target.
+  Widget _buildInviteButton(
     BuildContext context,
     ({String? label, VoidCallback? onTap, bool urgent, bool enabled}) action,
   ) {
     final enabled = action.enabled && action.onTap != null;
-    return SizedBox(
-      // ≥48 logical pixel tap target.
-      height: 48,
-      child: Material(
-        color: enabled
-            ? (action.urgent
-                ? KinrelColors.orange.withValues(alpha: 0.15)
-                : KinrelColors.orange)
-            : KinrelColors.darkElevated,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: action.onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (enabled && action.urgent) ...[
-                    Icon(
-                      isMe ? Icons.replay : Icons.visibility_outlined,
-                      size: 14,
-                      color: KinrelColors.orange,
-                    ),
-                    const SizedBox(width: 5),
-                  ],
-                  Text(
-                    action.label!,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: enabled
-                          ? (action.urgent
-                              ? KinrelColors.orange
-                              : KinrelColors.textWhite)
-                          : KinrelColors.textDim,
-                    ),
-                  ),
-                ],
-              ),
+    final label = action.label!;
+    return Semantics(
+      label: label,
+      button: true,
+      enabled: enabled,
+      child: GestureDetector(
+        onTap: action.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          // ≥48 dp tap target (the visual pill is smaller, centered).
+          constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: enabled
+                  ? ChatUi.accent
+                  : ChatUi.accent.withValues(alpha: 0.4),
+              width: 0.5,
+            ),
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.transparent,
+          ),
+          child: Text(
+            label,
+            style: ChatUi.buttonLabel.copyWith(
+              color: enabled ? ChatUi.accent : ChatUi.textMeta,
             ),
           ),
         ),
@@ -280,59 +282,91 @@ class GameInviteCard extends StatelessWidget {
     );
   }
 
-  // ── Terminal (expired / completed): one-line row ───────────────────
+  // ── b) Result card (completed with winner) ──────────────────────────
+
+  Widget _buildResultCard(BuildContext context) {
+    final winner = message.gameWinnerName ?? '';
+    final rawGameType = message.gameType ?? '';
+    return RepaintBoundary(
+      child: Semantics(
+        container: true,
+        label: '$_displayName result: $winner won.',
+        child: Row(
+          children: [
+            // Trophy icon 22 in #F59E0B.
+            const Icon(
+              Icons.emoji_events_outlined,
+              size: ChatUi.iconTrophy,
+              color: Color(0xFFF59E0B),
+            ),
+            const SizedBox(width: 10),
+            // "<Winner> won <Game>" — the message row carries no numeric
+            // score, so the ", 3 to 2" part is omitted (visual-ready:
+            // the moment scores are stored on the row they can be
+            // appended here).
+            Expanded(
+              child: Text(
+                '$winner won $_displayName'
+                '${scoreLine != null && scoreLine!.isNotEmpty ? ', $scoreLine' : ''}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: ChatUi.inviteTitle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Rematch — styled like Join; opens the game's lobby (the
+            // same route a fresh invite uses — existing navigation).
+            _buildInviteButton(
+              context,
+              (
+                label: 'Rematch',
+                onTap: (message.gameType ?? '').isNotEmpty && routeFamilyId != null
+                    ? () => context.go(
+                        '/family/$routeFamilyId/${message.gameType}/lobby')
+                    : null,
+                urgent: false,
+                enabled: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── c) Terminal (expired / no-winner completed): one-line row ───────
 
   Widget _buildTerminalRow() {
-    final rawGameType = message.gameType ?? '';
-    final parsedGameType = GameTypeX.fromRouteSegment(rawGameType);
-    final displayName =
-        parsedGameType?.displayName ?? _titleCaseSegment(rawGameType);
-    final winnerName = message.gameWinnerName;
-    // Completed + winner → "Tic-Tac-Toe · Papa won" (no score is stored
-    // on the message row, so the numeric result card is not built).
-    final detail = _isCompleted
-        ? (winnerName != null && winnerName.isNotEmpty
-            ? '$winnerName won'
-            : 'Completed')
-        : 'Expired';
-
+    final detail = _isExpired
+        ? 'Expired'
+        : (_hasWinner ? 'Completed' : 'Completed');
     return Semantics(
       container: true,
-      label: 'Game invite: $displayName, $detail.',
+      label: 'Game invite: $_displayName, $detail.',
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 48),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
           child: Row(
             children: [
-              Icon(
-                _isCompleted ? Icons.emoji_events_outlined : Icons.event_busy,
-                size: 15,
-                color: KinrelColors.textDim,
+              const Icon(
+                Icons.sports_esports_outlined,
+                size: ChatUi.iconGameLine,
+                color: ChatUi.textSubtitle,
               ),
               const SizedBox(width: 8),
-              Flexible(
+              Expanded(
                 child: Text(
-                  '$displayName · $detail',
+                  '$_displayName · $detail',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: KinrelColors.textDim,
-                  ),
+                  style: ChatUi.inviteExpired,
                 ),
               ),
               const SizedBox(width: 8),
               Text(
                 message.formattedTime,
-                style: const TextStyle(
-                  fontFamily: KinrelTypography.monoFont,
-                  fontSize: 10.5,
-                  color: KinrelColors.textDim,
-                  letterSpacing: 0.3,
-                ),
+                style: ChatUi.timeText,
               ),
             ],
           ),
@@ -371,9 +405,12 @@ class GameInviteCard extends StatelessWidget {
 // Collapsed run of terminal invites ("N game invites · expired")
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Renders a run of 3+ consecutive expired/completed invites as ONE
-/// quiet row. Tapping expands it back to one one-line row per invite.
-/// Wired by ChatMessageList (which performs the run detection).
+/// d) Renders a run of 3+ consecutive expired/completed one-liners as
+/// ONE quiet row: radius 10, background chatCard, padding 8/10, row
+/// with 8 gap (game icon 16, "N game invites · expired" 13
+/// textSubtitle, chevron down 16 at the right). Tapping expands it
+/// back to one one-line row per invite. Wired by ChatMessageList
+/// (which performs the run detection).
 class CollapsedGameInvites extends StatefulWidget {
   const CollapsedGameInvites({
     super.key,
@@ -415,21 +452,17 @@ class _CollapsedGameInvitesState extends State<CollapsedGameInvites> {
               child: Container(
                 constraints: const BoxConstraints(minHeight: 48),
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
-                  color: KinrelColors.darkSurface.withValues(alpha: 0.9),
+                  color: ChatUi.chatCard,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.07),
-                    width: 0.5,
-                  ),
                 ),
                 child: Row(
                   children: [
                     const Icon(
                       Icons.sports_esports_outlined,
-                      size: 16,
-                      color: KinrelColors.textDim,
+                      size: ChatUi.iconGameLine,
+                      color: ChatUi.textSubtitle,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -437,20 +470,15 @@ class _CollapsedGameInvitesState extends State<CollapsedGameInvites> {
                         '$count game invites · expired',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: KinrelColors.textDim,
-                        ),
+                        style: ChatUi.inviteExpired,
                       ),
                     ),
                     Icon(
                       _expanded
                           ? Icons.keyboard_arrow_up
                           : Icons.keyboard_arrow_down,
-                      size: 20,
-                      color: KinrelColors.textSilver,
+                      size: ChatUi.iconChevronDown,
+                      color: ChatUi.textSubtitle,
                     ),
                   ],
                 ),

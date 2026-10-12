@@ -2,33 +2,31 @@
 //
 // DAXELO KINREL — Chat System Notice (join notices, system messages)
 //
-// A centered, muted pill rendered for ChatMessage rows with
-// messageType=system. Replaces the old behavior where system rows
-// (e.g. "🎉 Manish joined the family.") rendered as a normal text
-// bubble from the person who joined.
-//
-// Design:
-//   • Centered pill with a sparkle icon + the text
+// D9: A centered pill rendered for ChatMessage rows with
+// messageType=system.
+//   • Centered pill, background chatCard, padding 4 vertical / 12
+//     horizontal, radius full
+//   • Row with 6 gap: sparkle icon 14 in orange, the notice text 12
+//     textSecondary, then a 4 margin and the "View in tree" link in
+//     orange 12 with the tree icon 13 (only when a navigation target
+//     exists)
 //   • Leading emoji (e.g. 🎉) is stripped from the content
-//   • No sender label, no avatar, no bubble, no rail, no ticks
+//   • No sender label, no avatar, no bubble, no band, no time
 //   • No reactions, no reply, no swipe, not selectable
 //   • Breaks message clustering (next message starts a new cluster)
-//   • Optional "View in tree" action: opens the family graph focused
-//     on the member who joined (the message senderId). Only shown in
-//     group chats (familyId != null); DMs pass no callback.
 //
 // Accessibility:
 //   • Tap target for the View-in-tree action is at least 48 logical
-//     pixels tall (the whole notice column is tappable).
+//     pixels tall (the whole notice pill is tappable).
 //   • Semantics labels are always present (never color-only).
-//   • Text scales to 1.3 without overflow (maxLines + ellipsis).
+//   • Text scales without overflow (maxLines + ellipsis).
 //
 // Used by: ChatMessageList when message.messageType == MessageType.system.
 
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/brand_colors.dart';
-import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/constants/brand_spacing.dart';
+import '../chat_ui_tokens.dart';
 
 class ChatSystemNotice extends StatelessWidget {
   const ChatSystemNotice({super.key, required this.content, this.onViewInTree});
@@ -72,91 +70,60 @@ class ChatSystemNotice extends StatelessWidget {
           '${hasAction ? '. Opens the family tree.' : ''}',
       button: hasAction,
       child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: InkWell(
-            onTap: onViewInTree,
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // ── The notice pill (muted, non-bubbled) ────────────
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: KinrelColors.darkSurface
-                          .withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(100),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.07),
-                        width: 0.5,
+        child: InkWell(
+          onTap: onViewInTree,
+          borderRadius: BorderRadius.circular(KinrelRadius.xxl),
+          child: ConstrainedBox(
+            // ≥48 logical px tap target for the whole pill.
+            constraints: const BoxConstraints(minHeight: 48),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: ChatUi.chatCard,
+                  borderRadius: BorderRadius.circular(KinrelRadius.full),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.auto_awesome,
+                      size: ChatUi.iconSparkle,
+                      color: ChatUi.accent,
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: ChatUi.pillText,
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.auto_awesome,
-                          size: 12,
-                          color: KinrelColors.textSilver
-                              .withValues(alpha: 0.45),
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            label,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 12,
-                              color: KinrelColors.textSilver
-                                  .withValues(alpha: 0.65),
+                    if (hasAction) ...[
+                      const SizedBox(width: 4),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'View in tree',
+                            style: ChatUi.pillText.copyWith(
+                              color: ChatUi.accent,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // ── "View in tree" affordance (group chats only) ────
-                  // The tappable area (via the surrounding InkWell)
-                  // spans the pill + this row, well above 48 logical px.
-                  if (hasAction) ...[
-                    const SizedBox(height: 4),
-                    SizedBox(
-                      height: 40,
-                      child: Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.account_tree_outlined,
-                              size: 13,
-                              color: KinrelColors.orange
-                                  .withValues(alpha: 0.9),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'View in tree',
-                              style: TextStyle(
-                                fontFamily: KinrelTypography.bodyFont,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: KinrelColors.orange
-                                    .withValues(alpha: 0.9),
-                              ),
-                            ),
-                          ],
-                        ),
+                          const SizedBox(width: 2),
+                          const Icon(
+                            Icons.account_tree,
+                            size: ChatUi.iconFamilyTree,
+                            color: ChatUi.accent,
+                          ),
+                        ],
                       ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),

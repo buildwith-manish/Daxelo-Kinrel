@@ -27,6 +27,11 @@ import 'core/config/app_config.dart';
 import 'core/config/app_environment.dart';
 import 'core/kinship/kinship_edge_style.dart' show kinshipEdgeStyleRegistryCheck;
 import 'core/routing/app_router.dart';
+// Chat UI Reference / section E: debug-only UI gallery (built only
+// when --dart-define=UI_GALLERY=true; the const gate tree-shakes it
+// out of every normal build).
+import 'features/chat/presentation/chat_ui_gallery.dart'
+    if (dart.library.io) 'features/chat/presentation/chat_ui_gallery.dart';
 import 'core/services/crashlytics_service.dart';
 import 'core/services/multi_account_service.dart';
 import 'core/services/deep_link_service.dart';
@@ -88,6 +93,15 @@ ProviderContainer? _globalContainer;
 void main() async {
   // ── CRITICAL: Ensure Flutter binding BEFORE any async work ────────
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ── Chat UI Reference / section E: UI gallery home route ──────────
+  // When the compile-time define UI_GALLERY=true, boot straight into
+  // the 4-page chat UI gallery (fixed sample data, real widgets, no
+  // providers/network/services). Debug + profile builds only.
+  if (kChatUiGallery) {
+    runApp(const ChatUiGalleryApp());
+    return;
+  }
 
   // v52.7: Anti-tree-shake — force dart2js to retain all kinship edge
   // colors and the style resolver. Without this, dart2js strips the
