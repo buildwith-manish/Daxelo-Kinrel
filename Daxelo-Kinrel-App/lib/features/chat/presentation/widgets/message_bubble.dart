@@ -706,38 +706,27 @@ class MessageBubble extends ConsumerWidget {
     );
   }
 
-  /// Tier 1 / Forwarded label — a small "Forwarded from <name>" tag
-  /// rendered above the message content when `message.forwardedFrom`
-  /// is set (i.e. this message is a forwarded copy). The forwarder's
-  /// own name is in `senderName` (rendered above this label by
-  /// _buildSenderName); `forwardedFrom` is the ORIGINAL sender's name.
+  /// v143 / Signature §F — Passed along label. Replaces the old
+  /// "Forwarded from <name>" tag (which leaked the original author)
+  /// with a neutral "Passed along" label above the message content.
+  /// Layout: Row with 4 dp gap + 2 dp bottom margin, a 13 dp branch
+  /// icon (Material `call_split`) + the text "Passed along", both
+  /// 11 / 500 / textMeta. Does NOT show the original author — that's
+  /// the whole point of the spec change. Works identically in group
+  /// and direct chat.
   Widget _buildForwardedLabel() {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: ChatUi.passedAlongBottomMargin),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.forward_rounded,
-            size: 11,
-            color: KinrelColors.textDim,
+          Icon(
+            Icons.call_split_rounded,
+            size: ChatUi.passedAlongIconSize,
+            color: ChatUi.textMeta,
           ),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              'Forwarded from ${message.forwardedFrom}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontFamily: KinrelTypography.monoFont,
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-                color: KinrelColors.textDim,
-                letterSpacing: 0.3,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ),
+          const SizedBox(width: ChatUi.passedAlongGap),
+          Text('Passed along', style: ChatUi.passedAlongText),
         ],
       ),
     );
