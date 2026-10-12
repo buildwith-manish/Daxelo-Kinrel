@@ -362,11 +362,16 @@ class MessageBubble extends ConsumerWidget {
                               ? GestureDetector(
                                   onTap: onReplyPreviewTap,
                                   child: _buildReplyPreview(
+                                      ref,
+                                      currentUserId,
                                       replyTargetDeleted,
                                       replyTargetSenderId),
                                 )
                               : _buildReplyPreview(
-                                  replyTargetDeleted, replyTargetSenderId),
+                                  ref,
+                                  currentUserId,
+                                  replyTargetDeleted,
+                                  replyTargetSenderId),
                         // Chat UI Reference D3/D4/D5 — flat bubble:
                         // solid fill, radius 14 on all four corners,
                         // spec padding, no shadows, no gradients.
@@ -585,7 +590,11 @@ class MessageBubble extends ConsumerWidget {
   }
 
   Widget _buildReplyPreview(
-      [bool replyTargetDeleted = false, String? replyTargetSenderId]) {
+      WidgetRef ref,
+      String? currentUserId, [
+      bool replyTargetDeleted = false,
+      String? replyTargetSenderId,
+      ]) {
     // v143 / Signature §G — reply quote with relationship band.
     // Container: radius 8, background black at 22 percent alpha
     // (plain color via blendOver, NOT a Flutter Opacity layer — flat

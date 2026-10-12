@@ -39,8 +39,8 @@
 
 import 'package:flutter/material.dart';
 
-import '../../../core/constants/brand_colors.dart';
-import '../../../core/constants/brand_typography.dart';
+import '../../../../core/constants/brand_colors.dart';
+import '../../../../core/constants/brand_typography.dart';
 import '../chat_ui_tokens.dart';
 
 // ═══════════════════════════════════════════════════════════════════════

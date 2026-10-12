@@ -60,9 +60,9 @@
 
 import 'package:flutter/material.dart';
 
-import '../../../core/constants/brand_colors.dart';
-import '../../../core/constants/brand_typography.dart';
-import '../../../core/kinship/kinship_edge_style.dart';
+import '../../../../core/constants/brand_colors.dart';
+import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/kinship/kinship_edge_style.dart';
 import '../chat_ui_tokens.dart';
 
 // ═══════════════════════════════════════════════════════════════════════

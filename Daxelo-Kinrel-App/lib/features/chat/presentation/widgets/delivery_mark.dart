@@ -35,7 +35,7 @@
 
 import 'package:flutter/material.dart';
 
-import '../../../core/constants/brand_colors.dart';
+import '../../../../core/constants/brand_colors.dart';
 import '../chat_ui_tokens.dart';
 
 /// The Kinrel delivery-mark states. Maps to the existing
