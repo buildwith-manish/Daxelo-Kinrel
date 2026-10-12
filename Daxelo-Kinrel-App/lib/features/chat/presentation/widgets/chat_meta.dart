@@ -29,6 +29,7 @@ import '../../../../../core/kinship/kinship_edge_style.dart';
 import '../chat_ui_tokens.dart';
 import '../../../../../core/theme/kinrel_fx.dart';
 import '../../providers/chat_provider.dart';
+import 'delivery_mark.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Read Receipt (single/double tick)
@@ -48,17 +49,10 @@ class ReadReceipt extends StatelessWidget {
     // message hasn't reached the server). 'failed' shows a red error
     // circle with a retry affordance handled by the bubble (tapping the
     // whole bubble retries, not just the receipt).
-    if (status == 'sending') {
-      return SizedBox(
-        width: 10,
-        height: 10,
-        child: Icon(
-          Icons.access_time,
-          size: 10,
-          color: KinrelColors.textDim.withValues(alpha: 0.7),
-        ),
-      );
-    }
+    // v143 / Signature §C: 'sending' now also goes through the new
+    // DeliveryMark painter (hollow ring) so the mark family stays
+    // visually consistent. The 'failed' state stays as-is — it's an
+    // error affordance, not a delivery state.
     if (status == 'failed') {
       return SizedBox(
         width: 12,
@@ -67,28 +61,12 @@ class ReadReceipt extends StatelessWidget {
       );
     }
 
-    final Color color;
-    final bool showDouble;
-
-    if (status == 'read' || isRead) {
-      color = KinrelColors.gold;
-      showDouble = true;
-    } else if (status == 'delivered') {
-      color = KinrelColors.textDim;
-      showDouble = true;
-    } else {
-      // 'sent' — single tick
-      color = KinrelColors.textDim;
-      showDouble = false;
-    }
-
-    // D7: ticks on Material icons — done (single) / done_all (double)
-    // at 13 dp. Same colors and states as before, no custom painter.
-    return Icon(
-      showDouble ? Icons.done_all : Icons.done,
-      size: ChatUi.tickSize,
-      color: color,
-    );
+    // v143 / Signature §C: replace the Material `Icons.done` /
+    // `Icons.done_all` ticks with the Kinrel DeliveryMark painter
+    // (connected nodes + linking edge). Same status logic, same
+    // colors — only the drawn mark changes.
+    final deliveryStatus = DeliveryMark.fromString(status, isRead: isRead);
+    return DeliveryMark(status: deliveryStatus);
   }
 }
 
