@@ -398,20 +398,27 @@ class DeletedMessageGhost extends StatelessWidget {
                 minHeight: 36,
               ),
               child: Stack(
+                // The GhostDashedBorder is the non-positioned child so
+                // the Stack has an intrinsic size (the dashed border +
+                // its content Padding + Row). The kinship band is then
+                // overlaid via Positioned on the left edge.
+                // Without a non-positioned child, a Stack with only
+                // Positioned children collapses to zero size in a
+                // ListView / unbounded-width parent — which made the
+                // ghost render as a blank row.
                 children: [
                   // Dashed border + content. Transparent background so
                   // the chat wallpaper shows through (flat style).
-                  Positioned.fill(
-                    child: GhostDashedBorder(
-                      color: borderColor,
-                      radius: ChatUi.bubbleRadius,
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          left: _leftPadding,
-                          top: ChatUi.ghostVPadding,
-                          right: ChatUi.ghostHPadding,
-                          bottom: ChatUi.ghostVPadding,
-                        ),
+                  GhostDashedBorder(
+                    color: borderColor,
+                    radius: ChatUi.bubbleRadius,
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        left: _leftPadding,
+                        top: ChatUi.ghostVPadding,
+                        right: ChatUi.ghostHPadding,
+                        bottom: ChatUi.ghostVPadding,
+                      ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           mainAxisAlignment: isMe
@@ -438,7 +445,6 @@ class DeletedMessageGhost extends StatelessWidget {
                         ),
                       ),
                     ),
-                  ),
                   // Kinship band on the left (received group only).
                   if (bandColor != null)
                     Positioned(
