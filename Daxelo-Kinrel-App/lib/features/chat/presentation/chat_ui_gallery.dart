@@ -34,9 +34,13 @@ import 'chat_ui_tokens.dart';
 import 'widgets/chat_header_bar.dart';
 import 'widgets/chat_input_bar.dart';
 import 'widgets/chat_system_notice.dart';
+import 'widgets/deleted_message_ghost.dart';
+import 'widgets/delivery_mark.dart';
 import 'widgets/game_invite_card.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/selection_mode_toolbar.dart';
+import 'widgets/thread_markers.dart';
+import 'widgets/typing_indicator.dart';
 
 /// The gallery family id (kept out of the real id space).
 const String _kGalleryFamily = 'gallery-family';
@@ -115,6 +119,8 @@ class _GalleryPagerState extends State<_GalleryPager> {
     'Invite states',
     'Selection mode',
     'Direct chat',
+    'Signature details', // v143 / §I
+    'Deleted messages', // v143 / §I
   ];
 
   @override
@@ -145,7 +151,7 @@ class _GalleryPagerState extends State<_GalleryPager> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${_page + 1} of 4 · ${_titles[_page]}',
+                          '${_page + 1} of ${_titles.length} · ${_titles[_page]}',
                           style: ChatUi.subtitleText,
                         ),
                       ],
@@ -163,6 +169,8 @@ class _GalleryPagerState extends State<_GalleryPager> {
                   _InviteStatesPage(),
                   _SelectionModePage(),
                   _DirectChatPage(),
+                  _SignatureDetailsPage(),
+                  _DeletedMessagesPage(),
                 ],
               ),
             ),
@@ -172,7 +180,7 @@ class _GalleryPagerState extends State<_GalleryPager> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  for (var i = 0; i < 4; i++)
+                  for (var i = 0; i < _titles.length; i++)
                     GestureDetector(
                       onTap: () => _controller.animateToPage(
                         i,
@@ -228,6 +236,14 @@ ChatMessage _msg(
   int? currentPlayers,
   String? inviteStatus,
   String? winner,
+  // v143 / Signature §I gallery extras:
+  String? forwardedFrom,
+  bool isDeletedForEveryone = false,
+  String? deletedByUserId,
+  String? replyToId,
+  String? replyToContent,
+  String? replyToSenderName,
+  String? messageStatus,
 }) {
   return ChatMessage(
     id: id,
@@ -239,7 +255,7 @@ ChatMessage _msg(
     isRead: isRead,
     reactions: reactions,
     messageSubType: subType,
-    messageStatus: 'sent',
+    messageStatus: messageStatus ?? 'sent',
     gameType: gameType,
     gameId: gameId,
     roomCode: roomCode,
@@ -247,6 +263,12 @@ ChatMessage _msg(
     gameCurrentPlayers: currentPlayers,
     gameInviteStatus: inviteStatus,
     gameWinnerName: winner,
+    forwardedFrom: forwardedFrom,
+    isDeletedForEveryone: isDeletedForEveryone,
+    deletedByUserId: deletedByUserId,
+    replyToId: replyToId,
+    replyToContent: replyToContent,
+    replyToSenderName: replyToSenderName,
   );
 }
 
@@ -950,6 +972,282 @@ class _GalleryComposerState extends State<_GalleryComposer> {
       onEmojiToggle: () {},
       onThinkingOfYou: () {},
       onStartRecording: () {},
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Page 5 — Signature details (v143 / §I)
+// ═══════════════════════════════════════════════════════════════════════
+
+class _SignatureDetailsPage extends StatelessWidget {
+  const _SignatureDetailsPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: ChatUi.chatBackground,
+      child: Column(
+        children: [
+          ChatHeaderBar(
+            title: 'Tf family',
+            subtitle: '5 members · 2 online',
+            avatarInitial: 'Tf family',
+            onBack: () {},
+            onPhoneTap: () {},
+            onMoreTap: () {},
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.only(top: 10, bottom: 12),
+              children: [
+                // Date marker "Today" (§D).
+                _padded(
+                  bottom: 8,
+                  child: const ThreadDateMarker(label: 'Today'),
+                ),
+                // Received Papa bubble with the Passed along label +
+                // "Dinner at 8, everyone coming?" 7:42 PM (§F).
+                _padded(
+                  child: _Bubble(
+                    message: _msg(
+                      'sig1',
+                      'gallery-papa',
+                      'Papa',
+                      'Dinner at 8, everyone coming?',
+                      19,
+                      42,
+                      forwardedFrom: 'Aunt Riya',
+                    ),
+                    isMe: false,
+                  ),
+                ),
+                // Sent bubble with a reply quote (Papa, Father, Dinner
+                // at 8, everyone coming?) + "Yes, on my way." 7:46 PM
+                // + the read mark (§G + §C).
+                _padded(
+                  child: _Bubble(
+                    message: _msg(
+                      'sig2',
+                      _kGalleryMe,
+                      'Me',
+                      'Yes, on my way.',
+                      19,
+                      46,
+                      replyToId: 'sig1',
+                      replyToSenderName: 'Papa',
+                      replyToContent: 'Dinner at 8, everyone coming?',
+                      isRead: true,
+                      messageStatus: 'read',
+                    ),
+                    isMe: true,
+                  ),
+                ),
+                // Unread marker "2 new messages" (§E).
+                _padded(
+                  bottom: 8,
+                  child: const UnreadMarker(count: 2),
+                ),
+                // Received Nani bubble "I will bring the sweets." 7:48 PM
+                // (grandparent color).
+                _padded(
+                  child: _Bubble(
+                    message: _msg(
+                      'sig3',
+                      'gallery-nani',
+                      'Nani',
+                      'I will bring the sweets.',
+                      19,
+                      48,
+                    ),
+                    isMe: false,
+                  ),
+                ),
+                // Typing indicator for Nani (§H).
+                _padded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: TypingIndicator(
+                      name: 'Nani',
+                      label: 'Nani is typing',
+                      familyId: _kGalleryFamily,
+                      typistSenderId: 'gallery-nani',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Legend row of the four delivery marks (§C).
+                _sectionLabel('Delivery marks'),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                  child: Row(
+                    children: [
+                      _DeliveryLegend(
+                          status: DeliveryMarkStatus.sending, label: 'Sending'),
+                      _DeliveryLegend(
+                          status: DeliveryMarkStatus.sent, label: 'Sent'),
+                      _DeliveryLegend(
+                          status: DeliveryMarkStatus.delivered,
+                          label: 'Delivered'),
+                      _DeliveryLegend(
+                          status: DeliveryMarkStatus.read, label: 'Read'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact legend cell: the DeliveryMark painter + a 12/textSecondary
+/// label below it. Used in the Signature details page (§I).
+class _DeliveryLegend extends StatelessWidget {
+  const _DeliveryLegend({required this.status, required this.label});
+
+  final DeliveryMarkStatus status;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            DeliveryMark(status: status),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                color: ChatUi.textSecondary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Page 6 — Deleted messages (v143 / §I)
+// ═══════════════════════════════════════════════════════════════════════
+
+class _DeletedMessagesPage extends StatelessWidget {
+  const _DeletedMessagesPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: ChatUi.chatBackground,
+      child: Column(
+        children: [
+          ChatHeaderBar(
+            title: 'Tf family',
+            subtitle: '5 members · 2 online',
+            avatarInitial: 'Tf family',
+            onBack: () {},
+            onPhoneTap: () {},
+            onMoreTap: () {},
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.only(top: 10, bottom: 12),
+              children: [
+                _padded(
+                  bottom: 8,
+                  child: const ThreadDateMarker(label: 'Today'),
+                ),
+                // A normal Papa bubble (for visual contrast against the
+                // ghost variants below).
+                _padded(
+                  child: _Bubble(
+                    message: _msg(
+                      'del1',
+                      'gallery-papa',
+                      'Papa',
+                      'Did you finish your homework?',
+                      15,
+                      30,
+                    ),
+                    isMe: false,
+                  ),
+                ),
+                // A normal sent bubble.
+                _padded(
+                  child: _Bubble(
+                    message: _msg(
+                      'del2',
+                      _kGalleryMe,
+                      'Me',
+                      'Almost done.',
+                      15,
+                      32,
+                      isRead: true,
+                      messageStatus: 'read',
+                    ),
+                    isMe: true,
+                  ),
+                ),
+                // The own ghost: "You took this back" 3:40 PM.
+                _padded(
+                  child: _Bubble(
+                    message: _msg(
+                      'del3',
+                      _kGalleryMe,
+                      'Me',
+                      '',
+                      15,
+                      40,
+                      isDeletedForEveryone: true,
+                      deletedByUserId: _kGalleryMe,
+                    ),
+                    isMe: true,
+                  ),
+                ),
+                // The Papa ghost: "Papa took this back" 7:44 PM.
+                _padded(
+                  child: _Bubble(
+                    message: _msg(
+                      'del4',
+                      'gallery-papa',
+                      'Papa',
+                      '',
+                      19,
+                      44,
+                      isDeletedForEveryone: true,
+                      deletedByUserId: 'gallery-papa',
+                    ),
+                    isMe: false,
+                  ),
+                ),
+                // Collapsed row: 3 messages were taken back (§B).
+                _padded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: CollapsedDeletedGhostsRow(
+                      count: 3,
+                      onTap: () {},
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
