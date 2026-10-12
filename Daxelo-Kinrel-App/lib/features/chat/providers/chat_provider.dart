@@ -604,6 +604,7 @@ class ChatMessage {
     String? messageStatus,
     String? content,
     List<dynamic>? deletedForMe,
+    String? groupId,
     String? gameType,
     String? gameId,
     String? roomCode,
@@ -647,6 +648,7 @@ class ChatMessage {
       messageSubType: messageSubType,
       forwardedFrom: forwardedFrom,
       deletedForMe: deletedForMe ?? this.deletedForMe,
+      groupId: groupId ?? this.groupId,
       gameType: gameType ?? this.gameType,
       gameId: gameId ?? this.gameId,
       roomCode: roomCode ?? this.roomCode,
@@ -1396,10 +1398,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
           .order('createdAt', ascending: false)
           .limit(50)
           .timeout(const Duration(seconds: 10));
-
-      // TEMP DEBUG: log the groupId-specific query result.
-      print('🔄 _loadMessages: groupId=$groupId, familyId=$familyId, '
-          'response count=${(messagesResponse as List).length}');
 
       final messageIds = <String>[];
       final messages = <ChatMessage>[];

@@ -731,11 +731,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       messages = messages.where((m) => m.groupId == null).toList();
     }
 
-    // TEMP DEBUG: log the filter result.
-    print('🔍 ChatScreen.build: widget.groupId=${widget.groupId}, '
-        'rawMessages=${rawMessages.length}, filtered=${messages.length}, '
-        'isLoading=${chatState.isLoading}');
-
     // v143 fix: if this is a direct chat (widget.groupId != null) and
     // the filtered messages are empty BUT the chatState is not loading
     // (i.e., the family-wide load completed but didn't include any
