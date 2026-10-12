@@ -32,9 +32,9 @@ abstract final class ChatUi {
   // ── A. Colors ────────────────────────────────────────────────────────
 
   /// Screen background behind the wallpaper (D2).
-  /// v143 redesign: darker navy-blue (#0B1020) for a premium
-  /// constellation look matching the reference image.
-  static const Color chatBackground = Color(0xFF0B1020);
+  /// v143 redesign: rich dark navy-blue (#0F111A) matching the
+  /// reference image — subtle blue undertone, not flat black.
+  static const Color chatBackground = Color(0xFF0F111A);
 
   /// Header / composer bar surface (D1, D12, D14).
   static const Color chatBar = Color(0xFF13141E);
@@ -115,14 +115,14 @@ abstract final class ChatUi {
   static const Color reactionPlus = textSecondary;
 
   /// Constellation wallpaper nodes (D13).
-  /// v143 redesign: brighter blue-purple (#3A3270) for sparse,
-  /// understated constellation nodes against the dark navy bg.
-  static const Color wallDot = Color(0xFF3A3270);
+  /// v143 redesign: brighter blue-indigo (#4A5275) — clearly visible
+  /// but understated, slightly brighter than the connecting lines.
+  static const Color wallDot = Color(0xFF4A5275);
 
   /// Constellation wallpaper lines, 1 dp (D13).
-  /// v143 redesign: subtle blue-purple (#252D50) for thin connection
-  /// lines — visible but never competing with message bubbles.
-  static const Color wallLine = Color(0xFF252D50);
+  /// v143 redesign: restrained blue-indigo (#30385F) — clearly
+  /// visible but never distracting.
+  static const Color wallLine = Color(0xFF30385F);
 
   // ── B. Typography ────────────────────────────────────────────────────
 
