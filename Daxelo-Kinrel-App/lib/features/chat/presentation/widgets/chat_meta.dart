@@ -46,31 +46,24 @@ class ReadReceipt extends StatelessWidget {
 
     // Feature 1: 'sending' shows a small clock icon (no ticks yet — the
     // message hasn't reached the server). 'failed' shows a red error
-    // icon; retry affordance is handled by the bubble (tapping the
+    // circle with a retry affordance handled by the bubble (tapping the
     // whole bubble retries, not just the receipt).
-    //
-    // D7/C: ticks render as the Material done_all glyph at 13 dp (the
-    // existing tick COLORS and states stay exactly as they were).
     if (status == 'sending') {
       return SizedBox(
-        width: 13,
-        height: 13,
+        width: 10,
+        height: 10,
         child: Icon(
           Icons.access_time,
-          size: 13,
+          size: 10,
           color: KinrelColors.textDim.withValues(alpha: 0.7),
         ),
       );
     }
     if (status == 'failed') {
       return SizedBox(
-        width: 13,
-        height: 13,
-        child: Icon(
-          Icons.error_outline,
-          size: 13,
-          color: Colors.red.shade400,
-        ),
+        width: 12,
+        height: 12,
+        child: Icon(Icons.error_outline, size: 12, color: Colors.red.shade400),
       );
     }
 
@@ -89,14 +82,12 @@ class ReadReceipt extends StatelessWidget {
       showDouble = false;
     }
 
-    return SizedBox(
-      width: 13,
-      height: 13,
-      child: Icon(
-        showDouble ? Icons.done_all : Icons.done,
-        size: 13,
-        color: color,
-      ),
+    // D7: ticks on Material icons — done (single) / done_all (double)
+    // at 13 dp. Same colors and states as before, no custom painter.
+    return Icon(
+      showDouble ? Icons.done_all : Icons.done,
+      size: ChatUi.tickSize,
+      color: color,
     );
   }
 }
@@ -154,9 +145,10 @@ class _RecordingDotState extends State<RecordingDot>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     )..repeat(reverse: true);
-    _animation = Tween<double>(begin: 0.4, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _animation = Tween<double>(
+      begin: 0.4,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -178,7 +170,9 @@ class _RecordingDotState extends State<RecordingDot>
             color: KinrelColors.error.withValues(alpha: _animation.value),
             boxShadow: [
               BoxShadow(
-                color: KinrelColors.error.withValues(alpha: _animation.value * 0.5),
+                color: KinrelColors.error.withValues(
+                  alpha: _animation.value * 0.5,
+                ),
                 blurRadius: 8,
                 spreadRadius: 1,
               ),
@@ -258,7 +252,7 @@ class ReactionOverlay extends StatelessWidget {
                         GestureDetector(
                           onTap: onMoreTap,
                           behavior: HitTestBehavior.opaque,
-                          child: SizedBox(
+                          child: const SizedBox(
                             width: 40,
                             height: 40,
                             child: const Center(
@@ -364,8 +358,7 @@ class _SwipeToReplyState extends State<SwipeToReply>
   void _onUpdate(DragUpdateDetails d) {
     _raw = math.max(0.0, _raw + d.delta.dx * _dir);
     // Follow the finger up to _maxDrag, then resist hard.
-    final shown =
-        _raw <= _maxDrag ? _raw : _maxDrag + (_raw - _maxDrag) * 0.08;
+    final shown = _raw <= _maxDrag ? _raw : _maxDrag + (_raw - _maxDrag) * 0.08;
     _offset.value = math.min(shown, _maxDrag * 1.1);
 
     final armedNow = _offset.value >= _maxDrag * _triggerFraction;
@@ -401,8 +394,10 @@ class _SwipeToReplyState extends State<SwipeToReply>
             // The bubble is built once and only moved, not rebuilt or repainted.
             child: RepaintBoundary(child: widget.child),
             builder: (context, offset, child) {
-              final progress =
-                  (offset / (_maxDrag * _triggerFraction)).clamp(0.0, 1.0);
+              final progress = (offset / (_maxDrag * _triggerFraction)).clamp(
+                0.0,
+                1.0,
+              );
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -420,14 +415,16 @@ class _SwipeToReplyState extends State<SwipeToReply>
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: KinrelColors.ember
-                                    .withValues(alpha: 0.15 * progress),
+                                color: KinrelColors.ember.withValues(
+                                  alpha: 0.15 * progress,
+                                ),
                               ),
                               child: Icon(
                                 Icons.reply_rounded,
                                 size: 20,
-                                color: KinrelColors.ember
-                                    .withValues(alpha: progress),
+                                color: KinrelColors.ember.withValues(
+                                  alpha: progress,
+                                ),
                               ),
                             ),
                           ),
@@ -474,13 +471,20 @@ class ScrollToBottomFab extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: ChatUi.chatCard,
-              border: Border.all(
-                  color: ChatUi.chatMenuBorder, width: ChatUi.menuBorderWidth),
+              color: KinrelColors.darkCard,
+              border: Border.all(color: const Color(0xFF3A3A4A), width: 1),
+              // PERF (Flat): no shadow in flat mode.
+              boxShadow: KinrelFx.shadows([
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ]),
             ),
             child: const Icon(
               Icons.keyboard_arrow_down,
-              color: ChatUi.textSecondary,
+              color: KinrelColors.textSilver,
               size: 24,
             ),
           ),

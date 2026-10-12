@@ -1,29 +1,29 @@
 // lib/features/chat/presentation/widgets/chat_input_bar.dart
 //
-// DAXELO KINREL — Shared chat input bar (group + DM)
+// DAXELO KINREL — Shared chat input bar (group + DM) — Chat UI
+// Reference D12.
 //
-// D12 (Chat UI Reference):
-//   • Bar background chatBar, padding 8, row with 8 gap.
-//   • Field: minimum height 40, grows to 5 lines, radius 20, background
-//     chatCard, horizontal padding 12, row with 10 gap: emoji icon 20 in
-//     textHint, the text field (hint "Message" 14 textHint), attach icon
-//     20 in textHint, and (when wired) the thinking-of-you icon 20 in
-//     orange.
-//   • Right of the field a 40×40 circle, orange background, white icon
-//     20: mic when empty and send when there is text.
+// ONE composer for both chat types, matching the reference exactly:
+//   • Outer bar: chatBar surface, flat (no gradient/shadow/border).
+//   • Text capsule: chatCard fill, radius 20, with the emoji toggle
+//     INSIDE on the left and the attach + thinking-of-you heart
+//     INSIDE on the right of the field.
+//   • Trailing action: a 40 dp accent circle OUTSIDE the capsule that
+//     morphs mic -> send as the user types (spinner while a voice
+//     message uploads).
 //
 // The screen owns all state (text controller, focus node, composing
 // flag, etc.) and passes it in. This widget is purely visual — it
-// renders the bar and fires callbacks. The group chat's recording bar
-// variant is NOT here (it's screen-owned); the screen handles the
-// _isRecording branch before calling this widget.
+// renders the bar and fires callbacks. The recording bar variant is
+// NOT here; the screen handles the _isRecording branch before
+// calling this widget.
 //
-// Flat style: solid colors only — no gradients, no shadows, no blur.
-// Icon buttons are 48 dp tap targets with Semantics labels.
+// The old button row (attach/sticker/poll outside the capsule) is
+// gone: the attach menu now carries Stickers + Poll entries, and the
+// emoji toggle lives inside the capsule (see chat_meta.dart).
 
 import 'package:flutter/material.dart';
 
-import '../../../../../core/constants/brand_typography.dart';
 import '../chat_ui_tokens.dart';
 
 class ChatInputBar extends StatelessWidget {
@@ -56,21 +56,23 @@ class ChatInputBar extends StatelessWidget {
   /// Owned by the parent screen — controls focus.
   final FocusNode focusNode;
 
-  /// True when the text field has non-whitespace content → shows the
+  /// True when the text field has non-whitespace content -> shows the
   /// send button instead of the mic button.
   final bool isComposing;
 
   /// Called when the send button is tapped.
   final VoidCallback onSend;
 
-  // ── Visibility flags ─────────────────────────────────────────────
+  // ── Visibility flags (kept for API compatibility) ─────────────────
+  // Stickers/Poll moved into the attach menu — their flags only
+  // control whether the corresponding entries appear there.
   final bool showAttach;
   final bool showEmoji;
   final bool showStickers;
   final bool showPoll;
   final bool showVoice;
 
-  // ── Callbacks (null when the corresponding feature is off) ────────
+  // ── Callbacks ─────────────────────────────────────────────────────
   final VoidCallback? onAttach;
   final VoidCallback? onEmojiToggle;
   final bool emojiActive;
@@ -78,126 +80,90 @@ class ChatInputBar extends StatelessWidget {
   final VoidCallback? onPoll;
   final VoidCallback? onStartRecording;
 
-  /// True while a voice message is uploading → shows a spinner.
+  /// True while a voice message is uploading -> shows a spinner.
   final bool isSendingVoice;
 
   /// Optional LayerLink for the mention-picker overlay (group only).
-  /// When null, the text field is not wrapped in a CompositedTransformTarget.
   final LayerLink? inputLayerLink;
 
   /// Placeholder text for the input field.
   final String hintText;
 
-  /// D12: when wired, the thinking-of-you heart icon 20 in orange
-  /// shows at the end of the field row (the app's existing
-  /// fn_send_thinking_of_you feature).
+  /// D12 — the thinking-of-you heart inside the capsule. Wired to the
+  /// app's existing fn_send_thinking_of_you feature.
   final VoidCallback? onThinkingOfYou;
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      // D12: flat chatBar surface — no gradient, no shadow, no border.
       color: ChatUi.chatBar,
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // ── Unified text capsule (D12) ─────────────────────────
+              // ── Text capsule ──────────────────────────────────────
               Expanded(
                 child: Container(
-                  constraints: const BoxConstraints(
-                    minHeight: 40,
-                    // Grows to ~5 lines (40 + 4 × 20) + caps there.
-                    maxHeight: 140,
+                  constraints: const BoxConstraints(maxHeight: 140),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 4,
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
                     color: ChatUi.chatCard,
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(ChatUi.composerRadius),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Emoji toggle — inside the field, leading.
+                      // Emoji toggle — INSIDE the capsule, leading.
                       if (showEmoji && onEmojiToggle != null)
-                        _ComposerIconButton(
+                        _ComposerIcon(
                           icon: emojiActive
-                              ? Icons.mood
-                              : Icons.mood_outlined,
-                          semanticsLabel: 'Emoji and stickers',
-                          color: emojiActive
-                              ? ChatUi.accent
-                              : ChatUi.textHint,
-                          onTap: onEmojiToggle,
+                              ? Icons.emoji_emotions
+                              : Icons.emoji_emotions_outlined,
+                          tooltip: 'Emoji and stickers',
+                          onTap: onEmojiToggle!,
+                          active: emojiActive,
                         ),
                       // Text field — no decoration of its own.
                       // Wrapped in a CompositedTransformTarget when
-                      // inputLayerLink is provided (group mention picker).
-                      Expanded(
-                        child: _buildTextField(),
-                      ),
-                      // Attach — inside the field, trailing.
+                      // inputLayerLink is provided (group mention
+                      // picker). DM passes null -> no wrapper.
+                      Expanded(child: _buildTextField()),
+                      // Attach — INSIDE the capsule, trailing.
                       if (showAttach && onAttach != null)
-                        _ComposerIconButton(
+                        _ComposerIcon(
                           icon: Icons.attach_file,
-                          semanticsLabel: 'Attach',
-                          color: ChatUi.textHint,
-                          onTap: onAttach,
+                          tooltip: 'Attach',
+                          onTap: onAttach!,
                         ),
-                      // Thinking of you — inside the field, trailing,
-                      // orange (only where the feature is wired).
+                      // D12 heart — thinking of you.
                       if (onThinkingOfYou != null)
-                        _ComposerIconButton(
+                        _ComposerIcon(
                           icon: Icons.favorite,
-                          semanticsLabel: 'Thinking of you',
-                          color: ChatUi.accent,
-                          onTap: onThinkingOfYou,
+                          tooltip: 'Thinking of you',
+                          onTap: onThinkingOfYou!,
+                          iconColor: ChatUi.accent,
                         ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              // ── Right circle: 40×40, orange, white icon 20 ────────
-              // mic when empty, send when there is text. AnimatedSwitcher
-              // smoothly morphs mic → send → spinner.
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                transitionBuilder: (child, animation) =>
-                    ScaleTransition(scale: animation, child: child),
-                child: isSendingVoice
-                    ? const SizedBox(
-                        key: ValueKey('spinner'),
-                        width: 40,
-                        height: 40,
-                        child: Center(
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: ChatUi.accent,
-                            ),
-                          ),
-                        ),
-                      )
-                    : isComposing
-                        ? _RoundActionCircle(
-                            key: const ValueKey('send'),
-                            icon: Icons.send,
-                            semanticsLabel: 'Send message',
-                            onTap: onSend,
-                          )
-                        : (showVoice && onStartRecording != null)
-                            ? _RoundActionCircle(
-                                key: const ValueKey('mic'),
-                                icon: Icons.mic,
-                                semanticsLabel: 'Record voice message',
-                                onTap: onStartRecording,
-                              )
-                            : const SizedBox.shrink(),
+              // ── Trailing action — 40 dp accent circle ─────────────
+              // Mic -> send morph as the user types; spinner while a
+              // voice message uploads.
+              _TrailingAction(
+                isComposing: isComposing,
+                isSendingVoice: isSendingVoice,
+                showVoice: showVoice,
+                onSend: onSend,
+                onStartRecording: onStartRecording,
               ),
             ],
           ),
@@ -214,103 +180,167 @@ class ChatInputBar extends StatelessWidget {
       focusNode: focusNode,
       maxLines: null,
       textInputAction: TextInputAction.newline,
-      style: const TextStyle(
-        fontFamily: KinrelTypography.bodyFont,
-        fontSize: 14,
-        color: ChatUi.textPrimary,
-        height: 1.4,
-      ),
+      style: ChatUi.composerText,
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: ChatUi.composerHint,
+        // The app theme's inputDecorationTheme paints a filled
+        // darkElevated (#202338) box on every TextField — disable it so
+        // the D12 capsule's chatCard color shows through untouched.
+        filled: false,
         border: InputBorder.none,
         enabledBorder: InputBorder.none,
         focusedBorder: InputBorder.none,
-        // Vertically centers the first line inside the 40 dp capsule;
-        // the 48 dp leading/trailing icon buttons define the min height.
-        contentPadding: const EdgeInsets.symmetric(vertical: 13),
+        contentPadding: const EdgeInsets.only(
+          left: 10,
+          right: 10,
+          top: 12,
+          bottom: 12,
+        ),
       ),
     );
 
     if (inputLayerLink != null) {
-      return CompositedTransformTarget(
-        link: inputLayerLink!,
-        child: textField,
-      );
+      return CompositedTransformTarget(link: inputLayerLink!, child: textField);
     }
     return textField;
   }
 }
 
-/// A flat icon button inside the composer capsule: 48 dp tap target,
-/// 20 dp glyph, Semantics label.
-class _ComposerIconButton extends StatelessWidget {
-  const _ComposerIconButton({
+// ── Capsule icons (20 dp, 48 dp tap targets) ──────────────────────────
+
+class _ComposerIcon extends StatelessWidget {
+  const _ComposerIcon({
     required this.icon,
-    required this.semanticsLabel,
-    required this.color,
-    this.onTap,
+    required this.tooltip,
+    required this.onTap,
+    this.active = false,
+    this.iconColor,
   });
 
   final IconData icon;
-  final String semanticsLabel;
-  final Color color;
-  final VoidCallback? onTap;
+  final String tooltip;
+  final VoidCallback onTap;
+  final bool active;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: semanticsLabel,
+      label: tooltip,
       button: true,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: SizedBox(
-          width: ChatUi.tapTarget,
-          height: ChatUi.tapTarget,
-          child: Center(
-            child: Icon(icon, size: ChatUi.iconComposerEmoji, color: color),
+      child: SizedBox(
+        width: ChatUi.tapTarget * 0.75, // 36 dp inside the capsule
+        height: ChatUi.tapTarget * 0.75,
+        child: IconButton(
+          padding: EdgeInsets.zero,
+          icon: Icon(
+            icon,
+            size: ChatUi.composerIconSize,
+            color:
+                iconColor ??
+                (active ? ChatUi.textPrimary : ChatUi.textSecondary),
           ),
+          tooltip: tooltip,
+          onPressed: onTap,
         ),
       ),
     );
   }
 }
 
-/// D12 right circle: 40×40, orange background, white icon 20.
-class _RoundActionCircle extends StatelessWidget {
-  const _RoundActionCircle({
-    super.key,
-    required this.icon,
-    required this.semanticsLabel,
-    this.onTap,
+// ── Trailing 40 dp accent circle ──────────────────────────────────────
+
+class _TrailingAction extends StatelessWidget {
+  const _TrailingAction({
+    required this.isComposing,
+    required this.isSendingVoice,
+    required this.showVoice,
+    required this.onSend,
+    required this.onStartRecording,
   });
 
+  final bool isComposing;
+  final bool isSendingVoice;
+  final bool showVoice;
+  final VoidCallback onSend;
+  final VoidCallback? onStartRecording;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      transitionBuilder: (child, animation) => ScaleTransition(
+        scale: Tween<double>(begin: 0.6, end: 1.0).animate(
+          CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
+        ),
+        child: FadeTransition(opacity: animation, child: child),
+      ),
+      child: isSendingVoice
+          ? Semantics(
+              key: const ValueKey('spinner'),
+              label: 'Sending voice message',
+              child: const SizedBox(
+                width: ChatUi.sendButtonSize,
+                height: ChatUi.sendButtonSize,
+                child: const Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: ChatUi.accent,
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : isComposing
+          ? _CircleButton(
+              key: const ValueKey('send'),
+              tooltip: 'Send message',
+              icon: Icons.send,
+              onTap: onSend,
+            )
+          : showVoice && onStartRecording != null
+          ? _CircleButton(
+              key: const ValueKey('mic'),
+              tooltip: 'Record voice message',
+              icon: Icons.mic_none,
+              onTap: onStartRecording!,
+            )
+          : const SizedBox.shrink(),
+    );
+  }
+}
+
+class _CircleButton extends StatelessWidget {
+  const _CircleButton({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String tooltip;
   final IconData icon;
-  final String semanticsLabel;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: semanticsLabel,
+      label: tooltip,
       button: true,
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          width: 40,
-          height: 40,
+          width: ChatUi.sendButtonSize,
+          height: ChatUi.sendButtonSize,
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
             color: ChatUi.accent,
           ),
-          child: Center(
-            child: Icon(
-              icon,
-              size: ChatUi.iconComposerSend,
-              color: Colors.white,
-            ),
-          ),
+          child: Icon(icon, size: ChatUi.composerIconSize, color: Colors.white),
         ),
       ),
     );

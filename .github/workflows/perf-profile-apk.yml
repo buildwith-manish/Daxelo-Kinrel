@@ -26,6 +26,11 @@ on:
         required: false
         default: false
         type: boolean
+      ui_gallery:
+        description: 'Boot into the Chat UI Gallery instead of the app (--dart-define=UI_GALLERY=true, Chat UI Reference section E). Produces a *-gallery APK.'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: perf-profile-apk-${{ github.ref }}
@@ -100,6 +105,7 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           FORCE_LOW_RAM_FLAG: ${{ inputs.force_low_ram && '--dart-define=FORCE_LOW_RAM=true' || '' }}
           RICH_FX_FLAG: ${{ inputs.rich_fx && '--dart-define=RICH_FX=true' || '' }}
+          UI_GALLERY_FLAG: ${{ inputs.ui_gallery && '--dart-define=UI_GALLERY=true' || '' }}
         run: >-
           flutter build apk --profile --target-platform android-arm64
           --dart-define=SUPABASE_URL="$SUPABASE_URL"
@@ -107,6 +113,7 @@ jobs:
           --dart-define=PERF_OVERLAY=true
           $FORCE_LOW_RAM_FLAG
           $RICH_FX_FLAG
+          $UI_GALLERY_FLAG
 
       - name: Verify libthermion_dart.so in APK
         run: |
@@ -126,6 +133,9 @@ jobs:
           fi
           if [ "${{ inputs.rich_fx }}" = "true" ]; then
             NAME="${NAME}-rich"
+          fi
+          if [ "${{ inputs.ui_gallery }}" = "true" ]; then
+            NAME="${NAME}-gallery"
           fi
           echo "name=${NAME}" >> $GITHUB_OUTPUT
 

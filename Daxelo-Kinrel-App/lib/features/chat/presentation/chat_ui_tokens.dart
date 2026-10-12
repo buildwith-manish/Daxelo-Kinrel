@@ -1,165 +1,117 @@
 // lib/features/chat/presentation/chat_ui_tokens.dart
 //
-// DAXELO KINREL — Chat UI Tokens (Chat UI Reference / Kin Thread)
+// DAXELO KINREL — Chat UI tokens (Kin Thread / Chat UI Reference)
 //
-// ONE source of truth for every color, typography style, icon size and
-// metric used by the shared chat UI (group + direct chat render the
-// SAME widgets). No chat widget may hard-code a Color(…) / size /
-// TextStyle — everything comes from here plus the existing KinrelColors,
-// KinrelSpacing and KinrelRadius tokens.
+// The single source of truth for the unified chat UI. Every visual
+// component in features/chat reads its colors, radii, sizes and type
+// styles from this file — no chat widget hard-codes a color or a
+// dimension. Values follow the Chat UI Reference (see
+// docs/CHAT_UI_SPEC.md):
 //
-// Flat style only: solid colors, NO shadows, NO blur, NO gradients,
-// NO Opacity/ColorFiltered widgets and NO monospace font anywhere in
-// the chat. Kinship colors reuse the graph node palette via the
-// existing kinshipCategoryColor helper (chat_meta.dart) — there is no
-// second mapping in this file.
+//   A. Color tokens — flat solid fills only (no gradients, no
+//      shadows, no blur, no Opacity/ColorFiltered layers).
+//   B. Typography — body 14/400/1.4 for message text, display(Outfit)
+//      16/500 for titles, 11 for times. Weights stay <= 500; the
+//      mono font is never used in pills/timestamps.
+//   C. Icon/sizing metrics — header icons 22, composer icons 20,
+//      menu icons 20, ticks 13, tap targets >= 48.
+//
+// Kinship band colors come from KinrelColors.node* (see
+// brand_colors.dart) — ChatUi only re-exports what the chat needs.
 
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 
-/// Chat UI design tokens (Chat UI Reference spec, sections A–C).
-class ChatUi {
+/// Chat UI Reference tokens — section A (colors), B (typography),
+/// C (sizes). Referenced by every chat widget.
+abstract final class ChatUi {
   ChatUi._();
 
-  // ── A. Surfaces ──────────────────────────────────────────────────────
+  // ── A. Colors ────────────────────────────────────────────────────────
 
-  /// Screen + wallpaper base — #131416.
-  static const Color chatBackground = KinrelColors.darkBackground;
+  /// Screen background behind the wallpaper (D2).
+  static const Color chatBackground = Color(0xFF131416);
 
-  /// Header, composer bar, selection bar — #13141E.
-  static const Color chatBar = KinrelColors.darkSurface;
+  /// Header / composer bar surface (D1, D12, D14).
+  static const Color chatBar = Color(0xFF13141E);
 
-  /// Composer field, date chip, notices, collapsed rows — #191B2C.
-  static const Color chatCard = KinrelColors.darkCard;
+  /// Card surface — date chips, invite cards, recording capsule (D8,
+  /// D11, D12, D18).
+  static const Color chatCard = Color(0xFF191B2C);
 
-  /// Received bubble, result card, floating date chip, unread pill — #2A2D48.
+  /// Hairline border for chat cards (D11, D18).
+  static final Color chatCardBorder = Colors.white.withValues(alpha: 0.08);
+
+  /// Received-message bubble fill (D3, D4, D8 floating chip, D10).
   static const Color chatReceived = Color(0xFF2A2D48);
 
-  /// Sent bubble — #34201A.
+  /// Sent-message bubble fill (D5).
   static const Color chatSent = Color(0xFF34201A);
 
-  /// Sent bubble border — ember #C44A18 at 28% alpha (0x47).
-  static const Color chatSentBorder = Color(0x47C44A18);
-  static const double sentBorderWidth = 0.75;
+  /// Sent-bubble border — ember at 28 percent alpha, 0.75 dp (D5).
+  static final Color chatSentBorder = KinrelColors.ember.withValues(
+    alpha: 0.28,
+  );
 
-  /// Reaction bar + overflow menu — #1F2236.
-  /// ("Thinking of you" moment uses chatCard.)
+  /// Overflow / context menu card (D17).
   static const Color chatMenu = Color(0xFF1F2236);
-  static const Color chatMenuBorder = Color(0xFF343853);
-  static const double menuBorderWidth = 0.5;
 
-  /// Selected-row tint — orange #E8612A at 18% alpha (0x2E).
-  static const Color chatSelectedRow = Color(0x2EE8612A);
+  /// Full-bleed selected-row tint — orange at 18 percent alpha (D16).
+  static final Color chatSelectedRow = KinrelColors.orange.withValues(
+    alpha: 0.18,
+  );
 
-  /// Card hairline border — #2E3150 at 0.5 dp.
-  static const Color chatCardBorder = Color(0xFF2E3150);
-  static const double cardBorderWidth = 0.5;
-
-  // ── A. Text colors ───────────────────────────────────────────────────
-
-  /// Primary message + strong text — #ECEAF2.
+  /// Primary chat text (message bodies, names, unread pill).
   static const Color textPrimary = Color(0xFFECEAF2);
 
-  /// Pill text, subtitles in cards, icons — #B9BDD0.
+  /// Secondary chat text (subtitles, pill labels, hints).
   static const Color textSecondary = Color(0xFFB9BDD0);
 
-  /// Message time — #8E92A8.
+  /// Meta text — timestamps, counts (D7).
   static const Color textMeta = Color(0xFF8E92A8);
 
-  /// Header subtitle, muted rows — #9AA0B8.
-  static const Color textSubtitle = Color(0xFF9AA0B8);
-
-  /// Composer hint + its icons — #7C84A0.
-  static const Color textHint = Color(0xFF7C84A0);
-
-  /// Sender name — Kinrel silver #C9B4A8.
-  static const Color senderNameColor = KinrelColors.textSilver;
-
-  /// Brand accent — buttons, links, mic button, hearts.
+  /// Brand accent (send circle, hearts, links, active dots).
   static const Color accent = KinrelColors.orange;
 
-  /// Pressed ripple on rows and icon buttons — white at 8%.
-  static const Color pressedRipple = Color(0x14FFFFFF);
+  /// Plus button in the reaction bar (D15).
+  static const Color reactionPlus = textSecondary;
 
-  // ── A. Kinship pill contrast ─────────────────────────────────────────
-  // Pill text color equals the band (graph node) color, EXCEPT
-  // grandparent and extended which get lighter variants for contrast.
+  /// Constellation wallpaper dots (D13).
+  static const Color wallDot = Color(0xFF1F2230);
 
-  /// Text color for a relationship tag pill whose band color is
-  /// [bandColor] (a KinrelColors.node* value). Grandparent indigo
-  /// (#6366F1) → #8B8DF5; extended slate (#64748B) → #94A3B8.
-  static Color kinshipPillText(Color bandColor) {
-    if (bandColor == const Color(0xFF6366F1)) return const Color(0xFF8B8DF5);
-    if (bandColor == const Color(0xFF64748B)) return const Color(0xFF94A3B8);
-    return bandColor;
-  }
+  /// Constellation wallpaper lines, 1 dp (D13).
+  static const Color wallLine = Color(0xFF1A1C27);
 
-  // ── A. Reaction icon colors (bar layout reference) ───────────────────
-  // The real reactions stay emoji glyphs; these colors are the icon
-  // equivalents used for Semantics/decoration if ever needed.
+  // ── B. Typography ────────────────────────────────────────────────────
 
-  static const Color reactionHeart = Color(0xFFEC4899);
-  static const Color reactionThumbsUp = Color(0xFF3B82F6);
-  static const Color reactionLaugh = Color(0xFFF59E0B);
-  static const Color reactionSurprised = Color(0xFFF59E0B);
-  static const Color reactionSad = Color(0xFFF59E0B);
-  static const Color reactionPlus = Color(0xFF9AA0B8);
-
-  // ── B. Typography (dp = sp at scale 1.0; never weight ≥ 600) ────────
-  // Fonts come from KinrelTypography (body = DMSans, display = Outfit).
-  // NEVER a monospace font anywhere in the chat.
-
-  /// Message text — body 14 / 400 / height 1.4 / textPrimary.
+  /// Message body — 14 / 400 / 1.4 line height (spec B).
   static const TextStyle messageText = TextStyle(
     fontFamily: KinrelTypography.bodyFont,
     fontSize: 14,
     fontWeight: FontWeight.w400,
-    height: 1.4,
     color: textPrimary,
+    height: 1.4,
   );
 
-  /// Header title — display 16 / 500.
-  static const TextStyle headerTitle = TextStyle(
+  /// Screen / card titles — display font 16 / 500.
+  static const TextStyle titleText = TextStyle(
     fontFamily: KinrelTypography.displayFont,
     fontSize: 16,
     fontWeight: FontWeight.w500,
     color: textPrimary,
   );
 
-  /// Header subtitle — body 12 / 400 / textSubtitle.
-  static const TextStyle headerSubtitle = TextStyle(
+  /// Header subtitle — "N members · N online" (D1).
+  static const TextStyle subtitleText = TextStyle(
     fontFamily: KinrelTypography.bodyFont,
     fontSize: 12,
     fontWeight: FontWeight.w400,
-    color: textSubtitle,
+    color: textSecondary,
   );
 
-  /// Sender name — body 12 / 400 / senderName color.
-  static const TextStyle senderNameText = TextStyle(
-    fontFamily: KinrelTypography.bodyFont,
-    fontSize: 12,
-    fontWeight: FontWeight.w400,
-    color: senderNameColor,
-  );
-
-  /// Relationship tag — body 11 / 500 (color = kinship pill color).
-  static const TextStyle relationshipTag = TextStyle(
-    fontFamily: KinrelTypography.bodyFont,
-    fontSize: 11,
-    fontWeight: FontWeight.w500,
-  );
-
-  /// Unresolved-relationship sender name — orange 12 / 500.
-  static const TextStyle senderNameUnresolved = TextStyle(
-    fontFamily: KinrelTypography.bodyFont,
-    fontSize: 12,
-    fontWeight: FontWeight.w500,
-    color: accent,
-  );
-
-  /// Message time — body 11 / 400 / textMeta.
+  /// Time row inside bubbles — 11 / 400 / textMeta (D7).
   static const TextStyle timeText = TextStyle(
     fontFamily: KinrelTypography.bodyFont,
     fontSize: 11,
@@ -167,87 +119,33 @@ class ChatUi {
     color: textMeta,
   );
 
-  /// Date chip, notices, unread pill text — body 12 / 400.
-  static const TextStyle pillText = TextStyle(
+  /// Sender name (D6) — 12 / 400 silver.
+  static const TextStyle senderNameText = TextStyle(
     fontFamily: KinrelTypography.bodyFont,
     fontSize: 12,
     fontWeight: FontWeight.w400,
     color: textSecondary,
   );
 
-  /// Floating date chip text — body 12 / 400 / textPrimary.
-  static const TextStyle floatingDateText = TextStyle(
+  /// Sender name when the kinship relationship is unresolved (D3) —
+  /// orange 12 / 500.
+  static const TextStyle senderNameUnresolved = TextStyle(
     fontFamily: KinrelTypography.bodyFont,
     fontSize: 12,
-    fontWeight: FontWeight.w400,
-    color: textPrimary,
+    fontWeight: FontWeight.w500,
+    color: KinrelColors.orange,
   );
 
-  /// Unread pill text — body 12 / 400 / textPrimary.
-  static const TextStyle unreadPillText = TextStyle(
+  /// Relationship tag pill label (D6) — 11 / 500; the color is
+  /// replaced with the sender's kinship color at usage.
+  static const TextStyle relationshipTag = TextStyle(
     fontFamily: KinrelTypography.bodyFont,
-    fontSize: 12,
-    fontWeight: FontWeight.w400,
-    color: textPrimary,
-  );
-
-  /// Selection count — display 18 / 500.
-  static const TextStyle selectionCount = TextStyle(
-    fontFamily: KinrelTypography.displayFont,
-    fontSize: 18,
+    fontSize: 11,
     fontWeight: FontWeight.w500,
     color: textPrimary,
   );
 
-  /// Overflow menu item label — body 14 / 400 / textPrimary.
-  static const TextStyle menuItem = TextStyle(
-    fontFamily: KinrelTypography.bodyFont,
-    fontSize: 14,
-    fontWeight: FontWeight.w400,
-    color: textPrimary,
-  );
-
-  /// Button label (Join / Rematch) — body 13 / 500 / orange.
-  static const TextStyle buttonLabel = TextStyle(
-    fontFamily: KinrelTypography.bodyFont,
-    fontSize: 13,
-    fontWeight: FontWeight.w500,
-    color: accent,
-  );
-
-  /// Composer hint — body 14 / 400 / textHint.
-  static const TextStyle composerHint = TextStyle(
-    fontFamily: KinrelTypography.bodyFont,
-    fontSize: 14,
-    fontWeight: FontWeight.w400,
-    color: textHint,
-  );
-
-  /// Game invite title — body 14 / 500 / textPrimary.
-  static const TextStyle inviteTitle = TextStyle(
-    fontFamily: KinrelTypography.bodyFont,
-    fontSize: 14,
-    fontWeight: FontWeight.w500,
-    color: textPrimary,
-  );
-
-  /// Game invite players line — body 12 / 400 / textSecondary.
-  static const TextStyle invitePlayers = TextStyle(
-    fontFamily: KinrelTypography.bodyFont,
-    fontSize: 12,
-    fontWeight: FontWeight.w400,
-    color: textSecondary,
-  );
-
-  /// Expired one-liner text — body 13 / 400 / textSubtitle.
-  static const TextStyle inviteExpired = TextStyle(
-    fontFamily: KinrelTypography.bodyFont,
-    fontSize: 13,
-    fontWeight: FontWeight.w400,
-    color: textSubtitle,
-  );
-
-  /// "Thinking of you" moment text — body 13 / 400 / textPrimary.
+  /// Thinking-of-you card text (D11) — 13.
   static const TextStyle thinkingText = TextStyle(
     fontFamily: KinrelTypography.bodyFont,
     fontSize: 13,
@@ -255,52 +153,109 @@ class ChatUi {
     color: textPrimary,
   );
 
-  // ── C. Icon sizes (dp, Material family) ─────────────────────────────
+  /// Centered pill label — date chips (D8), unread divider (D10).
+  static const TextStyle pillText = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    color: textSecondary,
+  );
 
-  static const double iconHeaderBack = 22;
-  static const double iconHeaderPhone = 22;
-  static const double iconHeaderMore = 22;
-  static const double iconComposerEmoji = 20;
-  static const double iconComposerAttach = 20;
-  static const double iconComposerMic = 20;
-  static const double iconComposerSend = 20;
-  static const double iconComposerThinking = 20;
-  static const double iconSelectionClose = 22;
-  static const double iconSelectionReply = 22;
-  static const double iconSelectionForward = 22;
-  static const double iconSelectionDelete = 22;
-  static const double iconSelectionMore = 22;
-  static const double iconMenu = 20; // copy, star, pin, info, share
-  static const double iconSparkle = 14; // auto_awesome
-  static const double iconFamilyTree = 13; // account_tree
-  static const double iconTicks = 13; // done_all
-  static const double iconTrophy = 22; // emoji_events outline
-  static const double iconGameLine = 16; // sports_esports outline
-  static const double iconGameTile = 22;
-  static const double iconGrid = 22; // grid_3x3
-  static const double iconChevronDown = 16;
-  static const double iconHeart = 18;
+  /// Unread divider pill — same shape as the date chip but lighter
+  /// text (D10).
+  static const TextStyle unreadPillText = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    color: textPrimary,
+  );
 
-  // ── Layout metrics ───────────────────────────────────────────────────
+  /// Composer placeholder — "Message" (D12).
+  static const TextStyle composerHint = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    color: textMeta,
+  );
 
-  /// Minimum tap target for every icon button (even smaller icons).
-  static const double tapTarget = 48;
+  /// Composer input text — matches messageText sizing.
+  static const TextStyle composerText = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    color: textPrimary,
+    height: 1.35,
+  );
 
-  /// Header / selection bar height.
-  static const double barHeight = 56;
+  /// Overflow / context menu label (D17).
+  static const TextStyle menuText = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 13.5,
+    fontWeight: FontWeight.w400,
+    color: textPrimary,
+  );
 
-  /// Header avatar circle.
-  static const double headerAvatar = 34;
+  // ── C. Sizes & metrics ───────────────────────────────────────────────
 
-  /// Bubble corner radius (all four corners — no tails).
+  /// Bubble corner radius — 14 on all four corners (D3/D4/D5).
   static const double bubbleRadius = 14;
 
-  /// Kinship band width inside the received bubble's rounded clip.
-  static const double bandWidth = 3;
-
-  /// Max bubble width as a fraction of the row.
+  /// Max bubble width as a fraction of screen width (D3/D5).
   static const double bubbleMaxWidthFactor = 0.80;
 
-  /// Overflow menu card width.
+  /// Sent-bubble border width (D5).
+  static const double sentBorderWidth = 0.75;
+
+  /// Kinship band strip width on received group bubbles (D3).
+  static const double bandWidth = 3;
+
+  /// Hairline border width for cards (D11/D18).
+  static const double cardBorderWidth = 0.5;
+
+  /// Header height (D1, D14).
+  static const double headerHeight = 56;
+
+  /// Header avatar diameter (D1).
+  static const double avatarSize = 34;
+
+  /// Header action icons — phone, more_vert (D1).
+  static const double headerIconSize = 22;
+
+  /// Composer icons — emoji, attach, heart, mic/send (D12).
+  static const double composerIconSize = 20;
+
+  /// Menu icons inside the D17 card.
+  static const double menuIconSize = 20;
+
+  /// Read-receipt tick size (D7).
+  static const double tickSize = 13;
+
+  /// Composer send/mic circle diameter (D12).
+  static const double sendButtonSize = 40;
+
+  /// Composer input capsule corner radius (D12).
+  static const double composerRadius = 20;
+
+  /// Overflow / context menu card width (D17).
   static const double menuWidth = 210;
+
+  /// Overflow / context menu corner radius (D17).
+  static const double menuRadius = 12;
+
+  /// Thinking-of-you heart icon (D11).
+  static const double iconHeart = 18;
+
+  /// System-notice sparkle icon (D9).
+  static const double iconSparkle = 14;
+
+  /// Minimum tap target for every interactive element.
+  static const double tapTarget = 48;
+
+  // ── Helpers ──────────────────────────────────────────────────────────
+
+  /// Pill label color for a kinship band color — the band color
+  /// lifted slightly toward white so 11/500 text stays legible on the
+  /// 12 percent tinted pill background (D6).
+  static Color kinshipPillText(Color c) =>
+      Color.lerp(c, Colors.white, 0.12)!.withValues(alpha: 1);
 }

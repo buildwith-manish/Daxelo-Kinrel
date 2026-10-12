@@ -24,9 +24,7 @@
 //   - Scroll-to-bottom FAB when scrolled up
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
-import 'package:cached_network_image/cached_network_image.dart';
 // v3.5: the emoji_picker_flutter import moved with the full-emoji sheet
 // into the shared reaction_picker.dart (this screen now delegates).
 import 'package:file_selector/file_selector.dart';
@@ -43,7 +41,6 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
-import '../../../core/theme/kinrel_fx.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../l10n/app_localizations.dart';
 // v3.3: AppTime import removed — date grouping moved to ChatMessageList.
@@ -54,7 +51,6 @@ import '../../../core/services/celebration_service.dart';
 // Phase 4 — consolidated image cache manager (used for the header avatar
 // + MessageInfoSheet photo/gif previews so they share the singleton cache
 // and decode at display-size × DPR instead of native resolution).
-import '../../../core/services/image_cache_manager.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../family/data/relationship_label_provider.dart';
 import '../../../core/kinship/kinship_edge_style.dart';
@@ -115,15 +111,6 @@ import 'widgets/selection_mode_toolbar.dart';
 // `KinrelColors.ember` is Color(0xFFC44A18). Multiplied by alpha 0.18
 // → Color(0x2EC44A18). RGB matches exactly; alpha is pre-multiplied.
 //
-// PERF (Flat): KinrelFx.shadows returns the empty list in flat mode
-// (no avatar glow). The const list is preserved for rich mode.
-final List<BoxShadow> _kChatAvatarGlow = KinrelFx.shadows(const [
-  BoxShadow(
-    color: Color(0x2EC44A18), // KinrelColors.ember (#C44A18) × alpha 0.18
-    blurRadius: 14,
-    offset: Offset(0, 0),
-  ),
-]);
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({
@@ -257,12 +244,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   // The real current user id (replaces the old hard-coded 'user_me' check).
   // Read from chatCurrentUserIdProvider which is wired to Supabase auth.
-  String? get _currentUserId =>
-      ref.read(chatCurrentUserIdProvider);
+  String? get _currentUserId => ref.read(chatCurrentUserIdProvider);
 
   /// Returns true if [msg] was sent by the current user.
-  bool _isMine(ChatMessage msg) =>
-      msg.senderId == _currentUserId;
+  bool _isMine(ChatMessage msg) => msg.senderId == _currentUserId;
 
   /// Kin Thread / C2 — the wallpaper (and lock) key: direct chats keep
   /// the OLD dm_-prefixed keys so users' saved wallpapers/locks carry
@@ -270,8 +255,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// familyId (existing behavior).
   String get _chatSettingsKey =>
       widget.isDirectChat && widget.directOtherUserId != null
-          ? 'dm_${widget.directOtherUserId}'
-          : widget.familyId;
+      ? 'dm_${widget.directOtherUserId}'
+      : widget.familyId;
 
   @override
   void initState() {
@@ -391,7 +376,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // If we're mid-recording when the screen closes, stop it
     // (best-effort; ignore errors since the recorder may already be gone).
     if (_isRecording) {
-      try { _recorder.stop(); } catch (_) {}
+      try {
+        _recorder.stop();
+      } catch (_) {}
     }
     _recorder.dispose();
     super.dispose();
@@ -440,8 +427,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       final now = DateTime.now();
       final last = _lastTypingWriteAt;
       if (!widget.isDirectChat &&
-          (last == null ||
-              now.difference(last).inMilliseconds >= 2000)) {
+          (last == null || now.difference(last).inMilliseconds >= 2000)) {
         final service = ref.read(chatEnhancementServiceProvider);
         service.setTypingStatus(widget.familyId, true);
         _lastTypingWriteAt = now;
@@ -543,8 +529,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             // Feature 7: localized snackbar
-            content: Text(S.of(context)?.chatReplyToOriginalNotFound ??
-                'Message is older than loaded history — scroll up to find it.'),
+            content: Text(
+              S.of(context)?.chatReplyToOriginalNotFound ??
+                  'Message is older than loaded history — scroll up to find it.',
+            ),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
@@ -608,7 +596,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             .read(chatProvider(widget.familyId).notifier)
             .sendMessage(text, replyToId: replyToId, groupId: widget.groupId);
       } else {
-        ref.read(chatProvider(widget.familyId).notifier).sendMessageWithMentions(
+        ref
+            .read(chatProvider(widget.familyId).notifier)
+            .sendMessageWithMentions(
               text,
               mentions: pendingMentions,
               replyToId: replyToId,
@@ -666,10 +656,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     await StickerPackSheet.show(
       context,
       onStickerSelected: (stickerUrl, title) {
-        ref.read(chatProvider(widget.familyId).notifier).sendGif(
-              gifUrl: stickerUrl,
-              title: title,
-            );
+        ref
+            .read(chatProvider(widget.familyId).notifier)
+            .sendGif(gifUrl: stickerUrl, title: title);
       },
     );
   }
@@ -679,7 +668,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       setState(() => _showStickerPanel = false);
     }
     _focusNode.unfocus();
-    final replyToId = ref.read(chatProvider(widget.familyId)).replyToMessage?.id;
+    final replyToId = ref
+        .read(chatProvider(widget.familyId))
+        .replyToMessage
+        ?.id;
     await PollComposerSheet.show(
       context,
       familyId: widget.familyId,
@@ -774,10 +766,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             familyId: widget.familyId,
             onMessageTap: (messageId) => _scrollToMessage(messageId),
             onUnpin: (messageId) {
-              ref.read(socketServiceProvider).emitUnpinMessage(
-                familyId: widget.familyId,
-                messageId: messageId,
-              );
+              ref
+                  .read(socketServiceProvider)
+                  .emitUnpinMessage(
+                    familyId: widget.familyId,
+                    messageId: messageId,
+                  );
             },
           ),
           Expanded(
@@ -805,7 +799,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Triggered after the user sends their first message ever (based on
     // the first_message_in_chat analytics event) AND hasn't seen the
     // coach marks yet (hasSeenChatOnboarding flag in SharedPreferences).
-    final showOnboarding = ref.watch(shouldShowChatOnboardingProvider(widget.familyId));
+    final showOnboarding = ref.watch(
+      shouldShowChatOnboardingProvider(widget.familyId),
+    );
 
     return PopScope(
       // v6.0 — When selection mode is active, the back button exits
@@ -817,106 +813,106 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         }
       },
       child: Stack(
-      children: [
-        DKScaffold(
-      // v132: The background is now rendered by ChatBackground (a
-      // multi-layer ambient gradient + optional blurred wallpaper).
-      // The Scaffold background is a flat dark color that only shows
-      // behind the AppBar/input bar — the messages area is fully
-      // covered by ChatBackground.
-      backgroundColor: ChatUi.chatBackground,
-      // v126: Explicitly enable keyboard resizing so the input bar
-      // moves above the keyboard (WhatsApp-style).
-      resizeToAvoidBottomInset: true,
-      // v140 Family-Centric Chat Navigation: hideAppBar lets the parent
-      // (e.g. FamilyChatListScreen with [Family]/[Direct] tabs) provide
-      // its own header without a double-AppBar.
-      // Selection mode: swap the normal AppBar for the selection toolbar
-      // when active, so the user sees count + bulk actions at the top.
-      appBar: widget.hideAppBar
-          ? null
-          : (_selectionMode
-              ? SelectionModeToolbar(
-                  selectedCount: _selectedMessageIds.length,
-                  onClose: _exitSelectionMode,
-                  onReply: _bulkReply,
-                  onForward: _bulkForward,
-                  onStar: _bulkStar,
-                  onDelete: _bulkDelete,
-                  onMore: _bulkMore,
-                )
-              : _buildAppBar(chatState)),
-      // v115: Only show the Family Space bottom nav when this screen
-      // is the tab destination (showFamilyNav=true). When opened as a
-      // pushed conversation from the chat list, the bottom nav is
-      // hidden so the chat is full-screen (WhatsApp/Telegram style).
-      bottomNavigationBar: widget.showFamilyNav
-          ? FamilySpaceFloatingNav(familyId: widget.familyId)
-          : null,
-      body: _isCheckingLock
-          ? const Center(
-              child: CircularProgressIndicator(color: KinrelColors.ember),
-            )
-          : _isChatLocked
-              ? _buildLockScreen()
-              : Column(
-                  children: [
-                    // v132: Messages list wrapped with ChatBackground — a
-                    // multi-layer ambient gradient (base + accent glow +
-                    // vignette) plus optional blurred custom wallpaper.
-                    // Gives the chat space depth without competing with bubbles.
-                    Expanded(
-                      child: ChatBackground(
-                        // Kin Thread / C2: direct chats keep the dm_-keyed
-                        // wallpaper slot so saved choices carry over.
-                        chatId: _chatSettingsKey,
-                        child: bodyContent,
-                      ),
-                    ),
-                    // Selection mode hides the typing indicator, reply
-                    // preview, sticker panel, and input bar — the user
-                    // is picking messages, not composing.
-                    if (!_selectionMode) ...[
-                      // Typing indicator — shows if EITHER the Supabase
-                      // Realtime typing status OR the Socket.IO engagement
-                      // layer reports someone typing. The engagement layer
-                      // is preferred when both fire (it has the more recent
-                      // event + a richer multi-user label).
-                      if (chatState.isTyping || engagement.isSomeoneTyping)
-                        _buildTypingIndicator(chatState, engagement),
-                      // Reply preview bar
-                      if (chatState.replyToMessage != null)
-                        _buildReplyPreview(chatState.replyToMessage!),
-                      // Phase 14: Sticker panel (slides up when toggled)
-                      if (_showStickerPanel && !_isRecording)
-                        StickerPanel(
-                          onStickerSelected: _sendSticker,
-                          onClose: _toggleStickerPanel,
+        children: [
+          DKScaffold(
+            // v132: The background is now rendered by ChatBackground (a
+            // multi-layer ambient gradient + optional blurred wallpaper).
+            // The Scaffold background is a flat dark color that only shows
+            // behind the AppBar/input bar — the messages area is fully
+            // covered by ChatBackground.
+            backgroundColor: ChatUi.chatBackground,
+            // v126: Explicitly enable keyboard resizing so the input bar
+            // moves above the keyboard (WhatsApp-style).
+            resizeToAvoidBottomInset: true,
+            // v140 Family-Centric Chat Navigation: hideAppBar lets the parent
+            // (e.g. FamilyChatListScreen with [Family]/[Direct] tabs) provide
+            // its own header without a double-AppBar.
+            // Selection mode: swap the normal AppBar for the selection toolbar
+            // when active, so the user sees count + bulk actions at the top.
+            appBar: widget.hideAppBar
+                ? null
+                : (_selectionMode
+                      ? SelectionModeToolbar(
+                          selectedCount: _selectedMessageIds.length,
+                          onClose: _exitSelectionMode,
+                          onReply: _bulkReply,
+                          onForward: _bulkForward,
+                          onStar: _bulkStar,
+                          onDelete: _bulkDelete,
+                          onMore: _bulkMore,
+                        )
+                      : _buildAppBar(chatState)),
+            // v115: Only show the Family Space bottom nav when this screen
+            // is the tab destination (showFamilyNav=true). When opened as a
+            // pushed conversation from the chat list, the bottom nav is
+            // hidden so the chat is full-screen (WhatsApp/Telegram style).
+            bottomNavigationBar: widget.showFamilyNav
+                ? FamilySpaceFloatingNav(familyId: widget.familyId)
+                : null,
+            body: _isCheckingLock
+                ? const Center(
+                    child: CircularProgressIndicator(color: KinrelColors.ember),
+                  )
+                : _isChatLocked
+                ? _buildLockScreen()
+                : Column(
+                    children: [
+                      // v132: Messages list wrapped with ChatBackground — a
+                      // multi-layer ambient gradient (base + accent glow +
+                      // vignette) plus optional blurred custom wallpaper.
+                      // Gives the chat space depth without competing with bubbles.
+                      Expanded(
+                        child: ChatBackground(
+                          // Kin Thread / C2: direct chats keep the dm_-keyed
+                          // wallpaper slot so saved choices carry over.
+                          chatId: _chatSettingsKey,
+                          child: bodyContent,
                         ),
-                      // Input bar
-                      _buildInputBar(),
-                      // v128: On Flutter Web, resizeToAvoidBottomInset doesn't detect
-                      // the mobile keyboard. We add explicit bottom padding equal to
-                      // the visualViewport-measured keyboard height so the input bar
-                      // is always visible above the keyboard.
-                      if (kIsWeb && _webKeyboardHeight > 0)
-                        SizedBox(height: _webKeyboardHeight),
+                      ),
+                      // Selection mode hides the typing indicator, reply
+                      // preview, sticker panel, and input bar — the user
+                      // is picking messages, not composing.
+                      if (!_selectionMode) ...[
+                        // Typing indicator — shows if EITHER the Supabase
+                        // Realtime typing status OR the Socket.IO engagement
+                        // layer reports someone typing. The engagement layer
+                        // is preferred when both fire (it has the more recent
+                        // event + a richer multi-user label).
+                        if (chatState.isTyping || engagement.isSomeoneTyping)
+                          _buildTypingIndicator(chatState, engagement),
+                        // Reply preview bar
+                        if (chatState.replyToMessage != null)
+                          _buildReplyPreview(chatState.replyToMessage!),
+                        // Phase 14: Sticker panel (slides up when toggled)
+                        if (_showStickerPanel && !_isRecording)
+                          StickerPanel(
+                            onStickerSelected: _sendSticker,
+                            onClose: _toggleStickerPanel,
+                          ),
+                        // Input bar
+                        _buildInputBar(),
+                        // v128: On Flutter Web, resizeToAvoidBottomInset doesn't detect
+                        // the mobile keyboard. We add explicit bottom padding equal to
+                        // the visualViewport-measured keyboard height so the input bar
+                        // is always visible above the keyboard.
+                        if (kIsWeb && _webKeyboardHeight > 0)
+                          SizedBox(height: _webKeyboardHeight),
+                      ],
                     ],
-                  ],
-                ),
-        ),
-        // Feature 7: onboarding coach-mark overlay (shown once after
-        // the user's first message ever).
-        if (showOnboarding)
-          ChatOnboardingCoachMarks(
-            onComplete: () {
-              // Invalidate the onboarding status provider so it refetches
-              // (the hasSeenChatOnboarding flag is now true, so
-              // shouldShowChatOnboardingProvider returns false).
-              ref.invalidate(chatOnboardingStatusProvider(widget.familyId));
-            },
+                  ),
           ),
-      ],
+          // Feature 7: onboarding coach-mark overlay (shown once after
+          // the user's first message ever).
+          if (showOnboarding)
+            ChatOnboardingCoachMarks(
+              onComplete: () {
+                // Invalidate the onboarding status provider so it refetches
+                // (the hasSeenChatOnboarding flag is now true, so
+                // shouldShowChatOnboardingProvider returns false).
+                ref.invalidate(chatOnboardingStatusProvider(widget.familyId));
+              },
+            ),
+        ],
       ),
     );
   }
@@ -983,7 +979,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     backgroundColor: KinrelColors.ember,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 32, vertical: 14),
+                      horizontal: 32,
+                      vertical: 14,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -1034,10 +1032,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             Text(
               error,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: KinrelColors.textDim,
-                fontSize: 13,
-              ),
+              style: const TextStyle(color: KinrelColors.textDim, fontSize: 13),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
@@ -1068,10 +1063,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           Expanded(
             child: Text(
               error,
-              style: const TextStyle(
-                color: Colors.redAccent,
-                fontSize: 12,
-              ),
+              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -1100,10 +1092,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Presence: prefer the Socket.IO engagement layer (instant), fall
     // back to the Supabase Realtime count.
     final engagement = ref.watch(chatEngagementProvider(widget.familyId));
-    final onlineCount = engagement.presence.values
-            .where((p) => p.isOnline)
-            .length +
-        0;
+    final onlineCount =
+        engagement.presence.values.where((p) => p.isOnline).length + 0;
     final shownOnline = onlineCount > 0 ? onlineCount : chatState.onlineCount;
 
     final title = widget.groupName ?? widget.familyName;
@@ -1119,8 +1109,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           context.go('/family/${widget.familyId}');
         }
       },
-      onAvatarTap: () =>
-          context.push('/family/${widget.familyId}/profile'),
+      onAvatarTap: () => context.push('/family/${widget.familyId}/profile'),
       onPhoneTap: _showCallComingSoon,
       onMoreTap: () => _showChatOverflowMenu(),
     );
@@ -1135,15 +1124,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     String? relationship;
     Color? relationshipColor;
     if (widget.familyId.isNotEmpty && otherUserId != null) {
-      relationship = ref.watch(relationshipLabelProvider(
-        (familyId: widget.familyId, senderUserId: otherUserId),
-      ));
-      final rawKey = ref.watch(relationshipKeyProvider(
-        (familyId: widget.familyId, senderUserId: otherUserId),
-      ));
+      relationship = ref.watch(
+        relationshipLabelProvider((
+          familyId: widget.familyId,
+          senderUserId: otherUserId,
+        )),
+      );
+      final rawKey = ref.watch(
+        relationshipKeyProvider((
+          familyId: widget.familyId,
+          senderUserId: otherUserId,
+        )),
+      );
       if (rawKey != null) {
-        relationshipColor =
-            kinshipCategoryColor(KinshipEdgeClassifier.classify(rawKey));
+        relationshipColor = kinshipCategoryColor(
+          KinshipEdgeClassifier.classify(rawKey),
+        );
       }
     }
     final otherMember = otherUserId == null
@@ -1166,7 +1162,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           context.pop();
         } else if (widget.directOtherUserId != null) {
           context.go(
-              '/family/${widget.familyId}/direct/${widget.directOtherUserId}');
+            '/family/${widget.familyId}/direct/${widget.directOtherUserId}',
+          );
         } else {
           context.go('/family/${widget.familyId}');
         }
@@ -1237,8 +1234,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ChatOverflowMenuItem(
           label: 'Disappearing messages',
           icon: Icons.timer_outlined,
-          onTap: () =>
-              DisappearingMessagesSheet.show(context, familyId: widget.familyId),
+          onTap: () => DisappearingMessagesSheet.show(
+            context,
+            familyId: widget.familyId,
+          ),
         ),
         ChatOverflowMenuItem(
           label: 'Chat lock',
@@ -1414,10 +1413,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       await file.writeAsString(exportText);
 
       if (mounted) {
-        await Share.shareXFiles(
-          [XFile(file.path)],
-          text: 'Chat export: ${widget.familyName}',
-        );
+        await Share.shareXFiles([
+          XFile(file.path),
+        ], text: 'Chat export: ${widget.familyName}');
       }
     } catch (e) {
       if (mounted) {
@@ -1461,24 +1459,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.access_time_rounded,
-                  color: KinrelColors.ember),
-              title: const Text('15 minutes',
-                  style: TextStyle(color: KinrelColors.textWhite)),
+              leading: const Icon(
+                Icons.access_time_rounded,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                '15 minutes',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
               onTap: () => Navigator.pop(ctx, 15),
             ),
             ListTile(
-              leading: const Icon(Icons.schedule_rounded,
-                  color: KinrelColors.ember),
-              title: const Text('1 hour',
-                  style: TextStyle(color: KinrelColors.textWhite)),
+              leading: const Icon(
+                Icons.schedule_rounded,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                '1 hour',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
               onTap: () => Navigator.pop(ctx, 60),
             ),
             ListTile(
-              leading: const Icon(Icons.update_rounded,
-                  color: KinrelColors.ember),
-              title: const Text('8 hours',
-                  style: TextStyle(color: KinrelColors.textWhite)),
+              leading: const Icon(
+                Icons.update_rounded,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                '8 hours',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
               onTap: () => Navigator.pop(ctx, 480),
             ),
             const SizedBox(height: 8),
@@ -1498,7 +1508,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ),
       );
 
-      await ref.read(chatProvider(widget.familyId).notifier).sendLocation(
+      await ref
+          .read(chatProvider(widget.familyId).notifier)
+          .sendLocation(
             lat: position.latitude,
             lng: position.longitude,
             label: 'Live location (sharing for ${_durationLabel(duration)})',
@@ -1508,7 +1520,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-                'Live location shared for ${_durationLabel(duration)}'),
+              'Live location shared for ${_durationLabel(duration)}',
+            ),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
@@ -1523,7 +1536,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // is a balance between freshness + battery.
       _liveLocationTimer?.cancel();
       var remaining = duration;
-      _liveLocationTimer = Timer.periodic(const Duration(seconds: 30), (t) async {
+      _liveLocationTimer = Timer.periodic(const Duration(seconds: 30), (
+        t,
+      ) async {
         remaining -= 1;
         if (remaining <= 0) {
           t.cancel();
@@ -1537,11 +1552,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
           );
           if (mounted) {
-            ref.read(chatProvider(widget.familyId).notifier).sendLocation(
+            ref
+                .read(chatProvider(widget.familyId).notifier)
+                .sendLocation(
                   lat: pos.latitude,
                   lng: pos.longitude,
-                  label:
-                      'Live location update (${remaining * 30}s remaining)',
+                  label: 'Live location update (${remaining * 30}s remaining)',
                 );
           }
         } catch (e) {
@@ -1581,7 +1597,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Biometric authentication is not available on this device.'),
+            content: Text(
+              'Biometric authentication is not available on this device.',
+            ),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -1622,7 +1640,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Chat locked. You\'ll need biometrics to open it next time.'),
+            content: Text(
+              'Chat locked. You\'ll need biometrics to open it next time.',
+            ),
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
           ),
@@ -1684,13 +1704,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Chat Wallpaper',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: KinrelColors.textWhite,
-                )),
+            const Text(
+              'Chat Wallpaper',
+              style: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.textWhite,
+              ),
+            ),
             const SizedBox(height: 4),
             const Text(
               'Pick a color — changes instantly',
@@ -1713,10 +1735,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               itemCount: colors.length,
               itemBuilder: (ctx, index) {
                 final c = colors[index];
-                final colorValue = int.parse(c['color']!.substring(1, 7), radix: 16);
+                final colorValue = int.parse(
+                  c['color']!.substring(1, 7),
+                  radix: 16,
+                );
                 // v113: Checkmark overlay on the active swatch so users
                 // get visual confirmation of which wallpaper is applied.
-                final isActive = _wallpaperColor != null &&
+                final isActive =
+                    _wallpaperColor != null &&
                     _wallpaperColor!.toARGB32() == 0xFF000000 + colorValue;
                 return GestureDetector(
                   onTap: () async {
@@ -1905,7 +1931,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final service = ref.read(chatEnhancementServiceProvider);
     final settings = await service.getChatSettings(widget.familyId);
     final isMuted = settings?['isMuted'] as bool? ?? false;
-    await service.saveChatSettings(familyId: widget.familyId, isMuted: !isMuted);
+    await service.saveChatSettings(
+      familyId: widget.familyId,
+      isMuted: !isMuted,
+    );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1935,26 +1964,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         builder: (ctx, controller) => Column(
           children: [
             Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               margin: const EdgeInsets.only(top: 12, bottom: 16),
               decoration: BoxDecoration(
                 color: KinrelColors.border,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const Text('Starred Messages',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: KinrelColors.textWhite,
-                )),
+            const Text(
+              'Starred Messages',
+              style: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.textWhite,
+              ),
+            ),
             const SizedBox(height: 16),
             Expanded(
               child: starred.isEmpty
                   ? const Center(
-                      child: Text('No starred messages',
-                          style: TextStyle(color: KinrelColors.textDim)))
+                      child: Text(
+                        'No starred messages',
+                        style: TextStyle(color: KinrelColors.textDim),
+                      ),
+                    )
                   : ListView.builder(
                       controller: controller,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1972,21 +2007,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(msg.senderName,
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: KinrelColors.orange)),
+                              Text(
+                                msg.senderName,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: KinrelColors.orange,
+                                ),
+                              ),
                               const SizedBox(height: 4),
-                              Text(msg.content,
-                                  style: const TextStyle(
-                                      fontSize: 13,
-                                      color: KinrelColors.textWhite)),
+                              Text(
+                                msg.content,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: KinrelColors.textWhite,
+                                ),
+                              ),
                               const SizedBox(height: 4),
-                              Text(msg.formattedTime,
-                                  style: const TextStyle(
-                                      fontSize: 10,
-                                      color: KinrelColors.textDim)),
+                              Text(
+                                msg.formattedTime,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: KinrelColors.textDim,
+                                ),
+                              ),
                             ],
                           ),
                         );
@@ -2020,7 +2064,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         builder: (ctx, controller) => Column(
           children: [
             Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               margin: const EdgeInsets.only(top: 12, bottom: 16),
               decoration: BoxDecoration(
                 color: KinrelColors.border,
@@ -2032,21 +2077,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               children: [
                 Icon(Icons.push_pin, size: 18, color: KinrelColors.orange),
                 SizedBox(width: 6),
-                Text('Pinned Messages',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.displayFont,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: KinrelColors.textWhite,
-                    )),
+                Text(
+                  'Pinned Messages',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
             Expanded(
               child: pinned.isEmpty
                   ? const Center(
-                      child: Text('No pinned messages',
-                          style: TextStyle(color: KinrelColors.textDim)))
+                      child: Text(
+                        'No pinned messages',
+                        style: TextStyle(color: KinrelColors.textDim),
+                      ),
+                    )
                   : ListView.builder(
                       controller: controller,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -2066,22 +2116,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             children: [
                               Row(
                                 children: [
-                                  const Icon(Icons.push_pin,
-                                      size: 14, color: KinrelColors.orange),
+                                  const Icon(
+                                    Icons.push_pin,
+                                    size: 14,
+                                    color: KinrelColors.orange,
+                                  ),
                                   const SizedBox(width: 4),
-                                  Text(msg.senderName,
-                                      style: const TextStyle(
-                                        fontFamily: KinrelTypography.bodyFont,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: KinrelColors.orange,
-                                      )),
+                                  Text(
+                                    msg.senderName,
+                                    style: const TextStyle(
+                                      fontFamily: KinrelTypography.bodyFont,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: KinrelColors.orange,
+                                    ),
+                                  ),
                                   const Spacer(),
-                                  Text(msg.formattedTime,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: KinrelColors.textDim,
-                                      )),
+                                  Text(
+                                    msg.formattedTime,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: KinrelColors.textDim,
+                                    ),
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 4),
@@ -2167,7 +2224,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   // ── Typing Indicator ─────────────────────────────────────────────
 
-  Widget _buildTypingIndicator(ChatState chatState, ChatEngagementState engagement) {
+  Widget _buildTypingIndicator(
+    ChatState chatState,
+    ChatEngagementState engagement,
+  ) {
     // Feature 7: use the locale-aware typing label (Hindi/Marathi/Tamil/etc.)
     // Falls back to English if localization is unavailable.
     final l10n = S.of(context);
@@ -2177,21 +2237,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final label = engagement.isSomeoneTyping
         ? engagement.typingLabelLocalized(l10n)
         : (l10n?.chatTypingSingle(chatState.typingUserName ?? 'Someone') ??
-            '${chatState.typingUserName ?? 'Someone'} is typing');
+              '${chatState.typingUserName ?? 'Someone'} is typing');
     final firstInitial = engagement.isSomeoneTyping
         ? (engagement.typingUserNames.values.isNotEmpty
-            ? engagement.typingUserNames.values.first
-            : 'Someone')
+              ? engagement.typingUserNames.values.first
+              : 'Someone')
         : (chatState.typingUserName ?? 'Someone');
     // v3.5: the indicator's rendering was MOVED to the shared
     // TypingIndicator widget (see typing_indicator.dart) so the DM
     // screen renders the SAME indicator (avatar initial + label +
     // bouncing dots, same animation). Identical rendering to the
     // previous inline version — the group just supplies its label.
-    return TypingIndicator(
-      name: firstInitial,
-      label: label,
-    );
+    return TypingIndicator(name: firstInitial, label: label);
   }
 
   // ── Reply Preview Bar ────────────────────────────────────────────
@@ -2262,8 +2319,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Widget _buildRecordingBar() {
     // D12-style flat recording bar: chatBar surface, chatCard capsule,
     // radius 20, no gradients/shadows.
-    final minutes = _recordingDuration.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = _recordingDuration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final minutes = _recordingDuration.inMinutes
+        .remainder(60)
+        .toString()
+        .padLeft(2, '0');
+    final seconds = _recordingDuration.inSeconds
+        .remainder(60)
+        .toString()
+        .padLeft(2, '0');
     return Container(
       color: ChatUi.chatBar,
       child: SafeArea(
@@ -2292,7 +2355,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ),
                 ),
                 const SizedBox(width: 10),
-                Text(
+                const Text(
                   'Recording',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -2304,7 +2367,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // Cancel button
                 GestureDetector(
                   onTap: _cancelRecording,
-                  child: SizedBox(
+                  child: const SizedBox(
                     width: ChatUi.tapTarget,
                     height: ChatUi.tapTarget,
                     child: const Center(
@@ -2461,14 +2524,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       final xfile = XFile(path);
       final bytes = await xfile.readAsBytes();
       final mimeType = _audioMimeType();
-      final fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.${_audioFileExtension()}';
+      final fileName =
+          'voice_${DateTime.now().millisecondsSinceEpoch}.${_audioFileExtension()}';
 
-      await ref.read(chatProvider(widget.familyId).notifier).sendVoiceMessage(
-        bytes: Uint8List.fromList(bytes),
-        durationSeconds: durationSeconds,
-        mimeType: mimeType,
-        fileName: fileName,
-      );
+      await ref
+          .read(chatProvider(widget.familyId).notifier)
+          .sendVoiceMessage(
+            bytes: Uint8List.fromList(bytes),
+            durationSeconds: durationSeconds,
+            mimeType: mimeType,
+            fileName: fileName,
+          );
 
       // Clean up temp file on native (ignore on web)
       _tryDeleteFile(path);
@@ -2544,8 +2610,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
     final chatState = ref.read(chatProvider(widget.familyId));
     final uid = _currentUserId;
-    final others =
-        chatState.members.where((m) => m.id != uid).toList(growable: false);
+    final others = chatState.members
+        .where((m) => m.id != uid)
+        .toList(growable: false);
     if (others.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2567,8 +2634,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       context: context,
       backgroundColor: KinrelColors.darkCard,
       shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(KinrelRadius.xxl)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.xxl),
+        ),
       ),
       builder: (ctx) => SafeArea(
         child: Column(
@@ -2675,59 +2743,95 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_outlined,
-                  color: KinrelColors.ember),
-              title: const Text('Photo',
-                  style: TextStyle(color: KinrelColors.textWhite)),
-              subtitle: const Text('From gallery',
-                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              leading: const Icon(
+                Icons.photo_outlined,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                'Photo',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
+              subtitle: const Text(
+                'From gallery',
+                style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+              ),
               onTap: () => Navigator.pop(ctx, 'photo'),
             ),
             ListTile(
-              leading: const Icon(Icons.insert_drive_file_outlined,
-                  color: KinrelColors.ember),
-              title: const Text('Document',
-                  style: TextStyle(color: KinrelColors.textWhite)),
-              subtitle: const Text('PDF, DOC, XLS, etc.',
-                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              leading: const Icon(
+                Icons.insert_drive_file_outlined,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                'Document',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
+              subtitle: const Text(
+                'PDF, DOC, XLS, etc.',
+                style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+              ),
               onTap: () => Navigator.pop(ctx, 'document'),
             ),
             ListTile(
-              leading: const Icon(Icons.location_on_outlined,
-                  color: KinrelColors.ember),
-              title: const Text('Location',
-                  style: TextStyle(color: KinrelColors.textWhite)),
-              subtitle: const Text('Share your current location',
-                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              leading: const Icon(
+                Icons.location_on_outlined,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                'Location',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
+              subtitle: const Text(
+                'Share your current location',
+                style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+              ),
               onTap: () => Navigator.pop(ctx, 'location'),
             ),
             ListTile(
-              leading: const Icon(Icons.gif_box_outlined,
-                  color: KinrelColors.ember),
-              title: const Text('GIF',
-                  style: TextStyle(color: KinrelColors.textWhite)),
-              subtitle: const Text('Search Giphy',
-                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              leading: const Icon(
+                Icons.gif_box_outlined,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                'GIF',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
+              subtitle: const Text(
+                'Search Giphy',
+                style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+              ),
               onTap: () => Navigator.pop(ctx, 'gif'),
             ),
             // D12: sticker packs + poll composer moved here from the
             // old composer button row (same callbacks, new home).
             ListTile(
-              leading: const Icon(Icons.emoji_emotions_outlined,
-                  color: KinrelColors.ember),
-              title: const Text('Stickers',
-                  style: TextStyle(color: KinrelColors.textWhite)),
-              subtitle: const Text('Giphy sticker packs',
-                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              leading: const Icon(
+                Icons.emoji_emotions_outlined,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                'Stickers',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
+              subtitle: const Text(
+                'Giphy sticker packs',
+                style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+              ),
               onTap: () => Navigator.pop(ctx, 'stickers'),
             ),
             ListTile(
-              leading: const Icon(Icons.poll_outlined,
-                  color: KinrelColors.ember),
-              title: const Text('Poll',
-                  style: TextStyle(color: KinrelColors.textWhite)),
-              subtitle: const Text('Create a poll',
-                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              leading: const Icon(
+                Icons.poll_outlined,
+                color: KinrelColors.ember,
+              ),
+              title: const Text(
+                'Poll',
+                style: TextStyle(color: KinrelColors.textWhite),
+              ),
+              subtitle: const Text(
+                'Create a poll',
+                style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+              ),
               onTap: () => Navigator.pop(ctx, 'poll'),
             ),
             const SizedBox(height: 8),
@@ -2751,7 +2855,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           await GifSearchSheet.show(
             context,
             onGifSelected: (gif) {
-              ref.read(chatProvider(widget.familyId).notifier).sendGif(
+              ref
+                  .read(chatProvider(widget.familyId).notifier)
+                  .sendGif(
                     gifUrl: gif.fullUrl,
                     title: gif.title.isNotEmpty ? gif.title : 'GIF',
                   );
@@ -2793,7 +2899,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             content: Row(
               children: [
                 SizedBox(
-                  width: 16, height: 16,
+                  width: 16,
+                  height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     color: KinrelColors.orange,
@@ -2810,11 +2917,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         );
       }
 
-      await ref.read(chatProvider(widget.familyId).notifier).sendAttachment(
-        bytes: Uint8List.fromList(bytes),
-        fileName: fileName,
-        mimeType: mimeType,
-      );
+      await ref
+          .read(chatProvider(widget.familyId).notifier)
+          .sendAttachment(
+            bytes: Uint8List.fromList(bytes),
+            fileName: fileName,
+            mimeType: mimeType,
+          );
 
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -2860,9 +2969,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             content: Row(
               children: [
                 const SizedBox(
-                  width: 16, height: 16,
+                  width: 16,
+                  height: 16,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2, color: KinrelColors.orange,
+                    strokeWidth: 2,
+                    color: KinrelColors.orange,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -2900,10 +3011,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           .from('chat-attachments')
           .getPublicUrl(storagePath);
 
-      await ref.read(chatProvider(widget.familyId).notifier).sendDocument(
-            documentUrl: publicUrl,
-            fileName: fileName,
-          );
+      await ref
+          .read(chatProvider(widget.familyId).notifier)
+          .sendDocument(documentUrl: publicUrl, fileName: fileName);
 
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -2940,9 +3050,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             content: Row(
               children: [
                 SizedBox(
-                  width: 16, height: 16,
+                  width: 16,
+                  height: 16,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2, color: KinrelColors.orange,
+                    strokeWidth: 2,
+                    color: KinrelColors.orange,
                   ),
                 ),
                 SizedBox(width: 12),
@@ -2964,7 +3076,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ),
       );
 
-      await ref.read(chatProvider(widget.familyId).notifier).sendLocation(
+      await ref
+          .read(chatProvider(widget.familyId).notifier)
+          .sendLocation(
             lat: position.latitude,
             lng: position.longitude,
             label: 'My location',
@@ -3020,8 +3134,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: KinrelColors.darkCard,
-        title: const Text('Edit Message',
-            style: TextStyle(color: KinrelColors.textWhite)),
+        title: const Text(
+          'Edit Message',
+          style: TextStyle(color: KinrelColors.textWhite),
+        ),
         content: TextField(
           controller: editController,
           maxLines: null,
@@ -3040,8 +3156,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () async {
               final newContent = editController.text.trim();
@@ -3053,10 +3170,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               final service = ref.read(chatEnhancementServiceProvider);
               final success = await service.editMessage(message.id, newContent);
               if (success) {
-                ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+                ref
+                    .read(chatProvider(widget.familyId).notifier)
+                    .refreshMessages();
               }
             },
-            child: const Text('Save', style: TextStyle(color: KinrelColors.orange)),
+            child: const Text(
+              'Save',
+              style: TextStyle(color: KinrelColors.orange),
+            ),
           ),
         ],
       ),
@@ -3072,16 +3194,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final currentUserId = _currentUserId;
     final detailAsync = ref.read(familyDetailProvider(widget.familyId));
     final family = detailAsync.valueOrNull?.family;
-    final isCreator = family?.createdBy != null &&
-        family?.createdBy == currentUserId;
-    final membershipsAsync =
-        ref.read(familyMembershipsProvider(widget.familyId));
+    final isCreator =
+        family?.createdBy != null && family?.createdBy == currentUserId;
+    final membershipsAsync = ref.read(
+      familyMembershipsProvider(widget.familyId),
+    );
     final memberships = membershipsAsync.valueOrNull ?? [];
     final currentUserMembership = memberships
         .where((m) => m.userId == currentUserId)
         .firstOrNull;
-    final isAdminOrCreator = isCreator ||
-        currentUserMembership?.isAdmin == true;
+    final isAdminOrCreator =
+        isCreator || currentUserMembership?.isAdmin == true;
 
     showModalBottomSheet(
       context: context,
@@ -3295,7 +3418,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   Navigator.pop(context);
                   final service = ref.read(chatEnhancementServiceProvider);
                   await service.starMessage(message.id, !message.isStarred);
-                  ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+                  ref
+                      .read(chatProvider(widget.familyId).notifier)
+                      .refreshMessages();
                 },
               ),
               // v122: Pin / Unpin — group rule is admin/creator (RPC
@@ -3304,9 +3429,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               if (isAdminOrCreator || widget.isDirectChat)
                 ListTile(
                   leading: Icon(
-                    message.isPinned
-                        ? Icons.push_pin
-                        : Icons.push_pin_outlined,
+                    message.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
                     color: message.isPinned
                         ? KinrelColors.orange
                         : KinrelColors.textSilver,
@@ -3324,7 +3447,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     Navigator.pop(context);
                     final service = ref.read(chatEnhancementServiceProvider);
                     await service.pinMessage(message.id, !message.isPinned);
-                    ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+                    ref
+                        .read(chatProvider(widget.familyId).notifier)
+                        .refreshMessages();
                   },
                 ),
               // Edit (only for own text messages)
@@ -3350,20 +3475,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
               // Delete for Me — v143: immediate optimistic deletion with a
               // 5-second Undo snackbar. The message disappears from this
-              // user's view instantly (no confirmation dialog) and a snackbar
-              // offers an UNDO action for 5 seconds. If UNDO is tapped, the
-              // local state is reverted and the deletion never commits to
-              // the server. If the timer expires, the deletion is finalized
-              // by calling fn_delete_message_for_me on the backend.
-              //
-              // Required behavior (per implementation brief §1):
-              //   • Immediate disappearance — no confirmation.
-              //   • "Message deleted. UNDO" notification (single) or
-              //     "Messages deleted. UNDO" (bulk — see _bulkDelete).
-              //   • ~5 second visibility.
-              //   • Tapping Undo restores to original position.
-              //   • Affects only the current user's view.
-              //   • On failure, restore + error snackbar.
+              // user's view instantly (no confirmation dialog) and a
+              // snackbar offers an UNDO action for 5 seconds. If UNDO is
+              // tapped, the local state is reverted and the deletion never
+              // commits to the server. If the timer expires, the deletion
+              // is finalized via fn_bulk_delete_for_me on the backend.
               ListTile(
                 leading: const Icon(
                   Icons.delete_outline,
@@ -3412,11 +3528,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   },
                 ),
               // Delete for Everyone (only for own messages) — v143: keep
-              // the confirmation dialog (per implementation brief §2). On
-              // confirmation, optimistically flip the row to deleted-for-
-              // everyone locally so the placeholder appears instantly,
-              // then commit via fn_delete_message_for_everyone which also
-              // records the deleter identity for personalized wording.
+              // the confirmation dialog. On confirmation, optimistically
+              // flip the row to deleted-for-everyone locally so the
+              // placeholder appears instantly, then commit via
+              // fn_delete_message_for_everyone which also records the
+              // deleter identity for placeholder wording.
               if (isMe)
                 ListTile(
                   leading: const Icon(
@@ -3434,44 +3550,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ),
                   onTap: () async {
                     Navigator.pop(context);
-                    // Confirm
                     final confirmed = await showDialog<bool>(
                       context: context,
                       builder: (ctx) => AlertDialog(
                         backgroundColor: KinrelColors.darkCard,
-                        title: const Text('Delete for Everyone?',
-                            style: TextStyle(color: KinrelColors.textWhite)),
+                        title: const Text(
+                          'Delete for Everyone?',
+                          style: TextStyle(color: KinrelColors.textWhite),
+                        ),
                         content: const Text(
-                            'This message will be removed from the conversation for all participants.',
-                            style: TextStyle(color: KinrelColors.textSilver)),
+                          'This message will be removed from the conversation for all participants.',
+                          style: TextStyle(color: KinrelColors.textSilver),
+                        ),
                         actions: [
                           TextButton(
-                              onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Cancel')),
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Cancel'),
+                          ),
                           TextButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              child: const Text('Delete for everyone',
-                                  style: TextStyle(color: KinrelColors.error))),
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text(
+                              'Delete for everyone',
+                              style: TextStyle(color: KinrelColors.error),
+                            ),
+                          ),
                         ],
                       ),
                     );
                     if (confirmed != true) return;
-                    // Optimistic: immediately flip the row to a deletion
-                    // placeholder so the UI updates instantly and the
-                    // user sees the "You deleted this message." bubble.
                     final notifier = ref.read(
                         chatProvider(widget.familyId).notifier);
                     notifier.markLocallyDeletedForEveryone(message.id);
-                    // Commit on the server (sender or admin only).
-                    final service =
-                        ref.read(chatEnhancementServiceProvider);
+                    final service = ref.read(chatEnhancementServiceProvider);
                     final success =
                         await service.deleteForEveryone(message.id);
                     if (!success) {
-                      // Restore the original message locally on failure.
-                      // The simplest restore path is to refresh from
-                      // server (which will resend the un-deleted state
-                      // since the RPC didn't go through).
                       await notifier.refreshMessages();
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -3483,11 +3596,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         );
                       }
                     }
-                    // On success, the realtime UPDATE event will
-                    // reconcile the local state with the server (the
-                    // row's isDeletedForEveryone is now true on the
-                    // server). No refresh needed — the optimistic
-                    // state is already correct.
                   },
                 ),
             ],
@@ -3580,10 +3688,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (_selectedMessageIds.isEmpty) return;
     // Find the most-recently-selected message in the messages list.
     final chatState = ref.read(chatProvider(widget.familyId));
-    final selected = chatState.messages
-        .where((m) => _selectedMessageIds.contains(m.id))
-        .toList()
-      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    final selected =
+        chatState.messages
+            .where((m) => _selectedMessageIds.contains(m.id))
+            .toList()
+          ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
     if (selected.isEmpty) return;
     final target = selected.first;
     _exitSelectionMode();
@@ -3634,39 +3743,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   ///      round-trip) and remove the rows from local state.
   ///   5. On commit failure → restore + show an error snackbar.
   ///
-  /// Handles concurrent deletion operations predictably: each call creates
-  /// its own prior-snapshot map, so undo restores exactly the messages in
-  /// THIS call — not messages from a separate pending deletion.
+  /// Each call creates its own prior-snapshot map so concurrent deletes
+  /// don't restore the wrong messages (the spec's §1.9 requirement).
   void _deleteForMeWithUndo(Set<String> messageIds) async {
     if (messageIds.isEmpty) return;
     final notifier = ref.read(chatProvider(widget.familyId).notifier);
     final service = ref.read(chatEnhancementServiceProvider);
 
-    // 1. Optimistic update — capture prior deletedForMe for undo.
     final priorSnapshots = notifier.markLocallyDeletedForMe(messageIds);
     final isBulk = messageIds.length > 1;
     final snackbarLabel = isBulk
         ? '${messageIds.length} messages deleted'
         : 'Message deleted';
 
-    // 2. Show the Undo snackbar for 5 seconds. SnackBar's `duration`
-    //    field is the inverse of "timer expires" — when the snackbar
-    //    disappears (either by tap-dismiss, 5-second auto-dismiss, or
-    //    UNDO tap), the corresponding callback fires.
-    //
-    //    We use a closed-over `_committed` flag to handle the race where
-    //    UNDO is tapped exactly as the timer expires (the action still
-    //    wins and skips the commit).
     var committed = false;
     var undone = false;
     final messenger = ScaffoldMessenger.of(context);
-
-    // Clear any prior undo snackbar so we never have two stacked undo
-    // bars (the spec explicitly requires: "If the user initiates another
-    // deletion while an Undo operation is pending, handle both operations
-    // predictably without restoring the wrong messages.")
+    // Clear any prior undo snackbar so we never have two stacked undo bars
+    // (spec §1.9: handle concurrent deletions predictably).
     messenger.clearSnackBars();
-
     messenger.showSnackBar(
       SnackBar(
         content: Text('$snackbarLabel. UNDO'),
@@ -3683,25 +3778,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       ),
     );
 
-    // 3. Wait out the snackbar duration. We can't use the snackbar's own
-    //    onVisible / onDismissed callbacks reliably (they fire for all
-    //    dismiss reasons), so we delay on a parallel timer.
     await Future<void>.delayed(const Duration(seconds: 5));
-
-    // 4. If UNDO was tapped, do nothing further — the local state is
-    //    already restored. Otherwise commit the deletion to the server.
     if (undone) return;
     committed = true;
 
-    // 5. Commit. Use the bulk RPC for efficiency — single round-trip
-    //    for any number of message ids. Fall back to per-id RPCs only
-    //    if the bulk RPC fails entirely (defensive — older clients
-    //    that haven't picked up the migration would 404 on the RPC).
     final idsList = messageIds.toList();
     var success = await service.bulkDeleteForMe(idsList);
     if (!success) {
-      // Fall back to per-id RPCs (one round-trip per message — slower
-      // but works against older backends that don't have the bulk RPC).
+      // Fall back to per-id RPCs (defensive against older backends).
       var anyFailed = false;
       for (final id in idsList) {
         final ok = await service.deleteForMe(id);
@@ -3711,7 +3795,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
 
     if (!success) {
-      // Restore + error snackbar.
       notifier.undoLocalDeleteForMe(priorSnapshots);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3724,20 +3807,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       return;
     }
 
-    // 6. Commit succeeded — finalize the local state by removing the
-    //    now-hidden rows from the in-memory list + Drift cache. (The
-    //    row stays in the backend with the user's uid appended to
-    //    deletedForMe — other participants still see it.)
     notifier.removeMessagesFromLocalState(idsList);
   }
 
   /// v143 — Bulk Delete for Everyone (sender or admin only).
   ///
-  /// Mirrors [deleteForEveryone] for a multi-select: shows the
-  /// confirmation dialog indicating how many messages will be deleted,
-  /// then commits one-by-one (the backend has no bulk delete-for-everyone
-  /// RPC). Optimistically updates each row so the placeholder appears
-  /// instantly. On partial failure, refreshes from server to reconcile.
+  /// Mirrors single-message Delete for Everyone for a multi-select:
+  /// shows the confirmation dialog indicating how many messages will be
+  /// deleted, then commits one-by-one (the backend has no bulk
+  /// delete-for-everyone RPC). Optimistically updates each row so the
+  /// placeholder appears instantly. On partial failure, refreshes from
+  /// server to reconcile.
   Future<void> _bulkDeleteForEveryone(Set<String> messageIds) async {
     if (messageIds.isEmpty) return;
     final count = messageIds.length;
@@ -3776,17 +3856,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final notifier = ref.read(chatProvider(widget.familyId).notifier);
     final service = ref.read(chatEnhancementServiceProvider);
 
-    // Optimistically flip each row to a deletion placeholder so the UI
-    // updates instantly. We process them sequentially because the
-    // backend RPC is also sequential.
     for (final id in messageIds) {
       notifier.markLocallyDeletedForEveryone(id);
       final success = await service.deleteForEveryone(id);
       if (!success) {
-        // Refresh from server to reconcile (the optimistic state for
-        // this id is wrong since the RPC failed). Then keep going for
-        // the remaining ids — the spec says "handle partial failures
-        // without incorrectly marking undeleted messages as deleted."
         await notifier.refreshMessages();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -3799,8 +3872,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         }
       }
     }
-    // Final reconciliation — pulls the authoritative server state so
-    // any partial-failure rows are corrected.
     await notifier.refreshMessages();
   }
 
@@ -3811,8 +3882,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   ///   • Delete for me — immediately deletes for the current user with
   ///     a 5-second UNDO snackbar (no confirmation dialog, per brief §1).
   ///   • Delete for everyone — only enabled when ALL selected messages
-  ///     are owned by the current user (the backend RPC enforces sender-
-  ///     or-admin authorization per message). Shows a confirmation dialog
+  ///     are owned by the current user. Shows a confirmation dialog
   ///     before committing (per brief §2).
   ///
   /// The "for everyone" option is hidden entirely when no selected
@@ -3821,9 +3891,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (_selectedMessageIds.isEmpty) return;
     final selectedIds = Set<String>.from(_selectedMessageIds);
 
-    // Look up the selected messages so we can decide which options to
-    // show (delete-for-everyone is only available when the user owns ALL
-    // of the selected messages).
     final chatState = ref.read(chatProvider(widget.familyId));
     final selected = chatState.messages
         .where((m) => selectedIds.contains(m.id))
@@ -3833,9 +3900,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         selected.isNotEmpty &&
         selected.every((m) => m.senderId == uid);
 
-    // Exit selection mode BEFORE opening the sheet (so the sheet appears
-    // on top of the regular chat screen, not on top of the selection
-    // toolbar).
     _exitSelectionMode();
 
     await showModalBottomSheet<void>(
@@ -3944,9 +4008,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             for (final msg in selected) {
               await service.starMessage(msg.id, !msg.isStarred);
             }
-            ref
-                .read(chatProvider(widget.familyId).notifier)
-                .refreshMessages();
+            ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
             _exitSelectionMode();
           },
         ),
@@ -3958,9 +4020,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             for (final msg in selected) {
               await service.pinMessage(msg.id, !msg.isPinned);
             }
-            ref
-                .read(chatProvider(widget.familyId).notifier)
-                .refreshMessages();
+            ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
             _exitSelectionMode();
           },
         ),
@@ -3999,4 +4059,3 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 // ═══════════════════════════════════════════════════════════════════════
 // Message Bubble Widget
 // ═══════════════════════════════════════════════════════════════════════
-

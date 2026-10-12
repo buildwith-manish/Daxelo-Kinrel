@@ -35,6 +35,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import '../../../../core/constants/brand_spacing.dart';
+
 import '../chat_ui_tokens.dart';
 
 const _kHideDelay = Duration(milliseconds: 1200);
@@ -221,7 +222,10 @@ class _FloatingDateIndicatorState extends State<FloatingDateIndicator>
     }
 
     return Positioned(
-      // D8: floating chip placed top center 8 below the header.
+      // D8 (floating): pinned 8 dp below the header, chatReceived
+      // pill, radius full, flat (no border, no shadow), 12 textSecondary
+      // in the body font — visually distinct from the static chatCard
+      // date chip so the scroll state reads instantly.
       top: 8,
       left: 0,
       right: 0,
@@ -232,15 +236,10 @@ class _FloatingDateIndicatorState extends State<FloatingDateIndicator>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                // D8 floating chip: same size as the static separator,
-                // background chatReceived, text textPrimary.
                 color: ChatUi.chatReceived,
                 borderRadius: BorderRadius.circular(KinrelRadius.full),
               ),
-              child: Text(
-                _currentLabel!,
-                style: ChatUi.floatingDateText,
-              ),
+              child: Text(_currentLabel!, style: ChatUi.pillText),
             ),
           ),
         ),

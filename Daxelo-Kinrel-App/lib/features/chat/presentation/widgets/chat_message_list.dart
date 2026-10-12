@@ -48,9 +48,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
-import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/utils/app_time.dart';
 import '../../../../core/family/family_provider.dart';
 import '../../../../graph/interaction/graph_focus_state.dart';
@@ -82,10 +80,12 @@ class ChatMessageList extends ConsumerStatefulWidget {
     this.onLoadOlder,
     this.enableSwipeReply = true,
     this.showReactions = true,
+
     /// v3.5 — failed-send actions (null = the group's built-in
     /// chatProvider retry/delete; the DM passes its own provider's).
     this.onRetryFailed,
     this.onDeleteFailed,
+
     /// v6.0 — Selection mode state (Image 3 reference).
     this.selectionMode = false,
     this.selectedMessageIds = const <String>{},
@@ -202,40 +202,40 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
     return Stack(
       children: [
         ListView.builder(
-      key: _listViewKey,
-      controller: widget.scrollController,
-      // reverse: true means the visual BOTTOM of the viewport shows
-      // index 0 (the newest message) and scrolling UP increases the
-      // scroll offset (toward older messages at the end of the list).
-      // This eliminates the need for a post-render scroll-to-bottom
-      // animation on screen entry — the list naturally opens at offset
-      // 0 = the most recent message, exactly like WhatsApp.
-      reverse: true,
-      padding: const EdgeInsets.fromLTRB(0, 10, 0, fabClearance),
-      itemCount: grouped.length,
-      // PERF (Tier K4): cacheExtent reduced from 1500 → 800.
-      // 1500px kept ~2 screens of offscreen content alive in the render
-      // tree. Reducing to 800px (~1 screen of headroom) halves the
-      // steady-state render-tree size without visible scroll pop-in for
-      // typical message heights (~80-120px).
-      cacheExtent: 800,
-      itemBuilder: (context, index) {
-        final group = grouped[index];
-        return Column(
-          children: [
-            // Date separator pill (D8: centered, chatCard pill)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: _buildDateSeparator(group.dateLabel),
-            ),
-            const SizedBox(height: 8),
-            // Messages for this date — with sender grouping, system
-            // notice short-circuit, unread divider, and terminal invite
-            // collapse. Index-based loop so runs can be collapsed.
-            ..._buildGroupRows(group),
-          ],
-        );
-      },
+          key: _listViewKey,
+          controller: widget.scrollController,
+          // reverse: true means the visual BOTTOM of the viewport shows
+          // index 0 (the newest message) and scrolling UP increases the
+          // scroll offset (toward older messages at the end of the list).
+          // This eliminates the need for a post-render scroll-to-bottom
+          // animation on screen entry — the list naturally opens at offset
+          // 0 = the most recent message, exactly like WhatsApp.
+          reverse: true,
+          padding: const EdgeInsets.fromLTRB(0, 10, 0, fabClearance),
+          itemCount: grouped.length,
+          // PERF (Tier K4): cacheExtent reduced from 1500 → 800.
+          // 1500px kept ~2 screens of offscreen content alive in the render
+          // tree. Reducing to 800px (~1 screen of headroom) halves the
+          // steady-state render-tree size without visible scroll pop-in for
+          // typical message heights (~80-120px).
+          cacheExtent: 800,
+          itemBuilder: (context, index) {
+            final group = grouped[index];
+            return Column(
+              children: [
+                // Date separator pill (D8: centered, chatCard pill)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: _buildDateSeparator(group.dateLabel),
+                ),
+                const SizedBox(height: 8),
+                // Messages for this date — with sender grouping, system
+                // notice short-circuit, unread divider, and terminal invite
+                // collapse. Index-based loop so runs can be collapsed.
+                ..._buildGroupRows(group),
+              ],
+            );
+          },
         ), // close ListView.builder
         // Floating date indicator overlay — shows the date of the
         // topmost visible message while scrolling, fades out ~1.2s
@@ -244,10 +244,9 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
           scrollController: widget.scrollController,
           listViewKey: _listViewKey,
           itemCount: grouped.length,
-          dateLabelForIndex: (index) =>
-              index >= 0 && index < grouped.length
-                  ? grouped[index].dateLabel
-                  : null,
+          dateLabelForIndex: (index) => index >= 0 && index < grouped.length
+              ? grouped[index].dateLabel
+              : null,
         ),
       ], // close Stack children
     ); // close Stack
@@ -280,14 +279,16 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
           run.add(msgs[j]);
           j++;
         }
-        rows.add(Padding(
-          padding: const EdgeInsets.only(left: 12, right: 12),
-          child: CollapsedGameInvites(
-            messages: run,
-            isMe: msg.senderId == widget.currentUserId,
-            routeFamilyId: widget.inviteFamilyId ?? widget.familyId,
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.only(left: 12, right: 12),
+            child: CollapsedGameInvites(
+              messages: run,
+              isMe: msg.senderId == widget.currentUserId,
+              routeFamilyId: widget.inviteFamilyId ?? widget.familyId,
+            ),
           ),
-        ));
+        );
         i = j;
         continue;
       }
@@ -296,16 +297,17 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
 
       // ── System notice (PR 1): no bubble, breaks clustering ─────────
       if (msg.messageType == MessageType.system) {
-        rows.add(Padding(
-          padding: const EdgeInsets.only(bottom: 8, left: 12, right: 12),
-          child: ChatSystemNotice(
-            content: msg.content,
-            onViewInTree:
-                widget.familyId != null && !widget.isDirectChat
-                    ? () => _openGraphFocusedOnMember(msg)
-                    : null,
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8, left: 12, right: 12),
+            child: ChatSystemNotice(
+              content: msg.content,
+              onViewInTree: widget.familyId != null && !widget.isDirectChat
+                  ? () => _openGraphFocusedOnMember(msg)
+                  : null,
+            ),
           ),
-        ));
+        );
         i++;
         continue;
       }
@@ -328,12 +330,14 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
       // chat is closed (the id comes from the provider's snapshot).
       final showUnreadDivider =
           widget.unreadDividerMessageId == msg.id &&
-              widget.unreadDividerCount > 0;
+          widget.unreadDividerCount > 0;
       if (showUnreadDivider) {
-        rows.add(Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: _buildUnreadDivider(),
-        ));
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: _buildUnreadDivider(),
+          ),
+        );
       }
 
       final bubble = MessageBubble(
@@ -347,7 +351,8 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
         onReply: () => widget.onReply(msg),
         onReact: widget.showReactions ? () => widget.onReact(msg) : () {},
         onLongPress: () => widget.onLongPress(msg),
-        onReplyPreviewTap: msg.replyToId != null && widget.onReplyPreviewTap != null
+        onReplyPreviewTap:
+            msg.replyToId != null && widget.onReplyPreviewTap != null
             ? () => widget.onReplyPreviewTap!(msg)
             : null,
         // v3.5 — failed-send seam (null = group's built-in path).
@@ -390,17 +395,25 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
       final bool selectedRow =
           widget.selectionMode && widget.selectedMessageIds.contains(msg.id);
       if (selectedRow) {
-        rows.add(Container(
-          width: double.infinity,
-          color: ChatUi.chatSelectedRow,
-          padding: EdgeInsets.fromLTRB(12, 3, 12, 3 + bottomPadding),
-          child: wrapped,
-        ));
+        rows.add(
+          Container(
+            width: double.infinity,
+            color: ChatUi.chatSelectedRow,
+            padding: EdgeInsets.fromLTRB(12, 3, 12, 3 + bottomPadding),
+            child: wrapped,
+          ),
+        );
       } else {
-        rows.add(Padding(
-          padding: EdgeInsets.only(left: 12, right: 12, bottom: bottomPadding),
-          child: wrapped,
-        ));
+        rows.add(
+          Padding(
+            padding: EdgeInsets.only(
+              left: 12,
+              right: 12,
+              bottom: bottomPadding,
+            ),
+            child: wrapped,
+          ),
+        );
       }
       i++;
     }
@@ -425,15 +438,17 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
         next.timestamp.difference(msg.timestamp).inSeconds.abs() > 120;
   }
 
-  /// A terminal game invite that renders as a one-line row (expired /
-  /// cancelled / completed-without-winner). Completed games WITH a
-  /// winner render as the D18b result card and never collapse.
+  /// A terminal game invite (expired / cancelled / completed).
   bool _isTerminalInvite(ChatMessage msg) {
     if (msg.messageType != MessageType.gameInvite) return false;
     final s = msg.gameInviteStatus ?? 'pending';
     if (s == 'expired' || s == 'cancelled') return true;
+    // D18b: completed invites with a known winner render as full
+    // RESULT cards — they never join a collapsed run. Only
+    // winnerless completions are quiet enough to collapse.
     if (s == 'completed') {
-      return (msg.gameWinnerName ?? '').isEmpty;
+      final w = msg.gameWinnerName;
+      return w == null || w.isEmpty;
     }
     return false;
   }
@@ -450,8 +465,7 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Center(
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
                 color: ChatUi.chatReceived,
                 borderRadius: BorderRadius.circular(KinrelRadius.full),
@@ -480,8 +494,7 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
     final famId = widget.familyId;
     if (famId == null) return;
     try {
-      final detail =
-          ref.read(familyDetailProvider(famId)).valueOrNull;
+      final detail = ref.read(familyDetailProvider(famId)).valueOrNull;
       if (detail != null) {
         String? personId;
         String? personName;
@@ -493,7 +506,9 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
           }
         }
         if (personId != null && personId.isNotEmpty) {
-          ref.read(graphFocusProvider.notifier).focus(
+          ref
+              .read(graphFocusProvider.notifier)
+              .focus(
                 personId: personId,
                 personName: personName ?? msg.senderName,
                 edges: const [],
@@ -527,8 +542,9 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
       return;
     }
     // The divider must actually be built before it can be scrolled to.
-    final hasDivider = widget.messages
-        .any((m) => m.id == widget.unreadDividerMessageId);
+    final hasDivider = widget.messages.any(
+      (m) => m.id == widget.unreadDividerMessageId,
+    );
     if (!hasDivider) return;
     _scrolledToUnreadDivider = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -556,10 +572,7 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
             color: ChatUi.chatCard,
             borderRadius: BorderRadius.circular(KinrelRadius.full),
           ),
-          child: Text(
-            label,
-            style: ChatUi.pillText,
-          ),
+          child: Text(label, style: ChatUi.pillText),
         ),
       ),
     );

@@ -42,7 +42,8 @@ import 'full_screen_image_viewer.dart';
 // ═══════════════════════════════════════════════════════════════════
 
 class MessageBubble extends ConsumerWidget {
-  const MessageBubble({super.key,
+  const MessageBubble({
+    super.key,
     required this.message,
     required this.isMe,
     required this.onReply,
@@ -52,9 +53,11 @@ class MessageBubble extends ConsumerWidget {
     this.isFirstInGroup = true,
     this.isLastInGroup = true,
     this.animateIn = false,
+
     /// Feature 6: callback when the user taps the quoted reply preview.
     /// The chat_screen wires this to scroll to the original message.
     this.onReplyPreviewTap,
+
     /// v3.3 (shared chat UI): when true, this bubble is rendering inside
     /// a 1:1 DM. The bubble hides the sender-name label above the bubble
     /// and hides the avatar + its spacer (a DM only has two parties, so
@@ -63,6 +66,7 @@ class MessageBubble extends ConsumerWidget {
     /// card — is identical to the group chat. Default false so the group
     /// chat is unchanged.
     this.isDirectChat = false,
+
     /// v3.3 (shared chat UI): the family id used ONLY by the game-invite
     /// Join/Spectate navigation routes
     /// (/family/<id>/<gameType>/lobby?join=<gameId>). Falls back to
@@ -72,6 +76,7 @@ class MessageBubble extends ConsumerWidget {
     /// AND inviteFamilyId from the DM invite payload (so the Join button
     /// still deep-links into the host's family space).
     this.inviteFamilyId,
+
     /// v3.5 — Retry/Delete handlers for the failed-message sheet. The
     /// group chat passes null (the sheet falls back to its built-in
     /// chatProvider calls — unchanged behavior); the DM screen passes
@@ -80,6 +85,7 @@ class MessageBubble extends ConsumerWidget {
     /// provider.
     this.onRetryFailed,
     this.onDeleteFailed,
+
     /// v6.0 — Selection mode state (Image 3 reference).
     this.selectionMode = false,
     this.isSelected = false,
@@ -158,29 +164,20 @@ class MessageBubble extends ConsumerWidget {
     // v143: If this message is a reply to a message that has since been
     // deleted-for-everyone, swap the reply preview's quoted content for
     // a safe "deleted" reference so the original content is not exposed
-    // through the reply preview. We do a one-shot ref.read here (not
-    // watch) — it's cheap (linear scan of the local messages list, only
-    // when replyToId != null) and avoids an extra subscription per
-    // bubble. Falls back to false when the familyId is null (DMs that
-    // don't expose a chatProvider family scope) or the replied-to
-    // message isn't in the local cache (e.g. very old replies).
+    // through the reply preview. (Section G will rebuild the reply
+    // preview with the new look; this lookup stays so it can use it.)
     bool replyTargetDeleted = false;
     if (message.replyToId != null && familyId != null) {
       try {
         final chatState = ref.read(chatProvider(familyId!));
-        final target = chatState.messages.firstWhere(
-          (m) => m.id == message.replyToId,
-          // orElse returns a sentinel — the `firstWhereOrElse` doesn't
-          // expose a sentinel object cleanly here, so we catch the
-          // StateError instead.
-        );
+        final target =
+            chatState.messages.firstWhere((m) => m.id == message.replyToId);
         replyTargetDeleted = target.isDeletedForEveryone;
       } catch (_) {
-        // Reply target not in the local cache (older than the 50-msg
-        // window) — assume not-deleted. The server-side replyToContent
-        // snapshot is still safe to show because the deletion RPC
-        // doesn't retroactively scrub denormalized reply snapshots
-        // (we handle that client-side here instead).
+        // Reply target not in the local 50-message cache — assume
+        // not-deleted. The denormalized replyToContent snapshot is
+        // still safe to show because the deletion RPC doesn't scrub
+        // denormalized reply snapshots.
         replyTargetDeleted = false;
       }
     }
@@ -191,19 +188,18 @@ class MessageBubble extends ConsumerWidget {
 
     // "Thinking of you" moments render as a CENTERED card (D11) — no
     // bubble, no band, no sender line, no avatar.
-    final isThinkingOfYou = message.messageType == MessageType.familyEvent &&
+    final isThinkingOfYou =
+        message.messageType == MessageType.familyEvent &&
         message.messageSubType == 'thinking_of_you';
 
-    // Terminal game invites render as a quiet one-line row with NO
-    // bubble (D18c) — EXCEPT completed games with a known winner, which
-    // render inside the bubble as the D18b result card.
-    final inviteStatus = message.gameInviteStatus ?? 'pending';
-    final completedWithWinner = inviteStatus == 'completed' &&
-        (message.gameWinnerName ?? '').isNotEmpty;
-    final isTerminalInvite = message.messageType == MessageType.gameInvite &&
-        (inviteStatus == 'expired' ||
-            inviteStatus == 'cancelled' ||
-            (inviteStatus == 'completed' && !completedWithWinner));
+    // Terminal game invites (expired / cancelled / completed) render as
+    // a quiet one-line row with NO bubble (D18c).
+    final _inviteStatus = message.gameInviteStatus ?? 'pending';
+    final isTerminalInvite =
+        message.messageType == MessageType.gameInvite &&
+        (_inviteStatus == 'expired' ||
+            _inviteStatus == 'cancelled' ||
+            _inviteStatus == 'completed');
 
     // v140/D3: Kinship-category generation bands. Resolve the sender's
     // relationship key to the current viewer, classify it into a
@@ -215,9 +211,12 @@ class MessageBubble extends ConsumerWidget {
     Color? kinshipBandColor;
     var kinshipResolved = false;
     if (familyId != null && !isMe && !isSticker && !isDirectChat) {
-      final rawKey = ref.watch(relationshipKeyProvider(
-        (familyId: familyId!, senderUserId: message.senderId),
-      ));
+      final rawKey = ref.watch(
+        relationshipKeyProvider((
+          familyId: familyId!,
+          senderUserId: message.senderId,
+        )),
+      );
       if (rawKey != null) {
         final category = KinshipEdgeClassifier.classify(rawKey);
         final color = kinshipCategoryColor(category);
@@ -243,10 +242,10 @@ class MessageBubble extends ConsumerWidget {
         final VoidCallback? tapHandler = selectionMode
             ? onToggleSelection
             : (isMe &&
-                    message.messageStatus == 'failed' &&
-                    (familyId != null || onRetryFailed != null))
-                ? () => _showFailedMessageSheet(context, ref)
-                : null;
+                  message.messageStatus == 'failed' &&
+                  (familyId != null || onRetryFailed != null))
+            ? () => _showFailedMessageSheet(context, ref)
+            : null;
 
         // ── D11: thinking-of-you → centered card, no bubble ──────────
         if (isThinkingOfYou) {
@@ -278,34 +277,52 @@ class MessageBubble extends ConsumerWidget {
           );
         }
 
-        // ── v143: deleted-for-everyone → Kinrel deletion placeholder ──
-        // Renders a compact, muted bubble with a single-line label so the
-        // user can see that a message was deleted without revealing the
-        // original content. The wording is personalized:
-        //   • When the current user is the deleter (message.deletedByUserId
-        //     == currentUserId, which equals isMe today since only the
-        //     author can delete-for-everyone) → "You deleted this message."
-        //   • Otherwise → "<participant name> deleted this message." where
-        //     the participant name is the original message author's
-        //     senderName (preserved on the row even after deletion).
-        //
-        // Layout invariants (see §E of the implementation brief):
-        //   • Single-line label with TextOverflow.ellipsis — long names
-        //     truncate rather than expanding the placeholder vertically.
-        //   • Consistent minimum + preferred height regardless of name
-        //     length — pinned via a SizedBox + ConstrainedBox.
-        //   • Same horizontal alignment + margin as the original message
-        //     (isMe → right, !isMe → left, 48 dp on the "off" side).
-        //   • Long-press + selection-mode tap handlers preserved so the
-        //     placeholder can still be selected / acted on.
-        //   • Reply preview is NOT rendered for a deleted-for-everyone
-        //     row (the original content is gone — showing the preview
-        //     would leak the deleted text).
+        // ── v143 (merge): temporary placeholder for deleted-for-everyone
+        // messages. Section B (DeletedMessageGhost) will replace this
+        // early-return with the proper Kinrel ghost bubble. Kept here
+        // only so the merge result is functional before the visual pass.
         if (message.isDeletedForEveryone) {
-          return _buildDeletedPlaceholder(
-            context: context,
-            currentUserId: currentUserId,
-            tapHandler: tapHandler,
+          final bool deletedByMe = (message.deletedByUserId != null &&
+                  currentUserId != null &&
+                  message.deletedByUserId == currentUserId) ||
+              isMe;
+          return GestureDetector(
+            onLongPress: onLongPress,
+            onTap: tapHandler,
+            behavior: HitTestBehavior.opaque,
+            child: Align(
+              alignment:
+                  isMe ? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(context).width *
+                      ChatUi.bubbleMaxWidthFactor,
+                ),
+                margin: EdgeInsets.only(
+                    left: isMe ? 48 : 0, right: isMe ? 0 : 48),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: KinrelColors.darkCard.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(ChatUi.bubbleRadius),
+                  border: Border.all(
+                    color: KinrelColors.textDim.withValues(alpha: 0.18),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  deletedByMe
+                      ? 'You took this back.'
+                      : '${message.senderName} took this back.',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                    color: KinrelColors.textSilver.withValues(alpha: 0.75),
+                  ),
+                ),
+              ),
+            ),
           );
         }
 
@@ -323,10 +340,12 @@ class MessageBubble extends ConsumerWidget {
                     constraints: BoxConstraints(
                       maxWidth:
                           MediaQuery.sizeOf(context).width *
-                              ChatUi.bubbleMaxWidthFactor,
+                          ChatUi.bubbleMaxWidthFactor,
                     ),
                     margin: EdgeInsets.only(
-                        left: isMe ? 48 : 0, right: isMe ? 0 : 48),
+                      left: isMe ? 48 : 0,
+                      right: isMe ? 0 : 48,
+                    ),
                     child: Column(
                       crossAxisAlignment: isMe
                           ? CrossAxisAlignment.end
@@ -335,9 +354,6 @@ class MessageBubble extends ConsumerWidget {
                         // Reply preview (if replying to a message).
                         // Feature 6: tapping the quote scrolls to the original
                         // message (wired via onReplyPreviewTap in chat_screen).
-                        // v143: if the reply target is deleted-for-everyone,
-                        // the preview shows a safe "deleted" reference
-                        // instead of the original (now-deleted) text.
                         if (message.replyToId != null)
                           onReplyPreviewTap != null
                               ? GestureDetector(
@@ -356,18 +372,19 @@ class MessageBubble extends ConsumerWidget {
                                 color: isSticker
                                     ? Colors.transparent
                                     : (isMe
-                                        ? ChatUi.chatSent
-                                        : ChatUi.chatReceived),
-                                borderRadius:
-                                    BorderRadius.circular(ChatUi.bubbleRadius),
+                                          ? ChatUi.chatSent
+                                          : ChatUi.chatReceived),
+                                borderRadius: BorderRadius.circular(
+                                  ChatUi.bubbleRadius,
+                                ),
                                 border: isSticker
                                     ? null
                                     : (isMe
-                                        ? Border.all(
-                                            color: ChatUi.chatSentBorder,
-                                            width: ChatUi.sentBorderWidth,
-                                          )
-                                        : null),
+                                          ? Border.all(
+                                              color: ChatUi.chatSentBorder,
+                                              width: ChatUi.sentBorderWidth,
+                                            )
+                                          : null),
                               ),
                               child: Column(
                                 crossAxisAlignment: isMe
@@ -383,8 +400,11 @@ class MessageBubble extends ConsumerWidget {
                                       !isSticker &&
                                       !isDirectChat &&
                                       isFirstInGroup)
-                                    _buildSenderName(ref, kinshipBandColor,
-                                        kinshipResolved),
+                                    _buildSenderName(
+                                      ref,
+                                      kinshipBandColor,
+                                      kinshipResolved,
+                                    ),
                                   // Tier 1 / Forwarded label — show a small
                                   // "Forwarded from <name>" tag above the content
                                   // when the message is a forwarded copy.
@@ -392,9 +412,14 @@ class MessageBubble extends ConsumerWidget {
                                       message.forwardedFrom!.isNotEmpty)
                                     _buildForwardedLabel(),
                                   // Message content
-                                  _buildMessageContent(context, ref, currentUserId),
+                                  _buildMessageContent(
+                                    context,
+                                    ref,
+                                    currentUserId,
+                                  ),
                                   // v127: Inline timestamp only on last-in-group
-                                  if (!isSticker && isLastInGroup) _buildTimeRow(),
+                                  if (!isSticker && isLastInGroup)
+                                    _buildTimeRow(),
                                   if (isSticker) _buildStickerTimeRow(),
                                 ],
                               ),
@@ -417,10 +442,12 @@ class MessageBubble extends ConsumerWidget {
                                     decoration: BoxDecoration(
                                       color: kinshipBandColor,
                                       borderRadius: const BorderRadius.only(
-                                        topLeft:
-                                            Radius.circular(ChatUi.bubbleRadius),
-                                        bottomLeft:
-                                            Radius.circular(ChatUi.bubbleRadius),
+                                        topLeft: Radius.circular(
+                                          ChatUi.bubbleRadius,
+                                        ),
+                                        bottomLeft: Radius.circular(
+                                          ChatUi.bubbleRadius,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -490,13 +517,19 @@ class MessageBubble extends ConsumerWidget {
                 ),
               ),
               ListTile(
-                leading: const Icon(Icons.refresh_rounded,
-                    color: KinrelColors.orange, size: 22),
-                title: const Text('Retry',
-                    style: TextStyle(
-                        fontFamily: KinrelTypography.displayFont,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600)),
+                leading: const Icon(
+                  Icons.refresh_rounded,
+                  color: KinrelColors.orange,
+                  size: 22,
+                ),
+                title: const Text(
+                  'Retry',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   // v3.5 — injected handler (DM) or the built-in group
@@ -511,13 +544,19 @@ class MessageBubble extends ConsumerWidget {
                 },
               ),
               ListTile(
-                leading: Icon(Icons.delete_outline_rounded,
-                    color: Colors.red.shade400, size: 22),
-                title: const Text('Delete',
-                    style: TextStyle(
-                        fontFamily: KinrelTypography.displayFont,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600)),
+                leading: Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.red.shade400,
+                  size: 22,
+                ),
+                title: const Text(
+                  'Delete',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   // v3.5 — injected handler (DM) or the built-in group
@@ -544,10 +583,10 @@ class MessageBubble extends ConsumerWidget {
     // bar, gentler radius. Sits naturally above the bubble without
     // feeling like a separate floating card.
     //
-    // v143: When `replyTargetDeleted` is true, the quoted content is
-    // replaced with a muted "This message was deleted." so the original
-    // (now-deleted) text is not exposed through the reply preview. The
-    // reply is retained (the user can still scroll to where it was).
+    // v143: when the replied-to message has been deleted for everyone,
+    // show a muted "This message was deleted." text instead of the
+    // original quoted content so we don't leak deleted text through
+    // the reply preview. Section G will redesign this look.
     final String previewContent = replyTargetDeleted
         ? 'This message was deleted.'
         : (message.replyToContent ?? '');
@@ -573,7 +612,9 @@ class MessageBubble extends ConsumerWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border(
           left: BorderSide(
-              color: KinrelColors.orange.withValues(alpha: 0.7), width: 2.5),
+            color: KinrelColors.orange.withValues(alpha: 0.7),
+            width: 2.5,
+          ),
         ),
       ),
       child: Column(
@@ -601,128 +642,11 @@ class MessageBubble extends ConsumerWidget {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // v143 — Kinrel Custom Message-Deletion Placeholder
-  // ═══════════════════════════════════════════════════════════════════════
-  //
-  // Renders a compact, muted, single-line placeholder for any message that
-  // has been deleted-for-everyone. The wording is personalized for the
-  // viewing user:
-  //
-  //   • If the current user is the deleter (i.e. they authored and deleted
-  //     the message) → "You deleted this message."
-  //   • If another participant deleted their own message →
-  //     "<Participant name> deleted this message."
-  //
-  // Today only the original author can delete a message for everyone, so
-  // the "deleter" and "author" are the same person — we use the message's
-  // preserved `senderName` (which the server keeps even after deletion) for
-  // the participant-name variant. This is the same identity shown elsewhere
-  // in the chat, so display-name changes are handled by the established
-  // message-history convention (the row keeps the snapshot at deletion time).
-  //
-  // Layout invariants (per implementation brief §E — "every placeholder
-  // must be the same size"):
-  //   • Pinned minimum height (36 dp) and consistent vertical padding
-  //     regardless of name length.
-  //   • Single-line label with TextOverflow.ellipsis — long names truncate
-  //     horizontally rather than wrapping to a second line.
-  //   • Same horizontal alignment + 48 dp "off-side" margin as a normal
-  //     bubble so the placeholder doesn't shift the message's position.
-  //   • No reply preview, no reactions, no timestamp row — purely the
-  //     muted label and a small deletion icon. This keeps the placeholder
-  //     visually distinct from ordinary messages without resembling an
-  //     error alert or a failed-message state.
-  //
-  // Visual treatment: muted row background (slightly darker than a normal
-  // bubble), italics body text in textSilver, a subtle block icon, and
-  // a 1 dp border in textDim @ 18% alpha. All colors come from KinrelColors
-  // tokens — no hardcoded values.
-  // ═══════════════════════════════════════════════════════════════════════
-  Widget _buildDeletedPlaceholder({
-    required BuildContext context,
-    required String? currentUserId,
-    required VoidCallback? tapHandler,
-  }) {
-    // Personalized wording — see method doc.
-    final bool deletedByMe = (message.deletedByUserId != null &&
-            currentUserId != null &&
-            message.deletedByUserId == currentUserId) ||
-        isMe; // isMe is the legacy/DM fallback when deletedByUserId is null
-    final String label = deletedByMe
-        ? 'You deleted this message.'
-        : '${message.senderName} deleted this message.';
-
-    return GestureDetector(
-      onLongPress: onLongPress,
-      onTap: tapHandler,
-      behavior: HitTestBehavior.opaque,
-      child: Align(
-        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.sizeOf(context).width *
-                ChatUi.bubbleMaxWidthFactor,
-          ),
-          margin:
-              EdgeInsets.only(left: isMe ? 48 : 0, right: isMe ? 0 : 48),
-          // Pinned height so the placeholder never grows taller for long
-          // names (single-line label with ellipsis handles the width).
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              minHeight: 36,
-              maxHeight: 36,
-            ),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: KinrelColors.darkCard.withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(ChatUi.bubbleRadius),
-                border: Border.all(
-                  color: KinrelColors.textDim.withValues(alpha: 0.18),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: isMe
-                    ? MainAxisAlignment.end
-                    : MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.block_rounded,
-                    size: 13,
-                    color: KinrelColors.textDim.withValues(alpha: 0.85),
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
-                        color: KinrelColors.textSilver
-                            .withValues(alpha: 0.75),
-                        height: 1.2,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSenderName(WidgetRef ref, Color? kinshipColor,
-      bool kinshipResolved) {
+  Widget _buildSenderName(
+    WidgetRef ref,
+    Color? kinshipColor,
+    bool kinshipResolved,
+  ) {
     // D6: Sender line (group, first message of a cluster only).
     // A row with 6 gap and 2 bottom margin: the relationship tag FIRST,
     // then the name. Tag: radius full, padding 1 vertical / 6 horizontal,
@@ -736,36 +660,38 @@ class MessageBubble extends ConsumerWidget {
     // Not applied to 1-on-1 DMs (familyId == null).
     String? relationshipLabel;
     if (familyId != null && !isMe) {
-      relationshipLabel = ref.watch(relationshipLabelProvider(
-        (familyId: familyId!, senderUserId: message.senderId),
-      ));
+      relationshipLabel = ref.watch(
+        relationshipLabelProvider((
+          familyId: familyId!,
+          senderUserId: message.senderId,
+        )),
+      );
     }
 
     final bool showPill =
         kinshipResolved && relationshipLabel != null && !isDirectChat;
-    final Color? bandColor = kinshipColor;
-    final Color? pillColor =
-        bandColor == null ? null : ChatUi.kinshipPillText(bandColor);
+    final Color? pillColor = kinshipColor == null
+        ? null
+        : ChatUi.kinshipPillText(kinshipColor);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (showPill && pillColor != null && bandColor != null) ...[
+          if (showPill && pillColor != null) ...[
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
               decoration: BoxDecoration(
-                color: bandColor.withValues(alpha: 0.12),
+                color: kinshipColor!.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(KinrelRadius.full),
                 border: Border.all(
-                  color: bandColor.withValues(alpha: 0.30),
+                  color: kinshipColor.withValues(alpha: 0.30),
                   width: 0.5,
                 ),
               ),
               child: Text(
-                relationshipLabel ?? '',
+                relationshipLabel,
                 style: ChatUi.relationshipTag.copyWith(color: pillColor),
               ),
             ),
@@ -793,8 +719,11 @@ class MessageBubble extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.forward_rounded,
-              size: 11, color: KinrelColors.textDim),
+          const Icon(
+            Icons.forward_rounded,
+            size: 11,
+            color: KinrelColors.textDim,
+          ),
           const SizedBox(width: 4),
           Flexible(
             child: Text(
@@ -816,7 +745,11 @@ class MessageBubble extends ConsumerWidget {
     );
   }
 
-  Widget _buildMessageContent(BuildContext context, WidgetRef ref, String? currentUserId) {
+  Widget _buildMessageContent(
+    BuildContext context,
+    WidgetRef ref,
+    String? currentUserId,
+  ) {
     switch (message.messageType) {
       case MessageType.text:
         // v131: Premium typography — comfortable line height (1.5),
@@ -847,14 +780,10 @@ class MessageBubble extends ConsumerWidget {
                 selfMentionStyle: ChatUi.messageText.copyWith(
                   fontWeight: FontWeight.w500,
                   color: ChatUi.accent,
-                  backgroundColor:
-                      ChatUi.accent.withValues(alpha: 0.18),
+                  backgroundColor: ChatUi.accent.withValues(alpha: 0.18),
                 ),
               )
-            : Text(
-                message.content,
-                style: ChatUi.messageText,
-              );
+            : Text(message.content, style: ChatUi.messageText);
         // Wrap with link previews. Max width ~280px so the card doesn't
         // overflow the bubble's typical width (the bubble itself caps
         // at ~85% of screen width, minus padding).
@@ -873,8 +802,7 @@ class MessageBubble extends ConsumerWidget {
             // voiceNote case below which correctly branches on
             // mediaUrl. Previously this ALWAYS showed the placeholder
             // and never checked message.mediaUrl.
-            if (message.mediaUrl != null &&
-                message.mediaUrl!.isNotEmpty)
+            if (message.mediaUrl != null && message.mediaUrl!.isNotEmpty)
               Builder(
                 builder: (ctx) => GestureDetector(
                   onTap: () => FullScreenImageViewer.show(
@@ -884,69 +812,71 @@ class MessageBubble extends ConsumerWidget {
                     timestamp: message.timestamp,
                   ),
                   child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: CachedNetworkImage(
-                  imageUrl: message.mediaUrl!,
-                  cacheManager: KinrelImageCacheManager.instance,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: 200,
-                  // Bubble caps at ~85% of screen width. Decode at
-                  // the screen width × DPR (slightly larger than the
-                  // actual bubble display, but well below a 4K decode).
-                  memCacheWidth: (MediaQuery.sizeOf(context).width *
-                          MediaQuery.devicePixelRatioOf(context))
-                      .toInt(),
-                  memCacheHeight:
-                      (200 * MediaQuery.devicePixelRatioOf(context))
-                          .toInt(),
-                  placeholder: (context, url) => Container(
-                    width: double.infinity,
-                    height: 200,
-                    color: const Color(0xFF202338),
-                    child: const Center(
-                      child: SizedBox(
-                        width: 26,
-                        height: 26,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: KinrelColors.orange,
+                    borderRadius: BorderRadius.circular(14),
+                    child: CachedNetworkImage(
+                      imageUrl: message.mediaUrl!,
+                      cacheManager: KinrelImageCacheManager.instance,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: 200,
+                      // Bubble caps at ~85% of screen width. Decode at
+                      // the screen width × DPR (slightly larger than the
+                      // actual bubble display, but well below a 4K decode).
+                      memCacheWidth:
+                          (MediaQuery.sizeOf(context).width *
+                                  MediaQuery.devicePixelRatioOf(context))
+                              .toInt(),
+                      memCacheHeight:
+                          (200 * MediaQuery.devicePixelRatioOf(context))
+                              .toInt(),
+                      placeholder: (context, url) => Container(
+                        width: double.infinity,
+                        height: 200,
+                        color: const Color(0xFF202338),
+                        child: const Center(
+                          child: SizedBox(
+                            width: 26,
+                            height: 26,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: KinrelColors.orange,
+                            ),
+                          ),
+                        ),
+                      ),
+                      errorWidget: (_, __, ___) => Container(
+                        width: double.infinity,
+                        height: 200,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF202338),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.broken_image_outlined,
+                              size: 36,
+                              color: KinrelColors.textSilver.withValues(
+                                alpha: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Failed to load',
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 12,
+                                color: KinrelColors.textSilver.withValues(
+                                  alpha: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                  errorWidget: (_, __, ___) => Container(
-                    width: double.infinity,
-                    height: 200,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF202338),
-                      borderRadius:
-                          BorderRadius.circular(14),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.broken_image_outlined,
-                          size: 36,
-                          color: KinrelColors.textSilver
-                              .withValues(alpha: 0.5),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Failed to load',
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.bodyFont,
-                            fontSize: 12,
-                            color: KinrelColors.textSilver
-                                .withValues(alpha: 0.5),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
                 ),
               )
             else
@@ -1018,7 +948,11 @@ class MessageBubble extends ConsumerWidget {
                   shape: BoxShape.circle,
                   gradient: KinrelGradients.igniteGradient,
                 ),
-                child: const Icon(Icons.play_arrow, size: 18, color: Colors.white),
+                child: const Icon(
+                  Icons.play_arrow,
+                  size: 18,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -1067,10 +1001,7 @@ class MessageBubble extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: Text(
             message.content,
-            style: const TextStyle(
-              fontSize: 46,
-              height: 1.0,
-            ),
+            style: const TextStyle(fontSize: 46, height: 1.0),
           ),
         );
 
@@ -1080,8 +1011,9 @@ class MessageBubble extends ConsumerWidget {
         // special heart-themed bubble instead of the generic celebration
         // card, so recipients immediately recognize the message type.
         if (message.messageSubType == 'thinking_of_you') {
-          // Handled in build() as a centered D11 card; unreachable here.
-          return const SizedBox.shrink();
+          // D11: normally intercepted by build(); kept for safety if a
+          // future call path reaches the content builder.
+          return _buildThinkingOfYouMoment();
         }
         return Container(
           padding: const EdgeInsets.all(10),
@@ -1246,23 +1178,29 @@ class MessageBubble extends ConsumerWidget {
                         width: 24,
                         height: 24,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: KinrelColors.ember),
+                          strokeWidth: 2,
+                          color: KinrelColors.ember,
+                        ),
                       ),
                     ),
                     errorWidget: (_, __, ___) => Container(
                       color: const Color(0xFF11132A),
                       height: 120,
                       alignment: Alignment.center,
-                      child: const Icon(Icons.broken_image_outlined,
-                          color: KinrelColors.textDim),
+                      child: const Icon(
+                        Icons.broken_image_outlined,
+                        color: KinrelColors.textDim,
+                      ),
                     ),
                   )
                 : Container(
                     color: const Color(0xFF11132A),
                     height: 120,
                     alignment: Alignment.center,
-                    child: const Icon(Icons.gif_box_outlined,
-                        color: KinrelColors.textDim),
+                    child: const Icon(
+                      Icons.gif_box_outlined,
+                      color: KinrelColors.textDim,
+                    ),
                   ),
           ),
         );
@@ -1355,8 +1293,11 @@ class MessageBubble extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(Icons.download_rounded,
-                  size: 18, color: KinrelColors.textDim),
+              const Icon(
+                Icons.download_rounded,
+                size: 18,
+                color: KinrelColors.textDim,
+              ),
             ],
           ),
         ),
@@ -1417,8 +1358,11 @@ class MessageBubble extends ConsumerWidget {
                   color: KinrelColors.ember.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.location_on_rounded,
-                    size: 18, color: KinrelColors.ember),
+                child: const Icon(
+                  Icons.location_on_rounded,
+                  size: 18,
+                  color: KinrelColors.ember,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1450,7 +1394,11 @@ class MessageBubble extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(Icons.map_outlined, size: 18, color: KinrelColors.textDim),
+              const Icon(
+                Icons.map_outlined,
+                size: 18,
+                color: KinrelColors.textDim,
+              ),
             ],
           ),
         ),
@@ -1499,7 +1447,9 @@ class MessageBubble extends ConsumerWidget {
     try {
       await Clipboard.setData(ClipboardData(text: url));
       debugPrint('📎 Document URL copied: $url');
-    } catch (_) {/* best-effort */}
+    } catch (_) {
+      /* best-effort */
+    }
   }
 
   Future<void> _openMaps(double lat, double lng, String label) async {
@@ -1509,14 +1459,17 @@ class MessageBubble extends ConsumerWidget {
     if (Platform.isAndroid) {
       url = 'geo:$lat,$lng?q=$lat,$lng(${Uri.encodeComponent(label)})';
     } else if (Platform.isIOS) {
-      url = 'https://maps.apple.com/?ll=$lat,$lng&q=${Uri.encodeComponent(label)}';
+      url =
+          'https://maps.apple.com/?ll=$lat,$lng&q=${Uri.encodeComponent(label)}';
     } else {
       url = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
     }
     try {
       await Clipboard.setData(ClipboardData(text: url));
       debugPrint('📍 Maps URL copied: $url');
-    } catch (_) {/* best-effort */}
+    } catch (_) {
+      /* best-effort */
+    }
   }
 
   /// Phase 18: Thinking of You bubble — a warm, heart-themed card that
@@ -1570,10 +1523,7 @@ class MessageBubble extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Text(
-            message.formattedTime,
-            style: ChatUi.timeText,
-          ),
+          Text(message.formattedTime, style: ChatUi.timeText),
           // Read receipts (only for sent messages)
           if (isMe) ...[
             const SizedBox(width: 4),
@@ -1594,10 +1544,7 @@ class MessageBubble extends ConsumerWidget {
       padding: const EdgeInsets.only(top: 2),
       child: Align(
         alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: Text(
-          message.formattedTime,
-          style: ChatUi.timeText,
-        ),
+        child: Text(message.formattedTime, style: ChatUi.timeText),
       ),
     );
   }

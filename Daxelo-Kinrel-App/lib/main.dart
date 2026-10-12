@@ -25,13 +25,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/app_config.dart';
 import 'core/config/app_environment.dart';
-import 'core/kinship/kinship_edge_style.dart' show kinshipEdgeStyleRegistryCheck;
+import 'core/kinship/kinship_edge_style.dart'
+    show kinshipEdgeStyleRegistryCheck;
 import 'core/routing/app_router.dart';
-// Chat UI Reference / section E: debug-only UI gallery (built only
-// when --dart-define=UI_GALLERY=true; the const gate tree-shakes it
-// out of every normal build).
-import 'features/chat/presentation/chat_ui_gallery.dart'
-    if (dart.library.io) 'features/chat/presentation/chat_ui_gallery.dart';
 import 'core/services/crashlytics_service.dart';
 import 'core/services/multi_account_service.dart';
 import 'core/services/deep_link_service.dart';
@@ -53,6 +49,7 @@ import 'core/utils/a11y_checker.dart';
 import 'core/utils/memory_monitor.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'core/widgets/offline_banner.dart';
+import 'features/chat/presentation/chat_ui_gallery.dart';
 import 'core/widgets/global_error_widget.dart';
 import 'core/kinship/kinship_service.dart';
 import 'features/family/presentation/providers/family_graph_provider.dart';
@@ -90,16 +87,20 @@ import 'package:kinrel/l10n/app_localizations.dart';
 /// can update Riverpod providers (e.g., supabaseReadyStateProvider).
 ProviderContainer? _globalContainer;
 
+/// Compile-time gate for the Chat UI debug gallery (Chat UI Reference,
+/// section E). Build with --dart-define=UI_GALLERY=true to boot straight
+/// into [ChatUiGallery] instead of the real app — no Supabase, no
+/// services, no navigation (see the ui_gallery input of
+/// .github/workflows/perf-profile-apk.yml).
+const bool kUiGallery = bool.fromEnvironment('UI_GALLERY', defaultValue: false);
+
 void main() async {
   // ── CRITICAL: Ensure Flutter binding BEFORE any async work ────────
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ── Chat UI Reference / section E: UI gallery home route ──────────
-  // When the compile-time define UI_GALLERY=true, boot straight into
-  // the 4-page chat UI gallery (fixed sample data, real widgets, no
-  // providers/network/services). Debug + profile builds only.
-  if (kChatUiGallery) {
-    runApp(const ChatUiGalleryApp());
+  // ── UI gallery boot gate (compile-time, tree-shaken in production) ─
+  if (kUiGallery) {
+    runApp(const ChatUiGallery());
     return;
   }
 
@@ -228,10 +229,14 @@ void main() async {
     // the view has a real size. This fixes the timing race where web
     // devices were wrongly classified as 'low' tier (screenWidth=0 < 360),
     // which hid the 3D Buildings toggle and forced 2D mode.
-    final detected =
-        DeviceTierCache.instance.initialize(screenWidth, pixelRatio);
+    final detected = DeviceTierCache.instance.initialize(
+      screenWidth,
+      pixelRatio,
+    );
     if (!detected) {
-      debugPrint('🔧 DeviceTier: detection deferred — scheduling post-frame retry');
+      debugPrint(
+        '🔧 DeviceTier: detection deferred — scheduling post-frame retry',
+      );
       // Schedule the retry on the next frame. Using addPostFrameCallback
       // ensures the view has been laid out by the time we read its size.
       // If the view STILL has no size (extremely rare — e.g., the platform
@@ -260,8 +265,7 @@ void main() async {
   // ═══════════════════════════════════════════════════════════════════
 
   // Desktop window setup (only on desktop platforms)
-  if (!kIsWeb &&
-      (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+  if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
     await windowManager.ensureInitialized();
     const windowOptions = WindowOptions(
       size: Size(1280, 800),
@@ -283,7 +287,9 @@ void main() async {
   // Skip on web — images will load from network without disk caching.
   if (!kIsWeb) {
     try {
-      DefaultCacheManager().emptyCache().catchError((_) {}); // no-op; just warming
+      DefaultCacheManager().emptyCache().catchError(
+        (_) {},
+      ); // no-op; just warming
     } catch (_) {}
   }
   // Image cache is configured via the maxDuration parameter in
@@ -439,15 +445,21 @@ Future<void> _initializeServices() async {
       final container = _globalContainer;
       if (container != null) {
         notifySupabaseReady(container);
-        debugPrint('🔧 Notified Riverpod: Supabase ready = $supabaseReady (attempt ${attempt + 1})');
+        debugPrint(
+          '🔧 Notified Riverpod: Supabase ready = $supabaseReady (attempt ${attempt + 1})',
+        );
         break;
       }
       // Widget tree not built yet — wait a bit
       if (attempt < 4) {
-        debugPrint('🔧 Waiting for ProviderContainer... (attempt ${attempt + 1})');
+        debugPrint(
+          '🔧 Waiting for ProviderContainer... (attempt ${attempt + 1})',
+        );
         await Future.delayed(const Duration(milliseconds: 50));
       } else {
-        debugPrint('⚠️ No global container available after 5 attempts — Supabase providers may not update');
+        debugPrint(
+          '⚠️ No global container available after 5 attempts — Supabase providers may not update',
+        );
       }
     } catch (e) {
       debugPrint('⚠️ Failed to notify Supabase ready state: $e');
@@ -596,325 +608,347 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
   /// Initialize services that are NOT required for the first frame.
   Future<void> _initDeferredServices() async {
     try {
-    // 1. Local cache service
-    try {
-      final cacheService = LocalCacheService();
-      await cacheService.init();
-    } catch (e) {
-      debugPrint('⚠️ LocalCacheService init failed: $e');
-    }
+      // 1. Local cache service
+      try {
+        final cacheService = LocalCacheService();
+        await cacheService.init();
+      } catch (e) {
+        debugPrint('⚠️ LocalCacheService init failed: $e');
+      }
 
-    // ── Capture auth state for crash context ───────────────────────
-    try {
-      final client = ref.read(supabaseProvider);
-      if (client != null) {
-        final user = client.auth.currentUser;
-        if (user != null) {
-          setUserIdentifier(user.id);
-          captureRiverpodState('auth', {
-            'userId': user.id,
-            'email': user.email ?? 'unknown',
+      // ── Capture auth state for crash context ───────────────────────
+      try {
+        final client = ref.read(supabaseProvider);
+        if (client != null) {
+          final user = client.auth.currentUser;
+          if (user != null) {
+            setUserIdentifier(user.id);
+            captureRiverpodState('auth', {
+              'userId': user.id,
+              'email': user.email ?? 'unknown',
+            });
+          }
+
+          AuthChangeEvent? lastAuthEvent;
+          String? lastAuthUserId;
+
+          client.auth.onAuthStateChange.listen((data) async {
+            final event = data.event;
+            final session = data.session;
+
+            try {
+              final userId = session?.user.id;
+              if (event == AuthChangeEvent.signedIn &&
+                  lastAuthEvent == AuthChangeEvent.signedIn &&
+                  lastAuthUserId == userId) {
+                debugPrint(
+                  '⏭️ Auth listener: skipping duplicate signedIn event',
+                );
+                return;
+              }
+              lastAuthEvent = event;
+              lastAuthUserId = userId;
+
+              if (event == AuthChangeEvent.signedIn && session != null) {
+                debugPrint(
+                  '[ACCOUNT] Authentication successful — user=${session.user.id}, email=${session.user.email ?? "unknown"}',
+                );
+                try {
+                  setUserIdentifier(session.user.id);
+                } catch (_) {}
+                // Save session for multi-account support
+                try {
+                  await MultiAccountService.instance.saveCurrentSession();
+                  // v5.190: [ACCOUNT] debug logs for the multi-account flow.
+                  // These confirm (a) the session was stored, (b) the
+                  // account was added to the switcher list, and (c) the
+                  // active account is the newly-signed-in one.
+                  debugPrint(
+                    '[ACCOUNT] Session stored for user=${session.user.id}',
+                  );
+                  final accounts = await MultiAccountService.instance
+                      .getAccounts();
+                  final activeId = await MultiAccountService.instance
+                      .getActiveUserId();
+                  debugPrint(
+                    '[ACCOUNT] Account added to switcher — total=${accounts.length}, '
+                    'active=$activeId',
+                  );
+                  debugPrint(
+                    '[ACCOUNT] Active account changed → ${session.user.email ?? session.user.id}',
+                  );
+                } catch (e) {
+                  debugPrint('[ACCOUNT] Failed to save session: $e');
+                }
+                try {
+                  captureRiverpodState('auth', {
+                    'userId': session.user.id,
+                    'email': session.user.email ?? 'unknown',
+                    'event': event.name,
+                  });
+                } catch (_) {}
+
+                // BUG FIX (families-not-loading-after-login): Invalidate any
+                // family-related providers that may have been preloaded (and
+                // cached as empty) before the user signed in. The 3-second
+                // preload in this file (search for "Preload bottom nav tabs")
+                // calls `ref.read(familyListProvider.future)` which evaluates
+                // the provider with no session and caches `[]`. Without this
+                // invalidation, the home screen keeps showing "No Families Yet"
+                // until the user manually triggers create-family.
+                //
+                // `familyListProvider` now also watches `currentUserProvider`
+                // (see lib/core/family/family_provider.dart), so it would
+                // rebuild on its own — but invalidating here is belt-and-
+                // suspenders: it guarantees a fresh fetch on every sign-in,
+                // including token-refresh/`SIGNED_IN` events emitted by
+                // Supabase when recovering a persisted session on app start.
+                try {
+                  ref.invalidate(familyListProvider);
+                  ref.invalidate(archivedFamiliesProvider);
+                  // v5.78 (AUTH FIX): Invalidate authStateProvider +
+                  // currentUserProvider on signedIn. This guarantees these
+                  // providers are fresh even if the initial init-race left
+                  // them stuck on Stream.empty() / null. Without this, the
+                  // graph screen shows "Auth User ID: NULL" because the
+                  // providers were cached before Supabase was ready.
+                  ref.invalidate(authStateProvider);
+                  ref.invalidate(currentUserProvider);
+                  // v5.4: Invalidate viewer + graph providers so the graph
+                  // re-renders from the NEW user's perspective on account switch.
+                  // Without this, the graph keeps showing the previous user's
+                  // "You" node and perspective labels.
+                  invalidateViewerCache();
+                  debugPrint(
+                    '🔐 Auth listener: signedIn — familyListProvider + viewerCache + authState invalidated',
+                  );
+                } catch (e) {
+                  debugPrint(
+                    '⚠️ Auth listener: failed to invalidate family providers: $e',
+                  );
+                }
+
+                debugPrint(
+                  '🔐 Auth listener: signedIn — navigation handled by router',
+                );
+              } else if (event == AuthChangeEvent.signedOut) {
+                try {
+                  captureRiverpodState('auth', {'status': 'signed_out'});
+                } catch (_) {}
+                unawaited(_handleSignOut(ref));
+                debugPrint('🔐 Auth listener: signedOut');
+              }
+            } catch (e) {
+              debugPrint('⚠️ Auth state listener error: $e');
+            }
           });
         }
+      } catch (_) {}
 
-        AuthChangeEvent? lastAuthEvent;
-        String? lastAuthUserId;
-
-        client.auth.onAuthStateChange.listen((data) async {
-          final event = data.event;
-          final session = data.session;
-
+      // 2. Start the SyncEngine if Isar is initialized AND user has a session
+      // PERF: Reduced from 3s to 2s — starts sync 1 second earlier
+      Future.delayed(const Duration(seconds: 2), () {
+        if (IsarDatabase.isInitialized) {
           try {
-            final userId = session?.user.id;
-            if (event == AuthChangeEvent.signedIn &&
-                lastAuthEvent == AuthChangeEvent.signedIn &&
-                lastAuthUserId == userId) {
-              debugPrint('⏭️ Auth listener: skipping duplicate signedIn event');
-              return;
-            }
-            lastAuthEvent = event;
-            lastAuthUserId = userId;
-
-            if (event == AuthChangeEvent.signedIn && session != null) {
-              debugPrint('[ACCOUNT] Authentication successful — user=${session.user.id}, email=${session.user.email ?? "unknown"}');
-              try {
-                setUserIdentifier(session.user.id);
-              } catch (_) {}
-              // Save session for multi-account support
-              try {
-                await MultiAccountService.instance.saveCurrentSession();
-                // v5.190: [ACCOUNT] debug logs for the multi-account flow.
-                // These confirm (a) the session was stored, (b) the
-                // account was added to the switcher list, and (c) the
-                // active account is the newly-signed-in one.
-                debugPrint('[ACCOUNT] Session stored for user=${session.user.id}');
-                final accounts = await MultiAccountService.instance.getAccounts();
-                final activeId = await MultiAccountService.instance.getActiveUserId();
-                debugPrint(
-                  '[ACCOUNT] Account added to switcher — total=${accounts.length}, '
-                  'active=$activeId',
-                );
-                debugPrint('[ACCOUNT] Active account changed → ${session.user.email ?? session.user.id}');
-              } catch (e) {
-                debugPrint('[ACCOUNT] Failed to save session: $e');
-              }
-              try {
-                captureRiverpodState('auth', {
-                  'userId': session.user.id,
-                  'email': session.user.email ?? 'unknown',
-                  'event': event.name,
-                });
-              } catch (_) {}
-
-              // BUG FIX (families-not-loading-after-login): Invalidate any
-              // family-related providers that may have been preloaded (and
-              // cached as empty) before the user signed in. The 3-second
-              // preload in this file (search for "Preload bottom nav tabs")
-              // calls `ref.read(familyListProvider.future)` which evaluates
-              // the provider with no session and caches `[]`. Without this
-              // invalidation, the home screen keeps showing "No Families Yet"
-              // until the user manually triggers create-family.
-              //
-              // `familyListProvider` now also watches `currentUserProvider`
-              // (see lib/core/family/family_provider.dart), so it would
-              // rebuild on its own — but invalidating here is belt-and-
-              // suspenders: it guarantees a fresh fetch on every sign-in,
-              // including token-refresh/`SIGNED_IN` events emitted by
-              // Supabase when recovering a persisted session on app start.
-              try {
-                ref.invalidate(familyListProvider);
-                ref.invalidate(archivedFamiliesProvider);
-                // v5.78 (AUTH FIX): Invalidate authStateProvider +
-                // currentUserProvider on signedIn. This guarantees these
-                // providers are fresh even if the initial init-race left
-                // them stuck on Stream.empty() / null. Without this, the
-                // graph screen shows "Auth User ID: NULL" because the
-                // providers were cached before Supabase was ready.
-                ref.invalidate(authStateProvider);
-                ref.invalidate(currentUserProvider);
-                // v5.4: Invalidate viewer + graph providers so the graph
-                // re-renders from the NEW user's perspective on account switch.
-                // Without this, the graph keeps showing the previous user's
-                // "You" node and perspective labels.
-                invalidateViewerCache();
-                debugPrint('🔐 Auth listener: signedIn — familyListProvider + viewerCache + authState invalidated');
-              } catch (e) {
-                debugPrint('⚠️ Auth listener: failed to invalidate family providers: $e');
-              }
-
-              debugPrint('🔐 Auth listener: signedIn — navigation handled by router');
-            } else if (event == AuthChangeEvent.signedOut) {
-              try {
-                captureRiverpodState('auth', {'status': 'signed_out'});
-              } catch (_) {}
-              unawaited(_handleSignOut(ref));
-              debugPrint('🔐 Auth listener: signedOut');
+            final client = ref.read(supabaseProvider);
+            final hasSession = client?.auth.currentSession != null;
+            if (hasSession) {
+              final bgSyncManager = ref.read(backgroundSyncManagerProvider);
+              bgSyncManager.init();
+              bgSyncManager.start();
+              debugPrint(
+                '🔄 SyncEngine + BackgroundSyncManager started (delayed)',
+              );
+            } else {
+              debugPrint('⏭️ SyncEngine skipped — no auth session');
             }
           } catch (e) {
-            debugPrint('⚠️ Auth state listener error: $e');
+            debugPrint('⚠️ SyncEngine start failed: $e');
           }
-        });
-      }
-    } catch (_) {}
+        }
 
-    // 2. Start the SyncEngine if Isar is initialized AND user has a session
-    // PERF: Reduced from 3s to 2s — starts sync 1 second earlier
-    Future.delayed(const Duration(seconds: 2), () {
-      if (IsarDatabase.isInitialized) {
+        // 3. Start the Socket.IO service if authenticated
         try {
+          final client = ref.read(supabaseProvider);
+          if (client != null && client.auth.currentSession != null) {
+            final socketService = ref.read(socketServiceProvider);
+            socketService.connect();
+            debugPrint('🔌 SocketService started (delayed)');
+          }
+        } catch (e) {
+          debugPrint('⚠️ SocketService start failed: $e');
+        }
+
+        // 3b. Start Supabase Realtime subscriptions if authenticated
+        // v2.2 (LAZY SUBSCRIPTION): We NO LONGER call subscribeToAllUserFamilies()
+        // here. Instead, each family screen (FamilyGraphScreen) subscribes to
+        // its own family in initState() and unsubscribes in dispose(). This
+        // reduces the active WebSocket channel count from N (all families) to
+        // 1 (the currently-viewed family).
+        //
+        // subscribeToAllUserFamilies() is still available for cases where
+        // the app needs to listen to ALL families (e.g. background sync),
+        // but it's gated behind a feature flag and unused by default.
+        // To re-enable eager subscription, set _EAGER_SUBSCRIBE_ALL = true.
+        try {
+          final client = ref.read(supabaseProvider);
+          if (client != null && client.auth.currentSession != null) {
+            final realtimeService = ref.read(supabaseRealtimeProvider);
+            realtimeService.initialize();
+            // v2.2: Only initialize the service — don't subscribe to all families.
+            // Subscription is now lazy (per-family, on screen open).
+            debugPrint(
+              '📡 SupabaseRealtime initialized (lazy subscription mode)',
+            );
+          }
+        } catch (e) {
+          debugPrint('⚠️ SupabaseRealtime start failed: $e');
+        }
+      });
+
+      // 4. Initialize Push Notifications if authenticated
+      try {
+        final client = ref.read(supabaseProvider);
+        if (client != null && client.auth.currentSession != null) {
+          final pushService = ref.read(pushNotificationServiceProvider);
+          pushService.onDeepLink = (route) {
+            try {
+              final router = ref.read(routerProvider);
+              router.push(route);
+            } catch (e) {
+              debugPrint('⚠️ Push notification deep link failed: $e');
+            }
+          };
+          await pushService.initialize();
+          debugPrint('📬 PushNotificationService initialized');
+        } else {
+          debugPrint('⏭️ PushNotificationService skipped — no auth session');
+        }
+      } catch (e) {
+        debugPrint('⚠️ PushNotificationService init failed: $e');
+      }
+
+      // 5. Initialize AppStartupService for background sync & provider refresh
+      try {
+        // Pass the global ProviderContainer — it provides ref.read() capability
+        // The container is captured via ProviderScope.containerOf in initState
+        final container = _globalContainer;
+        if (container != null) {
+          // Create a lightweight Ref adapter from the container
+          AppStartupService.instance.initializeFromContainer(container);
+          debugPrint('🚀 AppStartupService initialized');
+        } else {
+          debugPrint('⚠️ AppStartupService skipped — no global container');
+        }
+      } catch (e) {
+        debugPrint('⚠️ AppStartupService init failed: $e');
+      }
+
+      // 6. Preload bottom nav tabs
+      // PERF: Reduced from 3s to 500ms — warms familyListProvider 2.5s
+      // earlier so cached data is ready by the time the user navigates
+      // to the Home tab.
+      Future.delayed(const Duration(milliseconds: 500), () {
+        try {
+          // BUG FIX (families-not-loading-after-login): Only preload
+          // `familyListProvider` when there is an active auth session.
+          //
+          // Previously this call ran unconditionally ("works with or without
+          // auth session"), which meant that if the user was still on the
+          // sign-in screen 3 seconds after app launch, the provider would
+          // evaluate with `currentSession == null` and cache `[]`. The home
+          // screen would then show "No Families Yet" after the user signed
+          // in, because the cached empty result kept being returned. The
+          // families only appeared after the user triggered create-family
+          // (which calls `ref.invalidate(familyListProvider)`).
+          //
+          // The empty cache is now also recovered by:
+          //   • `familyListProvider` watching `currentUserProvider` (auto-
+          //     rebuild on sign-in), AND
+          //   • the auth state listener in this file invalidating the
+          //     provider on `signedIn`.
+          // But skipping the preload entirely when unauthenticated avoids
+          // caching a known-empty result in the first place.
           final client = ref.read(supabaseProvider);
           final hasSession = client?.auth.currentSession != null;
           if (hasSession) {
-            final bgSyncManager = ref.read(backgroundSyncManagerProvider);
-            bgSyncManager.init();
-            bgSyncManager.start();
-            debugPrint('🔄 SyncEngine + BackgroundSyncManager started (delayed)');
+            ref.read(familyListProvider.future).catchError((_) => <Family>[]);
           } else {
-            debugPrint('⏭️ SyncEngine skipped — no auth session');
+            debugPrint(
+              '⏭️ familyListProvider preload skipped — no auth session',
+            );
           }
+          ref.read(profileProvider.notifier).loadProfile().catchError((_) {});
+          ref.read(profileProvider.notifier).loadStats().catchError((_) {});
+          debugPrint('🚀 Bottom nav tabs preloaded');
         } catch (e) {
-          debugPrint('⚠️ SyncEngine start failed: $e');
+          debugPrint('⚠️ Bottom nav preload failed: $e');
         }
-      }
-
-      // 3. Start the Socket.IO service if authenticated
-      try {
-        final client = ref.read(supabaseProvider);
-        if (client != null && client.auth.currentSession != null) {
-          final socketService = ref.read(socketServiceProvider);
-          socketService.connect();
-          debugPrint('🔌 SocketService started (delayed)');
-        }
-      } catch (e) {
-        debugPrint('⚠️ SocketService start failed: $e');
-      }
-
-      // 3b. Start Supabase Realtime subscriptions if authenticated
-      // v2.2 (LAZY SUBSCRIPTION): We NO LONGER call subscribeToAllUserFamilies()
-      // here. Instead, each family screen (FamilyGraphScreen) subscribes to
-      // its own family in initState() and unsubscribes in dispose(). This
-      // reduces the active WebSocket channel count from N (all families) to
-      // 1 (the currently-viewed family).
-      //
-      // subscribeToAllUserFamilies() is still available for cases where
-      // the app needs to listen to ALL families (e.g. background sync),
-      // but it's gated behind a feature flag and unused by default.
-      // To re-enable eager subscription, set _EAGER_SUBSCRIBE_ALL = true.
-      try {
-        final client = ref.read(supabaseProvider);
-        if (client != null && client.auth.currentSession != null) {
-          final realtimeService = ref.read(supabaseRealtimeProvider);
-          realtimeService.initialize();
-          // v2.2: Only initialize the service — don't subscribe to all families.
-          // Subscription is now lazy (per-family, on screen open).
-          debugPrint('📡 SupabaseRealtime initialized (lazy subscription mode)');
-        }
-      } catch (e) {
-        debugPrint('⚠️ SupabaseRealtime start failed: $e');
-      }
-    });
-
-    // 4. Initialize Push Notifications if authenticated
-    try {
-      final client = ref.read(supabaseProvider);
-      if (client != null && client.auth.currentSession != null) {
-        final pushService = ref.read(pushNotificationServiceProvider);
-        pushService.onDeepLink = (route) {
-          try {
-            final router = ref.read(routerProvider);
-            router.push(route);
-          } catch (e) {
-            debugPrint('⚠️ Push notification deep link failed: $e');
-          }
-        };
-        await pushService.initialize();
-        debugPrint('📬 PushNotificationService initialized');
-      } else {
-        debugPrint('⏭️ PushNotificationService skipped — no auth session');
-      }
-    } catch (e) {
-      debugPrint('⚠️ PushNotificationService init failed: $e');
-    }
-
-    // 5. Initialize AppStartupService for background sync & provider refresh
-    try {
-      // Pass the global ProviderContainer — it provides ref.read() capability
-      // The container is captured via ProviderScope.containerOf in initState
-      final container = _globalContainer;
-      if (container != null) {
-        // Create a lightweight Ref adapter from the container
-        AppStartupService.instance.initializeFromContainer(container);
-        debugPrint('🚀 AppStartupService initialized');
-      } else {
-        debugPrint('⚠️ AppStartupService skipped — no global container');
-      }
-    } catch (e) {
-      debugPrint('⚠️ AppStartupService init failed: $e');
-    }
-
-    // 6. Preload bottom nav tabs
-    // PERF: Reduced from 3s to 500ms — warms familyListProvider 2.5s
-    // earlier so cached data is ready by the time the user navigates
-    // to the Home tab.
-    Future.delayed(const Duration(milliseconds: 500), () {
-      try {
-        // BUG FIX (families-not-loading-after-login): Only preload
-        // `familyListProvider` when there is an active auth session.
-        //
-        // Previously this call ran unconditionally ("works with or without
-        // auth session"), which meant that if the user was still on the
-        // sign-in screen 3 seconds after app launch, the provider would
-        // evaluate with `currentSession == null` and cache `[]`. The home
-        // screen would then show "No Families Yet" after the user signed
-        // in, because the cached empty result kept being returned. The
-        // families only appeared after the user triggered create-family
-        // (which calls `ref.invalidate(familyListProvider)`).
-        //
-        // The empty cache is now also recovered by:
-        //   • `familyListProvider` watching `currentUserProvider` (auto-
-        //     rebuild on sign-in), AND
-        //   • the auth state listener in this file invalidating the
-        //     provider on `signedIn`.
-        // But skipping the preload entirely when unauthenticated avoids
-        // caching a known-empty result in the first place.
-        final client = ref.read(supabaseProvider);
-        final hasSession = client?.auth.currentSession != null;
-        if (hasSession) {
-          ref.read(familyListProvider.future).catchError((_) => <Family>[]);
-        } else {
-          debugPrint('⏭️ familyListProvider preload skipped — no auth session');
-        }
-        ref.read(profileProvider.notifier).loadProfile().catchError((_) {});
-        ref.read(profileProvider.notifier).loadStats().catchError((_) {});
-        debugPrint('🚀 Bottom nav tabs preloaded');
-      } catch (e) {
-        debugPrint('⚠️ Bottom nav preload failed: $e');
-      }
-    });
-
-    // ── Initialize Analytics Service ────────────────────────────────
-    try {
-      await AnalyticsService.instance.init();
-    } catch (e) {
-      debugPrint('⚠️ Analytics init failed: $e');
-    }
-
-    // ── Initialize Remote Config Service ──────────────────────────
-    try {
-      await RemoteConfigService.instance.init();
-      debugPrint('✅ Remote Config initialized');
-    } catch (e) {
-      debugPrint('⚠️ Remote Config init failed, using defaults: $e');
-    }
-
-    // ── Record app open for retention tracking ──────────────────────
-    try {
-      if (IsarDatabase.isInitialized) {
-        final db = IsarDatabase.instance;
-        final opensStr = await db.getSetting('app_opens');
-        final opens = int.tryParse(opensStr ?? '0') ?? 0;
-        await db.setSetting('app_opens', '${opens + 1}');
-        await db.setSetting('last_open', DateTime.now().toIso8601String());
-      }
-    } catch (_) {}
-
-    // ── Initialize Rating Service ────────────────────────────────
-    RatingService.instance.init();
-
-    // ── Accessibility audit (debug only) ────────────────────────────
-    A11yChecker.runAudit();
-
-    // ── Memory monitor (debug only) ─────────────────────────────────
-    MemoryMonitor.start();
-
-    // ── Capture provider state for crash context ───────────────────
-    try {
-      ref.listen(familyListProvider, (_, next) {
-        captureRiverpodState('familyList', {
-          'count': next.value?.length ?? 0,
-          'isLoading': next.isLoading,
-          'hasError': next.hasError,
-        });
       });
-    } catch (_) {}
 
-    // ── Initialize Deep Link Service ────────────────────────────────
-    try {
-      final deepLinkService = ref.read(deepLinkServiceProvider);
-      await deepLinkService.init(
-        onDeepLink: (location) {
-          try {
-            final router = ref.read(routerProvider);
-            navigateToDeepLink(router, location);
-            debugPrint('🔗 Deep link navigated to: $location');
-          } catch (e) {
-            debugPrint('⚠️ Deep link navigation failed: $e');
-          }
-        },
-      );
-    } catch (e) {
-      debugPrint('⚠️ Deep link service init failed: $e');
-    }
+      // ── Initialize Analytics Service ────────────────────────────────
+      try {
+        await AnalyticsService.instance.init();
+      } catch (e) {
+        debugPrint('⚠️ Analytics init failed: $e');
+      }
+
+      // ── Initialize Remote Config Service ──────────────────────────
+      try {
+        await RemoteConfigService.instance.init();
+        debugPrint('✅ Remote Config initialized');
+      } catch (e) {
+        debugPrint('⚠️ Remote Config init failed, using defaults: $e');
+      }
+
+      // ── Record app open for retention tracking ──────────────────────
+      try {
+        if (IsarDatabase.isInitialized) {
+          final db = IsarDatabase.instance;
+          final opensStr = await db.getSetting('app_opens');
+          final opens = int.tryParse(opensStr ?? '0') ?? 0;
+          await db.setSetting('app_opens', '${opens + 1}');
+          await db.setSetting('last_open', DateTime.now().toIso8601String());
+        }
+      } catch (_) {}
+
+      // ── Initialize Rating Service ────────────────────────────────
+      RatingService.instance.init();
+
+      // ── Accessibility audit (debug only) ────────────────────────────
+      A11yChecker.runAudit();
+
+      // ── Memory monitor (debug only) ─────────────────────────────────
+      MemoryMonitor.start();
+
+      // ── Capture provider state for crash context ───────────────────
+      try {
+        ref.listen(familyListProvider, (_, next) {
+          captureRiverpodState('familyList', {
+            'count': next.value?.length ?? 0,
+            'isLoading': next.isLoading,
+            'hasError': next.hasError,
+          });
+        });
+      } catch (_) {}
+
+      // ── Initialize Deep Link Service ────────────────────────────────
+      try {
+        final deepLinkService = ref.read(deepLinkServiceProvider);
+        await deepLinkService.init(
+          onDeepLink: (location) {
+            try {
+              final router = ref.read(routerProvider);
+              navigateToDeepLink(router, location);
+              debugPrint('🔗 Deep link navigated to: $location');
+            } catch (e) {
+              debugPrint('⚠️ Deep link navigation failed: $e');
+            }
+          },
+        );
+      } catch (e) {
+        debugPrint('⚠️ Deep link service init failed: $e');
+      }
     } catch (e, st) {
       debugPrint('🔴 _initDeferredServices top-level error: $e');
       debugPrint('   Stack: $st');
@@ -995,7 +1029,8 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       _backgroundMemoryTimer?.cancel();
       _backgroundMemoryTimer = null;
       try {
-        PaintingBinding.instance.imageCache.maximumSizeBytes = 100 * 1024 * 1024; // 100MB
+        PaintingBinding.instance.imageCache.maximumSizeBytes =
+            100 * 1024 * 1024; // 100MB
         PaintingBinding.instance.imageCache.maximumSize = 1000; // 1000 images
       } catch (_) {}
 
@@ -1047,7 +1082,8 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
           // Shrink the live cache to a tiny footprint while
           // backgrounded. ImageCache will grow back lazily when the
           // app resumes and images are re-requested.
-          PaintingBinding.instance.imageCache.maximumSizeBytes = 8 * 1024 * 1024; // 8MB
+          PaintingBinding.instance.imageCache.maximumSizeBytes =
+              8 * 1024 * 1024; // 8MB
           PaintingBinding.instance.imageCache.maximumSize = 16; // 16 images
         } catch (_) {}
       });
@@ -1101,128 +1137,126 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
 
     return _KinshipInitializer(
       child: MaterialApp.router(
-      title: AppConfig.appName,
-      debugShowCheckedModeBanner: false,
-      showPerformanceOverlay: const bool.fromEnvironment('PERF_OVERLAY'),
-      // v47 FIX: Allow touch, mouse, trackpad, and stylus gestures everywhere.
-      // Without this, Android touch events can get routed to the scroll system
-      // instead of the graph's ScaleGestureRecognizer, causing pinch-zoom and
-      // node taps to fail on Android while working on Web (mouse events bypass
-      // the scroll behavior entirely).
-      scrollBehavior: const MaterialScrollBehavior().copyWith(
-        dragDevices: {
-          PointerDeviceKind.touch,
-          PointerDeviceKind.mouse,
-          PointerDeviceKind.trackpad,
-          PointerDeviceKind.stylus,
-          PointerDeviceKind.invertedStylus,
-        },
-      ),
-      // Support both light and dark themes
-      theme: lightTheme,
-      darkTheme: darkTheme,
-      themeMode: themeMode,
-      routerConfig: router,
-      // Localization — 15 languages
-      localizationsDelegates: const [
-        S.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: S.supportedLocales,
-      locale: ref.watch(localeProvider),
-      builder: (context, child) {
-        // Update system UI overlay when theme changes
-        final brightness = MediaQuery.of(context).platformBrightness;
-        final effectiveDark =
-            themeMode == ThemeMode.dark ||
-            (themeMode == ThemeMode.system && brightness == Brightness.dark);
+        title: AppConfig.appName,
+        debugShowCheckedModeBanner: false,
+        showPerformanceOverlay: const bool.fromEnvironment('PERF_OVERLAY'),
+        // v47 FIX: Allow touch, mouse, trackpad, and stylus gestures everywhere.
+        // Without this, Android touch events can get routed to the scroll system
+        // instead of the graph's ScaleGestureRecognizer, causing pinch-zoom and
+        // node taps to fail on Android while working on Web (mouse events bypass
+        // the scroll behavior entirely).
+        scrollBehavior: const MaterialScrollBehavior().copyWith(
+          dragDevices: {
+            PointerDeviceKind.touch,
+            PointerDeviceKind.mouse,
+            PointerDeviceKind.trackpad,
+            PointerDeviceKind.stylus,
+            PointerDeviceKind.invertedStylus,
+          },
+        ),
+        // Support both light and dark themes
+        theme: lightTheme,
+        darkTheme: darkTheme,
+        themeMode: themeMode,
+        routerConfig: router,
+        // Localization — 15 languages
+        localizationsDelegates: const [
+          S.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: S.supportedLocales,
+        locale: ref.watch(localeProvider),
+        builder: (context, child) {
+          // Update system UI overlay when theme changes
+          final brightness = MediaQuery.of(context).platformBrightness;
+          final effectiveDark =
+              themeMode == ThemeMode.dark ||
+              (themeMode == ThemeMode.system && brightness == Brightness.dark);
 
-        // Set system UI overlay on every build to stay in sync
-        SystemChrome.setSystemUIOverlayStyle(
-          SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: effectiveDark
-                ? Brightness.light
-                : Brightness.dark,
-            statusBarBrightness: effectiveDark
-                ? Brightness.dark
-                : Brightness.light,
-            systemNavigationBarColor: effectiveDark
-                ? const Color(0xFF121212)
-                : const Color(0xFFF5F7FA),
-            systemNavigationBarIconBrightness: effectiveDark
-                ? Brightness.light
-                : Brightness.dark,
-          ),
-        );
-
-        // Bug fix (split-screen / keyboard white-screen):
-        //
-        // ROOT CAUSE: The previous builder returned a bare `Column`
-        // wrapping [OfflineBanner] + [Expanded(child)]. The Column
-        // itself has no background color, so when the keyboard opens
-        // or the viewport shrinks in split-screen/half-screen mode,
-        // any gap between the child's bottom and the viewport's bottom
-        // (caused by `Scaffold.resizeToAvoidBottomInset` shrinking the
-        // body) exposed the default white Material background — a
-        // jarring flash of white in an otherwise dark app.
-        //
-        // FIX:
-        // 1. Wrap the entire Column in a `ColoredBox` using the
-        //    effective scaffold background color (dark or light). This
-        //    guarantees NO white ever shows through, regardless of how
-        //    the child sizes itself.
-        // 2. The Column + Expanded pattern is kept (OfflineBanner
-        //    pinned to top, child fills the rest) — this is correct
-        //    because Scaffold.resizeToAvoidBottomInset handles the
-        //    keyboard inset INSIDE the child's own Scaffold, not here.
-        // 3. The ColoredBox fills the full screen, so even if the
-        //    child's Scaffold has `resizeToAvoidBottomInset: false`
-        //    (graph screen) and leaves a gap below the keyboard, that
-        //    gap is the dark color, not white.
-        final scaffoldBg = effectiveDark
-            ? const Color(0xFF131416) // KinrelColors.darkBackground
-            : const Color(0xFFF5F7FA); // light scaffold bg
-
-        return ColoredBox(
-          color: scaffoldBg,
-          child: MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              // ── Tier 3 accessibility: respect the SYSTEM text scale ──
-              // Previously this was TextScaler.linear(ref.watch(fontScaleProvider))
-              // which defaulted to 1.0 — ignoring the user's OS text-size
-              // setting entirely. Now we use effectiveFontScale() which:
-              //   1. Uses the in-app override if the user set one
-              //   2. Falls back to the system text scale (MediaQuery)
-              //   3. Honors Grandparent Mode (1.3× minimum)
-              // This is critical for older Indian users who set their
-              // phone to large text — they couldn't read the app before.
-              textScaler: TextScaler.linear(
-                effectiveFontScale(context, ref),
-              ),
+          // Set system UI overlay on every build to stay in sync
+          SystemChrome.setSystemUIOverlayStyle(
+            SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: effectiveDark
+                  ? Brightness.light
+                  : Brightness.dark,
+              statusBarBrightness: effectiveDark
+                  ? Brightness.dark
+                  : Brightness.light,
+              systemNavigationBarColor: effectiveDark
+                  ? const Color(0xFF121212)
+                  : const Color(0xFFF5F7FA),
+              systemNavigationBarIconBrightness: effectiveDark
+                  ? Brightness.light
+                  : Brightness.dark,
             ),
-            // v109.8: Use Expanded+Column pattern inside a SafeArea-like
-            // structure. The Column + Expanded ensures the child fills
-            // the available space WITHOUT overflow when the viewport
-            // changes (keyboard, split-screen, resize). The ColoredBox
-            // behind it guarantees no white gaps.
-            child: Column(
-              children: [
-                const OfflineBanner(),
-                Expanded(
-                  child: PresenceHeartbeat(
-                    child: GameInviteListener(
-                      child: child ?? const SizedBox.shrink(),
+          );
+
+          // Bug fix (split-screen / keyboard white-screen):
+          //
+          // ROOT CAUSE: The previous builder returned a bare `Column`
+          // wrapping [OfflineBanner] + [Expanded(child)]. The Column
+          // itself has no background color, so when the keyboard opens
+          // or the viewport shrinks in split-screen/half-screen mode,
+          // any gap between the child's bottom and the viewport's bottom
+          // (caused by `Scaffold.resizeToAvoidBottomInset` shrinking the
+          // body) exposed the default white Material background — a
+          // jarring flash of white in an otherwise dark app.
+          //
+          // FIX:
+          // 1. Wrap the entire Column in a `ColoredBox` using the
+          //    effective scaffold background color (dark or light). This
+          //    guarantees NO white ever shows through, regardless of how
+          //    the child sizes itself.
+          // 2. The Column + Expanded pattern is kept (OfflineBanner
+          //    pinned to top, child fills the rest) — this is correct
+          //    because Scaffold.resizeToAvoidBottomInset handles the
+          //    keyboard inset INSIDE the child's own Scaffold, not here.
+          // 3. The ColoredBox fills the full screen, so even if the
+          //    child's Scaffold has `resizeToAvoidBottomInset: false`
+          //    (graph screen) and leaves a gap below the keyboard, that
+          //    gap is the dark color, not white.
+          final scaffoldBg = effectiveDark
+              ? const Color(0xFF131416) // KinrelColors.darkBackground
+              : const Color(0xFFF5F7FA); // light scaffold bg
+
+          return ColoredBox(
+            color: scaffoldBg,
+            child: MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                // ── Tier 3 accessibility: respect the SYSTEM text scale ──
+                // Previously this was TextScaler.linear(ref.watch(fontScaleProvider))
+                // which defaulted to 1.0 — ignoring the user's OS text-size
+                // setting entirely. Now we use effectiveFontScale() which:
+                //   1. Uses the in-app override if the user set one
+                //   2. Falls back to the system text scale (MediaQuery)
+                //   3. Honors Grandparent Mode (1.3× minimum)
+                // This is critical for older Indian users who set their
+                // phone to large text — they couldn't read the app before.
+                textScaler: TextScaler.linear(effectiveFontScale(context, ref)),
+              ),
+              // v109.8: Use Expanded+Column pattern inside a SafeArea-like
+              // structure. The Column + Expanded ensures the child fills
+              // the available space WITHOUT overflow when the viewport
+              // changes (keyboard, split-screen, resize). The ColoredBox
+              // behind it guarantees no white gaps.
+              child: Column(
+                children: [
+                  const OfflineBanner(),
+                  Expanded(
+                    child: PresenceHeartbeat(
+                      child: GameInviteListener(
+                        child: child ?? const SizedBox.shrink(),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
       ),
     );
   }
@@ -1251,7 +1285,9 @@ class _KinshipInitializerState extends State<_KinshipInitializer> {
   Future<void> _loadKinship() async {
     try {
       await KinshipService.instance.load();
-      debugPrint('✅ Kinship core data loaded: ${KinshipService.instance.totalRelationships} relationships');
+      debugPrint(
+        '✅ Kinship core data loaded: ${KinshipService.instance.totalRelationships} relationships',
+      );
     } catch (e) {
       debugPrint('⚠️ Failed to load kinship core data: $e');
     }
@@ -1261,4 +1297,3 @@ class _KinshipInitializerState extends State<_KinshipInitializer> {
   Widget build(BuildContext context) => widget.child;
 }
 // v74: English-only kinship — no download needed
-

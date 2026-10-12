@@ -2,90 +2,84 @@
 //
 // DAXELO KINREL — Chat UI Gallery (Chat UI Reference, section E)
 //
-// A debug/profile-only screen for visual comparison of the shared chat
-// widgets against the five reference images. Reachable ONLY when the
-// compile-time define UI_GALLERY=true (bool.fromEnvironment) — in that
-// mode main() boots straight into this gallery instead of the app.
+// A DEBUG-ONLY screen that renders the real chat widgets with sample
+// data — no Supabase, no services, no navigation. It exists so the
+// unified chat UI can be inspected pixel-by-pixel against the
+// reference images without a backend.
 //
-// It is a PageView of 4 screens drawn with FIXED sample data and the
-// REAL widgets (ChatHeaderBar, MessageBubble, ChatSystemNotice,
-// GameInviteCard, CollapsedGameInvites, ChatInputBar,
-// SelectionModeToolbar, ChatOverflowMenuCard) — no network, no real
-// providers: the few providers the real widgets watch internally
-// (current user id, relationship key/label) are overridden with sample
-// values in the enclosing ProviderScope.
+// Boot gate (main.dart): only reachable when the app is built with
+//   --dart-define=UI_GALLERY=true
+// (see the ui_gallery input of .github/workflows/perf-profile-apk.yml,
+// which produces a *-gallery APK).
 //
-// Pages:
-//   1) Group chat (+ kinship color legend)
-//   2) Selection mode (selection bar, reaction bar, selected row,
-//      open overflow menu)
-//   3) Invite states (active / result / expired one-liner / collapsed)
-//   4) Direct chat
+// Pages (swipe or click the dots):
+//   1. Group chat — D1 header, D3/D5 bubbles with kinship bands and
+//      sender pills, D8 date chip, D9 system notice, D10 unread pill,
+//      D11 thinking-of-you, D7 ticks, D12 composer, kinship legend.
+//   2. Invite states — D18a active card, D18b result card (Rematch),
+//      D18c expired one-liner, collapsed run.
+//   3. Selection mode — D14 toolbar, D15 reaction bar, D16 selected
+//      row tint, D17 context menu card.
+//   4. Direct chat — D1 direct header, D4 bubbles WITHOUT bands or
+//      sender pills, D12 composer.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/brand_colors.dart';
 import '../../family/data/relationship_label_provider.dart';
+import '../../../core/constants/brand_colors.dart';
+import '../../../core/constants/brand_typography.dart';
 import '../providers/chat_provider.dart';
 import 'chat_ui_tokens.dart';
 import 'widgets/chat_header_bar.dart';
 import 'widgets/chat_input_bar.dart';
 import 'widgets/chat_system_notice.dart';
-import 'widgets/constellation_pattern.dart';
 import 'widgets/game_invite_card.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/selection_mode_toolbar.dart';
 
-/// Compile-time gate — true only when built with
-/// `--dart-define=UI_GALLERY=true`.
-const bool kChatUiGallery = bool.fromEnvironment('UI_GALLERY');
+/// The gallery family id (kept out of the real id space).
+const String _kGalleryFamily = 'gallery-family';
 
-/// The sample "family id" the gallery messages use. The relationship
-/// providers are overridden for this id in [chatUiGalleryOverrides].
-const String _galleryFamilyId = 'gallery-family';
+/// Sample viewer id — messages from this sender render as "me".
+const String _kGalleryMe = 'gallery-me';
 
-/// Sample sender ids.
-const String _me = 'gallery-me';
-const String _papa = 'gallery-papa';
-const String _nani = 'gallery-nani';
-const String _meera = 'gallery-meera';
-
-/// Provider overrides that let the REAL widgets resolve sample data
-/// without any network or database access.
-List<Override> chatUiGalleryOverrides() {
-  return [
-    chatCurrentUserIdProvider.overrideWith((ref) => _me),
-    relationshipKeyProvider(
-      const (familyId: _galleryFamilyId, senderUserId: _papa),
-    ).overrideWith((ref) => 'father'),
-    relationshipKeyProvider(
-      const (familyId: _galleryFamilyId, senderUserId: _nani),
-    ).overrideWith((ref) => 'grandmother'),
-    relationshipKeyProvider(
-      const (familyId: _galleryFamilyId, senderUserId: _meera),
-    ).overrideWith((ref) => 'cousin'),
-    relationshipLabelProvider(
-      const (familyId: _galleryFamilyId, senderUserId: _papa),
-    ).overrideWith((ref) => 'Father'),
-    relationshipLabelProvider(
-      const (familyId: _galleryFamilyId, senderUserId: _nani),
-    ).overrideWith((ref) => 'Grandmother'),
-    relationshipLabelProvider(
-      const (familyId: _galleryFamilyId, senderUserId: _meera),
-    ).overrideWith((ref) => 'Cousin'),
-  ];
-}
-
-/// Boots the gallery instead of the full app (used by main() when
-/// UI_GALLERY=true).
-class ChatUiGalleryApp extends StatelessWidget {
-  const ChatUiGalleryApp({super.key});
+/// The gallery root: provider overrides for sample data + a dark
+/// MaterialApp. Standalone — no Supabase, no router.
+class ChatUiGallery extends StatelessWidget {
+  const ChatUiGallery({super.key});
 
   @override
   Widget build(BuildContext context) {
     return ProviderScope(
-      overrides: chatUiGalleryOverrides(),
+      overrides: [
+        chatCurrentUserIdProvider.overrideWith((ref) => _kGalleryMe),
+        // Sample kinship keys + labels for the group page pills/bands.
+        relationshipKeyProvider((
+          familyId: _kGalleryFamily,
+          senderUserId: 'gallery-papa',
+        )).overrideWith((ref) => 'parent'),
+        relationshipKeyProvider((
+          familyId: _kGalleryFamily,
+          senderUserId: 'gallery-nani',
+        )).overrideWith((ref) => 'grandparent'),
+        relationshipKeyProvider((
+          familyId: _kGalleryFamily,
+          senderUserId: 'gallery-meera',
+        )).overrideWith((ref) => 'cousin'),
+        relationshipLabelProvider((
+          familyId: _kGalleryFamily,
+          senderUserId: 'gallery-papa',
+        )).overrideWith((ref) => 'Father'),
+        relationshipLabelProvider((
+          familyId: _kGalleryFamily,
+          senderUserId: 'gallery-nani',
+        )).overrideWith((ref) => 'Grandmother'),
+        relationshipLabelProvider((
+          familyId: _kGalleryFamily,
+          senderUserId: 'gallery-meera',
+        )).overrideWith((ref) => 'Cousin'),
+      ],
       child: MaterialApp(
         title: 'Kinrel Chat UI Gallery',
         debugShowCheckedModeBanner: false,
@@ -93,42 +87,39 @@ class ChatUiGalleryApp extends StatelessWidget {
           useMaterial3: true,
           brightness: Brightness.dark,
           scaffoldBackgroundColor: ChatUi.chatBackground,
-          colorScheme: const ColorScheme.dark(
-            primary: KinrelColors.orange,
-            surface: ChatUi.chatBar,
-          ),
-          fontFamily: 'DMSans',
+          fontFamily: KinrelTypography.bodyFont,
         ),
-        home: const ChatUiGallery(),
+        home: const _GalleryPager(),
       ),
     );
   }
 }
 
-/// The 4-page gallery.
-class ChatUiGallery extends StatefulWidget {
-  const ChatUiGallery({super.key});
+// ═══════════════════════════════════════════════════════════════════════
+// Pager + dots
+// ═══════════════════════════════════════════════════════════════════════
+
+class _GalleryPager extends StatefulWidget {
+  const _GalleryPager();
 
   @override
-  State<ChatUiGallery> createState() => _ChatUiGalleryState();
+  State<_GalleryPager> createState() => _GalleryPagerState();
 }
 
-class _ChatUiGalleryState extends State<ChatUiGallery> {
-  final _pageController = PageController();
+class _GalleryPagerState extends State<_GalleryPager> {
+  final _controller = PageController();
   int _page = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _pageController.addListener(() {
-      final p = _pageController.page?.round() ?? 0;
-      if (p != _page) setState(() => _page = p);
-    });
-  }
+  static const _titles = [
+    'Group chat',
+    'Invite states',
+    'Selection mode',
+    'Direct chat',
+  ];
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -136,76 +127,100 @@ class _ChatUiGalleryState extends State<ChatUiGallery> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: ChatUi.chatBackground,
-      body: Column(
-        children: [
-          Expanded(
-            child: PageView(
-              controller: _pageController,
-              children: const [
-                _GroupChatPage(),
-                _SelectionModePage(),
-                _InviteStatesPage(),
-                _DirectChatPage(),
-              ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Gallery header — title + page indicator.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Kinrel Chat UI Gallery',
+                          style: ChatUi.titleText.copyWith(fontSize: 18),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_page + 1} of 4 · ${_titles[_page]}',
+                          style: ChatUi.subtitleText,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          // Page dots — tap to jump between the 4 reference screens
-          // (swiping also works on touch devices).
-          SafeArea(
-            top: false,
-            child: SizedBox(
-              height: 40,
+            Expanded(
+              child: PageView(
+                controller: _controller,
+                onPageChanged: (i) => setState(() => _page = i),
+                children: const [
+                  _GroupChatPage(),
+                  _InviteStatesPage(),
+                  _SelectionModePage(),
+                  _DirectChatPage(),
+                ],
+              ),
+            ),
+            // Page dots (orange active).
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10, top: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   for (var i = 0; i < 4; i++)
                     GestureDetector(
-                      onTap: () => _pageController.animateToPage(
+                      onTap: () => _controller.animateToPage(
                         i,
                         duration: const Duration(milliseconds: 250),
                         curve: Curves.easeOutCubic,
                       ),
-                      behavior: HitTestBehavior.opaque,
                       child: Container(
-                        width: 48,
-                        height: 40,
-                        alignment: Alignment.center,
-                        child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: i == _page
-                                ? ChatUi.accent
-                                : ChatUi.textMeta,
-                          ),
+                        width: 8,
+                        height: 8,
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: i == _page
+                              ? ChatUi.accent
+                              : ChatUi.textMeta.withValues(alpha: 0.4),
                         ),
                       ),
                     ),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Shared building blocks
+// Sample data
 // ═══════════════════════════════════════════════════════════════════════
+
+DateTime _at(int hour, int minute) {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day, hour, minute);
+}
 
 ChatMessage _msg(
   String id,
   String senderId,
-  String senderName,
-  String content,
-  TimeOfDay time, {
+  String name,
+  String text,
+  int hour,
+  int minute, {
   MessageType type = MessageType.text,
-  bool isRead = false,
-  String status = 'sent',
   String? subType,
+  bool isRead = true,
+  List<MessageReaction> reactions = const [],
   String? gameType,
   String? gameId,
   String? roomCode,
@@ -214,17 +229,17 @@ ChatMessage _msg(
   String? inviteStatus,
   String? winner,
 }) {
-  final now = DateTime.now();
   return ChatMessage(
     id: id,
     senderId: senderId,
-    senderName: senderName,
-    content: content,
+    senderName: name,
+    content: text,
     messageType: type,
-    timestamp: DateTime(now.year, now.month, now.day, time.hour, time.minute),
+    timestamp: _at(hour, minute),
     isRead: isRead,
-    messageStatus: status,
+    reactions: reactions,
     messageSubType: subType,
+    messageStatus: 'sent',
     gameType: gameType,
     gameId: gameId,
     roomCode: roomCode,
@@ -235,213 +250,79 @@ ChatMessage _msg(
   );
 }
 
-/// A real MessageBubble row with the padding the message list applies.
-Widget _bubbleRow(ChatMessage msg,
-    {bool isMe = false,
-    bool direct = false,
-    bool selected = false,
-    bool selection = false,
-    bool first = true,
-    bool last = true,
-    double bottom = 8}) {
-  final bubble = MessageBubble(
-    message: msg,
-    isMe: isMe,
-    onReply: () {},
-    onReact: () {},
-    onLongPress: () {},
-    familyId: direct ? null : _galleryFamilyId,
-    isDirectChat: direct,
-    isFirstInGroup: first,
-    isLastInGroup: last,
-    selectionMode: selection,
-    isSelected: selected,
-    onToggleSelection: () {},
-  );
-  final wrapped = Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 12),
-    child: bubble,
-  );
-  // D16: full-width selected-row tint.
-  if (selected) {
-    return Container(
-      width: double.infinity,
-      color: ChatUi.chatSelectedRow,
-      padding: EdgeInsets.fromLTRB(12, 3, 12, 3 + bottom),
-      child: bubble,
-    );
-  }
-  return Padding(
-    padding: EdgeInsets.only(left: 12, right: 12, bottom: bottom),
-    child: wrapped,
-  );
-}
-
-/// D8 static date pill.
-Widget _dateChip(String label) => Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            color: ChatUi.chatCard,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(label, style: ChatUi.pillText),
-        ),
-      ),
-    );
-
-/// D8 floating date chip (static replica of FloatingDateIndicator's
-/// pill — the real indicator needs a live scroll controller).
-Widget _floatingChip(String label) => Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        decoration: BoxDecoration(
-          color: ChatUi.chatReceived,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(label, style: ChatUi.floatingDateText),
-      ),
-    );
-
-/// D10 unread pill.
-Widget _unreadPill(String label) => Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            color: ChatUi.chatReceived,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(label, style: ChatUi.unreadPillText),
-        ),
-      ),
-    );
-
-/// D15 reaction bar (the real ReactionOverlay is a full-screen
-/// dismissal overlay; the pill below is built from the same tokens).
-Widget _reactionBar() => Center(
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: ChatUi.chatMenu,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final e in const ['❤️', '😂', '👍', '😮', '😢', '🙏'])
-              SizedBox(
-                width: 40,
-                height: 40,
-                child: Center(
-                  child: Text(e, style: const TextStyle(fontSize: 22)),
-                ),
-              ),
-            const SizedBox(
-              width: 40,
-              height: 40,
-              child: Center(
-                child: Icon(Icons.add, size: 22, color: ChatUi.reactionPlus),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-
-/// A composer built with local state (no providers).
-class _GalleryComposer extends StatefulWidget {
-  const _GalleryComposer();
-
-  @override
-  State<_GalleryComposer> createState() => _GalleryComposerState();
-}
-
-class _GalleryComposerState extends State<_GalleryComposer> {
-  final _controller = TextEditingController();
-  final _focusNode = FocusNode();
-  bool _composing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.addListener(() {
-      final c = _controller.text.trim().isNotEmpty;
-      if (c != _composing) setState(() => _composing = c);
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ChatInputBar(
-      textController: _controller,
-      focusNode: _focusNode,
-      isComposing: _composing,
-      onSend: () {},
-      onAttach: () {},
-      onEmojiToggle: () {},
-      onStartRecording: () {},
-      onThinkingOfYou: () {},
-    );
-  }
-}
-
-/// The phone-screen frame the gallery pages share: header slot on top,
-/// scrollable chat area over the Constellation wallpaper, composer at
-/// the bottom.
-class _PhoneFrame extends StatelessWidget {
-  const _PhoneFrame({
-    required this.header,
-    required this.body,
-    this.footer,
-    this.floating,
+/// A quiet bubble wrapper that fires no callbacks — the gallery is
+/// visual only.
+class _Bubble extends StatelessWidget {
+  const _Bubble({
+    required this.message,
+    required this.isMe,
+    this.isDirect = false,
+    this.isFirstInGroup = true,
   });
 
-  final Widget header;
-  final Widget body;
-  final Widget? footer;
-  final Widget? floating;
+  final ChatMessage message;
+  final bool isMe;
+  final bool isDirect;
+  final bool isFirstInGroup;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        header,
-        Expanded(
-          child: Stack(
-            children: [
-              // Wall: chatBackground + the real Constellation motif.
-              const Positioned.fill(
-                child: _GalleryWallpaper(),
-              ),
-              Positioned.fill(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(top: 10, bottom: 12),
-                  child: body,
-                ),
-              ),
-              if (floating != null)
-                Positioned(top: 8, left: 0, right: 0, child: floating!),
-            ],
-          ),
-        ),
-        if (footer != null) footer!,
-      ],
+    return Align(
+      alignment: Alignment.topLeft,
+      child: MessageBubble(
+        message: message,
+        isMe: isMe,
+        onReply: () {},
+        onReact: () {},
+        onLongPress: () {},
+        familyId: isDirect ? null : _kGalleryFamily,
+        inviteFamilyId: isDirect ? _kGalleryFamily : null,
+        isDirectChat: isDirect,
+        isFirstInGroup: isFirstInGroup,
+      ),
     );
   }
 }
+
+Widget _padded({required Widget child, double bottom = 2}) =>
+    Padding(padding: EdgeInsets.fromLTRB(12, 0, 12, bottom), child: child);
+
+Widget _sectionLabel(String text) => Padding(
+  padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+  child: Align(
+    alignment: Alignment.centerLeft,
+    child: Text(text, style: ChatUi.subtitleText),
+  ),
+);
+
+Widget _dateChip(String label) => Center(
+  child: Container(
+    margin: const EdgeInsets.symmetric(vertical: 12),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    decoration: BoxDecoration(
+      color: ChatUi.chatCard,
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Text(label, style: ChatUi.pillText),
+  ),
+);
+
+Widget _unreadPill(int count) => Center(
+  child: Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    decoration: BoxDecoration(
+      color: ChatUi.chatReceived,
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Text(
+      '$count unread message${count == 1 ? '' : 's'}',
+      style: ChatUi.unreadPillText,
+    ),
+  ),
+);
+
+Widget _notice(String text, {bool withAction = true}) =>
+    ChatSystemNotice(content: text, onViewInTree: withAction ? () {} : null);
 
 // ═══════════════════════════════════════════════════════════════════════
 // Page 1 — Group chat
@@ -452,93 +333,182 @@ class _GroupChatPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _PhoneFrame(
-      header: ChatHeaderBar(
-        title: 'Tt family',
-        subtitle: '5 members · 2 online',
-        avatarInitial: 'T',
-        onBack: () {},
-        onAvatarTap: () {},
-        onPhoneTap: () {},
-        onMoreTap: () {},
-      ),
-      floating: _floatingChip('Monday'),
-      body: Column(
+    return ColoredBox(
+      color: ChatUi.chatBackground,
+      child: Column(
         children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12),
-            child: ChatSystemNotice(
-              content: 'Meera joined as your cousin',
-              onViewInTree: _galleryNoop,
+          ChatHeaderBar(
+            title: 'Tf family',
+            subtitle: '5 members · 2 online',
+            avatarInitial: 'Tf family',
+            onBack: () {},
+            onPhoneTap: () {},
+            onMoreTap: () {},
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.only(top: 10, bottom: 12),
+              children: [
+                _padded(
+                  bottom: 8,
+                  child: _notice('Meera joined as your cousin'),
+                ),
+                _dateChip('Monday'),
+                _padded(
+                  child: _Bubble(
+                    message: _msg(
+                      'g1',
+                      'gallery-nani',
+                      'Nani',
+                      'Reached home safely.',
+                      19,
+                      38,
+                    ),
+                    isMe: false,
+                  ),
+                ),
+                _padded(
+                  child: _Bubble(
+                    message: _msg(
+                      'g2',
+                      'gallery-papa',
+                      'Papa',
+                      'Dinner at 8, everyone coming?',
+                      19,
+                      42,
+                    ),
+                    isMe: false,
+                  ),
+                ),
+                _padded(
+                  child: _Bubble(
+                    message: _msg(
+                      'g3',
+                      _kGalleryMe,
+                      'Me',
+                      'Yes, on my way.',
+                      19,
+                      46,
+                      reactions: [
+                        const MessageReaction(
+                          emoji: '❤️',
+                          userId: 'gallery-nani',
+                        ),
+                      ],
+                    ),
+                    isMe: true,
+                  ),
+                ),
+                _padded(
+                  bottom: 8,
+                  child: _Bubble(
+                    message: _msg(
+                      'g4',
+                      'gallery-nani',
+                      'Nani',
+                      'I will bring the sweets.',
+                      19,
+                      44,
+                    ),
+                    isMe: false,
+                    isFirstInGroup: false,
+                  ),
+                ),
+                _padded(
+                  bottom: 8,
+                  child: _Bubble(
+                    message: _msg(
+                      'g5',
+                      'gallery-nani',
+                      'Nani',
+                      'Nani is thinking of you',
+                      19,
+                      45,
+                      type: MessageType.familyEvent,
+                      subType: 'thinking_of_you',
+                    ),
+                    isMe: false,
+                  ),
+                ),
+                _unreadPill(1),
+                _padded(
+                  child: _Bubble(
+                    message: _msg(
+                      'g6',
+                      'gallery-meera',
+                      'Meera',
+                      'Save me a seat near the window.',
+                      19,
+                      45,
+                    ),
+                    isMe: false,
+                  ),
+                ),
+                _padded(
+                  child: _Bubble(
+                    message: _msg(
+                      'g7',
+                      'gallery-meera',
+                      'Meera',
+                      'Good. Call me tomorrow.',
+                      19,
+                      47,
+                    ),
+                    isMe: false,
+                    isFirstInGroup: false,
+                  ),
+                ),
+                _sectionLabel('Kinship colors'),
+                const _KinshipLegend(),
+              ],
             ),
           ),
-          _bubbleRow(
-              _msg('g1', _papa, 'Papa', 'Dinner at 8, everyone coming?',
-                  const TimeOfDay(hour: 19, minute: 42)),
-              bottom: 8),
-          _bubbleRow(_msg('g2', _nani, 'Nani', 'I will bring the sweets.',
-              const TimeOfDay(hour: 19, minute: 44)),
-              bottom: 8),
-          _bubbleRow(
-              _msg('g3', _meera, 'Meera',
-                  'Save me a seat near the window.',
-                  const TimeOfDay(hour: 19, minute: 45)),
-              bottom: 8),
-          _bubbleRow(
-              _msg('g4', _me, 'You', 'Yes, on my way.',
-                  const TimeOfDay(hour: 19, minute: 46),
-                  isRead: true,
-                  status: 'read'),
-              isMe: true,
-              bottom: 8),
-          const SizedBox(height: 16),
-          const _KinshipLegend(),
-          const SizedBox(height: 24),
+          const _GalleryComposer(),
         ],
       ),
-      footer: const _GalleryComposer(),
     );
   }
 }
 
-/// Legend row of the 7 kinship colors (11 / textSecondary, 9 dp dots).
 class _KinshipLegend extends StatelessWidget {
   const _KinshipLegend();
 
-  static const _entries = <(Color, String)>[
-    (KinrelColors.nodeParent, 'Parent'),
-    (KinrelColors.nodeSibling, 'Sibling'),
-    (KinrelColors.nodeChild, 'Child'),
-    (KinrelColors.nodeGrandparent, 'Grandparent'),
-    (KinrelColors.nodeAuntUncle, 'Aunt or uncle'),
-    (KinrelColors.nodeCousin, 'Cousin'),
-    (KinrelColors.nodeInLaw, 'In-law'),
+  static const _rows = <(String, Color)>[
+    ('Parent', KinrelColors.nodeParent),
+    ('Sibling', KinrelColors.nodeSibling),
+    ('Child', KinrelColors.nodeChild),
+    ('Grandparent', KinrelColors.nodeGrandparent),
+    ('Aunt or uncle', KinrelColors.nodeAuntUncle),
+    ('Cousin', KinrelColors.nodeCousin),
+    ('In-law', KinrelColors.nodeInLaw),
+    ('Spouse', KinrelColors.nodeSpouse),
+    ('Self', KinrelColors.nodeSelf),
+    ('Extended', KinrelColors.nodeExtended),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 8,
+      child: Column(
         children: [
-          for (final (color, label) in _entries)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 9,
-                  height: 9,
-                  decoration:
-                      BoxDecoration(color: color, shape: BoxShape.circle),
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  label,
-                  style: ChatUi.pillText.copyWith(fontSize: 11),
-                ),
-              ],
+          for (final (label, color) in _rows)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(label, style: ChatUi.pillText),
+                ],
+              ),
             ),
         ],
       ),
@@ -547,7 +517,131 @@ class _KinshipLegend extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Page 2 — Selection mode
+// Page 2 — Invite states
+// ═══════════════════════════════════════════════════════════════════════
+
+class _InviteStatesPage extends StatelessWidget {
+  const _InviteStatesPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 12),
+      children: [
+        _sectionLabel('Active invite'),
+        _padded(
+          bottom: 8,
+          child: GameInviteCard(
+            message: _msg(
+              'i1',
+              'gallery-papa',
+              'Papa',
+              '',
+              21,
+              5,
+              type: MessageType.gameInvite,
+              gameType: 'tictactoe',
+              gameId: 'gallery-game-1',
+              roomCode: '554E61',
+              maxPlayers: 2,
+              currentPlayers: 1,
+              inviteStatus: 'pending',
+            ),
+            isMe: false,
+            routeFamilyId: _kGalleryFamily,
+          ),
+        ),
+        _sectionLabel('Finished game'),
+        _padded(
+          bottom: 8,
+          child: GameInviteCard(
+            message: _msg(
+              'i2',
+              'gallery-papa',
+              'Papa',
+              '',
+              21,
+              20,
+              type: MessageType.gameInvite,
+              gameType: 'tictactoe',
+              gameId: 'gallery-game-2',
+              inviteStatus: 'completed',
+              winner: 'Papa',
+            ),
+            isMe: false,
+            routeFamilyId: _kGalleryFamily,
+            scoreLine: '3 to 2',
+          ),
+        ),
+        _sectionLabel('Expired one liner'),
+        _padded(
+          bottom: 8,
+          child: GameInviteCard(
+            message: _msg(
+              'i3',
+              'gallery-meera',
+              'Meera',
+              '',
+              21,
+              55,
+              type: MessageType.gameInvite,
+              gameType: 'sos',
+              inviteStatus: 'expired',
+            ),
+            isMe: false,
+            routeFamilyId: _kGalleryFamily,
+          ),
+        ),
+        _sectionLabel('Collapsed'),
+        _padded(
+          bottom: 8,
+          child: CollapsedGameInvites(
+            messages: [
+              _msg(
+                'c1',
+                'gallery-meera',
+                'Meera',
+                '',
+                20,
+                1,
+                type: MessageType.gameInvite,
+                gameType: 'bingo',
+                inviteStatus: 'expired',
+              ),
+              _msg(
+                'c2',
+                'gallery-papa',
+                'Papa',
+                '',
+                20,
+                15,
+                type: MessageType.gameInvite,
+                gameType: 'carrom',
+                inviteStatus: 'expired',
+              ),
+              _msg(
+                'c3',
+                'gallery-meera',
+                'Meera',
+                '',
+                20,
+                30,
+                type: MessageType.gameInvite,
+                gameType: 'checkers',
+                inviteStatus: 'cancelled',
+              ),
+            ],
+            isMe: false,
+            routeFamilyId: _kGalleryFamily,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Page 3 — Selection mode
 // ═══════════════════════════════════════════════════════════════════════
 
 class _SelectionModePage extends StatelessWidget {
@@ -569,229 +663,152 @@ class _SelectionModePage extends StatelessWidget {
         Expanded(
           child: Stack(
             children: [
-              const Positioned.fill(child: _GalleryWallpaper()),
-              Positioned.fill(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(top: 10, bottom: 12),
-                  child: Column(
-                    children: [
-                      _reactionBar(),
-                      _bubbleRow(
-                          _msg('s1', _nani, 'Nani',
-                              'I will bring the sweets.',
-                              const TimeOfDay(hour: 19, minute: 44)),
-                          bottom: 8),
-                      _bubbleRow(
-                          _msg('s2', _papa, 'Papa',
-                              'Dinner at 8, everyone coming?',
-                              const TimeOfDay(hour: 19, minute: 42)),
-                          selection: true,
-                          selected: true,
-                          bottom: 8),
-                      _bubbleRow(
-                          _msg('s3', _me, 'You', 'Yes, on my way.',
-                              const TimeOfDay(hour: 19, minute: 46),
-                              isRead: true,
-                              status: 'read'),
-                          isMe: true,
-                          selection: true,
-                          bottom: 8),
-                      _bubbleRow(
-                          _msg('s4', _meera, 'Meera',
-                              'Save me a seat near the window.',
-                              const TimeOfDay(hour: 19, minute: 45)),
-                          selection: true,
-                          bottom: 8),
-                      const SizedBox(height: 16),
-                      // The D17 overflow menu, open (real card widget).
-                      Padding(
-                        padding: const EdgeInsets.only(right: 10),
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: ChatOverflowMenuCard(
-                            items: [
-                              const ChatOverflowMenuItem(
-                                  label: 'Copy',
-                                  icon: Icons.copy,
-                                  onTap: _galleryNoop),
-                              const ChatOverflowMenuItem(
-                                  label: 'Star',
-                                  icon: Icons.star_outline,
-                                  onTap: _galleryNoop),
-                              const ChatOverflowMenuItem(
-                                  label: 'Pin',
-                                  icon: Icons.push_pin_outlined,
-                                  onTap: _galleryNoop),
-                              const ChatOverflowMenuItem(
-                                  label: 'Message info',
-                                  icon: Icons.info_outline,
-                                  onTap: _galleryNoop),
-                              const ChatOverflowMenuItem(
-                                  label: 'Share outside Kinrel',
-                                  icon: Icons.share,
-                                  onTap: _galleryNoop),
-                            ],
-                            onItemTap: (_) {},
+              ListView(
+                padding: const EdgeInsets.only(top: 10, bottom: 12),
+                children: [
+                  _padded(
+                    bottom: 8,
+                    child: _notice(
+                      'Meera joined as your cousin',
+                      withAction: false,
+                    ),
+                  ),
+                  // D16: the whole row width tinted while selected.
+                  Container(
+                    width: double.infinity,
+                    color: ChatUi.chatSelectedRow,
+                    padding: const EdgeInsets.fromLTRB(12, 3, 12, 8),
+                    child: _Bubble(
+                      message: _msg(
+                        's1',
+                        'gallery-papa',
+                        'Papa',
+                        'Dinner at 8, everyone coming?',
+                        19,
+                        42,
+                      ),
+                      isMe: false,
+                    ),
+                  ),
+                  _padded(
+                    child: _Bubble(
+                      message: _msg(
+                        's2',
+                        'gallery-nani',
+                        'Nani',
+                        'I will bring the sweets.',
+                        19,
+                        44,
+                      ),
+                      isMe: false,
+                    ),
+                  ),
+                ],
+              ),
+              // D15: the reaction bar pill, as it appears on long-press.
+              Positioned(
+                left: 12,
+                right: 12,
+                top: 260,
+                child: Center(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: ChatUi.chatMenu,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final emoji in const [
+                          '❤️',
+                          '😂',
+                          '👍',
+                          '😮',
+                          '😢',
+                          '🙏',
+                        ])
+                          SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: Center(
+                              child: Text(
+                                emoji,
+                                style: const TextStyle(fontSize: 22),
+                              ),
+                            ),
+                          ),
+                        const SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: Icon(
+                            Icons.add,
+                            size: 22,
+                            color: ChatUi.reactionPlus,
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Page 3 — Invite states
-// ═══════════════════════════════════════════════════════════════════════
-
-class _InviteStatesPage extends StatelessWidget {
-  const _InviteStatesPage();
-
-  Widget _caption(String text) => Padding(
-        padding: const EdgeInsets.only(left: 12, bottom: 4, top: 16),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(text, style: ChatUi.timeText),
-        ),
-      );
-
-  /// Wraps an active/result card in a bubble-colored container (the
-  /// real chat renders them inside the message bubble).
-  Widget _inBubble(Widget child, {bool sent = false}) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Align(
-          alignment: sent ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            padding: const EdgeInsets.only(left: 14, top: 6, right: 10, bottom: 5),
-            constraints: const BoxConstraints(maxWidth: 320),
-            decoration: BoxDecoration(
-              color: sent ? ChatUi.chatSent : ChatUi.chatReceived,
-              borderRadius: BorderRadius.circular(14),
-              border: sent
-                  ? Border.all(color: ChatUi.chatSentBorder, width: 0.75)
-                  : null,
-            ),
-            child: child,
-          ),
-        ),
-      );
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Header so the page reads as a chat screen.
-        ChatHeaderBar(
-          title: 'Tt family',
-          subtitle: '5 members · 2 online',
-          avatarInitial: 'T',
-          onBack: () {},
-          onAvatarTap: () {},
-          onPhoneTap: () {},
-          onMoreTap: () {},
-        ),
-        Expanded(
-          child: Stack(
-            children: [
-              const Positioned.fill(child: _GalleryWallpaper()),
-              Positioned.fill(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(top: 10, bottom: 24),
+              // D17: the context menu card, anchored demo.
+              Positioned(
+                top: 120,
+                right: 12,
+                child: Container(
+                  width: ChatUi.menuWidth,
+                  decoration: BoxDecoration(
+                    color: ChatUi.chatMenu,
+                    borderRadius: BorderRadius.circular(ChatUi.menuRadius),
+                    border: Border.all(
+                      color: ChatUi.chatCardBorder,
+                      width: ChatUi.cardBorderWidth,
+                    ),
+                  ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _caption('Active invite'),
-                      _inBubble(
-                        GameInviteCard(
-                          message: _msg(
-                            'i1',
-                            _papa,
-                            'Papa',
-                            '',
-                            const TimeOfDay(hour: 20, minute: 10),
-                            type: MessageType.gameInvite,
-                            gameType: 'tic-tac-toe',
-                            gameId: 'game-1',
-                            roomCode: '554E61',
-                            maxPlayers: 2,
-                            currentPlayers: 1,
-                            inviteStatus: 'pending',
+                      for (final (i, item) in const [
+                        (Icons.copy, 'Copy'),
+                        (Icons.star_outline, 'Star'),
+                        (Icons.push_pin_outlined, 'Pin'),
+                        (Icons.info_outline, 'Message info'),
+                        (Icons.share, 'Share outside Kinrel'),
+                      ].indexed)
+                        Container(
+                          decoration: BoxDecoration(
+                            border: i == 0
+                                ? null
+                                : Border(
+                                    top: BorderSide(
+                                      color: ChatUi.chatCardBorder,
+                                      width: 0.5,
+                                    ),
+                                  ),
                           ),
-                          isMe: false,
-                          routeFamilyId: _galleryFamilyId,
-                        ),
-                      ),
-                      _caption('Finished game'),
-                      _inBubble(
-                        GameInviteCard(
-                          message: _msg(
-                            'i2',
-                            _papa,
-                            'Papa',
-                            '',
-                            const TimeOfDay(hour: 20, minute: 40),
-                            type: MessageType.gameInvite,
-                            gameType: 'tic-tac-toe',
-                            gameId: 'game-2',
-                            inviteStatus: 'completed',
-                            winner: 'Papa',
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 11,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  item.$1,
+                                  size: ChatUi.menuIconSize,
+                                  color: ChatUi.textSecondary,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(item.$2, style: ChatUi.menuText),
+                              ],
+                            ),
                           ),
-                          isMe: false,
-                          routeFamilyId: _galleryFamilyId,
-                          scoreLine: '3 to 2',
                         ),
-                      ),
-                      _caption('Expired one line'),
-                      _bubbleRow(
-                        _msg(
-                          'i3',
-                          _papa,
-                          'Papa',
-                          '',
-                          const TimeOfDay(hour: 21, minute: 55),
-                          type: MessageType.gameInvite,
-                          gameType: 'sos',
-                          gameId: 'game-3',
-                          inviteStatus: 'expired',
-                        ),
-                        bottom: 8,
-                      ),
-                      _caption('Collapsed'),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: CollapsedGameInvites(
-                          messages: [
-                            _msg('c1', _papa, 'Papa', '',
-                                const TimeOfDay(hour: 21, minute: 30),
-                                type: MessageType.gameInvite,
-                                gameType: 'sos',
-                                gameId: 'game-4',
-                                inviteStatus: 'expired'),
-                            _msg('c2', _papa, 'Papa', '',
-                                const TimeOfDay(hour: 21, minute: 40),
-                                type: MessageType.gameInvite,
-                                gameType: 'dotsboxes',
-                                gameId: 'game-5',
-                                inviteStatus: 'expired'),
-                            _msg('c3', _papa, 'Papa', '',
-                                const TimeOfDay(hour: 21, minute: 50),
-                                type: MessageType.gameInvite,
-                                gameType: 'checkers',
-                                gameId: 'game-6',
-                                inviteStatus: 'expired'),
-                          ],
-                          isMe: false,
-                          routeFamilyId: _galleryFamilyId,
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -813,77 +830,126 @@ class _DirectChatPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _PhoneFrame(
-      header: ChatHeaderBar(
-        title: 'Papa',
-        subtitle: 'Father · online',
-        avatarInitial: 'P',
-        isDirect: true,
-        initialColor: KinrelColors.nodeParent,
-        onBack: () {},
-        onAvatarTap: () {},
-        onPhoneTap: () {},
-        onMoreTap: () {},
-      ),
-      body: Column(
+    return ColoredBox(
+      color: ChatUi.chatBackground,
+      child: Column(
         children: [
-          _dateChip('Yesterday'),
-          _bubbleRow(
-              _msg('d1', _me, 'You', 'Reached home safely.',
-                  const TimeOfDay(hour: 22, minute: 49),
-                  isRead: true,
-                  status: 'read'),
-              isMe: true,
-              direct: true,
-              bottom: 2),
-          _bubbleRow(
-              _msg('d2', _me, 'You', '',
-                  const TimeOfDay(hour: 22, minute: 49)),
-              isMe: true,
-              direct: true,
-              bottom: 8,
-              first: false,
-              last: false),
-          _bubbleRow(
-              _msg('d3', _papa, 'Papa', 'Good. Call me tomorrow.',
-                  const TimeOfDay(hour: 22, minute: 52)),
-              direct: true,
-              bottom: 8),
-          _unreadPill('2 unread messages'),
-          _bubbleRow(
-              _msg('d4', _papa, 'Papa', 'Papa is thinking of you',
-                  const TimeOfDay(hour: 22, minute: 53),
-                  type: MessageType.familyEvent,
-                  subType: 'thinking_of_you'),
-              direct: true,
-              bottom: 8),
-          _bubbleRow(
-              _msg('d5', _papa, 'Papa', 'Did you eat dinner?',
-                  const TimeOfDay(hour: 20, minute: 59)),
-              direct: true,
-              bottom: 8),
+          ChatHeaderBar(
+            title: 'Papa',
+            subtitle: 'Father · online',
+            avatarInitial: 'Papa',
+            isDirect: true,
+            initialColor: KinrelColors.nodeParent,
+            onBack: () {},
+            onPhoneTap: () {},
+            onMoreTap: () {},
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.only(top: 10, bottom: 12),
+              children: [
+                _dateChip('Yesterday'),
+                _padded(
+                  child: _Bubble(
+                    message: _msg(
+                      'd1',
+                      'gallery-papa',
+                      'Papa',
+                      'Did you eat dinner?',
+                      22,
+                      41,
+                    ),
+                    isMe: false,
+                    isDirect: true,
+                  ),
+                ),
+                _padded(
+                  child: _Bubble(
+                    message: _msg(
+                      'd2',
+                      'gallery-papa',
+                      'Papa',
+                      'Good. Call me tomorrow.',
+                      22,
+                      49,
+                    ),
+                    isMe: false,
+                    isDirect: true,
+                    isFirstInGroup: false,
+                  ),
+                ),
+                _padded(
+                  child: _Bubble(
+                    message: _msg(
+                      'd3',
+                      _kGalleryMe,
+                      'Me',
+                      'Reached home safely.',
+                      22,
+                      52,
+                    ),
+                    isMe: true,
+                    isDirect: true,
+                  ),
+                ),
+                _notice('Manish joined the family.', withAction: false),
+              ],
+            ),
+          ),
+          const _GalleryComposer(isDirect: true),
         ],
       ),
-      footer: const _GalleryComposer(),
     );
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Wallpaper (the real Constellation motif over chatBackground)
+// Shared gallery composer (real ChatInputBar, callbacks are no-ops)
 // ═══════════════════════════════════════════════════════════════════════
 
-class _GalleryWallpaper extends StatelessWidget {
-  const _GalleryWallpaper();
+class _GalleryComposer extends StatefulWidget {
+  const _GalleryComposer({this.isDirect = false});
+
+  final bool isDirect;
+
+  @override
+  State<_GalleryComposer> createState() => _GalleryComposerState();
+}
+
+class _GalleryComposerState extends State<_GalleryComposer> {
+  final _controller = TextEditingController();
+  final _focus = FocusNode();
+  bool _composing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(() {
+      final c = _controller.text.trim().isNotEmpty;
+      if (c != _composing) setState(() => _composing = c);
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // chatBackground base + the real Constellation motif (D13).
-    return const ColoredBox(
-      color: ChatUi.chatBackground,
-      child: ConstellationPattern(),
+    return ChatInputBar(
+      textController: _controller,
+      focusNode: _focus,
+      isComposing: _composing,
+      onSend: () {
+        _controller.clear();
+      },
+      onAttach: () {},
+      onEmojiToggle: () {},
+      onThinkingOfYou: () {},
+      onStartRecording: () {},
     );
   }
 }
-
-void _galleryNoop() {}

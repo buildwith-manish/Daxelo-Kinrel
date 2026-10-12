@@ -2,50 +2,41 @@
 //
 // DAXELO KINREL — Shared Game Invite Card (Chat UI Reference D18)
 //
-// ONE invite card used by BOTH chat types (group + direct). Four states:
+// ONE invite card used by BOTH chat types (group + direct). Four
+// states, all token-driven (ChatUi) and flat (no gradients/blur/
+// shadows):
 //
-//   a) ACTIVE (pending / waiting / live): rendered INSIDE the message
-//      bubble (sent color for own invites, received color for others —
-//      the bubble provides the surface). Row with 10 gap: a 40×40 tile
-//      (radius 8, background chatReceived, game icon 22 in orange, the
-//      game image when one exists), a column (title 14/500 textPrimary;
-//      players · room code line 12 textSecondary — plain text, never
-//      monospace), and the Join/status button (transparent background,
-//      0.5 orange border, orange 13/500, radius 8, padding 5/12, 48 dp
-//      tap target). The bubble renders the D7 time row below.
+//   • ACTIVE (pending / waiting / live): a slim card — chatCard fill,
+//     chatCardBorder hairline, radius 12, 40 dp game icon in accent,
+//     display title, "N/M players · ROOM" line, outlined Join /
+//     Spectate / Rejoin button.
+//   • RESULT (completed with a known winner): a result card — gold
+//     trophy, "Papa won Tic Tac Toe" (+ optional scoreLine ", 3 to
+//     2"), outlined Rematch button that routes to the existing lobby.
+//   • EXPIRED / cancelled / completed-without-winner: a quiet
+//     one-line row — NO bubble, small icon, "Game · Expired", time.
+//   • COLLAPSED: 3+ consecutive terminal invites render as one
+//     chatCard row "N game invites · expired" with a chevron — see
+//     [CollapsedGameInvites] (wired by ChatMessageList, which owns
+//     the run detection; result cards never join a collapsed run).
 //
-//   b) RESULT (completed WITH a winner): the bubble renders a row with
-//      10 gap: trophy icon 22 in #F59E0B, text 14 textPrimary
-//      ("<Winner> won <Game>" — the message row stores no numeric
-//      score, so the ", 3 to 2" part is omitted until score data
-//      exists), and a Rematch button styled like Join that opens the
-//      game's lobby (existing navigation, same route a fresh invite
-//      uses).
-//
-//   c) EXPIRED / CANCELLED / COMPLETED WITHOUT WINNER: a quiet
-//      one-line row with NO bubble — padding 4 vertical / 6 horizontal,
-//      row with 8 gap: game icon 16, text 13 textSubtitle
-//      ("SOS · Expired"), the time 11 textMeta right.
-//
-//   d) COLLAPSED run of 3+ consecutive one-liners: radius 10,
-//      background chatCard, padding 8/10, row with 8 gap: game icon 16,
-//      "3 game invites · expired" 13 textSubtitle, chevron down 16 at
-//      the right. Wired by ChatMessageList (run detection).
-//
-// Status source is unchanged: the ChatMessage row's game columns.
-// Behavior of join, status and expiry stays exactly as it is today.
-// Flat style: solid colors, no gradients/blur/shadows.
+// Status source is unchanged: the ChatMessage row's game columns
+// (group + direct-group chats share the same lifecycle sync RPCs).
+// Tap targets are at least 48 logical pixels; every state carries a
+// text label (never color alone); text scales to 1.3 without overflow.
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../../core/constants/brand_colors.dart';
 import '../../../games/shared/icons/game_icons.dart';
 import '../../../games/shared/models/game_invite.dart';
 import '../../providers/chat_provider.dart';
 import '../chat_ui_tokens.dart';
 
 /// The one shared game-invite card. Rendered inside the message bubble
-/// (states a/b) or as a bubble-less one-liner (state c).
+/// for active invites, and WITHOUT a bubble for terminal states
+/// (message_bubble routes terminal invites here directly).
 class GameInviteCard extends StatelessWidget {
   const GameInviteCard({
     super.key,
@@ -59,20 +50,19 @@ class GameInviteCard extends StatelessWidget {
   /// winnerName columns are parsed by ChatMessage.fromJson).
   final ChatMessage message;
 
-  /// Optional score suffix for the result card (e.g. ', 3 to 2').
-  /// The ChatMessage row stores no numeric score today, so real chats
-  /// pass nothing; the UI gallery passes the reference sample. The
-  /// moment a score column exists it can be forwarded here.
-  final String? scoreLine;
-
   /// Whether the current user is the invite sender (host never sees
   /// "Join" — they get Rejoin/Spectate or a status label).
   final bool isMe;
 
-  /// The family id used for the Join/Spectate navigation route
-  /// (`/family/<id>/<gameType>/lobby?join=<gameId>`). Null disables the
-  /// action buttons.
+  /// The family id used for the Join/Rematch navigation route
+  /// (`/family/<id>/<gameType>/lobby?join=<gameId>`). Null disables
+  /// the action buttons.
   final String? routeFamilyId;
+
+  /// D18 result card — optional score suffix (", 3 to 2"). Real
+  /// message rows carry no numeric score (it lives in per-game
+  /// tables); the UI gallery passes a sample score for demo purposes.
+  final String? scoreLine;
 
   // ── Lifecycle state helpers (identical vocabulary to the old card) ──
 
@@ -87,40 +77,30 @@ class GameInviteCard extends StatelessWidget {
 
   bool get _isExpired => _status == 'expired' || _status == 'cancelled';
 
-  bool get _hasWinner =>
-      _isCompleted &&
-      message.gameWinnerName != null &&
-      message.gameWinnerName!.isNotEmpty;
+  bool get _hasWinner {
+    final w = message.gameWinnerName;
+    return w != null && w.isNotEmpty;
+  }
+
+  /// Completed with a known winner -> the full result card (D18b).
+  bool get _isResult => _isCompleted && _hasWinner;
 
   // ── Build ──────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    // b) Result card — completed with a known winner.
-    if (_hasWinner) {
-      return _buildResultCard(context);
-    }
-    // c) Expired / cancelled / completed-without-winner one-liner.
-    if (_isCompleted || _isExpired) {
-      return _buildTerminalRow();
-    }
-    // a) Active invite — slim card inside the bubble.
+    if (_isResult) return _buildResultCard(context);
+    if (_isCompleted || _isExpired) return _buildTerminalRow();
     return _buildActiveCard(context);
   }
 
-  // ── Helpers ─────────────────────────────────────────────────────────
-
-  String get _displayName {
-    final rawGameType = message.gameType ?? '';
-    final parsed = GameTypeX.fromRouteSegment(rawGameType);
-    return parsed?.displayName ?? _titleCaseSegment(rawGameType);
-  }
-
-  // ── a) Active (pending / live): slim card inside the bubble ────────
+  // ── D18a: Active (pending / live) — slim in-bubble card ───────────
 
   Widget _buildActiveCard(BuildContext context) {
     final rawGameType = message.gameType ?? '';
     final parsedGameType = GameTypeX.fromRouteSegment(rawGameType);
+    final displayName =
+        parsedGameType?.displayName ?? _titleCaseSegment(rawGameType);
     final maxPlayers = message.gameMaxPlayers ?? 2;
     final currentPlayers = message.gameCurrentPlayers ?? 1;
     final roomCode = (message.roomCode ?? '').trim();
@@ -134,70 +114,186 @@ class GameInviteCard extends StatelessWidget {
       child: Semantics(
         container: true,
         label:
-            'Game invite: $_displayName, $currentPlayers of $maxPlayers players.'
+            'Game invite: $displayName, $currentPlayers of $maxPlayers players.'
             '${action.label != null ? ' Action: ${action.label}.' : ''}',
-        child: Row(
-          children: [
-            // 40×40 tile — radius 8, chatReceived, game icon 22 orange
-            // (the game image when one exists).
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: ChatUi.chatReceived,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: ChatUi.chatCard,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: ChatUi.chatCardBorder,
+              width: ChatUi.cardBorderWidth,
+            ),
+          ),
+          child: Row(
+            children: [
+              // 40 dp game icon in accent.
+              SizedBox(
+                width: 40,
+                height: 40,
                 child: parsedGameType != null
-                    ? GameIcon(gameId: rawGameType, size: 22)
+                    ? GameIcon(gameId: rawGameType, size: 40)
                     : const Icon(
-                        Icons.sports_esports_outlined,
-                        size: ChatUi.iconGameTile,
+                        Icons.sports_esports,
+                        size: 26,
                         color: ChatUi.accent,
                       ),
               ),
-            ),
-            const SizedBox(width: 10),
-            // Title + players · room code (plain text, no monospace).
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: ChatUi.inviteTitle,
-                  ),
-                  const SizedBox(height: 1),
-                  Text(
-                    '$currentPlayers/$maxPlayers players'
-                    '${roomCode.isNotEmpty ? ' · $roomCode' : ''}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: ChatUi.invitePlayers,
-                  ),
-                ],
+              const SizedBox(width: 10),
+              // Title + players count (+ room code) — display title,
+              // meta line in the body font (never monospace).
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: ChatUi.titleText.copyWith(fontSize: 14),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$currentPlayers/$maxPlayers players'
+                      '${roomCode.isNotEmpty ? ' · $roomCode' : ''}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: ChatUi.timeText.copyWith(fontSize: 11),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            if (action.label != null) _buildInviteButton(context, action),
-          ],
+              const SizedBox(width: 8),
+              if (action.label != null) _buildOutlinedButton(context, action),
+            ],
+          ),
         ),
       ),
     );
   }
 
+  // ── D18b: Result (completed + winner) — trophy + Rematch ───────────
+
+  Widget _buildResultCard(BuildContext context) {
+    final rawGameType = message.gameType ?? '';
+    final parsedGameType = GameTypeX.fromRouteSegment(rawGameType);
+    final displayName =
+        parsedGameType?.displayName ?? _titleCaseSegment(rawGameType);
+    final winnerName = message.gameWinnerName ?? '';
+    final score = (scoreLine == null || scoreLine!.isEmpty)
+        ? ''
+        : ', $scoreLine';
+
+    return RepaintBoundary(
+      child: Semantics(
+        container: true,
+        label: 'Game result: $winnerName won $displayName$score.',
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: ChatUi.chatCard,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: ChatUi.chatCardBorder,
+              width: ChatUi.cardBorderWidth,
+            ),
+          ),
+          child: Row(
+            children: [
+              // Gold trophy.
+              const SizedBox(
+                width: 40,
+                height: 40,
+                child: Center(
+                  child: Icon(
+                    Icons.emoji_events,
+                    size: 28,
+                    color: KinrelColors.gold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '$winnerName won $displayName$score',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: ChatUi.titleText.copyWith(fontSize: 14),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _buildOutlinedButton(context, (
+                label: 'Rematch',
+                onTap:
+                    (message.gameId ?? '').isNotEmpty && routeFamilyId != null
+                    ? () => _goToLobby(context)
+                    : null,
+                urgent: false,
+                enabled: true,
+              )),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── D18c: Terminal (expired / no winner) — quiet one-line row ──────
+
+  Widget _buildTerminalRow() {
+    final rawGameType = message.gameType ?? '';
+    final parsedGameType = GameTypeX.fromRouteSegment(rawGameType);
+    final displayName =
+        parsedGameType?.displayName ?? _titleCaseSegment(rawGameType);
+    final detail = _isCompleted ? 'Completed' : 'Expired';
+
+    return Semantics(
+      container: true,
+      label: 'Game invite: $displayName, $detail.',
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              Icon(
+                _isCompleted
+                    ? Icons.emoji_events_outlined
+                    : Icons.sports_esports_outlined,
+                size: 15,
+                color: ChatUi.textMeta,
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  '$displayName · $detail',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: ChatUi.timeText.copyWith(fontSize: 12.5),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(message.formattedTime, style: ChatUi.timeText),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Buttons — outlined accent style (D18 gallery reference) ────────
+
   ({String? label, VoidCallback? onTap, bool urgent, bool enabled})
-      _resolveAction({
-    required BuildContext context,
-    required bool isFull,
-  }) {
+  _resolveAction({required BuildContext context, required bool isFull}) {
+    final canNavigate =
+        (message.gameId ?? '').isNotEmpty && routeFamilyId != null;
     if (_isPreGame && !isFull && !isMe) {
       return (
         label: 'Join',
-        onTap:
-            (message.gameId ?? '').isNotEmpty ? () => _goToLobby(context) : null,
+        onTap: canNavigate ? () => _goToLobby(context) : null,
         urgent: false,
         enabled: true,
       );
@@ -206,8 +302,7 @@ class GameInviteCard extends StatelessWidget {
       if (message.effectiveSpectatorsEnabled) {
         return (
           label: 'Spectate',
-          onTap:
-              (message.gameId ?? '').isNotEmpty ? () => _goToLobby(context) : null,
+          onTap: canNavigate ? () => _goToLobby(context) : null,
           urgent: false,
           enabled: true,
         );
@@ -218,8 +313,7 @@ class GameInviteCard extends StatelessWidget {
       if (isMe) {
         return (
           label: 'Rejoin',
-          onTap:
-              (message.gameId ?? '').isNotEmpty ? () => _goToLobby(context) : null,
+          onTap: canNavigate ? () => _goToLobby(context) : null,
           urgent: true,
           enabled: true,
         );
@@ -227,8 +321,7 @@ class GameInviteCard extends StatelessWidget {
       if (message.effectiveSpectatorsEnabled) {
         return (
           label: 'Spectate',
-          onTap:
-              (message.gameId ?? '').isNotEmpty ? () => _goToLobby(context) : null,
+          onTap: canNavigate ? () => _goToLobby(context) : null,
           urgent: true,
           enabled: true,
         );
@@ -240,135 +333,44 @@ class GameInviteCard extends StatelessWidget {
     return (label: null, onTap: null, urgent: false, enabled: false);
   }
 
-  /// The Join / Spectate / Rejoin / Rematch button: transparent
-  /// background, 0.5 orange border, orange 13/500 text, radius 8,
-  /// padding 5 vertical / 12 horizontal, ≥48 dp tap target.
-  Widget _buildInviteButton(
+  /// Outlined accent button — transparent fill, accent border, accent
+  /// label (matches the D18 reference cards). Disabled renders a flat
+  /// chatReceived chip.
+  Widget _buildOutlinedButton(
     BuildContext context,
     ({String? label, VoidCallback? onTap, bool urgent, bool enabled}) action,
   ) {
     final enabled = action.enabled && action.onTap != null;
-    final label = action.label!;
+    final label = action.label ?? '';
     return Semantics(
       label: label,
       button: true,
-      enabled: enabled,
-      child: GestureDetector(
-        onTap: action.onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          // ≥48 dp tap target (the visual pill is smaller, centered).
-          constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: enabled
-                  ? ChatUi.accent
-                  : ChatUi.accent.withValues(alpha: 0.4),
-              width: 0.5,
-            ),
-            borderRadius: BorderRadius.circular(8),
-            color: Colors.transparent,
-          ),
-          child: Text(
-            label,
-            style: ChatUi.buttonLabel.copyWith(
-              color: enabled ? ChatUi.accent : ChatUi.textMeta,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── b) Result card (completed with winner) ──────────────────────────
-
-  Widget _buildResultCard(BuildContext context) {
-    final winner = message.gameWinnerName ?? '';
-    final rawGameType = message.gameType ?? '';
-    return RepaintBoundary(
-      child: Semantics(
-        container: true,
-        label: '$_displayName result: $winner won.',
-        child: Row(
-          children: [
-            // Trophy icon 22 in #F59E0B.
-            const Icon(
-              Icons.emoji_events_outlined,
-              size: ChatUi.iconTrophy,
-              color: Color(0xFFF59E0B),
-            ),
-            const SizedBox(width: 10),
-            // "<Winner> won <Game>" — the message row carries no numeric
-            // score, so the ", 3 to 2" part is omitted (visual-ready:
-            // the moment scores are stored on the row they can be
-            // appended here).
-            Expanded(
-              child: Text(
-                '$winner won $_displayName'
-                '${scoreLine != null && scoreLine!.isNotEmpty ? ', $scoreLine' : ''}',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: ChatUi.inviteTitle,
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Rematch — styled like Join; opens the game's lobby (the
-            // same route a fresh invite uses — existing navigation).
-            _buildInviteButton(
-              context,
-              (
-                label: 'Rematch',
-                onTap: (message.gameType ?? '').isNotEmpty && routeFamilyId != null
-                    ? () => context.go(
-                        '/family/$routeFamilyId/${message.gameType}/lobby')
-                    : null,
-                urgent: false,
-                enabled: true,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── c) Terminal (expired / no-winner completed): one-line row ───────
-
-  Widget _buildTerminalRow() {
-    final detail = _isExpired
-        ? 'Expired'
-        : (_hasWinner ? 'Completed' : 'Completed');
-    return Semantics(
-      container: true,
-      label: 'Game invite: $_displayName, $detail.',
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 48),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.sports_esports_outlined,
-                size: ChatUi.iconGameLine,
-                color: ChatUi.textSubtitle,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '$_displayName · $detail',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: ChatUi.inviteExpired,
+      child: SizedBox(
+        // >= 48 logical pixel tap target.
+        height: 48,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            onTap: action.onTap,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: enabled ? ChatUi.accent : ChatUi.chatCardBorder,
+                  width: 1,
                 ),
               ),
-              const SizedBox(width: 8),
-              Text(
-                message.formattedTime,
-                style: ChatUi.timeText,
+              child: Text(
+                label,
+                style: ChatUi.menuText.copyWith(
+                  color: enabled ? ChatUi.accent : ChatUi.textMeta,
+                ),
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -377,10 +379,9 @@ class GameInviteCard extends StatelessWidget {
 
   // ── Navigation (identical routes to the previous inline card) ──────
 
-  /// Navigate into the game lobby. Same route for Join and
-  /// Spectate/Rejoin — the lobby decides join vs. spectate vs. rejoin
-  /// based on the game's current status + the user's participant
-  /// status (identical to GameInviteListener._acceptInvite).
+  /// Navigate into the game lobby. Same route for Join / Spectate /
+  /// Rejoin / Rematch — the lobby decides what to do based on the
+  /// game's current status + the user's participant status.
   void _goToLobby(BuildContext context) {
     final gameType = message.gameType ?? '';
     final gameId = message.gameId ?? '';
@@ -390,7 +391,7 @@ class GameInviteCard extends StatelessWidget {
   }
 
   /// Title-case fallback for game types not in the GameType enum
-  /// (e.g. 'somegame' → 'Somegame', 'my-game' → 'My Game').
+  /// (e.g. 'somegame' -> 'Somegame', 'my-game' -> 'My Game').
   String _titleCaseSegment(String s) {
     if (s.isEmpty) return s;
     return s
@@ -405,12 +406,10 @@ class GameInviteCard extends StatelessWidget {
 // Collapsed run of terminal invites ("N game invites · expired")
 // ═══════════════════════════════════════════════════════════════════════
 
-/// d) Renders a run of 3+ consecutive expired/completed one-liners as
-/// ONE quiet row: radius 10, background chatCard, padding 8/10, row
-/// with 8 gap (game icon 16, "N game invites · expired" 13
-/// textSubtitle, chevron down 16 at the right). Tapping expands it
-/// back to one one-line row per invite. Wired by ChatMessageList
-/// (which performs the run detection).
+/// Renders a run of 3+ consecutive expired/cancelled invites as ONE
+/// quiet chatCard row. Tapping expands it back to one one-line row
+/// per invite. Wired by ChatMessageList (which performs the run
+/// detection — result cards never join a run).
 class CollapsedGameInvites extends StatefulWidget {
   const CollapsedGameInvites({
     super.key,
@@ -441,9 +440,10 @@ class _CollapsedGameInvitesState extends State<CollapsedGameInvites> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── The collapsed row (tap target ≥ 48px) ──────────────────
+          // ── The collapsed row (tap target >= 48px) ──────────────
           Semantics(
-            label: '$count game invites, expired.'
+            label:
+                '$count game invites, expired.'
                 '${_expanded ? ' Collapse' : ' Expand'}',
             button: true,
             child: InkWell(
@@ -451,18 +451,24 @@ class _CollapsedGameInvitesState extends State<CollapsedGameInvites> {
               borderRadius: BorderRadius.circular(10),
               child: Container(
                 constraints: const BoxConstraints(minHeight: 48),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: ChatUi.chatCard,
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: ChatUi.chatCardBorder,
+                    width: ChatUi.cardBorderWidth,
+                  ),
                 ),
                 child: Row(
                   children: [
                     const Icon(
                       Icons.sports_esports_outlined,
-                      size: ChatUi.iconGameLine,
-                      color: ChatUi.textSubtitle,
+                      size: 16,
+                      color: ChatUi.textMeta,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -470,22 +476,22 @@ class _CollapsedGameInvitesState extends State<CollapsedGameInvites> {
                         '$count game invites · expired',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: ChatUi.inviteExpired,
+                        style: ChatUi.pillText.copyWith(fontSize: 13),
                       ),
                     ),
                     Icon(
                       _expanded
                           ? Icons.keyboard_arrow_up
                           : Icons.keyboard_arrow_down,
-                      size: ChatUi.iconChevronDown,
-                      color: ChatUi.textSubtitle,
+                      size: 20,
+                      color: ChatUi.textSecondary,
                     ),
                   ],
                 ),
               ),
             ),
           ),
-          // ── Expanded: one one-line row per invite ───────────────────
+          // ── Expanded: one one-line row per invite ───────────────
           if (_expanded)
             Padding(
               padding: const EdgeInsets.only(left: 4, top: 2),
