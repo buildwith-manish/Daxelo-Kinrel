@@ -278,6 +278,8 @@ class MessageBubble extends ConsumerWidget {
                 message: message,
                 isMe: isMe,
                 routeFamilyId: _inviteRouteFamilyId,
+                isGroup: familyId != null && !isDirectChat,
+                kinshipColor: kinshipBandColor,
               ),
             ),
           );
@@ -1193,10 +1195,15 @@ class MessageBubble extends ConsumerWidget {
         // the Join/status button; expired/completed = one-line row).
         // Extracted from this file into game_invite_card.dart so group
         // + direct chat share it with no duplicate invite-card code.
+        // v143/Step 7: pass isGroup + kinshipColor for the 3 dp band
+        // (group chats only). The tile color is handled inside the
+        // card (chatCardTile on received bubbles so it doesn't vanish).
         return GameInviteCard(
           message: message,
           isMe: isMe,
           routeFamilyId: _inviteRouteFamilyId,
+          isGroup: familyId != null && !isDirectChat,
+          kinshipColor: kinshipBandColor,
         );
 
       case MessageType.poll:

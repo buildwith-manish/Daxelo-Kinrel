@@ -41,6 +41,16 @@ abstract final class ChatUi {
   /// D11, D12, D18).
   static const Color chatCard = Color(0xFF191B2C);
 
+  /// v143/Step 3 — Tile surface for game invite tiles on RECEIVED
+  /// bubbles. The old code gave the tile the same color as the
+  /// received bubble (chatReceived = #2A2D48), which made the tile
+  /// vanish into the bubble background. This darker shade (#191B2C,
+  /// same as chatCard) ensures the tile is always visible against
+  /// the received bubble fill. On sent (own) bubbles, the tile
+  /// keeps its game-specific color (which already shows up against
+  /// the brownish sent bubble).
+  static const Color chatCardTile = Color(0xFF191B2C);
+
   /// Hairline border for chat cards (D11, D18).
   static final Color chatCardBorder = Colors.white.withValues(alpha: 0.08);
 

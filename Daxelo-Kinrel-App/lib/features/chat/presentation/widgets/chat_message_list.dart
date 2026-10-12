@@ -270,6 +270,9 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
       // ── Collapsed invite run (PR2 Task 5) ──────────────────────────
       // Three or more CONSECUTIVE expired/completed invites collapse
       // into one quiet row with an expand control.
+      // v143/Step 5: if every invite is expired/cancelled, the header
+      // says "expired". If the run mixes expired and completed, it
+      // says "finished" (see GameInviteRunTile).
       if (_isTerminalInvite(msg) &&
           i + 2 < msgs.length &&
           _isTerminalInvite(msgs[i + 1]) &&
@@ -280,13 +283,18 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
           run.add(msgs[j]);
           j++;
         }
+        final allExpired = run.every((m) {
+          final s = m.gameInviteStatus ?? 'pending';
+          return s == 'expired' || s == 'cancelled';
+        });
         rows.add(
           Padding(
             padding: const EdgeInsets.only(left: 12, right: 12),
-            child: CollapsedGameInvites(
+            child: GameInviteRunTile(
               messages: run,
               isMe: msg.senderId == widget.currentUserId,
               routeFamilyId: widget.inviteFamilyId ?? widget.familyId,
+              allExpired: allExpired,
             ),
           ),
         );
