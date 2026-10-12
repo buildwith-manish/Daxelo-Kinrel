@@ -429,6 +429,7 @@ class MessageBubble extends ConsumerWidget {
                                     context,
                                     ref,
                                     currentUserId,
+                                    kinshipBandColor,
                                   ),
                                   // v127: Inline timestamp only on last-in-group
                                   if (!isSticker && isLastInGroup)
@@ -829,8 +830,9 @@ class MessageBubble extends ConsumerWidget {
   Widget _buildMessageContent(
     BuildContext context,
     WidgetRef ref,
-    String? currentUserId,
-  ) {
+    String? currentUserId, [
+    Color? kinshipBandColor,
+  ]) {
     switch (message.messageType) {
       case MessageType.text:
         // v131: Premium typography — comfortable line height (1.5),

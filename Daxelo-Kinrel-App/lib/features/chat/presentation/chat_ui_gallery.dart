@@ -638,6 +638,7 @@ class _InviteStatesPage extends StatelessWidget {
             ],
             isMe: false,
             routeFamilyId: _kGalleryFamily,
+            allExpired: true,
           ),
         ),
       ],
