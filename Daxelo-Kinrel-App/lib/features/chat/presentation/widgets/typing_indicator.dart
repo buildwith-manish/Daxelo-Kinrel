@@ -2,162 +2,315 @@
 //
 // DAXELO KINREL — Shared typing indicator (group + DM)
 //
-// v3.5 — MOVED (not rewritten) from chat_screen.dart's
-// _buildTypingIndicator so the DM screen renders the SAME indicator
-// with the same layout/spacing/typography/colors/animation:
-//   - 20x20 ember-tint avatar circle with the typer's initial
-//     (displayFont 9 w700 orange)
-//   - bodyFont 12 textSilver label ("X is typing")
-//   - 3 bouncing 4x4 orange dots (1200ms loop, staggered intervals)
+// v143 / Signature §H — redesigned. Replaces the old "small avatar +
+// bouncing dots" indicator with a small received-style bubble
+// containing a CustomPainter that draws three linked nodes + two
+// connecting edges. An AnimationController (1.2 s loop) rotates which
+// node is brightest (nodeDim1 moves to the next node each third of
+// the loop), wrapped in a RepaintBoundary so only the small painter
+// re-paints on each tick.
 //
-// The widget is self-contained: it owns its AnimationController (the
-// group screen previously owned it in _ChatScreenState). The
-// PERF (Part C3) behavior is preserved — the controller only repeats
-// while the widget is visible (the screens render this widget ONLY
-// while someone is actually typing; it unmounts when they stop).
+// Visual rules (per implementation brief §H):
+//   • Bubble: chatReceived fill, radius 14, padding 8 vertical /
+//     14 left in group chat (12 left in direct chat), 12 right.
+//   • Group chat only: a 3 dp wide band on the left in the typist's
+//     kinship color (blended at 0.55 over chatBackground — same
+//     treatment as the ghost bubble + received bubble's band).
+//   • Inside: Row with 10 dp gap:
+//     - Painter 46x12 dp with three nodes of radius 2.6 at x=5, 23,
+//       41 (y=6) and two 1 dp lines between them in edgeDim.
+//     - Text 12/400/textSubtitle: 'NAME is typing' (relationship label
+//       or name), 'NAME and NAME are typing', 'Several people are
+//       typing'; in direct chat just 'typing'.
+//   • Animation: 1.2 s loop, rotates which node is brightest. The
+//     brightest node uses nodeDim1 (the brightest of the three
+//     static colors); the other two use nodeDim2 and nodeDim3 in
+//     their static positions. Wrapped in a RepaintBoundary and
+//     listened to only by the small painter.
+//   • Start the controller only while the indicator is visible (the
+//     screens gate this widget on someone-typing — same as before).
+//   • When DeviceTierCache.instance.lowRam is true OR reduce motion
+//     is on, draw the static frame and never start the controller.
 //
-// Inputs:
-//   - name: the typing user's display name (drives the avatar initial)
-//   - label: the rendered text (locale-aware; the group prefers its
-//     Socket.IO engagement label, both chats fall back to a
-//     "<name> is typing" default computed by the caller)
-//
-// The group chat calls this with the engagement provider's label; the
-// DM calls it with the peer's name — identical rendering either way.
+// Backward compatibility: the existing `name` + `label` API is kept
+// (the chat_screen + DM callers use it). New optional fields let the
+// widget resolve the kinship band color + relationship label itself
+// when the caller passes the typist's senderId + familyId.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
-import '../../../../core/widgets/global_error_widget.dart';
+import '../../../../core/kinship/kinship_edge_style.dart';
+import '../../../../core/utils/device_tier.dart';
+import '../../../../core/utils/motion_preference.dart';
+import '../../../family/data/relationship_label_provider.dart';
+import '../chat_ui_tokens.dart';
+import 'chat_meta.dart' show kinshipCategoryColor;
 
-class TypingIndicator extends StatefulWidget {
+/// v143 / Signature §H — Typing indicator with linked-nodes painter.
+///
+/// Renders a small received-style bubble with a 46x12 painter of three
+/// linked nodes + two edges. The brightest node rotates around the
+/// three positions every 400 ms (1.2 s total loop). The painter is
+/// wrapped in a RepaintBoundary so only it re-paints on each tick.
+class TypingIndicator extends ConsumerStatefulWidget {
   const TypingIndicator({
     super.key,
     required this.name,
     required this.label,
+    this.isDirectChat = false,
+    this.familyId,
+    this.typistSenderId,
   });
 
-  /// Display name of the person typing (drives the avatar initial).
+  /// Display name of the (primary) typist. Used for the kinship band
+  /// color lookup when [familyId] + [typistSenderId] are set, and as
+  /// the fallback label when [label] is empty.
   final String name;
 
-  /// Rendered label text, e.g. "Riya is typing" (locale-aware).
+  /// Rendered label text. The caller computes this (locale-aware) —
+  /// e.g. 'NAME is typing', 'NAME and NAME are typing', 'Several
+  /// people are typing', or just 'typing' in direct chat.
   final String label;
 
+  /// Whether this is a 1-on-1 direct chat. When true: no kinship band,
+  /// narrower left padding (12 vs 14).
+  final bool isDirectChat;
+
+  /// The family id used to resolve the typist's kinship color + label.
+  /// Null (DM) → no band, plain received-bubble look.
+  final String? familyId;
+
+  /// The typist's auth.users.id (text). Used to resolve the kinship
+  /// color + relationship label when [familyId] is set.
+  final String? typistSenderId;
+
   @override
-  State<TypingIndicator> createState() => _TypingIndicatorState();
+  ConsumerState<TypingIndicator> createState() => _TypingIndicatorState();
 }
 
-class _TypingIndicatorState extends State<TypingIndicator>
+class _TypingIndicatorState extends ConsumerState<TypingIndicator>
     with SingleTickerProviderStateMixin {
-  // Typing indicator animation — 3 bouncing dots. MOVED verbatim from
-  // chat_screen.dart (same 1200ms duration, same staggered Intervals,
-  // same -6px translate target).
-  late final AnimationController _typingController;
-  late final List<Animation<double>> _dotAnimations;
+  late final AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _typingController = AnimationController(
+    _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
+    // Start conditionally in didChangeDependencies so we can read
+    // DeviceTierCache + MediaQuery first.
+  }
 
-    _dotAnimations = List.generate(3, (index) {
-      return Tween<double>(begin: 0, end: -6).animate(
-        CurvedAnimation(
-          parent: _typingController,
-          curve: Interval(
-            index * 0.2,
-            0.4 + index * 0.2,
-            curve: Curves.easeOut,
-          ),
-        ),
-      );
-    });
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _maybeStartOrStop();
+  }
 
-    // The widget is only built while someone is typing (the screens
-    // gate it on chatState.isTyping / engagement.isSomeoneTyping), so
-    // the controller starts repeating on mount and stops on unmount —
-    // the same effective behavior as the group's _syncTypingController.
-    _typingController.repeat();
+  void _maybeStartOrStop() {
+    final lowRam = DeviceTierCache.instance.lowRam;
+    final reduceMotion = MotionPreference.isReducedMotion(context);
+    if (lowRam || reduceMotion) {
+      if (_controller.isAnimating) {
+        _controller.stop();
+      }
+      // Hold at frame 0 (nodeDim1 on the first node).
+      if (!_controller.isCompleted) {
+        _controller.value = 0.0;
+      }
+      return;
+    }
+    if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
   }
 
   @override
   void dispose() {
-    _typingController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // MOVED verbatim from chat_screen.dart's _buildTypingIndicator.
-    final name = widget.name;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Row(
-        children: [
-          // Small avatar
-          Container(
-            width: 20,
-            height: 20,
+    final lowRam = DeviceTierCache.instance.lowRam;
+    final reduceMotion = MotionPreference.isReducedMotion(context);
+    final animate = !lowRam && !reduceMotion;
+
+    // Resolve the typist's kinship band color + relationship label for
+    // group chat. Skipped for DMs (no band).
+    Color? bandColor;
+    String? relationshipLabel;
+    if (widget.familyId != null &&
+        widget.typistSenderId != null &&
+        !widget.isDirectChat) {
+      final rawKey = ref.watch(relationshipKeyProvider(
+        (familyId: widget.familyId!, senderUserId: widget.typistSenderId!),
+      ));
+      if (rawKey != null) {
+        final category = KinshipEdgeClassifier.classify(rawKey);
+        final color = kinshipCategoryColor(category);
+        if (color != null) {
+          bandColor = color;
+        }
+      }
+      if (bandColor == null) {
+        // D3 unresolved — extended color.
+        bandColor = KinrelColors.nodeExtended;
+      }
+      relationshipLabel = ref.watch(relationshipLabelProvider(
+        (familyId: widget.familyId!, senderUserId: widget.typistSenderId!),
+      ));
+    }
+    final blendedBand = bandColor == null
+        ? null
+        : ChatUi.blendOver(ChatUi.chatBackground, bandColor, 0.55);
+
+    // The label prefers the relationship label when set (e.g. "Papa is
+    // typing"); otherwise falls back to the caller-supplied [label].
+    final String labelText;
+    if (relationshipLabel != null && relationshipLabel.isNotEmpty) {
+      // If the caller's label already starts with the name, replace it
+      // with the relationship label.
+      final name = widget.name;
+      if (name.isNotEmpty && widget.label.startsWith(name)) {
+        labelText = '$relationshipLabel${widget.label.substring(name.length)}';
+      } else {
+        labelText = widget.label; // caller's label is fine as-is
+      }
+    } else {
+      labelText = widget.label;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 12, right: 12, bottom: 4),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(ChatUi.bubbleRadius),
+          child: Container(
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: KinrelColors.ember.withValues(alpha: 0.3),
+              color: ChatUi.chatReceived,
+              borderRadius: BorderRadius.circular(ChatUi.bubbleRadius),
             ),
-            child: Center(
-              child: Text(
-                ((name.isNotEmpty) ? name.substring(0, 1) : '?').toUpperCase(),
-                style: const TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  color: KinrelColors.orange,
-                ),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Kinship band — group only.
+                  if (blendedBand != null)
+                    Container(width: ChatUi.bandWidth, color: blendedBand),
+                  // Content: painter + label, with 10 dp gap between.
+                  Padding(
+                    padding: EdgeInsets.only(
+                      left: widget.isDirectChat
+                          ? 12
+                          : (blendedBand != null ? 14 : 14),
+                      right: 12,
+                      top: 8,
+                      bottom: 8,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // The 46x12 linked-nodes painter. RepaintBoundary
+                        // so only the painter re-paints on each tick.
+                        RepaintBoundary(
+                          child: SizedBox(
+                            width: ChatUi.typingPainterWidth,
+                            height: ChatUi.typingPainterHeight,
+                            child: CustomPaint(
+                              painter: _LinkedNodesPainter(
+                                controller: _controller,
+                                animate: animate,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: ChatUi.typingGap),
+                        Text(
+                          labelText,
+                          style: ChatUi.typingText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            widget.label,
-            style: const TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 12,
-              color: KinrelColors.textSilver,
-            ),
-          ),
-          const SizedBox(width: 6),
-          // Bouncing dots
-          SizedBox(
-            width: 24,
-            height: 14,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: List.generate(3, (i) {
-                return KinrelAnimatedBuilder(
-                  animation: _dotAnimations[i],
-                  builder: (context, child) {
-                    return Transform.translate(
-                      offset: Offset(0, _dotAnimations[i].value),
-                      child: child,
-                    );
-                  },
-                  child: Container(
-                    width: 4,
-                    height: 4,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: KinrelColors.orange,
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// _LinkedNodesPainter — three nodes + two edges
+// ═══════════════════════════════════════════════════════════════════════
+
+class _LinkedNodesPainter extends CustomPainter {
+  _LinkedNodesPainter({
+    required this.controller,
+    required this.animate,
+  }) : super(repaint: animate ? controller : null);
+
+  final Animation<double> controller;
+  final bool animate;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Node positions per §H: x=5, 23, 41; y=6; radius 2.6.
+    const nodeY = 6.0;
+    const nodeR = 2.6;
+    final xs = [5.0, 23.0, 41.0];
+
+    // Edges between adjacent nodes — 1 dp line in edgeDim.
+    final edgePaint = Paint()
+      ..color = ChatUi.edgeDim
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke
+      ..isAntiAlias = true;
+    for (var i = 0; i < xs.length - 1; i++) {
+      canvas.drawLine(
+        Offset(xs[i] + nodeR, nodeY),
+        Offset(xs[i + 1] - nodeR, nodeY),
+        edgePaint,
+      );
+    }
+
+    // Node colors — static palette nodeDim1, nodeDim2, nodeDim3 left to
+    // right. The brightest (nodeDim1) ROTATES around the three positions
+    // every 400 ms (1.2 s loop / 3 phases).
+    final brightestIdx = animate ? ((controller.value * 3).floor() % 3) : 0;
+    final nodeColors = [
+      ChatUi.nodeDim2,
+      ChatUi.nodeDim3,
+      ChatUi.nodeDim1,
+    ];
+    // Re-arrange so the brightest is at position [brightestIdx].
+    final arranged = <Color>[];
+    for (var i = 0; i < 3; i++) {
+      arranged.add(i == brightestIdx ? ChatUi.nodeDim1 : nodeColors[i]);
+    }
+
+    final nodePaint = Paint()
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+    for (var i = 0; i < xs.length; i++) {
+      nodePaint.color = arranged[i];
+      canvas.drawCircle(Offset(xs[i], nodeY), nodeR, nodePaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LinkedNodesPainter oldDelegate) =>
+      oldDelegate.animate != animate;
 }

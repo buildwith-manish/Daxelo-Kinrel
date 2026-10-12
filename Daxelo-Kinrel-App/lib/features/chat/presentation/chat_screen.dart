@@ -2245,10 +2245,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         : (chatState.typingUserName ?? 'Someone');
     // v3.5: the indicator's rendering was MOVED to the shared
     // TypingIndicator widget (see typing_indicator.dart) so the DM
-    // screen renders the SAME indicator (avatar initial + label +
-    // bouncing dots, same animation). Identical rendering to the
+    // screen renders the SAME indicator. Identical rendering to the
     // previous inline version — the group just supplies its label.
-    return TypingIndicator(name: firstInitial, label: label);
+    // v143 / Signature §H: TypingIndicator now takes familyId +
+    // typistSenderId + isDirectChat so it can resolve the typist's
+    // kinship band color + relationship label, and render the linked-
+    // nodes painter instead of the old bouncing dots.
+    final typistSenderId = engagement.isSomeoneTyping
+        ? (engagement.typingUserNames.keys.isNotEmpty
+              ? engagement.typingUserNames.keys.first
+              : null)
+        : null;
+    return TypingIndicator(
+      name: firstInitial,
+      label: label,
+      // Pass the family id so the band color + relationship label can
+      // be resolved for group chats. For direct sub-groups (DMs as
+      // 2-person Groups), the relationship key provider returns null
+      // (no K-Graph edge between the two members of a direct group)
+      // and the widget falls back to the extended color. The DM
+      // dedicated screen (DirectChatScreen, if used) sets
+      // isDirectChat: true to suppress the band entirely.
+      familyId: widget.familyId,
+      typistSenderId: typistSenderId,
+      isDirectChat: false,
+    );
   }
 
   // ── Reply Preview Bar ────────────────────────────────────────────
