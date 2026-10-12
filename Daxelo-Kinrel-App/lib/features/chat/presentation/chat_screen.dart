@@ -306,10 +306,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // might not include the DM's messages (if they're older than the
       // 50 newest family messages), so the DM would show the empty
       // state instead of its messages.
+      //
+      // We delay by 2 seconds to let the chatProvider's constructor-
+      // triggered family-wide _loadMessages() complete first. Without
+      // the delay, both queries run concurrently and the family-wide
+      // one might overwrite the groupId-specific one (race condition
+      // where the slower family-wide query finishes last and replaces
+      // the DM's messages with the family's 50 newest, which the
+      // groupId filter then empties out).
       if (widget.groupId != null) {
-        ref
-            .read(chatProvider(widget.familyId).notifier)
-            .refreshMessages(groupId: widget.groupId);
+        Future.delayed(const Duration(seconds: 2), () {
+          if (!mounted) return;
+          ref
+              .read(chatProvider(widget.familyId).notifier)
+              .refreshMessages(groupId: widget.groupId);
+        });
       }
       ref
           .read(chatProvider(widget.familyId).notifier)
