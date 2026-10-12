@@ -25,6 +25,7 @@ import '../../../family/data/relationship_label_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../chat_ui_tokens.dart';
 import 'chat_meta.dart';
+import 'deleted_message_ghost.dart';
 import 'game_invite_card.dart';
 import 'link_preview_card.dart';
 import 'mention_picker.dart';
@@ -277,51 +278,48 @@ class MessageBubble extends ConsumerWidget {
           );
         }
 
-        // ── v143 (merge): temporary placeholder for deleted-for-everyone
-        // messages. Section B (DeletedMessageGhost) will replace this
-        // early-return with the proper Kinrel ghost bubble. Kept here
-        // only so the merge result is functional before the visual pass.
+        // ── v143 / Signature §B: deleted-for-everyone → Kinrel ghost
+        // bubble. Replaces the inline placeholder from the merge step
+        // with the proper DeletedMessageGhost widget (dashed border,
+        // linked-nodes icon, personalized wording, kinship band, time
+        // row, cross-fade transition). The collapsed-rows variant
+        // (3+ adjacent ghosts) is handled at the chat_message_list
+        // level — here we just render one ghost per row.
         if (message.isDeletedForEveryone) {
+          // Resolve the relationship label + band color for received
+          // group messages. Mirrors the logic used by the normal
+          // bubble's _buildSenderName (D6) — kept in sync.
+          String? relationshipLabel;
+          if (familyId != null && !isMe && !isDirectChat) {
+            relationshipLabel = ref.watch(relationshipLabelProvider(
+              (familyId: familyId!, senderUserId: message.senderId),
+            ));
+          }
+          // Decide who deleted it. Today only the original author can
+          // delete-for-everyone, so `isMe` (which is author-vs-viewer)
+          // is a reliable proxy. When `deletedByUserId` is set we use
+          // it precisely.
           final bool deletedByMe = (message.deletedByUserId != null &&
                   currentUserId != null &&
                   message.deletedByUserId == currentUserId) ||
               isMe;
-          return GestureDetector(
-            onLongPress: onLongPress,
-            onTap: tapHandler,
-            behavior: HitTestBehavior.opaque,
-            child: Align(
-              alignment:
-                  isMe ? Alignment.centerRight : Alignment.centerLeft,
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.sizeOf(context).width *
-                      ChatUi.bubbleMaxWidthFactor,
-                ),
-                margin: EdgeInsets.only(
-                    left: isMe ? 48 : 0, right: isMe ? 0 : 48),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: KinrelColors.darkCard.withValues(alpha: 0.55),
-                  borderRadius: BorderRadius.circular(ChatUi.bubbleRadius),
-                  border: Border.all(
-                    color: KinrelColors.textDim.withValues(alpha: 0.18),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  deletedByMe
-                      ? 'You took this back.'
-                      : '${message.senderName} took this back.',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic,
-                    color: KinrelColors.textSilver.withValues(alpha: 0.75),
-                  ),
-                ),
-              ),
+
+          return DeletedMessageGhostTransition(
+            deleted: true,
+            normalChild: const SizedBox.shrink(),
+            ghostChild: DeletedMessageGhost(
+              isMe: deletedByMe,
+              senderName: message.senderName,
+              timestamp: message.formattedTime,
+              onLongPress: onLongPress,
+              selectionMode: selectionMode,
+              isSelected: isSelected,
+              onToggleSelection: onToggleSelection,
+              isDirectChat: isDirectChat,
+              familyId: familyId,
+              relationshipLabel: relationshipLabel,
+              kinshipColor: kinshipBandColor,
+              kinshipResolved: kinshipResolved,
             ),
           );
         }
