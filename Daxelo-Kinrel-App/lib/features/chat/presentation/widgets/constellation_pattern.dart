@@ -73,17 +73,21 @@ class _ConstellationPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Lines: #30385F at ~50% alpha, 1.4 dp thick — clearly visible
-    // but subtle against the dark navy background.
+    // Lines: #30385F (blue-indigo) at 80% alpha, 1.6 dp thick —
+    // clearly visible against the dark navy background without
+    // being distracting. The user said the previous 50% alpha + 1.4dp
+    // was "too thin, faint, and angular" — now thicker and more
+    // opaque so the blue-indigo color reads clearly.
     final linePaint = Paint()
-      ..color = ChatUi.wallLine.withValues(alpha: 0.5)
-      ..strokeWidth = 1.4
+      ..color = ChatUi.wallLine.withValues(alpha: 0.8)
+      ..strokeWidth = 1.6
       ..style = PaintingStyle.stroke;
 
-    // Nodes: #4A5275 at ~70% alpha, 2.5 dp radius — small, elegant,
-    // slightly brighter than the lines.
+    // Nodes: #4A5275 (brighter blue-indigo) at 90% alpha, 2.5 dp
+    // radius — small, elegant, clearly visible, slightly brighter
+    // than the lines.
     final dotPaint = Paint()
-      ..color = ChatUi.wallDot.withValues(alpha: 0.7);
+      ..color = ChatUi.wallDot.withValues(alpha: 0.9);
 
     // Convert normalized positions to pixel positions.
     final nodes = _kNodes
