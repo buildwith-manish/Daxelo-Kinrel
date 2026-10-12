@@ -679,64 +679,55 @@ class MessageBubble extends ConsumerWidget {
     final Color quoteBackground = ChatUi.blendOver(
         ChatUi.chatBackground, Colors.black, 0.22);
 
+    // Simpler layout: a Container with a BoxDecoration that includes a
+    // 3 dp left Border in the band color. Achieves the band-on-left
+    // look without an IntrinsicHeight+Row+Expanded structure (which
+    // can blow up inside the unbounded-height ListView the chat lives
+    // in). The Container's height is determined by its Column child
+    // (title + content). The 3 dp left border paints the band flush
+    // against the rounded-rect clip.
     return Container(
       margin: const EdgeInsets.only(bottom: ChatUi.replyBottomMargin),
-      child: ClipRRect(
-        // Clip the band to the rounded corners so the left band
-        // doesn't bleed past the radius.
+      padding: const EdgeInsets.only(
+        top: ChatUi.replyTopPad,
+        right: ChatUi.replyRightPad,
+        bottom: ChatUi.replyBottomPad,
+        left: ChatUi.replyLeftPad,
+      ),
+      decoration: BoxDecoration(
+        color: quoteBackground,
         borderRadius: BorderRadius.circular(ChatUi.replyRadius),
-        child: Container(
-          decoration: BoxDecoration(
-            color: quoteBackground,
-            borderRadius: BorderRadius.circular(ChatUi.replyRadius),
-          ),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Left band — kinship color (own: orange, unresolved:
-                // extended, resolved: kinshipCategoryColor).
-                Container(width: ChatUi.replyBandWidth, color: replyBandColor),
-                // Content.
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(
-                      top: ChatUi.replyTopPad,
-                      right: ChatUi.replyRightPad,
-                      bottom: ChatUi.replyBottomPad,
-                      left: 8, // gap between band and content
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          titleText,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.bodyFont,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: titleColor,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          previewContent,
-                          style: previewStyle,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+        border: Border(
+          left: BorderSide(
+            color: replyBandColor ?? KinrelColors.orange,
+            width: ChatUi.replyBandWidth,
           ),
         ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            titleText,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: titleColor,
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            previewContent,
+            style: previewStyle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }

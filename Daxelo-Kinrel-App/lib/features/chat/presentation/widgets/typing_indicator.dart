@@ -191,60 +191,61 @@ class _TypingIndicatorState extends ConsumerState<TypingIndicator>
       padding: const EdgeInsets.only(left: 12, right: 12, bottom: 4),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(ChatUi.bubbleRadius),
-          child: Container(
-            decoration: BoxDecoration(
-              color: ChatUi.chatReceived,
-              borderRadius: BorderRadius.circular(ChatUi.bubbleRadius),
-            ),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Kinship band — group only.
-                  if (blendedBand != null)
-                    Container(width: ChatUi.bandWidth, color: blendedBand),
-                  // Content: painter + label, with 10 dp gap between.
-                  Padding(
-                    padding: EdgeInsets.only(
-                      left: widget.isDirectChat
-                          ? 12
-                          : (blendedBand != null ? 14 : 14),
-                      right: 12,
-                      top: 8,
-                      bottom: 8,
+        child: Container(
+          // Simpler layout: a Container with a BoxDecoration that
+          // includes a 3 dp left Border in the band color. Achieves
+          // the band-on-left look without an IntrinsicHeight+Row+
+          // CrossAxisAlignment.stretch structure (which can blow up
+          // inside the unbounded-height parent the typing indicator
+          // is rendered in — the chat screen's Column gives its
+          // non-flex children unbounded height, and the stretch +
+          // width-only band Container has no intrinsic height for
+          // IntrinsicHeight to read).
+          padding: EdgeInsets.only(
+            left: widget.isDirectChat
+                ? 12
+                : (blendedBand != null ? 14 : 14),
+            right: 12,
+            top: 8,
+            bottom: 8,
+          ),
+          decoration: BoxDecoration(
+            color: ChatUi.chatReceived,
+            borderRadius: BorderRadius.circular(ChatUi.bubbleRadius),
+            border: blendedBand != null
+                ? Border(
+                    left: BorderSide(
+                      color: blendedBand,
+                      width: ChatUi.bandWidth,
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // The 46x12 linked-nodes painter. RepaintBoundary
-                        // so only the painter re-paints on each tick.
-                        RepaintBoundary(
-                          child: SizedBox(
-                            width: ChatUi.typingPainterWidth,
-                            height: ChatUi.typingPainterHeight,
-                            child: CustomPaint(
-                              painter: _LinkedNodesPainter(
-                                controller: _controller,
-                                animate: animate,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: ChatUi.typingGap),
-                        Text(
-                          labelText,
-                          style: ChatUi.typingText,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                  )
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // The 46x12 linked-nodes painter. RepaintBoundary
+              // so only the painter re-paints on each tick.
+              RepaintBoundary(
+                child: SizedBox(
+                  width: ChatUi.typingPainterWidth,
+                  height: ChatUi.typingPainterHeight,
+                  child: CustomPaint(
+                    painter: _LinkedNodesPainter(
+                      controller: _controller,
+                      animate: animate,
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(width: ChatUi.typingGap),
+              Text(
+                labelText,
+                style: ChatUi.typingText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
       ),
