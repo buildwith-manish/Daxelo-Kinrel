@@ -342,7 +342,17 @@ class ChatMessage {
   /// Event date string (for family event sharing).
   final String? eventDate;
 
-  /// Phase 13: Whether the message is starred (bookmarked) by current user.
+  /// Phase 13: Whether the message is starred/bookmarked.
+  ///
+  /// ⚠️ This is a FAMILY-BROADCAST flag, NOT per-user. When one
+  /// member stars a message, ALL family members see it as starred
+  /// via the realtime UPDATE. The `fn_star_message` RPC does not
+  /// accept a user id — it writes the shared column directly.
+  ///
+  /// A true per-user "saved messages" feature would require a new
+  /// `ChatSavedMessage(messageId, userId, savedAt)` table + per-user
+  /// RPCs (`fn_save_message_for_me` / `fn_unsave_message_for_me`),
+  /// modeled on `ChatReadReceipt` / `ChatMessageReaction`.
   final bool isStarred;
 
   /// Phase 13: Whether the message is pinned by an admin/creator.

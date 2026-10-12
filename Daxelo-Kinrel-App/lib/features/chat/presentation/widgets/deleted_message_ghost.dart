@@ -266,16 +266,24 @@ class DeletedMessageGhost extends StatelessWidget {
     this.relationshipLabel,
     this.kinshipColor,
     this.kinshipResolved = false,
+    this.deleterName,
   });
 
-  /// Whether the current user is the (original) author of the deleted
-  /// message. Determines alignment (own→right) + the label wording
-  /// ("You took this back." vs. "NAME took this back.").
+  /// Whether the current user is the person who deleted the message
+  /// (not necessarily the original author). Determines the label
+  /// wording: "You took this back." vs. "NAME took this back.".
+  /// v143 fix: this now refers to the DELETER, not the AUTHOR.
   final bool isMe;
 
-  /// The display name of the message author. Used in the "NAME took
-  /// this back." variant when [relationshipLabel] is null.
+  /// The display name of the message author.
   final String senderName;
+
+  /// v143 fix: The display name of the person who deleted the message.
+  /// When null, falls back to [senderName] (the original author).
+  /// Today only the author can delete-for-everyone, so this equals
+  /// senderName in practice. When a future moderator feature allows
+  /// non-author deletion, this will carry the moderator's name.
+  final String? deleterName;
 
   /// Local-display formatted time string (e.g. "7:44 PM").
   final String timestamp;
@@ -346,13 +354,17 @@ class DeletedMessageGhost extends StatelessWidget {
   }
 
   /// The NAME used in the "NAME took this back." label.
-  /// Relationship label takes precedence when present (e.g. "Papa"),
-  /// otherwise the sender name.
+  /// v143 fix: prefers [deleterName] (the actual deleter's display
+  /// name) over [senderName] (the original author). When
+  /// [relationshipLabel] is present, it takes precedence (e.g.
+  /// "Papa" instead of the full name).
   String get _namePart {
     if (relationshipLabel != null && relationshipLabel!.isNotEmpty) {
       return relationshipLabel!;
     }
-    return senderName;
+    // Use the deleter's name when available (the person who actually
+    // performed the deletion), falling back to the author's name.
+    return deleterName ?? senderName;
   }
 
   /// Left padding for the bubble content (varies by chat type).

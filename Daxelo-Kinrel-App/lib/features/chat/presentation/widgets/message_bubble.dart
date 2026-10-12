@@ -317,6 +317,13 @@ class MessageBubble extends ConsumerWidget {
             ghostChild: DeletedMessageGhost(
               isMe: deletedByMe,
               senderName: message.senderName,
+              // v143 fix: pass the deleter's name so the ghost
+              // attributes the deletion to the correct person.
+              // Today deleterName == senderName (only the author
+              // can delete-for-everyone), but this will differ when
+              // a future moderator feature allows non-author
+              // deletion.
+              deleterName: message.senderName,
               timestamp: message.formattedTime,
               onLongPress: onLongPress,
               selectionMode: selectionMode,
@@ -432,6 +439,16 @@ class MessageBubble extends ConsumerWidget {
                                     kinshipBandColor,
                                   ),
                                   // v127: Inline timestamp only on last-in-group
+                                  // v143 fix: always show the read receipt on
+                                  // own messages, even when not last-in-group.
+                                  // Before, the receipt was inside _buildTimeRow
+                                  // which only rendered on isLastInGroup —
+                                  // same-sender clusters within 120s hid the
+                                  // receipt on all but the last bubble.
+                                  if (!isSticker && isMe &&
+                                      !isLastInGroup &&
+                                      !message.isDeletedForEveryone)
+                                    _buildReceiptOnly(),
                                   if (!isSticker && isLastInGroup)
                                     _buildTimeRow(),
                                   if (isSticker) _buildStickerTimeRow(),
@@ -1621,6 +1638,23 @@ class MessageBubble extends ConsumerWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// v143 fix: Compact receipt-only row for own messages that are NOT
+  /// the last in a cluster. Shows just the ReadReceipt indicator
+  /// (no timestamp) so every own message displays its delivery
+  /// status, even when the timestamp is suppressed for clustering.
+  Widget _buildReceiptOnly() {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: ReadReceipt(
+          isRead: message.isRead,
+          messageStatus: message.messageStatus,
+        ),
       ),
     );
   }
