@@ -300,28 +300,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Mark all as read on enter (this chat's scope only).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      // v143 fix: for direct chats (widget.groupId != null), refresh
-      // messages by groupId so the DM's actual messages are loaded.
-      // Without this, the chatProvider's default family-wide query
-      // might not include the DM's messages (if they're older than the
-      // 50 newest family messages), so the DM would show the empty
-      // state instead of its messages.
-      //
-      // We delay by 2 seconds to let the chatProvider's constructor-
-      // triggered family-wide _loadMessages() complete first. Without
-      // the delay, both queries run concurrently and the family-wide
-      // one might overwrite the groupId-specific one (race condition
-      // where the slower family-wide query finishes last and replaces
-      // the DM's messages with the family's 50 newest, which the
-      // groupId filter then empties out).
-      if (widget.groupId != null) {
-        Future.delayed(const Duration(seconds: 2), () {
-          if (!mounted) return;
-          ref
-              .read(chatProvider(widget.familyId).notifier)
-              .refreshMessages(groupId: widget.groupId);
-        });
-      }
       ref
           .read(chatProvider(widget.familyId).notifier)
           .markAllRead(groupId: widget.groupId);
@@ -337,6 +315,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// The unread-divider snapshot is captured inside markAllRead BEFORE
   /// the isRead flags flip, so the divider survives marking.
   bool _markedReadOnOpen = false;
+  bool _groupRefreshTriggered = false;
   void _maybeMarkReadOnOpen(ChatState chatState) {
     if (_markedReadOnOpen) return;
     if (chatState.isLoading || chatState.messages.isEmpty) return;
@@ -750,6 +729,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       messages = messages.where((m) => m.groupId == widget.groupId).toList();
     } else {
       messages = messages.where((m) => m.groupId == null).toList();
+    }
+
+    // v143 fix: if this is a direct chat (widget.groupId != null) and
+    // the filtered messages are empty BUT the chatState is not loading
+    // (i.e., the family-wide load completed but didn't include any
+    // messages for this DM's groupId), trigger a groupId-specific
+    // refresh. This handles the case where the DM's messages are older
+    // than the 50 newest family messages (so the family-wide query
+    // didn't return them). The flag prevents infinite loops — it
+    // only triggers once per screen instance.
+    if (widget.groupId != null &&
+        widget.groupId!.isNotEmpty &&
+        messages.isEmpty &&
+        !chatState.isLoading &&
+        !_groupRefreshTriggered) {
+      _groupRefreshTriggered = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref
+            .read(chatProvider(widget.familyId).notifier)
+            .refreshMessages(groupId: widget.groupId);
+      });
     }
 
     // Loading state — show a centered spinner while the initial fetch
