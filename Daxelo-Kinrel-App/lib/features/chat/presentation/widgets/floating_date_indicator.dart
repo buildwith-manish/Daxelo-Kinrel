@@ -1,34 +1,32 @@
 // lib/features/chat/presentation/widgets/floating_date_indicator.dart
 //
-// DAXELO KINREL — Floating Date Indicator (Kin Thread / PR2 Task 2)
+// DAXELO KINREL — Floating Date Indicator (v143 redesign)
 //
 // Shows a floating date pill at the top of the message list while the
-// user scrolls. The pill shows the date of the topmost visible message
-// (the label format is identical to the inline date separators:
-// Today / Yesterday / weekday within 6 days / "Month D, YYYY").
+// user scrolls. Uses the SAME pill visual as the regular date
+// separators (ThreadDateMarker) for visual consistency.
 //
-// Behavior:
-//   • Disappears ~1.2s after scrolling stops.
-//   • Does not appear when the list is at rest or at the very bottom
-//     (offset 0 on the reversed list = newest messages).
-//   • Does not follow the user once they stop — the chip is a fixed
-//     overlay that simply fades out.
+// v143 viewport visibility fix:
+//   The old code showed the floating indicator whenever the user was
+//   scrolling, regardless of whether a regular date pill was already
+//   visible in the viewport. This caused duplicate/conflicting date
+//   indicators.
 //
-// Performance:
-//   • No setState on every scroll frame — the label only changes when
-//     the topmost visible DATE changes (usually once per day-group).
-//   • Scroll notifications are throttled to at most one update per
-//     100ms.
-//   • No Opacity widget — a short fade via FadeTransition on the small
-//     chip (explicitly allowed by the flat-mode rules).
-//   • No per-item VisibilityDetector — the topmost visible item is
-//     found cheaply through the rendered sliver children
-//     (RenderSliverMultiBoxAdaptor's live children + their indexes),
-//     measured with localToGlobal against the list's own box. Works
-//     with the reversed list (topmost = smallest global Y).
-//   • No new package.
+//   The fix: walk the sliver's live children and check if any visible
+//   child's TOP edge is within the viewport (meaning the date
+//   separator at the top of that date group is visible). If ANY
+//   regular date pill is visible → hide the floating indicator
+//   immediately. If NO regular date pill is visible → show the
+//   floating indicator with the current date label.
 //
-// Used by: ChatMessageList (as a Stack overlay on the ListView).
+// Visibility rules (per spec):
+//   1. If ≥1 regular date pill is visible → hide floating indicator.
+//   2. If multiple regular pills are visible → keep hidden.
+//   3. If no regular pills are visible → floating indicator may appear.
+//   4. When a regular pill becomes visible → hide immediately.
+//   5. Never show a floating date that conflicts with a visible pill.
+//   6. When scrolling stops → fade out after 1.2s, only if no pill visible.
+//   7. If scrolling resumes during fade-out → cancel timer + recalculate.
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -51,19 +49,8 @@ class FloatingDateIndicator extends StatefulWidget {
   });
 
   final ScrollController scrollController;
-
-  /// Key attached to the ListView by ChatMessageList. Used to locate
-  /// the rendered sliver (and its children) cheaply from a Stack
-  /// sibling — the indicator is NOT inside the scrollable, so it can't
-  /// use Scrollable.of(context).
   final GlobalKey listViewKey;
-
-  /// Returns the date label for the given ListView item index.
-  /// Each item in the reversed ListView is a date group, so this
-  /// maps the visible item index → its dateLabel.
   final String? Function(int index) dateLabelForIndex;
-
-  /// Total number of items in the ListView (grouped.length).
   final int itemCount;
 
   @override
@@ -101,8 +88,8 @@ class _FloatingDateIndicatorState extends State<FloatingDateIndicator>
     if (!mounted) return;
     final position = widget.scrollController.position;
 
-    // Skip if we're at the very bottom (offset 0 on the reversed list =
-    // the most recent messages) — don't show the floating date there.
+    // At the very bottom (offset 0 on reversed list = newest messages)
+    // — don't show the floating date there.
     if (position.pixels <= 0) {
       if (_currentLabel != null) {
         _hideTimer?.cancel();
@@ -111,7 +98,7 @@ class _FloatingDateIndicatorState extends State<FloatingDateIndicator>
       return;
     }
 
-    // Show immediately on scroll start (before the throttle kicks in).
+    // Show immediately on scroll start.
     if (!_isScrolling) {
       _isScrolling = true;
       _hideTimer?.cancel();
@@ -130,13 +117,18 @@ class _FloatingDateIndicatorState extends State<FloatingDateIndicator>
     _hideTimer = Timer(_kHideDelay, () {
       if (!mounted) return;
       _isScrolling = false;
-      _animOut();
+      // Only hide if no regular date pill is visible. If a pill IS
+      // visible, the floating indicator should already be hidden (or
+      // never shown) — but double-check here for safety.
+      _updateLabel();
     });
   }
 
-  /// Finds the topmost visible item's date label from the rendered
-  /// sliver children. One pass over ~10-20 live children, throttled to
-  /// 10 Hz, and only mutates state when the LABEL changes.
+  /// Walks the sliver's live children to:
+  /// 1. Find the topmost visible item's date label.
+  /// 2. Check if any visible item's TOP edge is within the viewport
+  ///    (meaning the date separator pill at the top of that date group
+  ///    is visible). If so → hide the floating indicator.
   void _updateLabel() {
     if (!mounted) return;
 
@@ -145,12 +137,11 @@ class _FloatingDateIndicatorState extends State<FloatingDateIndicator>
     final listRenderObj = listContext.findRenderObject();
     if (listRenderObj is! RenderBox || !listRenderObj.attached) return;
 
-    // The list's own on-screen bounds (the viewport reference).
+    // The list's viewport bounds.
     final viewTop = listRenderObj.localToGlobal(Offset.zero).dy;
     final viewBottom = viewTop + listRenderObj.size.height;
 
-    // Find the RenderSliverMultiBoxAdaptor (the list's sliver) by
-    // walking down from the ListView's render object.
+    // Find the RenderSliverMultiBoxAdaptor.
     RenderSliverMultiBoxAdaptor? sliver;
     void findSliver(RenderObject node) {
       if (sliver != null) return;
@@ -165,11 +156,11 @@ class _FloatingDateIndicatorState extends State<FloatingDateIndicator>
     final found = sliver;
     if (found == null) return;
 
-    // Walk the sliver's live children; the topmost visible child has
-    // the smallest global Y. localToGlobal handles the reversed
-    // growth direction + paint transforms for us.
+    // Walk the sliver's live children.
     String? label;
     var topMostY = double.infinity;
+    var regularPillVisible = false;
+
     var child = found.firstChild;
     while (child != null) {
       final childParentData =
@@ -179,22 +170,42 @@ class _FloatingDateIndicatorState extends State<FloatingDateIndicator>
         final childTop = child.localToGlobal(Offset.zero).dy;
         final childBottom = childTop + child.size.height;
         final visible = childTop < viewBottom && childBottom > viewTop;
-        if (visible && childTop < topMostY) {
-          topMostY = childTop;
-          label = widget.dateLabelForIndex(index);
+
+        if (visible) {
+          // Check if this child's TOP edge is within the viewport.
+          // The date separator is at the top of each date group's
+          // Column. If the child's top is within the viewport, the
+          // date pill IS visible.
+          if (childTop >= viewTop) {
+            regularPillVisible = true;
+          }
+
+          // Track the topmost visible child for the date label.
+          if (childTop < topMostY) {
+            topMostY = childTop;
+            label = widget.dateLabelForIndex(index);
+          }
         }
       }
       child = found.childAfter(child);
     }
 
+    // If a regular date pill is visible, hide the floating indicator.
+    if (regularPillVisible) {
+      if (_currentLabel != null) {
+        _currentLabel = null;
+        _animOut();
+        if (mounted) setState(() {});
+      }
+      return;
+    }
+
+    // No regular date pill is visible — show the floating indicator.
     if (label == null || label.isEmpty) return;
 
-    // Update only if the label changed (or the fade hasn't completed).
     if (label != _currentLabel) {
       _currentLabel = label;
       _animIn();
-      // Rebuild ONLY the small chip (not the whole list): this state
-      // lives on the indicator widget, not on ChatMessageList.
       setState(() {});
     } else if (_animController.value < 1.0) {
       _animIn();
@@ -222,10 +233,6 @@ class _FloatingDateIndicatorState extends State<FloatingDateIndicator>
     }
 
     return Positioned(
-      // D8 (floating): pinned 8 dp below the header, chatReceived
-      // pill, radius full, flat (no border, no shadow), 12 textSecondary
-      // in the body font — visually distinct from the static chatCard
-      // date chip so the scroll state reads instantly.
       top: 8,
       left: 0,
       right: 0,
@@ -233,10 +240,14 @@ class _FloatingDateIndicatorState extends State<FloatingDateIndicator>
         child: Center(
           child: FadeTransition(
             opacity: _animController,
+            // v143: same pill style as ThreadDateMarker for visual
+            // consistency — chatCard background, pillText typography,
+            // KinrelRadius.full rounded corners.
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
               decoration: BoxDecoration(
-                color: ChatUi.chatReceived,
+                color: ChatUi.chatCard,
                 borderRadius: BorderRadius.circular(KinrelRadius.full),
               ),
               child: Text(_currentLabel!, style: ChatUi.pillText),
