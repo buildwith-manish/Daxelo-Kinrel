@@ -1334,7 +1334,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   // ── Load messages from Supabase ───────────────────────────────────
 
-  Future<void> _loadMessages() async {
+  Future<void> _loadMessages({String? groupId}) async {
     final client = _client;
     if (client == null) {
       if (mounted) {
@@ -1374,20 +1374,28 @@ class ChatNotifier extends StateNotifier<ChatState> {
     try {
       // Fetch the NEWEST 50 messages, ordered by createdAt DESC.
       //
-      // Previously this fetched the OLDEST 200 (ascending: true with a
-      // limit returns the first 200 by ascending order — i.e. the oldest
-      // 200), which made a freshly-opened chat render ancient history
-      // instead of the latest conversation. Descending + limit 50 returns
-      // the newest 50 directly from the index, so the chat opens on the
-      // current tail of the conversation. Older history is still
-      // reachable via loadOlderMessages (cursor pagination using the
-      // oldest loaded message).
-      final messagesResponse = await client
-          .from('ChatMessage')
-          .select()
-          .eq('familyId', familyId)
+      // v143 fix: when [groupId] is provided (direct chat / sub-group),
+      // query by groupId instead of familyId. The previous family-wide
+      // query loaded the 50 newest messages across ALL chats in the
+      // family — for a DM whose messages were older than the 50 newest
+      // family messages, the filtered list was empty, so the DM showed
+      // the "Start the conversation" empty state instead of its actual
+      // messages. Querying by groupId directly returns the DM's
+      // messages regardless of how active the family-wide chat is.
+      //
+      // Also added a 10-second timeout — without it, a hung Supabase
+      // query would leave isLoading=true forever, so the chat screen
+      // spinner would never resolve.
+      var query = client.from('ChatMessage').select();
+      if (groupId != null) {
+        query = query.eq('groupId', groupId);
+      } else {
+        query = query.eq('familyId', familyId);
+      }
+      final messagesResponse = await query
           .order('createdAt', ascending: false)
-          .limit(50);
+          .limit(50)
+          .timeout(const Duration(seconds: 10));
 
       final messageIds = <String>[];
       final messages = <ChatMessage>[];
@@ -3356,8 +3364,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// should fire and update state automatically, but this is a safety
   /// net for cases where the realtime payload doesn't include all
   /// updated fields.
-  Future<void> refreshMessages() async {
-    await _loadMessages();
+  Future<void> refreshMessages({String? groupId}) async {
+    await _loadMessages(groupId: groupId);
   }
 
   /// Kin Thread / PR2 Task 3 — Mark all messages in this chat's scope

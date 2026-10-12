@@ -300,6 +300,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Mark all as read on enter (this chat's scope only).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      // v143 fix: for direct chats (widget.groupId != null), refresh
+      // messages by groupId so the DM's actual messages are loaded.
+      // Without this, the chatProvider's default family-wide query
+      // might not include the DM's messages (if they're older than the
+      // 50 newest family messages), so the DM would show the empty
+      // state instead of its messages.
+      if (widget.groupId != null) {
+        ref
+            .read(chatProvider(widget.familyId).notifier)
+            .refreshMessages(groupId: widget.groupId);
+      }
       ref
           .read(chatProvider(widget.familyId).notifier)
           .markAllRead(groupId: widget.groupId);
