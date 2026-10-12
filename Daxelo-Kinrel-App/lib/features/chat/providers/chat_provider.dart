@@ -188,6 +188,14 @@ class ChatMessage {
     this.messageSubType,
     this.forwardedFrom,
     this.deletedForMe = const [],
+    // v143: WHO deleted this message for everyone (auth.users.id as text).
+    // Equal to senderId in the common case (only the author can delete-for-
+    // everyone today), but kept as a separate field so a future moderation
+    // feature can attribute deletions to a non-author moderator without
+    // changing the placeholder wording logic. Used for the personalized
+    // placeholder: "You deleted this message." vs. "<name> deleted this
+    // message.".
+    this.deletedByUserId,
     this.groupId, // v137: for group-scoped messages (null = family-wide chat)
     // Game-invite card fields (messageType == gameInvite)
     this.gameType, // route segment, e.g. 'sos' → '/family/<id>/sos/lobby'
@@ -245,6 +253,8 @@ class ChatMessage {
       messageSubType: json['messageSubType'] as String?,
       forwardedFrom: json['forwardedFrom'] as String?,
       deletedForMe: json['deletedForMe'] as List<dynamic>? ?? const [],
+      // v143: who deleted this message for everyone (server-managed).
+      deletedByUserId: json['deletedByUserId'] as String?,
       groupId: json['groupId'] as String?,
       gameType: json['gameType'] as String?,
       gameId: json['gameId'] as String?,
@@ -343,6 +353,14 @@ class ChatMessage {
 
   /// Phase 13: Whether the message was deleted for everyone (sender or admin).
   final bool isDeletedForEveryone;
+
+  /// v143: The userId of whoever initiated a delete-for-everyone on this row.
+  /// Equal to senderId in the common case (only the author can delete-for-
+  /// everyone today). Used to render the personalized placeholder:
+  ///   • When `deletedByUserId == currentUserId` → "You deleted this message."
+  ///   • Otherwise → "<participantName> deleted this message."
+  /// Server-managed — clients never write this column directly.
+  final String? deletedByUserId;
 
   /// Phase 13: Message delivery status: 'sent' | 'delivered' | 'read'.
   final String messageStatus;
@@ -537,10 +555,18 @@ class ChatMessage {
     return map;
   }
 
-  /// Convenience: whether this message is hidden for the current user
-  /// (either soft-deleted-for-me or deleted-for-everyone).
+  /// Convenience: whether this message should be hidden from the current
+  /// user's conversation view.
+  ///
+  /// v143: A deleted-for-everyone message is NOT hidden — it stays in the
+  /// list so the MessageBubble can render the Kinrel deletion placeholder
+  /// ("You deleted this message." / "<name> deleted this message."). Only
+  /// messages explicitly deleted-for-me by THIS user are hidden, since they
+  /// have no placeholder treatment (they're just gone from the view).
+  ///
+  /// If you need the OLD behavior (treat deleted-for-everyone as hidden,
+  /// e.g. for the chat-export path), check `isDeletedForEveryone` directly.
   bool isHiddenFor(String userId) {
-    if (isDeletedForEveryone) return true;
     if (deletedForMe.any((u) => u == userId)) return true;
     return false;
   }
@@ -574,6 +600,7 @@ class ChatMessage {
     bool? isPinned,
     bool? isEdited,
     bool? isDeletedForEveryone,
+    String? deletedByUserId,
     String? messageStatus,
     String? content,
     List<dynamic>? deletedForMe,
@@ -615,6 +642,7 @@ class ChatMessage {
       isPinned: isPinned ?? this.isPinned,
       isEdited: isEdited ?? this.isEdited,
       isDeletedForEveryone: isDeletedForEveryone ?? this.isDeletedForEveryone,
+      deletedByUserId: deletedByUserId ?? this.deletedByUserId,
       messageStatus: messageStatus ?? this.messageStatus,
       messageSubType: messageSubType,
       forwardedFrom: forwardedFrom,
@@ -3212,6 +3240,112 @@ class ChatNotifier extends StateNotifier<ChatState> {
       }
     } catch (e) {
       debugPrint('⚠️ ChatNotifier._markSingleAsRead error: $e');
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // v143 — Message Deletion: Optimistic Updates + Undo Support
+  // ════════════════════════════════════════════════════════════════════
+  //
+  // These methods let the chat screen apply a deletion IMMEDIATELY to the
+  // local state (so the message disappears or turns into a placeholder
+  // instantly) and then either commit (call the RPC) or undo (revert the
+  // local state) based on whether the user taps Undo within 5 seconds.
+  //
+  // The Undo flow is implemented in chat_screen.dart via a SnackBar with a
+  // 5-second duration and an action button — these notifier methods are the
+  // state primitives the screen uses.
+  //
+  // All three methods preserve message ordering, IDs, timestamps, and
+  // metadata — they only flip the deletion flags on the affected rows. The
+  // original ChatMessage objects are kept (not destroyed) so an undo can
+  // restore the exact same instance.
+  // ════════════════════════════════════════════════════════════════════
+
+  /// Optimistically mark a set of messages as deleted-for-me for the
+  /// current user. The messages stay in `state.messages` (so undo can
+  /// restore them) but their `deletedForMe` array now contains the user's
+  /// id, so `isHiddenFor(userId)` returns true and the chat_screen filter
+  /// hides them from the list view.
+  ///
+  /// Returns the previous `deletedForMe` snapshot for each affected message
+  /// (keyed by message id) so the caller can restore the exact prior state
+  /// on undo. We snapshot before the mutation so an undo cannot accidentally
+  /// drop a concurrent deletion by another device.
+  Map<String, List<dynamic>> markLocallyDeletedForMe(
+      Iterable<String> messageIds) {
+    final myUserId = _currentUserId;
+    if (myUserId == null || !mounted) return {};
+    final idSet = messageIds.toSet();
+    final prior = <String, List<dynamic>>{};
+    final updated = state.messages.map((m) {
+      if (!idSet.contains(m.id)) return m;
+      prior[m.id] = List<dynamic>.from(m.deletedForMe);
+      if (m.deletedForMe.any((u) => u == myUserId)) return m; // already
+      final newList = List<dynamic>.from(m.deletedForMe)..add(myUserId);
+      return m.copyWith(deletedForMe: newList);
+    }).toList();
+    if (mounted) state = state.copyWith(messages: updated);
+    return prior;
+  }
+
+  /// Undo a local "Delete for Me". Restores each message's `deletedForMe`
+  /// array to its prior value (captured by `markLocallyDeletedForMe`).
+  /// If `prior` is empty for a message, the user's uid is just removed
+  /// from the array (defensive — handles the case where the caller lost
+  /// the prior snapshot, e.g. after an app restart).
+  void undoLocalDeleteForMe(
+      Map<String, List<dynamic>> priorSnapshots) {
+    final myUserId = _currentUserId;
+    if (myUserId == null || !mounted) return;
+    final updated = state.messages.map((m) {
+      if (!priorSnapshots.containsKey(m.id)) return m;
+      final prior = priorSnapshots[m.id]!;
+      return m.copyWith(deletedForMe: List<dynamic>.from(prior));
+    }).toList();
+    if (mounted) state = state.copyWith(messages: updated);
+  }
+
+  /// Optimistically mark a message as deleted-for-everyone. Flips
+  /// `isDeletedForEveryone` to true, clears the content (so media + text
+  /// don't briefly reshow), and records the deleter's id. The message
+  /// STAYS in `state.messages` so the MessageBubble can render the Kinrel
+  /// deletion placeholder ("You deleted this message." / "<name> deleted
+  /// this message.").
+  void markLocallyDeletedForEveryone(String messageId,
+      {String? deleterUserId}) {
+    if (!mounted) return;
+    final deleter = deleterUserId ?? _currentUserId;
+    final updated = state.messages.map((m) {
+      if (m.id != messageId) return m;
+      return m.copyWith(
+        isDeletedForEveryone: true,
+        content: '',
+        deletedByUserId: deleter,
+      );
+    }).toList();
+    if (mounted) state = state.copyWith(messages: updated);
+  }
+
+  /// Permanently remove a message from local state (used after the
+  /// Undo timer lapses for "Delete for me", or to clean up a "Delete for
+  /// everyone" row that should no longer be in the cache). Also drops
+  /// the row from the Drift cache so it doesn't resurface on restart.
+  void removeMessageFromLocalState(String messageId) {
+    final updated = state.messages.where((m) => m.id != messageId).toList();
+    if (mounted) state = state.copyWith(messages: updated);
+    _deleteMessageFromCache(messageId);
+  }
+
+  /// Permanently remove a set of messages from local state (bulk version
+  /// of [removeMessageFromLocalState]). Used after the bulk Undo timer
+  /// lapses for "Delete for me" to finalize the deletion client-side.
+  void removeMessagesFromLocalState(Iterable<String> messageIds) {
+    final idSet = messageIds.toSet();
+    final updated = state.messages.where((m) => !idSet.contains(m.id)).toList();
+    if (mounted) state = state.copyWith(messages: updated);
+    for (final id in idSet) {
+      _deleteMessageFromCache(id);
     }
   }
 

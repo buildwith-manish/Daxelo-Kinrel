@@ -3348,7 +3348,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     _showEditDialog(message);
                   },
                 ),
-              // Delete for Me
+              // Delete for Me — v143: immediate optimistic deletion with a
+              // 5-second Undo snackbar. The message disappears from this
+              // user's view instantly (no confirmation dialog) and a snackbar
+              // offers an UNDO action for 5 seconds. If UNDO is tapped, the
+              // local state is reverted and the deletion never commits to
+              // the server. If the timer expires, the deletion is finalized
+              // by calling fn_delete_message_for_me on the backend.
+              //
+              // Required behavior (per implementation brief §1):
+              //   • Immediate disappearance — no confirmation.
+              //   • "Message deleted. UNDO" notification (single) or
+              //     "Messages deleted. UNDO" (bulk — see _bulkDelete).
+              //   • ~5 second visibility.
+              //   • Tapping Undo restores to original position.
+              //   • Affects only the current user's view.
+              //   • On failure, restore + error snackbar.
               ListTile(
                 leading: const Icon(
                   Icons.delete_outline,
@@ -3363,13 +3378,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     color: KinrelColors.textWhite,
                   ),
                 ),
-                onTap: () async {
+                onTap: () {
                   Navigator.pop(context);
-                  final service = ref.read(chatEnhancementServiceProvider);
-                  final success = await service.deleteForMe(message.id);
-                  if (success) {
-                    ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
-                  }
+                  _deleteForMeWithUndo({message.id});
                 },
               ),
               // Tier 2 / Message Info — opens the MessageInfoSheet
@@ -3400,7 +3411,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     MessageInfoSheet.show(context, messageId: message.id);
                   },
                 ),
-              // Delete for Everyone (only for own messages)
+              // Delete for Everyone (only for own messages) — v143: keep
+              // the confirmation dialog (per implementation brief §2). On
+              // confirmation, optimistically flip the row to deleted-for-
+              // everyone locally so the placeholder appears instantly,
+              // then commit via fn_delete_message_for_everyone which also
+              // records the deleter identity for personalized wording.
               if (isMe)
                 ListTile(
                   leading: const Icon(
@@ -3426,7 +3442,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         title: const Text('Delete for Everyone?',
                             style: TextStyle(color: KinrelColors.textWhite)),
                         content: const Text(
-                            'This message will be deleted for everyone in the chat.',
+                            'This message will be removed from the conversation for all participants.',
                             style: TextStyle(color: KinrelColors.textSilver)),
                         actions: [
                           TextButton(
@@ -3434,22 +3450,44 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               child: const Text('Cancel')),
                           TextButton(
                               onPressed: () => Navigator.pop(ctx, true),
-                              child: const Text('Delete',
+                              child: const Text('Delete for everyone',
                                   style: TextStyle(color: KinrelColors.error))),
                         ],
                       ),
                     );
-                    if (confirmed == true) {
-                      final service =
-                          ref.read(chatEnhancementServiceProvider);
-                      final success =
-                          await service.deleteForEveryone(message.id);
-                      if (success) {
-                        ref
-                            .read(chatProvider(widget.familyId).notifier)
-                            .refreshMessages();
+                    if (confirmed != true) return;
+                    // Optimistic: immediately flip the row to a deletion
+                    // placeholder so the UI updates instantly and the
+                    // user sees the "You deleted this message." bubble.
+                    final notifier = ref.read(
+                        chatProvider(widget.familyId).notifier);
+                    notifier.markLocallyDeletedForEveryone(message.id);
+                    // Commit on the server (sender or admin only).
+                    final service =
+                        ref.read(chatEnhancementServiceProvider);
+                    final success =
+                        await service.deleteForEveryone(message.id);
+                    if (!success) {
+                      // Restore the original message locally on failure.
+                      // The simplest restore path is to refresh from
+                      // server (which will resend the un-deleted state
+                      // since the RPC didn't go through).
+                      await notifier.refreshMessages();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'Could not delete for everyone. Please try again.'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
                       }
                     }
+                    // On success, the realtime UPDATE event will
+                    // reconcile the local state with the server (the
+                    // row's isDeletedForEveryone is now true on the
+                    // server). No refresh needed — the optimistic
+                    // state is already correct.
                   },
                 ),
             ],
@@ -3585,20 +3623,139 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _exitSelectionMode();
   }
 
-  /// Bulk delete — deletes all selected messages for the current user.
-  void _bulkDelete() async {
-    if (_selectedMessageIds.isEmpty) return;
+  /// v143 — Delete-for-Me with 5-second Undo (single OR bulk).
+  ///
+  /// Implements the implementation brief's §1 flow:
+  ///   1. Optimistically mark the given messages as deleted-for-me locally
+  ///      (they disappear from this user's view instantly).
+  ///   2. Show a SnackBar with an UNDO action for 5 seconds.
+  ///   3. If UNDO is tapped → revert the local state, skip the RPC entirely.
+  ///   4. If the timer expires → commit via fn_bulk_delete_for_me (single
+  ///      round-trip) and remove the rows from local state.
+  ///   5. On commit failure → restore + show an error snackbar.
+  ///
+  /// Handles concurrent deletion operations predictably: each call creates
+  /// its own prior-snapshot map, so undo restores exactly the messages in
+  /// THIS call — not messages from a separate pending deletion.
+  void _deleteForMeWithUndo(Set<String> messageIds) async {
+    if (messageIds.isEmpty) return;
+    final notifier = ref.read(chatProvider(widget.familyId).notifier);
+    final service = ref.read(chatEnhancementServiceProvider);
+
+    // 1. Optimistic update — capture prior deletedForMe for undo.
+    final priorSnapshots = notifier.markLocallyDeletedForMe(messageIds);
+    final isBulk = messageIds.length > 1;
+    final snackbarLabel = isBulk
+        ? '${messageIds.length} messages deleted'
+        : 'Message deleted';
+
+    // 2. Show the Undo snackbar for 5 seconds. SnackBar's `duration`
+    //    field is the inverse of "timer expires" — when the snackbar
+    //    disappears (either by tap-dismiss, 5-second auto-dismiss, or
+    //    UNDO tap), the corresponding callback fires.
+    //
+    //    We use a closed-over `_committed` flag to handle the race where
+    //    UNDO is tapped exactly as the timer expires (the action still
+    //    wins and skips the commit).
+    var committed = false;
+    var undone = false;
+    final messenger = ScaffoldMessenger.of(context);
+
+    // Clear any prior undo snackbar so we never have two stacked undo
+    // bars (the spec explicitly requires: "If the user initiates another
+    // deletion while an Undo operation is pending, handle both operations
+    // predictably without restoring the wrong messages.")
+    messenger.clearSnackBars();
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('$snackbarLabel. UNDO'),
+        duration: const Duration(seconds: 5),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: 'UNDO',
+          onPressed: () {
+            if (committed) return;
+            undone = true;
+            notifier.undoLocalDeleteForMe(priorSnapshots);
+          },
+        ),
+      ),
+    );
+
+    // 3. Wait out the snackbar duration. We can't use the snackbar's own
+    //    onVisible / onDismissed callbacks reliably (they fire for all
+    //    dismiss reasons), so we delay on a parallel timer.
+    await Future<void>.delayed(const Duration(seconds: 5));
+
+    // 4. If UNDO was tapped, do nothing further — the local state is
+    //    already restored. Otherwise commit the deletion to the server.
+    if (undone) return;
+    committed = true;
+
+    // 5. Commit. Use the bulk RPC for efficiency — single round-trip
+    //    for any number of message ids. Fall back to per-id RPCs only
+    //    if the bulk RPC fails entirely (defensive — older clients
+    //    that haven't picked up the migration would 404 on the RPC).
+    final idsList = messageIds.toList();
+    var success = await service.bulkDeleteForMe(idsList);
+    if (!success) {
+      // Fall back to per-id RPCs (one round-trip per message — slower
+      // but works against older backends that don't have the bulk RPC).
+      var anyFailed = false;
+      for (final id in idsList) {
+        final ok = await service.deleteForMe(id);
+        if (!ok) anyFailed = true;
+      }
+      success = !anyFailed;
+    }
+
+    if (!success) {
+      // Restore + error snackbar.
+      notifier.undoLocalDeleteForMe(priorSnapshots);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not delete messages. Please try again.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    // 6. Commit succeeded — finalize the local state by removing the
+    //    now-hidden rows from the in-memory list + Drift cache. (The
+    //    row stays in the backend with the user's uid appended to
+    //    deletedForMe — other participants still see it.)
+    notifier.removeMessagesFromLocalState(idsList);
+  }
+
+  /// v143 — Bulk Delete for Everyone (sender or admin only).
+  ///
+  /// Mirrors [deleteForEveryone] for a multi-select: shows the
+  /// confirmation dialog indicating how many messages will be deleted,
+  /// then commits one-by-one (the backend has no bulk delete-for-everyone
+  /// RPC). Optimistically updates each row so the placeholder appears
+  /// instantly. On partial failure, refreshes from server to reconcile.
+  Future<void> _bulkDeleteForEveryone(Set<String> messageIds) async {
+    if (messageIds.isEmpty) return;
+    final count = messageIds.length;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: KinrelColors.darkCard,
         title: Text(
-          'Delete ${_selectedMessageIds.length} message${_selectedMessageIds.length == 1 ? '' : 's'}?',
+          count == 1
+              ? 'Delete for Everyone?'
+              : 'Delete $count messages for everyone?',
           style: const TextStyle(color: KinrelColors.textWhite),
         ),
-        content: const Text(
-          'These messages will be deleted for you. Other participants will still see them.',
-          style: TextStyle(color: KinrelColors.textDim),
+        content: Text(
+          count == 1
+              ? 'This message will be removed from the conversation for all participants.'
+              : 'These messages will be removed from the conversation for all participants.',
+          style: const TextStyle(color: KinrelColors.textSilver),
         ),
         actions: [
           TextButton(
@@ -3607,20 +3764,150 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete for me',
+            child: const Text('Delete for everyone',
                 style: TextStyle(color: KinrelColors.error)),
           ),
         ],
       ),
     );
     if (confirmed != true) return;
-    final service = ref.read(chatEnhancementServiceProvider);
-    final ids = Set<String>.from(_selectedMessageIds);
     _exitSelectionMode();
-    for (final id in ids) {
-      await service.deleteForMe(id);
+
+    final notifier = ref.read(chatProvider(widget.familyId).notifier);
+    final service = ref.read(chatEnhancementServiceProvider);
+
+    // Optimistically flip each row to a deletion placeholder so the UI
+    // updates instantly. We process them sequentially because the
+    // backend RPC is also sequential.
+    for (final id in messageIds) {
+      notifier.markLocallyDeletedForEveryone(id);
+      final success = await service.deleteForEveryone(id);
+      if (!success) {
+        // Refresh from server to reconcile (the optimistic state for
+        // this id is wrong since the RPC failed). Then keep going for
+        // the remaining ids — the spec says "handle partial failures
+        // without incorrectly marking undeleted messages as deleted."
+        await notifier.refreshMessages();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Could not delete one message for everyone (it may have been already deleted). Continuing…'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
     }
-    ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+    // Final reconciliation — pulls the authoritative server state so
+    // any partial-failure rows are corrected.
+    await notifier.refreshMessages();
+  }
+
+  /// v143 — Bulk delete entry point.
+  ///
+  /// The selection toolbar's Delete button calls this. Shows a bottom
+  /// sheet offering two options:
+  ///   • Delete for me — immediately deletes for the current user with
+  ///     a 5-second UNDO snackbar (no confirmation dialog, per brief §1).
+  ///   • Delete for everyone — only enabled when ALL selected messages
+  ///     are owned by the current user (the backend RPC enforces sender-
+  ///     or-admin authorization per message). Shows a confirmation dialog
+  ///     before committing (per brief §2).
+  ///
+  /// The "for everyone" option is hidden entirely when no selected
+  /// message is owned by the current user.
+  void _bulkDelete() async {
+    if (_selectedMessageIds.isEmpty) return;
+    final selectedIds = Set<String>.from(_selectedMessageIds);
+
+    // Look up the selected messages so we can decide which options to
+    // show (delete-for-everyone is only available when the user owns ALL
+    // of the selected messages).
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final selected = chatState.messages
+        .where((m) => selectedIds.contains(m.id))
+        .toList();
+    final uid = _currentUserId;
+    final allOwned = uid != null &&
+        selected.isNotEmpty &&
+        selected.every((m) => m.senderId == uid);
+
+    // Exit selection mode BEFORE opening the sheet (so the sheet appears
+    // on top of the regular chat screen, not on top of the selection
+    // toolbar).
+    _exitSelectionMode();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 4),
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: KinrelColors.textDim.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  selectedIds.length == 1
+                      ? 'Delete 1 message'
+                      : 'Delete ${selectedIds.length} messages',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline,
+                    color: KinrelColors.textSilver, size: 22),
+                title: const Text('Delete for me',
+                    style: TextStyle(color: KinrelColors.textWhite)),
+                subtitle: const Text(
+                    'Removes from your view. Other participants still see these messages.',
+                    style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _deleteForMeWithUndo(selectedIds);
+                },
+              ),
+              if (allOwned)
+                ListTile(
+                  leading: const Icon(Icons.delete_forever,
+                      color: KinrelColors.error, size: 22),
+                  title: const Text('Delete for everyone',
+                      style: TextStyle(color: KinrelColors.error)),
+                  subtitle: const Text(
+                      'Removes from the conversation for all participants.',
+                      style:
+                          TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    _bulkDeleteForEveryone(selectedIds);
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   /// Bulk more actions — the D17 overflow menu (Copy, Star, Pin,

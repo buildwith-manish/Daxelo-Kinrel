@@ -27,6 +27,60 @@ class ChatEnhancementService {
     }
   }
 
+  /// Undo a "Delete for Me" — removes the caller's uid from the
+  /// `deletedForMe` JSONB array on this message row. Used by the chat
+  /// screen's 5-second Undo snackbar.
+  Future<bool> undoDeleteForMe(String messageId) async {
+    try {
+      final client = _ref.read(supabaseProvider);
+      if (client == null) return false;
+      await client.rpc('fn_undelete_message_for_me', params: {'p_message_id': messageId});
+      return true;
+    } catch (e) {
+      debugPrint('⚠️ undoDeleteForMe: $e');
+      return false;
+    }
+  }
+
+  /// Bulk "Delete for Me" — appends the caller's uid to the `deletedForMe`
+  /// JSONB array on each of the given message ids. Single round-trip via
+  /// the `fn_bulk_delete_for_me(jsonb)` RPC. Returns true if the RPC
+  /// succeeded (the count of affected rows is in the response but we don't
+  /// expose it — the caller already knows how many ids it sent).
+  Future<bool> bulkDeleteForMe(List<String> messageIds) async {
+    if (messageIds.isEmpty) return true;
+    try {
+      final client = _ref.read(supabaseProvider);
+      if (client == null) return false;
+      await client.rpc('fn_bulk_delete_for_me', params: {
+        'p_message_ids': messageIds, // Postgrest encodes List as JSON array
+      });
+      return true;
+    } catch (e) {
+      debugPrint('⚠️ bulkDeleteForMe: $e');
+      return false;
+    }
+  }
+
+  /// Bulk undo "Delete for Me" — removes the caller's uid from the
+  /// `deletedForMe` array on each of the given message ids. Single
+  /// round-trip via the `fn_bulk_undelete_for_me(jsonb)` RPC. Used by the
+  /// chat screen when the user taps UNDO on a multi-message delete snackbar.
+  Future<bool> bulkUndeleteForMe(List<String> messageIds) async {
+    if (messageIds.isEmpty) return true;
+    try {
+      final client = _ref.read(supabaseProvider);
+      if (client == null) return false;
+      await client.rpc('fn_bulk_undelete_for_me', params: {
+        'p_message_ids': messageIds,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('⚠️ bulkUndeleteForMe: $e');
+      return false;
+    }
+  }
+
   /// Delete a message for everyone (sender or admin only).
   Future<bool> deleteForEveryone(String messageId) async {
     try {
