@@ -55,6 +55,7 @@ import '../../../../graph/interaction/graph_focus_state.dart';
 import '../../providers/chat_provider.dart';
 import 'chat_meta.dart';
 import 'message_bubble.dart';
+import 'thread_markers.dart';
 import '../chat_ui_tokens.dart';
 import 'chat_system_notice.dart';
 import 'floating_date_indicator.dart';
@@ -455,29 +456,17 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
 
   // ── Unread divider pill (PR2 Task 3) ──────────────────────────────
 
+  /// v143 / Signature §E — Unread marker. Replaces the old unread
+  /// pill with the same line + node + label + line layout as the date
+  /// marker, but with ember-blended lines, an orange 6x6 node, and an
+  /// orange label 'N new messages' (1 new message for one). Keeps the
+  /// existing logic that decides where and when it appears — only the
+  /// look changes.
   Widget _buildUnreadDivider() {
     final count = widget.unreadDividerCount;
     return RepaintBoundary(
       key: _unreadDividerKey,
-      child: Semantics(
-        label: '$count unread messages',
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: ChatUi.chatReceived,
-                borderRadius: BorderRadius.circular(KinrelRadius.full),
-              ),
-              child: Text(
-                '$count unread message${count == 1 ? '' : 's'}',
-                style: ChatUi.unreadPillText,
-              ),
-            ),
-          ),
-        ),
-      ),
+      child: UnreadMarker(count: count),
     );
   }
 
@@ -559,22 +548,16 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
     });
   }
 
-  /// D8: Date separator (static) — centered pill, radius full,
-  /// padding 4 vertical / 12 horizontal, background chatCard, text 12
-  /// textSecondary. Normal font — never monospace.
+  /// v143 / Signature §D — Thread date marker. Replaces the old D8
+  /// pill-style date separator with a centered row of
+  /// line + node + label + line. No pill, no background. Lines color
+  /// lineColor; node 6x6 in nodeDim1; label 12/400/textSecondary.
+  /// The label format itself (Today / Yesterday / weekday within 6
+  /// days / short date) is unchanged — it's computed by _groupByDate
+  /// and passed in here as [label].
   Widget _buildDateSeparator(String label) {
     return RepaintBoundary(
-      child: Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            color: ChatUi.chatCard,
-            borderRadius: BorderRadius.circular(KinrelRadius.full),
-          ),
-          child: Text(label, style: ChatUi.pillText),
-        ),
-      ),
+      child: ThreadDateMarker(label: label),
     );
   }
 
