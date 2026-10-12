@@ -1397,6 +1397,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
           .limit(50)
           .timeout(const Duration(seconds: 10));
 
+      // TEMP DEBUG: log the groupId-specific query result.
+      print('🔄 _loadMessages: groupId=$groupId, familyId=$familyId, '
+          'response count=${(messagesResponse as List).length}');
+
       final messageIds = <String>[];
       final messages = <ChatMessage>[];
       // Preserve the raw rows so we can write them to the local cache
