@@ -317,31 +317,11 @@ Widget _sectionLabel(String text) => Padding(
   ),
 );
 
-Widget _dateChip(String label) => Center(
-  child: Container(
-    margin: const EdgeInsets.symmetric(vertical: 12),
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-    decoration: BoxDecoration(
-      color: ChatUi.chatCard,
-      borderRadius: BorderRadius.circular(999),
-    ),
-    child: Text(label, style: ChatUi.pillText),
-  ),
-);
+Widget _dateChip(String label) => ThreadDateMarker(label: label);
 
-Widget _unreadPill(int count) => Center(
-  child: Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-    decoration: BoxDecoration(
-      color: ChatUi.chatReceived,
-      borderRadius: BorderRadius.circular(999),
-    ),
-    child: Text(
-      '$count unread message${count == 1 ? '' : 's'}',
-      style: ChatUi.unreadPillText,
-    ),
-  ),
-);
+// (Removed the old _unreadPill helper — the gallery now uses the new
+// UnreadMarker widget from thread_markers.dart everywhere the unread
+// divider used to be drawn.)
 
 Widget _notice(String text, {bool withAction = true}) =>
     ChatSystemNotice(content: text, onViewInTree: withAction ? () {} : null);
@@ -452,7 +432,10 @@ class _GroupChatPage extends StatelessWidget {
                     isMe: false,
                   ),
                 ),
-                _unreadPill(1),
+                _padded(
+                  bottom: 8,
+                  child: const UnreadMarker(count: 1),
+                ),
                 _padded(
                   child: _Bubble(
                     message: _msg(
