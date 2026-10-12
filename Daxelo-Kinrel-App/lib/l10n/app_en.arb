@@ -686,22 +686,30 @@
   "@chatTypingSingle": {
     "description": "Shown when one user is typing in the chat",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatTypingTwo": "{name1} and {name2} are typing",
   "@chatTypingTwo": {
     "description": "Shown when two users are typing in the chat",
     "placeholders": {
-      "name1": { "type": "String" },
-      "name2": { "type": "String" }
+      "name1": {
+        "type": "String"
+      },
+      "name2": {
+        "type": "String"
+      }
     }
   },
   "chatTypingMany": "{name} and others are typing",
   "@chatTypingMany": {
     "description": "Shown when 3+ users are typing in the chat",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatActiveNow": "Active now",
@@ -712,7 +720,9 @@
   "@chatNActive": {
     "description": "Presence label shown when 2+ members are online",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatLastSeenJustNow": "Last seen just now",
@@ -723,21 +733,27 @@
   "@chatLastSeenMinutes": {
     "description": "Last seen label for minutes ago",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatLastSeenHours": "Last seen {count}h ago",
   "@chatLastSeenHours": {
     "description": "Last seen label for hours ago",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatLastSeenDays": "Last seen {count}d ago",
   "@chatLastSeenDays": {
     "description": "Last seen label for days ago",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatOffline": "Offline",
@@ -752,15 +768,21 @@
   "@chatEmptyStateSubtitle": {
     "description": "Subtitle shown in the empty chat state",
     "placeholders": {
-      "familyName": { "type": "String" },
-      "count": { "type": "int" }
+      "familyName": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatEmptyStateSubtitleNoCount": "in the {familyName} family",
   "@chatEmptyStateSubtitleNoCount": {
     "description": "Subtitle shown in the empty chat state when member count is 0",
     "placeholders": {
-      "familyName": { "type": "String" }
+      "familyName": {
+        "type": "String"
+      }
     }
   },
   "chatSuggestionNamaste": "Namaste everyone 🙏",
@@ -775,29 +797,39 @@
   "@chatSuggestionGoodMorning": {
     "description": "Quick-reply suggestion in empty chat state",
     "placeholders": {
-      "familyName": { "type": "String" }
+      "familyName": {
+        "type": "String"
+      }
     }
   },
   "chatBirthdayToday": "{name}'s birthday is today! 🎂",
   "@chatBirthdayToday": {
     "description": "Upcoming event chip when birthday is today",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatBirthdayTomorrow": "{name}'s birthday tomorrow 🎂",
   "@chatBirthdayTomorrow": {
     "description": "Upcoming event chip when birthday is tomorrow",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatBirthdayInDays": "{name}'s birthday in {count} days 🎂",
   "@chatBirthdayInDays": {
     "description": "Upcoming event chip when birthday is in N days",
     "placeholders": {
-      "name": { "type": "String" },
-      "count": { "type": "int" }
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatSearchPlaceholder": "Search messages...",
@@ -812,7 +844,9 @@
   "@chatSearchResultsCount": {
     "description": "Shown above search results",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatMessageSending": "Sending...",
@@ -835,36 +869,123 @@
   "@chatSystemMessageUserJoined": {
     "description": "System chat message when a user joins a game room",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatSystemMessageUserLeft": "{name} left the room",
   "@chatSystemMessageUserLeft": {
     "description": "System chat message when a user leaves a game room",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatSystemMessageUserDisconnected": "{name} disconnected",
   "@chatSystemMessageUserDisconnected": {
     "description": "System chat message when a user disconnects",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatSystemMessageRoomClosed": "{name} closed the room",
   "@chatSystemMessageRoomClosed": {
     "description": "System chat message when host closes the room",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatSystemMessageUserReacted": "{name} reacted {emoji}",
   "@chatSystemMessageUserReacted": {
     "description": "System chat message when a user reacts",
     "placeholders": {
-      "name": { "type": "String" },
-      "emoji": { "type": "String" }
+      "name": {
+        "type": "String"
+      },
+      "emoji": {
+        "type": "String"
+      }
     }
+  },
+  "chatGhostYou": "You took this back.",
+  "@chatGhostYou": {
+    "description": "v143 Signature §B — ghost bubble label when the current user deleted their own message.",
+    "placeholders": null
+  },
+  "chatGhostOther": "{name} took this back.",
+  "@chatGhostOther": {
+    "description": "v143 Signature §B — ghost bubble label when another participant deleted their message. {name} is the relationship label if resolved, else the sender name.",
+    "placeholders": null
+  },
+  "chatGhostCollapsed": "{count} messages were taken back",
+  "@chatGhostCollapsed": {
+    "description": "v143 Signature §B — collapsed-ghost row label when 3+ adjacent ghost rows are collapsed. {count} is the integer count.",
+    "placeholders": null
+  },
+  "chatGhostReplyQuote": "Message taken back",
+  "@chatGhostReplyQuote": {
+    "description": "v143 Signature §B — reply-preview text shown when the replied-to message was deleted for everyone.",
+    "placeholders": null
+  },
+  "chatDeliverySending": "Sending",
+  "@chatDeliverySending": {
+    "description": "v143 Signature §C — delivery mark semantics label for the sending state.",
+    "placeholders": null
+  },
+  "chatDeliverySent": "Sent",
+  "@chatDeliverySent": {
+    "description": "v143 Signature §C — delivery mark semantics label for the sent state.",
+    "placeholders": null
+  },
+  "chatDeliveryDelivered": "Delivered",
+  "@chatDeliveryDelivered": {
+    "description": "v143 Signature §C — delivery mark semantics label for the delivered state.",
+    "placeholders": null
+  },
+  "chatDeliveryRead": "Read",
+  "@chatDeliveryRead": {
+    "description": "v143 Signature §C — delivery mark semantics label for the read state.",
+    "placeholders": null
+  },
+  "chatUnreadOne": "1 new message",
+  "@chatUnreadOne": {
+    "description": "v143 Signature §E — unread marker label for a single new message.",
+    "placeholders": null
+  },
+  "chatUnreadMany": "{count} new messages",
+  "@chatUnreadMany": {
+    "description": "v143 Signature §E — unread marker label. {count} is the integer count.",
+    "placeholders": null
+  },
+  "chatPassedAlong": "Passed along",
+  "@chatPassedAlong": {
+    "description": "v143 Signature §F — forwarded-message label above the bubble content.",
+    "placeholders": null
+  },
+  "chatReplyYou": "You",
+  "@chatReplyYou": {
+    "description": "v143 Signature §G — reply-quote title row when the replied-to message is the current user's own.",
+    "placeholders": null
+  },
+  "chatReplyingTo": "Replying to {name}",
+  "@chatReplyingTo": {
+    "description": "v143 Signature §G — reply bar above the composer. {name} is the relationship label or sender name.",
+    "placeholders": null
+  },
+  "chatTypingDirect": "typing",
+  "@chatTypingDirect": {
+    "description": "v143 Signature §H — typing indicator text in direct chat (no name shown).",
+    "placeholders": null
+  },
+  "chatTypingSeveral": "Several people are typing",
+  "@chatTypingSeveral": {
+    "description": "v143 Signature §H — typing indicator text when more than 2 people are typing.",
+    "placeholders": null
   }
 }

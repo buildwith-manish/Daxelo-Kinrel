@@ -90,5 +90,20 @@
   "familyMapLegendTierStale": "പഴയ",
   "familyMapLegendTierStaleDesc": "< 1 മണിക്കൂർ മുമ്പ്",
   "familyMapLegendTierCity": "നഗരം",
-  "familyMapLegendTierCityDesc": "നഗര കേന്ദ്രം"
+  "familyMapLegendTierCityDesc": "നഗര കേന്ദ്രം",
+  "chatGhostYou": "You took this back.",
+  "chatGhostOther": "{name} took this back.",
+  "chatGhostCollapsed": "{count} messages were taken back",
+  "chatGhostReplyQuote": "Message taken back",
+  "chatDeliverySending": "Sending",
+  "chatDeliverySent": "Sent",
+  "chatDeliveryDelivered": "Delivered",
+  "chatDeliveryRead": "Read",
+  "chatUnreadOne": "1 new message",
+  "chatUnreadMany": "{count} new messages",
+  "chatPassedAlong": "Passed along",
+  "chatReplyYou": "You",
+  "chatReplyingTo": "Replying to {name}",
+  "chatTypingDirect": "typing",
+  "chatTypingSeveral": "Several people are typing"
 }

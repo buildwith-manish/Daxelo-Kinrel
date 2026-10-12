@@ -72,6 +72,30 @@ abstract final class ChatUi {
   /// Meta text — timestamps, counts (D7).
   static const Color textMeta = Color(0xFF8E92A8);
 
+  /// v143 / Signature §A — Subtitle text. Sits between textSecondary
+  /// (B9BDD0) and textMeta (8E92A8) — used for ghost-bubble labels,
+  /// typing indicator text, and other "supporting copy" that's one
+  /// notch dimmer than body secondary text.
+  static const Color textSubtitle = Color(0xFF9AA0B8);
+
+  /// v143 / Signature §A — Hairline rule color for date markers, unread
+  /// markers, and similar thread-separator rows. Distinct from
+  /// chatCardBorder (white @ 8%) so separators stay solid + crisp.
+  static const Color lineColor = Color(0xFF2E3150);
+
+  /// v143 / Signature §A — Linked-node palette. Three steps from bright
+  /// to dim used by the typing indicator, delivery marks, and ghost
+  /// icon's two-dot+ring shape. nodeDim1 == textSecondary,
+  /// nodeDim2 == textMeta (kept as separate aliases so a future palette
+  /// tweak doesn't have to touch multiple call sites).
+  static const Color nodeDim1 = Color(0xFFB9BDD0);
+  static const Color nodeDim2 = Color(0xFF8E92A8);
+  static const Color nodeDim3 = Color(0xFF5A5E78);
+
+  /// v143 / Signature §A — Edge color between linked nodes in the
+  /// typing indicator painter (1 dp strokes).
+  static const Color edgeDim = Color(0xFF6B6F86);
+
   /// Brand accent (send circle, hearts, links, active dots).
   static const Color accent = KinrelColors.orange;
 
@@ -195,6 +219,87 @@ abstract final class ChatUi {
     color: textPrimary,
   );
 
+  // ── v143 / Signature §A — Additional typography ───────────────────────
+  //
+  // Time: 11 / 400 / textMeta (already declared above as `timeText`).
+  // Label: 13 / 400. Small label: 11 / 500. Marker text: 12 / 400.
+  // Never italic, never monospace in chat.
+
+  /// v143 — Label (13 / 400 / textPrimary). Used inside the ghost
+  /// bubble, gallery section headers, etc.
+  static const TextStyle labelText = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 13,
+    fontWeight: FontWeight.w400,
+    color: textPrimary,
+  );
+
+  /// v143 — Small label (11 / 500). Used for the relationship dot +
+  /// name title row in the reply quote, the passed-along label, and
+  /// similar small caption labels. Color is overridable at the call
+  /// site (e.g. replyQuoteNameText uses the readable kinship color).
+  static const TextStyle smallLabelText = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 11,
+    fontWeight: FontWeight.w500,
+    color: textPrimary,
+  );
+
+  /// v143 — Marker text (12 / 400 / textSecondary). Used inside the
+  /// date marker, unread marker, and collapsed-ghost row.
+  static const TextStyle markerText = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    color: textSecondary,
+  );
+
+  /// v143 — Ghost bubble label (13 / 400 / textSubtitle). Used by
+  /// DeletedMessageGhost's "You took this back" / "NAME took this back".
+  static const TextStyle ghostLabel = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 13,
+    fontWeight: FontWeight.w400,
+    color: textSubtitle,
+  );
+
+  /// v143 — Passed-along label (11 / 500 / textMeta). Used above the
+  /// bubble content when the message is forwarded.
+  static const TextStyle passedAlongText = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 11,
+    fontWeight: FontWeight.w500,
+    color: textMeta,
+  );
+
+  /// v143 — Typing indicator text (12 / 400 / textSubtitle). Used by
+  /// the linked-nodes typing bubble ("NAME is typing").
+  static const TextStyle typingText = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    color: textSubtitle,
+  );
+
+  /// v143 — Reply quote name (11 / 500). Color is overridable per
+  /// caller (the readable kinship color variant). Default is
+  /// textPrimary for standalone use (e.g. gallery legend rows).
+  static const TextStyle replyQuoteName = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 11,
+    fontWeight: FontWeight.w500,
+    color: textPrimary,
+  );
+
+  /// v143 — Reply quote text (12 / 400 / textSecondary, height 1.3).
+  static const TextStyle replyQuoteText = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    color: textSecondary,
+    height: 1.3,
+  );
+
   // ── C. Sizes & metrics ───────────────────────────────────────────────
 
   /// Bubble corner radius — 14 on all four corners (D3/D4/D5).
@@ -251,6 +356,57 @@ abstract final class ChatUi {
   /// Minimum tap target for every interactive element.
   static const double tapTarget = 48;
 
+  // ── v143 / Signature §A — Additional sizes ───────────────────────────
+
+  /// Date / unread marker row: vertical padding.
+  static const double dateMarkerVPadding = 6;
+
+  /// Date / unread marker: 6x6 node circle.
+  static const double dateMarkerNodeSize = 6;
+
+  /// Date / unread marker: gap between line and node, node and label,
+  /// label and line.
+  static const double dateMarkerGap = 8;
+  static const double dateMarkerNodeLabelGap = 6;
+
+  /// Date / unread marker: line thickness.
+  static const double dateMarkerLineThickness = 1;
+
+  /// Delivery mark CustomPainter bounds (§C).
+  static const double deliveryMarkWidth = 18;
+  static const double deliveryMarkHeight = 10;
+  static const double deliveryMarkGapBefore = 6; // gap after the time
+
+  /// Ghost bubble (§B).
+  static const double ghostIconWidth = 22;
+  static const double ghostIconHeight = 16;
+  static const double ghostIconTextGap = 8;
+  static const double ghostVPadding = 8;
+  static const double ghostHPadding = 10;
+  static const double ghostLeftPaddingGroup = 14; // band-side, received group
+  static const double ghostLeftPaddingDirect = 10; // received direct
+  static const double ghostTimeGap = 6; // gap between label and time
+
+  /// Reply quote (§G).
+  static const double replyBandWidth = 3;
+  static const double replyRadius = 8;
+  static const double replyTopPad = 4;
+  static const double replyRightPad = 8;
+  static const double replyBottomPad = 4;
+  static const double replyLeftPad = 12;
+  static const double replyBottomMargin = 4;
+
+  /// Typing indicator (§H).
+  static const double typingPainterWidth = 46;
+  static const double typingPainterHeight = 12;
+  static const double typingNodeRadius = 2.6;
+  static const double typingGap = 10;
+
+  /// Passed-along label (§F).
+  static const double passedAlongIconSize = 13;
+  static const double passedAlongGap = 4;
+  static const double passedAlongBottomMargin = 2;
+
   // ── Helpers ──────────────────────────────────────────────────────────
 
   /// Pill label color for a kinship band color — the band color
@@ -258,4 +414,30 @@ abstract final class ChatUi {
   /// 12 percent tinted pill background (D6).
   static Color kinshipPillText(Color c) =>
       Color.lerp(c, Colors.white, 0.12)!.withValues(alpha: 1);
+
+  /// v143 / Signature §A — `blendOver(background, color, amount)`.
+  ///
+  /// Mixes `color` over `background` at `amount` (0..1) and returns an
+  /// OPAQUE color. Equivalent to: `color * amount + background * (1 - amount)`
+  /// with alpha forced to 1. Use this instead of `Color.withValues(alpha:)`
+  /// whenever you need a "faded" color in the chat — it stays flat (no
+  /// alpha compositing surprises over wallpapers or stacked layers) and
+  /// is consistent across the whole signature palette.
+  ///
+  /// Example: `blendOver(ChatUi.chatBackground, KinrelColors.ember, 0.55)`
+  /// is the border/icon color used by the own-message ghost (Section B).
+  static Color blendOver(Color background, Color color, double amount) {
+    final mixed = Color.lerp(background, color, amount);
+    if (mixed == null) return color;
+    // Force opaque — both inputs are opaque, but Color.lerp leaves the
+    // alpha channel at its interpolated value. Force 1.0 so callers can
+    // use the result as a solid fill or border.
+    return mixed.withValues(alpha: 1);
+  }
+
+  /// v143 / Signature §A — Readable text variant of a kinship color for
+  /// small labels. Blends the kinship color 20% toward white so 11/500
+  /// text on a dark bubble stays legible (e.g. parent #3B82F6 → ~#6FA3F8).
+  static Color readableKinshipLabel(Color c) =>
+      Color.lerp(c, Colors.white, 0.20)!.withValues(alpha: 1);
 }

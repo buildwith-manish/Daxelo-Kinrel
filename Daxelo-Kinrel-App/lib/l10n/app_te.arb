@@ -121,5 +121,20 @@
   "chatSystemMessageUserLeft": "{name} రూమ్ వదిలి వెళ్లారు",
   "chatSystemMessageUserDisconnected": "{name} డిస్కనెక్ట్ అయ్యారు",
   "chatSystemMessageRoomClosed": "{name} రూమ్ మూసివేశారు",
-  "chatSystemMessageUserReacted": "{name} ప్రతిస్పందించారు {emoji}"
+  "chatSystemMessageUserReacted": "{name} ప్రతిస్పందించారు {emoji}",
+  "chatGhostYou": "You took this back.",
+  "chatGhostOther": "{name} took this back.",
+  "chatGhostCollapsed": "{count} messages were taken back",
+  "chatGhostReplyQuote": "Message taken back",
+  "chatDeliverySending": "Sending",
+  "chatDeliverySent": "Sent",
+  "chatDeliveryDelivered": "Delivered",
+  "chatDeliveryRead": "Read",
+  "chatUnreadOne": "1 new message",
+  "chatUnreadMany": "{count} new messages",
+  "chatPassedAlong": "Passed along",
+  "chatReplyYou": "You",
+  "chatReplyingTo": "Replying to {name}",
+  "chatTypingDirect": "typing",
+  "chatTypingSeveral": "Several people are typing"
 }
