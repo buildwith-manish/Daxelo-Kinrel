@@ -32,7 +32,9 @@ abstract final class ChatUi {
   // ── A. Colors ────────────────────────────────────────────────────────
 
   /// Screen background behind the wallpaper (D2).
-  static const Color chatBackground = Color(0xFF131416);
+  /// v143 redesign: darker navy-blue (#0B1020) for a premium
+  /// constellation look matching the reference image.
+  static const Color chatBackground = Color(0xFF0B1020);
 
   /// Header / composer bar surface (D1, D12, D14).
   static const Color chatBar = Color(0xFF13141E);
@@ -112,11 +114,15 @@ abstract final class ChatUi {
   /// Plus button in the reaction bar (D15).
   static const Color reactionPlus = textSecondary;
 
-  /// Constellation wallpaper dots (D13).
-  static const Color wallDot = Color(0xFF1F2230);
+  /// Constellation wallpaper nodes (D13).
+  /// v143 redesign: brighter blue-purple (#3A3270) for sparse,
+  /// understated constellation nodes against the dark navy bg.
+  static const Color wallDot = Color(0xFF3A3270);
 
   /// Constellation wallpaper lines, 1 dp (D13).
-  static const Color wallLine = Color(0xFF1A1C27);
+  /// v143 redesign: subtle blue-purple (#252D50) for thin connection
+  /// lines — visible but never competing with message bubbles.
+  static const Color wallLine = Color(0xFF252D50);
 
   // ── B. Typography ────────────────────────────────────────────────────
 
