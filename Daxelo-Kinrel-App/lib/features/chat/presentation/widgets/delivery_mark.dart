@@ -12,11 +12,13 @@
 //   • sending — hollow ring, radius 3, stroke 1.4, centered at (5,5),
 //     color textMeta.
 //   • sent — filled dot, radius 3, at (5,5), color textMeta.
-//   • delivered — filled dot radius 2.6 at (4,5), a 1.2 stroke line
-//     from x 6.8 to 10.2 at y 5, hollow ring radius 2.6 stroke 1.4 at
-//     (12.4,5), all textMeta.
-//   • read — same as delivered but both circles filled and the line,
-//     all in orange (KinrelColors.orange).
+//   • delivered — filled dot radius 2.6 at (4,5), hollow ring radius
+//     2.6 stroke 1.4 at (7.9,5). The two circles overlap by 25% of
+//     their diameter (distance between centers = 0.75 × diameter =
+//     0.75 × 5.2 = 3.9), creating a connected double-circle symbol.
+//     All textMeta.
+//   • read — same as delivered but both circles FILLED, all in orange
+//     (KinrelColors.orange).
 //
 // Bounds: 18 dp wide, 10 dp tall. Right of the time with a 6 dp gap.
 // The existing status logic + the failed state in chat_meta.dart's
@@ -137,29 +139,22 @@ class _DeliveryMarkPainter extends CustomPainter {
         // Filled dot radius 2.6 at (4,5).
         paint.style = PaintingStyle.fill;
         canvas.drawCircle(const Offset(4, 5), 2.6, paint);
-        // 1.2 stroke line from x 6.8 to 10.2 at y 5.
+        // Hollow ring radius 2.6 stroke 1.4 at (7.9,5).
+        // 25% overlap: distance between centers = 0.75 × diameter
+        // = 0.75 × 5.2 = 3.9 → second center at 4 + 3.9 = 7.9.
+        // No connecting line — the circles overlap directly,
+        // forming one connected double-circle symbol.
         paint
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2;
-        canvas.drawLine(
-            const Offset(6.8, 5), const Offset(10.2, 5), paint);
-        // Hollow ring radius 2.6 stroke 1.4 at (12.4,5).
-        paint.strokeWidth = 1.4;
-        canvas.drawCircle(const Offset(12.4, 5), 2.6, paint);
+          ..strokeWidth = 1.4;
+        canvas.drawCircle(const Offset(7.9, 5), 2.6, paint);
         break;
       case DeliveryMarkStatus.read:
-        // Same as delivered but both circles FILLED + the line, all orange.
+        // Same as delivered but both circles FILLED, all orange.
+        // 25% overlap — no connecting line.
         paint.style = PaintingStyle.fill;
         canvas.drawCircle(const Offset(4, 5), 2.6, paint);
-        // Line.
-        paint
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2;
-        canvas.drawLine(
-            const Offset(6.8, 5), const Offset(10.2, 5), paint);
-        // Second circle FILLED.
-        paint.style = PaintingStyle.fill;
-        canvas.drawCircle(const Offset(12.4, 5), 2.6, paint);
+        canvas.drawCircle(const Offset(7.9, 5), 2.6, paint);
         break;
     }
   }
