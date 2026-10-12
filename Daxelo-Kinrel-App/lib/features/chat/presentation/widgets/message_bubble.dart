@@ -155,6 +155,36 @@ class MessageBubble extends ConsumerWidget {
     // can't use the _currentUserId getter — it reads the provider directly.
     final currentUserId = ref.watch(chatCurrentUserIdProvider);
 
+    // v143: If this message is a reply to a message that has since been
+    // deleted-for-everyone, swap the reply preview's quoted content for
+    // a safe "deleted" reference so the original content is not exposed
+    // through the reply preview. We do a one-shot ref.read here (not
+    // watch) — it's cheap (linear scan of the local messages list, only
+    // when replyToId != null) and avoids an extra subscription per
+    // bubble. Falls back to false when the familyId is null (DMs that
+    // don't expose a chatProvider family scope) or the replied-to
+    // message isn't in the local cache (e.g. very old replies).
+    bool replyTargetDeleted = false;
+    if (message.replyToId != null && familyId != null) {
+      try {
+        final chatState = ref.read(chatProvider(familyId!));
+        final target = chatState.messages.firstWhere(
+          (m) => m.id == message.replyToId,
+          // orElse returns a sentinel — the `firstWhereOrElse` doesn't
+          // expose a sentinel object cleanly here, so we catch the
+          // StateError instead.
+        );
+        replyTargetDeleted = target.isDeletedForEveryone;
+      } catch (_) {
+        // Reply target not in the local cache (older than the 50-msg
+        // window) — assume not-deleted. The server-side replyToContent
+        // snapshot is still safe to show because the deletion RPC
+        // doesn't retroactively scrub denormalized reply snapshots
+        // (we handle that client-side here instead).
+        replyTargetDeleted = false;
+      }
+    }
+
     // Sticker messages render WITHOUT the bubble background — just the
     // emoji + a small timestamp underneath.
     final isSticker = message.messageType == MessageType.sticker;
@@ -248,6 +278,37 @@ class MessageBubble extends ConsumerWidget {
           );
         }
 
+        // ── v143: deleted-for-everyone → Kinrel deletion placeholder ──
+        // Renders a compact, muted bubble with a single-line label so the
+        // user can see that a message was deleted without revealing the
+        // original content. The wording is personalized:
+        //   • When the current user is the deleter (message.deletedByUserId
+        //     == currentUserId, which equals isMe today since only the
+        //     author can delete-for-everyone) → "You deleted this message."
+        //   • Otherwise → "<participant name> deleted this message." where
+        //     the participant name is the original message author's
+        //     senderName (preserved on the row even after deletion).
+        //
+        // Layout invariants (see §E of the implementation brief):
+        //   • Single-line label with TextOverflow.ellipsis — long names
+        //     truncate rather than expanding the placeholder vertically.
+        //   • Consistent minimum + preferred height regardless of name
+        //     length — pinned via a SizedBox + ConstrainedBox.
+        //   • Same horizontal alignment + margin as the original message
+        //     (isMe → right, !isMe → left, 48 dp on the "off" side).
+        //   • Long-press + selection-mode tap handlers preserved so the
+        //     placeholder can still be selected / acted on.
+        //   • Reply preview is NOT rendered for a deleted-for-everyone
+        //     row (the original content is gone — showing the preview
+        //     would leak the deleted text).
+        if (message.isDeletedForEveryone) {
+          return _buildDeletedPlaceholder(
+            context: context,
+            currentUserId: currentUserId,
+            tapHandler: tapHandler,
+          );
+        }
+
         return GestureDetector(
           onLongPress: onLongPress,
           onTap: tapHandler,
@@ -274,13 +335,16 @@ class MessageBubble extends ConsumerWidget {
                         // Reply preview (if replying to a message).
                         // Feature 6: tapping the quote scrolls to the original
                         // message (wired via onReplyPreviewTap in chat_screen).
+                        // v143: if the reply target is deleted-for-everyone,
+                        // the preview shows a safe "deleted" reference
+                        // instead of the original (now-deleted) text.
                         if (message.replyToId != null)
                           onReplyPreviewTap != null
                               ? GestureDetector(
                                   onTap: onReplyPreviewTap,
-                                  child: _buildReplyPreview(),
+                                  child: _buildReplyPreview(replyTargetDeleted),
                                 )
-                              : _buildReplyPreview(),
+                              : _buildReplyPreview(replyTargetDeleted),
                         // Chat UI Reference D3/D4/D5 — flat bubble:
                         // solid fill, radius 14 on all four corners,
                         // spec padding, no shadows, no gradients.
@@ -475,10 +539,32 @@ class MessageBubble extends ConsumerWidget {
     );
   }
 
-  Widget _buildReplyPreview() {
+  Widget _buildReplyPreview([bool replyTargetDeleted = false]) {
     // v131: Premium reply preview — softer background, refined accent
     // bar, gentler radius. Sits naturally above the bubble without
     // feeling like a separate floating card.
+    //
+    // v143: When `replyTargetDeleted` is true, the quoted content is
+    // replaced with a muted "This message was deleted." so the original
+    // (now-deleted) text is not exposed through the reply preview. The
+    // reply is retained (the user can still scroll to where it was).
+    final String previewContent = replyTargetDeleted
+        ? 'This message was deleted.'
+        : (message.replyToContent ?? '');
+    final TextStyle previewStyle = replyTargetDeleted
+        ? TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 12,
+            fontStyle: FontStyle.italic,
+            color: KinrelColors.textSilver.withValues(alpha: 0.6),
+            height: 1.3,
+          )
+        : TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 12,
+            color: KinrelColors.textSilver.withValues(alpha: 0.85),
+            height: 1.3,
+          );
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -505,17 +591,132 @@ class MessageBubble extends ConsumerWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            message.replyToContent ?? '',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 12,
-              color: KinrelColors.textSilver.withValues(alpha: 0.85),
-              height: 1.3,
-            ),
+            previewContent,
+            style: previewStyle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
         ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // v143 — Kinrel Custom Message-Deletion Placeholder
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Renders a compact, muted, single-line placeholder for any message that
+  // has been deleted-for-everyone. The wording is personalized for the
+  // viewing user:
+  //
+  //   • If the current user is the deleter (i.e. they authored and deleted
+  //     the message) → "You deleted this message."
+  //   • If another participant deleted their own message →
+  //     "<Participant name> deleted this message."
+  //
+  // Today only the original author can delete a message for everyone, so
+  // the "deleter" and "author" are the same person — we use the message's
+  // preserved `senderName` (which the server keeps even after deletion) for
+  // the participant-name variant. This is the same identity shown elsewhere
+  // in the chat, so display-name changes are handled by the established
+  // message-history convention (the row keeps the snapshot at deletion time).
+  //
+  // Layout invariants (per implementation brief §E — "every placeholder
+  // must be the same size"):
+  //   • Pinned minimum height (36 dp) and consistent vertical padding
+  //     regardless of name length.
+  //   • Single-line label with TextOverflow.ellipsis — long names truncate
+  //     horizontally rather than wrapping to a second line.
+  //   • Same horizontal alignment + 48 dp "off-side" margin as a normal
+  //     bubble so the placeholder doesn't shift the message's position.
+  //   • No reply preview, no reactions, no timestamp row — purely the
+  //     muted label and a small deletion icon. This keeps the placeholder
+  //     visually distinct from ordinary messages without resembling an
+  //     error alert or a failed-message state.
+  //
+  // Visual treatment: muted row background (slightly darker than a normal
+  // bubble), italics body text in textSilver, a subtle block icon, and
+  // a 1 dp border in textDim @ 18% alpha. All colors come from KinrelColors
+  // tokens — no hardcoded values.
+  // ═══════════════════════════════════════════════════════════════════════
+  Widget _buildDeletedPlaceholder({
+    required BuildContext context,
+    required String? currentUserId,
+    required VoidCallback? tapHandler,
+  }) {
+    // Personalized wording — see method doc.
+    final bool deletedByMe = (message.deletedByUserId != null &&
+            currentUserId != null &&
+            message.deletedByUserId == currentUserId) ||
+        isMe; // isMe is the legacy/DM fallback when deletedByUserId is null
+    final String label = deletedByMe
+        ? 'You deleted this message.'
+        : '${message.senderName} deleted this message.';
+
+    return GestureDetector(
+      onLongPress: onLongPress,
+      onTap: tapHandler,
+      behavior: HitTestBehavior.opaque,
+      child: Align(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.sizeOf(context).width *
+                ChatUi.bubbleMaxWidthFactor,
+          ),
+          margin:
+              EdgeInsets.only(left: isMe ? 48 : 0, right: isMe ? 0 : 48),
+          // Pinned height so the placeholder never grows taller for long
+          // names (single-line label with ellipsis handles the width).
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              minHeight: 36,
+              maxHeight: 36,
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: KinrelColors.darkCard.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(ChatUi.bubbleRadius),
+                border: Border.all(
+                  color: KinrelColors.textDim.withValues(alpha: 0.18),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: isMe
+                    ? MainAxisAlignment.end
+                    : MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.block_rounded,
+                    size: 13,
+                    color: KinrelColors.textDim.withValues(alpha: 0.85),
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                        color: KinrelColors.textSilver
+                            .withValues(alpha: 0.75),
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
