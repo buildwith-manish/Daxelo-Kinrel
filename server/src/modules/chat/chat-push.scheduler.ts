@@ -58,7 +58,15 @@ export class ChatPushScheduler {
       //
       // The "recipient" of a message is every family member EXCEPT the
       // sender AND except users who have already read it (in readBy).
-      // We resolve recipients by joining FamilyMember on familyId.
+      // We resolve recipients by joining FamilyMember on familyId —
+      // UNLESS the message has a groupId, in which case only the
+      // GroupMembers of that group are recipients (per docs/DM_REBUILD_PLAN.md,
+      // "STOP ITEM 1 fix"). This keeps direct/group messages private
+      // from the rest of the family — both the FCM push and the in-app
+      // Notification row are scoped to group members only.
+      //
+      // NOTE on the `select`: we read `groupId` here so we can branch
+      // recipient resolution per message below.
       const unnotifiedMessages = await this.prisma.chatMessage.findMany({
         where: {
           notified: false,
@@ -68,6 +76,7 @@ export class ChatPushScheduler {
         select: {
           id: true,
           familyId: true,
+          groupId: true,
           senderId: true,
           senderName: true,
           content: true,
@@ -108,18 +117,44 @@ export class ChatPushScheduler {
         }>
       >();
 
-      // Cache family member lookups + family name lookups to avoid N queries.
-      const familyMembersCache = new Map<string, { userId: string }[]>();
+      // Cache recipient lookups + family name lookups to avoid N queries.
+      //
+      // The recipient cache is keyed by a stable string that fully scopes
+      // the lookup: `group:<groupId>` for group-scoped messages and
+      // `family:<familyId>` for family-wide messages. Group and family
+      // recipients must NEVER mix — a direct-group message must not pick
+      // up family-wide recipients from a sibling cache entry, and a
+      // family-wide message must not pick up group members. The prefix
+      // on the key (group: vs family:) is what prevents the leak: even
+      // though a groupId and a familyId are both opaque text ids, the
+      // cache keys `group:abc` and `family:abc` are distinct entries.
+      const recipientsCache = new Map<string, { userId: string }[]>();
       const familyNameCache = new Map<string, string>();
 
       for (const msg of unnotifiedMessages) {
-        let members = familyMembersCache.get(msg.familyId);
+        // Branch recipient resolution on msg.groupId:
+        //   • groupId set  → only GroupMember rows of that group are
+        //                    recipients (direct chat / private group /
+        //                    existing group chat). The rest of the family
+        //                    is NOT notified and gets NO preview.
+        //   • groupId null → every FamilyMember of msg.familyId is a
+        //                    recipient (the existing family-wide chat).
+        // Sender-skip + readBy-skip happen below — they're unchanged.
+        const cacheKey =
+          msg.groupId != null ? `group:${msg.groupId}` : `family:${msg.familyId}`;
+        let members = recipientsCache.get(cacheKey);
         if (!members) {
-          members = await this.prisma.familyMember.findMany({
-            where: { familyId: msg.familyId },
-            select: { userId: true },
-          });
-          familyMembersCache.set(msg.familyId, members);
+          members =
+            msg.groupId != null
+              ? await this.prisma.groupMember.findMany({
+                  where: { groupId: msg.groupId },
+                  select: { userId: true },
+                })
+              : await this.prisma.familyMember.findMany({
+                  where: { familyId: msg.familyId },
+                  select: { userId: true },
+                });
+          recipientsCache.set(cacheKey, members);
         }
 
         for (const m of members) {

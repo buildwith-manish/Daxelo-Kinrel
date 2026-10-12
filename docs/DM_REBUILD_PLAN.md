@@ -11,7 +11,7 @@
 > constraint**). The first draft wrongly put `groupType`/`directKey` on
 > `"Family"` and used `"FamilyMember"` rows as the "group members"; that
 > design is scrapped. The migration file
-> `20261101120000_dm_rebuild_direct_groups.sql` was rewritten to the real
+> `20261011120000_dm_rebuild_direct_groups.sql` was rewritten to the real
 > Group design.
 
 ## C0 — Audit + Safety Gate (read-only)
@@ -164,7 +164,7 @@ Reported deviations (documented, not silently dropped):
 
 ## C1 — SQL Migration (additive + idempotent; this branch, NOT merged)
 
-**File:** `supabase/migrations/20261101120000_dm_rebuild_direct_groups.sql`
+**File:** `supabase/migrations/20261011120000_dm_rebuild_direct_groups.sql`
 (timestamp later than every existing migration).
 
 Contents:

@@ -12,7 +12,7 @@
 // (direct_message_provider.dart / direct_message_adapter.dart /
 // direct_chat_screen.dart — deleted in the same PR):
 //   • getOrCreateDirectGroup() — wraps the fn_get_or_create_direct_group
-//     RPC (created by supabase/migrations/20261101120000_*.sql).
+//     RPC (created by supabase/migrations/20261011120000_*.sql).
 //   • openDirectChat() — the ONE helper every DM entry point calls.
 //     NOTE: this depends on the C1 migration being applied to the
 //     database. If the RPC is missing, the helper surfaces a clear

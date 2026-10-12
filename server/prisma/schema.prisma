@@ -4170,3 +4170,47 @@ model UserCoinBalance {
   @@index([familyId, balance])
   @@map("user_coin_balances")
 }
+
+// ── Direct / Group chat (DM Rebuild — Part C1) ────────────────────────
+//
+// The "Group" and "GroupMember" tables were created in Supabase by the
+// 20260813000000_create_family_groups.sql migration. They are re-exposed
+// here as Prisma models so the NestJS ChatPushScheduler can resolve
+// group-scoped ChatMessage recipients via `this.prisma.groupMember.findMany`
+// (per docs/DM_REBUILD_PLAN.md, "STOP ITEM 1 fix"). The SQL schema is
+// the source of truth; these models only describe the columns the server
+// needs to read. Adding them does NOT alter the database — it only maps
+// existing tables into Prisma's type system so the scheduler can branch
+// recipient resolution on `msg.groupId`.
+
+model Group {
+  id           String   @id
+  familyId     String
+  name         String
+  description  String?
+  groupType    String   @default("custom")
+  avatarUrl    String?
+  createdBy    String
+  lastActivityAt DateTime @default(now())
+  isArchived   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+
+  @@index([familyId])
+  @@map("Group")
+}
+
+model GroupMember {
+  id          String   @id
+  groupId     String
+  userId      String
+  displayName String
+  role        String   @default("member")
+  isGuest     Boolean  @default(false)
+  joinedAt    DateTime @default(now())
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+  @@map("GroupMember")
+}
