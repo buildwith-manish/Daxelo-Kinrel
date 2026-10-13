@@ -708,6 +708,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatProvider(widget.familyId));
+    // ROOT-CAUSE FIX (chat message alignment): watch chatCurrentUserIdProvider
+    // in the build method so the screen rebuilds whenever the signed-in user
+    // changes. The provider is reactive (it watches currentUserProvider, which
+    // watches authStateProvider — a stream of Supabase auth events). Without
+    // this watch, switching accounts would not trigger a rebuild and the
+    // alignment (isMe = msg.senderId == currentUserId) would keep using the
+    // previous account's cached id.
+    ref.watch(chatCurrentUserIdProvider);
     // Kin Thread / PR2 T3: mark THIS chat's scope read once its
     // messages have loaded (the provider no longer auto-marks the
     // whole family — see markAllRead({groupId})).

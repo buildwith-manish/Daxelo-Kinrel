@@ -3375,7 +3375,25 @@ final chatOnlineCountProvider = Provider.family<int, String>((ref, familyId) {
 
 /// Convenience: the current user's ID for chat (so the UI can compare
 /// message.senderId against this instead of hard-coding 'user_me').
+///
+/// ROOT-CAUSE FIX (chat message alignment):
+/// Previously this provider only watched [supabaseProvider], which returns
+/// the SAME SupabaseClient instance across sign-in / sign-out / account-
+/// switch cycles. Riverpod therefore cached the user id from the FIRST
+/// read and never recomputed it. When Account B logged in after Account A,
+/// `chatCurrentUserIdProvider` kept returning Account A's id, so:
+///   isMe = msg.senderId == currentUserId
+/// evaluated to `true` for Account A's messages even when viewed by
+/// Account B — placing the recipient's messages on the RIGHT (sender)
+/// side instead of the LEFT (recipient) side.
+///
+/// Fix: watch [currentUserProvider], which is reactive to Supabase auth
+/// state changes (it watches [authStateProvider], a StreamProvider on
+/// `client.auth.onAuthStateChange`). Now this provider recomputes
+/// whenever the signed-in user changes, so message alignment is always
+/// determined dynamically from the CURRENTLY logged-in account's id —
+/// without modifying the message data itself.
 final chatCurrentUserIdProvider = Provider<String?>((ref) {
-  final client = ref.watch(supabaseProvider);
-  return client?.auth.currentUser?.id ?? client?.auth.currentSession?.user.id;
+  final user = ref.watch(currentUserProvider);
+  return user?.id;
 });
