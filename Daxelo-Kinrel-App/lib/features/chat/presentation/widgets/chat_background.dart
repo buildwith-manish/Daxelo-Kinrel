@@ -29,23 +29,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/kinrel_fx.dart';
 import '../../../../core/utils/device_tier.dart';
 import '../../data/chat_wallpaper_provider.dart';
+import '../../data/wallpaper_settings_provider.dart';
 import 'chat_background_theme.dart';
 import 'constellation_pattern.dart';
+import 'wallpaper_palette.dart';
+import 'wallpaper_patterns.dart';
 // Conditional import: web vs native image rendering for custom wallpapers.
 import 'wallpaper_image_web.dart' if (dart.library.io) 'wallpaper_image_native.dart'
     as platform;
 
 /// Chat background. Flat by default; rich mode restores the original
-/// decorated multi-layer atmosphere.
+/// decorated multi-layer atmosphere. Accepts an optional [tintColor]
+/// that shifts the pattern colors toward a relationship color (direct
+/// chats only — group chats pass null for neutral).
 class ChatBackground extends ConsumerWidget {
   const ChatBackground({
     super.key,
     required this.chatId,
     required this.child,
+    this.tintColor,
   });
 
   final String chatId;
   final Widget child;
+
+  /// Optional relationship-color tint for pattern themes. Null = neutral.
+  /// Only pattern themes use this; solids and image wallpapers ignore it.
+  final Color? tintColor;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -56,44 +66,81 @@ class ChatBackground extends ConsumerWidget {
         !ChatBackgroundTheme.isThemeValue(stored);
     final bool lowRam = DeviceTierCache.instance.lowRam;
 
+    // Resolve the wallpaper palette for pattern themes, using the
+    // global wallpaper settings (intensity from the contrast setting).
+    final settings = ref.watch(wallpaperSettingsProvider);
+    final palette = theme.hasPattern && !hasImage
+        ? WallpaperPalette.resolve(
+            intensity: settings.intensity,
+            tint: tintColor,
+            pattern: _patternForTheme(theme.id),
+          )
+        : null;
+
     if (KinrelFx.rich) {
       return _RichBackground(
         theme: theme,
         hasImage: hasImage,
         imagePath: stored,
         lowRam: lowRam,
+        palette: palette,
         child: child,
       );
     }
 
-    // Flat mode: single solid color + optional unblurred image with overlay.
+    // Flat mode: single solid color + optional pattern + optional image.
     final Color baseColor = theme.baseColors.last;
-    // Kin Thread / PR2 Task 4: the Constellation preset tiles its
-    // cached dots-and-lines motif above the flat base (skipped when a
-    // custom image wallpaper is set — a saved choice always wins).
-    final bool isConstellation = theme.id == 'constellation' && !hasImage;
     return Stack(
       children: [
         // Solid color base — always rendered as the bottom layer.
         Positioned.fill(child: ColoredBox(color: baseColor, child: const SizedBox.expand())),
 
-        // Constellation motif — one cached image-shader tile layer.
-        if (isConstellation)
-          const Positioned.fill(child: ConstellationPattern()),
+        // Pattern layer — renders the pattern that belongs to the
+        // theme (constellation, branches, kolam, contours) when no
+        // image wallpaper is set. A saved choice always wins.
+        if (theme.hasPattern && !hasImage && palette != null)
+          Positioned.fill(child: _patternWidget(theme.id, palette, lowRam)),
 
-        // Optional wallpaper image — rendered WITHOUT blur. A 50% dark
-        // overlay keeps messages readable over any photo. Image is
-        // cached at 1080×1920 to bound the decode size.
+        // Optional wallpaper image — rendered WITHOUT blur.
         if (hasImage)
           Positioned.fill(
             child: _FlatWallpaperImage(imagePath: stored),
           ),
 
-        // Child (messages list). Outside the static layers so it can
-        // repaint freely during scroll.
+        // Child (messages list).
         child,
       ],
     );
+  }
+
+  /// Returns the pattern enum for a theme id.
+  WallpaperPattern _patternForTheme(String themeId) {
+    switch (themeId) {
+      case 'branches':
+        return WallpaperPattern.branches;
+      case 'kolam':
+        return WallpaperPattern.kolam;
+      case 'contours':
+        return WallpaperPattern.contours;
+      default:
+        return WallpaperPattern.constellation;
+    }
+  }
+
+  /// Returns the pattern widget for a theme id.
+  Widget _patternWidget(String themeId, WallpaperPalette palette, bool lowRam) {
+    switch (themeId) {
+      case 'branches':
+        return BranchesPattern(palette: palette);
+      case 'kolam':
+        // On low-RAM phones, fall back to Constellation.
+        if (lowRam) return ConstellationPattern(palette: palette);
+        return KolamPattern(palette: palette);
+      case 'contours':
+        return ContoursPattern(palette: palette);
+      default:
+        return ConstellationPattern(palette: palette);
+    }
   }
 }
 
@@ -105,6 +152,7 @@ class _RichBackground extends StatelessWidget {
     required this.hasImage,
     required this.imagePath,
     required this.lowRam,
+    required this.palette,
     required this.child,
   });
 
@@ -112,6 +160,7 @@ class _RichBackground extends StatelessWidget {
   final bool hasImage;
   final String? imagePath;
   final bool lowRam;
+  final WallpaperPalette? palette;
   final Widget child;
 
   @override
@@ -144,11 +193,13 @@ class _RichBackground extends StatelessWidget {
                 ),
               ),
 
-              // Kin Thread / PR2 Task 4: the Constellation motif also
-              // tiles in rich mode (above the base gradient, below the
-              // accent glow).
-              if (theme.id == 'constellation' && !hasImage)
-                const Positioned.fill(child: ConstellationPattern()),
+              // TASK 3: Pattern layer — renders the theme's pattern
+              // (constellation, branches, kolam, contours) in rich
+              // mode too, above the base gradient, below the accent.
+              if (theme.hasPattern && !hasImage && palette != null)
+                Positioned.fill(
+                  child: _patternWidgetRich(theme.id, palette, lowRam),
+                ),
 
               // Layer 2: accent corner glow (skipped on low-RAM).
               if (!lowRam)
@@ -192,6 +243,22 @@ class _RichBackground extends StatelessWidget {
         child,
       ],
     );
+  }
+
+  /// Returns the pattern widget for rich mode (same as flat, but
+  /// called from within the RepaintBoundary-wrapped Stack).
+  Widget _patternWidgetRich(String themeId, WallpaperPalette palette, bool lowRam) {
+    switch (themeId) {
+      case 'branches':
+        return BranchesPattern(palette: palette);
+      case 'kolam':
+        if (lowRam) return ConstellationPattern(palette: palette);
+        return KolamPattern(palette: palette);
+      case 'contours':
+        return ContoursPattern(palette: palette);
+      default:
+        return ConstellationPattern(palette: palette);
+    }
   }
 }
 

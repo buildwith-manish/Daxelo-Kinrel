@@ -7,31 +7,27 @@
 // 7 nodes, distributed asymmetrically to avoid the center where
 // message bubbles sit.
 //
-// Visual style (from reference analysis):
-//   • Background: #0F111A (dark navy-blue, subtle blue undertone).
-//   • Lines: #30385F (restrained blue-indigo), 1.4 dp thick, ~50%
-//     alpha — clearly visible but never distracting.
-//   • Nodes: #4A5275 (brighter blue-indigo), 2.5 dp radius, ~70%
-//     alpha — small, elegant, slightly brighter than the lines.
-//   • Pattern: irregular constellation fragments, NOT a complete
-//     graph. Some paths connect 2 nodes, one connects 3. No long
-//     diagonals crossing behind message bubbles.
+// v143 wallpaper system: now accepts an optional [WallpaperPalette]
+// (default = the neutral standard palette). The geometry (node
+// positions, connections) is UNCHANGED — only the colors/alphas/
+// stroke width come from the palette.
 //
 // Implementation:
-//   • Single CustomPainter (no tiling) with normalized coordinates
-//     (0.0–1.0) → same pattern on every screen size.
-//   • Fixed positions (not random) → predictable, balanced layout.
-//   • shouldRepaint: false → zero per-frame cost after first paint.
+//   • Single CustomPainter (no tiling) with normalized coordinates.
+//   • Fixed positions (not random).
+//   • shouldRepaint: true only when the palette changes.
 //   • RepaintBoundary isolates from chat scroll rebuilds.
 //   • Decorative only: excluded from semantics.
 
 import 'package:flutter/material.dart';
 
 import '../chat_ui_tokens.dart';
+import 'wallpaper_palette.dart';
 
 /// 7 fixed node positions in normalized coordinates (0.0–1.0).
-/// Distributed asymmetrically — avoids the center (0.4–0.6, 0.4–0.6)
-/// where message bubbles sit. Edges and corners preferred.
+/// Distributed asymmetrically — avoids the center where message
+/// bubbles sit. Edges and corners preferred.
+/// DO NOT change these — they are the approved geometry.
 const List<Offset> _kNodes = [
   Offset(0.08, 0.10),  // 0: top-left corner
   Offset(0.26, 0.05),  // 1: top-center-left
@@ -43,8 +39,7 @@ const List<Offset> _kNodes = [
 ];
 
 /// 5 connection paths — irregular constellation fragments.
-/// [0,1,2] is a 3-node chain across the top. The rest are pairs.
-/// No long diagonals crossing the center.
+/// DO NOT change these — they are the approved geometry.
 const List<List<int>> _kConnections = [
   [0, 1, 2],  // top chain (3 nodes)
   [3, 4],     // center horizontal pair
@@ -54,14 +49,21 @@ const List<List<int>> _kConnections = [
 ];
 
 /// Sparse constellation pattern drawn with normalized coordinates.
+/// Accepts an optional [palette] to tint the colors (default = neutral
+/// standard). The geometry is always the approved 7-node, 5-path layout.
 class ConstellationPattern extends StatelessWidget {
-  const ConstellationPattern({super.key});
+  const ConstellationPattern({
+    super.key,
+    this.palette = WallpaperPalette.standard,
+  });
+
+  final WallpaperPalette palette;
 
   @override
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: CustomPaint(
-        painter: const _ConstellationPainter(),
+        painter: _ConstellationPainter(palette: palette),
         size: Size.infinite,
       ),
     );
@@ -69,25 +71,17 @@ class ConstellationPattern extends StatelessWidget {
 }
 
 class _ConstellationPainter extends CustomPainter {
-  const _ConstellationPainter();
+  const _ConstellationPainter({required this.palette});
+  final WallpaperPalette palette;
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Lines: #30385F (blue-indigo) at 80% alpha, 1.6 dp thick —
-    // clearly visible against the dark navy background without
-    // being distracting. The user said the previous 50% alpha + 1.4dp
-    // was "too thin, faint, and angular" — now thicker and more
-    // opaque so the blue-indigo color reads clearly.
     final linePaint = Paint()
-      ..color = ChatUi.wallLine.withValues(alpha: 0.8)
-      ..strokeWidth = 1.6
+      ..color = palette.resolvedLineColor
+      ..strokeWidth = palette.strokeWidth
       ..style = PaintingStyle.stroke;
 
-    // Nodes: #4A5275 (brighter blue-indigo) at 90% alpha, 2.5 dp
-    // radius — small, elegant, clearly visible, slightly brighter
-    // than the lines.
-    final dotPaint = Paint()
-      ..color = ChatUi.wallDot.withValues(alpha: 0.9);
+    final dotPaint = Paint()..color = palette.resolvedDotColor;
 
     // Convert normalized positions to pixel positions.
     final nodes = _kNodes
@@ -103,10 +97,10 @@ class _ConstellationPainter extends CustomPainter {
 
     // Draw the nodes.
     for (final node in nodes) {
-      canvas.drawCircle(node, 2.5, dotPaint);
+      canvas.drawCircle(node, palette.dotRadius, dotPaint);
     }
   }
 
   @override
-  bool shouldRepaint(_ConstellationPainter oldDelegate) => false;
+  bool shouldRepaint(_ConstellationPainter old) => old.palette != palette;
 }

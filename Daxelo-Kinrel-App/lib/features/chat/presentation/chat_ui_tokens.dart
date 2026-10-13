@@ -53,6 +53,12 @@ abstract final class ChatUi {
   /// the brownish sent bubble).
   static const Color chatCardTile = Color(0xFF191B2C);
 
+  /// TASK 3 — Solid wallpaper background: warm ember tones.
+  static const Color chatBackgroundEmber = Color(0xFF15100E);
+
+  /// TASK 3 — Solid wallpaper background: deep ink blue.
+  static const Color chatBackgroundInk = Color(0xFF0D1120);
+
   /// Hairline border for chat cards (D11, D18).
   static final Color chatCardBorder = Colors.white.withValues(alpha: 0.08);
 

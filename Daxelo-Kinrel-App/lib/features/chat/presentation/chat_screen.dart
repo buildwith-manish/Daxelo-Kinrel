@@ -53,6 +53,7 @@ import '../../../core/services/celebration_service.dart';
 // and decode at display-size × DPR instead of native resolution).
 import '../../../shared/widgets/dk_components.dart';
 import '../../family/data/relationship_label_provider.dart';
+import '../../data/wallpaper_settings_provider.dart';
 import '../../../core/kinship/kinship_edge_style.dart';
 import '../../thinking/data/thinking_service.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
@@ -257,6 +258,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       widget.isDirectChat && widget.directOtherUserId != null
       ? 'dm_${widget.directOtherUserId}'
       : widget.familyId;
+
+  /// TASK 4 — Resolves the wallpaper relationship tint for direct chats.
+  /// Returns null (neutral) for group chats, when the setting is off,
+  /// or when the relationship hasn't resolved yet (updates on next
+  /// rebuild when it does resolve).
+  Color? _resolveWallpaperTint(WidgetRef ref) {
+    if (!widget.isDirectChat || widget.directOtherUserId == null) return null;
+    final settings = ref.watch(wallpaperSettingsProvider);
+    if (!settings.matchRelationship) return null;
+    // Resolve the other person's relationship key.
+    final rawKey = ref.watch(relationshipKeyProvider((
+      familyId: widget.familyId,
+      senderUserId: widget.directOtherUserId!,
+    )));
+    if (rawKey == null) return null;
+    final category = KinshipEdgeClassifier.classify(rawKey);
+    return kinshipCategoryColor(category);
+  }
 
   @override
   void initState() {
@@ -884,11 +903,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       // multi-layer ambient gradient (base + accent glow +
                       // vignette) plus optional blurred custom wallpaper.
                       // Gives the chat space depth without competing with bubbles.
+                      // TASK 4: Relationship tint — direct chats only.
+                      // When the Match Relationship setting is on and the
+                      // other person's relationship is resolved, tint
+                      // the wallpaper pattern toward their kinship color.
+                      // Group chats always pass null (neutral).
                       Expanded(
                         child: ChatBackground(
-                          // Kin Thread / C2: direct chats keep the dm_-keyed
-                          // wallpaper slot so saved choices carry over.
                           chatId: _chatSettingsKey,
+                          tintColor: _resolveWallpaperTint(ref),
                           child: bodyContent,
                         ),
                       ),

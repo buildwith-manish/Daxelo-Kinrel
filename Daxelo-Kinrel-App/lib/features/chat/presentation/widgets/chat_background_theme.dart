@@ -25,6 +25,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../chat_ui_tokens.dart';
+
 /// A premium chat background atmosphere.
 ///
 /// Each [ChatBackgroundTheme] defines the colors and stops used by the
@@ -108,12 +110,15 @@ class ChatBackgroundTheme {
   );
 
   /// The full curated catalog. Order = display order in the picker.
-  /// Constellation is first because it's the Kin Thread default; the
-  /// rest are sorted by mood (cool → warm → dark) for a natural
-  /// browsing flow.
+  /// Patterns first, then solids, then the legacy mood themes.
   static const List<ChatBackgroundTheme> allThemes = [
     constellation,
+    branches,
+    kolam,
+    contours,
     midnight,
+    ember,
+    ink,
     aurora,
     ocean,
     forest,
@@ -261,4 +266,96 @@ class ChatBackgroundTheme {
     accentAlignment: Alignment.topLeft,
     vignetteColor: Color(0xFF060508),
   );
+
+  // ── TASK 3: New pattern + solid themes ───────────────────────────
+
+  /// Branches — a tree-branch motif pattern. Uses chatBackground as
+  /// the base solid color; the BranchesPattern painter draws the
+  /// cubic-curve branches above it.
+  static const ChatBackgroundTheme branches = ChatBackgroundTheme(
+    id: 'branches',
+    name: 'Branches',
+    description: 'Tree-branch motif with tip dots',
+    baseColors: [
+      ChatUi.chatBackground,
+      ChatUi.chatBackground,
+      ChatUi.chatBackground,
+    ],
+    accentColor: ChatUi.wallLine,
+    accentAlignment: Alignment.topCenter,
+    vignetteColor: Color(0xFF08080F),
+  );
+
+  /// Kolam lattice — a tiled diamond-dot lattice pattern. Uses
+  /// chatBackground as the base; the KolamPattern painter tiles a
+  /// 36 dp motif above it.
+  static const ChatBackgroundTheme kolam = ChatBackgroundTheme(
+    id: 'kolam',
+    name: 'Kolam lattice',
+    description: 'Tiled diamond-dot lattice',
+    baseColors: [
+      ChatUi.chatBackground,
+      ChatUi.chatBackground,
+      ChatUi.chatBackground,
+    ],
+    accentColor: ChatUi.wallLine,
+    accentAlignment: Alignment.center,
+    vignetteColor: Color(0xFF08080F),
+  );
+
+  /// Contours — six wave paths suggesting topographic contours.
+  /// Uses chatBackground as the base; the ContoursPattern painter
+  /// draws the waves above it.
+  static const ChatBackgroundTheme contours = ChatBackgroundTheme(
+    id: 'contours',
+    name: 'Contours',
+    description: 'Topographic wave contour lines',
+    baseColors: [
+      ChatUi.chatBackground,
+      ChatUi.chatBackground,
+      ChatUi.chatBackground,
+    ],
+    accentColor: ChatUi.wallLine,
+    accentAlignment: Alignment.bottomRight,
+    vignetteColor: Color(0xFF08080F),
+  );
+
+  /// Ember — warm solid background (chatBackgroundEmber). No pattern.
+  static const ChatBackgroundTheme ember = ChatBackgroundTheme(
+    id: 'ember',
+    name: 'Ember',
+    description: 'Warm dark ember solid',
+    baseColors: [
+      ChatUi.chatBackgroundEmber,
+      ChatUi.chatBackgroundEmber,
+      ChatUi.chatBackgroundEmber,
+    ],
+    accentColor: Color(0xFF4A2A1A),
+    accentAlignment: Alignment.topRight,
+    vignetteColor: Color(0xFF0A0604),
+  );
+
+  /// Ink — deep solid blue background (chatBackgroundInk). No pattern.
+  static const ChatBackgroundTheme ink = ChatBackgroundTheme(
+    id: 'ink',
+    name: 'Ink',
+    description: 'Deep ink blue solid',
+    baseColors: [
+      ChatUi.chatBackgroundInk,
+      ChatUi.chatBackgroundInk,
+      ChatUi.chatBackgroundInk,
+    ],
+    accentColor: Color(0xFF1F2A4A),
+    accentAlignment: Alignment.topLeft,
+    vignetteColor: Color(0xFF050810),
+  );
+
+  /// Pattern themes (have a pattern painter above the solid base).
+  static const List<String> patternIds = [
+    'constellation', 'branches', 'kolam', 'contours',
+  ];
+
+  /// Returns true if this theme has a pattern painter (not a solid
+  /// or image wallpaper).
+  bool get hasPattern => patternIds.contains(id);
 }
