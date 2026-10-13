@@ -198,7 +198,7 @@ class _RichBackground extends StatelessWidget {
               // mode too, above the base gradient, below the accent.
               if (theme.hasPattern && !hasImage && palette != null)
                 Positioned.fill(
-                  child: _patternWidgetRich(theme.id, palette, lowRam),
+                  child: _patternWidgetRich(theme.id, palette!, lowRam),
                 ),
 
               // Layer 2: accent corner glow (skipped on low-RAM).

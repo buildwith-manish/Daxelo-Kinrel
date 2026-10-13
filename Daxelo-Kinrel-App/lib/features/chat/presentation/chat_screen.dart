@@ -53,7 +53,7 @@ import '../../../core/services/celebration_service.dart';
 // and decode at display-size × DPR instead of native resolution).
 import '../../../shared/widgets/dk_components.dart';
 import '../../family/data/relationship_label_provider.dart';
-import '../../data/wallpaper_settings_provider.dart';
+import '../data/wallpaper_settings_provider.dart';
 import '../../../core/kinship/kinship_edge_style.dart';
 import '../../thinking/data/thinking_service.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
