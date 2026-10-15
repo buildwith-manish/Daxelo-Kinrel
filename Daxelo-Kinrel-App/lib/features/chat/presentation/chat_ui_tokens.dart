@@ -144,6 +144,47 @@ class ChatUi {
     color: senderNameColor,
   );
 
+  /// Sender name — RESOLVED kinship variant (chat UI reference
+  /// screenshot: "Papa · Father").
+  ///
+  /// Same typography as [senderNameText] but a heavier weight (500) so
+  /// the name pops visually beside the "·" separator and the
+  /// relationship label. The COLOR is NOT baked in here — the bubble
+  /// supplies the kinship category color (contrast-adjusted via
+  /// [kinshipPillText]) via TextStyle.copyWith so a single style works
+  /// for every relationship category (parent blue, sibling purple,
+  /// grandparent indigo, spouse orange, etc.).
+  static const TextStyle senderNameKinship = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+  );
+
+  /// Formal relationship label rendered after the sender name (chat
+  /// UI reference screenshot: "Papa · Father", "Nani · Maternal
+  /// grandmother"). Same typography family/size as the sender name
+  /// but the regular weight and a SUBTLE NEUTRAL color (textMeta —
+  /// the same grey as the timestamp) so the kinship-colored NAME
+  /// reads as the primary identifier and the relationship as the
+  /// qualifier.
+  static const TextStyle relationshipLabel = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    color: textMeta,
+  );
+
+  /// "·" separator between the sender name and the relationship label
+  /// (chat UI reference screenshot). Same size as the surrounding
+  /// text in the receding meta grey so it visually sits between the
+  /// colored name and the neutral relationship label.
+  static const TextStyle nameRelationSeparator = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    color: textMeta,
+  );
+
   /// Relationship tag — body 11 / 500 (color = kinship pill color).
   static const TextStyle relationshipTag = TextStyle(
     fontFamily: KinrelTypography.bodyFont,

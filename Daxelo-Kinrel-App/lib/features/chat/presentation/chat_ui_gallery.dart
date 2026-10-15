@@ -61,7 +61,7 @@ List<Override> chatUiGalleryOverrides() {
     ).overrideWith((ref) => 'father'),
     relationshipKeyProvider(
       const (familyId: _galleryFamilyId, senderUserId: _nani),
-    ).overrideWith((ref) => 'grandmother'),
+    ).overrideWith((ref) => 'maternal_grandmother'),
     relationshipKeyProvider(
       const (familyId: _galleryFamilyId, senderUserId: _meera),
     ).overrideWith((ref) => 'cousin'),
@@ -70,7 +70,7 @@ List<Override> chatUiGalleryOverrides() {
     ).overrideWith((ref) => 'Father'),
     relationshipLabelProvider(
       const (familyId: _galleryFamilyId, senderUserId: _nani),
-    ).overrideWith((ref) => 'Grandmother'),
+    ).overrideWith((ref) => 'Maternal grandmother'),
     relationshipLabelProvider(
       const (familyId: _galleryFamilyId, senderUserId: _meera),
     ).overrideWith((ref) => 'Cousin'),
