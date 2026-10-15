@@ -182,6 +182,13 @@ class MessageBubble extends ConsumerWidget {
     // overlay inside the bubble's rounded clip. Only for family/group
     // chats, not DMs, and only for received messages (not isMe).
     // Unresolved relationship → extended band color (D3) + orange name.
+    //
+    // v5.185 (chat UI reference screenshot): use the FULL 5,363-entry
+    // KinshipCategoryMap as the primary resolution path via
+    // KinshipEdgeStyleResolver.styleFor(key).category — every known
+    // Indian kinship compound resolves to its exact category with no
+    // string-guessing. Only synthetic/unknown keys fall through to
+    // the regex classifier (which routes them to 'extended' / grey).
     Color? kinshipBandColor;
     var kinshipResolved = false;
     if (familyId != null && !isMe && !isSticker && !isDirectChat) {
@@ -189,7 +196,11 @@ class MessageBubble extends ConsumerWidget {
         (familyId: familyId!, senderUserId: message.senderId),
       ));
       if (rawKey != null) {
-        final category = KinshipEdgeClassifier.classify(rawKey);
+        // Primary path: the full 5,363-entry lookup map. Falls back to
+        // the regex classifier only for synthetic keys ('related',
+        // 'unknown', etc.).
+        final category =
+            KinshipEdgeStyleResolver.styleFor(rawKey).category;
         final color = kinshipCategoryColor(category);
         if (color != null) {
           kinshipBandColor = color;
@@ -313,8 +324,11 @@ class MessageBubble extends ConsumerWidget {
                                   // v127: Sender name only on first message in group
                                   // v3.3: DMs (isDirectChat) hide the sender name —
                                   // a DM only has two parties so the name is redundant.
-                                  // Kin Thread / PR2 T1: the relationship pill is
-                                  // tinted with the sender's kinship band color.
+                                  // v5.185 (chat UI reference screenshot): the sender
+                                  // name + relationship label render inline as
+                                  // "Papa • Father", both colored with the sender's
+                                  // kinship category color (parent blue, sibling
+                                  // purple, grandparent indigo, etc.).
                                   if (!isMe &&
                                       !isSticker &&
                                       !isDirectChat &&
@@ -522,17 +536,31 @@ class MessageBubble extends ConsumerWidget {
 
   Widget _buildSenderName(WidgetRef ref, Color? kinshipColor,
       bool kinshipResolved) {
-    // D6: Sender line (group, first message of a cluster only).
-    // A row with 6 gap and 2 bottom margin: the relationship tag FIRST,
-    // then the name. Tag: radius full, padding 1 vertical / 6 horizontal,
-    // 11/500, text in the kinship color, background the kinship color at
-    // 12 percent alpha, border 0.5 dp the kinship color at 30 percent.
-    // Name: sender name style (12 / 400, silver).
+    // v5.185 (chat UI reference screenshot): the sender name and the
+    // relationship label are rendered INLINE as a single RichText-like
+    // row, separated by a '•' glyph:
     //
-    // D3 unresolved relationship: NO pill, sender name in orange 12/500.
+    //     Papa • Father
+    //     Nani • Maternal grandmother
     //
-    // Viewer-specific: the label changes based on who is logged in.
-    // Not applied to 1-on-1 DMs (familyId == null).
+    // Both the name span and the relationship span are colored with the
+    // sender's kinship category color (parent blue, sibling purple,
+    // grandparent indigo, spouse orange, etc.). The '•' separator uses
+    // a softer meta color so it visually recedes between the two
+    // coloured spans.
+    //
+    // D3 unresolved relationship (no K-Graph edge from viewer to
+    // sender, OR a synthetic 'related'/'unknown' key): the sender name
+    // is rendered alone (no '•', no relationship label) in the orange
+    // accent color so the user can see at a glance that the
+    // relationship has not been resolved yet.
+    //
+    // DMs (isDirectChat == true) skip the sender name entirely (the
+    // caller also gates this with `!isDirectChat` upstream).
+    //
+    // Viewer-specific: the relationship label changes based on who is
+    // logged in (e.g. user A may see "Chacha", user B may see "Bhaiya"
+    // for the same sender).
     String? relationshipLabel;
     if (familyId != null && !isMe) {
       relationshipLabel = ref.watch(relationshipLabelProvider(
@@ -540,41 +568,75 @@ class MessageBubble extends ConsumerWidget {
       ));
     }
 
-    final bool showPill =
+    final bool showRelationship =
         kinshipResolved && relationshipLabel != null && !isDirectChat;
-    final Color? bandColor = kinshipColor;
-    final Color? pillColor =
-        bandColor == null ? null : ChatUi.kinshipPillText(bandColor);
+
+    if (!showRelationship) {
+      // Unresolved or DM: name only. Unresolved → orange 12/500 (D3).
+      // DMs never reach here because the caller skips the sender line
+      // for direct chats, but we keep the guard for safety.
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 2),
+        child: Text(
+          message.senderName,
+          style: kinshipResolved
+              ? ChatUi.senderNameKinship.copyWith(color: kinshipColor)
+              : ChatUi.senderNameUnresolved,
+        ),
+      );
+    }
+
+    // Resolved: render "<name> • <relationship>" with both spans
+    // coloured in the kinship category color.
+    //
+    // The '•' separator is tinted with a softened version of the
+    // kinship color (45% alpha) so it ties visually to the name+
+    // relationship pair without overpowering them.
+    final Color nameColor = kinshipColor ?? ChatUi.senderNameColor;
+    final Color separatorColor = nameColor.withValues(alpha: 0.55);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (showPill && pillColor != null && bandColor != null) ...[
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(
-                color: bandColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(KinrelRadius.full),
-                border: Border.all(
-                  color: bandColor.withValues(alpha: 0.30),
-                  width: 0.5,
-                ),
-              ),
-              child: Text(
-                relationshipLabel ?? '',
-                style: ChatUi.relationshipTag.copyWith(color: pillColor),
+          Flexible(
+            child: RichText(
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              text: TextSpan(
+                style: ChatUi.senderNameKinship.copyWith(color: nameColor),
+                children: <InlineSpan>[
+                  // Sender name (heavier weight, kinship color).
+                  TextSpan(
+                    text: message.senderName,
+                    style: ChatUi.senderNameKinship.copyWith(color: nameColor),
+                  ),
+                  const WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: SizedBox(width: 5),
+                  ),
+                  // '•' separator — softer colour so it recedes.
+                  TextSpan(
+                    text: '•',
+                    style: ChatUi.nameRelationSeparator.copyWith(
+                      color: separatorColor,
+                    ),
+                  ),
+                  const WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: SizedBox(width: 5),
+                  ),
+                  // Relationship label (regular weight, kinship color).
+                  // Sentence-cased by relationshipLabelProvider
+                  // (e.g. "Father", "Maternal grandmother").
+                  TextSpan(
+                    text: relationshipLabel,
+                    style: ChatUi.relationshipLabel.copyWith(color: nameColor),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 6),
-          ],
-          Text(
-            message.senderName,
-            style: showPill
-                ? ChatUi.senderNameText
-                : ChatUi.senderNameUnresolved,
           ),
         ],
       ),

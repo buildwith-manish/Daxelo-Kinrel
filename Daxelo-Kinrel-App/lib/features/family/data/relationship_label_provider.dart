@@ -107,21 +107,30 @@ final relationshipLabelProvider = Provider.family<String?, ({String familyId, St
 
 /// Formats a raw relationshipKey into a human-readable label.
 ///
-/// Examples:
-///   "father" → "Father"
-///   "elder_brother" → "Elder Brother"
-///   "fathers_younger_brother" → "Fathers Younger Brother"
+/// Examples (sentence case — only the first letter of the ENTIRE label
+/// is capitalised, the rest is lowercased — this matches the chat UI
+/// reference screenshot which renders "Maternal grandmother" rather
+/// than "Maternal Grandmother"):
+///   "father"                   → "Father"
+///   "elder_brother"            → "Elder brother"
+///   "fathers_younger_brother"  → "Fathers younger brother"
+///   "maternal_grandmother"     → "Maternal grandmother"
+///   "great_grandfather"         → "Great grandfather"
+///
+/// Sentence case is preferred over title-case-each-word because it
+/// reads more naturally in conversational chat headers ("Papa • Father",
+/// "Nani • Maternal grandmother") and matches the Kinrel chat UI
+/// reference screenshot exactly.
 ///
 /// The caller can further prettify this (e.g. "fathers younger brother"
 /// → "Chacha" via a cultural map) — for now we return the prettified
-/// underscore-removed version with title case.
+/// underscore-removed version with sentence case.
 String _formatRelationshipLabel(String key) {
-  // Replace underscores with spaces
-  final words = key.replaceAll('_', ' ').split(' ');
-  // Title-case each word
-  final titled = words.map((w) {
-    if (w.isEmpty) return w;
-    return w[0].toUpperCase() + w.substring(1);
-  }).join(' ');
-  return titled;
+  // Replace underscores with spaces.
+  final spaced = key.replaceAll('_', ' ');
+  if (spaced.isEmpty) return spaced;
+  // Sentence case: capitalise only the first letter of the entire
+  // label; lowercase everything else so "Maternal_Grandmother" and
+  // "MATERNAL_GRANDMOTHER" both render as "Maternal grandmother".
+  return spaced[0].toUpperCase() + spaced.substring(1).toLowerCase();
 }

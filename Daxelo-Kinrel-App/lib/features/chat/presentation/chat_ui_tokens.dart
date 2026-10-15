@@ -137,11 +137,56 @@ class ChatUi {
   );
 
   /// Sender name — body 12 / 400 / senderName color.
+  ///
+  /// NOTE: When the sender's kinship relationship to the viewer has been
+  /// resolved (K-Graph edge found, category classified, color picked),
+  /// the chat bubble overrides this color with the sender's kinship
+  /// category color so the name visually pairs with the relationship
+  /// label rendered beside it (chat UI reference screenshot:
+  /// "Papa • Father" — both spans colored with the parent blue).
   static const TextStyle senderNameText = TextStyle(
     fontFamily: KinrelTypography.bodyFont,
     fontSize: 12,
     fontWeight: FontWeight.w400,
     color: senderNameColor,
+  );
+
+  /// Sender name — RESOLVED kinship variant (chat UI reference screenshot).
+  ///
+  /// Same typography as [senderNameText] but a heavier weight (500) so
+  /// the name pops visually beside the "•" separator and the
+  /// relationship label. The COLOR is NOT baked in here — the bubble
+  /// supplies the kinship color via TextStyle.copyWith so a single
+  /// style works for every relationship category (parent blue, sibling
+  /// purple, grandparent indigo, spouse orange, etc.).
+  static const TextStyle senderNameKinship = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+  );
+
+  /// Relationship label rendered beside the sender name (chat UI
+  /// reference screenshot: "Papa • Father"). Same typography family
+  /// as the sender name, slightly lighter weight (400) so the NAME
+  /// reads as the primary identifier and the relationship as the
+  /// qualifier. The COLOR is supplied by the caller from the sender's
+  /// kinship category color (parent blue, grandparent indigo, etc.).
+  static const TextStyle relationshipLabel = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+  );
+
+  /// "•" separator between the sender name and the relationship label
+  /// (chat UI reference screenshot). Same size as the surrounding
+  /// text, lighter color so the separator visually recedes between
+  /// the two coloured spans. The caller may also tint it with the
+  /// kinship color via copyWith for a stronger visual tie.
+  static const TextStyle nameRelationSeparator = TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    color: textMeta,
   );
 
   /// Relationship tag — body 11 / 500 (color = kinship pill color).

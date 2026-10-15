@@ -1150,8 +1150,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         (familyId: widget.familyId, senderUserId: otherUserId),
       ));
       if (rawKey != null) {
+        // v5.185: use the full 5,363-entry KinshipCategoryMap as the
+        // primary resolution path via KinshipEdgeStyleResolver.styleFor()
+        // so every known Indian kinship compound key resolves to its
+        // exact category (the regex classifier is only a fallback for
+        // synthetic/unknown keys like 'related' / 'unknown').
         relationshipColor =
-            kinshipCategoryColor(KinshipEdgeClassifier.classify(rawKey));
+            kinshipCategoryColor(KinshipEdgeStyleResolver.styleFor(rawKey).category);
       }
     }
     final otherMember = otherUserId == null
