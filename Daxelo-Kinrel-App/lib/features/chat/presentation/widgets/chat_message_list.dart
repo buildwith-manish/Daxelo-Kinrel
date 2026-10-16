@@ -55,6 +55,8 @@ import '../../../../core/utils/app_time.dart';
 import '../../../../core/family/family_provider.dart';
 import '../../../../graph/interaction/graph_focus_state.dart';
 import '../../providers/chat_provider.dart';
+import '../../../family/data/relationship_label_provider.dart'
+    show ChatKinshipResolver;
 import 'chat_meta.dart';
 import 'message_bubble.dart';
 import '../chat_ui_tokens.dart';
@@ -483,15 +485,15 @@ class _ChatMessageListState extends ConsumerState<ChatMessageList> {
       final detail =
           ref.read(familyDetailProvider(famId)).valueOrNull;
       if (detail != null) {
-        String? personId;
-        String? personName;
-        for (final p in detail.members) {
-          if (p.linkedUserId == msg.senderId) {
-            personId = p.id;
-            personName = p.name;
-            break;
-          }
-        }
+        // v5.216: use the shared user→Person resolver (same chain as
+        // the graph) so the creator's unlinked anchor also resolves.
+        final person = ChatKinshipResolver.personForUser(
+          members: detail.members,
+          familyCreatedBy: detail.family.createdBy,
+          userId: msg.senderId,
+        );
+        final personId = person?.id;
+        final personName = person?.name;
         if (personId != null && personId.isNotEmpty) {
           ref.read(graphFocusProvider.notifier).focus(
                 personId: personId,

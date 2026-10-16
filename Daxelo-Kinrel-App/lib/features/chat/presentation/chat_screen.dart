@@ -1150,8 +1150,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         (familyId: widget.familyId, senderUserId: otherUserId),
       ));
       if (rawKey != null) {
+        // v140: full 5,363-entry KinshipCategoryMap as the primary
+        // resolution path (same resolver the group-chat bubbles use).
         relationshipColor =
-            kinshipCategoryColor(KinshipEdgeClassifier.classify(rawKey));
+            KinshipEdgeStyleResolver.styleFor(rawKey).color;
       }
     }
     final otherMember = otherUserId == null

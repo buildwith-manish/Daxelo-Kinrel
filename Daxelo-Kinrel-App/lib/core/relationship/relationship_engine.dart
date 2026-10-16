@@ -227,9 +227,13 @@ class RelationshipEngine {
       final kinship = KinshipService.instance;
       if (kinship.isLoaded) {
         // 1. Try runtime chain traversal (new — highest accuracy)
+        // v75: pass the target person's gender so the chain engine can
+        // pick the correct result variant for gender-neutral via keys
+        // on the final hop (see KinshipService.resolveChainPath v75).
         final traversed = kinship.resolveChainPath(
           pathTypes,
           viewerGender: _getViewerGender(viewerPersonId, persons),
+          targetGender: _getPersonGender(targetPersonId, persons),
         );
         if (traversed != null && kinship.getRelationship(traversed) != null) {
           return traversed;
@@ -269,6 +273,20 @@ class RelationshipEngine {
     final gender = viewer?.gender?.toLowerCase();
     if (gender == 'female' || gender == 'f') return 'female';
     return 'male';
+  }
+
+  /// v75: Returns the target person's gender (or null when unknown) so
+  /// the chain engine can pick the correct result variant for
+  /// gender-neutral via keys on the final hop.
+  String? _getPersonGender(
+    String personId,
+    List<GraphPerson> persons,
+  ) {
+    final person = persons.where((p) => p.id == personId).firstOrNull;
+    final gender = person?.gender?.toLowerCase();
+    if (gender == 'female' || gender == 'f') return 'female';
+    if (gender == 'male' || gender == 'm') return 'male';
+    return null;
   }
 
   /// Resolves a single-step relationship type to a gender-specific key.
