@@ -86,7 +86,24 @@ const double _kChipHeight = 48;
 /// "Parent" and "Child" are first because they are the two most
 /// common relations a user adds to their family graph.
 ///
-/// The "from the viewer's perspective" semantic:
+/// v5.216 (INVALID KEY FIX): the first enum value is the FUNDAMENTAL
+/// edge key sent to `fn_create_graph_pending_invitation`, which (and
+/// the Relationship table's CHECK constraint) only accepts
+/// 'parent' | 'spouse' | 'adoptive_parent' | 'step_parent'. The
+/// previous values 'child' / 'sibling' / 'grandparent' were rejected
+/// by the RPC with `invalid_relationship_key` — so tapping the Child,
+/// Sibling or Grandparent chip NEVER created the invitation (the
+/// console logged "[graphPendingInvitations] create failed:
+/// invalid_relationship_key" and the sheet just sat there). All
+/// non-spouse blood relations use the 'parent' fundamental edge — the
+/// SPECIFIC relationship (son/daughter, brother/sister,
+/// grandfather/grandmother) lives in labelAtoB/labelBtoB, exactly how
+/// every sibling/child/grandparent edge in the production DB is
+/// stored (1040 'parent' + 114 'spouse' active edges, zero others).
+/// This also matches add_person_sheet._mapToFundamentalEdge and the
+/// sheet's own _fundamentalKeyFor ("Everything else → 'parent'").
+///
+/// The "from the viewer's perspective" semantic (unchanged):
 ///   - Parent     → "the selected user is the viewer's parent"
 ///   - Child      → "the selected user is the viewer's child"
 ///   - Sibling    → "the selected user is the viewer's sibling"
@@ -94,10 +111,10 @@ const double _kChipHeight = 48;
 ///   - Grandparent → "the selected user is the viewer's grandparent"
 enum _QuickPickCategory {
   parent('parent', 'Parent', Icons.family_restroom),
-  child('child', 'Child', Icons.child_care_outlined),
-  sibling('sibling', 'Sibling', Icons.people_outline),
+  child('parent', 'Child', Icons.child_care_outlined),
+  sibling('parent', 'Sibling', Icons.people_outline),
   spouse('spouse', 'Spouse', Icons.favorite_outline),
-  grandparent('grandparent', 'Grandparent', Icons.elderly_outlined);
+  grandparent('parent', 'Grandparent', Icons.elderly_outlined);
 
   const _QuickPickCategory(this.fundamentalKey, this.label, this.icon);
   final String fundamentalKey;
