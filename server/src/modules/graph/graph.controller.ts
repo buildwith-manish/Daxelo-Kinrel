@@ -125,6 +125,14 @@ export class GraphController {
     @Query('depth') depth?: string,
     @Query('locale') locale?: string,
   ) {
+    // SECURITY (audit F-02): enforce family membership BEFORE loading any
+    // graph data. assertMember() delegates to the same requireFamilyMember
+    // check used by every other graph endpoint, so the response (403 for a
+    // private family the caller is not in, 404 for a missing family, null
+    // membership for read-only access on a public family) is identical to
+    // what /graph/:familyId, /graph/:familyId/enriched, etc. already return.
+    await this.graphService.assertMember(userId, familyId);
+
     const rootPersonId = await this.graphService.resolveRootPersonId(
       userId,
       familyId,
@@ -153,8 +161,16 @@ export class GraphController {
       throw new BadRequestException('Both "from" and "to" query parameters are required for path finding');
     }
 
-    // Auth check via graphService
-    await this.graphService.resolveRootPersonId(userId, familyId);
+    // SECURITY (audit F-03): enforce family membership BEFORE running the
+    // BFS path search. We intentionally do NOT switch to GraphService.
+    // getPathWithAuth here: that method returns a different response shape
+    // ({ path, relationships }) than this endpoint's contract ({ forward }),
+    // and the underlying findPath() in GraphEngineService produces the
+    // kinship signature data the Flutter client depends on. Adding the
+    // assertMember() guard keeps the existing response shape unchanged for
+    // authorised users while denying cross-family access the same way the
+    // other graph endpoints do.
+    await this.graphService.assertMember(userId, familyId);
 
     // BUG-026 FIX: Compute only the forward path via GraphEngineService.
     // The inverse path is the forward path reversed with swapped kinship
