@@ -297,7 +297,18 @@ class LiveLocationNotifier extends StateNotifier<LiveLocationState> {
     final client = _ref.read(supabaseProvider);
     if (client == null) return;
 
-    _channel?.unsubscribe();
+    // PERF (Phase 3 — realtime leak fix): use `client.removeChannel` to
+    // fully evict any existing channel from the Supabase client's
+    // `channels` list (freeing its Hook/Push/Binding objects). The
+    // previous `channel.unsubscribe()` only sent the WebSocket
+    // unsubscribe — the channel object stayed in the client's list
+    // forever, accumulating objects on every re-subscribe.
+    if (_channel != null) {
+      try {
+        client.removeChannel(_channel!);
+      } catch (_) {}
+      _channel = null;
+    }
     _channel = client.channel('family-map:$familyId');
 
     _channel!.onBroadcast(
@@ -340,9 +351,21 @@ class LiveLocationNotifier extends StateNotifier<LiveLocationState> {
   }
 
   /// Stop subscribing to live updates. Last-known positions stay in state.
+  ///
+  /// PERF (Phase 3 — realtime leak fix): uses `client.removeChannel` to
+  /// fully evict the channel from the Supabase client's `channels` list
+  /// (was `channel.unsubscribe()` only — leaking the channel object +
+  /// its Bindings on every start/stop cycle).
   void stop() {
-    _channel?.unsubscribe();
-    _channel = null;
+    if (_channel != null) {
+      final client = _ref.read(supabaseProvider);
+      if (client != null) {
+        try {
+          client.removeChannel(_channel!);
+        } catch (_) {}
+      }
+      _channel = null;
+    }
     _staleRefreshTimer?.cancel();
     _staleRefreshTimer = null;
   }

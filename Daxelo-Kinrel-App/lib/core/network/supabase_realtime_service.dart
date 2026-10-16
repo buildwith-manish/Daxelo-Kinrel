@@ -168,9 +168,21 @@ class SupabaseRealtimeService {
       } else if (status == RealtimeSubscribeStatus.channelError) {
         debugPrint(
             '[SupabaseRealtime] Channel error for family $familyId: $error');
-        // Auto-reconnect: remove the old channel entry so
-        // subscribeToFamily can be called again
+        // PERF (Phase 3 — realtime leak fix): REMOVE the old channel
+        // from the Supabase client's `channels` list before retrying.
+        // The previous code only removed the familyId from
+        // `_familyChannels` (the local map) and scheduled a retry that
+        // created a NEW channel via `client.channel(...)`. Because
+        // `RealtimeClient.channel(name)` does NOT deduplicate by name,
+        // the old (errored) channel object stayed in the client's
+        // list forever, accumulating Hook/Push/Binding objects on
+        // each retry. Now `removeChannel` fully evicts the old
+        // channel before the retry creates a fresh one.
         _familyChannels.remove(familyId);
+        try {
+          client.removeChannel(channel);
+        } catch (_) {}
+        _logActiveChannelCount('channelError-retry');
         // Retry after 5 seconds
         Future.delayed(const Duration(seconds: 5), () {
           subscribeToFamily(familyId);
@@ -179,6 +191,7 @@ class SupabaseRealtimeService {
     });
 
     _familyChannels[familyId] = channel;
+    _logActiveChannelCount('subscribeToFamily');
   }
 
   /// v2.2: Handles a broadcast change payload from the DB trigger.
@@ -246,6 +259,7 @@ class SupabaseRealtimeService {
         client.removeChannel(channel);
       } catch (_) {}
     }
+    _logActiveChannelCount('unsubscribeFromFamily');
     debugPrint(
         '[SupabaseRealtime] Unsubscribed from family: $familyId');
   }
@@ -560,6 +574,19 @@ class SupabaseRealtimeService {
   /// Check if subscribed to a specific family.
   bool isSubscribedToFamily(String familyId) =>
       _familyChannels.containsKey(familyId);
+
+  /// PERF (Phase 3 — Task 6): debug-only log of active realtime
+  /// channel count. Prints whenever a channel is created or removed
+  /// so the developer can verify the count stays small in DevTools.
+  /// In release builds this is a no-op (kDebugMode is false).
+  void _logActiveChannelCount(String operation) {
+    if (!kDebugMode) return;
+    debugPrint(
+      '[SupabaseRealtime] channels=${_familyChannels.length} '
+      '(after $operation) — expected to stay small '
+      '(one per viewed family + one for the family-list watcher)',
+    );
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════

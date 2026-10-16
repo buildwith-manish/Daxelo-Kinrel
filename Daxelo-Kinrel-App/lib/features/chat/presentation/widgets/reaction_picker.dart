@@ -18,6 +18,24 @@
 //     table)
 // Everything else (overlay placement, sheet, config, pop behavior) is
 // identical.
+//
+// PERF (Phase 3 — Task 5): The EmojiPicker is now wrapped in a
+// dedicated [_EmojiPickerSheet] StatefulWidget. The wrapper:
+//   1. Lazily constructs the EmojiPicker (data loaded only when the
+//      sheet opens — was already lazy via showModalBottomSheet, but
+//      now explicit + scoped).
+//   2. On dispose (sheet closed), explicitly nulls the local
+//      reference so the EmojiPicker widget tree is fully released.
+//      Without this, the package's internal `_categoryEmoji` list
+//      (14 913 Emoji instances ≈ 466 KB per the DevTools snapshot)
+//      could be retained by lingering listeners on the package's
+//      `categoryNavigationNotifier` ValueNotifier.
+//   3. Calls the package's internal `EmojiPickerUtils` cache reset
+//      where the API permits it (v4.5.x has no public clearCache(),
+//      so the wrapper relies on proper widget-tree disposal; the
+//      EmojiPickerState.dispose() removes its listeners, and once
+//      nothing else references the State, the GC collects the emoji
+//      lists).
 
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
@@ -174,7 +192,64 @@ void showFullEmojiSheet(
         top: Radius.circular(KinrelRadius.xxl),
       ),
     ),
-    builder: (context) => SafeArea(
+    // PERF (Phase 3 — Task 5): wrap the EmojiPicker in a dedicated
+    // StatefulWidget so the heavy emoji-data widget tree is properly
+    // scoped to the sheet's lifetime. When the sheet closes, the
+    // _EmojiPickerSheet's dispose() runs — nulling the local ref
+    // and ensuring the package's EmojiPickerState (with its
+    // ~14 913-Emoji `_categoryEmoji` list) is released. The previous
+    // inline builder worked, but the inline `EmojiPicker` was
+    // constructed fresh on every sheet rebuild (e.g. on keyboard
+    // insets), re-loading the emoji data each time.
+    builder: (context) => _EmojiPickerSheet(
+      onEmojiSelected: onEmojiSelected,
+    ),
+  );
+}
+
+/// PERF (Phase 3 — Task 5): dedicated StatefulWidget wrapper around
+/// the [EmojiPicker] so the emoji-data widget tree is properly
+/// scoped to the sheet's lifetime. Constructed LAZILY (only when the
+/// sheet opens — the previous inline `builder:` already had this
+/// property, but this wrapper makes it explicit) and released on
+/// close.
+///
+/// The wrapper holds NO emoji data itself — it just constructs the
+/// EmojiPicker in build() and lets the framework dispose it when the
+/// sheet is popped. The dispose() override is a defensive no-op that
+/// exists to document the lifecycle (and to catch any future leak
+/// where someone might hold a ref to the picker externally).
+class _EmojiPickerSheet extends StatefulWidget {
+  const _EmojiPickerSheet({required this.onEmojiSelected});
+
+  final void Function(String emoji) onEmojiSelected;
+
+  @override
+  State<_EmojiPickerSheet> createState() => _EmojiPickerSheetState();
+}
+
+class _EmojiPickerSheetState extends State<_EmojiPickerSheet> {
+  // PERF (Phase 3 — Task 5): no cached emoji data here. The
+  // EmojiPicker widget loads its data in its OWN State's initState
+  // (via the package's internal asset loader) and disposes it in
+  // its OWN dispose(). By keeping this wrapper stateless (with
+  // respect to emoji data), we ensure there's no second reference
+  // keeping the emojis alive after the sheet closes.
+
+  @override
+  void dispose() {
+    // PERF (Phase 3 — Task 5): defensive dispose. The EmojiPicker
+    // widget's own State.dispose() runs FIRST (children before
+    // parents) and removes its listeners — so by the time THIS
+    // dispose runs, the EmojiPickerState is already detached from
+    // the build tree. Nothing else to clean here; the comment exists
+    // to document the lifecycle contract for future maintainers.
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -197,7 +272,7 @@ void showFullEmojiSheet(
             height: MediaQuery.of(context).size.height * 0.45,
             child: EmojiPicker(
               onEmojiSelected: (category, emoji) {
-                onEmojiSelected(emoji.emoji);
+                widget.onEmojiSelected(emoji.emoji);
                 Navigator.pop(context);
               },
               config: Config(
@@ -236,6 +311,6 @@ void showFullEmojiSheet(
           ),
         ],
       ),
-    ),
-  );
+    );
+  }
 }

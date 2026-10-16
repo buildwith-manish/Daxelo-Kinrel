@@ -1660,11 +1660,23 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // Tier 1 #1 — register with the central registry.
     if (_channel != null) {
       final registry = ref.read(realtimeChannelRegistryProvider);
+      // PERF (Phase 3 — realtime leak fix): pass a dispose callback
+      // that uses `client.removeChannel(channel)` instead of just
+      // `channel.unsubscribe()`. Without this, the chat channel
+      // stays in the Supabase client's `channels` list forever after
+      // the screen disposes, accumulating Hook/Push/Binding objects
+      // (especially bad when the user switches families back-and-forth
+      // rapidly — each switch creates a new channel without evicting
+      // the previous one).
+      final supabaseClient = _client;
       registry.register(
         'chat:$familyId',
         _channel!,
         _subscribeToRealtime,
         isLiveGame: false,
+        disposeChannel: supabaseClient == null
+            ? null
+            : (ch) => supabaseClient.removeChannel(ch),
       );
     }
 
@@ -3319,7 +3331,21 @@ class ChatNotifier extends StateNotifier<ChatState> {
   void dispose() {
     final registry = ref.read(realtimeChannelRegistryProvider);
     registry.unregister('chat:$familyId');
-    _channel?.unsubscribe();
+    // PERF (Phase 3 — realtime leak fix): use `client.removeChannel`
+    // instead of `_channel?.unsubscribe()` so the channel is fully
+    // evicted from the Supabase client's `channels` list (freeing
+    // its Hook/Push/Binding objects). The registry's unregister
+    // already calls the disposeChannel callback we passed at
+    // register time, which does the same `removeChannel` — this
+    // call is a safety net for the case where the channel wasn't
+    // registered (e.g., subscribe failed mid-way). `removeChannel`
+    // is idempotent on an already-removed channel.
+    final client = _client;
+    if (client != null && _channel != null) {
+      try {
+        client.removeChannel(_channel!);
+      } catch (_) {}
+    }
     _channel = null;
     _membersSub?.cancel();
     // v5.2: Cancel the family member listener to prevent leaks.
