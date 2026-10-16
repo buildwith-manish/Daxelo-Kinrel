@@ -92,6 +92,54 @@ String? resolveViewerPersonId({
 bool isViewerLinked(String? viewerPersonId) {
   return viewerPersonId != null && viewerPersonId.isNotEmpty;
 }
+
+/// v5.216: FULL pure resolution chain INCLUDING the v5.177.1 creator
+/// fallback — the EXACT chain [viewerPersonIdProvider] applies. This is
+/// THE canonical "which Person does this user see as their own node"
+/// rule, extracted so every surface that needs per-viewer relationships
+/// (the family graph, the group-chat kinship labels, future features)
+/// resolves the viewer with ONE shared function — never a parallel
+/// per-feature rule.
+///
+/// Chain (first match wins):
+///   1. [result.linkedPersonId] non-empty → it (fast path)
+///   2. [result.anchorPersonId] non-empty AND its linkedUserId == the
+///      given user → the anchor (anchor IS the user)
+///   3. [result.anchorPersonId] non-empty AND its linkedUserId is
+///      null/empty AND [familyCreatedBy] == the given user → the anchor
+///      (v5.177.1: the family creator viewing their own unlinked anchor
+///      node — e.g. they already had a Person in another family, so the
+///      creation trigger left the anchor without linkedUserId)
+///   4. Otherwise → null (don't show the wrong person as "You")
+///
+/// [currentUserId] — the auth user's ID (viewer side).
+/// [familyCreatedBy] — Family.createdBy for the family being viewed.
+String? resolveViewerPersonIdWithCreatorFallback({
+  required ViewerQueryResult result,
+  String? familyCreatedBy,
+  required String? currentUserId,
+}) {
+  // Steps 1–2 via the existing pure function (reuse, no duplication).
+  final linkedOrAnchor = resolveViewerPersonId(
+    result: result,
+    currentUserId: currentUserId,
+  );
+  if (linkedOrAnchor != null) return linkedOrAnchor;
+
+  // Step 3: creator fallback (v5.177.1).
+  final anchorId = result.anchorPersonId;
+  final anchorUnlinked =
+      result.anchorLinkedUserId == null || result.anchorLinkedUserId!.isEmpty;
+  if (anchorId != null && anchorId.isNotEmpty && anchorUnlinked) {
+    if (currentUserId != null &&
+        currentUserId.isNotEmpty &&
+        familyCreatedBy != null &&
+        familyCreatedBy == currentUserId) {
+      return anchorId;
+    }
+  }
+  return null;
+}
 ///     // Use viewerId as the center of the graph
 ///   }
 final viewerPersonIdProvider =
@@ -216,42 +264,31 @@ final viewerPersonIdProvider =
       }
     }
 
-    var resolvedId = resolveViewerPersonId(
+    // v5.216: Steps 1–3 now run through the SHARED pure resolution chain
+    // (resolveViewerPersonIdWithCreatorFallback) so the family graph and
+    // every other per-viewer surface (group-chat kinship labels) apply
+    // EXACTLY the same rules. Behavior is identical to the previous
+    // inline v5.177.1 logic.
+    //
+    // The creator fallback can only help when the anchor exists but is
+    // unlinked — that's the only case where Family.createdBy is queried
+    // (preserving the previous query count for every other path).
+    final anchorUnlinked = anchorLinkedUserId == null;
+    final resolvedId = resolveViewerPersonIdWithCreatorFallback(
       result: ViewerQueryResult(
         linkedPersonId: null, // Already checked above — null means not found
         anchorPersonId: anchorId,
         anchorLinkedUserId: anchorLinkedUserId,
       ),
+      familyCreatedBy: await _familyCreatedBy(
+        client,
+        familyId,
+        needed: anchorId != null && anchorUnlinked,
+      ),
       currentUserId: userId,
     );
 
-    // v5.177.1: If Step 3 didn't resolve (because anchor.linkedUserId is
-    // NULL — happens when the user is the family creator but already has
-    // a linked Person in ANOTHER family, so the v5.177 trigger created
-    // their anchor Person WITHOUT linkedUserId), check if the current
-    // user is the Family.createdBy. If so, they ARE the family creator
-    // and should be treated as the viewer of their own anchor node.
-    if (resolvedId == null && anchorId != null && anchorLinkedUserId == null) {
-      try {
-        final familyData = await client
-            .from('Family')
-            .select('createdBy')
-            .eq('id', familyId)
-            .maybeSingle()
-            .timeout(const Duration(seconds: 5));
-        final createdBy = familyData?['createdBy'] as String?;
-        if (createdBy != null && createdBy == userId) {
-          // Current user is the family creator — they can view their
-          // own anchor node even without linkedUserId set.
-          resolvedId = anchorId;
-          debugPrint('⚠️ viewerPersonIdProvider: resolved via creator fallback '
-              '(anchor.linkedUserId=NULL, user is Family.createdBy)');
-        }
-      } catch (e) {
-        debugPrint('⚠️ viewerPersonIdProvider: creator check failed: $e');
-      }
-    }
-
+    // v5.216 DEBUG parity: keep the previous resolution logging.
     if (resolvedId != null) {
       _cacheViewerPersonId(familyId, resolvedId);
       debugPrint('[viewerPersonIdProvider] ✓ Final resolution: '
@@ -264,6 +301,27 @@ final viewerPersonIdProvider =
     return resolvedId;
   },
 );
+
+/// v5.216: Queries Family.createdBy for the creator fallback (Step 3).
+/// Only called when [needed] is true (anchor exists but is unlinked) to
+/// preserve the pre-v5.216 query count; returns null otherwise or on
+/// failure (treated as "not the creator" by the pure resolver).
+Future<String?> _familyCreatedBy(client, String familyId,
+    {required bool needed}) async {
+  if (!needed) return null;
+  try {
+    final familyData = await client
+        .from('Family')
+        .select('createdBy')
+        .eq('id', familyId)
+        .maybeSingle()
+        .timeout(const Duration(seconds: 5));
+    return familyData?['createdBy'] as String?;
+  } catch (e) {
+    debugPrint('⚠️ viewerPersonIdProvider: creator check failed: $e');
+    return null;
+  }
+}
 
 /// Queries the anchor person for a family.
 Future<String?> _resolveAnchorPerson(client, String familyId) async {

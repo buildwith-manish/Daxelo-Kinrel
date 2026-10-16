@@ -35,6 +35,28 @@
 // user A views a message from user B, they might see "Chacha". If
 // user C views the same message, they might see "Bhaiya".
 //
+// v5.216 (viewer/sender resolution parity with the graph): BOTH the
+// viewer's and the sender's Person records are now resolved with the
+// SAME chain the family graph uses (viewerPersonIdProvider —
+// resolveViewerPersonIdWithCreatorFallback):
+//   1. Person.linkedUserId == user → that Person
+//   2. anchor Person + anchor.linkedUserId == user → the anchor
+//   3. anchor Person + anchor.linkedUserId is null + user is the
+//      Family creator → the anchor (v5.177.1 creator fallback)
+// Previously the chat ONLY did step 1, so in families where the
+// creator's anchor Person had linkedUserId = NULL (the common case
+// when the creator already has a Person in another family — the
+// creation trigger leaves the anchor unlinked), the graph showed the
+// relationship labels correctly while the group chat showed NONE:
+// the viewer (creator) resolved to no Person, and messages SENT by
+// the unlinked creator resolved to no Person for other viewers.
+// Members added via "Find on Kinrel" who accepted their invitation
+// ARE linked (fn_accept_graph_invitation sets linkedUserId), so their
+// messages showed labels for linked viewers but NOT for the creator
+// — exactly the "the graph has the rules but the chat doesn't" bug.
+// Reusing the graph's shared pure resolver fixes both directions
+// without introducing any chat-specific rules.
+//
 // Performance: every provider here is a Riverpod `Provider.family`
 // keyed by (familyId, senderUserId) — resolved once, cached, and
 // rebuilt only when the underlying familyDetailProvider state
@@ -42,7 +64,10 @@
 // internally per (viewer, target) pair, so multi-hop resolution
 // never re-runs on widget rebuilds. [ChatKinshipResolver] memoizes
 // the Person→GraphPerson conversion with a single-slot cache so the
-// per-sender cost is a map lookup, not a list rebuild.
+// per-sender cost is a map lookup, not a list rebuild. When the
+// family's data actually changes (new list identity), the engine's
+// classification cache is invalidated so edited/added relationships
+// re-resolve instead of serving stale labels.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,6 +77,8 @@ import '../../../core/kinship/kinship_service.dart';
 import '../../../core/relationship/relationship_engine.dart';
 import '../../../core/services/graph_layout_service.dart' show GraphPerson;
 import '../../../core/services/supabase_service.dart';
+import '../../../core/viewer/viewer_provider.dart'
+    show resolveViewerPersonIdWithCreatorFallback, ViewerQueryResult;
 
 // ═══════════════════════════════════════════════════════════════════════
 // PURE RESOLVER — no providers, no Supabase, unit-testable in isolation
@@ -156,6 +183,16 @@ class ChatKinshipResolver {
       return (_cachedGraphPersons!, _cachedGraphRels!);
     }
 
+    // v5.216: the family's data changed (new list identity) — any
+    // previously composed (viewer → target) classifications may be
+    // stale (relationship added/edited between the viewer and an
+    // existing sender). Null results are never cached by the engine,
+    // so newly-added members always resolve; this invalidation
+    // ensures EDITED relationships re-resolve too.
+    if (_cachedGraphPersons != null) {
+      RelationshipEngine.instance.invalidateCache();
+    }
+
     final graphPersons = <GraphPerson>[
       for (final p in members)
         GraphPerson(
@@ -196,6 +233,56 @@ class ChatKinshipResolver {
     _cachedGraphRels = null;
     RelationshipEngine.instance.invalidateCache();
   }
+
+  /// v5.216: Resolves the Person node a given user (viewer OR message
+  /// sender) occupies in a family — using the EXACT chain the family
+  /// graph uses for the viewer (viewerPersonIdProvider →
+  /// resolveViewerPersonIdWithCreatorFallback):
+  ///   1. Person.linkedUserId == [userId] → that Person
+  ///   2. anchor + anchor.linkedUserId == userId → the anchor
+  ///   3. anchor + anchor.linkedUserId is null + userId is the family
+  ///      creator → the anchor (v5.177.1 creator fallback)
+  ///
+  /// This is a thin adapter over the graph's shared pure resolver —
+  /// no chat-specific mapping rules. It fixes the asymmetry where the
+  /// graph showed relationship labels for the family creator (via the
+  /// creator fallback) while the group chat showed none because the
+  /// creator's anchor Person has linkedUserId = null.
+  ///
+  /// Returns null when the user has no Person node in this family.
+  static Person? personForUser({
+    required List<Person> members,
+    required String? familyCreatedBy,
+    required String? userId,
+  }) {
+    if (userId == null || userId.isEmpty) return null;
+
+    // Step 1: the user's linked Person in this family.
+    for (final p in members) {
+      if (p.linkedUserId == userId) return p;
+    }
+
+    // Steps 2–3: anchor / creator fallback — the shared graph rules.
+    Person? anchor;
+    for (final p in members) {
+      if (p.isAnchor) {
+        anchor = p;
+        break;
+      }
+    }
+    if (anchor == null) return null;
+
+    final resolvedId = resolveViewerPersonIdWithCreatorFallback(
+      result: ViewerQueryResult(
+        linkedPersonId: null, // already checked above
+        anchorPersonId: anchor.id,
+        anchorLinkedUserId: anchor.linkedUserId,
+      ),
+      familyCreatedBy: familyCreatedBy,
+      currentUserId: userId,
+    );
+    return resolvedId == anchor.id ? anchor : null;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -223,24 +310,25 @@ final relationshipKeyProvider =
     final detail = detailAsync.valueOrNull;
     if (detail == null) return null;
 
-    // Find the viewer's Person record (linked to their auth user ID).
-    Person? viewerPerson;
-    for (final p in detail.members) {
-      if (p.linkedUserId == currentUserId) {
-        viewerPerson = p;
-        break;
-      }
-    }
+    // v5.216: resolve the viewer's Person with the SAME chain the
+    // family graph uses (linked → anchor-is-user → creator fallback).
+    // The chat previously only did the linked lookup, so the family
+    // creator (whose anchor Person has linkedUserId = null) saw NO
+    // relationship labels while the graph showed them correctly.
+    final viewerPerson = ChatKinshipResolver.personForUser(
+      members: detail.members,
+      familyCreatedBy: detail.family.createdBy,
+      userId: currentUserId,
+    );
     if (viewerPerson == null) return null;
 
-    // Find the sender's Person record.
-    Person? senderPerson;
-    for (final p in detail.members) {
-      if (p.linkedUserId == params.senderUserId) {
-        senderPerson = p;
-        break;
-      }
-    }
+    // v5.216: same shared chain for the sender — messages FROM the
+    // unlinked creator anchor now resolve for every linked viewer.
+    final senderPerson = ChatKinshipResolver.personForUser(
+      members: detail.members,
+      familyCreatedBy: detail.family.createdBy,
+      userId: params.senderUserId,
+    );
     if (senderPerson == null) return null;
 
     return ChatKinshipResolver.resolveKey(

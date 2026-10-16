@@ -288,6 +288,182 @@ void main() {
   });
 
   // ─────────────────────────────────────────────────────────────────────
+  // v5.216 — personForUser: the user→Person resolution uses the SAME
+  // chain as the family graph (viewerPersonIdProvider), so members
+  // added via "Find on Kinrel" show their relationship label for the
+  // family creator even when the creator's anchor Person has
+  // linkedUserId = NULL (the creation trigger leaves it unlinked when
+  // the creator already has a Person in another family).
+  // ─────────────────────────────────────────────────────────────────────
+
+  group('ChatKinshipResolver.personForUser — graph-parity resolution', () {
+    // Mirrors the live "Relationship" family scenario:
+    //   creator = Account 1 (anchor, UNLINKED, Family.createdBy)
+    //   member  = Account 2 (linked, added via Find on Kinrel, accepted)
+    final creatorAnchor = _person('anchor-1', 'Account 1', isAnchor: true);
+    final linkedMember = _person('member-2', 'Account 2',
+        linkedUserId: 'user-member');
+    final members = [creatorAnchor, linkedMember];
+
+    test('linked user resolves to their Person (fast path)', () {
+      final p = ChatKinshipResolver.personForUser(
+        members: members,
+        familyCreatedBy: 'user-creator',
+        userId: 'user-member',
+      );
+      expect(p, same(linkedMember));
+    });
+
+    test('creator resolves to their UNLINKED anchor (creator fallback)', () {
+      // THE reported bug: the creator's anchor has linkedUserId = null.
+      // The graph resolves the creator to the anchor via the v5.177.1
+      // creator fallback — the chat must apply the SAME rule.
+      final p = ChatKinshipResolver.personForUser(
+        members: members,
+        familyCreatedBy: 'user-creator',
+        userId: 'user-creator',
+      );
+      expect(p, same(creatorAnchor));
+    });
+
+    test('creator fallback does NOT apply to a non-creator user', () {
+      // A random unlinked user must NOT be attributed the anchor —
+      // only the Family.createdBy may claim the unlinked anchor.
+      final p = ChatKinshipResolver.personForUser(
+        members: members,
+        familyCreatedBy: 'user-creator',
+        userId: 'user-someone-else',
+      );
+      expect(p, isNull);
+    });
+
+    test('anchor linked to a DIFFERENT user is never mis-attributed', () {
+      final otherAnchor = _person('anchor-9', 'Other',
+          isAnchor: true, linkedUserId: 'user-owner');
+      final p = ChatKinshipResolver.personForUser(
+        members: [otherAnchor, linkedMember],
+        familyCreatedBy: 'user-owner',
+        userId: 'user-someone-else',
+      );
+      expect(p, isNull);
+    });
+
+    test('linked Person wins over the anchor even for the creator', () {
+      // If the creator ALSO has a linked Person (e.g. they later
+      // accepted an invite into their own family), step 1 wins — the
+      // exact priority the graph uses.
+      final creatorLinked = _person('member-9', 'Account 1 Linked',
+          linkedUserId: 'user-creator');
+      final p = ChatKinshipResolver.personForUser(
+        members: [creatorAnchor, creatorLinked, linkedMember],
+        familyCreatedBy: 'user-creator',
+        userId: 'user-creator',
+      );
+      expect(p, same(creatorLinked));
+    });
+
+    test('null / empty userId resolves to nothing', () {
+      expect(
+        ChatKinshipResolver.personForUser(
+            members: members, familyCreatedBy: 'user-creator', userId: null),
+        isNull,
+      );
+      expect(
+        ChatKinshipResolver.personForUser(
+            members: members, familyCreatedBy: 'user-creator', userId: ''),
+        isNull,
+      );
+    });
+
+    test('no anchor and no link → null (no invented Person)', () {
+      final p = ChatKinshipResolver.personForUser(
+        members: [linkedMember],
+        familyCreatedBy: 'user-creator',
+        userId: 'user-creator',
+      );
+      expect(p, isNull);
+    });
+
+    test(
+        'FULL SCENARIO: creator viewer + Find-on-Kinrel sender → the label '
+        'the graph shows ("Father"), via the shared resolution chain', () {
+      // Relationship family (live repro): anchor Account 1 (unlinked
+      // creator) → Account 2 (linked member, invited as "father"):
+      //   edge: from=anchor, to=member, labelAtoB='father'
+      //   → "member is anchor's father".
+      // Viewer = creator, sender = member → label must be 'father'.
+      final rels = [
+        _rel('anchor-1', 'member-2', 'parent',
+            labelAtoB: 'father', labelBtoA: 'child'),
+      ];
+      final viewerPerson = ChatKinshipResolver.personForUser(
+        members: members,
+        familyCreatedBy: 'user-creator',
+        userId: 'user-creator',
+      );
+      final senderPerson = ChatKinshipResolver.personForUser(
+        members: members,
+        familyCreatedBy: 'user-creator',
+        userId: 'user-member',
+      );
+      expect(viewerPerson, same(creatorAnchor));
+      expect(senderPerson, same(linkedMember));
+
+      final key = ChatKinshipResolver.resolveKey(
+        viewerPerson: viewerPerson!,
+        senderPerson: senderPerson!,
+        members: members,
+        relationships: rels,
+      );
+      expect(key, 'father');
+      expect(formatRelationshipLabel(key!), 'Father');
+    });
+
+    test(
+        'REVERSE SCENARIO: messages FROM the unlinked creator anchor '
+        'resolve for a linked viewer ("Child"), per viewer perspective', () {
+      // Tt family (live repro): anchor Account 2 (unlinked creator,
+      // SENDER) → Account 1 (linked viewer, invited as "father"):
+      //   edge: from=viewerPerson, to=anchor, labelAtoB='father'
+      //   → "anchor is viewer's father"… but here we keep the REAL Tt
+      //   shape: from=anchor,to=viewer,AtoB='father' means "viewer is
+      //   anchor's father", so the anchor is the viewer's CHILD.
+      final ttAnchor = _person('tt-anchor', 'Account 2', isAnchor: true);
+      final ttViewer = _person('tt-member', 'Account 1',
+          linkedUserId: 'user-viewer');
+      final ttMembers = [ttAnchor, ttViewer];
+      final rels = [
+        _rel('tt-anchor', 'tt-member', 'parent',
+            labelAtoB: 'father', labelBtoA: 'child'),
+        _rel('tt-member', 'tt-anchor', 'parent',
+            labelAtoB: 'child', labelBtoA: 'father'),
+      ];
+      final viewerPerson = ChatKinshipResolver.personForUser(
+        members: ttMembers,
+        familyCreatedBy: 'user-anchor-creator',
+        userId: 'user-viewer',
+      );
+      final senderPerson = ChatKinshipResolver.personForUser(
+        members: ttMembers,
+        familyCreatedBy: 'user-anchor-creator',
+        userId: 'user-anchor-creator', // the sender IS the creator
+      );
+      expect(viewerPerson, same(ttViewer));
+      expect(senderPerson, same(ttAnchor)); // creator fallback for sender
+
+      final key = ChatKinshipResolver.resolveKey(
+        viewerPerson: viewerPerson!,
+        senderPerson: senderPerson!,
+        members: ttMembers,
+        relationships: rels,
+      );
+      // Viewer = Account 1 (the father) sees the anchor (Account 2) as
+      // their child — the exact per-viewer perspective the graph shows.
+      expect(key, anyOf('child', 'son', 'daughter'));
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
   // ChatKinshipResolver — BFS fallback (multi-hop relatives)
   // ─────────────────────────────────────────────────────────────────────
 

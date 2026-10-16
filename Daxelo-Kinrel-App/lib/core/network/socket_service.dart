@@ -1519,9 +1519,15 @@ class SocketService {
         try {
           for (final id in _pendingInvalidations) {
             _ref.invalidate(familyMembersProvider(id));
-            // familyDetailProvider and familyMemberCountProvider auto-rebuild
-            // via ref.watch on familyMembersProvider — no need to invalidate directly
             _ref.invalidate(familyRelationshipsProvider(id));
+            // v5.216: familyDetailProvider composes members +
+            // relationships via ref.read (deliberately — ref.watch here
+            // caused cascading rebuild loops), so it does NOT rebuild
+            // when its sources are invalidated. Invalidate it
+            // explicitly so surfaces that watch it (the group-chat
+            // kinship labels, family screens) refresh when a member
+            // joins / a relationship is added or edited.
+            _ref.invalidate(familyDetailProvider(id));
           }
           if (_pendingInvalidations.isNotEmpty) {
             _ref.invalidate(familyListProvider);
@@ -1752,6 +1758,10 @@ class SocketService {
             for (final id in _pendingInvalidations) {
               _ref.invalidate(familyMembersProvider(id));
               _ref.invalidate(familyRelationshipsProvider(id));
+              // v5.216: same as _invalidateProvidersForFamily — see the
+              // comment there. familyDetailProvider composes its sources
+              // via ref.read, so it must be invalidated explicitly.
+              _ref.invalidate(familyDetailProvider(id));
             }
             // Invalidate familyListProvider only ONCE for the whole batch
             if (_pendingInvalidations.isNotEmpty) {

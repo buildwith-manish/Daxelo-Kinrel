@@ -112,6 +112,97 @@ void main() {
     });
   });
 
+  group('v5.216 resolveViewerPersonIdWithCreatorFallback — full chain', () {
+    // The chain INCLUDING the v5.177.1 creator fallback — the shared
+    // rule the family graph AND the group-chat kinship labels use.
+    const creatorResult = ViewerQueryResult(
+      linkedPersonId: null,
+      anchorPersonId: 'person-anchor',
+      anchorLinkedUserId: null, // anchor unlinked (creation trigger)
+    );
+
+    test('creator + unlinked anchor → anchor (creator fallback)', () {
+      final result = resolveViewerPersonIdWithCreatorFallback(
+        result: creatorResult,
+        familyCreatedBy: 'user-creator',
+        currentUserId: 'user-creator',
+      );
+      expect(result, 'person-anchor');
+    });
+
+    test('NOT the creator + unlinked anchor → null (no wrong "You")', () {
+      final result = resolveViewerPersonIdWithCreatorFallback(
+        result: creatorResult,
+        familyCreatedBy: 'user-creator',
+        currentUserId: 'user-someone-else',
+      );
+      expect(result, isNull);
+    });
+
+    test('creator but createdBy unknown (null) → null', () {
+      final result = resolveViewerPersonIdWithCreatorFallback(
+        result: creatorResult,
+        familyCreatedBy: null,
+        currentUserId: 'user-creator',
+      );
+      expect(result, isNull);
+    });
+
+    test('anchor linked to the user wins BEFORE the creator fallback', () {
+      final result = resolveViewerPersonIdWithCreatorFallback(
+        result: const ViewerQueryResult(
+          linkedPersonId: null,
+          anchorPersonId: 'person-anchor',
+          anchorLinkedUserId: 'user-123',
+        ),
+        familyCreatedBy: 'user-creator', // createdBy ≠ current user
+        currentUserId: 'user-123',
+      );
+      expect(result, 'person-anchor');
+    });
+
+    test('linked Person wins over everything', () {
+      final result = resolveViewerPersonIdWithCreatorFallback(
+        result: const ViewerQueryResult(
+          linkedPersonId: 'person-linked',
+          anchorPersonId: 'person-anchor',
+          anchorLinkedUserId: null,
+        ),
+        familyCreatedBy: 'user-123',
+        currentUserId: 'user-123',
+      );
+      expect(result, 'person-linked');
+    });
+
+    test('anchor linked to a DIFFERENT user → null even for the creator', () {
+      final result = resolveViewerPersonIdWithCreatorFallback(
+        result: const ViewerQueryResult(
+          linkedPersonId: null,
+          anchorPersonId: 'person-anchor',
+          anchorLinkedUserId: 'user-other',
+        ),
+        familyCreatedBy: 'user-123',
+        currentUserId: 'user-123',
+      );
+      expect(result, isNull,
+          reason: 'The anchor is verifiably another user — the creator '
+              'fallback must not override that');
+    });
+
+    test('empty-string anchor linkedUserId counts as unlinked', () {
+      final result = resolveViewerPersonIdWithCreatorFallback(
+        result: const ViewerQueryResult(
+          linkedPersonId: null,
+          anchorPersonId: 'person-anchor',
+          anchorLinkedUserId: '',
+        ),
+        familyCreatedBy: 'user-123',
+        currentUserId: 'user-123',
+      );
+      expect(result, 'person-anchor');
+    });
+  });
+
   group('v5.16 isViewerLinked — pure linked check', () {
     test('non-null viewer ID → linked', () {
       expect(isViewerLinked('person-123'), isTrue);
