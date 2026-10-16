@@ -707,6 +707,35 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   bool _painterActiveGesture = false;
   int _zoomCommitRevision = 0;
 
+  // PERF (Phase 2 — Task 4): ValueNotifier-backed zoom-commit revision.
+  // When the painter is constructed with this notifier (production
+  // path), it is passed to `super(repaint:)` so the painter repaints
+  // DIRECTLY when the notifier fires — no parent setState, no canvas
+  // rebuild, no node-widget tree rebuild. The previous flow called
+  // setState on every 15 % zoom-commit threshold crossing during a
+  // pinch, which rebuilt the entire canvas (Positioned GraphNode
+  // widgets + EdgeSelectionWrapper + chips) just to deliver a single
+  // int counter to the painter. Now the notifier triggers the
+  // painter's paint() in O(1) without touching the widget tree.
+  //
+  // The primitive [_zoomCommitRevision] field is kept for backward
+  // compatibility with tests that construct the painter without a
+  // notifier (the painter's shouldRepaint still compares the
+  // primitive). Production code bumps the notifier; the primitive
+  // stays at 0 (harmless — shouldRepaint's primitive comparison
+  // returns false, which is correct because the notifier handles the
+  // repaint trigger).
+  late final ValueNotifier<int> _zoomCommitNotifier;
+
+  // PERF (Phase 2 — Task 5): Timer that delays flipping
+  // [_painterActiveGesture] back to false by ~150 ms after the user
+  // lifts their finger. During this window the painter keeps drawing
+  // solid (cheaper) edges — covering the camera fling / momentum
+  // phase where the camera is still updating but no gesture is
+  // "active". Cancelled by [_onScaleStart] if a new gesture begins
+  // within the window, and by [dispose] if the widget unmounts.
+  Timer? _gestureSettleTimer;
+
   /// v5.141 (LOW-END PERF): The performance profile for the current
   /// device. Computed once in initState from [DeviceTierCache]. All
   /// tier-aware code paths (LOD selection, edge quality, ambient
@@ -900,6 +929,11 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // v5.141 (LOW-END PERF): Build the performance profile ONCE from
     // the device tier. All tier-aware code paths read from this.
     _perfProfile = GraphPerformanceProfile.forCurrentDevice();
+    // PERF (Phase 2 — Task 4): Initialize the zoom-commit notifier.
+    // Done here (not as a field initializer) because ValueNotifier
+    // instances need to be disposed in dispose(); late final +
+    // initState is the cleanest pattern for that.
+    _zoomCommitNotifier = ValueNotifier<int>(0);
     _positionMemory = PositionMemory();
     _camera = CameraController(positionMemory: _positionMemory)
       ..setFamilyId(widget.familyId)
@@ -1113,6 +1147,12 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       // via deep links or provider-driven navigation).
       _painterActiveGesture = false;
       _zoomCommitRevision = 0;
+      // PERF (Phase 2 — Tasks 4 + 5): reset the zoom-commit notifier
+      // and cancel any pending gesture-settle timer so the new
+      // family doesn't inherit a stale "gesture in progress" state.
+      _zoomCommitNotifier.value = 0;
+      _gestureSettleTimer?.cancel();
+      _gestureSettleTimer = null;
       _lastCommittedZoom = 1.0;
       _camera
         ..resetInitialFit()
@@ -1170,6 +1210,13 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   void dispose() {
     _telemetryTimer?.cancel();
     _cameraRebuildTimer?.cancel(); // v5.x (perf fix)
+    // PERF (Phase 2 — Task 5): cancel any pending gesture-settle
+    // timer so the delayed setState doesn't fire on a disposed
+    // state (would throw "setState() called after dispose()").
+    _gestureSettleTimer?.cancel();
+    _gestureSettleTimer = null;
+    // PERF (Phase 2 — Task 4): dispose the zoom-commit notifier.
+    _zoomCommitNotifier.dispose();
     _camera.removeListener(_onCameraChanged);
     _camera.dispose();
     _culler.dispose();

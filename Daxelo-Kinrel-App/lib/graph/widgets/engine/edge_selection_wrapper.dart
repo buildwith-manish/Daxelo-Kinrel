@@ -58,6 +58,15 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
     // See the painter's field docs for the contract.
     this.painterActiveGesture = false,
     this.zoomCommitRevision = 0,
+    // PERF (Phase 2 — Task 4): optional ValueNotifier that drives
+    // the painter's repaint DIRECTLY (via CustomPaint's `repaint:`
+    // listenable) when the zoom-commit revision bumps. When non-null,
+    // the painter is constructed with `super(repaint: this)` and
+    // repaints without going through shouldRepaint — no parent
+    // setState, no canvas rebuild. When null (tests / legacy callers),
+    // the primitive [zoomCommitRevision] comparison in shouldRepaint
+    // handles repaint triggers as before.
+    this.zoomCommitNotifier,
     // v5.140 (PERF): The connect-on-open trace controller. When non-
     // null, the wrapper listens to the controller's ticks and setStates
     // INTERNALLY — so connect-on-open animation ticks repaint ONLY the
@@ -180,6 +189,16 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
   /// straight through to the painter — see
   /// [EngineEdgePainter.zoomCommitRevision] for the contract.
   final int zoomCommitRevision;
+
+  /// PERF (Phase 2 — Task 4): Optional ValueNotifier that drives the
+  /// painter's repaint DIRECTLY (via CustomPaint's `repaint:`
+  /// listenable) when the zoom-commit revision bumps. When non-null,
+  /// the painter is constructed with `super(repaint: this)` and
+  /// repaints without going through shouldRepaint — no parent
+  /// setState, no canvas rebuild. When null, the primitive
+  /// [zoomCommitRevision] comparison in shouldRepaint handles repaint
+  /// triggers as before (tests / legacy callers).
+  final ValueNotifier<int>? zoomCommitNotifier;
 
   /// v5.140 (PERF): The connect-on-open trace controller. See the
   /// constructor doc for the contract.
@@ -474,6 +493,12 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
         // end / large interim zoom excursion.
         painterActiveGesture: widget.painterActiveGesture,
         zoomCommitRevision: widget.zoomCommitRevision,
+        // PERF (Phase 2 — Task 4): forward the notifier so the
+        // painter repaints DIRECTLY when it bumps (no setState, no
+        // canvas rebuild). Null for tests / legacy callers — the
+        // primitive zoomCommitRevision comparison in shouldRepaint
+        // handles the trigger in that case.
+        zoomCommitNotifier: widget.zoomCommitNotifier,
         // v5.141 (LOW-END PERF): forward profile-driven edge pass
         // toggles to the painter.
         allowShadowPass: widget.allowShadowPass,

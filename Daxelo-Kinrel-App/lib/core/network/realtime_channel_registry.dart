@@ -42,11 +42,20 @@ class _RegisteredChannel {
     required this.channel,
     required this.resubscribe,
     this.isLiveGame = false,
+    // PERF (Phase 3 — realtime leak fix): optional dispose callback
+    // that fully evicts the channel from the Supabase client's
+    // `channels` list. When provided, the registry calls this
+    // INSTEAD OF (or in addition to) `channel.unsubscribe()` so the
+    // channel's Hook/Push/Binding objects are released. Callers
+    // that have a SupabaseClient ref should pass
+    // `() => client.removeChannel(channel)`.
+    this.disposeChannel,
   });
 
   RealtimeChannel? channel;
   final VoidCallback resubscribe;
   final bool isLiveGame;
+  final void Function(RealtimeChannel)? disposeChannel;
   bool isSuspended = false;
 }
 
@@ -83,25 +92,35 @@ class RealtimeChannelRegistry {
   /// [isLiveGame] if true, the channel gets a 30s grace period on
   /// background before being suspended (prevents dropping a player
   /// mid-match on a brief app-switch).
+  ///
+  /// PERF (Phase 3 — realtime leak fix): [disposeChannel] is an
+  /// optional callback that fully evicts the channel from the
+  /// Supabase client's `channels` list. When provided, the registry
+  /// calls `disposeChannel!(channel)` INSTEAD of the default
+  /// `channel.unsubscribe()` on unregister / suspend / dispose — so
+  /// the channel's Hook/Push/Binding objects are released. Callers
+  /// that have a SupabaseClient ref should pass
+  /// `disposeChannel: (ch) => client.removeChannel(ch)`.
   void register(
     String key,
     RealtimeChannel channel,
     VoidCallback resubscribe, {
     bool isLiveGame = false,
+    void Function(RealtimeChannel)? disposeChannel,
   }) {
     // If a channel with this key already exists (e.g., screen re-creating
     // a channel), unsubscribe the old one first to prevent leaks.
     final existing = _channels[key];
     if (existing != null && existing.channel != null) {
-      try {
-        existing.channel!.unsubscribe();
-      } catch (_) {}
+      _disposeChannelEntry(existing);
     }
     _channels[key] = _RegisteredChannel(
       channel: channel,
       resubscribe: resubscribe,
       isLiveGame: isLiveGame,
+      disposeChannel: disposeChannel,
     );
+    _logActiveChannelCount('register:$key');
   }
 
   /// Unregister a channel and unsubscribe it immediately.
@@ -110,10 +129,9 @@ class RealtimeChannelRegistry {
   void unregister(String key) {
     final entry = _channels.remove(key);
     if (entry?.channel != null) {
-      try {
-        entry!.channel!.unsubscribe();
-      } catch (_) {}
+      _disposeChannelEntry(entry!);
     }
+    _logActiveChannelCount('unregister:$key');
   }
 
   /// Suspend all channels on app background.
@@ -152,12 +170,30 @@ class RealtimeChannelRegistry {
 
   void _suspendChannel(_RegisteredChannel entry) {
     if (entry.channel != null) {
-      try {
-        entry.channel!.unsubscribe();
-      } catch (_) {}
+      _disposeChannelEntry(entry);
     }
     entry.channel = null;
     entry.isSuspended = true;
+  }
+
+  /// PERF (Phase 3 — realtime leak fix): disposes a single channel
+  /// entry. When [entry.disposeChannel] is provided (production
+  /// callers that pass a SupabaseClient-backed `removeChannel`), it
+  /// is called INSTEAD of the default `channel.unsubscribe()` — so
+  /// the channel is fully evicted from the Supabase client's
+  /// `channels` list (freeing its Hook/Push/Binding objects). Falls
+  /// back to `channel.unsubscribe()` for legacy callers that don't
+  /// pass a dispose callback.
+  void _disposeChannelEntry(_RegisteredChannel entry) {
+    final ch = entry.channel;
+    if (ch == null) return;
+    try {
+      if (entry.disposeChannel != null) {
+        entry.disposeChannel!(ch);
+      } else {
+        ch.unsubscribe();
+      }
+    } catch (_) {}
   }
 
   /// Resume all suspended channels on app resume.
@@ -183,16 +219,40 @@ class RealtimeChannelRegistry {
     _gracePeriodTimer?.cancel();
     for (final entry in _channels.values) {
       if (entry.channel != null) {
-        try {
-          entry.channel!.unsubscribe();
-        } catch (_) {}
+        _disposeChannelEntry(entry);
       }
     }
     _channels.clear();
+    _logActiveChannelCount('dispose');
+  }
+
+  /// PERF (Phase 3 — Task 6): debug-only log of active realtime
+  /// channel count. Prints whenever a channel is registered or
+  /// unregistered so the developer can verify the count stays small
+  /// in DevTools. In release builds this is a no-op (kDebugMode is
+  /// false).
+  void _logActiveChannelCount(String operation) {
+    if (!kDebugMode) return;
+    debugPrint(
+      '[RealtimeRegistry] channels=${_channels.length} '
+      '(after $operation) — expected to stay small',
+    );
   }
 }
 
 /// Riverpod provider for the RealtimeChannelRegistry singleton.
+///
+/// PERF (Phase 3 — realtime leak fix): the registry now registers a
+/// `ref.onDispose` callback so when the provider is disposed (e.g.
+/// on app shutdown / Riverpod container disposal), the registry's
+/// `dispose()` is called — fully evicting every registered channel
+/// from the Supabase client's `channels` list. The previous provider
+/// had NO `ref.onDispose`, so the registry's channels leaked on
+/// container disposal.
 final realtimeChannelRegistryProvider = Provider<RealtimeChannelRegistry>(
-  (ref) => RealtimeChannelRegistry(),
+  (ref) {
+    final registry = RealtimeChannelRegistry();
+    ref.onDispose(registry.dispose);
+    return registry;
+  },
 );

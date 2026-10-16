@@ -1449,36 +1449,32 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 // Positioned.fill + child: SizedBox.expand() so the paint
                 // canvas covers the full Stack area. Without this, the
                 // canvas defaults to zero/child size and clips all lines.
+                // PERF (Phase 2 — split layers with RepaintBoundary):
+                // Wrap the edge painter in its OWN RepaintBoundary so an
+                // EdgeSelectionWrapper setState (sweep tick, trace tick,
+                // connect-on-open tick, edge selection change) re-rasters
+                // ONLY the edge layer — not the node widgets and chips.
+                // The previous single RepaintBoundary around edges +
+                // nodes + chips meant every edge-selection animation
+                // tick re-rastered every visible GraphNode widget too
+                // (the dominant source of jank during a sweep animation
+                // on a 700+ member family).
+                //
+                // Safe because: the EdgeSelectionWrapper already
+                // receives positions as a prop on parent rebuilds
+                // (so position changes propagate via widget rebuild,
+                // not via internal setState). The RepaintBoundary just
+                // isolates the raster; the widget tree contract is
+                // unchanged.
                 Positioned.fill(
-                  // PERF: Wrap the edge painter in a ConsumerWidget that
-                  // watches selectedEdgeProvider independently. This way,
-                  // tapping an edge to select it only rebuilds the edge
-                  // painter — NOT the entire canvas (nodes, layout, etc).
-                  // v85 FIX: Add ValueKey with edges length + positions
-                  // length so the wrapper rebuilds when data changes on
-                  // Flutter Web (where identical() can be unreliable).
-                  //
-                  // v103 (FLICKER FIX): DO NOT include the LOD tier name
-                  // in the ValueKey. The old key included
-                  // `_lodFor(_camera.zoomLevel).name`, which meant every
-                  // time the zoom crossed a tier boundary (0.72, 0.34),
-                  // the ENTIRE EdgeSelectionWrapper was destroyed and
-                  // recreated from scratch — causing all edges to
-                  // momentarily disappear and reappear (the "connection
-                  // line disappearing and coming back" bug).
-                  //
-                  // The painter's shouldRepaint already handles LOD
-                  // changes via the edgeQuality parameter + revision
-                  // counters. The ValueKey should only change when the
-                  // actual edge/position DATA changes, not when the
-                  // zoom-driven presentation tier changes.
-                  child: EdgeSelectionWrapper(
-                    key: ValueKey('edge_layer_${edges.length}_${effectivePositions.length}'),
-                    // v5.125 (Step 6): anchor geometry for the
-                    // bow-around-the-anchor edge routing + sector
-                    // fan-out (geometry only).
-                    anchorId: anchorId,
-                    anchorCenter: anchorCenterForEdges,
+                  child: RepaintBoundary(
+                    child: EdgeSelectionWrapper(
+                      key: ValueKey('edge_layer_${edges.length}_${effectivePositions.length}'),
+                      // v5.125 (Step 6): anchor geometry for the
+                      // bow-around-the-anchor edge routing + sector
+                      // fan-out (geometry only).
+                      anchorId: anchorId,
+                      anchorCenter: anchorCenterForEdges,
                     // BUG 1 FIX: Apply Y offset so edge endpoints connect
                     // to the visual circle center, not the Positioned box
                     // center. The circle is at the TOP of the Column
@@ -1651,6 +1647,16 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     // flag + commit-revision lifecycle.
                     painterActiveGesture: _painterActiveGesture,
                     zoomCommitRevision: _zoomCommitRevision,
+                    // PERF (Phase 2 — Task 4): forward the zoom-commit
+                    // notifier so the painter repaints DIRECTLY when
+                    // the notifier fires (via CustomPaint's `repaint:`
+                    // listenable) — no parent setState, no canvas
+                    // rebuild, no node-widget tree rebuild. See the
+                    // field doc on _zoomCommitNotifier for the full
+                    // contract. Tests that construct EngineEdgePainter
+                    // without a notifier fall back to the primitive
+                    // zoomCommitRevision comparison in shouldRepaint.
+                    zoomCommitNotifier: _zoomCommitNotifier,
                     // v5.141 (LOW-END PERF): forward profile-driven
                     // edge pass toggles. On low-end devices both are
                     // false — the painter skips PASS 1 (shadow) and
@@ -1672,6 +1678,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     // (±125px) + the pan distance to the next re-raster
                     // (≤250px) = 375px < 400px — no blank edges.
                     graphViewport: _FamilyGraphEngineViewState._quantizeViewportForEdgeCulling(vp),
+                  ),
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
@@ -1702,7 +1709,13 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                         : null,
                     // PERF v5.175: precomputed child counts — replaces the
                     // O(N×E) _countChildrenOf scan inside _buildFullNode.
-                    childCountById: _cachedChildCountById),
+                    childCountById: _cachedChildCountById,
+                    // PERF (Phase 2): forward the graph-space viewport so
+                    // the dot / mini / micro tier painters (NodeMiniPainter
+                    // etc.) can cull off-screen nodes — same rect the edge
+                    // painter uses, so the layers stay spatially consistent.
+                    graphViewport:
+                        _FamilyGraphEngineViewState._quantizeViewportForEdgeCulling(vp)),
                 // v102 (BUG-2 FIX) + v5.123 (Step 3): Collapsed-branch
                 // affordances — ALWAYS-visible "+N" chips.
                 // Render a chip near each collapsed branch root showing
@@ -1716,6 +1729,10 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 // computeDensityCollapse ran, so density-created branches
                 // (the ones that actually matter at scale) never got
                 // chips, and already-cleared branches kept stale ones.
+                //
+                // PERF (Phase 2): chip widgets are already isolated by
+                // their own RepaintBoundary inside _buildCollapsedBranchChips
+                // (see branch_affordance.dart); no extra wrap needed here.
                 ..._buildCollapsedBranchChips(layout, densityCollapseState, densityHiddenIds),
               ],
             ),

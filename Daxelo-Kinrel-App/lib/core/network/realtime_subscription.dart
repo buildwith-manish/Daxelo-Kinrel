@@ -275,6 +275,7 @@ class RealtimeSubscriptionService {
       });
 
       _channels[familyId] = channel;
+      _logActiveChannelCount('subscribeFamily');
     } catch (e) {
       debugPrint('[RealtimeSub] Error subscribing to family:$familyId: $e');
     }
@@ -284,17 +285,29 @@ class RealtimeSubscriptionService {
   ///
   /// Removes the channel and cancels all Postgres Change listeners
   /// for the given [familyId].
+  ///
+  /// PERF (Phase 3 — realtime leak fix): uses `client.removeChannel(channel)`
+  /// instead of `channel.unsubscribe()`. The realtime_client package's
+  /// `RealtimeClient.channel(name)` does NOT deduplicate by name — each
+  /// call appends a NEW `RealtimeChannel` to the client's `channels`
+  /// list. `channel.unsubscribe()` only sends the WebSocket unsubscribe
+  /// message; the channel object (with all its `Hook`/`Push`/`Binding`
+  /// objects) stays in the client's list forever. `removeChannel` is
+  /// the only way to fully evict the channel and free its bindings —
+  /// this is the fix for the 29 176 Hook / 9 720 Push / 9 840 Binding
+  /// leak in the DevTools memory snapshot.
   void unsubscribeFamily(String familyId) {
     final channel = _channels.remove(familyId);
     if (channel != null) {
       try {
-        channel.unsubscribe();
+        _ref.read(supabaseProvider)?.removeChannel(channel);
         debugPrint('[RealtimeSub] Unsubscribed from family:$familyId');
       } catch (e) {
         debugPrint(
           '[RealtimeSub] Error unsubscribing from family:$familyId: $e',
         );
       }
+      _logActiveChannelCount('unsubscribeFamily');
     }
   }
 
@@ -329,6 +342,14 @@ class RealtimeSubscriptionService {
   /// Dispose all subscriptions and resources.
   ///
   /// Cancels auth listener, debounce timer, and unsubscribes all channels.
+  ///
+  /// PERF (Phase 3 — realtime leak fix): uses `client.removeChannel(channel)`
+  /// for every channel (not just `channel.unsubscribe()`) so the channels
+  /// are evicted from the Supabase client's `channels` list and their
+  /// `Hook`/`Push`/`Binding` objects are GC'd. Without this, every auth
+  /// refresh (which calls `_resubscribeAllChannels` → unsubscribe →
+  /// re-create) would leave the old channel objects in the client's
+  /// list, accumulating 9 Bindings per family per refresh.
   void dispose() {
     _authSubscription?.cancel();
     _authSubscription = null;
@@ -336,9 +357,10 @@ class RealtimeSubscriptionService {
     _invalidationDebounce?.cancel();
     _pendingInvalidations.clear();
 
+    final client = _ref.read(supabaseProvider);
     for (final entry in _channels.entries) {
       try {
-        entry.value.unsubscribe();
+        client?.removeChannel(entry.value);
       } catch (e) {
         debugPrint(
           '[RealtimeSub] Error unsubscribing channel ${entry.key}: $e',
@@ -348,7 +370,21 @@ class RealtimeSubscriptionService {
     _channels.clear();
     _dedup.clear();
 
+    _logActiveChannelCount('dispose');
     debugPrint('[RealtimeSub] Disposed all subscriptions');
+  }
+
+  /// PERF (Phase 3 — Task 6): debug-only log of active realtime
+  /// channel count. Prints whenever a channel is created or removed
+  /// so the developer can verify the count stays small in DevTools.
+  /// In release builds this is a no-op (kDebugMode is false).
+  void _logActiveChannelCount(String operation) {
+    if (!kDebugMode) return;
+    final count = _channels.length;
+    debugPrint(
+      '[RealtimeSub] channels=$count (after $operation) — '
+      'expected to stay small (a few dozen max)',
+    );
   }
 
   // ── Private: Event Handling ──────────────────────────────────────
@@ -548,10 +584,18 @@ class RealtimeSubscriptionService {
   }
 
   /// Unsubscribe all channels without clearing the tracked family IDs.
+  ///
+  /// PERF (Phase 3 — realtime leak fix): uses `client.removeChannel(channel)`
+  /// so the channels are evicted from the Supabase client's `channels`
+  /// list. This is called by `_resubscribeAllChannels` on every auth
+  /// refresh — without `removeChannel`, the re-created channels would
+  /// accumulate in the client's list, growing the Hook/Push/Binding
+  /// counts unboundedly over a long session.
   void _unsubscribeAllChannels() {
+    final client = _ref.read(supabaseProvider);
     for (final entry in _channels.entries) {
       try {
-        entry.value.unsubscribe();
+        client?.removeChannel(entry.value);
       } catch (e) {
         debugPrint(
           '[RealtimeSub] Error unsubscribing channel ${entry.key}: $e',
@@ -559,6 +603,7 @@ class RealtimeSubscriptionService {
       }
     }
     _channels.clear();
+    _logActiveChannelCount('_unsubscribeAllChannels');
   }
 }
 

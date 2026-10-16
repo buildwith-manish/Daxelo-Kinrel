@@ -26,6 +26,12 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
   /// [effectivePositions] is the MERGED position map (auto-layout ⊕
   /// saved overrides ⊕ live drag overrides) — the SAME map the edge
   /// layer uses.
+  ///
+  /// PERF (Phase 2): [graphViewport] is the graph-space viewport rect
+  /// used for painter-side node culling in the dot/mini/micro tiers.
+  /// Pass the SAME rect the edge painter uses (quantized to its grid)
+  /// so nodes and edges stay spatially consistent. Null disables
+  /// culling (preserves pre-Phase-2 behaviour for tests/legacy).
   List<Widget> _buildNodeLayer(
     GraphLayoutResult layout,
     Map<String, Offset> effectivePositions,
@@ -46,6 +52,9 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
     /// _buildFullNode so the per-node O(E) _countChildrenOf scan is
     /// skipped entirely (715 × 950 ≈ 680K ops per rebuild → 0).
     Map<String, int>? childCountById,
+    /// PERF (Phase 2): graph-space viewport for painter-side node
+    /// culling. See the constructor doc on [NodeMiniPainter].
+    Rect? graphViewport,
   }) {
     final Lod lod = _lodFor(_camera.zoomLevel);
 
@@ -58,8 +67,11 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
         relationCategoryById: relationCategoryById,
         customColorsByPersonId: customColorsByPersonId,
         viewerPersonId: viewerPersonId,
-        painterBuilder: (dots) =>
-            NodeMiniPainter(dots, zoom: _camera.zoomLevel),
+        painterBuilder: (dots) => NodeMiniPainter(
+          dots,
+          zoom: _camera.zoomLevel,
+          graphViewport: graphViewport,
+        ),
         includeInitial: true,
       );
     }

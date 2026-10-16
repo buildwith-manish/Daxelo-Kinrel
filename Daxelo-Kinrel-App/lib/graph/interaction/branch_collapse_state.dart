@@ -350,6 +350,120 @@ class BranchCollapseState {
 class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
   BranchCollapseNotifier() : super(BranchCollapseState.empty);
 
+  // PERF (Phase 2 — branch collapse raster audit): memoize the result
+  // of [computeDensityCollapse]. The method is called from the canvas
+  // build on every parent rebuild — including camera-tick rebuilds
+  // (culler threshold crossings, zoom-commit crossings) that do NOT
+  // change any of the density inputs. Without this cache the O(N+E)
+  // multi-source BFS + per-zone edge scan runs ~10× per second during
+  // pan/zoom (5% CPU on `_computeZones` + 2.5% on
+  // `computeDensityCollapse` per the DevTools profile).
+  //
+  // Cache key = a content fingerprint of every input that affects the
+  // output (visibleNodeIds / childrenOf / allEdges / categoryOf /
+  // protectedIds / expandedBranchRoots / manuallyCollapsedRoots /
+  // revealedByBranchRoot). On key match, return early — the state is
+  // already correct (the existing _branchesEqual idempotency check at
+  // the end of the method confirms this contract).
+  //
+  // The fingerprint is O(N) per call (XOR of element hashCodes) but
+  // for typical graphs (50–500 visible / 200–1000 edges) it's ~2–5 K
+  // ops — versus 50 K+ ops for the BFS + per-zone edge scan. Net win
+  // on every cache hit.
+  //
+  // Invalidated automatically when ANY input identity changes (length
+  // or content). Also invalidated by [clearDensityCache] (for tests /
+  // hot-reload).
+  int? _densityCacheKey;
+
+  /// PERF (Phase 2): Clear the density-collapse memoization. Call this
+  /// from tests that mutate the notifier state directly (so the next
+  /// [computeDensityCollapse] call is guaranteed to recompute). In
+  /// normal operation the cache auto-invalidates on input identity
+  /// change, so manual clearing is rarely needed.
+  void clearDensityCache() {
+    _densityCacheKey = null;
+  }
+
+  /// PERF (Phase 2): Compute the content fingerprint for the density
+  /// cache key. XORs element hashCodes so order doesn't matter (Set
+  /// iteration is unordered in Dart). Returns `null` when any input
+  /// is `null` AND was `null` on the previous call (so null-vs-null
+  /// matches but null-vs-non-null invalidates).
+  int _densityFingerprint({
+    required Set<String> visibleNodeIds,
+    required Map<String, Set<String>> childrenOf,
+    required List<({String fromId, String toId, String edgeId, String relationshipKey})> allEdges,
+    required Map<String, String>? categoryOf,
+    required Set<String>? protectedIds,
+  }) {
+    var h = 17;
+    h = h * 31 + visibleNodeIds.length;
+    var vh = 0;
+    for (final id in visibleNodeIds) {
+      vh ^= id.hashCode;
+    }
+    h = h * 31 + vh;
+
+    h = h * 31 + childrenOf.length;
+    var ch = 0;
+    childrenOf.forEach((k, v) {
+      ch ^= k.hashCode ^ v.length;
+    });
+    h = h * 31 + ch;
+
+    h = h * 31 + allEdges.length;
+    var eh = 0;
+    for (final e in allEdges) {
+      eh ^= e.edgeId.hashCode ^ e.fromId.hashCode ^ e.toId.hashCode;
+    }
+    h = h * 31 + eh;
+
+    h = h * 31 + (categoryOf?.length ?? -1);
+    if (categoryOf != null) {
+      var kh = 0;
+      categoryOf.forEach((k, v) {
+        kh ^= k.hashCode ^ v.hashCode;
+      });
+      h = h * 31 + kh;
+    }
+
+    h = h * 31 + (protectedIds?.length ?? -1);
+    if (protectedIds != null) {
+      var ph = 0;
+      for (final id in protectedIds) {
+        ph ^= id.hashCode;
+      }
+      h = h * 31 + ph;
+    }
+
+    // Include the user-explicit branch state — density collapse skips
+    // these roots (lines 1187 + 1214 in computeDensityCollapse), so a
+    // change here changes the output even with identical graph data.
+    h = h * 31 + state.expandedBranchRoots.length;
+    var exH = 0;
+    for (final id in state.expandedBranchRoots) {
+      exH ^= id.hashCode;
+    }
+    h = h * 31 + exH;
+
+    h = h * 31 + state.manuallyCollapsedRoots.length;
+    var mH = 0;
+    for (final id in state.manuallyCollapsedRoots) {
+      mH ^= id.hashCode;
+    }
+    h = h * 31 + mH;
+
+    h = h * 31 + state.revealedByBranchRoot.length;
+    var rH = 0;
+    state.revealedByBranchRoot.forEach((k, v) {
+      rH ^= k.hashCode ^ v.hashCode;
+    });
+    h = h * 31 + rH;
+
+    return h;
+  }
+
   // ═══════════════════════════════════════════════════════════════════
   // v5.146: SHARED childrenOf BUILDER — handles BOTH relationship directions
   // ═══════════════════════════════════════════════════════════════════
@@ -1069,6 +1183,30 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     Map<String, String>? categoryOf,
     Set<String>? protectedIds,
   }) {
+    // PERF (Phase 2): Density-collapse memoization. The method body is
+    // O(N + E) (multi-source BFS + per-zone edge scan) and the canvas
+    // builder invokes it on every parent rebuild — including camera-
+    // tick rebuilds (culler threshold / zoom-commit crossings) that
+    // do NOT change any of the density inputs. The fingerprint below
+    // captures every input that affects the output; on a match the
+    // state is already correct, so we return early and skip the BFS
+    // entirely. The idempotency check at the end of the method (line
+    // ~1270: `_branchesEqual`) already proved this contract holds —
+    // it just ran too late (after the expensive work).
+    final fingerprint = _densityFingerprint(
+      visibleNodeIds: visibleNodeIds,
+      childrenOf: childrenOf,
+      allEdges: allEdges,
+      categoryOf: categoryOf,
+      protectedIds: protectedIds,
+    );
+    if (_densityCacheKey == fingerprint) {
+      // Cache hit — every input is identical to the last call that
+      // produced the current state. Nothing to do.
+      return;
+    }
+    _densityCacheKey = fingerprint;
+
     // ── Step 1: the hidden set — nodes in the full adjacency that are
     // not positioned/visible. Bubbles represent exactly these members.
     // NOTE: nodes appear in the adjacency as BOTH keys and set values
