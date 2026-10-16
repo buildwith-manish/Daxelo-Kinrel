@@ -58,6 +58,16 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // GPU Matrix4 transform). Also record the zoom the painter last
     // rasterized at — used by _onScaleUpdate to detect when an
     // interim repaint is needed (15% past this baseline).
+    //
+    // PERF (Phase 2 — Task 5): cancel any pending gesture-settle
+    // timer (the user started a new gesture within the 150 ms
+    // settle window — the flag should still be true, no flip
+    // needed). This is also the path that recovers from the rare
+    // case where the timer already fired (the flag is false) but
+    // the user immediately started a new gesture — the line below
+    // unconditionally sets it back to true.
+    _gestureSettleTimer?.cancel();
+    _gestureSettleTimer = null;
     _painterActiveGesture = true;
     _lastCommittedZoom = _camera.zoomLevel;
     // v5.x (PERF FIX — ambient particle gesture pause): stop the
@@ -80,28 +90,43 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
 
   void _onScaleEnd(ScaleEndDetails d) {
     // v5.x (perf fix — pinch-zoom GPU-transform): the gesture is over.
-    // Flip the active-gesture flag off and bump the commit revision so
-    // the painter does ONE final real repaint with the resting zoom
-    // baked into stroke widths — this is the "snap back to constant-
-    // width strokes" trigger. We MUST call setState to deliver the
-    // new painter (with painterActiveGesture=false) to the canvas,
-    // otherwise shouldRepaint would not fire (the wrapper would have
-    // the same _painterActiveGesture=true it had last frame).
+    // Bump the zoom-commit notifier so the painter does ONE final real
+    // repaint at the resting zoom (constant-width strokes) — this is
+    // the "snap back to constant-width strokes" trigger. The notifier
+    // drives the painter's repaint DIRECTLY (via CustomPaint's
+    // `repaint:` listenable) — no parent setState, no canvas rebuild.
     //
-    // Note: this setState is intentionally placed BEFORE the early
-    // return paths below so the gesture-end repaint always happens —
-    // for both the rearrange-drag-release path and the normal
-    // pan/fling-release path.
+    // PERF (Phase 2 — Task 5): DELAY flipping _painterActiveGesture
+    // back to false by 150 ms so the painter keeps drawing SOLID
+    // (cheaper) edges during the camera fling / momentum window
+    // (the camera is still updating via panBySpring's notifyListeners
+    // ticks, but no gesture is "active"). After 150 ms the timer
+    // flips the flag and calls setState to deliver the change to the
+    // painter — which then repaints with the real dashed pattern.
+    //
+    // The notifier bump + setState here deliver the resting-zoom
+    // commit with painterActiveGesture still true (the timer hasn't
+    // fired yet) — so the painter draws solid edges at the resting
+    // zoom for 150 ms, then switches to dashed. The visual is
+    // acceptable: the GPU Transform was scaling the cached raster
+    // during the gesture, and users don't perceive dash gaps during
+    // the fling. The 150 ms matches the typical momentum-settle
+    // duration on a Samsung A037F (the test device).
     if (_painterActiveGesture) {
-      _painterActiveGesture = false;
-      _zoomCommitRevision++;
+      // PERF (Phase 2 — Task 4): bump the notifier (drives painter
+      // repaint directly — no setState needed for this part).
+      _zoomCommitNotifier.value = _zoomCommitNotifier.value + 1;
       _lastCommittedZoom = _camera.zoomLevel;
-      // Coalesce with any other setState that happens below by
-      // deferring to a microtask-style guard. The simplest correct
-      // approach is to just call setState here — Flutter batches
-      // multiple setStates in the same frame into a single rebuild.
-      // ignore: invalid_use_of_protected_member
-      setState(() {});
+      // Schedule the delayed flag flip. Cancelled by _onScaleStart
+      // if a new gesture begins within the window, and by dispose
+      // if the widget unmounts.
+      _gestureSettleTimer?.cancel();
+      _gestureSettleTimer = Timer(const Duration(milliseconds: 150), () {
+        if (!mounted) return;
+        _painterActiveGesture = false;
+        // ignore: invalid_use_of_protected_member
+        setState(() {});
+      });
     }
 
     // v5.x (PERF FIX — ambient particle gesture pause): the gesture is
@@ -228,12 +253,14 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       // committed zoom, and update the baseline so the next 15%
       // window is measured incrementally.
       //
-      // This bumps _zoomCommitRevision, which the painter treats as
-      // an unconditional repaint trigger (independent of the
-      // painterActiveGesture gate). setState is needed to deliver
-      // the new revision value to the painter — without it the
-      // wrapper would have the same revision as last frame and
-      // shouldRepaint would not fire.
+      // PERF (Phase 2 — Task 4): bump the zoom-commit NOTIFIER
+      // (not the primitive _zoomCommitRevision field). The notifier
+      // drives the painter's repaint DIRECTLY via CustomPaint's
+      // `repaint:` listenable — NO setState, NO canvas rebuild, NO
+      // node-widget tree rebuild. The previous setState-at-15%-path
+      // rebuilt every Positioned GraphNode widget on every interim
+      // zoom commit during a long pinch, which was the dominant
+      // source of jank during sustained pinch-zoom.
       final currentZoom = _camera.zoomLevel;
       final baseline = _lastCommittedZoom > 0 ? _lastCommittedZoom : currentZoom;
       final zoomDelta = (currentZoom - baseline).abs() / baseline;
@@ -245,17 +272,10 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       // isn't defined for the type '_FamilyGraphEngineViewState'").
       if (zoomDelta >
           _FamilyGraphEngineViewState._kZoomCommitThreshold) {
-        _zoomCommitRevision++;
+        // PERF (Phase 2 — Task 4): notifier triggers painter repaint
+        // directly. No setState needed.
+        _zoomCommitNotifier.value = _zoomCommitNotifier.value + 1;
         _lastCommittedZoom = currentZoom;
-        // setState is debounced by _onCameraChanged (16ms Timer) for
-        // the culler/LOD path, but here we want a near-immediate
-        // repaint — the painter's zoomCommitRevision change is the
-        // ONLY thing that needs to reach the wrapper. setState is
-        // safe to call here because it just schedules a build; if
-        // multiple pinch frames arrive in the same 16ms window,
-        // Flutter coalesces them into a single rebuild.
-        // ignore: invalid_use_of_protected_member
-        setState(() {});
       }
     }
   }

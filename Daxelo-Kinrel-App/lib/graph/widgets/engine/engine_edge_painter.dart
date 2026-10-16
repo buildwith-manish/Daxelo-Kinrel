@@ -76,6 +76,17 @@ class EngineEdgePainter extends CustomPainter {
     // commit revision. See the doc block on the fields below.
     this.painterActiveGesture = false,
     this.zoomCommitRevision = 0,
+    // PERF (Phase 2 — Task 4): optional ValueNotifier that drives
+    // this painter's repaint DIRECTLY (via CustomPaint's `repaint:`
+    // listenable) when the zoom-commit revision bumps. When non-null,
+    // the painter is constructed with `super(repaint: this)` and
+    // repaints without going through shouldRepaint — no parent
+    // setState, no canvas rebuild, no node-widget tree rebuild.
+    //
+    // When null (tests / legacy callers), the primitive
+    // [zoomCommitRevision] comparison in shouldRepaint handles repaint
+    // triggers as before.
+    this.zoomCommitNotifier,
     // v5.141 (LOW-END PERF): Profile-driven edge pass toggles. When
     // false, the painter skips the corresponding pass entirely —
     // even if edgeQuality would normally allow it. This lets low-end
@@ -93,7 +104,12 @@ class EngineEdgePainter extends CustomPainter {
     // fraction intersect the screen. Null (default) preserves the
     // exact pre-v5.175 behaviour (no culling) for tests/legacy calls.
     this.graphViewport,
-  });
+    // PERF (Phase 2 — Task 4): pass the zoom-commit notifier to
+    // CustomPainter's super so the painter repaints DIRECTLY when
+    // the notifier bumps (no shouldRepaint, no parent rebuild).
+    // Null (tests / legacy callers) preserves the existing
+    // shouldRepaint-driven repaint trigger.
+  }) : super(repaint: zoomCommitNotifier);
   /// v5.98: Static cache of pre-rendered midpoint bead images.
   /// Keyed by a signature string of (radius, color, isDimmed, isSelected,
   /// edgeQuality). On first use, the bead is rendered once via
@@ -163,6 +179,29 @@ class EngineEdgePainter extends CustomPainter {
   // Expando (Expando has no .clear() method). All other accesses are
   // read-only.
   static Expando<Map<String, Path>> _dashPathCache = Expando();
+
+  /// PERF (Phase 2 — Task 5): Single clearly-named boolean controlling
+  /// whether dashed edges fall back to a single solid stroke while the
+  /// user is actively panning or zooming (and for ~150 ms after, while
+  /// the camera is still settling).
+  ///
+  /// When true (the default), the per-edge paint loop sets
+  /// `dashPattern = []` whenever [painterActiveGesture] is true. That
+  /// routes dashed edges through [_paintSolidPhysical] — ONE `drawPath`
+  /// per pass per edge, with NO extractPath + NO dash cache lookup.
+  /// For a 100-edge dashed graph at 60 fps during a pinch, that's
+  /// ~36 000 fewer native drawPath calls per second.
+  ///
+  /// The visual change during the gesture is acceptable: the GPU
+  /// Transform is scaling the cached raster anyway, and users cannot
+  /// perceive dash gaps during fast motion. After the gesture ends
+  /// (and the 150 ms settle window elapses — see `_onScaleEnd` in
+  /// interaction_mixin.dart), `painterActiveGesture` flips false and
+  /// the painter repaints with the real dashed pattern.
+  ///
+  /// Set to `false` to always render dashed edges (used by tests that
+  /// verify dashed visual output regardless of gesture state).
+  static const bool kDrawSolidEdgesDuringGesture = true;
 
   // v5.186 (TIER 2 PERF): Cache the anchor sector fan-out result.
   // The fan-out computation is O(edges × high_degree_nodes) per paint.
@@ -475,6 +514,23 @@ class EngineEdgePainter extends CustomPainter {
   ///
   /// Default 0 — no forced commit. Backward compatible.
   final int zoomCommitRevision;
+
+  /// PERF (Phase 2 — Task 4): Optional ValueNotifier that drives this
+  /// painter's repaint DIRECTLY (via CustomPaint's `repaint:`
+  /// listenable) when the zoom-commit revision bumps. Passed to
+  /// `super(repaint:)` in the constructor.
+  ///
+  /// When non-null (production path), the painter repaints DIRECTLY
+  /// when the notifier fires — no shouldRepaint call, no parent
+  /// setState, no widget-tree rebuild. The primitive
+  /// [zoomCommitRevision] field stays at its default (0) in
+  /// production, so shouldRepaint's primitive comparison returns
+  /// false on widget rebuilds (correct: nothing else changed about
+  /// the painter's actual inputs).
+  ///
+  /// When null (tests / legacy callers), shouldRepaint's primitive
+  /// comparison handles repaint triggers as before.
+  final ValueNotifier<int>? zoomCommitNotifier;
 
   /// v5.141 (LOW-END PERF): When false, the painter skips PASS 1
   /// (contact shadow) entirely — even if edgeQuality would normally
@@ -1538,6 +1594,35 @@ class EngineEdgePainter extends CustomPainter {
       // For dashed edges we apply the SAME 3 passes to each visible
       // dash segment (no continuous glow underneath). For solid edges
       // we apply the 3 passes to the whole Path.
+      //
+      // PERF (Phase 2 — Task 5): when [painterActiveGesture] is true
+      // (the user is actively panning / zooming, or has just lifted
+      // their finger within the last ~150 ms — see `_onScaleEnd` in
+      // interaction_mixin.dart) AND [kDrawSolidEdgesDuringGesture] is
+      // true, route dashed edges through [_paintSolidPhysical] instead
+      // of [_paintDashedPhysical]. This skips the cached-dash-Path
+      // lookup + the multi-subpath drawPath, drawing the edge as a
+      // single continuous stroke. The visual difference is
+      // imperceptible during fast motion (the GPU Transform is
+      // scaling the cached raster anyway), and the perf win is
+      // substantial: dashed edges go from one drawPath-per-pass-per-
+      // edge to one drawPath-per-pass-per-edge WITHOUT the extractPath
+      // + dash cache lookup overhead.
+      //
+      // The selected edge is exempt — it always gets the full premium
+      // 4-pass treatment so the user's selection stays visually
+      // unambiguous during the gesture.
+      if (!isSelected &&
+          painterActiveGesture &&
+          kDrawSolidEdgesDuringGesture &&
+          dashPattern.isNotEmpty &&
+          dashPattern.length >= 2) {
+        // Clear the dash pattern so the if/else below routes this
+        // edge through _paintSolidPhysical. Local mutation only —
+        // does NOT touch the underlying style's dashPattern (which
+        // is shared / immutable).
+        dashPattern = const <double>[];
+      }
 
       if (isSelected) {
         _paintSelectedEdge(

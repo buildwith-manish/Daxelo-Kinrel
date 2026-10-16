@@ -1320,8 +1320,15 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
         // persistent "Recenter" FAB in the top-right corner.
         if (!ref.watch(rearrangeModeProvider))
           Builder(builder: (context) {
-            final unlinkedCount =
-                ref.watch(unlinkedPersonIdsProvider(widget.familyId)).length;
+            // PERF (Phase 2 — Task 6): use `.select(...)` so the
+            // screen only rebuilds when the COUNT changes, not when
+            // the list content changes (e.g. swapping one unlinked
+            // person for another). Avoids an unnecessary graph-screen
+            // rebuild (which re-runs the entire canvas build) when
+            // the unlinked set is mutated without changing its size.
+            final unlinkedCount = ref.watch(
+                unlinkedPersonIdsProvider(widget.familyId)
+                    .select((ids) => ids.length));
             final inviteCount = ref.watch(
                 pendingGraphInvitationCountProvider(widget.familyId));
             final showLinking = unlinkedCount > 0;
@@ -1347,7 +1354,14 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
         // v5.85: One-time coach-mark for the indirect-relation badge.
         // Shows a brief tooltip the FIRST time the user encounters any
         // node with the badge. After dismissal, never shows again.
-        if (ref.watch(indirectRelationIdsProvider(widget.familyId)).isNotEmpty &&
+        // PERF (Phase 2 — Task 6): `.select(...)` so the screen only
+        // rebuilds when the non-EMPTINESS of the indirect-IDs set
+        // flips — not when its content changes (e.g. an indirect
+        // relative is replaced by another). The coach-mark only
+        // depends on the boolean "are there any indirect IDs?"
+        // question, so this is the correct granularity.
+        if (ref.watch(indirectRelationIdsProvider(widget.familyId)
+                .select((ids) => ids.isNotEmpty)) &&
             !ref.watch(hasSeenIndirectBadgeProvider) &&
             !ref.watch(rearrangeModeProvider))
           _IndirectRelationCoachMark(
