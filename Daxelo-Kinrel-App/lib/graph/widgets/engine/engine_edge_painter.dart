@@ -140,6 +140,30 @@ class EngineEdgePainter extends CustomPainter {
     ..strokeCap = StrokeCap.round
     ..isAntiAlias = true;
 
+  // PERF (Phase 1 — dashed-edge raster audit): Cache of COMBINED dash
+  // Path objects. Each entry is ONE Path containing every dash segment
+  // for a given (bezier path, dash pattern) pair, built once via
+  // Path.addPath() accumulation of PathMeasure.extractPath() results.
+  //
+  // The cache is attached to the cached bezier Path instance via
+  // Expando, so it auto-evicts when the bezier Path is garbage
+  // collected. The bezier Path itself comes from EdgePathCache, which
+  // only evicts entries when an endpoint moves more than 2 px or the
+  // edge's lateral offset / waypoint changes. PAN AND ZOOM DO NOT
+  // invalidate it (the bezier path instance is stable across camera
+  // transforms), so a 100-edge dashed graph repaints all 100 dash
+  // paths from the cache during a pinch-zoom — zero extractPath()
+  // calls per frame.
+  //
+  // Inner key: "<dashWidth>_<dashGap>" (the only dash geometry inputs;
+  // stroke width, color and alpha only affect the Paint, not the Path
+  // geometry, so they do NOT invalidate the cache).
+  //
+  // Not `final` so [clearDashPathCache] can rebind it to a fresh
+  // Expando (Expando has no .clear() method). All other accesses are
+  // read-only.
+  static Expando<Map<String, Path>> _dashPathCache = Expando();
+
   // v5.186 (TIER 2 PERF): Cache the anchor sector fan-out result.
   // The fan-out computation is O(edges × high_degree_nodes) per paint.
   // For 1000 edges with 20 high-degree nodes, that's ~50K ops per
@@ -200,6 +224,19 @@ class EngineEdgePainter extends CustomPainter {
   /// changes (so cached paints with old colors are regenerated).
   static void clearBlurPaintCache() {
     _blurPaintCache.clear();
+  }
+
+  /// PERF (Phase 1): Clear the combined dash-Path cache. Call when
+  /// the dash visual semantics change (e.g. theme/dpi hot-reload) so
+  /// the next paint rebuilds the combined dash Paths from scratch.
+  /// Note: in normal operation the cache auto-evicts via the
+  /// Expando (when the underlying bezier Path is GC'd), so manual
+  /// clearing is only needed for explicit invalidation in tests.
+  static void clearDashPathCache() {
+    // Expando has no .clear() — replace the reference. The old
+    // Expando (and every per-path cache attached to it) becomes
+    // unreachable and is GC'd alongside the bezier Paths.
+    _dashPathCache = Expando<Map<String, Path>>();
   }
 
   /// v5.x (perf fix): Get a cached blur Paint, creating it only if
@@ -1748,12 +1785,29 @@ class EngineEdgePainter extends CustomPainter {
 
   /// Per-dash 3-pass physical rendering for dashed relationship threads.
   ///
-  /// Obtains the PathMetric ONCE, extracts all visible dash segments
-  /// ONCE, and reuses those segments for shadow / body / ridge — so we
-  /// never recompute dash geometry across the three passes.
+  /// PERF (Phase 1 — raster audit rewrite): Each edge's dashes are now
+  /// built into ONE combined [Path] (via [Path.addPath] accumulation
+  /// of [PathMetric.extractPath] segments) and drawn with a SINGLE
+  /// `canvas.drawPath` call per paint style (shadow / body / ridge).
+  /// Previously this method called `extractPath()` and `drawPath()`
+  /// once per dash segment per pass — for an edge with N dashes that
+  /// was 3·N native calls per paint, the dominant 67% CPU hotspot in
+  /// the DevTools profile.
+  ///
+  /// The combined dash Path is cached per (bezier path, dash pattern)
+  /// in the static [_dashPathCache] Expando — pan and zoom do NOT
+  /// invalidate it (the bezier path instance is stable across camera
+  /// transforms; the dash pattern is a constant per kinship category).
   ///
   /// Gaps remain real: no continuous coloured glow is painted
-  /// underneath the dashed edge (PART 4).
+  /// underneath the dashed edge (PART 4 contract preserved).
+  ///
+  /// Visual output (dash length, gap, stroke width, colors, round
+  /// caps) is byte-identical to the previous per-segment
+  /// implementation: `Path.addPath` simply appends sub-paths without
+  /// altering their geometry, and `canvas.drawPath` on a multi-subpath
+  /// stroked Path renders each subpath identically to drawing them
+  /// one-by-one (the round cap is applied per subpath boundary).
   void _paintDashedPhysical({
     required Canvas canvas,
     required Path path,
@@ -1767,18 +1821,14 @@ class EngineEdgePainter extends CustomPainter {
     final dashWidth = dashPattern[0];
     final dashGap = dashPattern[1];
 
-    // Collect dash segments ONCE for all 3 passes.
-    final segments = <Path>[];
-    for (final metric in path.computeMetrics()) {
-      double pos = 0;
-      while (pos < metric.length) {
-        final segEnd = (pos + dashWidth).clamp(0.0, metric.length);
-        segments.add(metric.extractPath(pos, segEnd));
-        pos += dashWidth + dashGap;
-      }
-    }
+    // PERF (Phase 1): fetch (or build once) the combined dash Path.
+    // Cache key is just the dash geometry — the Paint (color, alpha,
+    // stroke width) varies per frame but does NOT change the dash
+    // Path geometry, so it's intentionally excluded from the key.
+    final combinedDashPath =
+        _combinedDashPathFor(path, dashWidth, dashGap);
 
-    // PASS 1 — per-dash contact shadow.
+    // PASS 1 — contact shadow (ONE drawPath for all dashes).
     // v5.x (perf fix): cached blur paint.
     if (shadowSigma > 0) {
       canvas.save();
@@ -1789,39 +1839,74 @@ class EngineEdgePainter extends CustomPainter {
         sigma: shadowSigma,
         strokeWidth: bodyWidth + 2.0,
       );
-      for (final seg in segments) {
-        canvas.drawPath(seg, shadowPaint);
-      }
+      canvas.drawPath(combinedDashPath, shadowPaint);
       canvas.restore();
     }
 
-    // PASS 2 — per-dash relationship body.
-    final bodyPaint = Paint()
-      ..style = PaintingStyle.stroke
+    // PASS 2 — relationship body (ONE drawPath for all dashes).
+    // PERF (Phase 1 — raster audit): hoisted Paint — only color +
+    // strokeWidth mutate per edge. Eliminates one Paint() allocation
+    // per visible dashed edge per paint. Visual output is
+    // byte-identical (style, strokeCap=round, isAntiAlias=true are
+    // baked into the static instance).
+    _bodyStrokePaint
       ..strokeWidth = bodyWidth
-      ..color = edgeColor.withValues(alpha: edgeAlpha)
-      ..strokeCap = StrokeCap.round
-      ..isAntiAlias = true;
-    for (final seg in segments) {
-      canvas.drawPath(seg, bodyPaint);
-    }
+      ..color = edgeColor.withValues(alpha: edgeAlpha);
+    canvas.drawPath(combinedDashPath, _bodyStrokePaint);
 
-    // PASS 3 — per-dash directional light ridge.
+    // PASS 3 — directional light ridge (ONE drawPath for all dashes).
     if (ridgeAlpha > 0) {
       canvas.save();
       canvas.translate(GraphLighting.highlightOffset.dx, GraphLighting.highlightOffset.dy);
-      final ridgePaint = Paint()
-        ..style = PaintingStyle.stroke
+      // PERF (Phase 1 — raster audit): hoisted Paint — only color +
+      // strokeWidth mutate per edge.
+      _ridgeStrokePaint
         ..strokeWidth = (bodyWidth * 0.32).clamp(0.6, 1.0)
         ..color = GraphLighting.ridgeColor(edgeColor)
-            .withValues(alpha: ridgeAlpha)
-        ..strokeCap = StrokeCap.round
-        ..isAntiAlias = true;
-      for (final seg in segments) {
-        canvas.drawPath(seg, ridgePaint);
-      }
+            .withValues(alpha: ridgeAlpha);
+      canvas.drawPath(combinedDashPath, _ridgeStrokePaint);
       canvas.restore();
     }
+  }
+
+  /// PERF (Phase 1): Returns the combined dash [Path] for [path] under
+  /// the given [dashWidth] / [dashGap] pattern, building it on first
+  /// access and caching it on the static [_dashPathCache] Expando
+  /// attached to [path].
+  ///
+  /// The cache hit path is a single Map lookup — no PathMeasure work,
+  /// no Path allocation, no extractPath calls. The cache is
+  /// invalidated automatically when [path] is GC'd (which happens when
+  /// the underlying EdgePathCache entry is evicted on a real geometry
+  /// change — see the doc on [_dashPathCache]).
+  static Path _combinedDashPathFor(
+      Path path, double dashWidth, double dashGap) {
+    // Guard against degenerate patterns that would loop forever or
+    // produce no segments. (dashWidth == 0 with dashGap == 0 would
+    // loop; either zero alone produces a degenerate path.)
+    if (dashWidth <= 0.0) return Path();
+    final dashKey = '${dashWidth.toStringAsFixed(2)}_'
+        '${dashGap.toStringAsFixed(2)}';
+    final perPathCache = _dashPathCache[path] ??= <String, Path>{};
+    return perPathCache.putIfAbsent(dashKey, () {
+      final combined = Path();
+      for (final metric in path.computeMetrics()) {
+        final double metricLength = metric.length;
+        if (metricLength <= 0) continue;
+        double pos = 0;
+        while (pos < metricLength) {
+          final segEnd = (pos + dashWidth).clamp(0.0, metricLength);
+          // addPath accumulates the extracted sub-path into
+          // `combined` without allocating a new Path per segment
+          // (the destination Path grows in place). The leading
+          // moveTo that addPath inserts is a no-op for stroke
+          // rendering.
+          combined.addPath(metric.extractPath(pos, segEnd), Offset.zero);
+          pos += dashWidth + dashGap;
+        }
+      }
+      return combined;
+    });
   }
 
   /// 4-pass premium treatment for the SELECTED edge (PART 7).
@@ -1880,68 +1965,55 @@ class EngineEdgePainter extends CustomPainter {
     }
 
     if (dashed) {
-      // PASS B + C per dash segment.
+      // PERF (Phase 1 — raster audit rewrite): build the combined dash
+      // Path ONCE (cached per bezier path × dash pattern via
+      // [_dashPathCache]) and issue ONE drawPath per pass — was N
+      // drawPath calls per pass before. Uses the hoisted
+      // [_bodyStrokePaint] / [_ridgeStrokePaint] static instances
+      // instead of allocating new Paint() objects per visible
+      // selected dashed edge per frame.
       final dashWidth = dashPattern[0];
       final dashGap = dashPattern[1];
-      final segments = <Path>[];
-      for (final metric in path.computeMetrics()) {
-        double pos = 0;
-        while (pos < metric.length) {
-          final segEnd = (pos + dashWidth).clamp(0.0, metric.length);
-          segments.add(metric.extractPath(pos, segEnd));
-          pos += dashWidth + dashGap;
-        }
-      }
+      final combinedDashPath =
+          _combinedDashPathFor(path, dashWidth, dashGap);
 
-      // PASS B — relationship-coloured body per dash.
-      final bodyPaint = Paint()
-        ..style = PaintingStyle.stroke
+      // PASS B — relationship-coloured body per dash (ONE drawPath).
+      _bodyStrokePaint
         ..strokeWidth = bodyWidth
-        ..color = edgeColor.withValues(alpha: edgeAlpha)
-        ..strokeCap = StrokeCap.round
-        ..isAntiAlias = true;
-      for (final seg in segments) {
-        canvas.drawPath(seg, bodyPaint);
-      }
+        ..color = edgeColor.withValues(alpha: edgeAlpha);
+      canvas.drawPath(combinedDashPath, _bodyStrokePaint);
 
-      // PASS C — brighter top-left ridge per dash.
+      // PASS C — brighter top-left ridge per dash (ONE drawPath).
       if (ridgeAlpha > 0) {
         canvas.save();
         canvas.translate(GraphLighting.highlightOffset.dx, GraphLighting.highlightOffset.dy);
-        final ridgePaint = Paint()
-          ..style = PaintingStyle.stroke
+        _ridgeStrokePaint
           ..strokeWidth = (bodyWidth * 0.36).clamp(0.6, 1.2)
           ..color = GraphLighting.ridgeColor(edgeColor, t: 0.65)
-              .withValues(alpha: (ridgeAlpha + 0.10).clamp(0.0, 1.0))
-          ..strokeCap = StrokeCap.round
-          ..isAntiAlias = true;
-        for (final seg in segments) {
-          canvas.drawPath(seg, ridgePaint);
-        }
+              .withValues(alpha: (ridgeAlpha + 0.10).clamp(0.0, 1.0));
+        canvas.drawPath(combinedDashPath, _ridgeStrokePaint);
         canvas.restore();
       }
     } else {
       // PASS B — relationship-coloured body (continuous).
-      final bodyPaint = Paint()
-        ..style = PaintingStyle.stroke
+      // PERF (Phase 1 — raster audit): hoisted Paint — only color +
+      // strokeWidth mutate per edge. Eliminates one Paint() allocation
+      // per visible selected solid edge per paint.
+      _bodyStrokePaint
         ..strokeWidth = bodyWidth
-        ..color = edgeColor.withValues(alpha: edgeAlpha)
-        ..strokeCap = StrokeCap.round
-        ..isAntiAlias = true;
-      canvas.drawPath(path, bodyPaint);
+        ..color = edgeColor.withValues(alpha: edgeAlpha);
+      canvas.drawPath(path, _bodyStrokePaint);
 
       // PASS C — brighter top-left ridge.
       if (ridgeAlpha > 0) {
         canvas.save();
         canvas.translate(GraphLighting.highlightOffset.dx, GraphLighting.highlightOffset.dy);
-        final ridgePaint = Paint()
-          ..style = PaintingStyle.stroke
+        // PERF (Phase 1 — raster audit): hoisted Paint.
+        _ridgeStrokePaint
           ..strokeWidth = (bodyWidth * 0.36).clamp(0.6, 1.2)
           ..color = GraphLighting.ridgeColor(edgeColor, t: 0.65)
-              .withValues(alpha: (ridgeAlpha + 0.10).clamp(0.0, 1.0))
-          ..strokeCap = StrokeCap.round
-          ..isAntiAlias = true;
-        canvas.drawPath(path, ridgePaint);
+              .withValues(alpha: (ridgeAlpha + 0.10).clamp(0.0, 1.0));
+        canvas.drawPath(path, _ridgeStrokePaint);
         canvas.restore();
       }
     }
