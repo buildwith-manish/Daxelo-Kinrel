@@ -482,9 +482,27 @@ class KinshipService {
   ///
   /// Returns null only if a hop has zero matching chainRules (genuine gap).
   /// In practice this covers ~96-97% of all real-world relationship paths.
+  ///
+  /// v75 (gender-variant selection fix): the `result` / `resultFemale`
+  /// variants encode the gender of the person reached by the via hop —
+  /// the SAME convention the generator uses (see
+  /// scripts/generate_kinship_matrix.py: "result_key follows via_gender;
+  /// result_female_key is always female"):
+  ///   • result       — the term when the via person is male
+  ///                   (mother × father → maternal_grandfather)
+  ///   • resultFemale — the term when the via person is female
+  ///                   (mother × mother → maternal_grandmother)
+  /// The previous implementation picked resultFemale only for FEMALE
+  /// VIEWERS, so a male viewer's mother's mother composed to
+  /// 'grandfather' ("Nani · Grandfather" in the chat, wrong node labels
+  /// in the graph). The via person's gender is implied by the via key's
+  /// kinship entry ('mother' → female, 'father' → male); for
+  /// gender-neutral via keys the final target's actual gender
+  /// ([targetGender]) is used, then the legacy viewer-gender fallback.
   String? resolveChainPath(
     List<String> path, {
     String viewerGender = 'male',
+    String? targetGender,
   }) {
     if (path.isEmpty) return null;
     if (path.length == 1) return normalizeRelationshipKey(path[0]);
@@ -517,8 +535,29 @@ class KinshipService {
       // Step 4: No rule found — chain breaks here
       if (rule == null) return null;
 
-      // Step 5: Advance to next key
-      currentKey = (viewerGender == 'female' && rule.resultFemale.isNotEmpty)
+      // Step 5: Advance to next key.
+      //
+      // v75: the variant follows the VIA person's gender (the person
+      // reached by this hop) — see the method doc block. The via key's
+      // kinship entry gives the gender ('mother' → female). For neutral
+      // keys on the FINAL hop we use the target person's actual gender
+      // when provided; otherwise the legacy viewer-gender behavior.
+      final viaEntry = getRelationship(viaKey);
+      final viaGender =
+          viaEntry == null ? null : viaEntry.gender.toLowerCase();
+      final bool viaPersonFemale;
+      if (viaGender == 'female') {
+        viaPersonFemale = true;
+      } else if (viaGender == 'male') {
+        viaPersonFemale = false;
+      } else if (i == path.length - 1 &&
+          targetGender != null &&
+          targetGender.isNotEmpty) {
+        viaPersonFemale = targetGender.toLowerCase() == 'female';
+      } else {
+        viaPersonFemale = viewerGender == 'female';
+      }
+      currentKey = (viaPersonFemale && rule.resultFemale.isNotEmpty)
           ? rule.resultFemale
           : rule.result;
     }

@@ -258,13 +258,13 @@
       "chainRules": [
         {
           "via": "father",
-          "result": "grandfather",
-          "resultFemale": "grandmother"
+          "result": "paternal_grandfather",
+          "resultFemale": "paternal_grandmother"
         },
         {
           "via": "mother",
-          "result": "grandfather",
-          "resultFemale": "grandmother"
+          "result": "paternal_grandfather",
+          "resultFemale": "paternal_grandmother"
         },
         {
           "via": "brother",
@@ -462,13 +462,13 @@
       "chainRules": [
         {
           "via": "father",
-          "result": "grandfather",
-          "resultFemale": "grandmother"
+          "result": "maternal_grandfather",
+          "resultFemale": "maternal_grandmother"
         },
         {
           "via": "mother",
-          "result": "grandfather",
-          "resultFemale": "grandmother"
+          "result": "maternal_grandfather",
+          "resultFemale": "maternal_grandmother"
         },
         {
           "via": "brother",

@@ -36,6 +36,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/family/family_provider.dart';
+import 'package:kinrel/core/kinship/kinship_category_map.dart';
 import 'package:kinrel/core/kinship/kinship_edge_style.dart';
 import 'package:kinrel/core/kinship/kinship_service.dart';
 import 'package:kinrel/features/chat/presentation/chat_ui_tokens.dart';
@@ -403,6 +404,136 @@ void main() {
     test('sentence case lowercases the tail ("MATERNAL_GRANDMOTHER")', () {
       expect(formatRelationshipLabel('MATERNAL_GRANDMOTHER'),
           'Maternal grandmother');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Chain-rule composition with the REAL kinship dataset loaded
+  // (regression: live-app bug — a male viewer's mother's mother
+  // resolved to 'grandfather' because resolveChainPath picked the
+  // result variant by the VIEWER's gender instead of the VIA person's
+  // gender; the kinship_core chain rules also produced generic
+  // grandfather/grandmother keys with no maternal/paternal lineage).
+  // ─────────────────────────────────────────────────────────────────────
+
+  group('ChatKinshipResolver — BFS with loaded kinship dataset', () {
+    setUp(() async {
+      // Ensure the REAL chain rules are active for this group (the
+      // formatRelationshipLabel group may already have loaded them —
+      // loadForTest is a no-op then).
+      await KinshipService.instance.loadForTest(
+        coreJsonPath: 'assets/data/kinship_core.json',
+        termsJsonPath: 'assets/data/kinship_terms.json',
+      );
+      ChatKinshipResolver.clearCacheForTest();
+    });
+
+    String? resolvePair({
+      required List<Person> members,
+      required List<FamilyRelationship> rels,
+      required int viewerIndex,
+      required int senderIndex,
+    }) =>
+        ChatKinshipResolver.resolveKey(
+          viewerPerson: members[viewerIndex],
+          senderPerson: members[senderIndex],
+          members: members,
+          relationships: rels,
+        );
+
+    test("male viewer's mother's mother is a MATERNAL grandmother, never 'grandfather'",
+        () {
+      // viewer (male) → Mummy (mother) → Nani (Mummy's mother, female).
+      final members = [
+        _person('me', 'Viewer', gender: 'male'),
+        _person('mom', 'Mummy', gender: 'female'),
+        _person('nani', 'Nani', gender: 'female'),
+      ];
+      final rels = [
+        _rel('me', 'mom', 'parent', labelAtoB: 'mother', labelBtoA: 'son'),
+        _rel('mom', 'nani', 'parent',
+            labelAtoB: 'mother', labelBtoA: 'daughter'),
+      ];
+      final key = resolvePair(
+          members: members, rels: rels, viewerIndex: 0, senderIndex: 2);
+      expect(key, isNotNull);
+      expect(key, isNot('grandfather'),
+          reason: 'the via person (mother of my mother) is female — '
+              'a male viewer must still see a grandmother-side key');
+      expect(key, anyOf('maternal_grandmother', 'grandmother', 'grandparent'));
+      expect(formatRelationshipLabel(key!), anyOf(
+        'Maternal grandmother',
+        'Grandmother',
+        'Grandparent',
+      ));
+    });
+
+    test("mother's father composes to the maternal grandfather (nana)", () {
+      final members = [
+        _person('me', 'Viewer', gender: 'male'),
+        _person('mom', 'Mummy', gender: 'female'),
+        _person('nana', 'Nana', gender: 'male'),
+      ];
+      final rels = [
+        _rel('me', 'mom', 'parent', labelAtoB: 'mother', labelBtoA: 'son'),
+        _rel('mom', 'nana', 'parent',
+            labelAtoB: 'father', labelBtoA: 'daughter'),
+      ];
+      final key = resolvePair(
+          members: members, rels: rels, viewerIndex: 0, senderIndex: 2);
+      expect(key, anyOf('maternal_grandfather', 'grandfather', 'grandparent'));
+      expect(key, isNot('grandmother'));
+    });
+
+    test("father's mother composes to the paternal grandmother (dadi)", () {
+      final members = [
+        _person('me', 'Viewer', gender: 'male'),
+        _person('dad', 'Papa', gender: 'male'),
+        _person('dadi', 'Dadi', gender: 'female'),
+      ];
+      final rels = [
+        _rel('me', 'dad', 'parent', labelAtoB: 'father', labelBtoA: 'son'),
+        _rel('dad', 'dadi', 'parent',
+            labelAtoB: 'mother', labelBtoA: 'son'),
+      ];
+      final key = resolvePair(
+          members: members, rels: rels, viewerIndex: 0, senderIndex: 2);
+      expect(key, anyOf('paternal_grandmother', 'grandmother', 'grandparent'));
+      expect(key, isNot('grandfather'));
+    });
+
+    test("father's father composes to the paternal grandfather (dadu)", () {
+      final members = [
+        _person('me', 'Viewer', gender: 'male'),
+        _person('dad', 'Papa', gender: 'male'),
+        _person('dadu', 'Dadu', gender: 'male'),
+      ];
+      final rels = [
+        _rel('me', 'dad', 'parent', labelAtoB: 'father', labelBtoA: 'son'),
+        _rel('dad', 'dadu', 'parent', labelAtoB: 'father', labelBtoA: 'son'),
+      ];
+      final key = resolvePair(
+          members: members, rels: rels, viewerIndex: 0, senderIndex: 2);
+      expect(key, anyOf('paternal_grandfather', 'grandfather', 'grandparent'));
+    });
+
+    test('grandparent keys classify into the grandparent category color',
+        () {
+      // The chat bubble band + name color come from the SAME resolver
+      // the Family Graph uses — verify the composed keys map to the
+      // grandparent category (indigo) rather than falling to extended.
+      for (final key in [
+        'maternal_grandmother',
+        'maternal_grandfather',
+        'paternal_grandmother',
+        'paternal_grandfather',
+      ]) {
+        final style = KinshipEdgeStyleResolver.styleFor(key);
+        expect(style.category, KinshipEdgeCategory.grandparent,
+            reason: '$key must reuse the Family Graph grandparent color');
+        expect(KinshipCategoryMap.isKnown(key), isTrue,
+            reason: '$key must be a known 5,363-entry category key');
+      }
     });
   });
 
