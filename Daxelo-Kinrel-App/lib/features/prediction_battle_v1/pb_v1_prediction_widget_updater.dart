@@ -67,8 +67,6 @@ const _kAndroidWidgetProviderName = 'PredictionWidgetProvider';
 /// SharedPreferences keys. The native Kotlin side reads these.
 const _kWidgetDataKey = 'kinrel_prediction_widget_data';
 const _kWidgetCountKey = 'kinrel_prediction_widget_count';
-const _kWidgetSelectedIndexKey = 'kinrel_prediction_widget_selected_index';
-
 class PredictionWidgetUpdater {
   PredictionWidgetUpdater(this._ref);
   final Ref _ref;

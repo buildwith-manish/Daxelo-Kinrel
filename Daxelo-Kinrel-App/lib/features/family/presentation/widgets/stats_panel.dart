@@ -20,9 +20,10 @@ import '../../../../core/utils/device_tier.dart';
 
 /// A compact bottom-left stats panel displaying graph metrics.
 ///
-/// Shows total members, connections (links), and generations. When the
-/// graph is truncated (too many nodes to render), a "TRUNCATED" warning
-/// is displayed in amber.
+/// Shows total members, connections (links), and generations, plus the
+/// "View all N" button that opens the full-family list. (The former
+/// "TRUNCATED" warning state was removed — the graph screen's
+/// "Showing N of M" banner carries the disclosure.)
 ///
 /// Usage:
 /// ```dart
@@ -33,7 +34,6 @@ import '../../../../core/utils/device_tier.dart';
 ///     totalMembers: 42,
 ///     totalConnections: 58,
 ///     totalGenerations: 4,
-///     isTruncated: false,
 ///   ),
 /// )
 /// ```
@@ -45,7 +45,6 @@ class StatsPanel extends StatelessWidget {
     required this.totalConnections,
     required this.totalGenerations,
     required this.fullFamilyMembers,
-    this.isTruncated = false,
     this.onViewAllMembers,
     this.familyId,
   });
@@ -70,9 +69,6 @@ class StatsPanel extends StatelessWidget {
   /// count) so the button always shows the grand total while the stat
   /// rows show the currently-visible count.
   final int fullFamilyMembers;
-
-  /// Whether the graph is truncated (too many nodes to display fully).
-  final bool isTruncated;
 
   /// v5.114: Callback when the user taps "View all members".
   /// Opens the full-family list/search view.
@@ -145,10 +141,10 @@ class StatsPanel extends StatelessWidget {
           _StatRow(label: 'LINKS', value: '$totalConnections'),
           const SizedBox(height: 6),
           _StatRow(label: 'GENS', value: '$totalGenerations'),
-          if (isTruncated) ...[
-            const SizedBox(height: 8),
-            _TruncatedWarning(),
-          ],
+          // (The TRUNCATED warning state was removed — the truncation
+          // banner on the graph screen now carries the "Showing N of M"
+          // information positively, and the "View all" button below
+          // remains the single go-to for the full family.)
           // v5.114: "View all members" button — opens the full-family
           // list/search view. This is where "show me everyone" goes.
           if (onViewAllMembers != null) ...[
@@ -275,41 +271,7 @@ class _StatRow extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// TRUNCATED WARNING (private)
-// ═══════════════════════════════════════════════════════════════════════
-
-/// An amber "TRUNCATED" warning indicator shown when the graph is truncated.
-class _TruncatedWarning extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: KinrelColors.warning.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.warning_amber_rounded,
-            size: 12,
-            color: KinrelColors.warning,
-          ),
-          SizedBox(width: 4),
-          Text(
-            'TRUNCATED',
-            style: TextStyle(
-              fontFamily: KinrelTypography.monoFont,
-              fontSize: 9,
-              fontWeight: FontWeight.w600,
-              color: KinrelColors.warning,
-              letterSpacing: 1.35, // 0.15em at 9px
-              decoration: TextDecoration.none,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// (The _TruncatedWarning widget was REMOVED — the stats card no
+// longer carries a truncation warning state; the graph screen's
+// "Showing N of M" banner + this panel's "View all N" button cover
+// the disclosure completely.)

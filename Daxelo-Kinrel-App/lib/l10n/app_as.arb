@@ -90,5 +90,19 @@
   "familyMapLegendTierStale": "পুৰণি",
   "familyMapLegendTierStaleDesc": "< ১ ঘণ্টা আগে",
   "familyMapLegendTierCity": "চহৰ",
-  "familyMapLegendTierCityDesc": "চহৰ কেন্দ্ৰ"
+  "familyMapLegendTierCityDesc": "চহৰ কেন্দ্ৰ",
+  "graphShowingCount": "মুঠ {total} ৰ ভিতৰত {shown} জন দেখুওৱা হৈছে।",
+  "graphFilterAll": "সকলো {count}",
+  "graphCatSelf": "আপুনি",
+  "graphCatSpouse": "জীৱনসংগী",
+  "graphCatParent": "মাক-দেউতাক",
+  "graphCatChild": "সন্তান",
+  "graphCatSibling": "ভাই-ভনী",
+  "graphCatGrandparent": "ককাই-আইতা",
+  "graphCatAuntUncle": "খুড়া-মামা",
+  "graphCatCousin": "সম্পৰ্কীয় ভাই-ভনী",
+  "graphCatInLaw": "শহুৰে",
+  "graphCatExtended": "বিস্তৃত পৰিয়াল",
+  "graphCatIndirect": "অপ্ৰত্যক্ষ",
+  "graphMorePeople": "{count} গৰাকী অধিক লোক দেখুন, দুবাৰ টেপ কৰক"
 }

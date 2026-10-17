@@ -700,4 +700,52 @@ class SBn extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name প্রতিক্রিয়া দেখিয়েছে $emoji';
   }
+
+  @override
+  String graphShowingCount(int shown, int total) {
+    return 'মোট $total জনের মধ্যে $shown জন দেখানো হচ্ছে।';
+  }
+
+  @override
+  String graphFilterAll(int count) {
+    return 'সব $count';
+  }
+
+  @override
+  String get graphCatSelf => 'আপনি';
+
+  @override
+  String get graphCatSpouse => 'সঙ্গী';
+
+  @override
+  String get graphCatParent => 'পিতামাতা';
+
+  @override
+  String get graphCatChild => 'সন্তানেরা';
+
+  @override
+  String get graphCatSibling => 'ভাইবোন';
+
+  @override
+  String get graphCatGrandparent => 'দাদু-দিদা';
+
+  @override
+  String get graphCatAuntUncle => 'চাচা-মামা';
+
+  @override
+  String get graphCatCousin => 'চাচাতো ভাইবোন';
+
+  @override
+  String get graphCatInLaw => 'শ্বশুরবাড়ি';
+
+  @override
+  String get graphCatExtended => 'বর্ধিত পরিবার';
+
+  @override
+  String get graphCatIndirect => 'পরোক্ষ';
+
+  @override
+  String graphMorePeople(int count) {
+    return '$count জন আরও মানুষ দেখুন, ডাবল ট্যাপ করুন';
+  }
 }

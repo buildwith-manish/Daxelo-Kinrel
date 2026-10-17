@@ -686,22 +686,30 @@
   "@chatTypingSingle": {
     "description": "Shown when one user is typing in the chat",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatTypingTwo": "{name1} and {name2} are typing",
   "@chatTypingTwo": {
     "description": "Shown when two users are typing in the chat",
     "placeholders": {
-      "name1": { "type": "String" },
-      "name2": { "type": "String" }
+      "name1": {
+        "type": "String"
+      },
+      "name2": {
+        "type": "String"
+      }
     }
   },
   "chatTypingMany": "{name} and others are typing",
   "@chatTypingMany": {
     "description": "Shown when 3+ users are typing in the chat",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatActiveNow": "Active now",
@@ -712,7 +720,9 @@
   "@chatNActive": {
     "description": "Presence label shown when 2+ members are online",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatLastSeenJustNow": "Last seen just now",
@@ -723,21 +733,27 @@
   "@chatLastSeenMinutes": {
     "description": "Last seen label for minutes ago",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatLastSeenHours": "Last seen {count}h ago",
   "@chatLastSeenHours": {
     "description": "Last seen label for hours ago",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatLastSeenDays": "Last seen {count}d ago",
   "@chatLastSeenDays": {
     "description": "Last seen label for days ago",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatOffline": "Offline",
@@ -752,15 +768,21 @@
   "@chatEmptyStateSubtitle": {
     "description": "Subtitle shown in the empty chat state",
     "placeholders": {
-      "familyName": { "type": "String" },
-      "count": { "type": "int" }
+      "familyName": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatEmptyStateSubtitleNoCount": "in the {familyName} family",
   "@chatEmptyStateSubtitleNoCount": {
     "description": "Subtitle shown in the empty chat state when member count is 0",
     "placeholders": {
-      "familyName": { "type": "String" }
+      "familyName": {
+        "type": "String"
+      }
     }
   },
   "chatSuggestionNamaste": "Namaste everyone 🙏",
@@ -775,29 +797,39 @@
   "@chatSuggestionGoodMorning": {
     "description": "Quick-reply suggestion in empty chat state",
     "placeholders": {
-      "familyName": { "type": "String" }
+      "familyName": {
+        "type": "String"
+      }
     }
   },
   "chatBirthdayToday": "{name}'s birthday is today! 🎂",
   "@chatBirthdayToday": {
     "description": "Upcoming event chip when birthday is today",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatBirthdayTomorrow": "{name}'s birthday tomorrow 🎂",
   "@chatBirthdayTomorrow": {
     "description": "Upcoming event chip when birthday is tomorrow",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatBirthdayInDays": "{name}'s birthday in {count} days 🎂",
   "@chatBirthdayInDays": {
     "description": "Upcoming event chip when birthday is in N days",
     "placeholders": {
-      "name": { "type": "String" },
-      "count": { "type": "int" }
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatSearchPlaceholder": "Search messages...",
@@ -812,7 +844,9 @@
   "@chatSearchResultsCount": {
     "description": "Shown above search results",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatMessageSending": "Sending...",
@@ -835,36 +869,122 @@
   "@chatSystemMessageUserJoined": {
     "description": "System chat message when a user joins a game room",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatSystemMessageUserLeft": "{name} left the room",
   "@chatSystemMessageUserLeft": {
     "description": "System chat message when a user leaves a game room",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatSystemMessageUserDisconnected": "{name} disconnected",
   "@chatSystemMessageUserDisconnected": {
     "description": "System chat message when a user disconnects",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatSystemMessageRoomClosed": "{name} closed the room",
   "@chatSystemMessageRoomClosed": {
     "description": "System chat message when host closes the room",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatSystemMessageUserReacted": "{name} reacted {emoji}",
   "@chatSystemMessageUserReacted": {
     "description": "System chat message when a user reacts",
     "placeholders": {
-      "name": { "type": "String" },
-      "emoji": { "type": "String" }
+      "name": {
+        "type": "String"
+      },
+      "emoji": {
+        "type": "String"
+      }
     }
+  },
+  "graphShowingCount": "Showing {shown} of {total} persons.",
+  "@graphShowingCount": {
+    "description": "Graph truncation banner: how many persons are shown of the total",
+    "placeholders": {
+      "shown": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "graphFilterAll": "All {count}",
+  "@graphFilterAll": {
+    "description": "The leading 'All N' filter chip on the graph screen",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "graphCatSelf": "You",
+  "@graphCatSelf": {
+    "description": "Filter chip label: the viewer (self) category"
+  },
+  "graphCatSpouse": "Spouse",
+  "@graphCatSpouse": {
+    "description": "Filter chip label: spouse category"
+  },
+  "graphCatParent": "Parents",
+  "@graphCatParent": {
+    "description": "Filter chip label: parents category"
+  },
+  "graphCatChild": "Children",
+  "@graphCatChild": {
+    "description": "Filter chip label: children category"
+  },
+  "graphCatSibling": "Siblings",
+  "@graphCatSibling": {
+    "description": "Filter chip label: siblings category"
+  },
+  "graphCatGrandparent": "Grandparents",
+  "@graphCatGrandparent": {
+    "description": "Filter chip label: grandparents category"
+  },
+  "graphCatAuntUncle": "Aunts & uncles",
+  "@graphCatAuntUncle": {
+    "description": "Filter chip label: aunts and uncles category"
+  },
+  "graphCatCousin": "Cousins",
+  "@graphCatCousin": {
+    "description": "Filter chip label: cousins category"
+  },
+  "graphCatInLaw": "In-laws",
+  "@graphCatInLaw": {
+    "description": "Filter chip label: in-laws category"
+  },
+  "graphCatExtended": "Extended",
+  "@graphCatExtended": {
+    "description": "Filter chip label: extended family category"
+  },
+  "graphCatIndirect": "Indirect",
+  "graphMorePeople": "Show {count} more people, double tap to reveal",
+  "@graphMorePeople": {
+    "description": "The '+N' page bubble / collapsed-person count badge semantic label: N more people, double tap to show",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@graphCatIndirect": {
+    "description": "Filter chip label: indirect connections category"
   }
 }

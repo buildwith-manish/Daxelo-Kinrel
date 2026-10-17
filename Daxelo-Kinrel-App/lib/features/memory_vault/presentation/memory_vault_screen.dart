@@ -39,7 +39,6 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/premium_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/image_cache_manager.dart';
-import '../../../core/family/family_provider.dart';
 import '../../../core/widgets/cached_avatar.dart';
 import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';

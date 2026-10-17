@@ -21,7 +21,6 @@
 
 import 'package:flutter/material.dart';
 import '../../core/constants/brand_colors.dart';
-import '../../core/theme/kinrel_fx.dart';
 
 // ── Relationship Type Enum ──────────────────────────────────────────────────
 

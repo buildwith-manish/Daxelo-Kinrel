@@ -73,6 +73,11 @@ void main() {
       await tester.tap(find.text('Trigger Find on Kinrel'));
       await tester.pumpAndSettle();
 
+      // Flutter 3.47+ notifies NavigatorObservers for the INITIAL
+      // route push as well — drop the initial home route so only
+      // user-triggered pushes are counted below.
+      pushedRoutes.removeWhere((r) => r.isFirst);
+
       // Verify a route was pushed.
       expect(pushedRoutes.length, 1,
           reason: 'openFindOnKinrelFlow must push exactly one route '

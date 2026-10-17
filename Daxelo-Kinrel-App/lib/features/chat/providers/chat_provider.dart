@@ -1031,10 +1031,22 @@ class ChatNotifier extends StateNotifier<ChatState> {
   // ── Initialization ───────────────────────────────────────────────
 
   Future<void> _init() async {
-    await _loadMembers();
-    await _loadMessages();
-    _subscribeToRealtime();
-    _listenToMemberChanges();
+    // Init is fired from the constructor and runs asynchronously — it can
+    // race a quick dispose (autoDispose recreation, full container
+    // teardown in tests / app shutdown). Once the notifier is gone, any
+    // ref.read inside the steps below throws "container already
+    // disposed" — there is nothing left to initialize at that point, so
+    // abort quietly. Real failures while the notifier is ALIVE still
+    // propagate unchanged.
+    try {
+      await _loadMembers();
+      await _loadMessages();
+      _subscribeToRealtime();
+      _listenToMemberChanges();
+    } catch (e) {
+      if (mounted) rethrow;
+      debugPrint('⚠️ ChatNotifier._init aborted (disposed): $e');
+    }
   }
 
   /// v5.2: Listens to changes in familyMembersProvider and re-loads
@@ -1823,7 +1835,18 @@ class ChatNotifier extends StateNotifier<ChatState> {
     _burstFlushTimer?.cancel();
     _burstFlushTimer = null;
 
-    final myUserId = _currentUserId;
+    // Resolve the current user id defensively — when the flush runs
+    // from dispose() during FULL container teardown (app shutdown /
+    // test teardown), ref.read throws "container already disposed".
+    // Read-marking is skipped in that case; the rows still land in
+    // state (or the buffer is simply drained — nobody is listening).
+    final String? myUserId = () {
+      try {
+        return _currentUserId;
+      } catch (_) {
+        return null;
+      }
+    }();
     final newMessages = <ChatMessage>[];
     for (final row in rowsToApply.values) {
       try {
@@ -3329,8 +3352,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   @override
   void dispose() {
-    final registry = ref.read(realtimeChannelRegistryProvider);
-    registry.unregister('chat:$familyId');
+    // Guard: reading providers from dispose() is safe during normal
+    // provider invalidation, but during FULL CONTAINER TEARDOWN
+    // (e.g. ProviderContainer.dispose() in tests / app shutdown)
+    // Riverpod throws "container already disposed" — and the channels
+    // die with the client anyway, so there is nothing to unregister.
+    try {
+      final registry = ref.read(realtimeChannelRegistryProvider);
+      registry.unregister('chat:$familyId');
+    } catch (_) {
+      // Container already disposed — skip registry cleanup.
+    }
     // PERF (Phase 3 — realtime leak fix): use `client.removeChannel`
     // instead of `_channel?.unsubscribe()` so the channel is fully
     // evicted from the Supabase client's `channels` list (freeing
@@ -3340,7 +3372,16 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // call is a safety net for the case where the channel wasn't
     // registered (e.g., subscribe failed mid-way). `removeChannel`
     // is idempotent on an already-removed channel.
-    final client = _client;
+    //
+    // Guarded like the registry read above: `_client` also resolves
+    // through ref.read, which throws during full container teardown.
+    final client = () {
+      try {
+        return _client;
+      } catch (_) {
+        return null;
+      }
+    }();
     if (client != null && _channel != null) {
       try {
         client.removeChannel(_channel!);

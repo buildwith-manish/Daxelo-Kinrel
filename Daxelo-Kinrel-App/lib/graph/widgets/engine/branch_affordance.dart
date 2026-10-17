@@ -1254,6 +1254,20 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
               // Fire the same haptic as expanding (symmetric feel).
               GraphHaptics.branchExpand(context);
 
+              // WEDGE MODE: collapse is owned by the wedge view state —
+              // the person's paged children leave the layout (the
+              // loaded data stays in the proximity set for instant
+              // re-expansion). Identical positions are restored on
+              // re-expand (deterministic wedge re-division).
+              if (kUseViewerWedgeLayout) {
+                ref
+                    .read(wedgeViewProvider.notifier)
+                    .collapsePerson(rootPersonId);
+                _cancelEntranceAnimation();
+                ref.invalidate(graphLayoutProvider(widget.familyId));
+                return;
+              }
+
               // v5.142: Build the childrenOf adjacency map needed by
               // manualCollapseBranch. allEdges is optional (null) —
               // hidden edges will be computed from childrenOf only.
@@ -1664,7 +1678,438 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
       },
     );
   }
+
+  // ── WEDGE LAYOUT: reserved "+N" page chips ─────────────────────────
+  //
+  // The viewer-centered wedge layout reserves ONE extra leaf slot for
+  // the "+N" chip whenever an expanded person has more children than
+  // the current page shows. The slots (canvas-space centres + counts)
+  // come from wedgeChipSlotsProvider — written by graphLayoutProvider's
+  // wedge path. The chip VISUAL is byte-for-byte the existing collapsed
+  // branch chip (Container + radius 14 + accent border + Icon + Text)
+  // — only the tap behaviour differs: it turns to the NEXT PAGE of that
+  // person's children (fetching any not-yet-loaded members first).
+
+  /// Builds the positioned "+N" page chips at their reserved slot
+  /// centres. Renders NOTHING when the wedge layout reported no slots.
+  ///
+  /// Each chip is a professional circular bubble (Ø52, inside its
+  /// reserved 84×84 layout slot) with a DASHED ring in the hub's edge
+  /// colour and "+N" in the display font — the same visual family +
+  /// brand colours as the legacy chips. While the lazy fetch runs, a
+  /// small spinner replaces the number and extra taps are ignored.
+  /// When a hub has nothing left to reveal, its bubble fades out (the
+  /// ghost is rendered for one short fade cycle — see
+  /// [_wedgeFadingChips]).
+  List<Widget> _buildWedgePageChips() {
+    if (!kUseViewerWedgeLayout) return const [];
+    final chips =
+        ref.watch(wedgeChipSlotsProvider(widget.familyId));
+
+    final result = <Widget>[];
+    final Map<String, WedgePageChip> liveChips;
+    if (chips == null || chips.isEmpty) {
+      liveChips = const <String, WedgePageChip>{};
+    } else {
+      liveChips = chips;
+    }
+
+    // Fade-out bookkeeping: a hub that STILL has an expansion but whose
+    // chip just vanished has paged to the very end ("when nothing
+    // remains, the bubble fades out"). Track it as a ghost for one
+    // short fade cycle at its last reserved slot.
+    final wedgeState = ref.read(wedgeViewProvider);
+    final previous = _lastSeenWedgeChipSlots;
+    if (previous != null) {
+      for (final entry in previous.entries) {
+        if (!liveChips.containsKey(entry.key) &&
+            wedgeState.expandedRoots.contains(entry.key)) {
+          _wedgeFadingChips[entry.key] = entry.value;
+        }
+      }
+    }
+    _lastSeenWedgeChipSlots = Map<String, WedgePageChip>.of(liveChips);
+    if (_wedgeFadingChips.isNotEmpty && _wedgeFadeCleanupTimer == null) {
+      _wedgeFadeCleanupTimer = Timer(const Duration(milliseconds: 400), () {
+        _wedgeFadeCleanupTimer?.cancel();
+        _wedgeFadeCleanupTimer = null;
+        if (_wedgeFadingChips.isEmpty) return;
+        _wedgeFadingChips.clear();
+        // ignore: invalid_use_of_protected_member
+        setState(() {});
+      });
+    }
+
+    // Deterministic render order: slot angle then owner id.
+    final entries = liveChips.values.toList()
+      ..sort((a, b) {
+        final byAngle =
+            a.slotCenter.direction.compareTo(b.slotCenter.direction);
+        if (byAngle != 0) return byAngle;
+        return a.personId.compareTo(b.personId);
+      });
+
+    final l10n = S.of(context);
+    for (final chip in entries) {
+      result.add(Positioned(
+        left: chip.slotCenter.dx,
+        top: chip.slotCenter.dy,
+        child: _WedgePageChipBubble(
+          remainingCount: chip.remainingCount,
+          accentColor: _wedgeChipAccentColor(chip.personId),
+          loading: _optimisticLoadingChipRootId == chip.personId,
+          semanticLabel:
+              l10n?.graphMorePeople(chip.remainingCount) ??
+              'Show ${chip.remainingCount} more family members. '
+                  'Double-tap to show the next page.',
+          onTap: () {
+            GraphHaptics.branchExpand(context);
+            _expandWedgePageChip(chip.personId);
+          },
+        ),
+      ));
+    }
+
+    // Ghost bubbles — fading out at their last reserved slots.
+    final ghosts = _wedgeFadingChips.values.toList()
+      ..sort((a, b) => a.personId.compareTo(b.personId));
+    for (final ghost in ghosts) {
+      result.add(Positioned(
+        left: ghost.slotCenter.dx,
+        top: ghost.slotCenter.dy,
+        child: _WedgeChipFadeOut(
+          // Fade out with the count the user saw when they tapped (the
+          // ghost entry is the chip's LAST non-empty frame).
+          child: _WedgePageChipBubble(
+            remainingCount: ghost.remainingCount,
+            accentColor: _wedgeChipAccentColor(ghost.personId),
+            loading: false,
+            semanticLabel: '',
+            onTap: null,
+          ),
+        ),
+      ));
+    }
+    return result;
+  }
+
+  /// The accent colour for a wedge page chip: the chip owner's kinship
+  /// category colour (via the authoritative per-person category cache
+  /// the canvas computes). Falls back to the orange the legacy chips
+  /// use when the owner has no category yet.
+  Color _wedgeChipAccentColor(String personId) {
+    final cats = _cachedRelationCategories;
+    final category = cats?[personId];
+    if (category == null || category == KinshipEdgeCategory.self) {
+      return KinrelColors.orange;
+    }
+    return KinshipEdgeStyleResolver.styleForCategory(category).color;
+  }
+
+  /// WEDGE CHIP TAP: shows the NEXT page of [personId]'s children.
+  ///
+  /// 1. Optimistically advances the page (wedgeViewProvider) — already
+  ///    loaded children appear immediately.
+  /// 2. Lazily fetches the branch (the existing get_member_branch RPC
+  ///    merge) so not-yet-loaded members of the next page appear when
+  ///    the fetch lands.
+  /// 3. Reveals the loaded children into the proximity set + marks the
+  ///    entrance animation + invalidates the layout provider.
+  Future<void> _expandWedgePageChip(String personId) async {
+    if (personId.isEmpty) return;
+    // While a bubble's lazy fetch is in flight its number is replaced
+    // by a spinner and EXTRA TAPS ARE IGNORED (one page turn at a
+    // time — the fetch + layout recompute must land first).
+    if (_optimisticLoadingChipRootId != null) return;
+
+    // Optimistic feedback + page turn.
+    // ignore: invalid_use_of_protected_member
+    setState(() {
+      _optimisticLoadingChipRootId = personId;
+    });
+    ref.read(wedgeViewProvider.notifier).advancePage(personId);
+
+    final flat = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
+
+    // Reveal every LOADED child of [personId] into the proximity set
+    // (the ones the next page will render). Data-level: identical to
+    // the legacy chip flow's revealPersons step.
+    final rawEdges = flat?.allRelationships ?? flat?.relationships;
+    if (flat != null && rawEdges != null) {
+      final loadedIds = <String>{
+        for (final p in flat.persons) (p['id'] ?? '').toString(),
+      };
+      final childIds = <String>{};
+      for (final Map<String, dynamic> r in rawEdges) {
+        final from = (r['fromPersonId'] ?? '').toString();
+        final to = (r['toPersonId'] ?? '').toString();
+        if (from == personId && loadedIds.contains(to)) {
+          childIds.add(to);
+        } else if (to == personId && loadedIds.contains(from)) {
+          childIds.add(from);
+        }
+      }
+      if (childIds.isNotEmpty) {
+        ref.read(proximityGraphProvider.notifier).revealPersons(
+              personIds: childIds,
+              allPersons: loadedIds,
+            );
+        // Entrance animation: fly the page's children out from the
+        // chip owner's current position.
+        final layout =
+            ref.read(graphLayoutProvider(widget.familyId)).valueOrNull;
+        _markNodesForEntrance(
+          childIds,
+          origin: layout?.positions[personId],
+        );
+      }
+    }
+
+    // Lazy fetch: brings the not-yet-loaded members of the next page
+    // into the provider state (the merge itself invalidates the layout
+    // provider; the invalidation below covers the no-fetch path).
+    try {
+      await ref.read(familyGraphProvider(widget.familyId).notifier)
+          .fetchBranchAndMerge(
+        rootPersonId: personId,
+        branchType: 'generic',
+        depth: 2,
+      );
+    } catch (e) {
+      debugPrint('[WedgePageChip] branch fetch failed for $personId: $e');
+    }
+
+    // ignore: invalid_use_of_protected_member
+    setState(() {
+      _optimisticLoadingChipRootId = null;
+    });
+    ref.invalidate(graphLayoutProvider(widget.familyId));
+  }
+
+  /// WEDGE NODE TAP: expands [personId] (shows page 1 of their
+  /// children), revealing + lazily fetching as needed. Mirrors the
+  /// semantics of the legacy node-tap expansion, but the wedge layout
+  /// pages the children (top 8) instead of revealing everything.
+  Future<void> _expandWedgeNode(String personId) async {
+    if (personId.isEmpty) return;
+    ref.read(wedgeViewProvider.notifier).expandPerson(personId);
+
+    final flat = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
+    if (flat == null) {
+      ref.invalidate(graphLayoutProvider(widget.familyId));
+      return;
+    }
+
+    final loadedIds = <String>{
+      for (final p in flat.persons) (p['id'] ?? '').toString(),
+    };
+    final rawEdges = flat.allRelationships ?? flat.relationships;
+
+    // Every neighbour over the FULL edge list (loaded or not) — the
+    // fetch below will load the rest.
+    final allNeighborIds = <String>{};
+    final loadedNeighborIds = <String>{};
+    for (final Map<String, dynamic> r in rawEdges) {
+      final from = (r['fromPersonId'] ?? '').toString();
+      final to = (r['toPersonId'] ?? '').toString();
+      String? neighbor;
+      if (from == personId) {
+        neighbor = to;
+      } else if (to == personId) {
+        neighbor = from;
+      }
+      if (neighbor == null || neighbor.isEmpty || neighbor == personId) {
+        continue;
+      }
+      allNeighborIds.add(neighbor);
+      if (loadedIds.contains(neighbor)) {
+        loadedNeighborIds.add(neighbor);
+      }
+    }
+
+    if (loadedNeighborIds.isNotEmpty) {
+      ref.read(proximityGraphProvider.notifier).revealPersons(
+            personIds: loadedNeighborIds,
+            allPersons: loadedIds,
+          );
+      final layout =
+          ref.read(graphLayoutProvider(widget.familyId)).valueOrNull;
+      _markNodesForEntrance(
+        loadedNeighborIds,
+        origin: layout?.positions[personId],
+      );
+    }
+
+    // Lazy fetch ONLY when some children are not loaded yet.
+    final hasUnloadedNeighbors =
+        allNeighborIds.any((id) => !loadedIds.contains(id));
+    if (hasUnloadedNeighbors) {
+      try {
+        await ref.read(familyGraphProvider(widget.familyId).notifier)
+            .fetchBranchAndMerge(
+          rootPersonId: personId,
+          branchType: 'generic',
+          depth: 2,
+        );
+      } catch (e) {
+        debugPrint('[WedgeNode] branch fetch failed for $personId: $e');
+      }
+    }
+
+    ref.invalidate(graphLayoutProvider(widget.familyId));
+  }
+
+  // ── WEDGE LAYOUT: node tap state machine ──────────────────────────
+  //
+  // The approved-preview tap rules (all state changes funnel through
+  // wedgeViewProvider so the layout, chips, and camera-fit animation
+  // all recompute from ONE intent source):
+  //
+  //   • collapsed person        → expand in place (first 8) + focus
+  //   • expanded, NOT focused   → focus them (camera fits the branch)
+  //   • focused + expanded      → collapse them + focus their parent
+  //
+  // "Focus" here is the WEDGE focus (WedgeViewState.focusedPersonId) —
+  // a browsing focus that never dims the graph. If the isolate-style
+  // graphFocusProvider focus happens to be active (e.g. after a search
+  // jump), a wedge tap exits it first — browsing takes over.
+
+  /// WEDGE NODE TAP: the full tap state machine (see the block comment
+  /// above). Called from event_helpers._maybeExpandFromPerson.
+  void _handleWedgeNodeTap(String personId) {
+    final wedge = ref.read(wedgeViewProvider);
+    final viewerId =
+        ref.read(viewerPersonIdProvider(widget.familyId)).valueOrNull;
+
+    // Exit any isolate-connections focus (search jump / "Isolate
+    // connections") — an active wedge browse supersedes it. Focus mode
+    // dims the rest of the graph to 18%, which fights the wedge
+    // overview; clearing it here never moves the camera by itself.
+    if (ref.read(graphFocusProvider).focusedPersonId != null) {
+      ref.read(graphFocusProvider.notifier).clearFocus();
+    }
+
+    // The viewer/root is ALWAYS expanded and never collapses — tapping
+    // it just (re-)focuses the root branch (top-8 + its parent fit).
+    if (personId == viewerId) {
+      ref.read(wedgeViewProvider.notifier).focusPerson(personId);
+      return;
+    }
+
+    final isExpanded = wedge.expandedRoots.contains(personId);
+
+    if (!isExpanded) {
+      // Case 1 — collapsed person: expand in place with their first 8
+      // connections, focus them, and fit the camera to them + their
+      // children + their parent (the fit rides the wedge revision
+      // change that _expandWedgeNode's expansion triggers).
+      _focusWedgePerson(personId);
+      _expandWedgeNode(personId);
+      return;
+    }
+
+    if (wedge.focusedPersonId != personId) {
+      // Case 2 — expanded but not focused: focus them and fit the
+      // camera to their branch (focusPerson bumps the revision with
+      // lastActionPersonId = the person → _maybeFitCameraOnWedgeChange
+      // fits them + their children + their parent).
+      ref.read(wedgeViewProvider.notifier).focusPerson(personId);
+      return;
+    }
+
+    // Case 3 — focused + expanded: collapse them and focus their
+    // parent. The camera fit rides the collapse's revision change
+    // (lastActionPersonId = the collapsed person, whose fit set
+    // includes their parent).
+    final summary =
+        ref.read(wedgeLayoutSummaryProvider(widget.familyId));
+    final parent = summary?.parentOf[personId];
+    ref
+        .read(wedgeViewProvider.notifier)
+        .collapseAndFocusParent(personId, parent);
+    _cancelEntranceAnimation();
+    ref.invalidate(graphLayoutProvider(widget.familyId));
+  }
+
+  /// Sets the WEDGE browsing focus on [personId] (WedgeViewState, not
+  /// the isolate-style graphFocusProvider). Side-effect free apart from
+  /// the state write — no dimming, no camera move (the camera fit rides
+  /// the wedge revision change like every other wedge action).
+  void _focusWedgePerson(String personId) {
+    ref.read(wedgeViewProvider.notifier).focusPerson(personId);
+  }
+
+  // ── WEDGE LAYOUT: collapsed-person count badges ───────────────────
+  //
+  // Collapsed people who have connections show a small count badge
+  // ("+11") overlaying the top-right of their node — drawn by this chip
+  // layer (NOT by GraphNode, which stays untouched) using the
+  // precomputed connection-degree map from canvas_mixin. Tapping the
+  // badge OR the node expands it (the same _handleWedgeNodeTap flow).
+  // The badge colour is the person's relationship colour.
+
+  /// Builds positioned "+N" count badges for every VISIBLE, COLLAPSED
+  /// person that has at least one connection. Renders nothing in
+  /// radial mode or when no counts are cached yet.
+  List<Widget> _buildWedgeCountBadges() {
+    if (!kUseViewerWedgeLayout) return const [];
+    final counts = _cachedConnectionCountById;
+    if (counts == null || counts.isEmpty) return const [];
+
+    final wedge = ref.watch(wedgeViewProvider);
+    final layout =
+        ref.watch(graphLayoutProvider(widget.familyId)).valueOrNull;
+    if (layout == null || layout.positions.isEmpty) return const [];
+
+    final viewerId =
+        ref.read(viewerPersonIdProvider(widget.familyId)).valueOrNull;
+
+    // Deterministic order: angle around the canvas origin, then id.
+    final entries = layout.positions.entries.where((entry) {
+      return shouldShowWedgeCountBadge(
+        personId: entry.key,
+        viewerId: viewerId,
+        expandedRoots: wedge.expandedRoots,
+        connectionCounts: counts,
+      );
+    }).toList()
+      ..sort((a, b) {
+        final byAngle = a.value.direction.compareTo(b.value.direction);
+        if (byAngle != 0) return byAngle;
+        return a.key.compareTo(b.key);
+      });
+
+    final l10n = S.of(context);
+    final result = <Widget>[];
+    for (final entry in entries) {
+      final count = counts[entry.key] ?? 0;
+      if (count <= 0) continue;
+      final pos = entry.value;
+      // Node visual: the Positioned box is 140×176 centred on pos with
+      // the avatar circle at its top. Anchor the badge INSIDE the
+      // node's top-right corner so it never leaves the node's reserved
+      // footprint (no new overlap risk) — the classic notification
+      // badge look. The anchor is the badge CENTRE (dx, dy from pos).
+      result.add(Positioned(
+        left: pos.dx + _kWedgeBadgeAnchor.dx,
+        top: pos.dy + _kWedgeBadgeAnchor.dy,
+        child: _WedgeCountBadge(
+          count: count,
+          color: _wedgeChipAccentColor(entry.key),
+          semanticLabel: l10n?.graphMorePeople(count) ??
+              '$count more people, double tap to show',
+          onTap: () => _handleWedgeNodeTap(entry.key),
+        ),
+      ));
+    }
+    return result;
+  }
 }
+
+/// The count-badge centre offset from the node centre: inside the
+/// top-right of the 124×128 node footprint (avatar circle area),
+/// clear of the name label below the circle.
+const Offset _kWedgeBadgeAnchor = Offset(46.0, -46.0);
 
 // v5.x (BUG-1 fix — REMOVE LEADER LINE): the `_BranchChipLeaderPainter`
 // class that used to live here has been DELETED. The previous version
@@ -1675,3 +2120,269 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
 // now always attached to (overlapping) the parent node's bottom edge,
 // so no visual tether is needed. The whole painter class + its
 // `paint`/`shouldRepaint` methods (~80 lines) are gone.
+
+// ── WEDGE LAYOUT: bubble + badge widgets ────────────────────────────
+//
+// The "+N" page bubble: a professional circular affordance in the same
+// visual family as the legacy branch chips (dark surface, brand/accent
+// colours, DMSans) with a DASHED ring in the hub's edge colour. The
+// reserved layout slot (84×84) comfortably contains the Ø52 bubble, so
+// the bubble never overlaps a node or a name.
+//
+// Press feedback: the bubble scales to ~0.95 while pressed (with the
+// existing GraphHaptics.branchExpand firing on tap). While the lazy
+// fetch is in flight a small spinner replaces the number and extra
+// taps are ignored upstream (_expandWedgePageChip's loading guard).
+
+/// The circular "+N" page bubble (see the block comment above).
+class _WedgePageChipBubble extends StatefulWidget {
+  const _WedgePageChipBubble({
+    required this.remainingCount,
+    required this.accentColor,
+    required this.loading,
+    required this.semanticLabel,
+    required this.onTap,
+  });
+
+  final int remainingCount;
+  final Color accentColor;
+  final bool loading;
+  final String semanticLabel;
+  final VoidCallback? onTap;
+
+  @override
+  State<_WedgePageChipBubble> createState() => _WedgePageChipBubbleState();
+}
+
+class _WedgePageChipBubbleState extends State<_WedgePageChipBubble> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: widget.semanticLabel,
+      child: FractionalTranslation(
+        // Centre the Ø52 bubble on the reserved slot (FractionalTranslation
+        // never expands — unlike Center, it cannot eat the canvas' taps).
+        translation: const Offset(-0.5, -0.5),
+        child: Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: (_) => setState(() => _pressed = true),
+          onPointerUp: (_) => setState(() => _pressed = false),
+          onPointerCancel: (_) => setState(() => _pressed = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            // While loading, taps are ignored (the spinner is showing).
+            onTap: widget.loading ? null : widget.onTap,
+            child: AnimatedScale(
+              scale: _pressed ? 0.95 : 1.0,
+              duration: const Duration(milliseconds: 110),
+              curve: Curves.easeOut,
+              child: _WedgeDashedRing(
+                color: widget.accentColor,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: KinrelColors.darkBackground.withValues(alpha: 0.94),
+                    shape: BoxShape.circle,
+                    boxShadow: KinrelFx.shadows([
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]),
+                  ),
+                  child: widget.loading
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              widget.accentColor,
+                            ),
+                          ),
+                        )
+                      : Text(
+                          '+${widget.remainingCount}',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.95),
+                            fontFamily: 'DMSans',
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            height: 1.0,
+                          ),
+                          maxLines: 1,
+                        ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A dashed circular ring (Ø52, stroke ~1.8) drawn in [color] around
+/// [child]. Purely decorative — the reserved slot owns the geometry.
+class _WedgeDashedRing extends StatelessWidget {
+  const _WedgeDashedRing({required this.color, required this.child});
+
+  final Color color;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      foregroundPainter: _WedgeDashedRingPainter(color: color),
+      child: SizedBox(width: 52, height: 52, child: Center(child: child)),
+    );
+  }
+}
+
+class _WedgeDashedRingPainter extends CustomPainter {
+  _WedgeDashedRingPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 1.0;
+    const segments = 26;
+    const dashFraction = 0.58; // dash length vs segment length
+    final segment = 2 * 3.141592653589793 / segments;
+    final paint = Paint()
+      ..color = color.withValues(alpha: 0.9)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < segments; i++) {
+      final start = i * segment;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        start,
+        segment * dashFraction,
+        false,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WedgeDashedRingPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+/// Wraps a just-emptied bubble and fades it out over ~260 ms
+/// ("when nothing remains, the bubble fades out").
+class _WedgeChipFadeOut extends StatelessWidget {
+  const _WedgeChipFadeOut({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 1.0, end: 0.0),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOut,
+      builder: (context, opacity, child) =>
+          IgnorePointer(child: Opacity(opacity: opacity, child: child)),
+      child: child,
+    );
+  }
+}
+
+/// The small "+N" connection-count badge overlaying the top-right of a
+/// COLLAPSED person's node (see _buildWedgeCountBadges). Solid fill in
+/// the person's relationship colour; the tap target is a 48×48 box
+/// centred on the anchor (the badge never blocks the node's own tap —
+/// both gestures run the SAME _handleWedgeNodeTap expand flow).
+class _WedgeCountBadge extends StatefulWidget {
+  const _WedgeCountBadge({
+    required this.count,
+    required this.color,
+    required this.semanticLabel,
+    required this.onTap,
+  });
+
+  final int count;
+  final Color color;
+  final String semanticLabel;
+  final VoidCallback? onTap;
+
+  @override
+  State<_WedgeCountBadge> createState() => _WedgeCountBadgeState();
+}
+
+class _WedgeCountBadgeState extends State<_WedgeCountBadge> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: widget.semanticLabel,
+      child: FractionalTranslation(
+        translation: const Offset(-0.5, -0.5),
+        child: Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: (_) => setState(() => _pressed = true),
+          onPointerUp: (_) => setState(() => _pressed = false),
+          onPointerCancel: (_) => setState(() => _pressed = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onTap,
+            child: AnimatedScale(
+              scale: _pressed ? 0.95 : 1.0,
+              duration: const Duration(milliseconds: 110),
+              curve: Curves.easeOut,
+              child: Container(
+                width: 48,
+                height: 48,
+                alignment: Alignment.center,
+                color: Colors.transparent,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: widget.color,
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border.all(
+                      color: KinrelColors.darkBackground.withValues(alpha: 0.9),
+                      width: 1.4,
+                    ),
+                    boxShadow: KinrelFx.shadows([
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ]),
+                  ),
+                  child: Text(
+                    '+${widget.count}',
+                    style: const TextStyle(
+                      color: KinrelColors.darkBackground,
+                      fontFamily: 'DMSans',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      height: 1.0,
+                    ),
+                    maxLines: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

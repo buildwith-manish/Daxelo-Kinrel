@@ -22,6 +22,7 @@
 
 import 'dart:async';
 import 'dart:convert' show jsonEncode;
+import 'dart:math' as math;
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
@@ -31,6 +32,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/isar_database.dart';
+import '../../../../core/graph/graph_service.dart' show inverseTypeMap;
 import '../../../../core/kinship/kinship_service.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/services/graph_layout_service.dart';
@@ -38,8 +40,18 @@ import '../../../../core/services/supabase_service.dart';
 import '../../../../core/viewer/viewer_provider.dart';
 import '../../../../graph/data/graph_data_models.dart'
     show PersonData, RelationshipData;
+import '../../../../graph/engine/viewer_wedge_layout.dart'
+    show
+        kUseViewerWedgeLayout,
+        ViewerWedgeLayout,
+        WedgeLink,
+        WedgePageChip;
 import '../../../../graph/engine/radial_layout.dart'
     show RadialLayout, RadialLayoutConfig;
+import '../../../../graph/interaction/graph_focus_state.dart'
+    show graphFocusProvider;
+import '../../../../graph/interaction/graph_search_state.dart'
+    show graphSearchProvider;
 import '../../../../graph/interaction/proximity_graph_state.dart'
     show
         proximityGraphProvider,
@@ -49,7 +61,12 @@ import '../../../../graph/interaction/proximity_graph_state.dart'
 // which branch roots the user has expanded (passed to RadialLayout so
 // each branch gets its own angular sector).
 import '../../../../graph/interaction/branch_collapse_state.dart'
-    show branchCollapseProvider;
+    show branchCollapseProvider, kNodeBudget;
+// Viewer-centered wedge layout state ("top 8 + chips + search").
+import '../../../../graph/interaction/wedge_view_state.dart'
+    show wedgeViewProvider;
+import '../../../../core/kinship/kinship_edge_style.dart'
+    show KinshipEdgeCategory, KinshipEdgeClassifier;
 // v5.123 (Step 1): disclosure level drives the force-relaxation opt-in.
 import '../../../../graph/interaction/expand_collapse.dart'
     show expandCollapseProvider, DisclosureLevel;
@@ -1107,7 +1124,7 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       // Trigger background refresh — doesn't block the return.
       // The revision counter ensures the background fetch's result
       // is only applied if no newer fetch has started.
-      _fetchGraphBackground(familyId);
+      unawaited(_fetchGraphBackground(familyId));
       return cached;
     }
 
@@ -2074,6 +2091,21 @@ final graphLayoutProvider =
     );
   }
 
+  // ── WEDGE PATH (viewer-centered "top 8 + chips + search") ────────
+  // Switched by the single kUseViewerWedgeLayout constant (defined in
+  // lib/graph/engine/viewer_wedge_layout.dart). The RadialLayout path
+  // below is UNTOUCHED — setting the constant to false restores it.
+  if (kUseViewerWedgeLayout) {
+    return _computeViewerWedgeLayout(
+      ref: ref,
+      familyId: familyId,
+      graphData: graphData,
+      graphPersons: graphPersons,
+      visibleIds: visibleIds,
+      viewerId: centerPerson.id,
+    );
+  }
+
   // Filter persons + relationships to the visible set.
   final proximityPersons = graphPersons
       .where((p) => visibleIds.contains(p.id))
@@ -2409,7 +2441,7 @@ final graphLayoutProvider =
         '[BUG-TRACE] LAYOUT-OUTPUT-CHECK resultPositionsCount=${result.positions.length} (skipped pairwise check — fewer than 2 nodes)');
   }
 
-  AnalyticsService.instance.logEvent('graph_layout_time', {
+  unawaited(AnalyticsService.instance.logEvent('graph_layout_time', {
     'total_ms': layoutStopwatch.elapsedMilliseconds,
     'node_count': proximityPersons.length,
     'edge_count': proximityRelationships.length,
@@ -2425,7 +2457,7 @@ final graphLayoutProvider =
     // or a fresh layout, plus how many expanded branches were active.
     'preserved_positions': preservePositions,
     'expanded_branch_count': expandedBranchRoots.length,
-  });
+  }));
 
   // v5.161 (LAYOUT STABILITY): cache the just-computed positions so the
   // NEXT layout pass can use them as "settled" via preservePositions.
@@ -2485,6 +2517,276 @@ final graphLayoutProvider =
   }
 
   return result;
+});
+
+/// Viewer-centered wedge layout computation ("top 8 + chips + search").
+///
+/// Pure orchestration around [ViewerWedgeLayout] (the engine): gathers
+/// the full-family edge list (allRelationships — loaded locally, no new
+/// queries), the wedge view intent (wedgeViewProvider), and the
+/// protected ids (focus person, search matches, selection), then:
+///   1. runs the overlap-free wedge engine,
+///   2. translates the viewer-at-origin coordinates into canvas space
+///      (all-positive, same contract as the radial path),
+///   3. caches the reserved "+N" chip slots + the layout summary into
+///      [wedgeChipSlotsProvider] / [wedgeLayoutSummaryProvider] so the
+///      engine view renders the EXISTING chip widget at each slot,
+///   4. writes [lastLayoutPositionsProvider] (kept coherent for the
+///      revert path) and logs layout analytics.
+GraphLayoutResult _computeViewerWedgeLayout({
+  required Ref ref,
+  required String familyId,
+  required FlatGraphResult graphData,
+  required List<GraphPerson> graphPersons,
+  required Set<String> visibleIds,
+  required String viewerId,
+}) {
+  final layoutStopwatch = Stopwatch()..start();
+  final wedgeState = ref.watch(wedgeViewProvider);
+
+  // Full family edge list — counts and "+N" remain truthful for
+  // members beyond the loaded proximity set.
+  final rawEdges = graphData.allRelationships ?? graphData.relationships;
+  final links = <WedgeLink>[
+    for (final Map<String, dynamic> r in rawEdges)
+      WedgeLink(
+        fromId: (r['fromPersonId'] ?? '').toString(),
+        toId: (r['toPersonId'] ?? '').toString(),
+        relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
+        keyAtoB: r['labelAtoB'] as String?,
+        keyBtoA: r['labelBtoA'] as String?,
+      ),
+  ];
+
+  final nameOf = <String, String>{
+    for (final p in graphPersons) p.id: p.name,
+  };
+
+  // Protected ids: the focus person + their first-degree set, the
+  // search reveal path + matches, and the current selection. These are
+  // never auto-collapsed by the node budget.
+  final focusState = ref.watch(graphFocusProvider);
+  final searchState = ref.watch(graphSearchProvider);
+  final selectedId = ref.read(selectedNodeProvider);
+  final protectedIds = <String>{
+    // The WEDGE tap-focus (the currently-focused browsing person) is
+    // never auto-collapsed by the node budget.
+    if (wedgeState.focusedPersonId != null) wedgeState.focusedPersonId!,
+    if (focusState.focusedPersonId != null) focusState.focusedPersonId!,
+    ...focusState.firstDegreeIds,
+    ...searchState.revealedPathIds,
+    if (searchState.isActive) ...searchState.matchIdSet,
+    if (selectedId != null) selectedId,
+  };
+
+  final output = ViewerWedgeLayout().compute(
+    loadedPersonIds: visibleIds,
+    nameOf: nameOf,
+    links: links,
+    viewerId: viewerId,
+    expandedPersonIds: wedgeState.expandedRoots,
+    manualPages: wedgeState.pages,
+    expansionOrder: wedgeState.expansionOrder,
+    revealTargets: wedgeState.revealTarget == null
+        ? const <String>{}
+        : <String>{wedgeState.revealTarget!},
+    rootFilter: wedgeState.filter,
+    protectedIds: protectedIds,
+    nodeBudget: kNodeBudget,
+  );
+
+  // Translate viewer-at-origin coordinates into all-positive canvas
+  // space (identical coordinate contract to the radial path — the
+  // SizedBox/Stack/hit-test geometry never sees negative positions).
+  const double canvasPadding = 160.0;
+  const double halfNode = 62.0; // 124 / 2 (node footprint width)
+  const double halfRoot = 70.0; // 124 / 2 (root footprint width)
+  const double halfNodeY = 70.0; // 140 / 2 (root footprint height)
+  var minX = 0.0;
+  var minY = 0.0;
+  output.positions.forEach((id, pos) {
+    final isRoot = id == viewerId;
+    minX = math.min(minX, pos.dx - (isRoot ? halfRoot : halfNode));
+    minY = math.min(minY, pos.dy - (isRoot ? halfNodeY : halfNode));
+  });
+  final tx = -minX + canvasPadding;
+  final ty = -minY + canvasPadding;
+  final translated = <String, Offset>{
+    for (final entry in output.positions.entries)
+      entry.key: Offset(entry.value.dx + tx, entry.value.dy + ty),
+  };
+  final canvasWidth =
+      output.extentSize.width.isFinite && output.extentSize.width > 0
+          ? output.extentSize.width + canvasPadding * 2
+          : 800.0;
+  final canvasHeight =
+      output.extentSize.height.isFinite && output.extentSize.height > 0
+          ? output.extentSize.height + canvasPadding * 2
+          : 800.0;
+
+  final result = GraphLayoutResult(
+    positions: translated,
+    canvasWidth: canvasWidth,
+    canvasHeight: canvasHeight,
+    generations: output.depthById,
+  );
+
+  // Cache the chip slots (translated to canvas space) + summary.
+  // Microtasks: providers must not mutate other providers during their
+  // own initialization (same rule the radial path follows since v5.216).
+  final chipNotifier = ref.read(wedgeChipSlotsProvider(familyId).notifier);
+  final translatedChips = <String, WedgePageChip>{
+    for (final entry in output.pageChips.entries)
+      entry.key: WedgePageChip(
+        personId: entry.value.personId,
+        slotCenter:
+            Offset(entry.value.slotCenter.dx + tx, entry.value.slotCenter.dy + ty),
+        remainingCount: entry.value.remainingCount,
+        hasNested: entry.value.hasNested,
+      ),
+  };
+  scheduleMicrotask(() => chipNotifier.state = translatedChips);
+
+  final summaryNotifier =
+      ref.read(wedgeLayoutSummaryProvider(familyId).notifier);
+  final parentOf = <String, String>{
+    for (final entry in output.parentOf.entries)
+      if (entry.value != null) entry.key: entry.value!,
+  };
+  scheduleMicrotask(() => summaryNotifier.state = WedgeLayoutSummary(
+        visibleCount: output.visibleIds.length,
+        parentOf: parentOf,
+      ));
+
+  // Keep the shared position cache coherent (used by the revert path
+  // and by branch_affordance's snapshot/restore flows).
+  if (result.positions.isNotEmpty) {
+    final cacheNotifier =
+        ref.read(lastLayoutPositionsProvider(familyId).notifier);
+    final positionsToCache = result.positions;
+    scheduleMicrotask(() {
+      cacheNotifier.state = positionsToCache;
+    });
+  }
+
+  layoutStopwatch.stop();
+  unawaited(AnalyticsService.instance.logEvent('graph_layout_time', {
+    'total_ms': layoutStopwatch.elapsedMilliseconds,
+    'node_count': output.positions.length,
+    'edge_count': rawEdges.length,
+    'compact_mode': false,
+    'isolate_success': false,
+    'viewer_centered': true,
+    'layout_engine': 'wedge',
+    'proximity_filtered': true,
+    'total_family_size': graphPersons.length,
+    'expanded_branch_count': wedgeState.expandedRoots.length,
+    'page_chip_count': output.pageChips.length,
+  }));
+
+  return result;
+}
+
+/// Reserved "+N" page-chip slots for the CURRENT wedge layout, in
+/// canvas space (already translated). Keyed by the expanded person id.
+///
+/// Written by the wedge path of graphLayoutProvider; read by the engine
+/// view to render the EXISTING chip widget at each slot centre.
+final wedgeChipSlotsProvider =
+    StateProvider.family<Map<String, WedgePageChip>?, String>(
+  (ref, familyId) => null,
+);
+
+/// Summary of the current wedge layout for the UI layer: the visible
+/// node count (the "Showing N of M" banner) and the tree parent map
+/// (the camera fit-to-branch uses the opened branch's parent).
+class WedgeLayoutSummary {
+  const WedgeLayoutSummary({
+    required this.visibleCount,
+    required this.parentOf,
+  });
+
+  final int visibleCount;
+  final Map<String, String> parentOf;
+}
+
+/// Per-family wedge layout summary, written by graphLayoutProvider's
+/// wedge path (microtask-deferred).
+final wedgeLayoutSummaryProvider =
+    StateProvider.family<WedgeLayoutSummary?, String>(
+  (ref, familyId) => null,
+);
+
+/// The viewer's DIRECT connections grouped by kinship category — the
+/// data behind the filter chips ("All N" + one chip per category).
+///
+/// Computed ENTIRELY from locally loaded data (allRelationships +
+/// persons). Null when there is no graph data yet.
+class WedgeRootFilterInfo {
+  const WedgeRootFilterInfo({
+    required this.totalDirect,
+    required this.countsByCategory,
+  });
+
+  final int totalDirect;
+  final Map<KinshipEdgeCategory, int> countsByCategory;
+}
+
+final wedgeRootFilterProvider =
+    Provider.family<WedgeRootFilterInfo?, String>((ref, familyId) {
+  final graphData = ref.watch(familyGraphProvider(familyId)).valueOrNull;
+  if (graphData == null) return null;
+
+  // Resolve the hub the same way graphLayoutProvider resolves its
+  // center person: the viewer, else the anchor, else the first person.
+  final viewerId = ref.watch(viewerPersonIdProvider(familyId)).valueOrNull;
+  String? hubId;
+  if (viewerId != null &&
+      graphData.persons.any((p) => p['id'] == viewerId)) {
+    hubId = viewerId;
+  } else {
+    for (final p in graphData.persons) {
+      if (p['isAnchor'] == true) {
+        hubId = (p['id'] ?? '').toString();
+        break;
+      }
+    }
+    hubId ??= graphData.persons.isEmpty
+        ? null
+        : (graphData.persons.first['id'] ?? '').toString();
+  }
+  if (hubId == null || hubId.isEmpty) return null;
+
+  final rawEdges = graphData.allRelationships ?? graphData.relationships;
+  final counts = <KinshipEdgeCategory, int>{};
+  var total = 0;
+  for (final Map<String, dynamic> r in rawEdges) {
+    final from = (r['fromPersonId'] ?? '').toString();
+    final to = (r['toPersonId'] ?? '').toString();
+    if (from.isEmpty || to.isEmpty) continue;
+    String? neighborId;
+    String? walkingKey;
+    if (from == hubId) {
+      neighborId = to;
+      walkingKey = (r['labelAtoB'] ?? r['relationshipKey']).toString();
+    } else if (to == hubId) {
+      neighborId = from;
+      // Reverse walking direction: resolve the inverse label.
+      final forward = (r['labelAtoB'] ?? r['relationshipKey']).toString();
+      walkingKey = (r['labelBtoA'] as String?) ??
+          inverseTypeMap[forward] ??
+          forward;
+    } else {
+      continue;
+    }
+    if (neighborId.isEmpty || neighborId == hubId) continue;
+    final category = KinshipEdgeClassifier.classify(walkingKey);
+    if (category == KinshipEdgeCategory.self) continue;
+    counts[category] = (counts[category] ?? 0) + 1;
+    total++;
+  }
+  if (total == 0) return null;
+  return WedgeRootFilterInfo(totalDirect: total, countsByCategory: counts);
 });
 
 /// v5.161 (LAYOUT STABILITY): a per-family cache of the most recent
@@ -2566,7 +2868,7 @@ final justRestoredFromSnapshotProvider =
 /// v5.145 (STEP 3): Runs RadialLayout.compute() in a background isolate
 /// via Flutter's `compute()` helper. The isolate receives plain Lists +
 /// Maps (isolate-safe primitives) and returns the positions as a
-/// Map<String, List<double>> + canvas dimensions.
+/// `Map<String, List<double>>` + canvas dimensions.
 ///
 /// This keeps the O(n²) × 20-iteration _deOverlapPositions off the UI
 /// thread, preventing dropped frames during branch expand/collapse on
@@ -2667,7 +2969,7 @@ class _RadialLayoutIsolateInput {
 /// the isolate. Reconstructs the RadialLayout from the primitive
 /// config values, runs compute(), and returns the result.
 ///
-/// GraphLayoutResult is isolate-safe (Map<String, Offset> + doubles +
+/// GraphLayoutResult is isolate-safe (`Map<String, Offset>` + doubles +
 /// Maps of primitives) so it can be returned directly.
 GraphLayoutResult _radialLayoutIsolateEntry(_RadialLayoutIsolateInput input) {
   final layout = RadialLayout(

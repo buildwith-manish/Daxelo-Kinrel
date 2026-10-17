@@ -121,5 +121,19 @@
   "chatSystemMessageUserLeft": "{name} రూమ్ వదిలి వెళ్లారు",
   "chatSystemMessageUserDisconnected": "{name} డిస్కనెక్ట్ అయ్యారు",
   "chatSystemMessageRoomClosed": "{name} రూమ్ మూసివేశారు",
-  "chatSystemMessageUserReacted": "{name} ప్రతిస్పందించారు {emoji}"
+  "chatSystemMessageUserReacted": "{name} ప్రతిస్పందించారు {emoji}",
+  "graphShowingCount": "మొత్తం {total} మందిలో {shown} మంది చూపబడుతున్నారు.",
+  "graphFilterAll": "అన్నీ {count}",
+  "graphCatSelf": "మీరు",
+  "graphCatSpouse": "జీవిత భాగస్వామి",
+  "graphCatParent": "తల్లిదండ్రులు",
+  "graphCatChild": "పిల్లలు",
+  "graphCatSibling": "తోబుట్టువులు",
+  "graphCatGrandparent": "తాతయ్య-అమ్మమ్మ",
+  "graphCatAuntUncle": "మేనమామ-పిన్ని",
+  "graphCatCousin": "బంధువులు",
+  "graphCatInLaw": "అత్తమామల కుటుంబీకులు",
+  "graphCatExtended": "విస్తృత కుటుంబం",
+  "graphCatIndirect": "పరోక్ష",
+  "graphMorePeople": "{count} మంది ఎక్కువ వ్యక్తులను చూపించు, రెండుసార్లు నొక్కు"
 }

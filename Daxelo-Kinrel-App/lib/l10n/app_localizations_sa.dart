@@ -701,4 +701,52 @@ class SSa extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name reacted $emoji';
   }
+
+  @override
+  String graphShowingCount(int shown, int total) {
+    return 'कुल $total मध्ये $shown जनाः दर्शिताः सन्ति।';
+  }
+
+  @override
+  String graphFilterAll(int count) {
+    return 'सर्वे $count';
+  }
+
+  @override
+  String get graphCatSelf => 'भवान्';
+
+  @override
+  String get graphCatSpouse => 'जीवनसाथी';
+
+  @override
+  String get graphCatParent => 'पितरौ';
+
+  @override
+  String get graphCatChild => 'सन्ततिः';
+
+  @override
+  String get graphCatSibling => 'सहोदराः';
+
+  @override
+  String get graphCatGrandparent => 'पितामहाः';
+
+  @override
+  String get graphCatAuntUncle => 'पितृव्याः';
+
+  @override
+  String get graphCatCousin => 'बान्धवाः';
+
+  @override
+  String get graphCatInLaw => 'श्वशुराः';
+
+  @override
+  String get graphCatExtended => 'विस्तृतकुटुम्बः';
+
+  @override
+  String get graphCatIndirect => 'परोक्षः';
+
+  @override
+  String graphMorePeople(int count) {
+    return '$count अधिकान् जनान् दर्शय, द्विवारं स्पृश्';
+  }
 }

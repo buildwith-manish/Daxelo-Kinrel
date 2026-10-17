@@ -43,6 +43,10 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
 
   void _onScaleStart(ScaleStartDetails d) {
     _camera.stopAnimation(); // cancel any in-flight fling/animateTo
+    // TAP-VS-DRAG: the scale recognizer claiming the arena IS a drag
+    // (or pinch) — cancel any pending deferred chip taps so they never
+    // fire after a drag.
+    _cancelPendingChipTaps();
     _lastFocal = d.focalPoint;
     _baseZoom = _camera.zoomLevel;
     _isPinching = false; // reset; will be set true on first multi-touch update
@@ -507,6 +511,49 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     return null;
   }
 
+  /// Converts a canvas-local position to GRAPH space using the matrix
+  /// the LAST BUILT frame was painted with (what the user actually
+  /// sees), falling back to the live camera before the first build.
+  /// Geometric hit-tests must match the RENDER, not the controller's
+  /// possibly-ahead state (the fit animation ticks via Future.delayed,
+  /// so the render can lag the live matrix mid-animation).
+  Offset _renderToGraphSpace(Offset localPosition) {
+    final matrix = _paintedCameraMatrix ?? _camera.transformMatrix;
+    final zoom = matrix.getMaxScaleOnAxis();
+    if (zoom == 0) return localPosition;
+    final translation = matrix.getTranslation();
+    return Offset(
+      (localPosition.dx - translation.x) / zoom,
+      (localPosition.dy - translation.y) / zoom,
+    );
+  }
+
+  String? _hitTestWedgePageChip(Offset screenPos) {
+    if (!kUseViewerWedgeLayout) return null;
+    final chips = ref.read(wedgeChipSlotsProvider(widget.familyId));
+    if (chips == null || chips.isEmpty) return null;
+    final graphPos = _renderToGraphSpace(screenPos);
+    // The chip's tap target: the 84×84 slot footprint centred on
+    // slotCenter (matching the layout's reserved slot), padded for a
+    // forgiving touch target — the SAME contract as the legacy chip
+    // hit-test (8px padding around the visual rect).
+    const half = 42.0 + 8.0;
+    String? best;
+    double bestDist = double.infinity;
+    for (final chip in chips.values) {
+      final dx = (graphPos.dx - chip.slotCenter.dx).abs();
+      final dy = (graphPos.dy - chip.slotCenter.dy).abs();
+      if (dx <= half && dy <= half) {
+        final dist = dx * dx + dy * dy;
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = chip.personId;
+        }
+      }
+    }
+    return best;
+  }
+
   /// v91 (PART 13) + v5.x (Feature 2): Computes the set of edge IDs
   /// that should be rendered at the dimmed alpha by the painter.
   ///
@@ -741,6 +788,35 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     );
   }
 
+  /// TAP-VS-DRAG (approved preview): cancels every pending deferred
+  /// chip tap (legacy branch chips + wedge page bubbles). Called from
+  /// the canvas GestureDetector's [onTapCancel] (the tap lost the
+  /// gesture arena) and from [_onScaleStart] (a drag/pinch began).
+  void _cancelPendingChipTaps() {
+    _chipExpandTimer?.cancel();
+    _chipExpandTimer = null;
+    _pendingChipTapBranch = null;
+    _pendingWedgeChipTapPersonId = null;
+  }
+
+  /// TAP-VS-DRAG (approved preview): a raw-pointer move observer. A
+  /// tap must NOT fire after the pointer drags more than 6 px from its
+  /// tap-down spot — Flutter's own arena slop is ~18 px, so without this
+  /// guard a 7–17 px drag would still fire the deferred chip tap timers.
+  /// O(1) when nothing is pending; the moment the 6 px threshold is
+  /// crossed the pending taps are cancelled.
+  void _handleCanvasPointerMove(PointerEvent event) {
+    if (_pendingChipTapBranch == null &&
+        _pendingWedgeChipTapPersonId == null) {
+      return; // nothing pending — no bookkeeping.
+    }
+    final down = _lastCanvasTapDownPosition;
+    if (down == null) return;
+    if ((event.position - down).distance > 6.0) {
+      _cancelPendingChipTaps();
+    }
+  }
+
   /// Canvas tap handler. Tapping the canvas selects a node (if the tap
   /// is within 44px of a node). Tapping the edge midpoint does NOT open
   /// the Connection screen — that gesture was moved to long-press (see
@@ -765,6 +841,10 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // Tapping should NOT trigger Focus Mode, open profile details,
     // or perform any standard graph actions.
     if (ref.read(rearrangeModeProvider)) return;
+
+    // TAP-VS-DRAG: remember where this (potential) tap started so the
+    // raw pointer-move listener can cancel it past 6 px of drag.
+    _lastCanvasTapDownPosition = details.globalPosition;
 
     // v5.137: Branch chip hit-test FIRST. On Flutter Web, the chip's own
     // GestureDetector loses the gesture arena to the parent's
@@ -805,6 +885,26 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
           if (b != null) {
             GraphHaptics.branchExpand(context);
             _fetchAndExpandBranch(b);
+          }
+        });
+        return;
+      }
+    }
+
+    // WEDGE MODE: "+N" page-chip hit-test (same Flutter Web gesture
+    // arena problem as above — the parent ScaleGestureRecognizer wins,
+    // so chip taps are intercepted geometrically here).
+    if (kUseViewerWedgeLayout) {
+      final wedgeChipOwner = _hitTestWedgePageChip(details.localPosition);
+      if (wedgeChipOwner != null) {
+        _pendingWedgeChipTapPersonId = wedgeChipOwner;
+        _chipExpandTimer?.cancel();
+        _chipExpandTimer = Timer(const Duration(milliseconds: 500), () {
+          final owner = _pendingWedgeChipTapPersonId;
+          _pendingWedgeChipTapPersonId = null;
+          if (owner != null) {
+            GraphHaptics.branchExpand(context);
+            _expandWedgePageChip(owner);
           }
         });
         return;
@@ -1160,16 +1260,22 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     final focusState = ref.read(graphFocusProvider);
     if (focusState.pathSelectPhase == PathSelectPhase.awaitingFrom) {
       ref.read(graphFocusProvider.notifier).setPathSelectFrom(nodeId);
-      SemanticsService.announce(
-          'Selected. Tap the second person.', TextDirection.ltr);
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        'Selected. Tap the second person.',
+        TextDirection.ltr,
+      );
       return;
     }
     if (focusState.pathSelectPhase == PathSelectPhase.awaitingTo) {
       final accepted =
           ref.read(graphFocusProvider.notifier).setPathSelectTo(nodeId);
       if (!accepted) {
-        SemanticsService.announce(
-            'Pick a different person.', TextDirection.ltr);
+        SemanticsService.sendAnnouncement(
+          View.of(context),
+          'Pick a different person.',
+          TextDirection.ltr,
+        );
         return;
       }
       // Both nodes selected — trigger the path trace.
@@ -1269,6 +1375,16 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // so we should open the action sheet instead of expanding the branch.
     _chipExpandTimer?.cancel();
     _pendingChipTapBranch = null;
+    _pendingWedgeChipTapPersonId = null;
+    if (kUseViewerWedgeLayout) {
+      final wedgeChipOwner = _hitTestWedgePageChip(details.localPosition);
+      if (wedgeChipOwner != null) {
+        // Long-pressing a wedge page chip is a no-op (the chip's only
+        // action is paging) — swallow the gesture so the node/edge
+        // hit-tests below don't fire through the chip.
+        return;
+      }
+    }
     final branch = _hitTestBranchChip(details.localPosition, layout);
     if (branch != null) {
       // Fire the SAME haptic + action sheet handler the chip's onLongPress
@@ -1332,16 +1448,15 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       final role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
       final canRemove = role == 'admin' || role == 'owner';
 
-      // v5.144: Show "Collapse this branch" ONLY when the node has
-      // VISIBLE descendants currently rendered on the canvas — not
-      // just any children in the full family data.
-      //
-      // The old v5.142 check `childrenOf[nodeId]?.isNotEmpty` was true
-      // for nearly every node in a 714-member family because almost
-      // everyone has children *somewhere* in the tree. The fix uses the
-      // existing `hasVisibleDescendants()` method from
-      // branch_collapse_state.dart, which checks against the set of
-      // currently-rendered node IDs (layout.positions.keys).
+      // v5.144: Build the branch info ONLY for the "Preview full names"
+      // entry — the "Collapse this branch" sheet item was REMOVED (the
+      // approved-preview tap model replaces it: tapping the focused,
+      // expanded person collapses them; see _handleWedgeNodeTap in
+      // branch_affordance.dart). The construction (childrenOf +
+      // hasVisibleDescendants + the visible-names BFS) stays exactly as
+      // it was — graph_quick_actions still renders "Preview full names
+      // list" from it. branchCollapseProvider and its logic are
+      // untouched.
       BranchCollapseInfo? branchInfo;
 
       // v5.146: Use the shared buildChildrenOf which handles BOTH
@@ -1350,10 +1465,9 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       final childrenOf = BranchCollapseNotifier.buildChildrenOf(flat.relationships);
 
       // v5.144: Use hasVisibleDescendants with the set of currently-
-      // rendered node IDs (layout.positions.keys). This ensures
-      // "Collapse this branch" only appears when there are actual
-      // visible children on the canvas to collapse — not when children
-      // exist only in the unloaded/hidden family data.
+      // rendered node IDs (layout.positions.keys). This ensures the
+      // preview only appears when there are actual visible children on
+      // the canvas to list.
       final visibleIds = layout.positions.keys.toSet();
       final notifier = ref.read(branchCollapseProvider.notifier);
       final hasDescendants = notifier.hasVisibleDescendants(
@@ -1370,6 +1484,9 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
           branchInfo = BranchCollapseInfo(
             onCollapse: () {
               // v5.145: Pass visibleNames so the dialog shows real names.
+              // (No longer reachable from the UI — the sheet item was
+              // removed in favour of the tap model. Kept wired so the
+              // existing collapse-confirmation logic stays intact.)
               _showCollapseConfirmationDialog(
                 context, nodeId, graphPersonData.name, visibleNames,
               );

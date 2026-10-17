@@ -41,7 +41,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/constants/brand_colors.dart';
 import '../../../../../core/constants/brand_spacing.dart';
 import '../../../../../core/constants/brand_typography.dart';
-import '../../../../../core/theme/kinrel_fx.dart';
 import '../room_controller.dart';
 import 'room_close_dialog.dart';
 

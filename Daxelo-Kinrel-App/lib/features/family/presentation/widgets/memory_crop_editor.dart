@@ -215,7 +215,9 @@ class _MemoryCropEditorState extends State<MemoryCropEditor> {
     const maxSize = 3 * 1024 * 1024;
     const qualityLevels = [90, 85, 80, 75, 70, 60, 50];
 
-    for (final quality in qualityLevels) {
+    // PNG encoding is lossless, so the `quality` level is not passed —
+    // the loop bounds the total retry attempts only.
+    for (final _ in qualityLevels) {
       final byteData = await image.toByteData(
         format: ui.ImageByteFormat.png, // PNG is the only universal format
       );

@@ -13,7 +13,7 @@
 // These tests run without the Flutter test runner's native asset build
 // (thermion_dart / clang), so they execute in any CI environment.
 
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kinrel/features/games/presentation/widgets/family_streak_hero_card.dart';
 import 'package:kinrel/features/games/presentation/widgets/play_with_row.dart';

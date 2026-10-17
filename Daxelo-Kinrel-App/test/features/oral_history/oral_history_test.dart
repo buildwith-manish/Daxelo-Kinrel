@@ -15,19 +15,41 @@
 // to return null — the notifier handles this gracefully (the upload
 // path sets a clear error, the in-memory paths work normally).
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kinrel/core/services/supabase_service.dart';
 import 'package:kinrel/features/oral_history/providers/oral_history_provider.dart';
 
-void main() {
-  // Override supabaseProvider to return null in tests — the notifier
-  // handles this gracefully (in-memory state methods work normally;
-  // upload/persist paths set a clear error which we don't exercise
-  // in these unit tests).
-  late final ProviderContainer container;
+/// The record package's platform channel — mocked so the notifier's
+/// AudioRecorder construction AND its dispose() (invoked when the
+/// per-test ProviderContainer tears down) complete without throwing
+/// MissingPluginException into the test zone.
+const _recordChannel = MethodChannel('com.llfbandit.record/messages');
 
-  setUpAll(() {
+void main() {
+  // OralHistoryNotifier field-initializes an AudioRecorder, whose
+  // platform-channel bootstrap (record package's MethodChannel)
+  // requires an initialized test binding — without this, the very
+  // first notifier construction throws "Binding has not yet been
+  // initialized" into the test zone (and again during dispose).
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  // A FRESH ProviderContainer per test — the provider is a plain
+  // (non-autoDispose) StateNotifierProvider, so a single shared
+  // container would leak stories between tests (e.g. the
+  // incrementPlayCount test would read a copy appended by an earlier
+  // test instead of its own).
+  late ProviderContainer container;
+
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_recordChannel, (call) async {
+      // 'create' must return a recorder handle; everything else
+      // (dispose, etc.) is a no-op that may return null.
+      if (call.method == 'create') return 1;
+      return null;
+    });
     container = ProviderContainer(
       overrides: [
         supabaseProvider.overrideWithValue(null),
@@ -35,8 +57,17 @@ void main() {
     );
   });
 
-  tearDownAll(() {
+  tearDown(() async {
     container.dispose();
+    // The notifier's dispose (and its AudioRecorder.dispose platform
+    // channel call) is scheduled as a microtask by Riverpod's
+    // runGuarded — flush the event queue while the mock handler is
+    // still installed, so the async 'dispose' call doesn't land as a
+    // MissingPluginException AFTER the test has completed.
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_recordChannel, null);
   });
 
   OralHistoryNotifier newNotifier() =>

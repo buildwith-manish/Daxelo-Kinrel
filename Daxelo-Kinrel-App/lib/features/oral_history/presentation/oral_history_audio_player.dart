@@ -443,10 +443,10 @@ class _OralHistoryAudioPlayerState
                   shape: BoxShape.circle,
                   gradient: KinrelGradients.igniteGradient,
                   boxShadow: KinrelFx.shadows([
-                    BoxShadow(
+                    const BoxShadow(
                       color: KinrelColors.orangeGlowIntense,
                       blurRadius: 16,
-                      offset: Offset(0, 4),
+                      offset: const Offset(0, 4),
                     ),
                   ]),
                 ),

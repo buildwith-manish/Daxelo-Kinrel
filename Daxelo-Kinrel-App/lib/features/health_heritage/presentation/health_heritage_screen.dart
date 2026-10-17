@@ -391,7 +391,7 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
                       gradient: KinrelGradients.igniteGradient,
                       shape: BoxShape.circle,
                       boxShadow: KinrelFx.shadows([
-                        BoxShadow(
+                        const BoxShadow(
                           color: KinrelColors.orangeGlow,
                           blurRadius: 8,
                         ),

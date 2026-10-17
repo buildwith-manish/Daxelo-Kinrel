@@ -90,5 +90,19 @@
   "familyMapLegendTierStale": "पुरातनम्",
   "familyMapLegendTierStaleDesc": "< १ घटिकापूर्वम्",
   "familyMapLegendTierCity": "नगरम्",
-  "familyMapLegendTierCityDesc": "नगरकेन्द्रम्"
+  "familyMapLegendTierCityDesc": "नगरकेन्द्रम्",
+  "graphShowingCount": "कुल {total} मध्ये {shown} जनाः दर्शिताः सन्ति।",
+  "graphFilterAll": "सर्वे {count}",
+  "graphCatSelf": "भवान्",
+  "graphCatSpouse": "जीवनसाथी",
+  "graphCatParent": "पितरौ",
+  "graphCatChild": "सन्ततिः",
+  "graphCatSibling": "सहोदराः",
+  "graphCatGrandparent": "पितामहाः",
+  "graphCatAuntUncle": "पितृव्याः",
+  "graphCatCousin": "बान्धवाः",
+  "graphCatInLaw": "श्वशुराः",
+  "graphCatExtended": "विस्तृतकुटुम्बः",
+  "graphCatIndirect": "परोक्षः",
+  "graphMorePeople": "{count} अधिकान् जनान् दर्शय, द्विवारं स्पृश्"
 }

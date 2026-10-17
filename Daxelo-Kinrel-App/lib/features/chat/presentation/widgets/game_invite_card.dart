@@ -286,7 +286,6 @@ class GameInviteCard extends StatelessWidget {
 
   Widget _buildResultCard(BuildContext context) {
     final winner = message.gameWinnerName ?? '';
-    final rawGameType = message.gameType ?? '';
     return RepaintBoundary(
       child: Semantics(
         container: true,

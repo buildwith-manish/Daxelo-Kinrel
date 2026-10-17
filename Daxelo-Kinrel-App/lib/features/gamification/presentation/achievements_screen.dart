@@ -485,7 +485,7 @@ class _StreakCard extends StatelessWidget {
                     gradient: KinrelGradients.igniteGradient,
                     shape: BoxShape.circle,
                     boxShadow: KinrelFx.shadows([
-                      BoxShadow(
+                      const BoxShadow(
                         color: KinrelColors.orangeGlowIntense,
                         blurRadius: 16,
                         spreadRadius: 2,
@@ -996,7 +996,7 @@ class _UnlockedBadgeCard extends StatelessWidget {
                             shape: BoxShape.circle,
                             gradient: KinrelGradients.achievementGradient,
                             boxShadow: KinrelFx.shadows([
-                              BoxShadow(
+                              const BoxShadow(
                                 color: KinrelColors.orangeGlowIntense,
                                 blurRadius: 10,
                                 spreadRadius: 1,

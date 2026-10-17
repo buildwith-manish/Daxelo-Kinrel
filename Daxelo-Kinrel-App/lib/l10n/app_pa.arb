@@ -90,5 +90,19 @@
   "familyMapLegendTierStale": "ਪੁਰਾਣਾ",
   "familyMapLegendTierStaleDesc": "< 1 ਘੰਟਾ ਪਹਿਲਾਂ",
   "familyMapLegendTierCity": "ਸ਼ਹਿਰ",
-  "familyMapLegendTierCityDesc": "ਸ਼ਹਿਰ ਕੇਂਦਰ"
+  "familyMapLegendTierCityDesc": "ਸ਼ਹਿਰ ਕੇਂਦਰ",
+  "graphShowingCount": "ਕੁੱਲ {total} ਵਿੱਚੋਂ {shown} ਵਿਅਕਤੀ ਦਿਖਾਏ ਜਾ ਰਹੇ ਹਨ।",
+  "graphFilterAll": "ਸਭ {count}",
+  "graphCatSelf": "ਤੁਸੀਂ",
+  "graphCatSpouse": "ਜੀਵਨ ਸਾਥੀ",
+  "graphCatParent": "ਮਾਪੇ",
+  "graphCatChild": "ਬੱਚੇ",
+  "graphCatSibling": "ਭੈਣ-ਭਰਾ",
+  "graphCatGrandparent": "ਦਾਦਾ-ਦਾਦੀ",
+  "graphCatAuntUncle": "ਚਾਚੇ-ਮਾਮੇ",
+  "graphCatCousin": "ਚਚੇਰੇ ਭੈਣ-ਭਰਾ",
+  "graphCatInLaw": "ਸਹੁਰਾ",
+  "graphCatExtended": "ਵਿਸਤ੍ਰਿਤ ਪਰਿਵਾਰ",
+  "graphCatIndirect": "ਅਸਿੱਧਾ",
+  "graphMorePeople": "{count} ਹੋਰ ਲੋਕ ਵੇਖੋ, ਦੋ ਵਾਰ ਟੈਪ ਕਰੋ"
 }

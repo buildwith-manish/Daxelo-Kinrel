@@ -700,4 +700,52 @@ class SHi extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name ने प्रतिक्रिया दी $emoji';
   }
+
+  @override
+  String graphShowingCount(int shown, int total) {
+    return 'कुल $total में से $shown व्यक्ति दिख रहे हैं।';
+  }
+
+  @override
+  String graphFilterAll(int count) {
+    return 'सभी $count';
+  }
+
+  @override
+  String get graphCatSelf => 'आप';
+
+  @override
+  String get graphCatSpouse => 'जीवनसाथी';
+
+  @override
+  String get graphCatParent => 'माता-पिता';
+
+  @override
+  String get graphCatChild => 'बच्चे';
+
+  @override
+  String get graphCatSibling => 'भाई-बहन';
+
+  @override
+  String get graphCatGrandparent => 'दादा-दादी';
+
+  @override
+  String get graphCatAuntUncle => 'चाचा-मामा';
+
+  @override
+  String get graphCatCousin => 'चचेरे भाई-बहन';
+
+  @override
+  String get graphCatInLaw => 'ससुराल';
+
+  @override
+  String get graphCatExtended => 'विस्तृत परिवार';
+
+  @override
+  String get graphCatIndirect => 'अप्रत्यक्ष';
+
+  @override
+  String graphMorePeople(int count) {
+    return '$count और लोगों को दिखाएँ, डबल टैप करें';
+  }
 }

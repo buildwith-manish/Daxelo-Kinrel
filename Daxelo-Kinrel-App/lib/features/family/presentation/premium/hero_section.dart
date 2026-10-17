@@ -32,8 +32,6 @@ import '../../../../core/theme/kinrel_fx.dart';
 import '../../../kinrel_intelligence/data/kinrel_model.dart';
 import '../../../kinrel_intelligence/providers/kinrel_provider.dart';
 import '../../../kinrel_intelligence/widgets/kinrel_symbol_widget.dart';
-import '../../../prediction_battle_v1/pb_v1_hero_teaser.dart';
-import '../../../prediction_battle_v1/pb_v1_coin_chip.dart';
 import 'design_system.dart';
 import 'mandala_painter.dart';
 
@@ -374,22 +372,6 @@ class HeroSection extends ConsumerWidget {
                     // the relevant state — the hero teaser was redundant
                     // and the coin chip made the interface look
                     // unprofessional.
-                    if (false)
-                      Opacity(
-                        opacity: nameOpacity * 0.8,
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 6,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              PredictionBattleHeroTeaser(familyId: familyId),
-                              PredictionBattleCoinChip(familyId: familyId),
-                            ],
-                          ),
-                        ),
-                      ),
                   ] else ...[
                     // Collapsed: show family name + caption inline.
                     Padding(

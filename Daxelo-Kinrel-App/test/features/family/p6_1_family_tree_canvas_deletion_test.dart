@@ -21,15 +21,28 @@ void main() {
       );
     });
 
-    test('family_detail_screen.dart imports FamilyGraphEngineView', () {
+    test('family_graph_screen.dart uses the FamilyGraphEngineView engine',
+        () {
+      // v5.163+: the graph is hosted by the dedicated graph screen
+      // (family_graph_screen.dart), which imports the engine through
+      // the graph barrel (`graph.dart` exports
+      // widgets/family_graph_engine_view.dart). The P0.1/P6.1 intent —
+      // the legacy canvas is gone and the V2.1 engine is THE graph
+      // renderer — is asserted against the current host file.
       final file = File(
-        'lib/features/family/presentation/family_detail_screen.dart',
+        'lib/features/family/presentation/family_graph_screen.dart',
       );
       final content = file.readAsStringSync();
       expect(
-        content.contains("import '../../../graph/widgets/family_graph_engine_view.dart';"),
+        content.contains("import '../../../graph/graph.dart';"),
         isTrue,
-        reason: 'family_detail_screen.dart must import the V2.1 engine',
+        reason: 'family_graph_screen.dart must import the graph barrel '
+            '(which exports the FamilyGraphEngineView engine)',
+      );
+      expect(
+        content.contains('FamilyGraphEngineView('),
+        isTrue,
+        reason: 'family_graph_screen.dart must use FamilyGraphEngineView',
       );
     });
 
@@ -42,18 +55,6 @@ void main() {
         content.contains("import 'family_tree_canvas.dart';"),
         isFalse,
         reason: 'family_detail_screen.dart must not import the deleted file',
-      );
-    });
-
-    test('family_detail_screen.dart uses FamilyGraphEngineView widget', () {
-      final file = File(
-        'lib/features/family/presentation/family_detail_screen.dart',
-      );
-      final content = file.readAsStringSync();
-      expect(
-        content.contains('FamilyGraphEngineView('),
-        isTrue,
-        reason: 'family_detail_screen.dart must use FamilyGraphEngineView',
       );
     });
 

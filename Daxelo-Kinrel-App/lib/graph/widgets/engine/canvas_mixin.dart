@@ -95,6 +95,37 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           ..._rearrangeLiveEdgeWaypoints,
         };
 
+        // ── WEDGE GLIDE (viewer-centered wedge layout) ──────────────
+        //
+        // When the wedge re-divides its angular wedges (a branch opens
+        // or closes, or a page turns), previously-placed nodes GLIDE
+        // from their previous auto-layout positions to the new ones over
+        // the SAME 280ms branch-expand controller that drives the
+        // entrance animation. This reuses the lastLayoutPositionsProvider
+        // cache concept: the "from" map is the previous layout's auto
+        // positions, captured on every layout identity change. Reduced
+        // motion snaps instantly (no glide, no controller).
+        if (kUseViewerWedgeLayout &&
+            !identical(_lastWedgeAutoPositions, layout.positions)) {
+          final previous = _lastWedgeAutoPositions;
+          if (previous != null &&
+              previous.isNotEmpty &&
+              layout.positions.isNotEmpty &&
+              !MediaQuery.disableAnimationsOf(context)) {
+            _wedgeGlideFromPositions = previous;
+            _wedgeGlideActive = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              if (!_animatingBranchExpand && _branchExpandController != null) {
+                _animatingBranchExpand = true;
+                _branchAnimationProgress = 0.0;
+                _branchExpandController!.forward(from: 0.0);
+              }
+            });
+          }
+          _lastWedgeAutoPositions = layout.positions;
+        }
+
         // v5.30 Issue 2: Load animation lerp.
         //
         // On first render with non-empty saved overrides, animate every
@@ -208,6 +239,33 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           }
         }
 
+        // ── WEDGE GLIDE lerp ──────────────────────────────────────────
+        // Nodes present in BOTH the previous and the current auto-layout
+        // glide from old → new by the same eased progress. Nodes that are
+        // NEW (not in the previous map) keep the entrance animation they
+        // received in the block above (they have no "from" entry here).
+        if (_wedgeGlideActive && _wedgeGlideFromPositions != null) {
+          final t = _branchAnimationProgress.clamp(0.0, 1.0);
+          if (t < 1.0) {
+            final from = _wedgeGlideFromPositions!;
+            final lerped = <String, Offset>{};
+            for (final entry in effectivePositions.entries) {
+              final old = from[entry.key];
+              if (old != null) {
+                lerped[entry.key] = Offset(
+                  old.dx * (1.0 - t) + entry.value.dx * t,
+                  old.dy * (1.0 - t) + entry.value.dy * t,
+                );
+              } else {
+                lerped[entry.key] = entry.value;
+              }
+            }
+            effectivePositions
+              ..clear()
+              ..addAll(lerped);
+          }
+        }
+
         // v5.27 Task 1: Reset animation lerp.
         //
         // If a reset animation is in progress (_animatingReset is true),
@@ -311,6 +369,13 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         //      re-center — the camera respects their position.
         WidgetsBinding.instance
             .addPostFrameCallback((_) => _maybeFrame(layout, flat, viewerPersonId));
+        // Viewer-centered wedge layout: after an expansion/page turn/
+        // search reveal, animate the camera to fit the opened branch,
+        // its children and its parent (reduced motion snaps).
+        if (kUseViewerWedgeLayout) {
+          WidgetsBinding.instance.addPostFrameCallback(
+              (_) => _maybeFitCameraOnWedgeChange(layout, viewerPersonId));
+        }
 
         // v5.x (progressive-load fix): anchor-drift detection.
         // Runs on every build (after _framed is true) to catch the
@@ -638,7 +703,8 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             _cachedChildrenOfAdjacency == null ||
             _cachedAllEdgesForCollapse == null ||
             _cachedChildCountById == null ||
-            _cachedPersonNameById == null) {
+            _cachedPersonNameById == null ||
+            _cachedConnectionCountById == null) {
           _familyWideEdgesKey = edgesForChildrenOf;
           _cachedChildrenOfAdjacency =
               BranchCollapseNotifier.buildFullAdjacency(edgesForChildrenOf);
@@ -674,6 +740,24 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           }
           _cachedChildCountById = {
             for (final e in childSets.entries) e.key: e.value.length,
+          };
+          // Connection-degree map — the WEDGE count-badge counts (one
+          // "+N" badge per COLLAPSED person with ≥1 relationship over
+          // the FULL family edge list; self-edges and duplicates from
+          // the forward+inverse row pairs are deduped by the set).
+          final connectionSets = <String, Set<String>>{};
+          for (final Map<String, dynamic> r in edgesForChildrenOf) {
+            final from = r['fromPersonId']?.toString();
+            final to = r['toPersonId']?.toString();
+            if (from == null || to == null || from.isEmpty || to.isEmpty) {
+              continue;
+            }
+            if (from == to) continue; // self-relationship rows
+            connectionSets.putIfAbsent(from, () => <String>{}).add(to);
+            connectionSets.putIfAbsent(to, () => <String>{}).add(from);
+          }
+          _cachedConnectionCountById = {
+            for (final e in connectionSets.entries) e.key: e.value.length,
           };
           // Name map — replaces the O(P)-per-call linear scan closure.
           _cachedPersonNameById = <String, String>{
@@ -715,14 +799,21 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // — the "branch expands then collapses after a few seconds" bug.
         final proximityVisibleIds = ref.read(proximityGraphProvider).visibleIds;
         densityCandidates.addAll(proximityVisibleIds);
-        ref.read(branchCollapseProvider.notifier).computeDensityCollapse(
-          visibleNodeIds: densityCandidates,
-          childrenOf: childrenOfAdj,
-          personNameOf: personNameResolver,
-          allEdges: allEdgesForCollapse,
-          categoryOf: categoryMap,
-          protectedIds: protectedCollapseIds,
-        );
+        // WEDGE MODE: the density-collapse budget system is REPLACED by
+        // the wedge layout's own paging + LRU budget (ViewerWedgeLayout
+        // enforces kNodeBudget by collapsing the branch opened longest
+        // ago). Skipping the call keeps branchCollapseProvider empty so
+        // the legacy chips never render alongside the wedge page chips.
+        if (!kUseViewerWedgeLayout) {
+          ref.read(branchCollapseProvider.notifier).computeDensityCollapse(
+            visibleNodeIds: densityCandidates,
+            childrenOf: childrenOfAdj,
+            personNameOf: personNameResolver,
+            allEdges: allEdgesForCollapse,
+            categoryOf: categoryMap,
+            protectedIds: protectedCollapseIds,
+          );
+        }
 
         // v5.123 (Step 5): Apply PERSISTED per-user branch expansion
         // choices once per family load — post-frame, because provider
@@ -1135,8 +1226,11 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                   String? neighbor;
                   if (s == current) {
                     neighbor = t;
-                  } else if (t == current) neighbor = s;
-                  else continue;
+                  } else if (t == current) {
+                    neighbor = s;
+                  } else {
+                    continue;
+                  }
                   if (visited.add(neighbor)) {
                     if (visible.contains(neighbor) &&
                         effectivePositions.containsKey(neighbor) &&
@@ -1718,22 +1812,19 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                         _FamilyGraphEngineViewState._quantizeViewportForEdgeCulling(vp)),
                 // v102 (BUG-2 FIX) + v5.123 (Step 3): Collapsed-branch
                 // affordances — ALWAYS-visible "+N" chips.
-                // Render a chip near each collapsed branch root showing
-                // "+N" and, space permitting, the branch label.
-                // Tapping the chip expands JUST that branch (the lazy
-                // per-branch fetch + expand path in branch_affordance);
-                // long-pressing a node re-collapses via the existing
-                // _handleNodeLongPress path.
-                // v5.123: pass the POST-density-collapse state — the old
-                // code passed the state captured BEFORE
-                // computeDensityCollapse ran, so density-created branches
-                // (the ones that actually matter at scale) never got
-                // chips, and already-cleared branches kept stale ones.
-                //
-                // PERF (Phase 2): chip widgets are already isolated by
-                // their own RepaintBoundary inside _buildCollapsedBranchChips
-                // (see branch_affordance.dart); no extra wrap needed here.
-                ..._buildCollapsedBranchChips(layout, densityCollapseState, densityHiddenIds),
+                // WEDGE MODE: the reserved per-person page-chip slots from
+                // the wedge layout render instead (same chip visuals, at
+                // each slot centre); the density chips never populate
+                // because computeDensityCollapse is skipped above.
+                ...(kUseViewerWedgeLayout
+                    ? _buildWedgePageChips()
+                    : _buildCollapsedBranchChips(
+                        layout, densityCollapseState, densityHiddenIds)),
+                // WEDGE MODE: "+N" connection-count badges overlaying the
+                // top-right of every visible COLLAPSED person with
+                // connections (drawn by this chip layer — GraphNode stays
+                // untouched).
+                ..._buildWedgeCountBadges(),
               ],
             ),
           ),
@@ -1810,7 +1901,17 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 );
                 return handled ? KeyEventResult.handled : KeyEventResult.ignored;
               },
-              child: GestureDetector(
+              child: Listener(
+            // TAP-VS-DRAG (approved preview): a tap must NOT fire after
+            // a drag of more than 6 px. Flutter's arena slop is ~18 px,
+            // so sub-slop drags would otherwise still fire the deferred
+            // chip tap timers. This raw Listener observes EVERY pointer
+            // move (arena-independent, zero cost when nothing is
+            // pending) and cancels the pending chip taps the moment
+            // the pointer wanders past 6 px from the tap-down spot.
+            onPointerMove: _handleCanvasPointerMove,
+            onPointerHover: null,
+            child: GestureDetector(
             // v72 FIX: Use translucent (NOT opaque) so child GraphNode
             // gesture detectors can receive tap/long-press events.
             // The previous `opaque` setting swallowed all touch events
@@ -1862,6 +1963,9 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             onDoubleTapDown: (details) =>
                 _doubleTapPosition = details.localPosition,
             onDoubleTap: () => _handleDoubleTap(layout, flat, viewerPersonId),
+            // TAP-VS-DRAG: the tap lost the arena (a drag claimed it or a
+            // long-press started) — cancel any pending deferred chip taps.
+            onTapCancel: _cancelPendingChipTaps,
             child: Stack(
               clipBehavior: Clip.none, // v4.7: Stack doesn't clip; the _OverscanClipper below handles clipping
               children: [
@@ -1910,6 +2014,13 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     memberCount: _currentMemberCount,
                     focusActive: isFocusActive,
                   );
+
+                  // PAINTED CAMERA: record the matrix this frame renders
+                  // with, so geometric hit-tests convert tap positions
+                  // with the transform the user actually SAW (the live
+                  // controller can be ahead of the render while a fit
+                  // animation is in flight).
+                  _paintedCameraMatrix = _camera.transformMatrix;
 
                   Widget transformed = Transform(
                     transform: _camera.transformMatrix,
@@ -1982,7 +2093,8 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 // all changes. No per-drag interruption.
               ],
             ),
-          ), // GestureDetector close
+            ), // GestureDetector close
+          ), // Listener close (6px tap-vs-drag guard)
           ), // P4.4: Focus close
         ),
         ), // PERF (raster audit): RepaintBoundary close (background gradient + dot grid)
@@ -2130,6 +2242,113 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
       labels[step.edgeId!] = label;
     }
     return labels.isEmpty ? null : labels;
+  }
+
+  /// WEDGE LAYOUT: animates the camera to fit the most recently opened
+  /// branch — the branch root, its children, and its parent — or, when
+  /// a search reveal is active, the hub (viewer) and the revealed
+  /// person. Uses ONLY the CameraController's public animateTo API
+  /// (reduced motion snaps to the same target instantly).
+  ///
+  /// Runs once per wedge view revision change (a chip tap, a node
+  /// expansion, a page turn, or a search reveal) — NOT on every build.
+  void _maybeFitCameraOnWedgeChange(
+    GraphLayoutResult layout,
+    String? viewerPersonId,
+  ) {
+    if (!mounted) return;
+    if (!kUseViewerWedgeLayout) return;
+    final wedgeState = ref.read(wedgeViewProvider);
+    if (wedgeState.revision == _lastWedgeRevision) return;
+    _lastWedgeRevision = wedgeState.revision;
+
+    final actionPersonId = wedgeState.lastActionPersonId;
+    if (actionPersonId == null || actionPersonId.isEmpty) return;
+    if (layout.positions.isEmpty) return;
+
+    final summary =
+        ref.read(wedgeLayoutSummaryProvider(widget.familyId));
+    final focusIds = <String>{
+      if (layout.positions.containsKey(actionPersonId)) actionPersonId,
+    };
+    if (focusIds.isEmpty) return;
+
+    // The opened branch's parent (when known and positioned).
+    final parent = summary?.parentOf[actionPersonId];
+    if (parent != null && layout.positions.containsKey(parent)) {
+      focusIds.add(parent);
+    }
+    // The opened branch's positioned children.
+    summary?.parentOf.forEach((child, childParent) {
+      if (childParent == actionPersonId &&
+          layout.positions.containsKey(child)) {
+        focusIds.add(child);
+      }
+    });
+    // Search reveal: fit the hub (viewer) and the revealed person.
+    final revealTarget = wedgeState.revealTarget;
+    if (revealTarget != null && revealTarget != actionPersonId &&
+        layout.positions.containsKey(revealTarget)) {
+      focusIds.add(revealTarget);
+      if (viewerPersonId != null &&
+          layout.positions.containsKey(viewerPersonId)) {
+        focusIds.add(viewerPersonId);
+      }
+    }
+
+    var minX = double.infinity, minY = double.infinity;
+    var maxX = double.negativeInfinity, maxY = double.negativeInfinity;
+    for (final id in focusIds) {
+      final pos = layout.positions[id];
+      if (pos == null) continue;
+      minX = minX < pos.dx ? minX : pos.dx;
+      maxX = maxX > pos.dx ? maxX : pos.dx;
+      minY = minY < pos.dy ? minY : pos.dy;
+      maxY = maxY > pos.dy ? maxY : pos.dy;
+    }
+    if (!minX.isFinite || !minY.isFinite) return;
+    // The action person's "+N" page bubble (when one exists) joins the
+    // fit — the pager must be on-screen after the branch opens (the
+    // approved preview shows the chip in-frame with its hub).
+    final chips = ref.read(wedgeChipSlotsProvider(widget.familyId));
+    final chip = chips?[actionPersonId];
+    if (chip != null) {
+      if (chip.slotCenter.dx - 48 < minX) minX = chip.slotCenter.dx - 48;
+      if (chip.slotCenter.dx + 48 > maxX) maxX = chip.slotCenter.dx + 48;
+      if (chip.slotCenter.dy - 48 < minY) minY = chip.slotCenter.dy - 48;
+      if (chip.slotCenter.dy + 48 > maxY) maxY = chip.slotCenter.dy + 48;
+    }
+    // Account for node footprints + a little breathing room.
+    minX -= 80;
+    minY -= 80;
+    maxX += 80;
+    maxY += 80;
+
+    final size = _viewportSize;
+    if (size.width <= 0 || size.height <= 0) return;
+    final boundsW = (maxX - minX).clamp(1.0, double.infinity);
+    final boundsH = (maxY - minY).clamp(1.0, double.infinity);
+    // 30% padding — same contract as CameraController.fitToView.
+    var zoom = (size.width * 0.7 / boundsW) < (size.height * 0.7 / boundsH)
+        ? (size.width * 0.7 / boundsW)
+        : (size.height * 0.7 / boundsH);
+    zoom = zoom.clamp(0.2, 2.0);
+    if (!zoom.isFinite || zoom <= 0) zoom = 1.0;
+
+    final centerX = (minX + maxX) / 2;
+    final centerY = (minY + maxY) / 2;
+    final panX = size.width / 2 - centerX * zoom;
+    final panY = size.height / 2 - centerY * zoom;
+
+    final reduced = MediaQuery.disableAnimationsOf(context);
+    _camera.animateTo(
+      panX,
+      panY,
+      zoom,
+      duration: reduced
+          ? const Duration(milliseconds: 1)
+          : const Duration(milliseconds: 450),
+    );
   }
 
 }

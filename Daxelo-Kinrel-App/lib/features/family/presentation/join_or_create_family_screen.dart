@@ -62,7 +62,6 @@ class _JoinOrCreateFamilyScreenState extends ConsumerState<JoinOrCreateFamilyScr
   final _joinCodeController = TextEditingController();
   final _familyNameController = TextEditingController();
   bool _loading = true;
-  bool _checkingClipboard = true;
   String? _clipboardFamilyId;
   String? _clipboardFamilyName;
   String? _joinError;
@@ -188,7 +187,6 @@ class _JoinOrCreateFamilyScreenState extends ConsumerState<JoinOrCreateFamilyScr
       final data = await Clipboard.getData('text/plain');
       final text = data?.text?.trim() ?? '';
       if (text.isEmpty) {
-        if (mounted) setState(() => _checkingClipboard = false);
         return;
       }
       // Look for a "KIN-XXXXXXXX" pattern in the clipboard text.
@@ -216,14 +214,10 @@ class _JoinOrCreateFamilyScreenState extends ConsumerState<JoinOrCreateFamilyScr
         setState(() {
           _clipboardFamilyId = code;
           _clipboardFamilyName = familyName;
-          _checkingClipboard = false;
         });
         return;
       }
-      if (mounted) setState(() => _checkingClipboard = false);
-    } catch (_) {
-      if (mounted) setState(() => _checkingClipboard = false);
-    }
+    } catch (_) {}
   }
 
   Future<void> _joinWithClipboardCode() async {

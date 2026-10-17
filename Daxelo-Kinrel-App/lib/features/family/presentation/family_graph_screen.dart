@@ -64,7 +64,10 @@ import '../../../core/services/supabase_service.dart';
 // this screen actually shows it (toggled by the bottom dock's
 // Help/Legend button).
 import '../../../core/kinship/kinship_edge_style.dart'
-    show KinshipEdgeCategory, KinshipEdgeClassifier;
+    show
+        KinshipEdgeCategory,
+        KinshipEdgeClassifier,
+        KinshipEdgeStyleResolver;
 // v5.x (legend wiring fix): GraphLegend is now actually rendered by
 // this screen — was previously imported into
 // family_graph_engine_view.dart but never instantiated. Other graph
@@ -97,6 +100,11 @@ import '../../../graph/rearrange/layout_overrides_service.dart'
         hasUnsavedChangesProvider,
         saveCompletedTriggerProvider;
 import 'add_member_options_sheet.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../../graph/engine/viewer_wedge_layout.dart'
+    show kUseViewerWedgeLayout;
+import '../../../graph/interaction/wedge_view_state.dart'
+    show wedgeViewProvider;
 import 'providers/family_graph_provider.dart'
     show
         FamilyGraphNotifier,
@@ -104,7 +112,9 @@ import 'providers/family_graph_provider.dart'
         familyGraphProvider,
         graphRealtimeProvider,
         selectedNodeProvider,
-        unlinkedPersonIdsProvider; // v5.9
+        unlinkedPersonIdsProvider, // v5.9
+        wedgeRootFilterProvider, // wedge filter chips
+        wedgeLayoutSummaryProvider; // "Showing N of M" count
 // v5.123 (Step 4) → v5.125: search jump — shortest-path reveal for
 // offscreen results. The orchestration lives in the search state layer
 // (GraphSearchNotifier.revealOffscreenMatch), which reuses
@@ -354,74 +364,13 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
     });
   }
 
-  /// v5.115 (Task 4): Shows a warning dialog before entering Level 4
-  /// ("Show All" mode).
-  ///
-  /// "Show All" means "all branches are eligible to be loaded on demand
-  /// as the user pans/zooms into them" — NOT "all N nodes are drawn
-  /// simultaneously." The kNodeBudget (50), viewport culling, and
-  /// semantic zoom all stay active. Branches that push the visible
-  /// count over the budget will still be collapsed into chips.
-  Future<void> _showAllWithWarning() async {
-    final graphData = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
-    // v5.150 (SHOW-ALL FIX): Use totalCount (the TRUE family size from the
-    // RPC) instead of persons.length (which is the ~50-node proximity set
-    // after v5.144). Without this fix, the dialog said "This family has 50
-    // members" instead of 700+.
-    final memberCount = graphData?.totalCount ?? graphData?.persons.length ?? 0;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: KinrelColors.darkCard,
-        title: const Text(
-          'Show All Branches?',
-          style: TextStyle(color: KinrelColors.textWhite),
-        ),
-        content: Text(
-          memberCount > 300
-              ? 'This family has $memberCount members. Large trees may be '
-                'simplified automatically for performance. Branches will '
-                'load progressively as you explore — some may be collapsed '
-                'into summary chips to keep the graph readable. You can tap '
-                'any chip to expand that branch.'
-              : 'This family has $memberCount members. All branches will be '
-                'eligible for loading. Some branches may still be collapsed '
-                'into summary chips to keep the graph readable.',
-          style: TextStyle(color: KinrelColors.textWhite.withValues(alpha: 0.85)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel', style: TextStyle(color: KinrelColors.textDim)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Show All', style: TextStyle(color: KinrelColors.orange)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && mounted) {
-      // Enter Level 4 (full tree). This does NOT disable:
-      //   - kNodeBudget (stays at 50)
-      //   - viewport culling (only on-screen nodes render)
-      //   - semantic zoom (FULL/COMPACT/MINI/MICRO/FAR tiers stay active)
-      //   - branch-collapse logic (computeDensityCollapse still runs)
-      ref.read(expandCollapseProvider.notifier).expandAll();
-      // v5.150 (SHOW-ALL FIX): Re-fetch with a large p_max_nodes so the
-      // RPC actually returns the other 650+ people. Without this, the
-      // expandAll() call above only flips a local disclosure flag — the
-      // graph still has the ~50-node proximity set in memory and can't
-      // reveal nodes it never fetched.
-      //
-      // fetchShowAll() sets state=loading (showing a spinner), calls the
-      // RPC with p_max_nodes=10000, caches the result, and updates state.
-      // The graph rebuilds automatically when the new data arrives.
-      ref.read(familyGraphProvider(widget.familyId).notifier).fetchShowAll();
-    }
-  }
+  // REMOVED (approved-preview tap model): the "Show All Branches"
+  // toolbar button + its warning dialog (_showAllWithWarning). The
+  // only ways to reveal everyone are now the "+N" paging bubbles,
+  // search reveal, and the stats panel's "View all N" list (all three
+  // still work). expandCollapseProvider.expandAll() + fetchShowAll()
+  // stay intact on the notifier — other code still reads them — only
+  // this UI entry point is gone.
 
   /// Opens the Add Member sheet and refreshes graph data when it closes.
   /// v5.41: Passes `fromGraph: true` so that graph-originated invites
@@ -753,6 +702,19 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
     // v5.123 (Step 4): reveal the path to the person when they are
     // outside the current visible set.
     _revealPathToMember(memberId, graphData);
+
+    // WEDGE MODE: expand the full path from the viewer to the result
+    // (each ancestor is paged onto the page containing the path child
+    // — "loads the page containing the person") and reset the owning
+    // hub filter to All. The engine view then fits the camera to the
+    // hub and the person once the new layout lands.
+    if (kUseViewerWedgeLayout) {
+      final viewerId =
+          ref.read(viewerPersonIdProvider(widget.familyId)).valueOrNull;
+      ref
+          .read(wedgeViewProvider.notifier)
+          .revealPerson(memberId, viewerId: viewerId);
+    }
 
     // v5.115: Use graphFocusProvider to center the camera on the
     // found node. This reuses the existing _onFocusPerson handler
@@ -1237,6 +1199,13 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
 
             if (graph.isTruncated) _buildTruncationBanner(graph),
 
+            // Viewer-centered wedge layout: filter chips ("All N" + one
+            // per kinship category present) — shown ONLY when the root
+            // has more than 12 direct connections. Selecting a chip drops
+            // the hub's current children and shows page 1 of that
+            // category (wedgeViewProvider drives the layout recompute).
+            if (kUseViewerWedgeLayout && !ref.watch(rearrangeModeProvider))
+              _buildWedgeFilterChipRow(),
             // P3.7: "On this day" banner — shows when any persons have
             // a birthday or anniversary today.
             if (_onThisDayCount(graph) > 0) _buildOnThisDayBanner(graph),
@@ -1484,7 +1453,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
                 totalConnections: disclosedLinks,
                 totalGenerations: disclosedGens.length,
                 fullFamilyMembers: trueMemberCount,
-                isTruncated: graph.isTruncated,
                 familyId: widget.familyId,
                 onViewAllMembers: () {
                   // v5.212 (entry-context-aware list): pass
@@ -1631,8 +1599,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
             ref.read(graphFocusProvider.notifier).exitPathSelectMode();
           } else {
             ref.read(graphFocusProvider.notifier).enterPathSelectMode();
-            SemanticsService.announce(
-                'Path select mode. Tap the first person.', TextDirection.ltr);
+            SemanticsService.sendAnnouncement(
+              View.of(context),
+              'Path select mode. Tap the first person.',
+              TextDirection.ltr,
+            );
           }
         },
         child: Icon(
@@ -2114,8 +2085,8 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
                     final notifier = ref.read(
                       graphPendingInvitationsProvider(widget.familyId).notifier,
                     );
-                    final success = await notifier.resendInvitation(inv.id);
                     final messenger = ScaffoldMessenger.maybeOf(context);
+                    final success = await notifier.resendInvitation(inv.id);
                     if (success) {
                       messenger?.showSnackBar(
                         SnackBar(
@@ -2253,16 +2224,10 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
             onPressed: () => setState(() => _showLegend = !_showLegend),
             highlighted: _showLegend,
           ),
-          // Divider
-          _divider(),
-          // v5.115 (Task 4): Show All — enters Level 4 (full tree)
-          // with a performance warning dialog. Does NOT disable
-          // kNodeBudget, viewport culling, or semantic zoom.
-          _toolbarButton(
-            icon: Icons.account_tree_outlined,
-            tooltip: 'Show All Branches',
-            onPressed: _showAllWithWarning,
-          ),
+          // REMOVED (approved-preview tap model): the "Show All
+          // Branches" toolbar button. Everyone is revealed via the
+          // "+N" paging bubbles, search reveal, and the stats panel's
+          // "View all N" list instead. Fit all + Reset stay.
         ],
       ),
     );
@@ -2318,7 +2283,21 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
 
   // ── Truncation Banner ─────────────────────────────────────────────
 
+  /// "Showing N of M" banner.
+  ///
+  /// In WEDGE mode N is the count the viewer actually sees on the
+  /// canvas (the wedge layout's paged visible set, from
+  /// wedgeLayoutSummaryProvider); in radial mode N stays the count of
+  /// loaded persons. The text is localized (graphShowingCount); the
+  /// "View all" affordance remains the stats panel's button.
   Widget _buildTruncationBanner(FlatGraphResult graph) {
+    final l10n = S.of(context);
+    final shownCount = kUseViewerWedgeLayout
+        ? (ref.read(wedgeLayoutSummaryProvider(widget.familyId))
+                ?.visibleCount ??
+            graph.persons.length)
+        : graph.persons.length;
+    final total = graph.totalCount ?? shownCount;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -2333,9 +2312,8 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              graph.totalCount != null
-                  ? 'Showing first ${graph.persons.length} of ${graph.totalCount} persons.'
-                  : 'Showing first ${graph.persons.length} persons.',
+              l10n?.graphShowingCount(shownCount, total) ??
+                  'Showing $shownCount of $total persons.',
               style: const TextStyle(
                   color: KinrelColors.textSecondaryDark,
                   fontFamily: 'DMSans',
@@ -2345,6 +2323,177 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
         ],
       ),
     );
+  }
+
+  // ── WEDGE LAYOUT: filter chips ────────────────────────────────────
+
+  /// One chip per KinshipEdgeCategory the ROOT (viewer) is directly
+  /// connected to, plus the leading "All N" chip. Shown only when the
+  /// root has more than 12 direct connections. Counts are computed
+  /// from data already loaded locally (allRelationships).
+  Widget _buildWedgeFilterChipRow() {
+    final filterInfo = ref.watch(wedgeRootFilterProvider(widget.familyId));
+    if (!kUseViewerWedgeLayout ||
+        filterInfo == null ||
+        filterInfo.totalDirect <= 12) {
+      return const SizedBox.shrink();
+    }
+    final l10n = S.of(context);
+    final wedgeState = ref.watch(wedgeViewProvider);
+    final viewerId =
+        ref.read(viewerPersonIdProvider(widget.familyId)).valueOrNull;
+
+    // Deterministic category order: the kinship closeness ranking
+    // (spouse → parent → child → …), then count descending.
+    final entries = filterInfo.countsByCategory.entries.toList()
+      ..sort((a, b) {
+        final byRank = _wedgeCategoryOrder(a.key).compareTo(
+          _wedgeCategoryOrder(b.key),
+        );
+        if (byRank != 0) return byRank;
+        return b.value.compareTo(a.value);
+      });
+
+    Widget chipFor({
+      required String label,
+      required int count,
+      required Color accent,
+      required bool selected,
+      required VoidCallback onTap,
+    }) {
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          margin: const EdgeInsets.only(right: 6),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkBackground.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? accent.withValues(alpha: 0.9)
+                  : Colors.white.withValues(alpha: 0.15),
+              width: selected ? 1.6 : 1.0,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: accent,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '$label $count',
+                style: TextStyle(
+                  color: selected
+                      ? Colors.white.withValues(alpha: 0.95)
+                      : KinrelColors.textSilver,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final chips = <Widget>[
+      chipFor(
+        label: l10n?.graphFilterAll(filterInfo.totalDirect) ??
+            'All ${filterInfo.totalDirect}',
+        count: filterInfo.totalDirect,
+        accent: KinrelColors.orange,
+        selected: wedgeState.filter == null,
+        onTap: () => ref
+            .read(wedgeViewProvider.notifier)
+            .setFilter(null, viewerId: viewerId),
+      ),
+      for (final entry in entries)
+        chipFor(
+          label: _wedgeCategoryLabel(entry.key, l10n),
+          count: entry.value,
+          accent: KinshipEdgeStyleResolver.styleForCategory(entry.key).color,
+          selected: wedgeState.filter == entry.key,
+          onTap: () => ref
+              .read(wedgeViewProvider.notifier)
+              .setFilter(entry.key, viewerId: viewerId),
+        ),
+    ];
+
+    return SizedBox(
+      height: 36,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: chips,
+      ),
+    );
+  }
+
+  /// Kinship closeness order for the filter chips (mirrors
+  /// kProximityCategoryKeepPriority — spouse before parent before
+  /// child … before indirect).
+  static int _wedgeCategoryOrder(KinshipEdgeCategory category) {
+    switch (category) {
+      case KinshipEdgeCategory.spouse:
+        return 0;
+      case KinshipEdgeCategory.parent:
+        return 1;
+      case KinshipEdgeCategory.child:
+        return 2;
+      case KinshipEdgeCategory.sibling:
+        return 3;
+      case KinshipEdgeCategory.grandparent:
+        return 4;
+      case KinshipEdgeCategory.auntUncle:
+        return 5;
+      case KinshipEdgeCategory.cousin:
+        return 6;
+      case KinshipEdgeCategory.inLaw:
+        return 7;
+      case KinshipEdgeCategory.extended:
+        return 8;
+      case KinshipEdgeCategory.indirect:
+        return 9;
+      case KinshipEdgeCategory.self:
+        return 10;
+    }
+  }
+
+  /// Localized display label for one filter chip category.
+  static String _wedgeCategoryLabel(KinshipEdgeCategory category, S? l10n) {
+    switch (category) {
+      case KinshipEdgeCategory.spouse:
+        return l10n?.graphCatSpouse ?? 'Spouse';
+      case KinshipEdgeCategory.parent:
+        return l10n?.graphCatParent ?? 'Parents';
+      case KinshipEdgeCategory.child:
+        return l10n?.graphCatChild ?? 'Children';
+      case KinshipEdgeCategory.sibling:
+        return l10n?.graphCatSibling ?? 'Siblings';
+      case KinshipEdgeCategory.grandparent:
+        return l10n?.graphCatGrandparent ?? 'Grandparents';
+      case KinshipEdgeCategory.auntUncle:
+        return l10n?.graphCatAuntUncle ?? 'Aunts & uncles';
+      case KinshipEdgeCategory.cousin:
+        return l10n?.graphCatCousin ?? 'Cousins';
+      case KinshipEdgeCategory.inLaw:
+        return l10n?.graphCatInLaw ?? 'In-laws';
+      case KinshipEdgeCategory.extended:
+        return l10n?.graphCatExtended ?? 'Extended';
+      case KinshipEdgeCategory.indirect:
+        return l10n?.graphCatIndirect ?? 'Indirect';
+      case KinshipEdgeCategory.self:
+        return l10n?.graphCatSelf ?? 'You';
+    }
   }
 
   // ── P3.7: "On this day" banner ──────────────────────────────────

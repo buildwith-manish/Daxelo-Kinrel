@@ -90,5 +90,19 @@
   "familyMapLegendTierStale": "پراڻو",
   "familyMapLegendTierStaleDesc": "< 1 ڪلاڪ اڳ",
   "familyMapLegendTierCity": "شهر",
-  "familyMapLegendTierCityDesc": "شهر مرڪز"
+  "familyMapLegendTierCityDesc": "شهر مرڪز",
+  "graphShowingCount": "ڪل {total} مان {shown} ماڻهو ڏيکاريا ويا آهن.",
+  "graphFilterAll": "سڀ {count}",
+  "graphCatSelf": "توهان",
+  "graphCatSpouse": "زال/مڙس",
+  "graphCatParent": "والدین",
+  "graphCatChild": "ٻار",
+  "graphCatSibling": "ڀائر ۽ ڀيڻيون",
+  "graphCatGrandparent": "ڏاڏا-ڏاڏي",
+  "graphCatAuntUncle": "چاچا-ماما",
+  "graphCatCousin": "سوٽ",
+  "graphCatInLaw": "سهرا",
+  "graphCatExtended": "وسيع خاندان",
+  "graphCatIndirect": "غير سڌو",
+  "graphMorePeople": "{count} وڌيڪ ماڻهن کي ڏيکاريو، ٻه ڀيرا ٽيپ ڪريو"
 }

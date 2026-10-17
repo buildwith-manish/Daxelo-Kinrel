@@ -54,35 +54,6 @@ enum ThinkingEmotion {
   final Color color;
 }
 
-const _emotionWarmMessages = {
-  ThinkingEmotion.love: [
-    'Your love just traveled across the family',
-    "They'll feel your warmth when they see this",
-    'A little love sent across the distance',
-  ],
-  ThinkingEmotion.hug: [
-    'You just sent a virtual hug',
-    "They'll feel wrapped in warmth",
-    'A hug just crossed the screen for them',
-  ],
-  ThinkingEmotion.gratitude: [
-    "You just expressed gratitude — that's beautiful",
-    "They'll feel appreciated when they see this",
-    "Gratitude travels well — they'll feel it",
-  ],
-  ThinkingEmotion.proud: [
-    "You just showed you're proud of them",
-    "They'll feel validated and seen",
-    'Pride is a gift — you just gave it',
-  ],
-};
-
-String _randomWarmMessageFor(ThinkingEmotion emotion) {
-  final messages = _emotionWarmMessages[emotion]!;
-  final rng = Random();
-  return messages[rng.nextInt(messages.length)];
-}
-
 /// Time-of-day greeting
 String _timeOfDayGreeting() {
   final now = DateTime.now().toUtc();
@@ -262,20 +233,6 @@ final thinkingStatsProvider =
 // ═══════════════════════════════════════════════════════════════════════
 // Phase 3.24: Variable reward messages
 // ═══════════════════════════════════════════════════════════════════════
-
-const _warmMessages = [
-  "You just made someone's day brighter",
-  "They'll feel loved when they see this",
-  "That's going to make them smile",
-  'You just sent a little warmth across the distance',
-  "Someone's about to feel special",
-  'Your kindness just traveled across the family',
-];
-
-String _randomWarmMessage() {
-  final rng = Random();
-  return _warmMessages[rng.nextInt(_warmMessages.length)];
-}
 
 // ═══════════════════════════════════════════════════════════════════════
 // FamilyRingWidget

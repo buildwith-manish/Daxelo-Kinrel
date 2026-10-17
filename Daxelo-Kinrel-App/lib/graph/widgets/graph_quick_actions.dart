@@ -103,30 +103,14 @@ class GraphQuickActions {
               ),
             ),
             const Divider(color: Color(0x1AFFFFFF), height: 1.0),
-            // v5.140: Branch items — shown ONLY when this node is an
-            // expanded branch root. Simple plain ListTile items, no
-            // separate rich sheet, no header text, no preview. Just
-            // two extra actions at the top, BEFORE the first group
-            // header, because they are context-specific to this exact
-            // long-press (the user long-pressed an expandable branch
-            // root, so collapse/preview are the most relevant actions
-            // and should appear first).
+            // v5.140 → approved-preview tap model: the branch section
+            // now renders ONLY the "Preview full names list" entry —
+            // the "Collapse this branch" item was REMOVED (expanding
+            // and collapsing work by tapping people: tapping the
+            // focused, expanded person collapses them). Shown ONLY when
+            // this node is an expanded branch root, as a plain
+            // ListTile before the first group header.
             if (branchCollapseInfo != null) ...[
-              ListTile(
-                leading: const Icon(Icons.unfold_less_rounded,
-                    color: KinrelColors.orange),
-                title: const Text(
-                  'Collapse this branch',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  branchCollapseInfo.onCollapse();
-                },
-              ),
               ListTile(
                 leading: const Icon(Icons.list_alt_rounded,
                     color: KinrelColors.tealAccent),
@@ -320,9 +304,10 @@ class GraphQuickActions {
                     ),
                     onTap: () async {
                       Navigator.pop(sheetContext);
+                      final messenger = ScaffoldMessenger.maybeOf(context);
                       await LayoutOverridesService.removeNodeOverride(
                           ref, familyId, person.id);
-                      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                      messenger?.showSnackBar(
                         const SnackBar(
                           content: Text('Reset to auto-layout'),
                           behavior: SnackBarBehavior.floating,

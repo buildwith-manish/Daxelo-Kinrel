@@ -25,7 +25,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:kinrel/features/memories/providers/memories_provider.dart';
 import 'package:kinrel/features/memory_vault/data/memory_model.dart';
-import 'package:kinrel/features/memory_vault/providers/memory_vault_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

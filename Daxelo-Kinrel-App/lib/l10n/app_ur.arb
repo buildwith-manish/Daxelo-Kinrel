@@ -90,5 +90,19 @@
   "familyMapLegendTierStale": "پرانا",
   "familyMapLegendTierStaleDesc": "< 1 گھنٹہ پہلے",
   "familyMapLegendTierCity": "شہر",
-  "familyMapLegendTierCityDesc": "شہر کا مرکز"
+  "familyMapLegendTierCityDesc": "شہر کا مرکز",
+  "graphShowingCount": "کل {total} میں سے {shown} افراد دکھائے جا رہے ہیں۔",
+  "graphFilterAll": "سب {count}",
+  "graphCatSelf": "آپ",
+  "graphCatSpouse": "شریک حیات",
+  "graphCatParent": "والدین",
+  "graphCatChild": "بچے",
+  "graphCatSibling": "بہن بھائی",
+  "graphCatGrandparent": "دادا دادی",
+  "graphCatAuntUncle": "چچا ماموں",
+  "graphCatCousin": "چچازاد بہن بھائی",
+  "graphCatInLaw": "سسرال",
+  "graphCatExtended": "وسيع خاندان",
+  "graphCatIndirect": "بالواسطہ",
+  "graphMorePeople": "{count} مزید لوگ دکھائیں، دوبار تھپتھپائیں"
 }

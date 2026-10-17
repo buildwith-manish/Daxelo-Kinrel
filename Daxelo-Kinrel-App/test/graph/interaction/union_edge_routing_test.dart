@@ -139,34 +139,6 @@ void main() {
     return bestId;
   }
 
-  /// Replicates the OLD (pre-fix) hit-test logic: uses the raw `s`/`t`
-  /// positions with NO union redirect. Used by the regression guard
-  /// (test 6) to prove the bug would have manifested.
-  String? simulateBrokenHitTest(
-    Offset tapGraphPos, {
-    required List<_TestEdge> edges,
-    required Map<String, Offset> positions,
-    double hitRadius = 48.0,
-  }) {
-    if (edges.isEmpty || positions.isEmpty) return null;
-    String? bestId;
-    double bestDist = double.infinity;
-    for (final e in edges) {
-      final s = positions[e.sourceId];
-      final t = positions[e.targetId];
-      if (s == null || t == null) continue;
-      // OLD behavior: NO redirect — midpoint computed from raw parent
-      // position, NOT from the union midpoint the painter used.
-      final mid = Offset((s.dx + t.dx) / 2, (s.dy + t.dy) / 2);
-      final dist = (mid - tapGraphPos).distance;
-      if (dist < hitRadius && dist < bestDist) {
-        bestDist = dist;
-        bestId = e.id;
-      }
-    }
-    return bestId;
-  }
-
   // ─────────────────────────────────────────────────────────────────────
   // TEST 1: No-redirect assertion (EDGE-ANCHOR FIX)
   //

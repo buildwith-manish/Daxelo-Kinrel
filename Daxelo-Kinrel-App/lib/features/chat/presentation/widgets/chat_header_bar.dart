@@ -21,7 +21,6 @@
 
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../chat_ui_tokens.dart';
 

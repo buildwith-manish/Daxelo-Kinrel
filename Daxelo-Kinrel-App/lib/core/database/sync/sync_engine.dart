@@ -2005,7 +2005,7 @@ class SyncEngine {
   /// Read a value from the UserSettings table.
   Future<String?> _getMeta(String key) async {
     try {
-      return _db.getSetting(key);
+      return await _db.getSetting(key);
     } catch (_) {
       return null;
     }

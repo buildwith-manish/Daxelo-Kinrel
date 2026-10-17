@@ -1298,6 +1298,90 @@ abstract class S {
   /// In en, this message translates to:
   /// **'{name} reacted {emoji}'**
   String chatSystemMessageUserReacted(String name, String emoji);
+
+  /// Graph truncation banner: how many persons are shown of the total
+  ///
+  /// In en, this message translates to:
+  /// **'Showing {shown} of {total} persons.'**
+  String graphShowingCount(int shown, int total);
+
+  /// The leading 'All N' filter chip on the graph screen
+  ///
+  /// In en, this message translates to:
+  /// **'All {count}'**
+  String graphFilterAll(int count);
+
+  /// Filter chip label: the viewer (self) category
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get graphCatSelf;
+
+  /// Filter chip label: spouse category
+  ///
+  /// In en, this message translates to:
+  /// **'Spouse'**
+  String get graphCatSpouse;
+
+  /// Filter chip label: parents category
+  ///
+  /// In en, this message translates to:
+  /// **'Parents'**
+  String get graphCatParent;
+
+  /// Filter chip label: children category
+  ///
+  /// In en, this message translates to:
+  /// **'Children'**
+  String get graphCatChild;
+
+  /// Filter chip label: siblings category
+  ///
+  /// In en, this message translates to:
+  /// **'Siblings'**
+  String get graphCatSibling;
+
+  /// Filter chip label: grandparents category
+  ///
+  /// In en, this message translates to:
+  /// **'Grandparents'**
+  String get graphCatGrandparent;
+
+  /// Filter chip label: aunts and uncles category
+  ///
+  /// In en, this message translates to:
+  /// **'Aunts & uncles'**
+  String get graphCatAuntUncle;
+
+  /// Filter chip label: cousins category
+  ///
+  /// In en, this message translates to:
+  /// **'Cousins'**
+  String get graphCatCousin;
+
+  /// Filter chip label: in-laws category
+  ///
+  /// In en, this message translates to:
+  /// **'In-laws'**
+  String get graphCatInLaw;
+
+  /// Filter chip label: extended family category
+  ///
+  /// In en, this message translates to:
+  /// **'Extended'**
+  String get graphCatExtended;
+
+  /// Filter chip label: indirect connections category
+  ///
+  /// In en, this message translates to:
+  /// **'Indirect'**
+  String get graphCatIndirect;
+
+  /// The '+N' page bubble / collapsed-person count badge semantic label: N more people, double tap to show
+  ///
+  /// In en, this message translates to:
+  /// **'Show {count} more people, double tap to reveal'**
+  String graphMorePeople(int count);
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

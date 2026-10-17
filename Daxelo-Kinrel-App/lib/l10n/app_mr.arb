@@ -121,5 +121,19 @@
   "chatSystemMessageUserLeft": "{name} रूम सोडून गेले",
   "chatSystemMessageUserDisconnected": "{name} डिस्कनेक्ट झाले",
   "chatSystemMessageRoomClosed": "{name} ने रूम बंद केले",
-  "chatSystemMessageUserReacted": "{name} ने प्रतिक्रिया दिली {emoji}"
+  "chatSystemMessageUserReacted": "{name} ने प्रतिक्रिया दिली {emoji}",
+  "graphShowingCount": "एकूण {total} पैकी {shown} व्यक्ती दाखवल्या जात आहेत.",
+  "graphFilterAll": "सर्व {count}",
+  "graphCatSelf": "तुम्ही",
+  "graphCatSpouse": "जोडीदार",
+  "graphCatParent": "आईवडील",
+  "graphCatChild": "मुले",
+  "graphCatSibling": "भावंडे",
+  "graphCatGrandparent": "आजोबा",
+  "graphCatAuntUncle": "काका-मामा",
+  "graphCatCousin": "चुलत भावंडे",
+  "graphCatInLaw": "सासरे",
+  "graphCatExtended": "विस्तृत कुटुंब",
+  "graphCatIndirect": "अप्रत्यक्ष",
+  "graphMorePeople": "{count} अधिक लोक दाखवा, दोनदा टॅप करा"
 }

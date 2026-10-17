@@ -57,7 +57,7 @@ import 'package:kinrel/graph/engine/edge_dedup.dart' show DedupedEdge;
 import 'package:kinrel/graph/data/graph_data_models.dart'
     show GraphEdgeData;
 import 'package:kinrel/graph/interaction/couple_union_model.dart'
-    show CoupleUnion, deriveCoupleUnions, resolveEffectiveEdgeEndpoints,
+    show deriveCoupleUnions, resolveEffectiveEdgeEndpoints,
         unionMidpoint;
 import 'package:kinrel/graph/rendering/visual_circle_center.dart'
     show visualCircleCenterYOffset, isImmediateFamilyCategory,
@@ -545,18 +545,27 @@ void main() {
               (mid - sCenter).dy * chord.dx) /
           chordLen;
       final expectedBow = (chordLen * 0.25).clamp(15.0, 100.0);
-      // The per-edge phase may scale the bow magnitude by [1.0, 1.3]
-      // and flip its sign. So the actual perpendicular distance is in
-      // [-1.3 * expectedBow, -1.0 * expectedBow] ∪
-      // [1.0 * expectedBow, 1.3 * expectedBow].
+      // The default path is a CUBIC bezier whose two control points
+      // sit at 1/3 and 2/3 along the box-center chord, EACH offset
+      // perpendicular by the full bowMagnitude (see _bezier's default
+      // branch). The curve's t=0.5 point is
+      //     (s + 3·cp1 + 3·cp2 + t) / 8,
+      // whose perpendicular component is (3 + 3)/8 × bow = 0.75 × bow.
+      // (This call passes no edgeId, so no per-edge phase applies and
+      // t = 0.5 both as the bezier parameter and along the arc length
+      // — the default cubic is symmetric.)
+      //
+      // A constant Y offset applied to either endpoint asymmetrically
+      // would shift this value by k·cos(θ) — outside the 1px epsilon.
+      final expectedMidPerp = 0.75 * expectedBow;
       final absPerpDistance = perpDistance.abs();
       expect(
         absPerpDistance,
-        greaterThanOrEqualTo(expectedBow - 0.5),
-        reason: 'Perpendicular distance must be at least the base '
-            'bow magnitude (no constant Y offset shifting the '
-            'midpoint off the chord by an unexpected amount). '
-            'Got $absPerpDistance, expected >= ${expectedBow - 0.5}.',
+        moreOrLessEquals(expectedMidPerp, epsilon: 1.0),
+        reason: 'Perpendicular distance must be exactly 0.75 × the base '
+            'bow magnitude (the cubic-bezier t=0.5 geometry — no '
+            'constant Y offset shifting the midpoint off the chord). '
+            'Got $absPerpDistance, expected ≈ $expectedMidPerp.',
       );
       expect(
         absPerpDistance,
@@ -601,7 +610,7 @@ void main() {
           );
 
       final sCenter = anchor; // box center = layout pos
-      final tCenter = onRing(380, 10);
+      // tCenter for this sector sits on ring r=380 at 10 degrees.
 
       // Compute the fan-out for a 3-edge sector.
       final positions = <String, Offset>{

@@ -474,15 +474,15 @@ class _FeedPostBody extends StatelessWidget {
                     width: 0.5,
                   ),
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.bookmark_rounded,
+                    Icon(Icons.bookmark_rounded,
                         size: 12, color: _cOrange),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     Text(
                       'Saved To Memories',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,

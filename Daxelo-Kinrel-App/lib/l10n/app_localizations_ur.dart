@@ -701,4 +701,52 @@ class SUr extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name reacted $emoji';
   }
+
+  @override
+  String graphShowingCount(int shown, int total) {
+    return 'کل $total میں سے $shown افراد دکھائے جا رہے ہیں۔';
+  }
+
+  @override
+  String graphFilterAll(int count) {
+    return 'سب $count';
+  }
+
+  @override
+  String get graphCatSelf => 'آپ';
+
+  @override
+  String get graphCatSpouse => 'شریک حیات';
+
+  @override
+  String get graphCatParent => 'والدین';
+
+  @override
+  String get graphCatChild => 'بچے';
+
+  @override
+  String get graphCatSibling => 'بہن بھائی';
+
+  @override
+  String get graphCatGrandparent => 'دادا دادی';
+
+  @override
+  String get graphCatAuntUncle => 'چچا ماموں';
+
+  @override
+  String get graphCatCousin => 'چچازاد بہن بھائی';
+
+  @override
+  String get graphCatInLaw => 'سسرال';
+
+  @override
+  String get graphCatExtended => 'وسيع خاندان';
+
+  @override
+  String get graphCatIndirect => 'بالواسطہ';
+
+  @override
+  String graphMorePeople(int count) {
+    return '$count مزید لوگ دکھائیں، دوبار تھپتھپائیں';
+  }
 }

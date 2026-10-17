@@ -121,5 +121,19 @@
   "chatSystemMessageUserLeft": "{name} ரூமை விட்டு வெளியேறினார்",
   "chatSystemMessageUserDisconnected": "{name} துண்டிக்கப்பட்டார்",
   "chatSystemMessageRoomClosed": "{name} ரூமை மூடினார்",
-  "chatSystemMessageUserReacted": "{name} எதிர்வினை தெரிவித்தார் {emoji}"
+  "chatSystemMessageUserReacted": "{name} எதிர்வினை தெரிவித்தார் {emoji}",
+  "graphShowingCount": "மொத்தம் {total} பேரில் {shown} பேர் காட்டப்படுகிறார்கள்.",
+  "graphFilterAll": "அனைத்தும் {count}",
+  "graphCatSelf": "நீங்கள்",
+  "graphCatSpouse": "வாழ்க்கைத் துணை",
+  "graphCatParent": "பெற்றோர்",
+  "graphCatChild": "குழந்தைகள்",
+  "graphCatSibling": "உடன்பிறப்புகள்",
+  "graphCatGrandparent": "தாத்தா-பாட்டி",
+  "graphCatAuntUncle": "அத்தை-மாமா",
+  "graphCatCousin": "உறவினர்கள்",
+  "graphCatInLaw": "மாமியார் உறவினர்",
+  "graphCatExtended": "விரிவான குடும்பம்",
+  "graphCatIndirect": "மறைமுக",
+  "graphMorePeople": "{count} மேலும் நபர்களைக் காட்டு, இருமுறை தட்டவும்"
 }

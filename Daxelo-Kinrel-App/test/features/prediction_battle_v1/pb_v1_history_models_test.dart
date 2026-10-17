@@ -123,9 +123,10 @@ void main() {
     test('missed getter returns true when myGuess is null', () {
       final json = Map<String, dynamic>.from(baseRoundJson);
       json['my_guess'] = null;
+      json['i_won'] = false; // no guess submitted → could not have won
       final r = PBv1HistoryRound.fromJson(json);
       expect(r.missed, isTrue);
-      expect(r.won, isFalse); // i_won also false in JSON, but missed takes precedence in display
+      expect(r.won, isFalse);
     });
 
     test('won getter returns the i_won flag', () {

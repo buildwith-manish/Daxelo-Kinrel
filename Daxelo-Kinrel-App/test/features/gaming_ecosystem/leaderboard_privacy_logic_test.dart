@@ -15,7 +15,7 @@
 //      games together") that frames the count as family togetherness,
 //      not individual outcome.
 
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kinrel/features/gaming_ecosystem/presentation/widgets/gaming_kit.dart';
 

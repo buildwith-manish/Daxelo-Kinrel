@@ -24,9 +24,7 @@
 //   - Scroll-to-bottom FAB when scrolled up
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
-import 'package:cached_network_image/cached_network_image.dart';
 // v3.5: the emoji_picker_flutter import moved with the full-emoji sheet
 // into the shared reaction_picker.dart (this screen now delegates).
 import 'package:file_selector/file_selector.dart';
@@ -43,7 +41,6 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
-import '../../../core/theme/kinrel_fx.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../l10n/app_localizations.dart';
 // v3.3: AppTime import removed — date grouping moved to ChatMessageList.
@@ -54,7 +51,6 @@ import '../../../core/services/celebration_service.dart';
 // Phase 4 — consolidated image cache manager (used for the header avatar
 // + MessageInfoSheet photo/gif previews so they share the singleton cache
 // and decode at display-size × DPR instead of native resolution).
-import '../../../core/services/image_cache_manager.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../family/data/relationship_label_provider.dart';
 import '../../../core/kinship/kinship_edge_style.dart';
@@ -105,25 +101,6 @@ import 'widgets/selection_mode_toolbar.dart';
 // ═══════════════════════════════════════════════════════════════════════
 // Chat Screen
 // ═══════════════════════════════════════════════════════════════════════
-
-// PERF (Tier C3): Hoisted const shadow list — avoids per-build allocation
-// of the chat avatar's ember glow. The chat-thread screen rebuilds on
-// every new realtime message + every typing-indicator tick, so even a
-// single BoxShadow allocation per rebuild was visible as ~5ms of GC
-// pressure per minute of active chat use.
-//
-// `KinrelColors.ember` is Color(0xFFC44A18). Multiplied by alpha 0.18
-// → Color(0x2EC44A18). RGB matches exactly; alpha is pre-multiplied.
-//
-// PERF (Flat): KinrelFx.shadows returns the empty list in flat mode
-// (no avatar glow). The const list is preserved for rich mode.
-final List<BoxShadow> _kChatAvatarGlow = KinrelFx.shadows(const [
-  BoxShadow(
-    color: Color(0x2EC44A18), // KinrelColors.ember (#C44A18) × alpha 0.18
-    blurRadius: 14,
-    offset: Offset(0, 0),
-  ),
-]);
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({
@@ -2302,9 +2279,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ),
                 ),
                 const SizedBox(width: 10),
-                Text(
+                const Text(
                   'Recording',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     color: ChatUi.textSecondary,
@@ -2314,10 +2291,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // Cancel button
                 GestureDetector(
                   onTap: _cancelRecording,
-                  child: SizedBox(
+                  child: const SizedBox(
                     width: ChatUi.tapTarget,
                     height: ChatUi.tapTarget,
-                    child: const Center(
+                    child: Center(
                       child: Icon(
                         Icons.close,
                         size: 22,

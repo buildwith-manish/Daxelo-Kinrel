@@ -14,7 +14,6 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/feature_flags.dart';
-import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
 import '../../../core/networking/dio_client.dart';
@@ -981,80 +980,6 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-    }
-  }
-
-  /// Leave family dialog — confirms with the user before removing their
-  /// membership. Creators are warned that they must transfer ownership
-  /// or delete the family instead.
-  void _showLeaveFamilyDialog(BuildContext context) {
-    final detailAsync = ref.read(familyDetailProvider(widget.familyId));
-    final family = detailAsync.valueOrNull?.family;
-    final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
-    final isCreator =
-        family != null &&
-        family.createdBy != null &&
-        family.createdBy == currentUserId;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: DKColors.cardColor(context),
-        title: Text(
-          isCreator ? 'Leave Family?' : 'Leave Family?',
-          style: TextStyle(color: DKColors.textPrimary(context)),
-        ),
-        content: Text(
-          isCreator
-              ? 'You are the creator of this family. To leave, you must '
-                    'transfer ownership to another admin or delete the family '
-                    'from Settings. Would you like to open Settings?'
-              : 'Are you sure you want to leave "${family?.name ?? 'this family'}"? '
-                    'You will lose access to the family graph, members, and chat. '
-                    'You can rejoin if you receive a new invite.',
-          style: TextStyle(color: DKColors.textSecondary(context)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: DKColors.textSecondary(context)),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx, true);
-              if (isCreator) {
-                // Redirect creators to settings instead of leaving.
-                _showFamilySettings(context);
-              } else {
-                // Non-creators can leave directly.
-                _leaveFamily();
-              }
-            },
-            child: Text(
-              isCreator ? 'Open Settings' : 'Leave',
-              style: const TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Calls the leave-family API and navigates back to the family list.
-  Future<void> _leaveFamily() async {
-    try {
-      final dio = ref.read(dioProvider);
-      await dio.delete('/families/${widget.familyId}/leave');
-      if (mounted) {
-        context.go('/families');
-      }
-    } catch (e) {
-      if (mounted) {
-        context.showSnackBar('Failed to leave family: $e', isError: true);
-      }
     }
   }
 

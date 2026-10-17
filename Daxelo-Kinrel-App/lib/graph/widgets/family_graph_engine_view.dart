@@ -54,6 +54,8 @@ import '../../features/family/presentation/providers/family_graph_provider.dart'
         justRestoredFromSnapshotProvider, // v5.212: branch-expand flag
         selectedEdgeProvider,
         selectedNodeProvider,
+        wedgeChipSlotsProvider, // viewer-centered wedge layout chips
+        wedgeLayoutSummaryProvider, // wedge visible count + parent map
         unlinkedPersonIdsProvider; // v5.9
 import '../data/graph_data_models.dart' show GraphEdgeData;
 import '../data/position_memory.dart' show PositionMemory;
@@ -130,6 +132,13 @@ import '../interaction/indirect_relation_provider.dart'
 // v5.114: Ego-centric proximity graph state.
 import '../interaction/proximity_graph_state.dart'
     show proximityGraphProvider, ProximityGraphNotifier, buildAdjacency;
+// Viewer-centered wedge layout ("top 8 + chips + search").
+import '../engine/viewer_wedge_layout.dart'
+    show kUseViewerWedgeLayout, WedgePageChip;
+import '../interaction/wedge_view_state.dart'
+    show wedgeViewProvider, shouldShowWedgeCountBadge;
+// Wedge bubble/badge accessibility labels (localized).
+import '../../l10n/app_localizations.dart';
 import '../../core/services/supabase_service.dart' show supabaseProvider, currentUserProvider;
 import '../../core/theme/kinrel_fx.dart';
 import '../../features/family/presentation/services/graph_export_service.dart'
@@ -900,10 +909,13 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   FlatGraphResult? _prewarmedAvatarsFlat;
 
   // v5.143: Branch expand/collapse animation controller.
-  // 280ms easeOut — animates newly-revealed nodes from the chip's
-  // position outward to their computed final positions on expand,
-  // and reverses (nodes converge to chip position) on collapse.
-  // This masks layout-computation latency behind smooth motion.
+  // ~450ms ease-in-out — the SHARED wedge animation: animates newly-
+  // revealed nodes from their parent's position outward to their
+  // computed final positions on expand, glides existing nodes to
+  // their re-divided wedge spots at the same time, and matches the
+  // camera fit duration (420–500ms per the approved preview).
+  // Reduced-motion jumps directly to the final state. This masks
+  // layout-computation latency behind smooth motion.
   AnimationController? _branchExpandController;
   bool _animatingBranchExpand = false;
   Set<String> _branchAnimatingNodeIds = {};
@@ -922,6 +934,60 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // edges follow (edge paths derive from effectivePositions every
   // frame, keeping node + connecting line GLUED together).
   Set<String> _pendingEntranceNodeIds = {};
+
+  // ── Viewer-centered wedge layout state ──────────────────────────
+  //
+  // GLIDE: when the wedge re-divides its angular wedges (a branch
+  // opens or closes), previously-placed nodes GLIDE from their old
+  // auto-layout positions to the new ones over the SAME ~450ms
+  // ease-in-out branch-expand controller that drives the entrance
+  // animation (one shared animation for nodes + camera).
+  // Reduced-motion snaps instantly (no glide). This reuses the
+  // lastLayoutPositionsProvider cache concept: the "from" map is the
+  // previous layout's auto positions, captured on every layout change.
+  Map<String, Offset>? _wedgeGlideFromPositions;
+  bool _wedgeGlideActive = false;
+  Map<String, Offset>? _lastWedgeAutoPositions;
+
+  // Camera fit-to-branch triggers: the wedge view revision + the
+  // person most recently expanded/paged (from wedgeViewProvider). The
+  // engine view animates the camera to fit the opened branch, its
+  // children and its parent once the new layout lands.
+  int _lastWedgeRevision = -1;
+
+  // WEDGE PAGE CHIP: the chip owner awaiting the 500ms tap-vs-longpress
+  // discrimination timer (same pattern as _pendingChipTapBranch —
+  // Flutter Web's gesture arena makes the chip's own GestureDetector
+  // unreliable, so taps are intercepted geometrically).
+  String? _pendingWedgeChipTapPersonId;
+
+  // TAP-VS-DRAG: where the current (potential) tap started. The raw
+  // pointer-move Listener on the canvas cancels pending deferred chip
+  // taps once the pointer drags more than 6 px from this spot.
+  Offset? _lastCanvasTapDownPosition;
+
+  // WEDGE PAGE CHIP FADE-OUT: the previous frame's chip slots (for
+  // detecting a hub that just paged to its very end) + the ghosts that
+  // are fading out at their last reserved slots. _wedgeFadeCleanupTimer
+  // clears the ghosts after one fade cycle.
+  Map<String, WedgePageChip>? _lastSeenWedgeChipSlots;
+  final Map<String, WedgePageChip> _wedgeFadingChips = {};
+  Timer? _wedgeFadeCleanupTimer;
+
+  // PAINTED CAMERA: the camera matrix the LAST BUILT frame rendered
+  // with. Geometric hit-tests (wedge "+N" bubbles, nodes) must convert
+  // tap positions with the matrix the USER SAW when they tapped — not
+  // the live controller state, which can be ahead of the render while
+  // a fit animation is in flight (one frame in production; more in
+  // tests, where a single pump fires many animation ticks before
+  // building). Null until the first canvas build (fall back to live).
+  Matrix4? _paintedCameraMatrix;
+
+  // WEDGE COUNT BADGES: the precomputed connection-degree map (one
+  // entry per person with ≥1 relationship — "+11" badges). Memoized
+  // on the identity of the full-family edge list, exactly like
+  // _cachedChildCountById above it.
+  Map<String, int>? _cachedConnectionCountById;
 
   @override
   void initState() {
@@ -1005,10 +1071,12 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _loadController!.addListener(_onLoadAnimationTick);
 
     // v5.143: Branch expand/collapse animation controller.
-    // 280ms easeOut for smooth node reveal/converge.
+    // ~450ms ease-in-out — the SHARED wedge animation duration (node
+    // glide + entrance + camera fit all run this window; see the field
+    // docs above).
     _branchExpandController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 280),
+      duration: const Duration(milliseconds: 450),
     );
     _branchExpandController!.addStatusListener(_onBranchExpandStatus);
     _branchExpandController!.addListener(_onBranchExpandTick);
@@ -1210,6 +1278,10 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   void dispose() {
     _telemetryTimer?.cancel();
     _cameraRebuildTimer?.cancel(); // v5.x (perf fix)
+    // WEDGE PAGE CHIP fade-out cleanup — never fire setState on a
+    // disposed state.
+    _wedgeFadeCleanupTimer?.cancel();
+    _wedgeFadeCleanupTimer = null;
     // PERF (Phase 2 — Task 5): cancel any pending gesture-settle
     // timer so the delayed setState doesn't fire on a disposed
     // state (would throw "setState() called after dispose()").
@@ -1261,14 +1333,34 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // of ref.read — using ref after the element has been disposed throws
     // "Bad state: Cannot use ref after the widget was disposed" during
     // tree finalization (test teardown hit this).
-    _focusNotifierForCleanup.clearAll();
-    // v5.74 (BUG 1 FIX): Clear the selectedNodeProvider on dispose.
-    // This is a global StateProvider that survives screen exits —
-    // without clearing it, a node selected in a prior session stays
-    // "selected" (highlighted with a glow ring) when the user returns
-    // to the graph, even though they didn't tap anything. This caused
-    // the "Manish's node appears highlighted without being tapped" bug.
-    _selectedNodeNotifierForCleanup.state = null;
+    //
+    // v6.2 (DEFUNCT-ELEMENT FIX): the global-provider cleanup writes are
+    // DEFERRED to a post-frame callback. Writing them synchronously in
+    // dispose() notifies this element's OWN still-registered riverpod
+    // subscriptions (riverpod clears them only AFTER super.dispose()
+    // returns), and markNeedsBuild on the already-defunct element trips
+    // "_lifecycleState != _ElementLifecycle.defunct" during the unmount
+    // walk — in tests deterministically, in production on any screen
+    // exit where another live listener also watches these providers.
+    // By the next frame the subscriptions are gone, so the writes only
+    // reach genuinely-live listeners.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // The provider container may itself be gone by now (e.g. the
+      // ProviderScope unmounted in the same frame, or the test torn
+      // down) — a disposed notifier has nothing left to clear.
+      if (_focusNotifierForCleanup.mounted) {
+        _focusNotifierForCleanup.clearAll();
+      }
+      // v5.74 (BUG 1 FIX): Clear the selectedNodeProvider on dispose.
+      // This is a global StateProvider that survives screen exits —
+      // without clearing it, a node selected in a prior session stays
+      // "selected" (highlighted with a glow ring) when the user returns
+      // to the graph, even though they didn't tap anything. This caused
+      // the "Manish's node appears highlighted without being tapped" bug.
+      if (_selectedNodeNotifierForCleanup.mounted) {
+        _selectedNodeNotifierForCleanup.state = null;
+      }
+    });
     // v5.123 (Step 5): Detach the expansion-persistence callback — the
     // captured `ref` in its closure must never be used after disposal.
     _branchCollapseNotifierForCleanup.onExpansionChanged = null;
@@ -1667,7 +1759,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
 
   void _onBranchExpandTick() {
     if (!mounted) return;
-    _branchAnimationProgress = Curves.easeOut.transform(
+    // ease-in-out — the approved-preview curve for the shared node +
+    // camera animation (matches CameraController.animateTo's default).
+    _branchAnimationProgress = Curves.easeInOut.transform(
       _branchExpandController!.value,
     );
     _rearrangeDragRevision++;
@@ -1680,6 +1774,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _animatingBranchExpand = false;
     _branchAnimatingNodeIds = {};
     _branchAnimationProgress = 1.0;
+    // Wedge glide cleanup — the nodes have reached their new spots.
+    _wedgeGlideActive = false;
+    _wedgeGlideFromPositions = null;
     setState(() {});
   }
 
@@ -2428,11 +2525,26 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // around the anchor (so first-degree relationships are visible),
   // clamped to [0.35, 1.3] for readability.
 
+  /// WEDGE MODE: the current "+N" page-bubble slot centres (empty in
+  /// radial mode) — included in the initial/recenter camera fit so the
+  /// pager is never left off-screen.
+  List<Offset> _currentWedgeChipSlotCenters() {
+    if (!kUseViewerWedgeLayout) return const <Offset>[];
+    try {
+      final chips = ref.read(wedgeChipSlotsProvider(widget.familyId));
+      if (chips == null || chips.isEmpty) return const <Offset>[];
+      return [for (final chip in chips.values) chip.slotCenter];
+    } catch (_) {
+      return const <Offset>[];
+    }
+  }
+
   ({double panX, double panY, double zoom}) _computeAnchorCenteredCamera({
     required Offset anchorPos,
     required Size viewportSize,
     required double bottomChrome,
     required Map<String, Offset> allPositions,
+    List<Offset> extraFitPoints = const <Offset>[],
   }) {
     // The visual circle center in graph space (the circle sits at
     // the top of the node's Column, offset by _kCircleCenterYOffset
@@ -2451,6 +2563,14 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     for (final pos in allPositions.values) {
       final dx = (pos.dx - anchorPos.dx).abs();
       final dy = (pos.dy - anchorPos.dy).abs();
+      if (dx > maxDistX) maxDistX = dx;
+      if (dy > maxDistY) maxDistY = dy;
+    }
+    // WEDGE MODE: the "+N" page-bubble slots join the initial fit —
+    // the pager must be on-screen (the nodes alone can leave it out).
+    for (final point in extraFitPoints) {
+      final dx = (point.dx - anchorPos.dx).abs();
+      final dy = (point.dy - anchorPos.dy).abs();
       if (dx > maxDistX) maxDistX = dx;
       if (dy > maxDistY) maxDistY = dy;
     }
@@ -2561,6 +2681,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         viewportSize: _viewportSize,
         bottomChrome: widget.bottomChromeHeight,
         allPositions: layout.positions,
+        extraFitPoints: _currentWedgeChipSlotCenters(),
       );
 
       _camera.animateTo(
@@ -2640,6 +2761,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       viewportSize: _viewportSize,
       bottomChrome: widget.bottomChromeHeight,
       allPositions: layout.positions,
+      extraFitPoints: _currentWedgeChipSlotCenters(),
     );
 
     _camera.animateTo(
@@ -2735,6 +2857,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       viewportSize: _viewportSize,
       bottomChrome: widget.bottomChromeHeight,
       allPositions: layout.positions,
+      extraFitPoints: _currentWedgeChipSlotCenters(),
     );
 
     if (reduced) {

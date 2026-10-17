@@ -27,7 +27,6 @@ import '../../../../../core/constants/brand_colors.dart';
 import '../../../../../core/constants/brand_spacing.dart';
 import '../../../../../core/kinship/kinship_edge_style.dart';
 import '../chat_ui_tokens.dart';
-import '../../../../../core/theme/kinrel_fx.dart';
 import '../../providers/chat_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -258,10 +257,10 @@ class ReactionOverlay extends StatelessWidget {
                         GestureDetector(
                           onTap: onMoreTap,
                           behavior: HitTestBehavior.opaque,
-                          child: SizedBox(
+                          child: const SizedBox(
                             width: 40,
                             height: 40,
-                            child: const Center(
+                            child: Center(
                               child: Icon(
                                 Icons.add,
                                 color: ChatUi.reactionPlus,

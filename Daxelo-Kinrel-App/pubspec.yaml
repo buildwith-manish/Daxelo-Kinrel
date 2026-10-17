@@ -173,6 +173,11 @@ dependencies:
 
 # path_provider_foundation 2.6.0 requires objective_c ^9.2.1; thermion_flutter
 # (forked) allows >=8.1.0 <10.0.0. Pin to 9.4.0 (last 9.x using hooks ^1.0.0).
+  characters: any
+  http_parser: any
+  path: any
+  cross_file: any
+  postgrest: any
 dependency_overrides:
   objective_c: 9.4.0
 

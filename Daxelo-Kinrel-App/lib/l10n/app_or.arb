@@ -90,5 +90,19 @@
   "familyMapLegendTierStale": "ପୁରୁଣା",
   "familyMapLegendTierStaleDesc": "< 1 ଘଣ୍ଟା ପୂର୍ବେ",
   "familyMapLegendTierCity": "ସହର",
-  "familyMapLegendTierCityDesc": "ସହର କେନ୍ଦ୍ର"
+  "familyMapLegendTierCityDesc": "ସହର କେନ୍ଦ୍ର",
+  "graphShowingCount": "ମୋଟ {total} ମଧ୍ୟରୁ {shown} ବ୍ୟକ୍ତି ଦେଖାଯାଉଛନ୍ତି।",
+  "graphFilterAll": "ସମସ୍ତ {count}",
+  "graphCatSelf": "ଆପଣ",
+  "graphCatSpouse": "ଜୀବନସାଥୀ",
+  "graphCatParent": "ପିତାମାତା",
+  "graphCatChild": "ପିଲାମାନେ",
+  "graphCatSibling": "ଭାଇଭଉଣୀ",
+  "graphCatGrandparent": "ଜେଜେବାପା-ଜେଜେମା",
+  "graphCatAuntUncle": "କାକା-ମାମୁ",
+  "graphCatCousin": "ପିଉତୁ ଭାଇଭଉଣୀ",
+  "graphCatInLaw": "ଶଶୁର",
+  "graphCatExtended": "ବିସ୍ତୃତ ପରିବାର",
+  "graphCatIndirect": "ପରୋକ୍ଷ",
+  "graphMorePeople": "{count} ଅଧିକ ଲୋକଙ୍କୁ ଦେଖାନ୍ତୁ, ଦୁଇଥର ଟାପ୍ କରନ୍ତୁ"
 }

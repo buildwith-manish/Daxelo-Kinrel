@@ -36,10 +36,7 @@ class ThinkingInboxScreen extends ConsumerStatefulWidget {
 
 class _ThinkingInboxScreenState extends ConsumerState<ThinkingInboxScreen> {
   List<Map<String, dynamic>> _taps = const [];
-  int _unreadCount = 0;
   bool _loading = true;
-  bool _markingRead = false;
-
   @override
   void initState() {
     super.initState();
@@ -69,7 +66,6 @@ class _ThinkingInboxScreenState extends ConsumerState<ThinkingInboxScreen> {
             .toList();
         setState(() {
           _taps = taps;
-          _unreadCount = (resp['unread_count'] ?? 0) as int;
           _loading = false;
         });
       } else {
@@ -83,14 +79,12 @@ class _ThinkingInboxScreenState extends ConsumerState<ThinkingInboxScreen> {
   Future<void> _markRead() async {
     final client = ref.read(supabaseProvider);
     if (client == null || client.auth.currentUser == null) return;
-    setState(() => _markingRead = true);
     try {
       await client.rpc('fn_mark_taps_read', params: {
         'p_user_id': client.auth.currentUser!.id,
         'p_family_id': widget.familyId,
       });
     } catch (_) {}
-    if (mounted) setState(() => _markingRead = false);
   }
 
   @override

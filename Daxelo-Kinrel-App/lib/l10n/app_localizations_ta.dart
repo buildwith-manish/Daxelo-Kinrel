@@ -703,4 +703,52 @@ class STa extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name எதிர்வினை தெரிவித்தார் $emoji';
   }
+
+  @override
+  String graphShowingCount(int shown, int total) {
+    return 'மொத்தம் $total பேரில் $shown பேர் காட்டப்படுகிறார்கள்.';
+  }
+
+  @override
+  String graphFilterAll(int count) {
+    return 'அனைத்தும் $count';
+  }
+
+  @override
+  String get graphCatSelf => 'நீங்கள்';
+
+  @override
+  String get graphCatSpouse => 'வாழ்க்கைத் துணை';
+
+  @override
+  String get graphCatParent => 'பெற்றோர்';
+
+  @override
+  String get graphCatChild => 'குழந்தைகள்';
+
+  @override
+  String get graphCatSibling => 'உடன்பிறப்புகள்';
+
+  @override
+  String get graphCatGrandparent => 'தாத்தா-பாட்டி';
+
+  @override
+  String get graphCatAuntUncle => 'அத்தை-மாமா';
+
+  @override
+  String get graphCatCousin => 'உறவினர்கள்';
+
+  @override
+  String get graphCatInLaw => 'மாமியார் உறவினர்';
+
+  @override
+  String get graphCatExtended => 'விரிவான குடும்பம்';
+
+  @override
+  String get graphCatIndirect => 'மறைமுக';
+
+  @override
+  String graphMorePeople(int count) {
+    return '$count மேலும் நபர்களைக் காட்டு, இருமுறை தட்டவும்';
+  }
 }

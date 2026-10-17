@@ -123,8 +123,8 @@ class FamilyInsightsService {
     // ── Generation count: find the max generation index among members.
     int generationCount = 1;
     for (final m in members) {
-      if ((m.generationIndex ?? 0) + 1 > generationCount) {
-        generationCount = (m.generationIndex ?? 0) + 1;
+      if (m.generationIndex + 1 > generationCount) {
+        generationCount = m.generationIndex + 1;
       }
     }
 

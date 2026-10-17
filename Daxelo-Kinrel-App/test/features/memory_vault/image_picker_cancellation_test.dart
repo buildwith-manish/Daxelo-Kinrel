@@ -27,7 +27,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cross_file/cross_file.dart';
@@ -104,10 +103,10 @@ void main() {
         (tester) async {
       // Build the screen.
       await tester.pumpWidget(
-        ProviderScope(
-          overrides: const [],
+        const ProviderScope(
+          overrides: [],
           child: MaterialApp(
-            home: const MemoryCreateScreen(),
+            home: MemoryCreateScreen(),
           ),
         ),
       );
@@ -142,10 +141,10 @@ void main() {
 
     testWidgets('initial render shows no error (regression check)', (tester) async {
       await tester.pumpWidget(
-        ProviderScope(
-          overrides: const [],
+        const ProviderScope(
+          overrides: [],
           child: MaterialApp(
-            home: const MemoryCreateScreen(),
+            home: MemoryCreateScreen(),
           ),
         ),
       );

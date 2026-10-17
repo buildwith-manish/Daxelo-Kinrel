@@ -2,7 +2,7 @@
 //
 // Pure-Dart unit tests for the retention systems contract.
 
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/features/games/retention/coin_models.dart';
 import 'package:kinrel/features/games/retention/create_content_sheet.dart';
 

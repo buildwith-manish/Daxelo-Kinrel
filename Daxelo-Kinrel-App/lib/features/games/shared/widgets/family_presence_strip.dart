@@ -260,7 +260,7 @@ class _StripContent extends StatelessWidget {
               color: KinrelColors.tealAccent,
               shape: BoxShape.circle,
               boxShadow: KinrelFx.shadows([
-                BoxShadow(
+                const BoxShadow(
                   color: KinrelColors.tealAccent,
                   blurRadius: 6,
                 ),

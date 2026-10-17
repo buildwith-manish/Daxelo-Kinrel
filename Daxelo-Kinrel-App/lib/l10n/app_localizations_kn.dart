@@ -700,4 +700,52 @@ class SKn extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name ಪ್ರತಿಕ್ರಿಯಿಸಿದರು $emoji';
   }
+
+  @override
+  String graphShowingCount(int shown, int total) {
+    return 'ಒಟ್ಟು $total ರಲ್ಲಿ $shown ಜನರನ್ನು ತೋರಿಸಲಾಗುತ್ತಿದೆ.';
+  }
+
+  @override
+  String graphFilterAll(int count) {
+    return 'ಎಲ್ಲಾ $count';
+  }
+
+  @override
+  String get graphCatSelf => 'ನೀವು';
+
+  @override
+  String get graphCatSpouse => 'ಜೀವನ ಸಂಗಾತಿ';
+
+  @override
+  String get graphCatParent => 'ಪೋಷಕರು';
+
+  @override
+  String get graphCatChild => 'ಮಕ್ಕಳು';
+
+  @override
+  String get graphCatSibling => 'ಒಡಹುಟ್ಟಿದವರು';
+
+  @override
+  String get graphCatGrandparent => 'ಅಜ್ಜ-ಅಜ್ಜಿ';
+
+  @override
+  String get graphCatAuntUncle => 'ಚಿಕ್ಕಪ್ಪ-ಮಾವ';
+
+  @override
+  String get graphCatCousin => 'ಸಂಬಂಧಿಕರು';
+
+  @override
+  String get graphCatInLaw => 'ವಿವಾಹ ಸಂಬಂಧಿಗಳು';
+
+  @override
+  String get graphCatExtended => 'ವಿಸ್ತೃತ ಕುಟುಂಬ';
+
+  @override
+  String get graphCatIndirect => 'ಪರೋಕ್ಷ';
+
+  @override
+  String graphMorePeople(int count) {
+    return '$count ಹೆಚ್ಚಿನ ಜನರನ್ನು ತೋರಿಸಿ, ಎರಡು ಬಾರಿ ಟ್ಯಾಪ್ ಮಾಡಿ';
+  }
 }

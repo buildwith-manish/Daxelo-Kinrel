@@ -700,4 +700,52 @@ class SPa extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name reacted $emoji';
   }
+
+  @override
+  String graphShowingCount(int shown, int total) {
+    return 'ਕੁੱਲ $total ਵਿੱਚੋਂ $shown ਵਿਅਕਤੀ ਦਿਖਾਏ ਜਾ ਰਹੇ ਹਨ।';
+  }
+
+  @override
+  String graphFilterAll(int count) {
+    return 'ਸਭ $count';
+  }
+
+  @override
+  String get graphCatSelf => 'ਤੁਸੀਂ';
+
+  @override
+  String get graphCatSpouse => 'ਜੀਵਨ ਸਾਥੀ';
+
+  @override
+  String get graphCatParent => 'ਮਾਪੇ';
+
+  @override
+  String get graphCatChild => 'ਬੱਚੇ';
+
+  @override
+  String get graphCatSibling => 'ਭੈਣ-ਭਰਾ';
+
+  @override
+  String get graphCatGrandparent => 'ਦਾਦਾ-ਦਾਦੀ';
+
+  @override
+  String get graphCatAuntUncle => 'ਚਾਚੇ-ਮਾਮੇ';
+
+  @override
+  String get graphCatCousin => 'ਚਚੇਰੇ ਭੈਣ-ਭਰਾ';
+
+  @override
+  String get graphCatInLaw => 'ਸਹੁਰਾ';
+
+  @override
+  String get graphCatExtended => 'ਵਿਸਤ੍ਰਿਤ ਪਰਿਵਾਰ';
+
+  @override
+  String get graphCatIndirect => 'ਅਸਿੱਧਾ';
+
+  @override
+  String graphMorePeople(int count) {
+    return '$count ਹੋਰ ਲੋਕ ਵੇਖੋ, ਦੋ ਵਾਰ ਟੈਪ ਕਰੋ';
+  }
 }

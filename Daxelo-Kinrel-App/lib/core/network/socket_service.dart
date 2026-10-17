@@ -1787,7 +1787,7 @@ class SocketService {
 
     try {
       final db = IsarDatabase.instance;
-      return db.getSetting('lastSyncTimestamp');
+      return await db.getSetting('lastSyncTimestamp');
     } catch (e) {
       debugPrint('[SocketService] Error reading lastSyncTimestamp: $e');
       return null;

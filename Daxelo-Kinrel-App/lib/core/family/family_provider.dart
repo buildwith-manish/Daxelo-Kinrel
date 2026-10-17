@@ -1114,7 +1114,7 @@ final familyRelationshipsProvider =
 
         final list = response as List;
         if (list.length > 20) {
-          return compute(_parseRelationshipList, list);
+          return await compute(_parseRelationshipList, list);
         }
         final relationships = list
             .map(

@@ -700,4 +700,52 @@ class SEn extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name reacted $emoji';
   }
+
+  @override
+  String graphShowingCount(int shown, int total) {
+    return 'Showing $shown of $total persons.';
+  }
+
+  @override
+  String graphFilterAll(int count) {
+    return 'All $count';
+  }
+
+  @override
+  String get graphCatSelf => 'You';
+
+  @override
+  String get graphCatSpouse => 'Spouse';
+
+  @override
+  String get graphCatParent => 'Parents';
+
+  @override
+  String get graphCatChild => 'Children';
+
+  @override
+  String get graphCatSibling => 'Siblings';
+
+  @override
+  String get graphCatGrandparent => 'Grandparents';
+
+  @override
+  String get graphCatAuntUncle => 'Aunts & uncles';
+
+  @override
+  String get graphCatCousin => 'Cousins';
+
+  @override
+  String get graphCatInLaw => 'In-laws';
+
+  @override
+  String get graphCatExtended => 'Extended';
+
+  @override
+  String get graphCatIndirect => 'Indirect';
+
+  @override
+  String graphMorePeople(int count) {
+    return 'Show $count more people, double tap to reveal';
+  }
 }

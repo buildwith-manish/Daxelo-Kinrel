@@ -143,12 +143,6 @@ class _BounceButtonState extends State<BounceButton>
     super.dispose();
   }
 
-  bool get _reduceMotion {
-    // MediaQuery may not be available in initState, so we read it
-    // lazily in build. Accessible navigation disables the spring.
-    return false; // actual check happens in build via MediaQuery
-  }
-
   void _onTapDown(_) {
     if (!widget.enabled || widget.onPressed == null) return;
     _controller.forward();

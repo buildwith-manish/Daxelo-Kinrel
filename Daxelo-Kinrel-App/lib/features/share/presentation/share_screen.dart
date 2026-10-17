@@ -2954,7 +2954,7 @@ class _ExportOptionsSection extends ConsumerWidget {
         ),
       );
 
-      return pdf.save();
+      return await pdf.save();
     } catch (e) {
       return null;
     }

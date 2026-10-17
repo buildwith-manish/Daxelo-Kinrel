@@ -700,4 +700,52 @@ class SMr extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name ने प्रतिक्रिया दिली $emoji';
   }
+
+  @override
+  String graphShowingCount(int shown, int total) {
+    return 'एकूण $total पैकी $shown व्यक्ती दाखवल्या जात आहेत.';
+  }
+
+  @override
+  String graphFilterAll(int count) {
+    return 'सर्व $count';
+  }
+
+  @override
+  String get graphCatSelf => 'तुम्ही';
+
+  @override
+  String get graphCatSpouse => 'जोडीदार';
+
+  @override
+  String get graphCatParent => 'आईवडील';
+
+  @override
+  String get graphCatChild => 'मुले';
+
+  @override
+  String get graphCatSibling => 'भावंडे';
+
+  @override
+  String get graphCatGrandparent => 'आजोबा';
+
+  @override
+  String get graphCatAuntUncle => 'काका-मामा';
+
+  @override
+  String get graphCatCousin => 'चुलत भावंडे';
+
+  @override
+  String get graphCatInLaw => 'सासरे';
+
+  @override
+  String get graphCatExtended => 'विस्तृत कुटुंब';
+
+  @override
+  String get graphCatIndirect => 'अप्रत्यक्ष';
+
+  @override
+  String graphMorePeople(int count) {
+    return '$count अधिक लोक दाखवा, दोनदा टॅप करा';
+  }
 }

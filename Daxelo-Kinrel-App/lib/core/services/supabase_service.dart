@@ -420,7 +420,7 @@ class AuthService {
       // — shouldn't happen, but be safe), and fail cleanly with the
       // standard Supabase error for username logins.
       try {
-        return signIn(email: username, password: password);
+        return await signIn(email: username, password: password);
       } on AuthException {
         rethrow;
       } catch (_) {

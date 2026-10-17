@@ -15,11 +15,9 @@
 //   All three views read from the SAME `family_memories` table — no
 //   duplication. Memory Vault filters to `is_pinned_to_vault = true`.
 
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
@@ -27,7 +25,6 @@ import '../../../core/services/premium_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/database/isar_database.dart';
-import '../../../core/database/sync/connectivity_service.dart';
 import '../data/memory_model.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -219,7 +216,6 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
 
   final Ref _ref;
   static const _tableName = 'family_memories';
-  static const _bucketName = 'family-memories';
   static const _imageBucketName = 'memory-images';
   static const _uuid = Uuid();
 
@@ -746,7 +742,6 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
         return;
       }
 
-      final familyId = _getCurrentFamilyId();
       final memory = previousMemories.firstWhere(
         (m) => m.id == memoryId,
         orElse: () => MemoryModel.placeholder(memoryId),
@@ -900,30 +895,6 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
 // ═══════════════════════════════════════════════════════════════════════
 // Image Compression Isolate
 // ═══════════════════════════════════════════════════════════════════════
-
-/// Parameters passed to the compress isolate.
-class _CompressParams {
-  const _CompressParams(this.filePath, this.quality);
-  final String filePath;
-  final int quality;
-}
-
-/// Compresses an image file in a background isolate.
-/// Returns the compressed bytes as Uint8List.
-///
-/// NOTE: dart:ui (Flutter's image library) cannot run in a pure isolate
-/// without additional setup. For production JPEG compression, you'd
-/// use `flutter_image_compress` (which uses native platform code).
-/// The crop editor already returns PNG bytes bounded by the crop
-/// boundary size — passing those bytes through here is a no-op that
-/// preserves the existing call site signature.
-Future<Uint8List> _compressImageIsolate(_CompressParams params) async {
-  final file = File(params.filePath);
-  if (!await file.exists()) {
-    throw FileSystemException('File not found: ${params.filePath}');
-  }
-  return file.readAsBytes();
-}
 
 // ═══════════════════════════════════════════════════════════════════════
 // Providers

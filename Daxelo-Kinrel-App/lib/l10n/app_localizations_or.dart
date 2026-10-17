@@ -700,4 +700,52 @@ class SOr extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name reacted $emoji';
   }
+
+  @override
+  String graphShowingCount(int shown, int total) {
+    return 'ମୋଟ $total ମଧ୍ୟରୁ $shown ବ୍ୟକ୍ତି ଦେଖାଯାଉଛନ୍ତି।';
+  }
+
+  @override
+  String graphFilterAll(int count) {
+    return 'ସମସ୍ତ $count';
+  }
+
+  @override
+  String get graphCatSelf => 'ଆପଣ';
+
+  @override
+  String get graphCatSpouse => 'ଜୀବନସାଥୀ';
+
+  @override
+  String get graphCatParent => 'ପିତାମାତା';
+
+  @override
+  String get graphCatChild => 'ପିଲାମାନେ';
+
+  @override
+  String get graphCatSibling => 'ଭାଇଭଉଣୀ';
+
+  @override
+  String get graphCatGrandparent => 'ଜେଜେବାପା-ଜେଜେମା';
+
+  @override
+  String get graphCatAuntUncle => 'କାକା-ମାମୁ';
+
+  @override
+  String get graphCatCousin => 'ପିଉତୁ ଭାଇଭଉଣୀ';
+
+  @override
+  String get graphCatInLaw => 'ଶଶୁର';
+
+  @override
+  String get graphCatExtended => 'ବିସ୍ତୃତ ପରିବାର';
+
+  @override
+  String get graphCatIndirect => 'ପରୋକ୍ଷ';
+
+  @override
+  String graphMorePeople(int count) {
+    return '$count ଅଧିକ ଲୋକଙ୍କୁ ଦେଖାନ୍ତୁ, ଦୁଇଥର ଟାପ୍ କରନ୍ତୁ';
+  }
 }

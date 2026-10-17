@@ -16,7 +16,69 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kinrel/features/memories/presentation/memories_screen.dart';
 import 'package:kinrel/features/memories/providers/memories_provider.dart';
+import 'package:kinrel/features/memory_vault/data/memory_model.dart';
+import 'package:kinrel/features/memory_vault/providers/memory_vault_provider.dart';
 import '../../helpers/native_plugin_mocks.dart';
+
+/// A vault notifier pre-seeded with [memories] that never touches
+/// Supabase — the MemoriesScreen reads `displayMemoriesProvider`
+/// (memoryVaultProvider's memories + memoriesProvider's filter), so
+/// widget tests must seed the VAULT for the screen to see any data
+/// (the legacy `memoriesProvider.loadDemoData()` alone is invisible
+/// to the screen since the "save not persisting" fix).
+class _SeededVaultNotifier extends MemoryVaultNotifier {
+  _SeededVaultNotifier(Ref ref, List<MemoryModel> memories) : super(ref) {
+    state = MemoryVaultState(memories: memories);
+  }
+
+  @override
+  Future<void> loadMemories() async {
+    // Seeded — no Supabase fetch in tests (also protects the seed from
+    // the provider's auto-load microtask).
+  }
+}
+
+/// Builds a container whose vault is pre-seeded with memories whose
+/// years/types/pins mirror the legacy demo events the tests assert
+/// against (2024 among the years, at least one pinned).
+ProviderContainer _containerWithSeededVault() {
+  MemoryModel vaultMemory(
+    String id,
+    String title,
+    int year, {
+    bool pinned = false,
+    String type = 'Festival',
+  }) =>
+      MemoryModel(
+        id: id,
+        familyId: 'fam_test',
+        uploaderId: 'uploader_1',
+        uploaderName: 'Test Uploader',
+        photoUrl: '',
+        caption: title,
+        takenAt: DateTime(year, 6, 15),
+        createdAt: DateTime(year, 6, 15),
+        updatedAt: DateTime(year, 6, 15),
+        title: title,
+        memoryType: type,
+        isPinnedToVault: pinned,
+      );
+
+  return ProviderContainer(
+    overrides: [
+      memoryVaultProvider.overrideWith(
+        (ref) => _SeededVaultNotifier(
+          ref,
+          [
+            vaultMemory('m-2023', 'Raksha Bandhan 2023', 2023),
+            vaultMemory('m-2024', 'Diwali 2024', 2024, pinned: true),
+            vaultMemory('m-2025', 'Holi 2025', 2025, type: 'Wedding'),
+          ],
+        ),
+      ),
+    ],
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -409,10 +471,10 @@ void main() {
   group('MemoriesScreen — filter pill visual states', () {
     testWidgets('renders all three pills in inactive state by default',
         (tester) async {
-      // Use an override to load demo data for this test.
-      final container = ProviderContainer();
+      // Seed the VAULT (the screen's data source) — see
+      // [_containerWithSeededVault].
+      final container = _containerWithSeededVault();
       addTearDown(container.dispose);
-      container.read(memoriesProvider.notifier).loadDemoData();
 
       await tester.pumpWidget(
         UncontrolledProviderScope(
@@ -433,9 +495,8 @@ void main() {
 
     testWidgets('year filter pill shows active label and "Clear filters" link',
         (tester) async {
-      final container = ProviderContainer();
+      final container = _containerWithSeededVault();
       addTearDown(container.dispose);
-      container.read(memoriesProvider.notifier).loadDemoData();
       container.read(memoriesProvider.notifier).setYearFilter(2024);
 
       await tester.pumpWidget(
@@ -456,9 +517,8 @@ void main() {
 
     testWidgets('clear filters resets the pills to their default state',
         (tester) async {
-      final container = ProviderContainer();
+      final container = _containerWithSeededVault();
       addTearDown(container.dispose);
-      container.read(memoriesProvider.notifier).loadDemoData();
       container.read(memoriesProvider.notifier).setYearFilter(2024);
       container.read(memoriesProvider.notifier).clearFilters();
 
@@ -510,12 +570,12 @@ void main() {
     testWidgets(
         'tapping the pin-count badge filters to pinned-only and shows the "view all" banner',
         (tester) async {
-      final container = ProviderContainer();
+      final container = _containerWithSeededVault();
       addTearDown(container.dispose);
-      container.read(memoriesProvider.notifier).loadDemoData();
-      final pinnedCount = container.read(memoriesProvider).pinnedCount;
+      // The seeded vault has exactly one pinned memory (Diwali 2024).
+      final pinnedCount = container.read(displayMemoriesProvider).pinnedCount;
       expect(pinnedCount, greaterThan(0),
-          reason: 'Demo data has at least one pinned event by default.');
+          reason: 'The seeded vault has at least one pinned memory.');
 
       await tester.pumpWidget(
         UncontrolledProviderScope(

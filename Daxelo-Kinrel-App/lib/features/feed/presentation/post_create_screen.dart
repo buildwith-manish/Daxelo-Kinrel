@@ -608,11 +608,11 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
             ),
           ),
           const SizedBox(width: 12),
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Also add this to our family timeline',
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
@@ -621,8 +621,8 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
                     color: _cTextPrimary,
                   ),
                 ),
-                const SizedBox(height: 2),
-                const Text(
+                SizedBox(height: 2),
+                Text(
                   'Creates a Timeline entry from this post — text + first '
                   'photo (if any). The link is one-time at creation; '
                   'editing or deleting this post later won\'t touch the '

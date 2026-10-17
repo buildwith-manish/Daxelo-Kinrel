@@ -121,5 +121,19 @@
   "chatSystemMessageUserLeft": "{name} ರೂಮ್ ಬಿಟ್ಟು ಹೋದರು",
   "chatSystemMessageUserDisconnected": "{name} ಸಂಪರ್ಕ ಕಡಿತಗೊಂಡಿದೆ",
   "chatSystemMessageRoomClosed": "{name} ರೂಮ್ ಮುಚ್ಚಿದರು",
-  "chatSystemMessageUserReacted": "{name} ಪ್ರತಿಕ್ರಿಯಿಸಿದರು {emoji}"
+  "chatSystemMessageUserReacted": "{name} ಪ್ರತಿಕ್ರಿಯಿಸಿದರು {emoji}",
+  "graphShowingCount": "ಒಟ್ಟು {total} ರಲ್ಲಿ {shown} ಜನರನ್ನು ತೋರಿಸಲಾಗುತ್ತಿದೆ.",
+  "graphFilterAll": "ಎಲ್ಲಾ {count}",
+  "graphCatSelf": "ನೀವು",
+  "graphCatSpouse": "ಜೀವನ ಸಂಗಾತಿ",
+  "graphCatParent": "ಪೋಷಕರು",
+  "graphCatChild": "ಮಕ್ಕಳು",
+  "graphCatSibling": "ಒಡಹುಟ್ಟಿದವರು",
+  "graphCatGrandparent": "ಅಜ್ಜ-ಅಜ್ಜಿ",
+  "graphCatAuntUncle": "ಚಿಕ್ಕಪ್ಪ-ಮಾವ",
+  "graphCatCousin": "ಸಂಬಂಧಿಕರು",
+  "graphCatInLaw": "ವಿವಾಹ ಸಂಬಂಧಿಗಳು",
+  "graphCatExtended": "ವಿಸ್ತೃತ ಕುಟುಂಬ",
+  "graphCatIndirect": "ಪರೋಕ್ಷ",
+  "graphMorePeople": "{count} ಹೆಚ್ಚಿನ ಜನರನ್ನು ತೋರಿಸಿ, ಎರಡು ಬಾರಿ ಟ್ಯಾಪ್ ಮಾಡಿ"
 }

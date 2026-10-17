@@ -31,7 +31,6 @@ import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/family/family_provider.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../data/direct_group_service.dart';
-import '../../providers/chat_provider.dart';
 
 class ForwardPickerSheet extends ConsumerStatefulWidget {
   const ForwardPickerSheet({
@@ -426,11 +425,11 @@ class _ForwardPickerSheetState extends ConsumerState<ForwardPickerSheet> {
               ),
             ),
           ),
-          error: (_, __) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            child: Text(
+          error: (_, __) => const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: const Text(
               'Could not load direct messages',
-              style: TextStyle(color: KinrelColors.textDim, fontSize: 13),
+              style: const TextStyle(color: KinrelColors.textDim, fontSize: 13),
             ),
           ),
         );

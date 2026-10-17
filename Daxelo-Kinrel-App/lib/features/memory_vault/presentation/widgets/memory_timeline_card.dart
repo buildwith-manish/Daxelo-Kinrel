@@ -39,12 +39,10 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/services/image_cache_manager.dart';
-import '../../../../core/theme/kinrel_fx.dart';
 import '../../data/memory_model.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────
 const _cOrange = KinrelColors.orange;
-const _cBg = KinrelColors.darkBackground;
 const _cCard = KinrelColors.darkCard;
 const _cElevated = KinrelColors.darkElevated;
 const _cTextPrimary = KinrelColors.textWhite;
@@ -273,15 +271,15 @@ class MemoryTimelineCard extends StatelessWidget {
                               width: 0.5,
                             ),
                           ),
-                          child: Row(
+                          child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.article_outlined,
+                              Icon(Icons.article_outlined,
                                   size: 12, color: _cOrange),
-                              const SizedBox(width: 4),
-                              Text(
+                              SizedBox(width: 4),
+                              const Text(
                                 'View Original Post',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: KinrelTypography.bodyFont,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
@@ -301,15 +299,15 @@ class MemoryTimelineCard extends StatelessWidget {
                           borderRadius:
                               BorderRadius.circular(KinrelRadius.full),
                         ),
-                        child: Row(
+                        child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.bookmark_rounded,
+                            Icon(Icons.bookmark_rounded,
                                 size: 10, color: _cOrange),
-                            const SizedBox(width: 4),
-                            Text(
+                            SizedBox(width: 4),
+                            const Text(
                               'Created From Post',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
@@ -354,9 +352,9 @@ class MemoryTimelineCard extends StatelessWidget {
                             const Icon(Icons.photo_library_rounded,
                                 size: 12, color: _cOrange),
                             const SizedBox(width: 4),
-                            Text(
+                            const Text(
                               'View full album in Memory Vault →',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
@@ -374,7 +372,7 @@ class MemoryTimelineCard extends StatelessWidget {
                               ),
                               child: Text(
                                 '+${albumPhotoCount}',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: KinrelTypography.monoFont,
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,

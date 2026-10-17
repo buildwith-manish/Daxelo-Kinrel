@@ -702,4 +702,52 @@ class STe extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name ప్రతిస్పందించారు $emoji';
   }
+
+  @override
+  String graphShowingCount(int shown, int total) {
+    return 'మొత్తం $total మందిలో $shown మంది చూపబడుతున్నారు.';
+  }
+
+  @override
+  String graphFilterAll(int count) {
+    return 'అన్నీ $count';
+  }
+
+  @override
+  String get graphCatSelf => 'మీరు';
+
+  @override
+  String get graphCatSpouse => 'జీవిత భాగస్వామి';
+
+  @override
+  String get graphCatParent => 'తల్లిదండ్రులు';
+
+  @override
+  String get graphCatChild => 'పిల్లలు';
+
+  @override
+  String get graphCatSibling => 'తోబుట్టువులు';
+
+  @override
+  String get graphCatGrandparent => 'తాతయ్య-అమ్మమ్మ';
+
+  @override
+  String get graphCatAuntUncle => 'మేనమామ-పిన్ని';
+
+  @override
+  String get graphCatCousin => 'బంధువులు';
+
+  @override
+  String get graphCatInLaw => 'అత్తమామల కుటుంబీకులు';
+
+  @override
+  String get graphCatExtended => 'విస్తృత కుటుంబం';
+
+  @override
+  String get graphCatIndirect => 'పరోక్ష';
+
+  @override
+  String graphMorePeople(int count) {
+    return '$count మంది ఎక్కువ వ్యక్తులను చూపించు, రెండుసార్లు నొక్కు';
+  }
 }

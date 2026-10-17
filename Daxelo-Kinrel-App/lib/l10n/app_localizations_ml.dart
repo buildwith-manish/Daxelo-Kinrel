@@ -700,4 +700,52 @@ class SMl extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name reacted $emoji';
   }
+
+  @override
+  String graphShowingCount(int shown, int total) {
+    return 'ആകെ $total പേരിൽ $shown പേരെ കാണിക്കുന്നു.';
+  }
+
+  @override
+  String graphFilterAll(int count) {
+    return 'എല്ലാം $count';
+  }
+
+  @override
+  String get graphCatSelf => 'നിങ്ങൾ';
+
+  @override
+  String get graphCatSpouse => 'ജീവിത പങ്കാളി';
+
+  @override
+  String get graphCatParent => 'മാതാപിതാക്കൾ';
+
+  @override
+  String get graphCatChild => 'കുട്ടികൾ';
+
+  @override
+  String get graphCatSibling => 'സഹോദരങ്ങൾ';
+
+  @override
+  String get graphCatGrandparent => 'മുത്തശ്ശന്മാർ';
+
+  @override
+  String get graphCatAuntUncle => 'അമ്മാവന്മാർ';
+
+  @override
+  String get graphCatCousin => 'കസിൻസ്';
+
+  @override
+  String get graphCatInLaw => 'വിവാഹ ബന്ധുക്കൾ';
+
+  @override
+  String get graphCatExtended => 'വിപുലീകൃത കുടുംബം';
+
+  @override
+  String get graphCatIndirect => 'പരോക്ഷം';
+
+  @override
+  String graphMorePeople(int count) {
+    return '$count കൂടി ആളുകളെ കാണിക്കുക, രണ്ടുതവണ ടാപ്പ് ചെയ്യുക';
+  }
 }

@@ -32,8 +32,30 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:kinrel/features/family/presentation/family_members_screen.dart';
 import 'package:kinrel/features/family/presentation/family_space_floating_nav.dart';
+
+/// Pumps the stand-in inside a minimal GoRouter — the real
+/// FamilySpaceFloatingNav reads GoRouterState.of(context) in build
+/// (for the location-based current-tab lookup), so it can only be
+/// instantiated under a RouteBase.builder (exactly like the app).
+Future<void> _pumpWithRouter(
+  WidgetTester tester,
+  _MembersChromeTestWidget child,
+) async {
+  final router = GoRouter(
+    initialLocation: '/family/fam_test_001/members',
+    routes: [
+      GoRoute(
+        path: '/family/:famId/members',
+        builder: (context, state) => child,
+      ),
+    ],
+  );
+  await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+  await tester.pump();
+}
 
 void main() {
   group('Members screen bottom-nav chrome — conditional on entry context', () {
@@ -42,15 +64,13 @@ void main() {
         '(the existing behavior; no regression to the bottom-nav tab '
         'entry point)',
         (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: _MembersChromeTestWidget(
-            familyId: 'fam_test_001',
-            source: MembersScreenSource.navTab,
-          ),
+      await _pumpWithRouter(
+        tester,
+        const _MembersChromeTestWidget(
+          familyId: 'fam_test_001',
+          source: MembersScreenSource.navTab,
         ),
       );
-      await tester.pump();
 
       // The bottom nav must be present in navTab mode.
       expect(find.byType(FamilySpaceFloatingNav), findsOneWidget,
@@ -60,7 +80,12 @@ void main() {
 
       // The AppBar title (the core Members screen content) is also
       // present — proves the screen renders correctly with the dock.
-      expect(find.text('Members'), findsOneWidget);
+      // (Scoped to the AppBar: the floating dock ALSO carries a
+      // "Members" tab label, so an unscoped text find would hit 2.)
+      expect(
+        find.descendant(
+            of: find.byType(AppBar), matching: find.text('Members')),
+        findsOneWidget);
     });
 
     testWidgets(
@@ -90,7 +115,10 @@ void main() {
       // The AppBar title (the core Members screen content) is still
       // present — proves the screen's core UI is reused as-is between
       // both contexts, only the surrounding chrome differs.
-      expect(find.text('Members'), findsOneWidget,
+      expect(
+        find.descendant(
+            of: find.byType(AppBar), matching: find.text('Members')),
+        findsOneWidget,
           reason: 'The Members screen\'s core content (the AppBar '
               'title "Members") must render identically in both '
               'contexts — only the chrome (bottom nav presence) '
@@ -104,15 +132,13 @@ void main() {
         'is absent in that mode)',
         (tester) async {
       for (final source in MembersScreenSource.values) {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: _MembersChromeTestWidget(
-              familyId: 'fam_test_001',
-              source: source,
-            ),
+        await _pumpWithRouter(
+          tester,
+          _MembersChromeTestWidget(
+            familyId: 'fam_test_001',
+            source: source,
           ),
         );
-        await tester.pump();
 
         // The back arrow must be present in both modes — it is the
         // single way out of the graphViewAll view (where the bottom

@@ -494,54 +494,6 @@ class _InviteFamilyBanner extends StatelessWidget {
 // Zone 2 helper: "Browse all games →" link to the secondary All Games screen.
 // ═══════════════════════════════════════════════════════════════════════
 
-class _BrowseAllGamesLink extends StatelessWidget {
-  const _BrowseAllGamesLink({required this.familyId});
-  final String familyId;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: GestureDetector(
-          onTap: () => context.push('/family/$familyId/gaming/all-games'),
-          behavior: HitTestBehavior.opaque,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: KinrelColors.darkCard,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                  color: KinrelColors.orange.withValues(alpha: 0.25)),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                KinrelIcon(KinrelIconData.controller,
-                    size: 13, color: KinrelColors.orange),
-                SizedBox(width: 6),
-                const Text(
-                  'Browse all games',
-                  style: const TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: KinrelColors.orange,
-                  ),
-                ),
-                SizedBox(width: 4),
-                Icon(Icons.chevron_right,
-                    size: 16, color: KinrelColors.orange),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════════════
 // Zone 3 helper: Family Moments preview — top 3 moments with reactions,
 // grouped by date via MomentDateGroupWidget.

@@ -700,4 +700,52 @@ class SSd extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name reacted $emoji';
   }
+
+  @override
+  String graphShowingCount(int shown, int total) {
+    return 'ڪل $total مان $shown ماڻهو ڏيکاريا ويا آهن.';
+  }
+
+  @override
+  String graphFilterAll(int count) {
+    return 'سڀ $count';
+  }
+
+  @override
+  String get graphCatSelf => 'توهان';
+
+  @override
+  String get graphCatSpouse => 'زال/مڙس';
+
+  @override
+  String get graphCatParent => 'والدین';
+
+  @override
+  String get graphCatChild => 'ٻار';
+
+  @override
+  String get graphCatSibling => 'ڀائر ۽ ڀيڻيون';
+
+  @override
+  String get graphCatGrandparent => 'ڏاڏا-ڏاڏي';
+
+  @override
+  String get graphCatAuntUncle => 'چاچا-ماما';
+
+  @override
+  String get graphCatCousin => 'سوٽ';
+
+  @override
+  String get graphCatInLaw => 'سهرا';
+
+  @override
+  String get graphCatExtended => 'وسيع خاندان';
+
+  @override
+  String get graphCatIndirect => 'غير سڌو';
+
+  @override
+  String graphMorePeople(int count) {
+    return '$count وڌيڪ ماڻهن کي ڏيکاريو، ٻه ڀيرا ٽيپ ڪريو';
+  }
 }

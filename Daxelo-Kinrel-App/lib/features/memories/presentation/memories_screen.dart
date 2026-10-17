@@ -2479,32 +2479,44 @@ class _SceneHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: scene.accentColor.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(KinrelRadius.xs),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(scene.icon, size: 12, color: scene.accentColor),
-              const SizedBox(width: 4),
-              Text(
-                scene.typeLabel,
-                style: KinrelTypography.micro.copyWith(
-                  color: scene.accentColor,
-                  fontWeight: FontWeight.w700,
+        // Flexible so the badge ellipsizes instead of overflowing on
+        // narrow cards (the preview card renders at ~206px wide on
+        // small layouts — badge + date used to overflow by a few px).
+        Flexible(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: scene.accentColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(KinrelRadius.xs),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(scene.icon, size: 12, color: scene.accentColor),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    scene.typeLabel,
+                    overflow: TextOverflow.ellipsis,
+                    style: KinrelTypography.micro.copyWith(
+                      color: scene.accentColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-        const Spacer(),
-        Text(
-          scene.dateLabel,
-          style: KinrelTypography.labelSmall.copyWith(
-            color: KinrelColors.textDim,
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            scene.dateLabel,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+            style: KinrelTypography.labelSmall.copyWith(
+              color: KinrelColors.textDim,
+            ),
           ),
         ),
       ],

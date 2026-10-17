@@ -90,5 +90,19 @@
   "familyMapLegendTierStale": "പഴയ",
   "familyMapLegendTierStaleDesc": "< 1 മണിക്കൂർ മുമ്പ്",
   "familyMapLegendTierCity": "നഗരം",
-  "familyMapLegendTierCityDesc": "നഗര കേന്ദ്രം"
+  "familyMapLegendTierCityDesc": "നഗര കേന്ദ്രം",
+  "graphShowingCount": "ആകെ {total} പേരിൽ {shown} പേരെ കാണിക്കുന്നു.",
+  "graphFilterAll": "എല്ലാം {count}",
+  "graphCatSelf": "നിങ്ങൾ",
+  "graphCatSpouse": "ജീവിത പങ്കാളി",
+  "graphCatParent": "മാതാപിതാക്കൾ",
+  "graphCatChild": "കുട്ടികൾ",
+  "graphCatSibling": "സഹോദരങ്ങൾ",
+  "graphCatGrandparent": "മുത്തശ്ശന്മാർ",
+  "graphCatAuntUncle": "അമ്മാവന്മാർ",
+  "graphCatCousin": "കസിൻസ്",
+  "graphCatInLaw": "വിവാഹ ബന്ധുക്കൾ",
+  "graphCatExtended": "വിപുലീകൃത കുടുംബം",
+  "graphCatIndirect": "പരോക്ഷം",
+  "graphMorePeople": "{count} കൂടി ആളുകളെ കാണിക്കുക, രണ്ടുതവണ ടാപ്പ് ചെയ്യുക"
 }

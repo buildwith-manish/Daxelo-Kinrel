@@ -248,7 +248,7 @@ void main() {
     });
 
     test('inactive edges are ignored', () {
-      final inactive = FamilyRelationship(
+      final inactive = const FamilyRelationship(
         id: 'rel-a-b',
         familyId: 'fam-1',
         fromPersonId: 'a',
@@ -745,13 +745,13 @@ void main() {
 
       // The relationship span uses the neutral meta grey.
       final relSpan = spans.lastWhere(
-        (s) => s is TextSpan && (s as TextSpan).text == 'Father',
+        (s) => s is TextSpan && (s).text == 'Father',
       ) as TextSpan;
       expect(relSpan.style!.color, ChatUi.textMeta);
 
       // The separator '·' also uses the receding neutral grey.
       final sepSpan = spans.firstWhere(
-        (s) => s is TextSpan && (s as TextSpan).text == '·',
+        (s) => s is TextSpan && (s).text == '·',
       ) as TextSpan;
       expect(sepSpan.style!.color, ChatUi.textMeta);
     });

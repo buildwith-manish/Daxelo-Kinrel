@@ -105,8 +105,6 @@ enum CoachmarkPosition { above, below }
 class _CoachmarkTargetState extends State<CoachmarkTarget> {
   final GlobalKey _targetKey = GlobalKey();
   bool _shouldShow = false;
-  bool _hasChecked = false;
-
   @override
   void initState() {
     super.initState();
@@ -119,7 +117,6 @@ class _CoachmarkTargetState extends State<CoachmarkTarget> {
 
       // If this coachmark was already seen, don't show.
       if (prefs.getBool('coachmark_${widget.id}') == true) {
-        if (mounted) setState(() => _hasChecked = true);
         return;
       }
 
@@ -127,7 +124,6 @@ class _CoachmarkTargetState extends State<CoachmarkTarget> {
       if (widget.gate != null &&
           prefs.getBool('coachmark_${widget.gate}') != true) {
         // Gated coachmark — don't show until the gate is seen.
-        if (mounted) setState(() => _hasChecked = true);
         return;
       }
 
@@ -141,7 +137,6 @@ class _CoachmarkTargetState extends State<CoachmarkTarget> {
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _hasChecked = true);
     }
   }
 

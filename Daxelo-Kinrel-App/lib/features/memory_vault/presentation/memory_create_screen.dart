@@ -39,7 +39,6 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../shared/widgets/paywall_sheet.dart';
 import '../../family/presentation/widgets/memory_crop_editor.dart';
-import '../data/memory_model.dart';
 import '../providers/memory_vault_provider.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────
@@ -1001,7 +1000,7 @@ class _MemoryCreateScreenState extends ConsumerState<MemoryCreateScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
-                    Icon(Icons.bolt_outlined,
+                    const Icon(Icons.bolt_outlined,
                         size: 14, color: _cTextDim),
                     const SizedBox(width: 6),
                     Text(
@@ -1175,7 +1174,7 @@ class _MemoryCreateScreenState extends ConsumerState<MemoryCreateScreen>
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(
+            colorScheme: const ColorScheme.dark(
               primary: _cOrange,
               onPrimary: Colors.white,
               surface: _cCard,

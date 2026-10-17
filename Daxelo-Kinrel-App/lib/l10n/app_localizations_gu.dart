@@ -700,4 +700,52 @@ class SGu extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name એ પ્રતિક્રિયા આપી $emoji';
   }
+
+  @override
+  String graphShowingCount(int shown, int total) {
+    return 'કુલ $total માંથી $shown વ્યક્તિઓ બતાવી રહ્યા છીએ.';
+  }
+
+  @override
+  String graphFilterAll(int count) {
+    return 'બધા $count';
+  }
+
+  @override
+  String get graphCatSelf => 'તમે';
+
+  @override
+  String get graphCatSpouse => 'જીવનસાથી';
+
+  @override
+  String get graphCatParent => 'માતા-પિતા';
+
+  @override
+  String get graphCatChild => 'બાળકો';
+
+  @override
+  String get graphCatSibling => 'ભાઈ-બહેન';
+
+  @override
+  String get graphCatGrandparent => 'દાદા-દાદી';
+
+  @override
+  String get graphCatAuntUncle => 'કાકા-મામા';
+
+  @override
+  String get graphCatCousin => 'પિતરાઈ ભાઈ-બહેન';
+
+  @override
+  String get graphCatInLaw => 'સાસરા';
+
+  @override
+  String get graphCatExtended => 'વિસ્તૃત પરિવાર';
+
+  @override
+  String get graphCatIndirect => 'પરોક્ષ';
+
+  @override
+  String graphMorePeople(int count) {
+    return '$count વધુ લોકો બતાવો, બે વાર ટેપ કરો';
+  }
 }

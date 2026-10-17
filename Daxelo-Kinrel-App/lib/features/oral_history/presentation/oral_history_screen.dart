@@ -2140,10 +2140,10 @@ class _StoryCard extends StatelessWidget {
                         shape: BoxShape.circle,
                         gradient: KinrelGradients.igniteGradient,
                         boxShadow: KinrelFx.shadows([
-                          BoxShadow(
+                          const BoxShadow(
                             color: KinrelColors.orangeGlow,
                             blurRadius: 10,
-                            offset: Offset(0, 2),
+                            offset: const Offset(0, 2),
                           ),
                         ]),
                       ),
@@ -2592,10 +2592,10 @@ class _RecordingBottomSheetState extends State<_RecordingBottomSheet>
                     shape: BoxShape.circle,
                     gradient: KinrelGradients.igniteGradient,
                     boxShadow: KinrelFx.shadows([
-                      BoxShadow(
+                      const BoxShadow(
                         color: KinrelColors.orangeGlow,
                         blurRadius: 12,
-                        offset: Offset(0, 2),
+                        offset: const Offset(0, 2),
                       ),
                     ]),
                   ),

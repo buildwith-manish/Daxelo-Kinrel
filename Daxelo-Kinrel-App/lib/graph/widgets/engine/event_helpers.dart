@@ -100,6 +100,19 @@ extension _EventHelpers on _FamilyGraphEngineViewState {
     final proximityState = ref.read(proximityGraphProvider);
     if (!proximityState.isInitialized) return;
     if (!proximityState.visibleIds.contains(personId)) return;
+
+    // WEDGE MODE — the full tap state machine (matching the approved
+    // preview):
+    //   • collapsed person  → expand in place (first 8) + focus + fit
+    //   • expanded, unfocused → focus + fit
+    //   • focused, expanded  → collapse + focus their parent
+    // The implementation lives in branch_affordance.dart's
+    // _handleWedgeNodeTap (next to the other wedge tap flows).
+    if (kUseViewerWedgeLayout) {
+      _handleWedgeNodeTap(personId);
+      return;
+    }
+
     // Already expanded — no-op.
     if (proximityState.expandedPersonIds.contains(personId)) return;
 

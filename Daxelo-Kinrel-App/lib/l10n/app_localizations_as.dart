@@ -700,4 +700,52 @@ class SAs extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name reacted $emoji';
   }
+
+  @override
+  String graphShowingCount(int shown, int total) {
+    return 'মুঠ $total ৰ ভিতৰত $shown জন দেখুওৱা হৈছে।';
+  }
+
+  @override
+  String graphFilterAll(int count) {
+    return 'সকলো $count';
+  }
+
+  @override
+  String get graphCatSelf => 'আপুনি';
+
+  @override
+  String get graphCatSpouse => 'জীৱনসংগী';
+
+  @override
+  String get graphCatParent => 'মাক-দেউতাক';
+
+  @override
+  String get graphCatChild => 'সন্তান';
+
+  @override
+  String get graphCatSibling => 'ভাই-ভনী';
+
+  @override
+  String get graphCatGrandparent => 'ককাই-আইতা';
+
+  @override
+  String get graphCatAuntUncle => 'খুড়া-মামা';
+
+  @override
+  String get graphCatCousin => 'সম্পৰ্কীয় ভাই-ভনী';
+
+  @override
+  String get graphCatInLaw => 'শহুৰে';
+
+  @override
+  String get graphCatExtended => 'বিস্তৃত পৰিয়াল';
+
+  @override
+  String get graphCatIndirect => 'অপ্ৰত্যক্ষ';
+
+  @override
+  String graphMorePeople(int count) {
+    return '$count গৰাকী অধিক লোক দেখুন, দুবাৰ টেপ কৰক';
+  }
 }

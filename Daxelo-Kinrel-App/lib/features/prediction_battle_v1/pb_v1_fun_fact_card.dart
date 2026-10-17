@@ -38,7 +38,6 @@ class PredictionBattleFunFactCard extends ConsumerStatefulWidget {
 
 class _PredictionBattleFunFactCardState extends ConsumerState<PredictionBattleFunFactCard> {
   String? _factText;
-  String? _questionText;
   bool _loading = true;
 
   @override
@@ -56,7 +55,6 @@ class _PredictionBattleFunFactCardState extends ConsumerState<PredictionBattleFu
       if (mounted) {
         setState(() {
           _factText = cached['fact'] as String?;
-          _questionText = cached['question'] as String?;
           _loading = false;
         });
       }
@@ -93,7 +91,6 @@ class _PredictionBattleFunFactCardState extends ConsumerState<PredictionBattleFu
       final question = (pick['question_text'] as String?).toString().trim();
       setState(() {
         _factText = fact;
-        _questionText = question;
         _loading = false;
       });
       // Cache for the rest of the day.
@@ -187,7 +184,6 @@ class FamilyCoinPoolCard extends ConsumerStatefulWidget {
 class _FamilyCoinPoolCardState extends ConsumerState<FamilyCoinPoolCard> {
   int? _totalEarned;
   int? _currentGoal;
-  int? _goalsHit;
   bool _loading = true;
 
   @override
@@ -211,7 +207,6 @@ class _FamilyCoinPoolCardState extends ConsumerState<FamilyCoinPoolCard> {
         setState(() {
           _totalEarned = (resp['total_earned'] ?? 0) as int;
           _currentGoal = (resp['current_goal'] ?? 500) as int;
-          _goalsHit = (resp['goals_hit'] ?? 0) as int;
           _loading = false;
         });
       } else {

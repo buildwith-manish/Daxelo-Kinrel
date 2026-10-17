@@ -121,5 +121,19 @@
   "chatSystemMessageUserLeft": "{name} রুম ছেড়েছে",
   "chatSystemMessageUserDisconnected": "{name} সংযোগ বিচ্ছিন্ন হয়েছে",
   "chatSystemMessageRoomClosed": "{name} রুম বন্ধ করেছে",
-  "chatSystemMessageUserReacted": "{name} প্রতিক্রিয়া দেখিয়েছে {emoji}"
+  "chatSystemMessageUserReacted": "{name} প্রতিক্রিয়া দেখিয়েছে {emoji}",
+  "graphShowingCount": "মোট {total} জনের মধ্যে {shown} জন দেখানো হচ্ছে।",
+  "graphFilterAll": "সব {count}",
+  "graphCatSelf": "আপনি",
+  "graphCatSpouse": "সঙ্গী",
+  "graphCatParent": "পিতামাতা",
+  "graphCatChild": "সন্তানেরা",
+  "graphCatSibling": "ভাইবোন",
+  "graphCatGrandparent": "দাদু-দিদা",
+  "graphCatAuntUncle": "চাচা-মামা",
+  "graphCatCousin": "চাচাতো ভাইবোন",
+  "graphCatInLaw": "শ্বশুরবাড়ি",
+  "graphCatExtended": "বর্ধিত পরিবার",
+  "graphCatIndirect": "পরোক্ষ",
+  "graphMorePeople": "{count} জন আরও মানুষ দেখুন, ডাবল ট্যাপ করুন"
 }

@@ -62,7 +62,16 @@ class PersonalLayoutOverrides {
   /// before rendering to ensure saved nodes appear where the viewer
   /// last dragged them.
   Map<String, Offset> applyTo(Map<String, Offset> autoLayoutPositions) {
-    if (nodePositions.isEmpty) return autoLayoutPositions;
+    // ALWAYS return a fresh map. The engine view mutates the result
+    // in place every animation frame (entrance/glide lerps write
+    // effectivePositions[id] = ...). Returning the provider's map
+    // itself when there are no overrides let those animation writes
+    // CORRUPT the provider's cached GraphLayoutResult in place —
+    // every other watcher (hit-tests, minimap, tests) then read
+    // mid-animation positions (frozen nodes at their entrance
+    // origin, drifted cameras, ghost overlaps). The copy costs <50
+    // entries per build and closes that hole completely.
+    if (nodePositions.isEmpty) return Map<String, Offset>.of(autoLayoutPositions);
     return {...autoLayoutPositions, ...nodePositions};
   }
 

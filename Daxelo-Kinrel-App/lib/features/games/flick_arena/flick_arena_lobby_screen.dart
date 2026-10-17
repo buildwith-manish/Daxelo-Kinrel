@@ -406,7 +406,7 @@ class _FlickArenaWaitingRoom extends StatelessWidget {
                   color: KinrelColors.orange,
                   shape: BoxShape.circle,
                   boxShadow: KinrelFx.shadows([
-                    BoxShadow(
+                    const BoxShadow(
                         color: KinrelColors.orange, blurRadius: 6),
                   ]),
                 ),

@@ -141,10 +141,6 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     final selectedCategory = ref.watch(
       notificationsProvider.select((s) => s.selectedCategory),
     );
-    // Watch isLoadingMore for the pagination skeleton at the list end.
-    final isLoadingMore = ref.watch(
-      notificationsProvider.select((s) => s.isLoadingMore),
-    );
 
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
