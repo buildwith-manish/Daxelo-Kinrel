@@ -1207,6 +1207,53 @@ class ChatNotifier extends StateNotifier<ChatState> {
     state = state.copyWith(messages: updated);
   }
 
+  /// Build a ChatMessage insert payload from the optimistic message +
+  /// per-send-path overrides. Used by retryMessage, sendMessage,
+  /// sendMessageWithMentions, sendAttachment, sendVoiceMessage,
+  /// sendSticker, sendGif, sendDocument, sendLocation, sendGameInvite —
+  /// previously each call site hand-built the same {…optimistic.toJson,
+  /// 'messageStatus': 'sent', …overrides} map. Centralizing it here makes
+  /// the duplication impossible to re-introduce and gives one place to
+  /// maintain the wire contract.
+  ///
+  /// Behavior contract (must not change the data written to the DB):
+  ///   • Starts from `optimistic.toJson(familyId: familyId)` — identical
+  ///     to every pre-refactor call site.
+  ///   • Applies `messageStatus: 'sent'` unless the caller overrides
+  ///     (e.g. forwardMessage passes nothing → the server keeps the
+  ///     optimistic 'sent' default; retryMessage / sendMessage override
+  ///     explicitly to 'sent' even though the optimistic message carries
+  ///     'sending' — pinning the server-side canonical state).
+  ///   • Applies the caller's per-path overrides ON TOP — these are
+  ///     what differs between send paths (mediaUrl, voiceMessageDuration,
+  ///     messageSubType, mediaType, mediaFileName, etc.).
+  ///   • `null` override values are SKIPPED (the original `if (x != null)
+  ///     'x': x` pattern at every call site behaved the same way; using
+  ///     a Map entry with value null would have written `null` to the
+  ///     wire, which the server would have stored as NULL — not the same
+  ///     as omitting the key).
+  Map<String, dynamic> _buildChatMessageInsertPayload(
+    ChatMessage optimistic, {
+    Map<String, dynamic> overrides = const {},
+    bool applySentStatusOverride = true,
+  }) {
+    final payload = <String, dynamic>{
+      ...optimistic.toJson(familyId: familyId),
+    };
+    if (applySentStatusOverride) {
+      // Override: the server row stores 'sent' (the canonical delivery
+      // state). The local optimistic copy keeps 'sending' until the
+      // realtime echo arrives, then the de-dup path patches it to 'sent'.
+      payload['messageStatus'] = 'sent';
+    }
+    for (final entry in overrides.entries) {
+      if (entry.value != null) {
+        payload[entry.key] = entry.value;
+      }
+    }
+    return payload;
+  }
+
   /// v3.2: Re-send a failed message with the SAME id. Looks up the
   /// failed message in state, flips its status back to 'sending',
   /// re-adds the id to `_pendingOptimisticIds` (so the realtime echo
@@ -1241,12 +1288,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
     _pendingOptimisticIds.add(id);
 
     try {
-      await client.from('ChatMessage').insert({
-        ...existing.toJson(familyId: familyId),
-        // Override: server stores 'sent'; local keeps 'sending' until
-        // the echo arrives.
-        'messageStatus': 'sent',
-      }).timeout(const Duration(seconds: 15));
+      await client.from('ChatMessage').insert(
+          _buildChatMessageInsertPayload(existing),
+      ).timeout(const Duration(seconds: 15));
       _updateMessageStatus(id, 'sent');
     } catch (e) {
       debugPrint('⚠️ ChatNotifier.retryMessage insert failed: $e');
@@ -1338,13 +1382,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // Persist to Supabase with a 15-second timeout. The realtime INSERT
     // event will fire but be dropped by the de-dup check above.
     try {
-      await client.from('ChatMessage').insert({
-        ...optimistic.toJson(familyId: familyId),
-        // Override: the server row stores 'sent' (the canonical delivery
-        // state). The local optimistic copy keeps 'sending' until the
-        // echo arrives, then the de-dup path patches it to 'sent'.
-        'messageStatus': 'sent',
-      }).timeout(const Duration(seconds: 15));
+      await client.from('ChatMessage').insert(
+        _buildChatMessageInsertPayload(optimistic),
+      ).timeout(const Duration(seconds: 15));
       // Optimistically transition to 'sent' — the insert succeeded, so
       // the message is on the server. The realtime echo will arrive
       // shortly and confirm (no-op if already 'sent').
@@ -1443,12 +1483,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // Step 1: persist the ChatMessage row (mentions JSONB is included
     // via toJson so the server-side row has the highlight spans too).
     try {
-      await client.from('ChatMessage').insert({
-        ...optimistic.toJson(familyId: familyId),
-        // Override: server stores 'sent'; local keeps 'sending' until
-        // the echo arrives.
-        'messageStatus': 'sent',
-      }).timeout(const Duration(seconds: 15));
+      await client.from('ChatMessage').insert(
+        _buildChatMessageInsertPayload(optimistic),
+      ).timeout(const Duration(seconds: 15));
       _updateMessageStatus(msgId, 'sent');
     } catch (e) {
       debugPrint('⚠️ ChatNotifier.sendMessageWithMentions insert failed: $e');
@@ -1548,13 +1585,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (mounted) state = state.copyWith(messages: updated);
 
     try {
-      await client.from('ChatMessage').insert({
-        ...optimistic.toJson(familyId: familyId),
-        'mediaUrl': mediaUrl,
-        // Override: server stores 'sent'; local keeps 'sending' until
-        // the echo arrives.
-        'messageStatus': 'sent',
-      }).timeout(const Duration(seconds: 15));
+      await client.from('ChatMessage').insert(
+        _buildChatMessageInsertPayload(
+          optimistic,
+          overrides: {'mediaUrl': mediaUrl},
+        ),
+      ).timeout(const Duration(seconds: 15));
       _updateMessageStatus(msgId, 'sent');
     } catch (e) {
       debugPrint('⚠️ ChatNotifier.sendAttachment insert failed: $e');
@@ -1719,17 +1755,18 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (mounted) state = state.copyWith(messages: updated);
 
     try {
-      await client.from('ChatMessage').insert({
-        ...optimistic.toJson(familyId: familyId),
-        'mediaUrl': mediaUrl,
-        'voiceMessageDuration': durationSeconds,
-        'messageSubType': 'voice',
-        'mediaType': mimeType,
-        'mediaFileName': fileName,
-        // Override: server stores 'sent'; local keeps 'sending' until
-        // the echo arrives.
-        'messageStatus': 'sent',
-      }).timeout(const Duration(seconds: 15));
+      await client.from('ChatMessage').insert(
+        _buildChatMessageInsertPayload(
+          optimistic,
+          overrides: {
+            'mediaUrl': mediaUrl,
+            'voiceMessageDuration': durationSeconds,
+            'messageSubType': 'voice',
+            'mediaType': mimeType,
+            'mediaFileName': fileName,
+          },
+        ),
+      ).timeout(const Duration(seconds: 15));
       _updateMessageStatus(msgId, 'sent');
     } catch (e) {
       debugPrint('⚠️ ChatNotifier.sendVoiceMessage insert failed: $e');
