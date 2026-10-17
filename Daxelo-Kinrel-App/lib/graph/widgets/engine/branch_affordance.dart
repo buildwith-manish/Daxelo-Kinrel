@@ -2145,31 +2145,27 @@ const Offset _kWedgeBadgeAnchor = Offset(46.0, -46.0);
 
 // ── WEDGE LAYOUT: bubble + badge widgets ────────────────────────────
 //
-// The "+N" page bubble: a NODE-SIZED circular affordance in the SAME
-// visual family as a regular GraphNode. The bubble's circle is Ø72
-// (matching GraphNode's default nodeSize), with the SAME fill style
-// (dark elevated surface) and glow (KinrelFx.shadows) as a node, but
-// a DASHED ring (so it reads as an action, not a person) in the
-// neutral grey token (KinshipEdgeColors.extended — the same slate
-// #64748B used for extended/step relations and for nodes with no
-// category). The hub's category colour is NEVER used for the ring.
+// The "+N" page bubble: a NODE — not a chip. The bubble uses the
+// EXACT SAME Pseudo3DNodePainter as a real GraphNode, so it has the
+// same shadow, extruded wall, face fill, rim, bevel, and specular
+// highlight as a person node. The only differences from a person
+// node:
+//   • border color = KinshipEdgeColors.extended (the neutral grey
+//     token used for extended/step relations and nodes with no
+//     category — never the hub's category colour, never a hardcoded
+//     hex value)
+//   • content = "+N" (same Outfit bold font/weight as node initials)
+//   • onTap = the page-advance handler (not node selection)
 //
-// Inside the circle: "+N" large in the same font family + weight as
-// the node initials (Outfit bold). Below the circle: a two-line label
-// — first line "N more" (graphMorePeopleShort), second line a short
-// localized hint "Tap to show" (graphTapToShowHint) — using the same
-// text styles as the node name + relation label.
-//
-// The reserved layout slot is now 124×128 (WedgeLayoutConfig.
-// chipFootprint == nodeFootprint), so the bigger bubble + its label
+// The reserved layout slot is 124×128 (WedgeLayoutConfig.chipFootprint
+// == nodeFootprint), so the node-sized bubble (Ø72) + its shadow
 // reserve the full space and never overlap a neighbour.
 //
 // Press feedback: the bubble scales to ~0.95 while pressed (with the
 // existing GraphHaptics.branchExpand firing on tap). While the lazy
-// fetch is in flight a small spinner replaces the number and extra
-// taps are ignored upstream (_expandWedgePageChip's loading guard).
-// When a hub has nothing left to reveal, its bubble shrinks and
-// fades out (see [_WedgeChipFadeOut]).
+// fetch is in flight a small spinner replaces the "+N" text. When a
+// hub has nothing left to reveal, its bubble shrinks and fades out
+// (see [_WedgeChipFadeOut]).
 
 /// The circular "+N" page bubble (see the block comment above).
 ///
@@ -2206,30 +2202,48 @@ class _WedgePageChipBubbleState extends State<_WedgePageChipBubble> {
   @override
   Widget build(BuildContext context) {
     // Node-sized circle: Ø72 matches GraphNode's default nodeSize.
-    // The bubble is a PURE CIRCLE (no label below) — same visual
-    // shape as a person node. The "+N" text inside the circle is
-    // the only content (matching how person nodes show initials
-    // inside their circle). The localized "N more / Tap to show"
-    // label is NOT rendered below the circle (the user found the
-    // circle+label composite read as a rectangle, not a circle).
-    // The semantic label (graphMorePeople) still carries the full
-    // description for accessibility — screen readers announce
-    // "Show N more people, double tap to reveal" even though the
-    // visual is just the circle.
+    // The bubble now uses the EXACT SAME Pseudo3DNodePainter as a real
+    // GraphNode — same shadow, extruded wall, face fill, rim, bevel,
+    // specular highlight — so it reads as a NODE, not a chip. The only
+    // differences from a person node:
+    //   • border color = KinshipEdgeColors.extended (the neutral grey
+    //     used for extended/step relations and nodes with no category)
+    //   • content = "+N" instead of initials
+    //   • onTap = the page-advance handler (not node selection)
+    // The dashed ring is GONE — the user said "it should not be a chip
+    // anymore even it should feel like node with grey color". A real
+    // node has a SOLID border ring, not a dashed one.
     const circleDiameter = 72.0;
     // Node initials use diameter * 0.28 — same scale here so "+N"
     // reads as the same visual weight as a 2-letter initials glyph.
     const numberFontSize = circleDiameter * 0.28; // ≈ 20.2
 
+    // Build the Pseudo3DNodeParams exactly like GraphNode does for a
+    // regular (non-anchor, non-immediate-family) node — see
+    // graph_node.dart line 1087-1094. The border color is the neutral
+    // grey token (KinshipEdgeColors.extended) instead of the hub's
+    // category color.
+    final nodeParams = Pseudo3DNodeParams(
+      diameter: circleDiameter,
+      borderColor: KinshipEdgeColors.extended,
+      // GraphNode's default borderWidth for non-anchor non-immediate-
+      // family nodes is 3.0 (see graph_node.dart line 1090-1094:
+      // isAnchor ? 4.5 : isImmediateFamily ? 3.5 : _borderWidth where
+      // _borderWidth defaults to 3.0).
+      borderWidth: 3.0,
+      generationIndex: 0,
+      isAnchor: false,
+      nodeState: _pressed ? NodeState.hover : NodeState.normal,
+      tintColor: KinshipEdgeColors.extended.withValues(alpha: 0.08),
+      showTint: _pressed,
+    );
+
     return Semantics(
       button: true,
       label: widget.semanticLabel,
       child: FractionalTranslation(
-        // Centre the circle on the reserved slot. The bubble is now
-        // a pure circle (no label below), so the FractionalTranslation
-        // centres the CIRCLE on the slot centre — same as a person
-        // node. FractionalTranslation never expands (unlike Center,
-        // it cannot eat the canvas' taps).
+        // Centre the circle on the reserved slot. FractionalTranslation
+        // never expands (unlike Center, it cannot eat the canvas' taps).
         translation: const Offset(-0.5, -0.5),
         child: Listener(
           behavior: HitTestBehavior.opaque,
@@ -2244,61 +2258,55 @@ class _WedgePageChipBubbleState extends State<_WedgePageChipBubble> {
               scale: _pressed ? 0.95 : 1.0,
               duration: const Duration(milliseconds: 110),
               curve: Curves.easeOut,
-              child: _WedgeNodeSizedDashedRing(
-                diameter: circleDiameter,
-                // Neutral grey token — the SAME grey used for
-                // extended/step relations and nodes with no category.
-                // Never the hub's category colour, never a hardcoded
-                // hex value.
-                ringColor: KinshipEdgeColors.extended,
-                child: Container(
-                  width: circleDiameter,
-                  height: circleDiameter,
+              child: SizedBox(
+                width: circleDiameter,
+                height: circleDiameter,
+                child: Stack(
                   alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    // SAME fill style as GraphNode: dark elevated
-                    // surface, with the same shadow/glow contract
-                    // (KinrelFx.shadows) so the bubble reads as part
-                    // of the family of nodes.
-                    color: KinrelColors.darkElevated,
-                    shape: BoxShape.circle,
-                    boxShadow: KinrelFx.shadows([
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.4),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]),
-                  ),
-                  child: widget.loading
-                      ? SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.4,
-                            // The spinner uses the hub's category
-                            // colour as a subtle nod — the ring stays
-                            // neutral, but the spinner's tint hints
-                            // at which hub is loading.
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              widget.accentColor,
-                            ),
+                  children: [
+                    // The pseudo-3D node painter — renders the EXACT
+                    // same visual as a real GraphNode (shadow, wall,
+                    // face, rim, bevel, specular). This is what makes
+                    // the bubble "feel like a node" instead of a chip.
+                    CustomPaint(
+                      size: const Size(circleDiameter, circleDiameter),
+                      painter: Pseudo3DNodePainter(nodeParams),
+                    ),
+                    // Content layer: "+N" (or spinner during fetch).
+                    // Same font family + weight as node initials.
+                    if (widget.loading)
+                      SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.4,
+                          // The spinner uses the hub's category colour
+                          // as a subtle nod — the node's border stays
+                          // neutral grey, but the spinner's tint hints
+                          // at which hub is loading.
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            widget.accentColor,
                           ),
-                        )
-                      : Text(
-                          '+${widget.remainingCount}',
-                          // SAME font family + weight as node initials
-                          // (KinrelTypography.displayFont = 'Outfit',
-                          // FontWeight.bold = w700).
-                          style: const TextStyle(
-                            fontFamily: KinrelTypography.displayFont,
-                            fontSize: numberFontSize,
-                            fontWeight: FontWeight.bold,
-                            color: KinrelColors.textWhite,
-                            height: 1.0,
-                          ),
-                          maxLines: 1,
                         ),
+                      )
+                    else
+                      Text(
+                        '+${widget.remainingCount}',
+                        // SAME font family + weight as node initials
+                        // (KinrelTypography.displayFont = 'Outfit',
+                        // FontWeight.bold = w700). Same color
+                        // (KinrelColors.textWhite) so the "+N" reads
+                        // exactly like a person's initials.
+                        style: const TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: numberFontSize,
+                          fontWeight: FontWeight.bold,
+                          color: KinrelColors.textWhite,
+                          height: 1.0,
+                        ),
+                        maxLines: 1,
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -2307,93 +2315,6 @@ class _WedgePageChipBubbleState extends State<_WedgePageChipBubble> {
       ),
     );
   }
-}
-
-/// A node-sized DASHED circular ring drawn in [ringColor] around
-/// [child]. The ring's stroke width matches GraphNode's default
-/// borderWidth (3.0 for non-anchor non-immediate-family nodes — the
-/// "regular person" stroke width), so the bubble reads as part of
-/// the family of nodes. The ring is DASHED (not solid) so it reads
-/// as an ACTION affordance, not a person.
-///
-/// The ring sits OUTSIDE the [child]'s circle (radius = diameter/2
-/// + a small gap), matching how GraphNode's border sits on the
-/// outer edge of the circle.
-class _WedgeNodeSizedDashedRing extends StatelessWidget {
-  const _WedgeNodeSizedDashedRing({
-    required this.diameter,
-    required this.ringColor,
-    required this.child,
-  });
-
-  final double diameter;
-  final Color ringColor;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    // The ring is painted in a CustomPaint that wraps the child. The
-    // CustomPaint's size is the same as the child's (diameter ×
-    // diameter), and the painter strokes the ring at radius
-    // (diameter/2 - strokeWidth/2) — INSIDE the child's bounds so
-    // the layout footprint is exactly the child's size (no extra
-    // overflow into the reserved slot).
-    return CustomPaint(
-      foregroundPainter: _WedgeNodeSizedDashedRingPainter(
-        color: ringColor,
-        diameter: diameter,
-      ),
-      child: child,
-    );
-  }
-}
-
-class _WedgeNodeSizedDashedRingPainter extends CustomPainter {
-  const _WedgeNodeSizedDashedRingPainter({
-    required this.color,
-    required this.diameter,
-  });
-
-  final Color color;
-  final double diameter;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // The ring's stroke width matches GraphNode's default borderWidth
-    // for a regular (non-anchor, non-immediate-family) node: 3.0.
-    // (See graph_node.dart line 1090-1094 — _borderWidth defaults
-    // to 3.0 for non-anchor non-immediate-family nodes.)
-    const strokeWidth = 3.0;
-    final center = Offset(size.width / 2, size.height / 2);
-    // Place the ring's centre radius at (size/2 - strokeWidth/2) so
-    // the ring sits just inside the child's bounds (no overflow).
-    final radius = (min(size.width, size.height) / 2) - strokeWidth / 2;
-    // Dashed ring: 24 segments, 50% duty cycle — dense enough to
-    // read clearly as "action" (vs. a sparse chain-link), sparse
-    // enough to distinguish from a solid ring at a glance.
-    const segments = 24;
-    const dashFraction = 0.5;
-    final segment = 2 * pi / segments;
-    final paint = Paint()
-      ..color = color.withValues(alpha: 0.9)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < segments; i++) {
-      final start = i * segment;
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        start,
-        segment * dashFraction,
-        false,
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_WedgeNodeSizedDashedRingPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.diameter != diameter;
 }
 
 /// Wraps a just-emptied bubble and fades it out over ~260 ms

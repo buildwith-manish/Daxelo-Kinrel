@@ -204,6 +204,15 @@ import 'engine/lod.dart' show Lod;
 import 'engine/dot.dart' show Dot;
 import 'engine/dot_grid_painter.dart' show DotGridPainter;
 import 'engine/node_dot_painter.dart' show NodeDotPainter;
+// Pseudo3DNodePainter + Pseudo3DNodeParams — used by the wedge +N
+// page bubble to render with the EXACT same pseudo-3D look as a real
+// GraphNode (shadow, extruded wall, face fill, rim, bevel, specular).
+// The bubble passes KinshipEdgeColors.extended as the border color so
+// it reads as a grey node (the same grey used for extended/step
+// relations and nodes with no category). NodeState is already exported
+// by graph_node.dart (line 188).
+import 'engine/node_decoration.dart'
+    show Pseudo3DNodePainter, Pseudo3DNodeParams;
 // v5.111: New MINI and MICRO painters for the 5-tier semantic zoom.
 import 'engine/node_mini_painter.dart' show NodeMiniPainter;
 import 'engine/node_micro_painter.dart' show NodeMicroPainter;
