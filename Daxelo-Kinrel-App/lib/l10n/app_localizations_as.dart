@@ -792,4 +792,101 @@ class SAs extends S {
 
   @override
   String get chatBlockedDirectUnblockButton => 'Unblock';
+
+  @override
+  String chatDraftPrefix(String text) {
+    return 'Draft: $text';
+  }
+
+  @override
+  String get chatScheduleMenuItem => 'Scheduled messages';
+
+  @override
+  String get chatScheduleSheetTitle => 'Schedule message';
+
+  @override
+  String chatScheduleSheetSubtitle(String content) {
+    return 'Send \"$content\" at a later time';
+  }
+
+  @override
+  String get chatScheduleQuickLaterToday => 'Later today';
+
+  @override
+  String get chatScheduleQuickTomorrow => 'Tomorrow morning';
+
+  @override
+  String get chatScheduleQuickWeekend => 'This weekend';
+
+  @override
+  String get chatScheduleQuickCustom => 'Custom...';
+
+  @override
+  String get chatScheduleQuickCustomHint => 'Pick a date and time';
+
+  @override
+  String get chatScheduleCancel => 'Cancel';
+
+  @override
+  String chatScheduleSuccess(String time) {
+    return 'Scheduled for $time';
+  }
+
+  @override
+  String get chatSchedulePastTimeRejected => 'Pick a time in the future';
+
+  @override
+  String get chatScheduleNotSignedIn => 'Sign in to schedule messages';
+
+  @override
+  String get chatScheduleFailed => 'Failed to schedule. Try again.';
+
+  @override
+  String get chatScheduleDatePickerHelp => 'Pick a date';
+
+  @override
+  String get chatScheduleTimePickerHelp => 'Pick a time';
+
+  @override
+  String get chatScheduledListTitle => 'Scheduled messages';
+
+  @override
+  String get chatScheduledListEmpty => 'No scheduled messages in this chat.';
+
+  @override
+  String get chatScheduledListCancel => 'Cancel';
+
+  @override
+  String get chatScheduledListRetry => 'Retry';
+
+  @override
+  String get chatScheduledListEditTime => 'Edit time';
+
+  @override
+  String get chatScheduledListEditText => 'Edit text';
+
+  @override
+  String get chatScheduledListFailed => 'Failed to send';
+
+  @override
+  String chatScheduledListSendingAt(String time) {
+    return 'Sending at $time';
+  }
+
+  @override
+  String chatScheduledListSentAt(String time) {
+    return 'Sent at $time';
+  }
+
+  @override
+  String get chatScheduleCancelled => 'Scheduled message cancelled.';
+
+  @override
+  String get chatScheduleRetried => 'Scheduled message retried.';
+
+  @override
+  String get chatScheduleEditTimeUpdated => 'Time updated.';
+
+  @override
+  String get chatScheduleEditTextUpdated => 'Text updated.';
 }

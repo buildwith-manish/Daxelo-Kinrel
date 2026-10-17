@@ -1038,5 +1038,146 @@
   "chatBlockedDirectUnblockButton": "Unblock",
   "@chatBlockedDirectUnblockButton": {
     "description": "Chat block/report string: chatBlockedDirectUnblockButton"
+  },
+  "chatDraftPrefix": "Draft: {text}",
+  "@chatDraftPrefix": {
+    "description": "Chat drafts/schedule string: chatDraftPrefix",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleMenuItem": "Scheduled messages",
+  "@chatScheduleMenuItem": {
+    "description": "Chat drafts/schedule string: chatScheduleMenuItem"
+  },
+  "chatScheduleSheetTitle": "Schedule message",
+  "@chatScheduleSheetTitle": {
+    "description": "Chat drafts/schedule string: chatScheduleSheetTitle"
+  },
+  "chatScheduleSheetSubtitle": "Send \"{content}\" at a later time",
+  "@chatScheduleSheetSubtitle": {
+    "description": "Chat drafts/schedule string: chatScheduleSheetSubtitle",
+    "placeholders": {
+      "content": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleQuickLaterToday": "Later today",
+  "@chatScheduleQuickLaterToday": {
+    "description": "Chat drafts/schedule string: chatScheduleQuickLaterToday"
+  },
+  "chatScheduleQuickTomorrow": "Tomorrow morning",
+  "@chatScheduleQuickTomorrow": {
+    "description": "Chat drafts/schedule string: chatScheduleQuickTomorrow"
+  },
+  "chatScheduleQuickWeekend": "This weekend",
+  "@chatScheduleQuickWeekend": {
+    "description": "Chat drafts/schedule string: chatScheduleQuickWeekend"
+  },
+  "chatScheduleQuickCustom": "Custom...",
+  "@chatScheduleQuickCustom": {
+    "description": "Chat drafts/schedule string: chatScheduleQuickCustom"
+  },
+  "chatScheduleQuickCustomHint": "Pick a date and time",
+  "@chatScheduleQuickCustomHint": {
+    "description": "Chat drafts/schedule string: chatScheduleQuickCustomHint"
+  },
+  "chatScheduleCancel": "Cancel",
+  "@chatScheduleCancel": {
+    "description": "Chat drafts/schedule string: chatScheduleCancel"
+  },
+  "chatScheduleSuccess": "Scheduled for {time}",
+  "@chatScheduleSuccess": {
+    "description": "Chat drafts/schedule string: chatScheduleSuccess",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSchedulePastTimeRejected": "Pick a time in the future",
+  "@chatSchedulePastTimeRejected": {
+    "description": "Chat drafts/schedule string: chatSchedulePastTimeRejected"
+  },
+  "chatScheduleNotSignedIn": "Sign in to schedule messages",
+  "@chatScheduleNotSignedIn": {
+    "description": "Chat drafts/schedule string: chatScheduleNotSignedIn"
+  },
+  "chatScheduleFailed": "Failed to schedule. Try again.",
+  "@chatScheduleFailed": {
+    "description": "Chat drafts/schedule string: chatScheduleFailed"
+  },
+  "chatScheduleDatePickerHelp": "Pick a date",
+  "@chatScheduleDatePickerHelp": {
+    "description": "Chat drafts/schedule string: chatScheduleDatePickerHelp"
+  },
+  "chatScheduleTimePickerHelp": "Pick a time",
+  "@chatScheduleTimePickerHelp": {
+    "description": "Chat drafts/schedule string: chatScheduleTimePickerHelp"
+  },
+  "chatScheduledListTitle": "Scheduled messages",
+  "@chatScheduledListTitle": {
+    "description": "Chat drafts/schedule string: chatScheduledListTitle"
+  },
+  "chatScheduledListEmpty": "No scheduled messages in this chat.",
+  "@chatScheduledListEmpty": {
+    "description": "Chat drafts/schedule string: chatScheduledListEmpty"
+  },
+  "chatScheduledListCancel": "Cancel",
+  "@chatScheduledListCancel": {
+    "description": "Chat drafts/schedule string: chatScheduledListCancel"
+  },
+  "chatScheduledListRetry": "Retry",
+  "@chatScheduledListRetry": {
+    "description": "Chat drafts/schedule string: chatScheduledListRetry"
+  },
+  "chatScheduledListEditTime": "Edit time",
+  "@chatScheduledListEditTime": {
+    "description": "Chat drafts/schedule string: chatScheduledListEditTime"
+  },
+  "chatScheduledListEditText": "Edit text",
+  "@chatScheduledListEditText": {
+    "description": "Chat drafts/schedule string: chatScheduledListEditText"
+  },
+  "chatScheduledListFailed": "Failed to send",
+  "@chatScheduledListFailed": {
+    "description": "Chat drafts/schedule string: chatScheduledListFailed"
+  },
+  "chatScheduledListSendingAt": "Sending at {time}",
+  "@chatScheduledListSendingAt": {
+    "description": "Chat drafts/schedule string: chatScheduledListSendingAt",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduledListSentAt": "Sent at {time}",
+  "@chatScheduledListSentAt": {
+    "description": "Chat drafts/schedule string: chatScheduledListSentAt",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleCancelled": "Scheduled message cancelled.",
+  "@chatScheduleCancelled": {
+    "description": "Chat drafts/schedule string: chatScheduleCancelled"
+  },
+  "chatScheduleRetried": "Scheduled message retried.",
+  "@chatScheduleRetried": {
+    "description": "Chat drafts/schedule string: chatScheduleRetried"
+  },
+  "chatScheduleEditTimeUpdated": "Time updated.",
+  "@chatScheduleEditTimeUpdated": {
+    "description": "Chat drafts/schedule string: chatScheduleEditTimeUpdated"
+  },
+  "chatScheduleEditTextUpdated": "Text updated.",
+  "@chatScheduleEditTextUpdated": {
+    "description": "Chat drafts/schedule string: chatScheduleEditTextUpdated"
   }
 }

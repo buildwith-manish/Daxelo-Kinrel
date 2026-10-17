@@ -794,4 +794,102 @@ class SBn extends S {
 
   @override
   String get chatBlockedDirectUnblockButton => 'আনব্লক করুন';
+
+  @override
+  String chatDraftPrefix(String text) {
+    return 'খসড়া: $text';
+  }
+
+  @override
+  String get chatScheduleMenuItem => 'নির্ধারিত বার্তা';
+
+  @override
+  String get chatScheduleSheetTitle => 'বার্তা নির্ধারণ করুন';
+
+  @override
+  String chatScheduleSheetSubtitle(String content) {
+    return '\"$content\" পরে পাঠান';
+  }
+
+  @override
+  String get chatScheduleQuickLaterToday => 'আজ সন্ধ্যায়';
+
+  @override
+  String get chatScheduleQuickTomorrow => 'আগামীকাল সকাল';
+
+  @override
+  String get chatScheduleQuickWeekend => 'এই সপ্তাহান্তে';
+
+  @override
+  String get chatScheduleQuickCustom => 'কাস্টম...';
+
+  @override
+  String get chatScheduleQuickCustomHint => 'তারিখ এবং সময় নির্বাচন করুন';
+
+  @override
+  String get chatScheduleCancel => 'বাতিল';
+
+  @override
+  String chatScheduleSuccess(String time) {
+    return '$time এর জন্য নির্ধারিত';
+  }
+
+  @override
+  String get chatSchedulePastTimeRejected => 'ভবিষ্যতে সময় নির্বাচন করুন';
+
+  @override
+  String get chatScheduleNotSignedIn => 'নির্ধারণ করতে সাইন ইন করুন';
+
+  @override
+  String get chatScheduleFailed => 'নির্ধারণে ব্যর্থ। আবার চেষ্টা করুন।';
+
+  @override
+  String get chatScheduleDatePickerHelp => 'তারিখ নির্বাচন করুন';
+
+  @override
+  String get chatScheduleTimePickerHelp => 'সময় নির্বাচন করুন';
+
+  @override
+  String get chatScheduledListTitle => 'নির্ধারিত বার্তা';
+
+  @override
+  String get chatScheduledListEmpty => 'এই চ্যাটে কোনো নির্ধারিত বার্তা নেই।';
+
+  @override
+  String get chatScheduledListCancel => 'বাতিল';
+
+  @override
+  String get chatScheduledListRetry => 'পুনরায় চেষ্টা';
+
+  @override
+  String get chatScheduledListEditTime => 'সময় সম্পাদনা';
+
+  @override
+  String get chatScheduledListEditText => 'টেক্সট সম্পাদনা';
+
+  @override
+  String get chatScheduledListFailed => 'পাঠাতে ব্যর্থ';
+
+  @override
+  String chatScheduledListSendingAt(String time) {
+    return '$time এ পাঠানো হচ্ছে';
+  }
+
+  @override
+  String chatScheduledListSentAt(String time) {
+    return '$time এ পাঠানো হয়েছে';
+  }
+
+  @override
+  String get chatScheduleCancelled => 'নির্ধারিত বার্তা বাতিল করা হয়েছে।';
+
+  @override
+  String get chatScheduleRetried =>
+      'নির্ধারিত বার্তা পুনরায় চেষ্টা করা হয়েছে।';
+
+  @override
+  String get chatScheduleEditTimeUpdated => 'সময় আপডেট হয়েছে।';
+
+  @override
+  String get chatScheduleEditTextUpdated => 'টেক্সট আপডেট হয়েছে।';
 }

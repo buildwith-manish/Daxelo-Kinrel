@@ -62,6 +62,8 @@ import '../../thinking/data/thinking_service.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
 import '../data/chat_enhancement_service.dart';
 import '../data/chat_block_report_service.dart';
+import '../data/chat_draft_service.dart';
+import '../data/chat_scheduled_message_service.dart';
 import '../data/chat_lock_service.dart';
 import '../providers/chat_provider.dart';
 import '../providers/chat_onboarding_provider.dart';
@@ -98,6 +100,7 @@ import 'widgets/typing_indicator.dart';
 import 'widgets/reaction_picker.dart';
 import 'widgets/report_message_sheet.dart';
 import 'widgets/blocked_message_placeholder.dart';
+import 'widgets/schedule_message_sheet.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../data/chat_wallpaper_provider.dart';
 import '../data/wallpaper_picker.dart';
@@ -203,6 +206,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   bool _showScrollFab = false;
   bool _isComposing = false;
 
+  // feat(chat): drafts — debounced save of the typed text + reply-to
+  // target. The save fires ~500ms after the last keystroke so the
+  // SharedPreferences write is amortized across typing bursts (not
+  // once per character). Restored on initState; cleared on send /
+  // when the field is emptied. Survives app restarts (SharedPreferences).
+  Timer? _draftDebounce;
+  // Tracks whether the draft has been restored from disk for THIS
+  // session — the restore happens in initState's addPostFrameCallback
+  // (so the ref is ready + the widget is mounted). Subsequent text
+  // changes are debounced saves.
+  bool _draftRestored = false;
+
   // Tier 2 / Chat Lock — when true, the chat screen shows a biometric
   // lock overlay instead of the message thread. Set in initState by
   // reading the per-chat lock flag from shared_preferences.
@@ -292,6 +307,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _scrollController.addListener(_onScroll);
     _textController.addListener(_onTextChanged);
 
+    // feat(chat): drafts — restore the saved draft on init. We use
+    // addPostFrameCallback so ref is ready + the widget is mounted.
+    // The restore sets the text + the reply-to target (if any) — the
+    // subsequent text-changed listener will start the debounced save
+    // only when the USER types (we set _draftRestored after the
+    // restore so the FIRST text-changed callback — fired by the
+    // setText — doesn't trigger a redundant save).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _restoreDraft();
+    });
+
     // v126: When the text field gains focus (keyboard opens), scroll
     // to the latest message so it's not hidden behind the keyboard.
     // v133: Also trigger setState on focus change so the unified
@@ -376,6 +402,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   @override
   void dispose() {
+    // feat(chat): drafts — cancel the pending debounce timer so it
+    // doesn't fire after the screen is gone (which would try to
+    // ref.read on a disposed widget).
+    _draftDebounce?.cancel();
+    _draftDebounce = null;
     // v128: Clean up web keyboard height listener.
     WebKeyboardHeight.instance.removeListener(_onWebKeyboardHeight);
     // Phase 22 / Task 3 — clean up the mention picker overlay so it
@@ -451,6 +482,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       }
     }
 
+    // feat(chat): drafts — debounce-save the typed text + reply-to
+    // target ~500ms after the last keystroke. Skip the FIRST text-
+    // change callback after a restore (the restore itself triggers
+    // setText → text-changed; we don't want to immediately re-save
+    // the same draft we just loaded).
+    if (_draftRestored) {
+      _draftDebounce?.cancel();
+      _draftDebounce = Timer(const Duration(milliseconds: 500), () {
+        _saveDraftNow();
+      });
+    }
+
     // Phase 22 / Task 3 — @mention picker detection. MentionTracker
     // walks back from the cursor to find an "@" trigger that's at the
     // start of input or preceded by whitespace. If found, the text
@@ -468,6 +511,79 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     } else if (_mentionOverlay != null) {
       _hideMentionPicker();
     }
+  }
+
+  // ── feat(chat): drafts — restore on open, debounced save on
+  //    text change, clear on send. Survives app restarts via
+  //    SharedPreferences (see ChatDraftService).
+  //    Drafts are LOCAL to the device in this version — they are NOT
+  //    synced to the server.
+  // ──────────────────────────────────────────────────────────────────
+  Future<void> _restoreDraft() async {
+    if (!mounted) return;
+    final draft = await ref.read(chatDraftServiceProvider).loadDraft(
+      widget.familyId,
+      directOtherUserId: widget.directOtherUserId,
+    );
+    if (!mounted) return;
+    if (draft != null) {
+      // Restore the typed text.
+      _textController.text = draft.text;
+      // Move the cursor to the end so the user can keep typing.
+      _textController.selection = TextSelection.fromPosition(
+        TextPosition(offset: draft.text.length),
+      );
+      // Restore the reply-to target if it was set.
+      if (draft.replyToId != null) {
+        // Look up the message in the current chat state to rebuild the
+        // full ChatMessage object (we only persisted the id + content
+        // snippet + sender name — the full ChatMessage lives in
+        // chatProvider). If the original is no longer in state (e.g.
+        // the user scrolled far enough that it paged out), we still set
+        // a partial reply-to (id + content + sender) so the UI shows
+        // the reply bar; the server resolves by id alone.
+        final chatState = ref.read(chatProvider(widget.familyId));
+        final full = chatState.messages
+            .where((m) => m.id == draft.replyToId)
+            .firstOrNull;
+        if (full != null) {
+          ref.read(chatProvider(widget.familyId).notifier).setReplyTo(full);
+        } else {
+          // Construct a partial ChatMessage from the saved draft fields
+          // so the reply bar shows the original sender + content
+          // snippet. The server-side INSERT only uses replyToId, so
+          // a partial ChatMessage here is enough.
+          final partial = ChatMessage(
+            id: draft.replyToId!,
+            senderId: '',
+            senderName: draft.replyToSenderName ?? '',
+            content: draft.replyToContent ?? '',
+            messageType: MessageType.text,
+            timestamp: draft.updatedAt,
+            replyToId: null,
+            replyToContent: draft.replyToContent,
+            replyToSenderName: draft.replyToSenderName,
+          );
+          ref.read(chatProvider(widget.familyId).notifier).setReplyTo(partial);
+        }
+      }
+    }
+    // Mark restored so the NEXT text-changed callback (fired by the
+    // setText above) starts the debounced save. Until this point, the
+    // FIRST text-changed callback is the restore itself, which we skip.
+    _draftRestored = true;
+  }
+
+  Future<void> _saveDraftNow() async {
+    if (!mounted) return;
+    final text = _textController.text;
+    final replyTo = ref.read(chatProvider(widget.familyId)).replyToMessage;
+    await ref.read(chatDraftServiceProvider).saveDraft(
+      widget.familyId,
+      directOtherUserId: widget.directOtherUserId,
+      text: text,
+      replyTo: replyTo,
+    );
   }
 
   // ── Phase 22 / Task 3: @mention picker show/hide ──────────────────
@@ -574,6 +690,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   void _sendMessage() {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
+
+    // feat(chat): drafts — clear the draft on send (the message is
+    // now in-flight; the draft no longer applies). Fire-and-forget
+    // the clear; we don't await it (the send path is hot).
+    _draftDebounce?.cancel();
+    _draftDebounce = null;
+    unawaited(ref.read(chatDraftServiceProvider).clearDraft(
+      widget.familyId,
+      directOtherUserId: widget.directOtherUserId,
+    ));
 
     // ── Haptic: tap confirms the send fired before the optimistic insert
     // completes. This is the WhatsApp/iMessage pattern — the message
@@ -2264,6 +2390,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       focusNode: _focusNode,
       isComposing: _isComposing,
       onSend: _sendMessage,
+      // feat(chat): scheduled messages — long-press the send button
+      // opens the ScheduleMessageSheet. Only enabled when there's
+      // text to schedule (the send button is hidden when not
+      // composing, so onLongPress is only invokable from the active
+      // send button). Text-only in v1.
+      onSchedule: _isComposing ? _showScheduleSheet : null,
       showAttach: true,
       showEmoji: true,
       showStickers: true,
@@ -2280,6 +2412,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // D12: the thinking-of-you heart (the app's existing
       // fn_send_thinking_of_you feature), wired into the composer.
       onThinkingOfYou: _sendThinkingOfYouFromComposer,
+    );
+  }
+
+  /// feat(chat): scheduled messages — opens the ScheduleMessageSheet
+  /// with the current text + reply-to target. The sheet handles the
+  /// quick options (later today 6pm, tomorrow 9am, weekend 10am) +
+  /// custom date+time picker. Past times are rejected client-side +
+  /// the DB CHECK constraint also rejects.
+  void _showScheduleSheet() {
+    if (_textController.text.trim().isEmpty) return;
+    final replyToId = ref.read(chatProvider(widget.familyId)).replyToMessage?.id;
+    ScheduleMessageSheet.show(
+      context,
+      familyId: widget.familyId,
+      groupId: widget.groupId,
+      content: _textController.text,
+      replyToId: replyToId,
     );
   }
 

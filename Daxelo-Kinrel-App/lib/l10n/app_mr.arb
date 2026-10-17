@@ -166,5 +166,74 @@
   "chatBlockSucceeded": "वापरकर्ता ब्लॉक केला.",
   "chatBlockFailed": "वापरकर्त्याला ब्लॉक करण्यात अयशस्वी. पुन्हा प्रयत्न करा.",
   "chatBlockedDirectHeader": "तुम्ही या व्यक्तीला ब्लॉक केले आहे",
-  "chatBlockedDirectUnblockButton": "अनब्लॉक करा"
+  "chatBlockedDirectUnblockButton": "अनब्लॉक करा",
+  "chatDraftPrefix": "मसुदा: {text}",
+  "@chatDraftPrefix": {
+    "description": "Chat drafts/schedule string: chatDraftPrefix",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleMenuItem": "शेड्युल केलेले संदेश",
+  "chatScheduleSheetTitle": "संदेश शेड्युल करा",
+  "chatScheduleSheetSubtitle": "\"{content}\" नंतर पाठवा",
+  "@chatScheduleSheetSubtitle": {
+    "description": "Chat drafts/schedule string: chatScheduleSheetSubtitle",
+    "placeholders": {
+      "content": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleQuickLaterToday": "आज संध्याकाळी",
+  "chatScheduleQuickTomorrow": "उद्या सकाळी",
+  "chatScheduleQuickWeekend": "या वारंत्यात",
+  "chatScheduleQuickCustom": "कस्टम...",
+  "chatScheduleQuickCustomHint": "तारीख आणि वेळ निवडा",
+  "chatScheduleCancel": "रद्द करा",
+  "chatScheduleSuccess": "{time} ला शेड्युल केले",
+  "@chatScheduleSuccess": {
+    "description": "Chat drafts/schedule string: chatScheduleSuccess",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSchedulePastTimeRejected": "भविष्यातील वेळ निवडा",
+  "chatScheduleNotSignedIn": "शेड्युल करण्यासाठी साइन इन करा",
+  "chatScheduleFailed": "शेड्युल करण्यात अयशस्वी. पुन्हा प्रयत्न करा.",
+  "chatScheduleDatePickerHelp": "तारीख निवडा",
+  "chatScheduleTimePickerHelp": "वेळ निवडा",
+  "chatScheduledListTitle": "शेड्युल केलेले संदेश",
+  "chatScheduledListEmpty": "या चॅटमध्ये शेड्युल केलेले संदेश नाहीत.",
+  "chatScheduledListCancel": "रद्द करा",
+  "chatScheduledListRetry": "पुन्हा प्रयत्न",
+  "chatScheduledListEditTime": "वेळ संपादित करा",
+  "chatScheduledListEditText": "मजकूर संपादित करा",
+  "chatScheduledListFailed": "पाठवण्यात अयशस्वी",
+  "chatScheduledListSendingAt": "{time} ला पाठवले जात आहे",
+  "@chatScheduledListSendingAt": {
+    "description": "Chat drafts/schedule string: chatScheduledListSendingAt",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduledListSentAt": "{time} ला पाठवले",
+  "@chatScheduledListSentAt": {
+    "description": "Chat drafts/schedule string: chatScheduledListSentAt",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleCancelled": "शेड्युल केलेला संदेश रद्द केला.",
+  "chatScheduleRetried": "शेड्युल केलेला संदेश पुन्हा प्रयत्न केला.",
+  "chatScheduleEditTimeUpdated": "वेळ अपडेट केली.",
+  "chatScheduleEditTextUpdated": "मजकूर अपडेट केला."
 }

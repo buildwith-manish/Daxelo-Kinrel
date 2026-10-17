@@ -799,4 +799,106 @@ class STa extends S {
 
   @override
   String get chatBlockedDirectUnblockButton => 'தடைநீக்கு';
+
+  @override
+  String chatDraftPrefix(String text) {
+    return 'வரைவு: $text';
+  }
+
+  @override
+  String get chatScheduleMenuItem => 'திட்டமிடப்பட்ட செய்திகள்';
+
+  @override
+  String get chatScheduleSheetTitle => 'செய்தியைத் திட்டமிடு';
+
+  @override
+  String chatScheduleSheetSubtitle(String content) {
+    return '\"$content\" ஐப் பிறகு அனுப்பு';
+  }
+
+  @override
+  String get chatScheduleQuickLaterToday => 'இன்று மாலை';
+
+  @override
+  String get chatScheduleQuickTomorrow => 'நாளை காலை';
+
+  @override
+  String get chatScheduleQuickWeekend => 'இந்த வார இறுதியில்';
+
+  @override
+  String get chatScheduleQuickCustom => 'தனிப்பயன்...';
+
+  @override
+  String get chatScheduleQuickCustomHint => 'தேதி மற்றும் நேரத்தைத் தேர்ந்தெடு';
+
+  @override
+  String get chatScheduleCancel => 'ரத்து';
+
+  @override
+  String chatScheduleSuccess(String time) {
+    return '$time க்குத் திட்டமிடப்பட்டது';
+  }
+
+  @override
+  String get chatSchedulePastTimeRejected =>
+      'எதிர்காலத்தில் நேரத்தைத் தேர்ந்தெடு';
+
+  @override
+  String get chatScheduleNotSignedIn => 'திட்டமிட உள்நுழையவும்';
+
+  @override
+  String get chatScheduleFailed =>
+      'திட்டமிட முடியவில்லை. மீண்டும் முயற்சிக்கவும்.';
+
+  @override
+  String get chatScheduleDatePickerHelp => 'தேதியைத் தேர்ந்தெடு';
+
+  @override
+  String get chatScheduleTimePickerHelp => 'நேரத்தைத் தேர்ந்தெடு';
+
+  @override
+  String get chatScheduledListTitle => 'திட்டமிடப்பட்ட செய்திகள்';
+
+  @override
+  String get chatScheduledListEmpty =>
+      'இந்த அரட்செய்தியில் திட்டமிடப்பட்ட செய்திகள் இல்லை.';
+
+  @override
+  String get chatScheduledListCancel => 'ரத்து';
+
+  @override
+  String get chatScheduledListRetry => 'மீண்டும் முயற்சி';
+
+  @override
+  String get chatScheduledListEditTime => 'நேரத்தை திருத்து';
+
+  @override
+  String get chatScheduledListEditText => 'உரையை திருத்து';
+
+  @override
+  String get chatScheduledListFailed => 'அனுப்ப முடியவில்லை';
+
+  @override
+  String chatScheduledListSendingAt(String time) {
+    return '$time க்கு அனுப்பப்படுகிறது';
+  }
+
+  @override
+  String chatScheduledListSentAt(String time) {
+    return '$time க்கு அனுப்பப்பட்டது';
+  }
+
+  @override
+  String get chatScheduleCancelled =>
+      'திட்டமிடப்பட்ட செய்தி ரத்து செய்யப்பட்டது.';
+
+  @override
+  String get chatScheduleRetried =>
+      'திட்டமிடப்பட்ட செய்தி மீண்டும் முயற்சிக்கப்பட்டது.';
+
+  @override
+  String get chatScheduleEditTimeUpdated => 'நேரம் புதுப்பிக்கப்பட்டது.';
+
+  @override
+  String get chatScheduleEditTextUpdated => 'உரை புதுப்பிக்கப்பட்டது.';
 }

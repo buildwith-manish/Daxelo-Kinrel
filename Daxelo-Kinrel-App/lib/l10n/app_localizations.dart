@@ -1472,6 +1472,180 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Unblock'**
   String get chatBlockedDirectUnblockButton;
+
+  /// Chat drafts/schedule string: chatDraftPrefix
+  ///
+  /// In en, this message translates to:
+  /// **'Draft: {text}'**
+  String chatDraftPrefix(String text);
+
+  /// Chat drafts/schedule string: chatScheduleMenuItem
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled messages'**
+  String get chatScheduleMenuItem;
+
+  /// Chat drafts/schedule string: chatScheduleSheetTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Schedule message'**
+  String get chatScheduleSheetTitle;
+
+  /// Chat drafts/schedule string: chatScheduleSheetSubtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Send \"{content}\" at a later time'**
+  String chatScheduleSheetSubtitle(String content);
+
+  /// Chat drafts/schedule string: chatScheduleQuickLaterToday
+  ///
+  /// In en, this message translates to:
+  /// **'Later today'**
+  String get chatScheduleQuickLaterToday;
+
+  /// Chat drafts/schedule string: chatScheduleQuickTomorrow
+  ///
+  /// In en, this message translates to:
+  /// **'Tomorrow morning'**
+  String get chatScheduleQuickTomorrow;
+
+  /// Chat drafts/schedule string: chatScheduleQuickWeekend
+  ///
+  /// In en, this message translates to:
+  /// **'This weekend'**
+  String get chatScheduleQuickWeekend;
+
+  /// Chat drafts/schedule string: chatScheduleQuickCustom
+  ///
+  /// In en, this message translates to:
+  /// **'Custom...'**
+  String get chatScheduleQuickCustom;
+
+  /// Chat drafts/schedule string: chatScheduleQuickCustomHint
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a date and time'**
+  String get chatScheduleQuickCustomHint;
+
+  /// Chat drafts/schedule string: chatScheduleCancel
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get chatScheduleCancel;
+
+  /// Chat drafts/schedule string: chatScheduleSuccess
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled for {time}'**
+  String chatScheduleSuccess(String time);
+
+  /// Chat drafts/schedule string: chatSchedulePastTimeRejected
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a time in the future'**
+  String get chatSchedulePastTimeRejected;
+
+  /// Chat drafts/schedule string: chatScheduleNotSignedIn
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to schedule messages'**
+  String get chatScheduleNotSignedIn;
+
+  /// Chat drafts/schedule string: chatScheduleFailed
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to schedule. Try again.'**
+  String get chatScheduleFailed;
+
+  /// Chat drafts/schedule string: chatScheduleDatePickerHelp
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a date'**
+  String get chatScheduleDatePickerHelp;
+
+  /// Chat drafts/schedule string: chatScheduleTimePickerHelp
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a time'**
+  String get chatScheduleTimePickerHelp;
+
+  /// Chat drafts/schedule string: chatScheduledListTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled messages'**
+  String get chatScheduledListTitle;
+
+  /// Chat drafts/schedule string: chatScheduledListEmpty
+  ///
+  /// In en, this message translates to:
+  /// **'No scheduled messages in this chat.'**
+  String get chatScheduledListEmpty;
+
+  /// Chat drafts/schedule string: chatScheduledListCancel
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get chatScheduledListCancel;
+
+  /// Chat drafts/schedule string: chatScheduledListRetry
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get chatScheduledListRetry;
+
+  /// Chat drafts/schedule string: chatScheduledListEditTime
+  ///
+  /// In en, this message translates to:
+  /// **'Edit time'**
+  String get chatScheduledListEditTime;
+
+  /// Chat drafts/schedule string: chatScheduledListEditText
+  ///
+  /// In en, this message translates to:
+  /// **'Edit text'**
+  String get chatScheduledListEditText;
+
+  /// Chat drafts/schedule string: chatScheduledListFailed
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send'**
+  String get chatScheduledListFailed;
+
+  /// Chat drafts/schedule string: chatScheduledListSendingAt
+  ///
+  /// In en, this message translates to:
+  /// **'Sending at {time}'**
+  String chatScheduledListSendingAt(String time);
+
+  /// Chat drafts/schedule string: chatScheduledListSentAt
+  ///
+  /// In en, this message translates to:
+  /// **'Sent at {time}'**
+  String chatScheduledListSentAt(String time);
+
+  /// Chat drafts/schedule string: chatScheduleCancelled
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled message cancelled.'**
+  String get chatScheduleCancelled;
+
+  /// Chat drafts/schedule string: chatScheduleRetried
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled message retried.'**
+  String get chatScheduleRetried;
+
+  /// Chat drafts/schedule string: chatScheduleEditTimeUpdated
+  ///
+  /// In en, this message translates to:
+  /// **'Time updated.'**
+  String get chatScheduleEditTimeUpdated;
+
+  /// Chat drafts/schedule string: chatScheduleEditTextUpdated
+  ///
+  /// In en, this message translates to:
+  /// **'Text updated.'**
+  String get chatScheduleEditTextUpdated;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

@@ -798,4 +798,104 @@ class STe extends S {
 
   @override
   String get chatBlockedDirectUnblockButton => 'అన్‌బ్లాక్ చేయి';
+
+  @override
+  String chatDraftPrefix(String text) {
+    return 'డ్రాఫ్ట్: $text';
+  }
+
+  @override
+  String get chatScheduleMenuItem => 'షెడ్యూల్ చేసిన సందేశాలు';
+
+  @override
+  String get chatScheduleSheetTitle => 'సందేశాన్ని షెడ్యూల్ చేయండి';
+
+  @override
+  String chatScheduleSheetSubtitle(String content) {
+    return '\"$content\" ని తర్వాత పంపండి';
+  }
+
+  @override
+  String get chatScheduleQuickLaterToday => 'ఈరోజు సాయంత్రం';
+
+  @override
+  String get chatScheduleQuickTomorrow => 'రేపు ఉదయ';
+
+  @override
+  String get chatScheduleQuickWeekend => 'ఈ వారాంత్రం';
+
+  @override
+  String get chatScheduleQuickCustom => 'కస్టమ్...';
+
+  @override
+  String get chatScheduleQuickCustomHint => 'తేదీ మరియు సమయాన్ని ఎంచుకోండి';
+
+  @override
+  String get chatScheduleCancel => 'రద్దు';
+
+  @override
+  String chatScheduleSuccess(String time) {
+    return '$time కు షెడ్యూల్ చేయబడింది';
+  }
+
+  @override
+  String get chatSchedulePastTimeRejected => 'భవిష్యత్తులో సమయాన్ని ఎంచుకోండి';
+
+  @override
+  String get chatScheduleNotSignedIn => 'షెడ్యూల్ చేయడానికి సైన్ ఇన్ అవ్వండి';
+
+  @override
+  String get chatScheduleFailed =>
+      'షెడ్యూల్ చేయడంలో విఫలం. మళ్లీ ప్రయత్నించండి.';
+
+  @override
+  String get chatScheduleDatePickerHelp => 'తేదీని ఎంచుకోండి';
+
+  @override
+  String get chatScheduleTimePickerHelp => 'సమయాన్ని ఎంచుకోండి';
+
+  @override
+  String get chatScheduledListTitle => 'షెడ్యూల్ చేసిన సందేశాలు';
+
+  @override
+  String get chatScheduledListEmpty =>
+      'ఈ చాట్‌లో షెడ్యూల్ చేసిన సందేశాలు లేవు.';
+
+  @override
+  String get chatScheduledListCancel => 'రద్దు';
+
+  @override
+  String get chatScheduledListRetry => 'మళ్లీ ప్రయత్నించు';
+
+  @override
+  String get chatScheduledListEditTime => 'సమయాన్ని సవరించు';
+
+  @override
+  String get chatScheduledListEditText => 'టెక్స్ట్ సవరించు';
+
+  @override
+  String get chatScheduledListFailed => 'పంపడంలో విఫలం';
+
+  @override
+  String chatScheduledListSendingAt(String time) {
+    return '$time కి పంపబడుతోంది';
+  }
+
+  @override
+  String chatScheduledListSentAt(String time) {
+    return '$time కి పంపబడింది';
+  }
+
+  @override
+  String get chatScheduleCancelled => 'షెడ్యూల్ చేసిన సందేశం రద్దు చేయబడింది.';
+
+  @override
+  String get chatScheduleRetried =>
+      'షెడ్యూల్ చేసిన సందేశం మళ్లీ ప్రయత్నించబడింది.';
+
+  @override
+  String get chatScheduleEditTimeUpdated => 'సమయం నవీకరించబడింది.';
+
+  @override
+  String get chatScheduleEditTextUpdated => 'టెక్స్ట్ నవీకరించబడింది.';
 }

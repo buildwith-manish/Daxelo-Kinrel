@@ -166,5 +166,74 @@
   "chatBlockSucceeded": "వినియోగదారుడు బ్లాక్ చేయబడ్డారు.",
   "chatBlockFailed": "వినియోగదారుని బ్లాక్ చేయడంలో విఫలమైంది. మళ్లీ ప్రయత్నించండి.",
   "chatBlockedDirectHeader": "మీరు ఈ వ్యక్తిని బ్లాక్ చేశారు",
-  "chatBlockedDirectUnblockButton": "అన్‌బ్లాక్ చేయి"
+  "chatBlockedDirectUnblockButton": "అన్‌బ్లాక్ చేయి",
+  "chatDraftPrefix": "డ్రాఫ్ట్: {text}",
+  "@chatDraftPrefix": {
+    "description": "Chat drafts/schedule string: chatDraftPrefix",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleMenuItem": "షెడ్యూల్ చేసిన సందేశాలు",
+  "chatScheduleSheetTitle": "సందేశాన్ని షెడ్యూల్ చేయండి",
+  "chatScheduleSheetSubtitle": "\"{content}\" ని తర్వాత పంపండి",
+  "@chatScheduleSheetSubtitle": {
+    "description": "Chat drafts/schedule string: chatScheduleSheetSubtitle",
+    "placeholders": {
+      "content": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleQuickLaterToday": "ఈరోజు సాయంత్రం",
+  "chatScheduleQuickTomorrow": "రేపు ఉదయ",
+  "chatScheduleQuickWeekend": "ఈ వారాంత్రం",
+  "chatScheduleQuickCustom": "కస్టమ్...",
+  "chatScheduleQuickCustomHint": "తేదీ మరియు సమయాన్ని ఎంచుకోండి",
+  "chatScheduleCancel": "రద్దు",
+  "chatScheduleSuccess": "{time} కు షెడ్యూల్ చేయబడింది",
+  "@chatScheduleSuccess": {
+    "description": "Chat drafts/schedule string: chatScheduleSuccess",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSchedulePastTimeRejected": "భవిష్యత్తులో సమయాన్ని ఎంచుకోండి",
+  "chatScheduleNotSignedIn": "షెడ్యూల్ చేయడానికి సైన్ ఇన్ అవ్వండి",
+  "chatScheduleFailed": "షెడ్యూల్ చేయడంలో విఫలం. మళ్లీ ప్రయత్నించండి.",
+  "chatScheduleDatePickerHelp": "తేదీని ఎంచుకోండి",
+  "chatScheduleTimePickerHelp": "సమయాన్ని ఎంచుకోండి",
+  "chatScheduledListTitle": "షెడ్యూల్ చేసిన సందేశాలు",
+  "chatScheduledListEmpty": "ఈ చాట్‌లో షెడ్యూల్ చేసిన సందేశాలు లేవు.",
+  "chatScheduledListCancel": "రద్దు",
+  "chatScheduledListRetry": "మళ్లీ ప్రయత్నించు",
+  "chatScheduledListEditTime": "సమయాన్ని సవరించు",
+  "chatScheduledListEditText": "టెక్స్ట్ సవరించు",
+  "chatScheduledListFailed": "పంపడంలో విఫలం",
+  "chatScheduledListSendingAt": "{time} కి పంపబడుతోంది",
+  "@chatScheduledListSendingAt": {
+    "description": "Chat drafts/schedule string: chatScheduledListSendingAt",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduledListSentAt": "{time} కి పంపబడింది",
+  "@chatScheduledListSentAt": {
+    "description": "Chat drafts/schedule string: chatScheduledListSentAt",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleCancelled": "షెడ్యూల్ చేసిన సందేశం రద్దు చేయబడింది.",
+  "chatScheduleRetried": "షెడ్యూల్ చేసిన సందేశం మళ్లీ ప్రయత్నించబడింది.",
+  "chatScheduleEditTimeUpdated": "సమయం నవీకరించబడింది.",
+  "chatScheduleEditTextUpdated": "టెక్స్ట్ నవీకరించబడింది."
 }
