@@ -39,13 +39,16 @@ import '../../../../core/services/graph_layout_service.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../../core/viewer/viewer_provider.dart';
 import '../../../../graph/data/graph_data_models.dart'
-    show PersonData, RelationshipData;
+    show PersonData, RelationshipData, GraphEdgeData;
 import '../../../../graph/engine/viewer_wedge_layout.dart'
     show
         kUseViewerWedgeLayout,
         ViewerWedgeLayout,
         WedgeLink,
         WedgePageChip;
+import '../../../../graph/engine/wedge_edge_router.dart'
+    show WedgeEdgeRouter, WedgeEdgeRoutes;
+import '../../../../graph/engine/edge_dedup.dart' show EdgeDeduplicator;
 import '../../../../graph/engine/radial_layout.dart'
     show RadialLayout, RadialLayoutConfig;
 import '../../../../graph/interaction/graph_focus_state.dart'
@@ -2704,6 +2707,60 @@ final wedgeChipSlotsProvider =
     StateProvider.family<Map<String, WedgePageChip>?, String>(
   (ref, familyId) => null,
 );
+
+/// Resolved edge routes for the CURRENT wedge layout, in canvas space.
+/// Keyed by edge id.
+///
+/// The single source of truth for the EXACT Path every visible edge
+/// should paint, the midpoint marker position, and the t-parameter
+/// the hit-tester should sample. Reads from [familyGraphProvider]
+/// (the deduplicated edges + positions), [graphLayoutProvider]
+/// (the canvas-space positions), [wedgeChipSlotsProvider] (the chip
+/// footprints that participate in the obstruction test), and the
+/// viewer id.
+///
+/// Computed via [WedgeEdgeRouter] — pure Dart, no Flutter imports.
+/// The painter, the hit-tester, the midpoint-marker painter, and the
+/// minimap ALL read from this provider so the dot, heart and tap area
+/// always sit exactly on the drawn line.
+final wedgeEdgeRoutesProvider =
+    Provider.family<WedgeEdgeRoutes?, String>((ref, familyId) {
+  if (!kUseViewerWedgeLayout) return null;
+
+  final graphData = ref.watch(familyGraphProvider(familyId)).valueOrNull;
+  if (graphData == null) return null;
+  final layoutResult = ref.watch(graphLayoutProvider(familyId)).valueOrNull;
+  if (layoutResult == null) return null;
+
+  // Build deduped edges from the same raw edge list the painter uses.
+  // (Mirrors canvas_mixin's edge dedup so the routes and the painter
+  // see the SAME parallel-edge grouping + lateralOffset values.)
+  final rawEdges = graphData.allRelationships ?? graphData.relationships;
+  final edges = <GraphEdgeData>[
+    for (final Map<String, dynamic> r in rawEdges)
+      GraphEdgeData(
+        id: (r['id'] ??
+                '${r['fromPersonId']}_${r['toPersonId']}_${r['relationshipKey'] ?? 'unknown'}')
+            .toString(),
+        sourceId: (r['fromPersonId'] ?? '').toString(),
+        targetId: (r['toPersonId'] ?? '').toString(),
+        relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
+        labelAtoB: r['labelAtoB'] as String?,
+      ),
+  ];
+  final deduped = EdgeDeduplicator.deduplicate(edges);
+
+  final viewerId =
+      ref.watch(viewerPersonIdProvider(familyId)).valueOrNull;
+  final chips = ref.watch(wedgeChipSlotsProvider(familyId)) ?? const {};
+
+  return WedgeEdgeRouter().resolve(
+    positions: layoutResult.positions,
+    edges: deduped,
+    viewerId: viewerId,
+    chips: chips,
+  );
+});
 
 /// Summary of the current wedge layout for the UI layer: the visible
 /// node count (the "Showing N of M" banner) and the tree parent map

@@ -1750,10 +1750,32 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
       });
 
     final l10n = S.of(context);
+    // WEDGE GLIDE — chip slot lerp: while the wedge glide animation is
+    // active, lerp each live chip's slot centre from its previous
+    // position to the new one. Chips with no previous slot (brand-new
+    // hubs that just gained a +N bubble) keep their new slot centre
+    // — they "pop in" at the new spot (the entrance animation for the
+    // hub's children already moves the new children into place, so
+    // the bubble appearing in its final spot reads naturally).
+    final bool chipGlideActive = _wedgeGlideActive &&
+        _wedgeGlideFromChipSlots != null &&
+        _branchAnimationProgress < 1.0;
+    final double chipT = _branchAnimationProgress.clamp(0.0, 1.0);
+    Offset resolveChipSlotCenter(WedgePageChip chip) {
+      if (!chipGlideActive) return chip.slotCenter;
+      final prev = _wedgeGlideFromChipSlots![chip.personId];
+      if (prev == null) return chip.slotCenter;
+      return Offset(
+        prev.slotCenter.dx * (1.0 - chipT) + chip.slotCenter.dx * chipT,
+        prev.slotCenter.dy * (1.0 - chipT) + chip.slotCenter.dy * chipT,
+      );
+    }
+
     for (final chip in entries) {
+      final slotCenter = resolveChipSlotCenter(chip);
       result.add(Positioned(
-        left: chip.slotCenter.dx,
-        top: chip.slotCenter.dy,
+        left: slotCenter.dx,
+        top: slotCenter.dy,
         child: _WedgePageChipBubble(
           remainingCount: chip.remainingCount,
           accentColor: _wedgeChipAccentColor(chip.personId),
@@ -2288,12 +2310,25 @@ class _WedgeChipFadeOut extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // PER THE APPROVED-PREVIEW CONTRACT: "When nothing remains, the
+    // bubble shrinks and fades out." We run BOTH a scale-down (1.0 → 0.0)
+    // AND an opacity fade (1.0 → 0.0) over 280ms easeOut — slightly
+    // longer than the prior 260ms so the shrink reads as a deliberate
+    // gesture (the user just paged to the end), not a flicker.
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 1.0, end: 0.0),
-      duration: const Duration(milliseconds: 260),
+      duration: const Duration(milliseconds: 280),
       curve: Curves.easeOut,
-      builder: (context, opacity, child) =>
-          IgnorePointer(child: Opacity(opacity: opacity, child: child)),
+      builder: (context, t, child) => IgnorePointer(
+        child: Opacity(
+          opacity: t,
+          child: Transform.scale(
+            scale: 0.6 + 0.4 * t, // shrinks from 1.0 to 0.6 as it fades
+            alignment: Alignment.center,
+            child: child,
+          ),
+        ),
+      ),
       child: child,
     );
   }

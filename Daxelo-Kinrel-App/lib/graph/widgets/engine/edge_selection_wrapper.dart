@@ -12,6 +12,7 @@ import '../../../core/kinship/kinship_edge_style.dart' show KinshipEdgeCategory;
 import '../../../features/family/presentation/providers/family_graph_provider.dart'
     show selectedEdgeProvider;
 import '../../engine/edge_dedup.dart' show DedupedEdge;
+import '../../engine/wedge_edge_router.dart' show WedgeEdgeRoutes;
 import '../../interaction/couple_union_model.dart' show CoupleUnion;
 import '../../interaction/spring_palette.dart' show SpringCurves;
 import '../../rendering/edge_path_cache.dart' show EdgePathCache;
@@ -83,6 +84,10 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
     // PERF v5.175 (60fps PAN/ZOOM): graph-space viewport for
     // painter-side edge culling — see EngineEdgePainter.graphViewport.
     this.graphViewport,
+    // WEDGE EDGE ROUTES: pre-resolved Path + midpoint per visible
+    // edge. Null in radial mode (the painter falls back to the
+    // legacy _bezier). Forwarded straight through to EngineEdgePainter.
+    this.wedgeEdgeRoutes,
   });
 
   final Map<String, Offset> positions;
@@ -212,6 +217,10 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
   /// PERF v5.175 (60fps PAN/ZOOM): graph-space viewport rect for
   /// painter-side edge culling — forwarded to EngineEdgePainter.
   final Rect? graphViewport;
+
+  /// WEDGE EDGE ROUTES: pre-resolved Path + midpoint per visible
+  /// edge — forwarded to EngineEdgePainter. Null in radial mode.
+  final WedgeEdgeRoutes? wedgeEdgeRoutes;
 
   @override
   ConsumerState<EdgeSelectionWrapper> createState() =>
@@ -506,6 +515,10 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
         // PERF v5.175 (60fps PAN/ZOOM): forward the graph-space
         // viewport for painter-side edge culling.
         graphViewport: widget.graphViewport,
+        // WEDGE EDGE ROUTES: forward the pre-resolved Path + midpoint
+        // map so the painter uses the wedge router's geometry instead
+        // of the legacy _bezier. Null in radial mode.
+        wedgeEdgeRoutes: widget.wedgeEdgeRoutes,
       ),
       child: const SizedBox.expand(),
     );

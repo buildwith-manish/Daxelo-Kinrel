@@ -114,6 +114,18 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
               !MediaQuery.disableAnimationsOf(context)) {
             _wedgeGlideFromPositions = previous;
             _wedgeGlideActive = true;
+            // WEDGE GLIDE — chip slot centres: capture the previous
+            // frame's chip slots so the chip builder can lerp them
+            // to the new slot centres over the same animation window.
+            // (chips read wedgeChipSlotsProvider directly; the previous
+            // snapshot is captured HERE, before the next provider
+            // read returns the new slots.)
+            final prevChips = ref.read(wedgeChipSlotsProvider(widget.familyId));
+            if (prevChips != null && prevChips.isNotEmpty) {
+              _wedgeGlideFromChipSlots = Map<String, WedgePageChip>.of(prevChips);
+            } else {
+              _wedgeGlideFromChipSlots = null;
+            }
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
               if (!_animatingBranchExpand && _branchExpandController != null) {
@@ -239,27 +251,95 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           }
         }
 
-        // ── WEDGE GLIDE lerp ──────────────────────────────────────────
-        // Nodes present in BOTH the previous and the current auto-layout
-        // glide from old → new by the same eased progress. Nodes that are
-        // NEW (not in the previous map) keep the entrance animation they
-        // received in the block above (they have no "from" entry here).
+        // ── WEDGE GLIDE lerp (viewer-centered wedge layout) ───────────
+        //
+        // PER THE APPROVED-PREVIEW CONTRACT:
+        //   • EXISTING nodes (in both previous + current layout) glide
+        //     from old → new by the eased progress.
+        //   • NEW nodes (in current but NOT in previous) start at their
+        //     parent's PREVIOUS position and glide to their new slot.
+        //     This makes the new branch appear to "emerge" from the
+        //     parent — visually continuous with the parent's glide.
+        //   • LEAVING nodes (in previous but NOT in current) glide INTO
+        //     their parent's NEW position + fade out. They're added to
+        //     effectivePositions during the animation so they keep
+        //     rendering; they vanish from the layout at t=1.0 (the
+        //     next layout commit drops them).
+        //
+        // All edges, count badges, +N bubbles, and labels read the
+        // SAME effectivePositions every frame (see _buildNodeLayer +
+        // _buildWedgePageChips + _buildWedgeCountBadges + the edge
+        // painter), so nothing lags or floats relative to a node.
+        //
+        // Reduced-motion: the controller never starts (_wedgeGlideActive
+        // is gated on !MediaQuery.disableAnimationsOf(context) above at
+        // line 114), so this block is a no-op.
         if (_wedgeGlideActive && _wedgeGlideFromPositions != null) {
           final t = _branchAnimationProgress.clamp(0.0, 1.0);
           if (t < 1.0) {
             final from = _wedgeGlideFromPositions!;
+            final summary = ref.read(wedgeLayoutSummaryProvider(widget.familyId));
+            final parentOf = summary?.parentOf ?? const <String, String>{};
             final lerped = <String, Offset>{};
+
+            // 1. EXISTING + NEW nodes (present in current layout).
             for (final entry in effectivePositions.entries) {
-              final old = from[entry.key];
-              if (old != null) {
-                lerped[entry.key] = Offset(
-                  old.dx * (1.0 - t) + entry.value.dx * t,
-                  old.dy * (1.0 - t) + entry.value.dy * t,
+              final id = entry.key;
+              final newPos = entry.value;
+              final oldPos = from[id];
+              if (oldPos != null) {
+                // Existing node — lerp from old → new.
+                lerped[id] = Offset(
+                  oldPos.dx * (1.0 - t) + newPos.dx * t,
+                  oldPos.dy * (1.0 - t) + newPos.dy * t,
                 );
               } else {
-                lerped[entry.key] = entry.value;
+                // NEW node — start at parent's previous position,
+                // glide to its new slot. If parent has no previous
+                // position (rare: parent itself is new), fall back
+                // to the new slot (no entrance motion — the node
+                // just appears at its final spot).
+                final parentId = parentOf[id];
+                final parentPrev =
+                    parentId != null ? from[parentId] : null;
+                if (parentPrev != null) {
+                  lerped[id] = Offset(
+                    parentPrev.dx * (1.0 - t) + newPos.dx * t,
+                    parentPrev.dy * (1.0 - t) + newPos.dy * t,
+                  );
+                } else {
+                  lerped[id] = newPos;
+                }
               }
             }
+
+            // 2. LEAVING nodes — present in previous but NOT in
+            // current. Glide INTO their parent's NEW position. They
+            // fade out via the alpha multiplier below (the engine
+            // view's node layer reads effectivePositions only — the
+            // leaving node will render with stale data but at the
+            // lerped position; visually it "retreats into the parent"
+            // and vanishes at t=1.0 when the layout commit drops it).
+            //
+            // DISABLED in this iteration: the rendering layer derives
+            // `visible` from `effectivePositions.keys`, so leaving
+            // nodes would render as full GraphNode widgets during the
+            // animation. In the e2e test this inflated the Hub Kid
+            // widget count past the assertion's upper bound (8).
+            // Re-enabling requires either a separate fade-out widget
+            // path (so leaving nodes don't render as full GraphNodes)
+            // or a separate "leaving" position map that the renderer
+            // reads with a fading opacity. Tracked as a follow-up.
+            //
+            // For now: leaving nodes VANISH instantly at t=0 (the
+            // wedge layout's `visible` set drops them the moment the
+            // layout commits). The entrance animation for NEW nodes
+            // + the existing glide for EXISTING nodes still produces
+            // a smooth visual transition for the user.
+            // See test/graph/engine/wedge_unified_animation_test.dart
+            // for the lerp arithmetic contract on the leaving-node
+            // case (which we still verify in pure-Dart form).
+
             effectivePositions
               ..clear()
               ..addAll(lerped);
@@ -1772,6 +1852,21 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     // (±125px) + the pan distance to the next re-raster
                     // (≤250px) = 375px < 400px — no blank edges.
                     graphViewport: _FamilyGraphEngineViewState._quantizeViewportForEdgeCulling(vp),
+                    // WEDGE EDGE ROUTES: in wedge mode, pass the
+                    // pre-resolved Path + midpoint map so the painter
+                    // strokes the wedge router's geometry (straight by
+                    // default, curved only when obstructed). Null in
+                    // radial mode (the painter falls back to _bezier).
+                    // While nodes are animating, the routes were
+                    // computed for the FINAL positions — the painter
+                    // detects the position mismatch (route.source !=
+                    // shortenedSource) and falls back to _bezier for
+                    // that frame, so edges always connect animated
+                    // endpoints. The new routes arrive on the next
+                    // layout commit.
+                    wedgeEdgeRoutes: kUseViewerWedgeLayout
+                        ? ref.watch(wedgeEdgeRoutesProvider(widget.familyId))
+                        : null,
                   ),
                   ),
                 ),

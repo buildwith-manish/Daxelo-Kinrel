@@ -17,6 +17,8 @@ import 'package:flutter/material.dart';
 import '../../../core/kinship/kinship_edge_style.dart';
 import '../../../core/kinship/heart_shape.dart' show HeartShape;
 import '../../engine/edge_dedup.dart' show DedupedEdge;
+import '../../engine/wedge_edge_router.dart'
+    show WedgeEdgeRoutes, WedgeEdgeRoute;
 import '../../interaction/couple_union_model.dart'
     show CoupleUnion, resolveEffectiveEdgeEndpoints;
 import '../../rendering/edge_path_cache.dart' show EdgePathCache;
@@ -104,6 +106,14 @@ class EngineEdgePainter extends CustomPainter {
     // fraction intersect the screen. Null (default) preserves the
     // exact pre-v5.175 behaviour (no culling) for tests/legacy calls.
     this.graphViewport,
+    // WEDGE EDGE ROUTES (straight-by-default contract): when non-null,
+    // the painter uses the pre-resolved Path + midpoint from
+    // [WedgeEdgeRoutes] INSTEAD of computing the bowed bezier via
+    // [_bezier]. The wedge router is the single source of truth for
+    // painting, midpoint-marker placement, and hit-testing — see the
+    // contract block on [WedgeEdgeRouter]. Null (the default) keeps
+    // the EXACT pre-wedge bezier behaviour for radial mode + tests.
+    this.wedgeEdgeRoutes,
     // PERF (Phase 2 — Task 4): pass the zoom-commit notifier to
     // CustomPainter's super so the painter repaints DIRECTLY when
     // the notifier bumps (no shouldRepaint, no parent rebuild).
@@ -383,6 +393,16 @@ class EngineEdgePainter extends CustomPainter {
   /// for geometry — so a stale value can only over-draw (never
   /// mis-draw).
   final Rect? graphViewport;
+
+  /// WEDGE EDGE ROUTES (straight-by-default contract): when non-null,
+  /// the painter reads the pre-resolved Path + midpoint for each edge
+  /// from this map INSTEAD of computing the bowed bezier via [_bezier].
+  /// The wedge router is the single source of truth for painting,
+  /// midpoint-marker placement, and hit-testing — see the contract
+  /// block on [WedgeEdgeRouter] (lib/graph/engine/wedge_edge_router.dart).
+  /// Null (the default) keeps the EXACT pre-wedge bezier behaviour
+  /// for radial mode + tests.
+  final WedgeEdgeRoutes? wedgeEdgeRoutes;
 
   /// Revision counters — see PART 11. The painter compares these in
   /// `shouldRepaint` instead of deep-comparing maps every frame.
@@ -1331,21 +1351,54 @@ class EngineEdgePainter extends CustomPainter {
               '_${waypointDelta.dy.toStringAsFixed(1)}'
           : '';
       final fullCacheId = '$cacheEdgeId$waypointKey';
-      final Path path = cache.getOrCreate(
-        edgeId: fullCacheId,
-        sourceId: e.sourceId,
-        targetId: e.targetId,
-        sourcePos: shortenedSource,
-        targetPos: shortenedTarget,
-        pathFactory: (Offset ss, Offset tt) =>
-            _bezier(ss, tt,
-                lateralOffset: totalLateralOffset,
-                waypointDelta: waypointDelta,
-                anchorCenter: anchorCenter,
-                // v5.x (Feature 1): per-edge deterministic curve phase
-                // so nearly-parallel solo edges fan out.
-                edgeId: e.id),
-      );
+
+      // WEDGE EDGE ROUTES (straight-by-default contract): when wedge
+      // routes are provided AND this edge has a resolved route (its
+      // source/target positions match the route's cached positions
+      // exactly), use the pre-resolved Path INSTEAD of computing the
+      // bowed bezier via [_bezier]. The wedge router is the single
+      // source of truth — see the contract block on [WedgeEdgeRouter].
+      //
+      // When the route's positions DON'T match (e.g. while nodes are
+      // animating — the painter sees the lerped positions but the
+      // router saw the final positions), we fall back to the bezier
+      // path so the curve still draws between the animated endpoints.
+      // The router is re-run on the next layout commit and the new
+      // route replaces the bezier path then.
+      //
+      // USER-DRAGGED MIDPOINTS ALWAYS WIN: when waypointDelta is
+      // non-zero (the user dragged this edge's midpoint), the
+      // wedge route is ignored for THIS edge — the user's drag
+      // contract (B(0.5) == linearMid + delta) takes precedence
+      // over the auto router's straight-vs-curve decision. The
+      // wedge router can't know about user drags (it's pure Dart,
+      // no Flutter imports), so the painter applies the override
+      // here at the call site.
+      final WedgeEdgeRoute? wedgeRoute =
+          (wedgeEdgeRoutes != null && waypointDelta == Offset.zero)
+              ? wedgeEdgeRoutes!.byEdgeId[e.id]
+              : null;
+      final bool useWedgeRoute = wedgeRoute != null &&
+          wedgeRoute.source == shortenedSource &&
+          wedgeRoute.target == shortenedTarget;
+
+      final Path path = useWedgeRoute
+          ? wedgeRoute.path
+          : cache.getOrCreate(
+              edgeId: fullCacheId,
+              sourceId: e.sourceId,
+              targetId: e.targetId,
+              sourcePos: shortenedSource,
+              targetPos: shortenedTarget,
+              pathFactory: (Offset ss, Offset tt) =>
+                  _bezier(ss, tt,
+                      lateralOffset: totalLateralOffset,
+                      waypointDelta: waypointDelta,
+                      anchorCenter: anchorCenter,
+                      // v5.x (Feature 1): per-edge deterministic curve phase
+                      // so nearly-parallel solo edges fan out.
+                      edgeId: e.id),
+            );
 
       final bool isSelected = e.id == selectedEdgeId;
       final bool isSweep = sweepActive && e.id == sweepEdgeId;
@@ -2201,13 +2254,30 @@ class EngineEdgePainter extends CustomPainter {
     // looks.
     // v5.x (Feature 1): edgeId is included so the per-edge t-variation
     // applied here matches what the hit-tester uses.
-    final Offset midPoint = computeVisualMidpoint(
-      s, t,
-      lateralOffset: lateralOffset,
-      waypointDelta: waypointDelta,
-      anchorCenter: anchorCenter,
-      edgeId: edgeId,
-    );
+    //
+    // WEDGE ROUTE OVERRIDE: when the painter has a wedge route for
+    // this edge (useWedgeRoute was true at the call site), the route's
+    // midpoint is the single source of truth — the dot/heart sits
+    // exactly on the drawn Path's t=0.5 point (computed via PathMetrics
+    // in the router). The legacy computeVisualMidpoint is bypassed so
+    // the marker can never drift off the drawn line.
+    final WedgeEdgeRoute? routeForMidpoint = (wedgeEdgeRoutes != null &&
+            edgeId != null &&
+            waypointDelta == Offset.zero)
+        ? wedgeEdgeRoutes!.byEdgeId[edgeId]
+        : null;
+    final bool routeMatchesThisEdge = routeForMidpoint != null &&
+        routeForMidpoint.source == s &&
+        routeForMidpoint.target == t;
+    final Offset midPoint = routeMatchesThisEdge
+        ? routeForMidpoint.midpoint
+        : computeVisualMidpoint(
+            s, t,
+            lateralOffset: lateralOffset,
+            waypointDelta: waypointDelta,
+            anchorCenter: anchorCenter,
+            edgeId: edgeId,
+          );
 
     // Resolve the effective midpoint color.
     //   • Default relationship → style.midpointColor (pink for spouse,
@@ -2644,7 +2714,14 @@ class EngineEdgePainter extends CustomPainter {
         old.allowRidgePass != allowRidgePass ||
         // v5.187 (UX #12): repaint when the per-edge stagger delays change
         // (this only happens at the start of the connect-on-open animation)
-        !_sameDelayMap(old.connectOnOpenEdgeDelays, connectOnOpenEdgeDelays);
+        !_sameDelayMap(old.connectOnOpenEdgeDelays, connectOnOpenEdgeDelays) ||
+        // WEDGE EDGE ROUTES: repaint when the resolved routes change.
+        // The wedge router is the single source of truth for the Path
+        // of every visible edge (see the contract block on
+        // [WedgeEdgeRouter]). Identity comparison is sufficient because
+        // wedgeEdgeRoutesProvider rebuilds the WedgeEdgeRoutes object
+        // on every layout commit — so a new identity == new routes.
+        !identical(old.wedgeEdgeRoutes, wedgeEdgeRoutes);
   }
 
   /// v5.187: Lightweight comparison for the stagger delay map.

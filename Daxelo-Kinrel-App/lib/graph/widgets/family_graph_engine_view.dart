@@ -56,6 +56,7 @@ import '../../features/family/presentation/providers/family_graph_provider.dart'
         selectedNodeProvider,
         wedgeChipSlotsProvider, // viewer-centered wedge layout chips
         wedgeLayoutSummaryProvider, // wedge visible count + parent map
+        wedgeEdgeRoutesProvider, // viewer-centered wedge edge paths
         unlinkedPersonIdsProvider; // v5.9
 import '../data/graph_data_models.dart' show GraphEdgeData;
 import '../data/position_memory.dart' show PositionMemory;
@@ -949,6 +950,19 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   bool _wedgeGlideActive = false;
   Map<String, Offset>? _lastWedgeAutoPositions;
 
+  // WEDGE GLIDE — chip slot centres: the previous frame's "+N" chip
+  // slot centres (canvas space). When the wedge re-divides its wedges
+  // (a page turn / branch expand / collapse), the chip slot centre
+  // moves; the chip GLIDES from its old slot centre to the new one
+  // over the SAME 450ms ease-in-out window the nodes use (one shared
+  // animation — chips, nodes, edges, badges, camera all move together).
+  // Reduced-motion snaps instantly (no glide).
+  //
+  // Built fresh on every layout change (canvas_mixin line ~109). The
+  // chip builder reads this via _wedgeGlideActive + _branchAnimationProgress
+  // and lerps the slot centre for the chip render.
+  Map<String, WedgePageChip>? _wedgeGlideFromChipSlots;
+
   // Camera fit-to-branch triggers: the wedge view revision + the
   // person most recently expanded/paged (from wedgeViewProvider). The
   // engine view animates the camera to fit the opened branch, its
@@ -1777,6 +1791,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // Wedge glide cleanup — the nodes have reached their new spots.
     _wedgeGlideActive = false;
     _wedgeGlideFromPositions = null;
+    // WEDGE GLIDE — chip slot cleanup: the chip bubbles have reached
+    // their new slot centres.
+    _wedgeGlideFromChipSlots = null;
     setState(() {});
   }
 
