@@ -33,6 +33,18 @@ class ChatMessage {
     this.durationSeconds, // for voice notes
     this.eventTitle, // for family event sharing
     this.eventDate, // for family event sharing
+    // feat(chat): live family event cards — denormalized event fields
+    // synced by fn_sync_family_event_chat_cards (migration
+    // 20261019120000). The card UI reads these directly; the
+    // migration's AFTER UPDATE triggers keep them in sync with the
+    // live calendar_events + calendar_event_rsvps state.
+    this.eventId,
+    this.eventLocation,
+    this.eventCategory,
+    this.eventRsvpGoing = 0,
+    this.eventRsvpMaybe = 0,
+    this.eventRsvpNotGoing = 0,
+    this.eventDeletedAt,
     this.mediaUrl, // v91: for photo/voice attachments
     // Phase 13 enhancement fields
     this.isStarred = false,
@@ -91,6 +103,17 @@ class ChatMessage {
           (json['voiceMessageDuration'] as int?),
       eventTitle: json['eventTitle'] as String?,
       eventDate: json['eventDate'] as String?,
+      // feat(chat): live family event cards — parse the denormalized
+      // event fields (synced by the migration's AFTER UPDATE triggers).
+      eventId: json['eventId'] as String?,
+      eventLocation: json['eventLocation'] as String?,
+      eventCategory: json['eventCategory'] as String?,
+      eventRsvpGoing: (json['eventRsvpGoing'] as num?)?.toInt() ?? 0,
+      eventRsvpMaybe: (json['eventRsvpMaybe'] as num?)?.toInt() ?? 0,
+      eventRsvpNotGoing: (json['eventRsvpNotGoing'] as num?)?.toInt() ?? 0,
+      eventDeletedAt: json['eventDeletedAt'] == null
+          ? null
+          : DateTime.tryParse(json['eventDeletedAt'] as String),
       mediaUrl: json['mediaUrl'] as String?,
       isStarred: json['isStarred'] as bool? ?? false,
       isPinned: json['isPinned'] as bool? ?? false,
@@ -186,6 +209,34 @@ class ChatMessage {
 
   /// Event date string (for family event sharing).
   final String? eventDate;
+
+  // ── feat(chat): live family event cards ─────────────────────────
+  // Denormalized event fields. Synced by fn_sync_family_event_chat_cards
+  // (migration 20261019120000) — AFTER INSERT/UPDATE/DELETE triggers
+  // on calendar_events + calendar_event_rsvps recompute these and
+  // UPDATE every ChatMessage row that references the event. The
+  // chat_provider's existing realtime UPDATE subscription on
+  // ChatMessage then propagates the synced fields to every open chat
+  // UI automatically — the cards stay live without any client-side
+  // re-fetch.
+  /// The id of the calendar_events row this card represents.
+  final String? eventId;
+
+  /// Event location (denormalized).
+  final String? eventLocation;
+
+  /// Event category — drives the icon + accent color.
+  final String? eventCategory;
+
+  /// Live RSVP counts — kept in sync by the migration's triggers.
+  final int eventRsvpGoing;
+  final int eventRsvpMaybe;
+  final int eventRsvpNotGoing;
+
+  /// Set when the underlying calendar_events row is deleted. The card
+  /// UI renders "Event no longer available" with disabled RSVP buttons
+  /// until the ChatMessage row itself is deleted.
+  final DateTime? eventDeletedAt;
 
   /// Phase 13: Whether the message is starred (bookmarked) by current user.
   final bool isStarred;
@@ -447,6 +498,18 @@ class ChatMessage {
     List<int>? pollVoteCounts,
     List<Map<String, dynamic>>? pollVoterIds,
     DateTime? pollCreatedAt,
+    // feat(chat): live family event cards — copyWith support for the
+    // synced event fields (used by the realtime UPDATE handler when
+    // the trigger recomputes the denormalized fields).
+    String? eventTitle,
+    String? eventDate,
+    String? eventId,
+    String? eventLocation,
+    String? eventCategory,
+    int? eventRsvpGoing,
+    int? eventRsvpMaybe,
+    int? eventRsvpNotGoing,
+    DateTime? eventDeletedAt,
   }) {
     return ChatMessage(
       id: id,
@@ -463,8 +526,18 @@ class ChatMessage {
       isOnline: isOnline ?? this.isOnline,
       senderInitials: senderInitials,
       durationSeconds: durationSeconds,
-      eventTitle: eventTitle,
-      eventDate: eventDate,
+      eventTitle: eventTitle ?? this.eventTitle,
+      eventDate: eventDate ?? this.eventDate,
+      // feat(chat): live family event cards — pass through the synced
+      // event fields (default to the existing value when the copyWith
+      // caller doesn't override).
+      eventId: eventId ?? this.eventId,
+      eventLocation: eventLocation ?? this.eventLocation,
+      eventCategory: eventCategory ?? this.eventCategory,
+      eventRsvpGoing: eventRsvpGoing ?? this.eventRsvpGoing,
+      eventRsvpMaybe: eventRsvpMaybe ?? this.eventRsvpMaybe,
+      eventRsvpNotGoing: eventRsvpNotGoing ?? this.eventRsvpNotGoing,
+      eventDeletedAt: eventDeletedAt ?? this.eventDeletedAt,
       mediaUrl: mediaUrl ?? this.mediaUrl,
       isStarred: isStarred ?? this.isStarred,
       isPinned: isPinned ?? this.isPinned,
@@ -579,6 +652,18 @@ class ChatMessage {
       'voiceMessageDuration': durationSeconds,
       'eventTitle': eventTitle,
       'eventDate': eventDate,
+      // feat(chat): live family event cards — denormalized event fields
+      // on the wire (read by the card UI; written by the migration's
+      // fn_sync_family_event_chat_cards trigger function as well as
+      // by ChatNotifier.sendFamilyEventCard at insert time).
+      if (eventId != null) 'eventId': eventId,
+      if (eventLocation != null) 'eventLocation': eventLocation,
+      if (eventCategory != null) 'eventCategory': eventCategory,
+      'eventRsvpGoing': eventRsvpGoing,
+      'eventRsvpMaybe': eventRsvpMaybe,
+      'eventRsvpNotGoing': eventRsvpNotGoing,
+      if (eventDeletedAt != null)
+        'eventDeletedAt': eventDeletedAt!.toUtc().toIso8601String(),
       if (mediaUrl != null) 'mediaUrl': mediaUrl,
       'isStarred': isStarred,
       'isPinned': isPinned,

@@ -1646,6 +1646,91 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Text updated.'**
   String get chatScheduleEditTextUpdated;
+
+  /// Family event card string: chatAttachEvent
+  ///
+  /// In en, this message translates to:
+  /// **'Event'**
+  String get chatAttachEvent;
+
+  /// Family event card string: chatAttachEventCreateNew
+  ///
+  /// In en, this message translates to:
+  /// **'Create a new event'**
+  String get chatAttachEventCreateNew;
+
+  /// Family event card string: chatAttachEventPickExisting
+  ///
+  /// In en, this message translates to:
+  /// **'Pick an existing event'**
+  String get chatAttachEventPickExisting;
+
+  /// Family event card string: chatEventCardNoTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Family event'**
+  String get chatEventCardNoTitle;
+
+  /// Family event card string: chatEventCardDeleted
+  ///
+  /// In en, this message translates to:
+  /// **'Event no longer available'**
+  String get chatEventCardDeleted;
+
+  /// Family event card string: chatEventRsvpGoing
+  ///
+  /// In en, this message translates to:
+  /// **'{count} going'**
+  String chatEventRsvpGoing(int count);
+
+  /// Family event card string: chatEventRsvpMaybe
+  ///
+  /// In en, this message translates to:
+  /// **'{count} maybe'**
+  String chatEventRsvpMaybe(int count);
+
+  /// Family event card string: chatEventRsvpNotGoing
+  ///
+  /// In en, this message translates to:
+  /// **'{count} can\'t go'**
+  String chatEventRsvpNotGoing(int count);
+
+  /// Family event card string: chatEventRsvpGoingLabel
+  ///
+  /// In en, this message translates to:
+  /// **'Going'**
+  String get chatEventRsvpGoingLabel;
+
+  /// Family event card string: chatEventRsvpMaybeLabel
+  ///
+  /// In en, this message translates to:
+  /// **'Maybe'**
+  String get chatEventRsvpMaybeLabel;
+
+  /// Family event card string: chatEventRsvpNotGoingLabel
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t go'**
+  String get chatEventRsvpNotGoingLabel;
+
+  /// Family event card string: chatEventCardSemantics
+  ///
+  /// In en, this message translates to:
+  /// **'Family event card: {title} on {date} at {location}. {going} going, {maybe} maybe, {notGoing} can\'t go.'**
+  String chatEventCardSemantics(
+    String title,
+    String date,
+    String location,
+    int going,
+    int maybe,
+    int notGoing,
+  );
+
+  /// Family event card string: chatEventCardSemanticsDeleted
+  ///
+  /// In en, this message translates to:
+  /// **'Family event card: event no longer available.'**
+  String get chatEventCardSemanticsDeleted;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

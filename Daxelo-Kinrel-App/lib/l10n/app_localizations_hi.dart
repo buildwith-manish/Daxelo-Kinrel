@@ -896,4 +896,59 @@ class SHi extends S {
 
   @override
   String get chatScheduleEditTextUpdated => 'टेक्स्ट अपडेट किया गया।';
+
+  @override
+  String get chatAttachEvent => 'कार्यक्रम';
+
+  @override
+  String get chatAttachEventCreateNew => 'नया कार्यक्रम बनाएं';
+
+  @override
+  String get chatAttachEventPickExisting => 'मौजूदा कार्यक्रम चुनें';
+
+  @override
+  String get chatEventCardNoTitle => 'परिवार कार्यक्रम';
+
+  @override
+  String get chatEventCardDeleted => 'कार्यक्रम अब उपलब्ध नहीं है';
+
+  @override
+  String chatEventRsvpGoing(int count) {
+    return '$count जा रहे हैं';
+  }
+
+  @override
+  String chatEventRsvpMaybe(int count) {
+    return '$count शायद';
+  }
+
+  @override
+  String chatEventRsvpNotGoing(int count) {
+    return '$count नहीं जा सकते';
+  }
+
+  @override
+  String get chatEventRsvpGoingLabel => 'जा रहे हैं';
+
+  @override
+  String get chatEventRsvpMaybeLabel => 'शायद';
+
+  @override
+  String get chatEventRsvpNotGoingLabel => 'नहीं जा सकते';
+
+  @override
+  String chatEventCardSemantics(
+    String title,
+    String date,
+    String location,
+    int going,
+    int maybe,
+    int notGoing,
+  ) {
+    return 'परिवार कार्यक्रम कार्ड: $date को $title स्थान पर $location। $going जा रहे हैं, $maybe शायद, $notGoing नहीं जा सकते।';
+  }
+
+  @override
+  String get chatEventCardSemanticsDeleted =>
+      'परिवार कार्यक्रम कार्ड: कार्यक्रम अब उपलब्ध नहीं है।';
 }

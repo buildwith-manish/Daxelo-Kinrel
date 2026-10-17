@@ -204,5 +204,65 @@
   "chatScheduleCancelled": "Scheduled message cancelled.",
   "chatScheduleRetried": "Scheduled message retried.",
   "chatScheduleEditTimeUpdated": "Time updated.",
-  "chatScheduleEditTextUpdated": "Text updated."
+  "chatScheduleEditTextUpdated": "Text updated.",
+  "chatAttachEvent": "Event",
+  "chatAttachEventCreateNew": "Create a new event",
+  "chatAttachEventPickExisting": "Pick an existing event",
+  "chatEventCardNoTitle": "Family event",
+  "chatEventCardDeleted": "Event no longer available",
+  "chatEventRsvpGoing": "{count} going",
+  "@chatEventRsvpGoing": {
+    "description": "Family event card string: chatEventRsvpGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpMaybe": "{count} maybe",
+  "@chatEventRsvpMaybe": {
+    "description": "Family event card string: chatEventRsvpMaybe",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpNotGoing": "{count} can't go",
+  "@chatEventRsvpNotGoing": {
+    "description": "Family event card string: chatEventRsvpNotGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpGoingLabel": "Going",
+  "chatEventRsvpMaybeLabel": "Maybe",
+  "chatEventRsvpNotGoingLabel": "Can't go",
+  "chatEventCardSemantics": "Family event card: {title} on {date} at {location}. {going} going, {maybe} maybe, {notGoing} can't go.",
+  "@chatEventCardSemantics": {
+    "description": "Family event card string: chatEventCardSemantics",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      },
+      "location": {
+        "type": "String"
+      },
+      "going": {
+        "type": "int"
+      },
+      "maybe": {
+        "type": "int"
+      },
+      "notGoing": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventCardSemanticsDeleted": "Family event card: event no longer available."
 }

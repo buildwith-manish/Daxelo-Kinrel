@@ -235,5 +235,65 @@
   "chatScheduleCancelled": "शेड्युल केलेला संदेश रद्द केला.",
   "chatScheduleRetried": "शेड्युल केलेला संदेश पुन्हा प्रयत्न केला.",
   "chatScheduleEditTimeUpdated": "वेळ अपडेट केली.",
-  "chatScheduleEditTextUpdated": "मजकूर अपडेट केला."
+  "chatScheduleEditTextUpdated": "मजकूर अपडेट केला.",
+  "chatAttachEvent": "कार्यक्रम",
+  "chatAttachEventCreateNew": "नवीन कार्यक्रम तयार करा",
+  "chatAttachEventPickExisting": "सध्याचा कार्यक्रम निवडा",
+  "chatEventCardNoTitle": "कौटुंबिक कार्यक्रम",
+  "chatEventCardDeleted": "कार्यक्रम आता उपलब्ध नाही",
+  "chatEventRsvpGoing": "{count} येत आहेत",
+  "@chatEventRsvpGoing": {
+    "description": "Family event card string: chatEventRsvpGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpMaybe": "{count} कदाचित",
+  "@chatEventRsvpMaybe": {
+    "description": "Family event card string: chatEventRsvpMaybe",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpNotGoing": "{count} येऊ शकत नाहीत",
+  "@chatEventRsvpNotGoing": {
+    "description": "Family event card string: chatEventRsvpNotGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpGoingLabel": "येत आहे",
+  "chatEventRsvpMaybeLabel": "कदाचित",
+  "chatEventRsvpNotGoingLabel": "येऊ शकत नाही",
+  "chatEventCardSemantics": "कौटुंबिक कार्यक्रम कार्ड: {date} रोजी {title} येथे {location}। {going} येत आहेत, {maybe} कदाचित, {notGoing} येऊ शकत नाहीत।",
+  "@chatEventCardSemantics": {
+    "description": "Family event card string: chatEventCardSemantics",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      },
+      "location": {
+        "type": "String"
+      },
+      "going": {
+        "type": "int"
+      },
+      "maybe": {
+        "type": "int"
+      },
+      "notGoing": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventCardSemanticsDeleted": "कौटुंबिक कार्यक्रम कार्ड: कार्यक्रम आता उपलब्ध नाही।"
 }

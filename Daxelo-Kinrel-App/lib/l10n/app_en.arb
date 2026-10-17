@@ -1179,5 +1179,92 @@
   "chatScheduleEditTextUpdated": "Text updated.",
   "@chatScheduleEditTextUpdated": {
     "description": "Chat drafts/schedule string: chatScheduleEditTextUpdated"
+  },
+  "chatAttachEvent": "Event",
+  "@chatAttachEvent": {
+    "description": "Family event card string: chatAttachEvent"
+  },
+  "chatAttachEventCreateNew": "Create a new event",
+  "@chatAttachEventCreateNew": {
+    "description": "Family event card string: chatAttachEventCreateNew"
+  },
+  "chatAttachEventPickExisting": "Pick an existing event",
+  "@chatAttachEventPickExisting": {
+    "description": "Family event card string: chatAttachEventPickExisting"
+  },
+  "chatEventCardNoTitle": "Family event",
+  "@chatEventCardNoTitle": {
+    "description": "Family event card string: chatEventCardNoTitle"
+  },
+  "chatEventCardDeleted": "Event no longer available",
+  "@chatEventCardDeleted": {
+    "description": "Family event card string: chatEventCardDeleted"
+  },
+  "chatEventRsvpGoing": "{count} going",
+  "@chatEventRsvpGoing": {
+    "description": "Family event card string: chatEventRsvpGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpMaybe": "{count} maybe",
+  "@chatEventRsvpMaybe": {
+    "description": "Family event card string: chatEventRsvpMaybe",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpNotGoing": "{count} can't go",
+  "@chatEventRsvpNotGoing": {
+    "description": "Family event card string: chatEventRsvpNotGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpGoingLabel": "Going",
+  "@chatEventRsvpGoingLabel": {
+    "description": "Family event card string: chatEventRsvpGoingLabel"
+  },
+  "chatEventRsvpMaybeLabel": "Maybe",
+  "@chatEventRsvpMaybeLabel": {
+    "description": "Family event card string: chatEventRsvpMaybeLabel"
+  },
+  "chatEventRsvpNotGoingLabel": "Can't go",
+  "@chatEventRsvpNotGoingLabel": {
+    "description": "Family event card string: chatEventRsvpNotGoingLabel"
+  },
+  "chatEventCardSemantics": "Family event card: {title} on {date} at {location}. {going} going, {maybe} maybe, {notGoing} can't go.",
+  "@chatEventCardSemantics": {
+    "description": "Family event card string: chatEventCardSemantics",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      },
+      "location": {
+        "type": "String"
+      },
+      "going": {
+        "type": "int"
+      },
+      "maybe": {
+        "type": "int"
+      },
+      "notGoing": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventCardSemanticsDeleted": "Family event card: event no longer available.",
+  "@chatEventCardSemanticsDeleted": {
+    "description": "Family event card string: chatEventCardSemanticsDeleted"
   }
 }

@@ -235,5 +235,65 @@
   "chatScheduleCancelled": "शेड्यूल किया गया संदेश रद्द कर दिया गया।",
   "chatScheduleRetried": "शेड्यूल किए गए संदेश को पुनः प्रयास किया गया।",
   "chatScheduleEditTimeUpdated": "समय अपडेट किया गया।",
-  "chatScheduleEditTextUpdated": "टेक्स्ट अपडेट किया गया।"
+  "chatScheduleEditTextUpdated": "टेक्स्ट अपडेट किया गया।",
+  "chatAttachEvent": "कार्यक्रम",
+  "chatAttachEventCreateNew": "नया कार्यक्रम बनाएं",
+  "chatAttachEventPickExisting": "मौजूदा कार्यक्रम चुनें",
+  "chatEventCardNoTitle": "परिवार कार्यक्रम",
+  "chatEventCardDeleted": "कार्यक्रम अब उपलब्ध नहीं है",
+  "chatEventRsvpGoing": "{count} जा रहे हैं",
+  "@chatEventRsvpGoing": {
+    "description": "Family event card string: chatEventRsvpGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpMaybe": "{count} शायद",
+  "@chatEventRsvpMaybe": {
+    "description": "Family event card string: chatEventRsvpMaybe",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpNotGoing": "{count} नहीं जा सकते",
+  "@chatEventRsvpNotGoing": {
+    "description": "Family event card string: chatEventRsvpNotGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpGoingLabel": "जा रहे हैं",
+  "chatEventRsvpMaybeLabel": "शायद",
+  "chatEventRsvpNotGoingLabel": "नहीं जा सकते",
+  "chatEventCardSemantics": "परिवार कार्यक्रम कार्ड: {date} को {title} स्थान पर {location}। {going} जा रहे हैं, {maybe} शायद, {notGoing} नहीं जा सकते।",
+  "@chatEventCardSemantics": {
+    "description": "Family event card string: chatEventCardSemantics",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      },
+      "location": {
+        "type": "String"
+      },
+      "going": {
+        "type": "int"
+      },
+      "maybe": {
+        "type": "int"
+      },
+      "notGoing": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventCardSemanticsDeleted": "परिवार कार्यक्रम कार्ड: कार्यक्रम अब उपलब्ध नहीं है।"
 }

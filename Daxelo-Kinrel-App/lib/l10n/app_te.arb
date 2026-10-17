@@ -235,5 +235,65 @@
   "chatScheduleCancelled": "షెడ్యూల్ చేసిన సందేశం రద్దు చేయబడింది.",
   "chatScheduleRetried": "షెడ్యూల్ చేసిన సందేశం మళ్లీ ప్రయత్నించబడింది.",
   "chatScheduleEditTimeUpdated": "సమయం నవీకరించబడింది.",
-  "chatScheduleEditTextUpdated": "టెక్స్ట్ నవీకరించబడింది."
+  "chatScheduleEditTextUpdated": "టెక్స్ట్ నవీకరించబడింది.",
+  "chatAttachEvent": "కార్యక్రమం",
+  "chatAttachEventCreateNew": "కొత్త కార్యక్రమం సృష్టించండి",
+  "chatAttachEventPickExisting": "ఇప్పటికే ఉన్న కార్యక్రమం ఎంచుకోండి",
+  "chatEventCardNoTitle": "కుటుంబ కార్యక్రమం",
+  "chatEventCardDeleted": "కార్యక్రమం ఇకపై అందుబాటులో లేదు",
+  "chatEventRsvpGoing": "{count} వస్తున్నారు",
+  "@chatEventRsvpGoing": {
+    "description": "Family event card string: chatEventRsvpGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpMaybe": "{count} బహుశా",
+  "@chatEventRsvpMaybe": {
+    "description": "Family event card string: chatEventRsvpMaybe",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpNotGoing": "{count} రాలేరు",
+  "@chatEventRsvpNotGoing": {
+    "description": "Family event card string: chatEventRsvpNotGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpGoingLabel": "వస్తున్నాను",
+  "chatEventRsvpMaybeLabel": "బహుశా",
+  "chatEventRsvpNotGoingLabel": "రాలేను",
+  "chatEventCardSemantics": "కుటుంబ కార్యక్రమ కార్డ్: {date} న {title} వద్ద {location}। {going} వస్తున్నారు, {maybe} బహుశా, {notGoing} రాలేరు।",
+  "@chatEventCardSemantics": {
+    "description": "Family event card string: chatEventCardSemantics",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      },
+      "location": {
+        "type": "String"
+      },
+      "going": {
+        "type": "int"
+      },
+      "maybe": {
+        "type": "int"
+      },
+      "notGoing": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventCardSemanticsDeleted": "కుటుంబ కార్యక్రమ కార్డ్: కార్యక్రమం ఇకపై అందుబాటులో లేదు।"
 }

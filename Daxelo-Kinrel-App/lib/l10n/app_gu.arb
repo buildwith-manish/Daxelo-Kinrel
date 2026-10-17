@@ -235,5 +235,65 @@
   "chatScheduleCancelled": "શેડ્યુલ કરેલો સંદેશ રદ કરાયો.",
   "chatScheduleRetried": "શેડ્યુલ કરેલા સંદેશનો ફરી પ્રયત્ન કરાયો.",
   "chatScheduleEditTimeUpdated": "સમય અપડેટ થયો.",
-  "chatScheduleEditTextUpdated": "ટેક્સ્ટ અપડેટ થયો."
+  "chatScheduleEditTextUpdated": "ટેક્સ્ટ અપડેટ થયો.",
+  "chatAttachEvent": "કાર્યક્રમ",
+  "chatAttachEventCreateNew": "નવો કાર્યક્રમ બનાવો",
+  "chatAttachEventPickExisting": "હાલનો કાર્યક્રમ પસંદ કરો",
+  "chatEventCardNoTitle": "કુટુંબ કાર્યક્રમ",
+  "chatEventCardDeleted": "કાર્યક્રમ હવે ઉપલબ્ધ નથી",
+  "chatEventRsvpGoing": "{count} આવી રહ્યા છે",
+  "@chatEventRsvpGoing": {
+    "description": "Family event card string: chatEventRsvpGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpMaybe": "{count} કદાચ",
+  "@chatEventRsvpMaybe": {
+    "description": "Family event card string: chatEventRsvpMaybe",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpNotGoing": "{count} આવી શકતા નથી",
+  "@chatEventRsvpNotGoing": {
+    "description": "Family event card string: chatEventRsvpNotGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpGoingLabel": "આવી રહ્યો છું",
+  "chatEventRsvpMaybeLabel": "કદાચ",
+  "chatEventRsvpNotGoingLabel": "આવી શકતો નથી",
+  "chatEventCardSemantics": "કુટુંબ કાર્યક્રમ કાર્ડ: {date} ના રોજ {title} ખાતે {location}। {going} આવી રહ્યા છે, {maybe} કદાચ, {notGoing} આવી શકતા નથી।",
+  "@chatEventCardSemantics": {
+    "description": "Family event card string: chatEventCardSemantics",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      },
+      "location": {
+        "type": "String"
+      },
+      "going": {
+        "type": "int"
+      },
+      "maybe": {
+        "type": "int"
+      },
+      "notGoing": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventCardSemanticsDeleted": "કુટુંબ કાર્યક્રમ કાર્ડ: કાર્યક્રમ હવે ઉપલબ્ધ નથી।"
 }

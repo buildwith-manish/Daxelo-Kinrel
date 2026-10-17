@@ -893,4 +893,59 @@ class SUr extends S {
 
   @override
   String get chatScheduleEditTextUpdated => 'ٹیکسٹ اپ ڈیٹ ہوا۔';
+
+  @override
+  String get chatAttachEvent => 'ایونٹ';
+
+  @override
+  String get chatAttachEventCreateNew => 'نیا ایونٹ بنائیں';
+
+  @override
+  String get chatAttachEventPickExisting => 'موجودہ ایونٹ منتخب کریں';
+
+  @override
+  String get chatEventCardNoTitle => 'خاندانی ایونٹ';
+
+  @override
+  String get chatEventCardDeleted => 'ایونٹ اب دستیاب نہیں';
+
+  @override
+  String chatEventRsvpGoing(int count) {
+    return '$count آ رہے ہیں';
+  }
+
+  @override
+  String chatEventRsvpMaybe(int count) {
+    return '$count شاید';
+  }
+
+  @override
+  String chatEventRsvpNotGoing(int count) {
+    return '$count نہیں آ سکتے';
+  }
+
+  @override
+  String get chatEventRsvpGoingLabel => 'آ رہا ہوں';
+
+  @override
+  String get chatEventRsvpMaybeLabel => 'شاید';
+
+  @override
+  String get chatEventRsvpNotGoingLabel => 'نہیں آ سکتا';
+
+  @override
+  String chatEventCardSemantics(
+    String title,
+    String date,
+    String location,
+    int going,
+    int maybe,
+    int notGoing,
+  ) {
+    return 'خاندانی ایونٹ کارڈ: $date کو $title پر $location۔ $going آ رہے ہیں، $maybe شاید، $notGoing نہیں آ سکتے۔';
+  }
+
+  @override
+  String get chatEventCardSemanticsDeleted =>
+      'خاندانی ایونٹ کارڈ: ایونٹ اب دستیاب نہیں۔';
 }

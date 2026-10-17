@@ -890,4 +890,59 @@ class SGu extends S {
 
   @override
   String get chatScheduleEditTextUpdated => 'ટેક્સ્ટ અપડેટ થયો.';
+
+  @override
+  String get chatAttachEvent => 'કાર્યક્રમ';
+
+  @override
+  String get chatAttachEventCreateNew => 'નવો કાર્યક્રમ બનાવો';
+
+  @override
+  String get chatAttachEventPickExisting => 'હાલનો કાર્યક્રમ પસંદ કરો';
+
+  @override
+  String get chatEventCardNoTitle => 'કુટુંબ કાર્યક્રમ';
+
+  @override
+  String get chatEventCardDeleted => 'કાર્યક્રમ હવે ઉપલબ્ધ નથી';
+
+  @override
+  String chatEventRsvpGoing(int count) {
+    return '$count આવી રહ્યા છે';
+  }
+
+  @override
+  String chatEventRsvpMaybe(int count) {
+    return '$count કદાચ';
+  }
+
+  @override
+  String chatEventRsvpNotGoing(int count) {
+    return '$count આવી શકતા નથી';
+  }
+
+  @override
+  String get chatEventRsvpGoingLabel => 'આવી રહ્યો છું';
+
+  @override
+  String get chatEventRsvpMaybeLabel => 'કદાચ';
+
+  @override
+  String get chatEventRsvpNotGoingLabel => 'આવી શકતો નથી';
+
+  @override
+  String chatEventCardSemantics(
+    String title,
+    String date,
+    String location,
+    int going,
+    int maybe,
+    int notGoing,
+  ) {
+    return 'કુટુંબ કાર્યક્રમ કાર્ડ: $date ના રોજ $title ખાતે $location। $going આવી રહ્યા છે, $maybe કદાચ, $notGoing આવી શકતા નથી।';
+  }
+
+  @override
+  String get chatEventCardSemanticsDeleted =>
+      'કુટુંબ કાર્યક્રમ કાર્ડ: કાર્યક્રમ હવે ઉપલબ્ધ નથી।';
 }

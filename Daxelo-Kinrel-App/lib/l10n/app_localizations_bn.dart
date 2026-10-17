@@ -892,4 +892,59 @@ class SBn extends S {
 
   @override
   String get chatScheduleEditTextUpdated => 'টেক্সট আপডেট হয়েছে।';
+
+  @override
+  String get chatAttachEvent => 'ইভেন্ট';
+
+  @override
+  String get chatAttachEventCreateNew => 'নতুন ইভেন্ট তৈরি করুন';
+
+  @override
+  String get chatAttachEventPickExisting => 'বিদ্যমান ইভেন্ট নির্বাচন করুন';
+
+  @override
+  String get chatEventCardNoTitle => 'পরিবার ইভেন্ট';
+
+  @override
+  String get chatEventCardDeleted => 'ইভেন্ট আর উপলব্ধ নেই';
+
+  @override
+  String chatEventRsvpGoing(int count) {
+    return '$count যাচ্ছেন';
+  }
+
+  @override
+  String chatEventRsvpMaybe(int count) {
+    return '$count হয়তো';
+  }
+
+  @override
+  String chatEventRsvpNotGoing(int count) {
+    return '$count যেতে পারছেন না';
+  }
+
+  @override
+  String get chatEventRsvpGoingLabel => 'যাচ্ছেন';
+
+  @override
+  String get chatEventRsvpMaybeLabel => 'হয়তো';
+
+  @override
+  String get chatEventRsvpNotGoingLabel => 'যেতে পারছেন না';
+
+  @override
+  String chatEventCardSemantics(
+    String title,
+    String date,
+    String location,
+    int going,
+    int maybe,
+    int notGoing,
+  ) {
+    return 'পরিবার ইভেন্ট কার্ড: $date তারিখে $title এ $location। $going যাচ্ছেন, $maybe হয়তো, $notGoing যেতে পারছেন না।';
+  }
+
+  @override
+  String get chatEventCardSemanticsDeleted =>
+      'পরিবার ইভেন্ট কার্ড: ইভেন্ট আর উপলব্ধ নেই।';
 }

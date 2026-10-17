@@ -895,4 +895,59 @@ class SMr extends S {
 
   @override
   String get chatScheduleEditTextUpdated => 'मजकूर अपडेट केला.';
+
+  @override
+  String get chatAttachEvent => 'कार्यक्रम';
+
+  @override
+  String get chatAttachEventCreateNew => 'नवीन कार्यक्रम तयार करा';
+
+  @override
+  String get chatAttachEventPickExisting => 'सध्याचा कार्यक्रम निवडा';
+
+  @override
+  String get chatEventCardNoTitle => 'कौटुंबिक कार्यक्रम';
+
+  @override
+  String get chatEventCardDeleted => 'कार्यक्रम आता उपलब्ध नाही';
+
+  @override
+  String chatEventRsvpGoing(int count) {
+    return '$count येत आहेत';
+  }
+
+  @override
+  String chatEventRsvpMaybe(int count) {
+    return '$count कदाचित';
+  }
+
+  @override
+  String chatEventRsvpNotGoing(int count) {
+    return '$count येऊ शकत नाहीत';
+  }
+
+  @override
+  String get chatEventRsvpGoingLabel => 'येत आहे';
+
+  @override
+  String get chatEventRsvpMaybeLabel => 'कदाचित';
+
+  @override
+  String get chatEventRsvpNotGoingLabel => 'येऊ शकत नाही';
+
+  @override
+  String chatEventCardSemantics(
+    String title,
+    String date,
+    String location,
+    int going,
+    int maybe,
+    int notGoing,
+  ) {
+    return 'कौटुंबिक कार्यक्रम कार्ड: $date रोजी $title येथे $location। $going येत आहेत, $maybe कदाचित, $notGoing येऊ शकत नाहीत।';
+  }
+
+  @override
+  String get chatEventCardSemanticsDeleted =>
+      'कौटुंबिक कार्यक्रम कार्ड: कार्यक्रम आता उपलब्ध नाही।';
 }

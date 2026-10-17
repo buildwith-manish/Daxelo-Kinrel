@@ -204,5 +204,65 @@
   "chatScheduleCancelled": "طے شدہ پیغام منسوخ کر دیا گیا۔",
   "chatScheduleRetried": "طے شدہ پیغام دوبارہ کوشش کیا گیا۔",
   "chatScheduleEditTimeUpdated": "وقت اپ ڈیٹ ہوا۔",
-  "chatScheduleEditTextUpdated": "ٹیکسٹ اپ ڈیٹ ہوا۔"
+  "chatScheduleEditTextUpdated": "ٹیکسٹ اپ ڈیٹ ہوا۔",
+  "chatAttachEvent": "ایونٹ",
+  "chatAttachEventCreateNew": "نیا ایونٹ بنائیں",
+  "chatAttachEventPickExisting": "موجودہ ایونٹ منتخب کریں",
+  "chatEventCardNoTitle": "خاندانی ایونٹ",
+  "chatEventCardDeleted": "ایونٹ اب دستیاب نہیں",
+  "chatEventRsvpGoing": "{count} آ رہے ہیں",
+  "@chatEventRsvpGoing": {
+    "description": "Family event card string: chatEventRsvpGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpMaybe": "{count} شاید",
+  "@chatEventRsvpMaybe": {
+    "description": "Family event card string: chatEventRsvpMaybe",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpNotGoing": "{count} نہیں آ سکتے",
+  "@chatEventRsvpNotGoing": {
+    "description": "Family event card string: chatEventRsvpNotGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpGoingLabel": "آ رہا ہوں",
+  "chatEventRsvpMaybeLabel": "شاید",
+  "chatEventRsvpNotGoingLabel": "نہیں آ سکتا",
+  "chatEventCardSemantics": "خاندانی ایونٹ کارڈ: {date} کو {title} پر {location}۔ {going} آ رہے ہیں، {maybe} شاید، {notGoing} نہیں آ سکتے۔",
+  "@chatEventCardSemantics": {
+    "description": "Family event card string: chatEventCardSemantics",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      },
+      "location": {
+        "type": "String"
+      },
+      "going": {
+        "type": "int"
+      },
+      "maybe": {
+        "type": "int"
+      },
+      "notGoing": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventCardSemanticsDeleted": "خاندانی ایونٹ کارڈ: ایونٹ اب دستیاب نہیں۔"
 }

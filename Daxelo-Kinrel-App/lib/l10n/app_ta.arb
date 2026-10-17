@@ -235,5 +235,65 @@
   "chatScheduleCancelled": "திட்டமிடப்பட்ட செய்தி ரத்து செய்யப்பட்டது.",
   "chatScheduleRetried": "திட்டமிடப்பட்ட செய்தி மீண்டும் முயற்சிக்கப்பட்டது.",
   "chatScheduleEditTimeUpdated": "நேரம் புதுப்பிக்கப்பட்டது.",
-  "chatScheduleEditTextUpdated": "உரை புதுப்பிக்கப்பட்டது."
+  "chatScheduleEditTextUpdated": "உரை புதுப்பிக்கப்பட்டது.",
+  "chatAttachEvent": "நிகழ்வு",
+  "chatAttachEventCreateNew": "புதிய நிகழ்வை உருவாக்கு",
+  "chatAttachEventPickExisting": "ஏற்கனவே உள்ள நிகழ்வைத் தேர்ந்தெடு",
+  "chatEventCardNoTitle": "குடும்ப நிகழ்வு",
+  "chatEventCardDeleted": "நிகழ்வு இனி கிடைக்கவில்லை",
+  "chatEventRsvpGoing": "{count} வருகிறார்கள்",
+  "@chatEventRsvpGoing": {
+    "description": "Family event card string: chatEventRsvpGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpMaybe": "{count} ஒருவேளை",
+  "@chatEventRsvpMaybe": {
+    "description": "Family event card string: chatEventRsvpMaybe",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpNotGoing": "{count} வர முடியாது",
+  "@chatEventRsvpNotGoing": {
+    "description": "Family event card string: chatEventRsvpNotGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpGoingLabel": "வருகிறேன்",
+  "chatEventRsvpMaybeLabel": "ஒருவேளை",
+  "chatEventRsvpNotGoingLabel": "வர முடியாது",
+  "chatEventCardSemantics": "குடும்ப நிகழ்வு அட்டை: {date} அன்று {title} இடத்தில் {location}। {going} வருகிறார்கள், {maybe} ஒருவேளை, {notGoing} வர முடியாது।",
+  "@chatEventCardSemantics": {
+    "description": "Family event card string: chatEventCardSemantics",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      },
+      "location": {
+        "type": "String"
+      },
+      "going": {
+        "type": "int"
+      },
+      "maybe": {
+        "type": "int"
+      },
+      "notGoing": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventCardSemanticsDeleted": "குடும்ப நிகழ்வு அட்டை: நிகழ்வு இனி கிடைக்கவில்லை।"
 }

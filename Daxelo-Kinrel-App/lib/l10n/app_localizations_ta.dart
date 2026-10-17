@@ -901,4 +901,59 @@ class STa extends S {
 
   @override
   String get chatScheduleEditTextUpdated => 'உரை புதுப்பிக்கப்பட்டது.';
+
+  @override
+  String get chatAttachEvent => 'நிகழ்வு';
+
+  @override
+  String get chatAttachEventCreateNew => 'புதிய நிகழ்வை உருவாக்கு';
+
+  @override
+  String get chatAttachEventPickExisting => 'ஏற்கனவே உள்ள நிகழ்வைத் தேர்ந்தெடு';
+
+  @override
+  String get chatEventCardNoTitle => 'குடும்ப நிகழ்வு';
+
+  @override
+  String get chatEventCardDeleted => 'நிகழ்வு இனி கிடைக்கவில்லை';
+
+  @override
+  String chatEventRsvpGoing(int count) {
+    return '$count வருகிறார்கள்';
+  }
+
+  @override
+  String chatEventRsvpMaybe(int count) {
+    return '$count ஒருவேளை';
+  }
+
+  @override
+  String chatEventRsvpNotGoing(int count) {
+    return '$count வர முடியாது';
+  }
+
+  @override
+  String get chatEventRsvpGoingLabel => 'வருகிறேன்';
+
+  @override
+  String get chatEventRsvpMaybeLabel => 'ஒருவேளை';
+
+  @override
+  String get chatEventRsvpNotGoingLabel => 'வர முடியாது';
+
+  @override
+  String chatEventCardSemantics(
+    String title,
+    String date,
+    String location,
+    int going,
+    int maybe,
+    int notGoing,
+  ) {
+    return 'குடும்ப நிகழ்வு அட்டை: $date அன்று $title இடத்தில் $location। $going வருகிறார்கள், $maybe ஒருவேளை, $notGoing வர முடியாது।';
+  }
+
+  @override
+  String get chatEventCardSemanticsDeleted =>
+      'குடும்ப நிகழ்வு அட்டை: நிகழ்வு இனி கிடைக்கவில்லை।';
 }

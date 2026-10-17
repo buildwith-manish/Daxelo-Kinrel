@@ -889,4 +889,59 @@ class SMl extends S {
 
   @override
   String get chatScheduleEditTextUpdated => 'Text updated.';
+
+  @override
+  String get chatAttachEvent => 'Event';
+
+  @override
+  String get chatAttachEventCreateNew => 'Create a new event';
+
+  @override
+  String get chatAttachEventPickExisting => 'Pick an existing event';
+
+  @override
+  String get chatEventCardNoTitle => 'Family event';
+
+  @override
+  String get chatEventCardDeleted => 'Event no longer available';
+
+  @override
+  String chatEventRsvpGoing(int count) {
+    return '$count going';
+  }
+
+  @override
+  String chatEventRsvpMaybe(int count) {
+    return '$count maybe';
+  }
+
+  @override
+  String chatEventRsvpNotGoing(int count) {
+    return '$count can\'t go';
+  }
+
+  @override
+  String get chatEventRsvpGoingLabel => 'Going';
+
+  @override
+  String get chatEventRsvpMaybeLabel => 'Maybe';
+
+  @override
+  String get chatEventRsvpNotGoingLabel => 'Can\'t go';
+
+  @override
+  String chatEventCardSemantics(
+    String title,
+    String date,
+    String location,
+    int going,
+    int maybe,
+    int notGoing,
+  ) {
+    return 'Family event card: $title on $date at $location. $going going, $maybe maybe, $notGoing can\'t go.';
+  }
+
+  @override
+  String get chatEventCardSemanticsDeleted =>
+      'Family event card: event no longer available.';
 }

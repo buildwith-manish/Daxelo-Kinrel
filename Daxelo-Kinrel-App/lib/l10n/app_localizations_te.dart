@@ -898,4 +898,60 @@ class STe extends S {
 
   @override
   String get chatScheduleEditTextUpdated => 'టెక్స్ట్ నవీకరించబడింది.';
+
+  @override
+  String get chatAttachEvent => 'కార్యక్రమం';
+
+  @override
+  String get chatAttachEventCreateNew => 'కొత్త కార్యక్రమం సృష్టించండి';
+
+  @override
+  String get chatAttachEventPickExisting =>
+      'ఇప్పటికే ఉన్న కార్యక్రమం ఎంచుకోండి';
+
+  @override
+  String get chatEventCardNoTitle => 'కుటుంబ కార్యక్రమం';
+
+  @override
+  String get chatEventCardDeleted => 'కార్యక్రమం ఇకపై అందుబాటులో లేదు';
+
+  @override
+  String chatEventRsvpGoing(int count) {
+    return '$count వస్తున్నారు';
+  }
+
+  @override
+  String chatEventRsvpMaybe(int count) {
+    return '$count బహుశా';
+  }
+
+  @override
+  String chatEventRsvpNotGoing(int count) {
+    return '$count రాలేరు';
+  }
+
+  @override
+  String get chatEventRsvpGoingLabel => 'వస్తున్నాను';
+
+  @override
+  String get chatEventRsvpMaybeLabel => 'బహుశా';
+
+  @override
+  String get chatEventRsvpNotGoingLabel => 'రాలేను';
+
+  @override
+  String chatEventCardSemantics(
+    String title,
+    String date,
+    String location,
+    int going,
+    int maybe,
+    int notGoing,
+  ) {
+    return 'కుటుంబ కార్యక్రమ కార్డ్: $date న $title వద్ద $location। $going వస్తున్నారు, $maybe బహుశా, $notGoing రాలేరు।';
+  }
+
+  @override
+  String get chatEventCardSemanticsDeleted =>
+      'కుటుంబ కార్యక్రమ కార్డ్: కార్యక్రమం ఇకపై అందుబాటులో లేదు।';
 }
