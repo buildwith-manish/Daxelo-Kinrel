@@ -2598,16 +2598,24 @@ GraphLayoutResult _computeViewerWedgeLayout({
   // Translate viewer-at-origin coordinates into all-positive canvas
   // space (identical coordinate contract to the radial path — the
   // SizedBox/Stack/hit-test geometry never sees negative positions).
+  //
+  // Half-widths / half-heights MUST mirror WedgeLayoutConfig defaults
+  // (root 124×140, node 124×128) — see viewer_wedge_layout.dart. Using
+  // the wrong axis (e.g. root height/2 for the X-axis padding) leaves
+  // the bounding-box scan off by a few px and shifts every node off
+  // the intended padding boundary. The unit-test golden boxes use the
+  // SAME constants (see _Box.node in viewer_wedge_layout_test.dart).
   const double canvasPadding = 160.0;
-  const double halfNode = 62.0; // 124 / 2 (node footprint width)
-  const double halfRoot = 70.0; // 124 / 2 (root footprint width)
-  const double halfNodeY = 70.0; // 140 / 2 (root footprint height)
+  const double halfRootWidth = 62.0; // 124 / 2 (root footprint width)
+  const double halfRootHeight = 70.0; // 140 / 2 (root footprint height)
+  const double halfNodeWidth = 62.0; // 124 / 2 (node footprint width)
+  const double halfNodeHeight = 64.0; // 128 / 2 (node footprint height)
   var minX = 0.0;
   var minY = 0.0;
   output.positions.forEach((id, pos) {
     final isRoot = id == viewerId;
-    minX = math.min(minX, pos.dx - (isRoot ? halfRoot : halfNode));
-    minY = math.min(minY, pos.dy - (isRoot ? halfNodeY : halfNode));
+    minX = math.min(minX, pos.dx - (isRoot ? halfRootWidth : halfNodeWidth));
+    minY = math.min(minY, pos.dy - (isRoot ? halfRootHeight : halfNodeHeight));
   });
   final tx = -minX + canvasPadding;
   final ty = -minY + canvasPadding;
