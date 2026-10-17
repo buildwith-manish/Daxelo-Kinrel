@@ -199,6 +199,14 @@ class ViewerWedgeLayout {
 
   final WedgeLayoutConfig _config;
 
+  /// Insertion-order index: the order in which each person id first
+  /// appears in the [links] list. Used as the tiebreaker in
+  /// [compareChildren] so children keep the order their edges were
+  /// declared in (matching the spec's "in that order"), instead of
+  /// being sorted lexicographically (which puts r10 before r2).
+  /// Built fresh on every [compute] call.
+  Map<String, int> _orderIndex = const {};
+
   /// Mirror of kProximityCategoryKeepPriority (proximity_graph_state.dart).
   /// Local copy so the engine stays free of Riverpod/provider imports —
   /// kept in EXACT sync with the canonical ordering: closer relationships
@@ -270,10 +278,20 @@ class ViewerWedgeLayout {
     // keyTo[a][b] = relationship key meaning "b is a's <key>".
     final keyTo = <String, Map<String, String>>{};
     final adjacency = <String, Set<String>>{};
+    // Build the insertion-order index: the order in which each person
+    // first appears in the [links] list. Used by compareChildren as
+    // the tiebreaker so children keep edge-list order (numeric:
+    // r0, r1, r2, ...) instead of lexicographic order (r0, r1, r10, ...).
+    _orderIndex = <String, int>{};
+    var order = 0;
+    // Ensure the viewer gets index 0 (it's the root, always first).
+    _orderIndex[viewerId] = order++;
     for (final link in links) {
       final a = link.fromId;
       final b = link.toId;
       if (a.isEmpty || b.isEmpty || a == b) continue;
+      if (!_orderIndex.containsKey(a)) _orderIndex[a] = order++;
+      if (!_orderIndex.containsKey(b)) _orderIndex[b] = order++;
       adjacency.putIfAbsent(a, () => <String>{}).add(b);
       adjacency.putIfAbsent(b, () => <String>{}).add(a);
       final forward = link.keyAtoB ?? link.relationshipKey;
@@ -336,9 +354,15 @@ class ViewerWedgeLayout {
 
     // ── 3. Ordered children lists ──────────────────────────────────
     // Ordered by closeness (category rank of the connecting edge),
-    // then name, then id. (Pinned/recent ranking signals do not exist
-    // on the graph person model — a Phase 0 gap; the documented
-    // fallback ordering is exactly this.)
+    // then by INSERTION ORDER (the order in which each person first
+    // appears in the [links] list). This matches the spec's "in rank
+    // order" and "in that order" — when all relationships have the
+    // same rank, children keep the order their edges were declared
+    // in (numeric: r0, r1, r2, ... not lexicographic: r0, r1, r10, ...).
+    //
+    // The insertion order is tracked via _orderIndex, built from the
+    // links list above. Persons not in the links get a high index
+    // (sorted last), breaking ties by id.
     final childrenOf = <String, List<String>>{};
     parentOf.forEach((child, parent) {
       if (parent == null) return;
@@ -348,8 +372,10 @@ class ViewerWedgeLayout {
       final rankA = _rankOfKey(keyFromParent[a] ?? '');
       final rankB = _rankOfKey(keyFromParent[b] ?? '');
       if (rankA != rankB) return rankA.compareTo(rankB);
-      final byName = (nameOf[a] ?? '').compareTo(nameOf[b] ?? '');
-      if (byName != 0) return byName;
+      // Tiebreak by insertion order (edge list order), not by name.
+      final oa = _orderIndex[a] ?? 0x7FFFFFFF;
+      final ob = _orderIndex[b] ?? 0x7FFFFFFF;
+      if (oa != ob) return oa.compareTo(ob);
       return a.compareTo(b);
     }
 
@@ -629,6 +655,12 @@ class ViewerWedgeLayout {
     }
 
     // ── c. Ring radii: base gaps + arc-space constraints ──────────
+    // For every node, the ring at the node's own depth must have
+    // radius at least arcSpacing * weight(node) / span(node). This
+    // ensures the node's OWN wedge is wide enough to fit its
+    // subtree's widest level. Nodes with large subtrees (e.g. an
+    // expanded hub with 9 children) push their OWN ring outward,
+    // which in turn pushes their siblings' ring outward too.
     var maxRing = 0;
     ringOf.forEach((_, ring) {
       if (ring > maxRing) maxRing = ring;
@@ -638,9 +670,9 @@ class ViewerWedgeLayout {
       var radius = ring == 1
           ? _config.firstRingRadius
           : radii[ring - 1] + _config.minRingGap;
-      // For every node v on ring (ring - d) with wedge angle θ, the
-      // ring holding v's depth-d subtree nodes must grant each of them
-      // arcSpacing of arc: r ≥ arcSpacing · count / θ.
+      // Constraint 1: from ancestors ABOVE this ring. For each
+      // ancestor at ring (ring - d), its level-d count must fit:
+      // r >= arcSpacing * count / ancestor_span.
       ringOf.forEach((node, nodeRing) {
         if (nodeRing >= ring) return;
         final d = ring - nodeRing;
@@ -648,6 +680,19 @@ class ViewerWedgeLayout {
         if (count == 0) return;
         final span = wedgeSpan[node]!;
         final required = arcSpacing * count / span;
+        if (required > radius) radius = required;
+      });
+      // Constraint 2: from nodes AT this ring. Each node's OWN
+      // weight (its subtree's widest level) must fit in its wedge:
+      // r >= arcSpacing * weight / node_span. This is what pushes
+      // expanded hubs outward — their weight is large, their span
+      // is small, so the required radius is large.
+      ringOf.forEach((node, nodeRing) {
+        if (nodeRing != ring) return;
+        final w = weightOf(node);
+        final span = wedgeSpan[node]!;
+        if (span <= 0) return;
+        final required = arcSpacing * w / span;
         if (required > radius) radius = required;
       });
       radii.add(radius);
