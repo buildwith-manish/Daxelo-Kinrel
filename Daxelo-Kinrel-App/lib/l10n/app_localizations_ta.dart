@@ -751,4 +751,12 @@ class STa extends S {
   String graphMorePeople(int count) {
     return '$count மேலும் நபர்களைக் காட்டு, இருமுறை தட்டவும்';
   }
+
+  @override
+  String graphMorePeopleShort(int count) {
+    return '$count மேலும்';
+  }
+
+  @override
+  String get graphTapToShowHint => 'காட்ட தட்டவும்';
 }

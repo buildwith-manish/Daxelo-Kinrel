@@ -984,6 +984,19 @@
       }
     }
   },
+  "graphMorePeopleShort": "{count} more",
+  "@graphMorePeopleShort": {
+    "description": "The '+N' page bubble first label line under the circle: 'N more' (the second line is graphTapToShowHint).",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "graphTapToShowHint": "Tap to show",
+  "@graphTapToShowHint": {
+    "description": "The '+N' page bubble second label line under the circle: a short localized hint to tap the bubble."
+  },
   "@graphCatIndirect": {
     "description": "Filter chip label: indirect connections category"
   }

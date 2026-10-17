@@ -104,5 +104,7 @@
   "graphCatInLaw": "ਸਹੁਰਾ",
   "graphCatExtended": "ਵਿਸਤ੍ਰਿਤ ਪਰਿਵਾਰ",
   "graphCatIndirect": "ਅਸਿੱਧਾ",
-  "graphMorePeople": "{count} ਹੋਰ ਲੋਕ ਵੇਖੋ, ਦੋ ਵਾਰ ਟੈਪ ਕਰੋ"
+  "graphMorePeople": "{count} ਹੋਰ ਲੋਕ ਵੇਖੋ, ਦੋ ਵਾਰ ਟੈਪ ਕਰੋ",
+  "graphMorePeopleShort": "{count} ਹੋਰ",
+  "graphTapToShowHint": "ਵੇਖਾਉਣ ਲਈ ਟੈਪ ਕਰੋ"
 }

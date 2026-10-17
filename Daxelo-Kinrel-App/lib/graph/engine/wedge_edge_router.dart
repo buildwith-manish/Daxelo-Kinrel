@@ -16,9 +16,10 @@
 //
 //   2. OBSTRUCTION — CURVE THE MINIMUM AMOUNT. When the straight
 //      segment between the two endpoints passes through any other
-//      node/chip footprint (124×128 for nodes, 124×140 for the
-//      viewer, 84×84 for "+N" bubbles, plus 6px padding), the edge
-//      bows by the smallest amount that clears EVERY footprint.
+//      node/chip footprint (124×128 for nodes AND for "+N" bubbles
+//      — the bubble is now node-sized, see WedgeLayoutConfig — plus
+//      124×140 for the viewer, plus 6px padding), the edge bows by
+//      the smallest amount that clears EVERY footprint.
 //      Candidate bow magnitudes are tried in order: 45, 90, 135
 //      world units. For each magnitude the router tries the side
 //      AWAY from the viewer first (the perpendicular direction whose

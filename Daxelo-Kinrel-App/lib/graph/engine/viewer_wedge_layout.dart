@@ -134,7 +134,16 @@ class WedgeLayoutConfig {
     this.pageSize = 8,
     this.rootFootprint = const Size(124, 140),
     this.nodeFootprint = const Size(124, 128),
-    this.chipFootprint = const Size(84, 84),
+    // The "+N" page bubble is now node-sized (124×128, the same as
+    // nodeFootprint) so it reads as part of the family of nodes —
+    // same circle diameter, same reserved slot, same label space
+    // below. The bubble widget itself draws a Ø72 circle (matching
+    // GraphNode's default nodeSize) plus the "N more / Tap to show"
+    // label underneath, so the full 124×128 footprint is consumed.
+    // The no-overlap guarantee still holds: the layout engine treats
+    // chip slots with the SAME footprint as nodes when scanning for
+    // axis-aligned box overlaps.
+    this.chipFootprint = const Size(124, 128),
     this.footprintPadding = 6.0,
     this.firstRingRadius = 220.0,
     this.minRingGap = 200.0,

@@ -748,4 +748,12 @@ class SMr extends S {
   String graphMorePeople(int count) {
     return '$count अधिक लोक दाखवा, दोनदा टॅप करा';
   }
+
+  @override
+  String graphMorePeopleShort(int count) {
+    return '$count आणखी';
+  }
+
+  @override
+  String get graphTapToShowHint => 'दाखवण्यासाठी टॅप करा';
 }

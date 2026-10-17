@@ -750,4 +750,12 @@ class STe extends S {
   String graphMorePeople(int count) {
     return '$count మంది ఎక్కువ వ్యక్తులను చూపించు, రెండుసార్లు నొక్కు';
   }
+
+  @override
+  String graphMorePeopleShort(int count) {
+    return '$count మరిన్ని';
+  }
+
+  @override
+  String get graphTapToShowHint => 'చూపించడానికి ట్యాప్ చేయండి';
 }

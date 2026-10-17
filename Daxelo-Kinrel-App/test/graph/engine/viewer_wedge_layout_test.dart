@@ -69,7 +69,7 @@ class _SeededTree {
 
 /// The footprint box for a positioned person, mirroring
 /// WedgeLayoutConfig's defaults (node 124x128, root 124x140, chip
-/// 84x84, padding 6 per side).
+/// 124x128 — the bubble is now node-sized, padding 6 per side).
 class _Box {
   _Box.node(String id, Offset p, {bool root = false})
       : this.raw(
@@ -80,7 +80,7 @@ class _Box {
             p.dy + (root ? 70 : 64));
 
   _Box.chip(String id, Offset p)
-      : this.raw(id, p.dx - 42 - 6, p.dy - 42 - 6, p.dx + 42 + 6, p.dy + 42 + 6);
+      : this.raw(id, p.dx - 62 - 6, p.dy - 64 - 6, p.dx + 62 + 6, p.dy + 64 + 6);
 
   _Box.raw(this.id, this.minX, this.minY, this.maxX, this.maxY);
 

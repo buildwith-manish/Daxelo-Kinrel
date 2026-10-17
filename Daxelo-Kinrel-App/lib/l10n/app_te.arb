@@ -135,5 +135,7 @@
   "graphCatInLaw": "అత్తమామల కుటుంబీకులు",
   "graphCatExtended": "విస్తృత కుటుంబం",
   "graphCatIndirect": "పరోక్ష",
-  "graphMorePeople": "{count} మంది ఎక్కువ వ్యక్తులను చూపించు, రెండుసార్లు నొక్కు"
+  "graphMorePeople": "{count} మంది ఎక్కువ వ్యక్తులను చూపించు, రెండుసార్లు నొక్కు",
+  "graphMorePeopleShort": "{count} మరిన్ని",
+  "graphTapToShowHint": "చూపించడానికి ట్యాప్ చేయండి"
 }

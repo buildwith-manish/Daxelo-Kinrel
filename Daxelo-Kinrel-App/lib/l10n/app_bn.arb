@@ -135,5 +135,7 @@
   "graphCatInLaw": "শ্বশুরবাড়ি",
   "graphCatExtended": "বর্ধিত পরিবার",
   "graphCatIndirect": "পরোক্ষ",
-  "graphMorePeople": "{count} জন আরও মানুষ দেখুন, ডাবল ট্যাপ করুন"
+  "graphMorePeople": "{count} জন আরও মানুষ দেখুন, ডাবল ট্যাপ করুন",
+  "graphMorePeopleShort": "{count} জন বেশি",
+  "graphTapToShowHint": "দেখাতে ট্যাপ করুন"
 }

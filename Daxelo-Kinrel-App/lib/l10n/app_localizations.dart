@@ -1382,6 +1382,18 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Show {count} more people, double tap to reveal'**
   String graphMorePeople(int count);
+
+  /// The '+N' page bubble first label line under the circle: 'N more' (the second line is graphTapToShowHint).
+  ///
+  /// In en, this message translates to:
+  /// **'{count} more'**
+  String graphMorePeopleShort(int count);
+
+  /// The '+N' page bubble second label line under the circle: a short localized hint to tap the bubble.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to show'**
+  String get graphTapToShowHint;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

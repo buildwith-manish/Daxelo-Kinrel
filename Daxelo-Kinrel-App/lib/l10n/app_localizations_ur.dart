@@ -749,4 +749,12 @@ class SUr extends S {
   String graphMorePeople(int count) {
     return '$count مزید لوگ دکھائیں، دوبار تھپتھپائیں';
   }
+
+  @override
+  String graphMorePeopleShort(int count) {
+    return '$count مزید';
+  }
+
+  @override
+  String get graphTapToShowHint => 'دکھانے کے لیے ٹیپ کریں';
 }

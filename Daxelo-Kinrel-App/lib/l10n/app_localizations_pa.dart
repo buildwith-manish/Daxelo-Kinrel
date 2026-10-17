@@ -748,4 +748,12 @@ class SPa extends S {
   String graphMorePeople(int count) {
     return '$count ਹੋਰ ਲੋਕ ਵੇਖੋ, ਦੋ ਵਾਰ ਟੈਪ ਕਰੋ';
   }
+
+  @override
+  String graphMorePeopleShort(int count) {
+    return '$count ਹੋਰ';
+  }
+
+  @override
+  String get graphTapToShowHint => 'ਵੇਖਾਉਣ ਲਈ ਟੈਪ ਕਰੋ';
 }

@@ -135,5 +135,7 @@
   "graphCatInLaw": "ವಿವಾಹ ಸಂಬಂಧಿಗಳು",
   "graphCatExtended": "ವಿಸ್ತೃತ ಕುಟುಂಬ",
   "graphCatIndirect": "ಪರೋಕ್ಷ",
-  "graphMorePeople": "{count} ಹೆಚ್ಚಿನ ಜನರನ್ನು ತೋರಿಸಿ, ಎರಡು ಬಾರಿ ಟ್ಯಾಪ್ ಮಾಡಿ"
+  "graphMorePeople": "{count} ಹೆಚ್ಚಿನ ಜನರನ್ನು ತೋರಿಸಿ, ಎರಡು ಬಾರಿ ಟ್ಯಾಪ್ ಮಾಡಿ",
+  "graphMorePeopleShort": "{count} ಇನ್ನು",
+  "graphTapToShowHint": "ತೋರಿಸಲು ಟ್ಯಾಪ್ ಮಾಡಿ"
 }

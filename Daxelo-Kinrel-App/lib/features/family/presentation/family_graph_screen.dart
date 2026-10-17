@@ -1197,7 +1197,17 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
             if (!ref.watch(rearrangeModeProvider))
               FamilySpaceTabBar(familyId: widget.familyId),
 
-            if (graph.isTruncated) _buildTruncationBanner(graph),
+            // WEDGE MODE: always show the "Showing N of M" banner —
+            // no isTruncated gating. The wedge layout's visible count
+            // (N) is the count the viewer actually sees on the canvas
+            // (the paged visible set); the total (M) is the full family
+            // size. The banner is PLAIN (no amber warning icon) — it's
+            // an informational count, not a truncation warning.
+            // RADIAL MODE: keep the existing isTruncated gating (the
+            // legacy behaviour — only show when the RPC truncated the
+            // result set).
+            if (kUseViewerWedgeLayout || graph.isTruncated)
+              _buildTruncationBanner(graph),
 
             // Viewer-centered wedge layout: filter chips ("All N" + one
             // per kinship category present) — shown ONLY when the root
@@ -2290,6 +2300,15 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
   /// wedgeLayoutSummaryProvider); in radial mode N stays the count of
   /// loaded persons. The text is localized (graphShowingCount); the
   /// "View all" affordance remains the stats panel's button.
+  ///
+  /// WEDGE MODE: the banner is PLAIN — no amber warning icon, no amber
+  /// bottom border. It's an informational count ("Showing N of M"),
+  /// not a truncation warning. The dark-elevated surface + neutral
+  /// text colour is all that's needed.
+  /// RADIAL MODE: keeps the legacy amber border + warning icon (the
+  /// banner only shows when the RPC actually truncated the result
+  /// set — see the `if (kUseViewerWedgeLayout || graph.isTruncated)`
+  /// gate at the call site).
   Widget _buildTruncationBanner(FlatGraphResult graph) {
     final l10n = S.of(context);
     final shownCount = kUseViewerWedgeLayout
@@ -2298,18 +2317,30 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
             graph.persons.length)
         : graph.persons.length;
     final total = graph.totalCount ?? shownCount;
+    // In wedge mode the banner is plain (no amber). In radial mode
+    // keep the legacy amber border + warning icon.
+    final bool isPlain = kUseViewerWedgeLayout;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: KinrelColors.darkElevated,
-        border: Border(bottom: BorderSide(color: KinrelColors.amber, width: 1)),
+        border: Border(
+          bottom: BorderSide(
+            color: isPlain
+                ? KinrelColors.darkCard  // plain divider, no amber
+                : KinrelColors.amber,
+            width: 1,
+          ),
+        ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded,
-              color: KinrelColors.amber, size: 20),
-          const SizedBox(width: 8),
+          if (!isPlain) ...[
+            const Icon(Icons.warning_amber_rounded,
+                color: KinrelColors.amber, size: 20),
+            const SizedBox(width: 8),
+          ],
           Expanded(
             child: Text(
               l10n?.graphShowingCount(shownCount, total) ??

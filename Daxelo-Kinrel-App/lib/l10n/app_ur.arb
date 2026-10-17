@@ -104,5 +104,7 @@
   "graphCatInLaw": "سسرال",
   "graphCatExtended": "وسيع خاندان",
   "graphCatIndirect": "بالواسطہ",
-  "graphMorePeople": "{count} مزید لوگ دکھائیں، دوبار تھپتھپائیں"
+  "graphMorePeople": "{count} مزید لوگ دکھائیں، دوبار تھپتھپائیں",
+  "graphMorePeopleShort": "{count} مزید",
+  "graphTapToShowHint": "دکھانے کے لیے ٹیپ کریں"
 }

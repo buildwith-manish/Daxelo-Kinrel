@@ -104,5 +104,7 @@
   "graphCatInLaw": "വിവാഹ ബന്ധുക്കൾ",
   "graphCatExtended": "വിപുലീകൃത കുടുംബം",
   "graphCatIndirect": "പരോക്ഷം",
-  "graphMorePeople": "{count} കൂടി ആളുകളെ കാണിക്കുക, രണ്ടുതവണ ടാപ്പ് ചെയ്യുക"
+  "graphMorePeople": "{count} കൂടി ആളുകളെ കാണിക്കുക, രണ്ടുതവണ ടാപ്പ് ചെയ്യുക",
+  "graphMorePeopleShort": "{count} കൂടുതൽ",
+  "graphTapToShowHint": "കാണിക്കാൻ ടാപ്പ് ചെയ്യുക"
 }

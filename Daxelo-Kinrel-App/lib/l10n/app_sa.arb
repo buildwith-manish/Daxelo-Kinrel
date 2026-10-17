@@ -104,5 +104,7 @@
   "graphCatInLaw": "श्वशुराः",
   "graphCatExtended": "विस्तृतकुटुम्बः",
   "graphCatIndirect": "परोक्षः",
-  "graphMorePeople": "{count} अधिकान् जनान् दर्शय, द्विवारं स्पृश्"
+  "graphMorePeople": "{count} अधिकान् जनान् दर्शय, द्विवारं स्पृश्",
+  "graphMorePeopleShort": "{count} अधिकम्",
+  "graphTapToShowHint": "द्रष्टुं टैप् कुरुत"
 }

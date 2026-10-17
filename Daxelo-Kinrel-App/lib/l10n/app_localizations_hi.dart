@@ -748,4 +748,12 @@ class SHi extends S {
   String graphMorePeople(int count) {
     return '$count और लोगों को दिखाएँ, डबल टैप करें';
   }
+
+  @override
+  String graphMorePeopleShort(int count) {
+    return '$count और';
+  }
+
+  @override
+  String get graphTapToShowHint => 'दिखाने के लिए टैप करें';
 }

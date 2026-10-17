@@ -748,4 +748,12 @@ class SKn extends S {
   String graphMorePeople(int count) {
     return '$count ಹೆಚ್ಚಿನ ಜನರನ್ನು ತೋರಿಸಿ, ಎರಡು ಬಾರಿ ಟ್ಯಾಪ್ ಮಾಡಿ';
   }
+
+  @override
+  String graphMorePeopleShort(int count) {
+    return '$count ಇನ್ನು';
+  }
+
+  @override
+  String get graphTapToShowHint => 'ತೋರಿಸಲು ಟ್ಯಾಪ್ ಮಾಡಿ';
 }

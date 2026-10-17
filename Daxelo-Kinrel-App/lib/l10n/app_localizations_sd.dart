@@ -748,4 +748,12 @@ class SSd extends S {
   String graphMorePeople(int count) {
     return '$count وڌيڪ ماڻهن کي ڏيکاريو، ٻه ڀيرا ٽيپ ڪريو';
   }
+
+  @override
+  String graphMorePeopleShort(int count) {
+    return '$count وڌيڪ';
+  }
+
+  @override
+  String get graphTapToShowHint => 'ڏيکارڻ لاءِ ٽيپ ڪريو';
 }

@@ -182,9 +182,10 @@ void main() {
         reason: 'collapsed a1 (4 connections) shows a badge');
     expect(
       find.byWidgetPredicate((w) =>
-          w is Text && w.data == '+3' && (w.style?.fontSize ?? 0) <= 12),
+          w is Text && w.data == '+3' && (w.style?.fontSize ?? 0) >= 14),
       findsOneWidget,
-      reason: 'collapsed a2 (3 connections) shows a small badge',
+      reason: 'collapsed a2 (3 connections) shows a readable badge '
+          '(number at least 14px per the spec)',
     );
 
     // 3. Tap the collapsed hub → expands in place with its FIRST 8

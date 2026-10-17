@@ -2432,8 +2432,40 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
 
     final centerX = (minX + maxX) / 2;
     final centerY = (minY + maxY) / 2;
-    final panX = size.width / 2 - centerX * zoom;
-    final panY = size.height / 2 - centerY * zoom;
+
+    // ── CAMERA FIT INSET (top + bottom chrome) ─────────────────────
+    //
+    // PER THE SPEC: "when fitting to a hub, its children and its
+    // parent, leave padding for the top overlays (app bar, Graph/Linking
+    // toggle, banner) and the bottom stats card and toolbar. Fit into
+    // the visible area between them, not the full screen, so no node
+    // ends up under the toolbar or banner."
+    //
+    // The camera controller's `setAppTopChromeHeight` / `setAppBottomChromeHeight`
+    // feed the SAME insets into `fitToView` (see camera_controller.dart
+    // lines 545-548). We mirror that contract here: the effective
+    // vertical center is the midpoint of the visible area BETWEEN the
+    // top and bottom overlays, NOT the raw viewport centre.
+    //
+    // `widget.topChromeHeight` is 0 in family_graph_screen.dart (the
+    // AppBar is excluded by the Scaffold body), so the top inset
+    // falls back to the OS safe area top. `widget.bottomChromeHeight`
+    // is the stats panel + toolbar + OS safe area bottom (already
+    // computed in family_graph_screen.dart line 1183).
+    //
+    // The horizontal center is unaffected (no horizontal chrome).
+    final topInset = MediaQuery.of(context).padding.top + widget.topChromeHeight;
+    final bottomInset =
+        MediaQuery.of(context).padding.bottom + widget.bottomChromeHeight;
+    final effectiveHeight = size.height - topInset - bottomInset;
+    // Guard against negative effective height (extreme aspect ratios
+    // or a very small viewport during initial layout). Fall back to
+    // the raw viewport centre — visually no worse than the old code.
+    final effectiveCenterY = topInset + effectiveHeight / 2;
+    final effectiveCenterX = size.width / 2; // no horizontal chrome
+
+    final panX = effectiveCenterX - (centerX * zoom);
+    final panY = effectiveCenterY - (centerY * zoom);
 
     final reduced = MediaQuery.disableAnimationsOf(context);
     _camera.animateTo(

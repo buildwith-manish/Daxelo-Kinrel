@@ -748,4 +748,12 @@ class SBn extends S {
   String graphMorePeople(int count) {
     return '$count জন আরও মানুষ দেখুন, ডাবল ট্যাপ করুন';
   }
+
+  @override
+  String graphMorePeopleShort(int count) {
+    return '$count জন বেশি';
+  }
+
+  @override
+  String get graphTapToShowHint => 'দেখাতে ট্যাপ করুন';
 }

@@ -135,5 +135,7 @@
   "graphCatInLaw": "सासरे",
   "graphCatExtended": "विस्तृत कुटुंब",
   "graphCatIndirect": "अप्रत्यक्ष",
-  "graphMorePeople": "{count} अधिक लोक दाखवा, दोनदा टॅप करा"
+  "graphMorePeople": "{count} अधिक लोक दाखवा, दोनदा टॅप करा",
+  "graphMorePeopleShort": "{count} आणखी",
+  "graphTapToShowHint": "दाखवण्यासाठी टॅप करा"
 }

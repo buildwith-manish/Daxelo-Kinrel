@@ -748,4 +748,12 @@ class SAs extends S {
   String graphMorePeople(int count) {
     return '$count গৰাকী অধিক লোক দেখুন, দুবাৰ টেপ কৰক';
   }
+
+  @override
+  String graphMorePeopleShort(int count) {
+    return '$count জন অধিক';
+  }
+
+  @override
+  String get graphTapToShowHint => 'দেখুৱাবলৈ টিপক';
 }

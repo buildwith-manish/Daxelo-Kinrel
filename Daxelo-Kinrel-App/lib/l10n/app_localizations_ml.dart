@@ -748,4 +748,12 @@ class SMl extends S {
   String graphMorePeople(int count) {
     return '$count കൂടി ആളുകളെ കാണിക്കുക, രണ്ടുതവണ ടാപ്പ് ചെയ്യുക';
   }
+
+  @override
+  String graphMorePeopleShort(int count) {
+    return '$count കൂടുതൽ';
+  }
+
+  @override
+  String get graphTapToShowHint => 'കാണിക്കാൻ ടാപ്പ് ചെയ്യുക';
 }

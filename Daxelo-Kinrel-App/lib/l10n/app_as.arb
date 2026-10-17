@@ -104,5 +104,7 @@
   "graphCatInLaw": "শহুৰে",
   "graphCatExtended": "বিস্তৃত পৰিয়াল",
   "graphCatIndirect": "অপ্ৰত্যক্ষ",
-  "graphMorePeople": "{count} গৰাকী অধিক লোক দেখুন, দুবাৰ টেপ কৰক"
+  "graphMorePeople": "{count} গৰাকী অধিক লোক দেখুন, দুবাৰ টেপ কৰক",
+  "graphMorePeopleShort": "{count} জন অধিক",
+  "graphTapToShowHint": "দেখুৱাবলৈ টিপক"
 }

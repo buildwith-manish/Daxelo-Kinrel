@@ -748,4 +748,12 @@ class SOr extends S {
   String graphMorePeople(int count) {
     return '$count ଅଧିକ ଲୋକଙ୍କୁ ଦେଖାନ୍ତୁ, ଦୁଇଥର ଟାପ୍ କରନ୍ତୁ';
   }
+
+  @override
+  String graphMorePeopleShort(int count) {
+    return '$count ଅଧିକ';
+  }
+
+  @override
+  String get graphTapToShowHint => 'ଦେଖାଇବାକୁ ଟ୍ୟାପ୍ କରନ୍ତୁ';
 }

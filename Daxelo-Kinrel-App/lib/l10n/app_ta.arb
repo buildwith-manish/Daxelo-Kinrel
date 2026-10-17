@@ -135,5 +135,7 @@
   "graphCatInLaw": "மாமியார் உறவினர்",
   "graphCatExtended": "விரிவான குடும்பம்",
   "graphCatIndirect": "மறைமுக",
-  "graphMorePeople": "{count} மேலும் நபர்களைக் காட்டு, இருமுறை தட்டவும்"
+  "graphMorePeople": "{count} மேலும் நபர்களைக் காட்டு, இருமுறை தட்டவும்",
+  "graphMorePeopleShort": "{count} மேலும்",
+  "graphTapToShowHint": "காட்ட தட்டவும்"
 }

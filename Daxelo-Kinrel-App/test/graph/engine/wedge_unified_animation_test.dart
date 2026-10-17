@@ -15,7 +15,6 @@
 // wedge_e2e_visual_test.dart (which is intentionally slow / heavy).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'dart:ui' show Offset;
 
 import 'package:kinrel/graph/engine/viewer_wedge_layout.dart';
 

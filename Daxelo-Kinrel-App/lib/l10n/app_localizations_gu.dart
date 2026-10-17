@@ -748,4 +748,12 @@ class SGu extends S {
   String graphMorePeople(int count) {
     return '$count વધુ લોકો બતાવો, બે વાર ટેપ કરો';
   }
+
+  @override
+  String graphMorePeopleShort(int count) {
+    return '$count વધુ';
+  }
+
+  @override
+  String get graphTapToShowHint => 'બતાવવા માટે ટૅપ કરો';
 }

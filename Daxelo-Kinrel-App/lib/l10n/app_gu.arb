@@ -135,5 +135,7 @@
   "graphCatInLaw": "સાસરા",
   "graphCatExtended": "વિસ્તૃત પરિવાર",
   "graphCatIndirect": "પરોક્ષ",
-  "graphMorePeople": "{count} વધુ લોકો બતાવો, બે વાર ટેપ કરો"
+  "graphMorePeople": "{count} વધુ લોકો બતાવો, બે વાર ટેપ કરો",
+  "graphMorePeopleShort": "{count} વધુ",
+  "graphTapToShowHint": "બતાવવા માટે ટૅપ કરો"
 }

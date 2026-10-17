@@ -533,11 +533,15 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     final chips = ref.read(wedgeChipSlotsProvider(widget.familyId));
     if (chips == null || chips.isEmpty) return null;
     final graphPos = _renderToGraphSpace(screenPos);
-    // The chip's tap target: the 84×84 slot footprint centred on
-    // slotCenter (matching the layout's reserved slot), padded for a
-    // forgiving touch target — the SAME contract as the legacy chip
-    // hit-test (8px padding around the visual rect).
-    const half = 42.0 + 8.0;
+    // The chip's tap target: the node-sized slot footprint (124×128,
+    // matching WedgeLayoutConfig.chipFootprint which now equals
+    // nodeFootprint) centred on slotCenter, padded for a forgiving
+    // touch target — the SAME contract as the legacy chip hit-test
+    // (8px padding around the visual rect). The bubble widget itself
+    // draws a Ø72 circle (GraphNode's default nodeSize) inside this
+    // 124×128 slot, so the tap target comfortably covers the bubble
+    // AND the "N more / Tap to show" label below it.
+    const half = 62.0 + 8.0;
     String? best;
     double bestDist = double.infinity;
     for (final chip in chips.values) {

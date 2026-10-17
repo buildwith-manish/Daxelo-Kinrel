@@ -104,5 +104,7 @@
   "graphCatInLaw": "سهرا",
   "graphCatExtended": "وسيع خاندان",
   "graphCatIndirect": "غير سڌو",
-  "graphMorePeople": "{count} وڌيڪ ماڻهن کي ڏيکاريو، ٻه ڀيرا ٽيپ ڪريو"
+  "graphMorePeople": "{count} وڌيڪ ماڻهن کي ڏيکاريو، ٻه ڀيرا ٽيپ ڪريو",
+  "graphMorePeopleShort": "{count} وڌيڪ",
+  "graphTapToShowHint": "ڏيکارڻ لاءِ ٽيپ ڪريو"
 }

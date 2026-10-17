@@ -748,4 +748,12 @@ class SEn extends S {
   String graphMorePeople(int count) {
     return 'Show $count more people, double tap to reveal';
   }
+
+  @override
+  String graphMorePeopleShort(int count) {
+    return '$count more';
+  }
+
+  @override
+  String get graphTapToShowHint => 'Tap to show';
 }

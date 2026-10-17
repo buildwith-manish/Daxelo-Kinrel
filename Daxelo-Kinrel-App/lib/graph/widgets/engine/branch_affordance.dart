@@ -2145,18 +2145,42 @@ const Offset _kWedgeBadgeAnchor = Offset(46.0, -46.0);
 
 // ── WEDGE LAYOUT: bubble + badge widgets ────────────────────────────
 //
-// The "+N" page bubble: a professional circular affordance in the same
-// visual family as the legacy branch chips (dark surface, brand/accent
-// colours, DMSans) with a DASHED ring in the hub's edge colour. The
-// reserved layout slot (84×84) comfortably contains the Ø52 bubble, so
-// the bubble never overlaps a node or a name.
+// The "+N" page bubble: a NODE-SIZED circular affordance in the SAME
+// visual family as a regular GraphNode. The bubble's circle is Ø72
+// (matching GraphNode's default nodeSize), with the SAME fill style
+// (dark elevated surface) and glow (KinrelFx.shadows) as a node, but
+// a DASHED ring (so it reads as an action, not a person) in the
+// neutral grey token (KinshipEdgeColors.extended — the same slate
+// #64748B used for extended/step relations and for nodes with no
+// category). The hub's category colour is NEVER used for the ring.
+//
+// Inside the circle: "+N" large in the same font family + weight as
+// the node initials (Outfit bold). Below the circle: a two-line label
+// — first line "N more" (graphMorePeopleShort), second line a short
+// localized hint "Tap to show" (graphTapToShowHint) — using the same
+// text styles as the node name + relation label.
+//
+// The reserved layout slot is now 124×128 (WedgeLayoutConfig.
+// chipFootprint == nodeFootprint), so the bigger bubble + its label
+// reserve the full space and never overlap a neighbour.
 //
 // Press feedback: the bubble scales to ~0.95 while pressed (with the
 // existing GraphHaptics.branchExpand firing on tap). While the lazy
 // fetch is in flight a small spinner replaces the number and extra
 // taps are ignored upstream (_expandWedgePageChip's loading guard).
+// When a hub has nothing left to reveal, its bubble shrinks and
+// fades out (see [_WedgeChipFadeOut]).
 
 /// The circular "+N" page bubble (see the block comment above).
+///
+/// The [accentColor] parameter is kept for backward compatibility with
+/// the existing call sites but is NO LONGER used for the ring — the
+/// ring always uses [KinshipEdgeColors.extended] (the neutral grey
+/// token) per the spec ("do not use the hub's category colour and do
+/// not hardcode a hex value"). The parameter is retained so the
+/// caller signature stays stable; it MAY be used for the spinner's
+/// tint during a fetch (a subtle nod to the hub's category that
+/// doesn't bleed into the ring's neutral contract).
 class _WedgePageChipBubble extends StatefulWidget {
   const _WedgePageChipBubble({
     required this.remainingCount,
@@ -2181,108 +2205,247 @@ class _WedgePageChipBubbleState extends State<_WedgePageChipBubble> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = S.of(context);
+    // Node-sized circle: Ø72 matches GraphNode's default nodeSize.
+    // The full 124×128 layout footprint reserves space for the
+    // circle (72) + the two-line label below it (~36 + breathing).
+    const circleDiameter = 72.0;
+    // Node initials use diameter * 0.28 — same scale here so "+N"
+    // reads as the same visual weight as a 2-letter initials glyph.
+    const numberFontSize = circleDiameter * 0.28; // ≈ 20.2
+
+    // Localized two-line label below the circle:
+    //   line 1: "N more" (graphMorePeopleShort — the count)
+    //   line 2: "Tap to show" (graphTapToShowHint — the action hint)
+    // Falls back to English when l10n is null (tests / pre-localization).
+    final line1 = l10n?.graphMorePeopleShort(widget.remainingCount) ??
+        '${widget.remainingCount} more';
+    final line2 = l10n?.graphTapToShowHint ?? 'Tap to show';
+
     return Semantics(
       button: true,
       label: widget.semanticLabel,
       child: FractionalTranslation(
-        // Centre the Ø52 bubble on the reserved slot (FractionalTranslation
-        // never expands — unlike Center, it cannot eat the canvas' taps).
+        // Centre the bubble+label composite on the reserved slot.
+        // FractionalTranslation never expands (unlike Center, it
+        // cannot eat the canvas' taps).
         translation: const Offset(-0.5, -0.5),
-        child: Listener(
-          behavior: HitTestBehavior.opaque,
-          onPointerDown: (_) => setState(() => _pressed = true),
-          onPointerUp: (_) => setState(() => _pressed = false),
-          onPointerCancel: (_) => setState(() => _pressed = false),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            // While loading, taps are ignored (the spinner is showing).
-            onTap: widget.loading ? null : widget.onTap,
-            child: AnimatedScale(
-              scale: _pressed ? 0.95 : 1.0,
-              duration: const Duration(milliseconds: 110),
-              curve: Curves.easeOut,
-              child: _WedgeDashedRing(
-                color: widget.accentColor,
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: KinrelColors.darkBackground.withValues(alpha: 0.94),
-                    shape: BoxShape.circle,
-                    boxShadow: KinrelFx.shadows([
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.4),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+        // The composite is a Column: circle on top, two-line label
+        // below. The Column is sized to its children (no expansion)
+        // so the FractionalTranslation centres the WHOLE composite
+        // on the reserved slot centre.
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Listener(
+              behavior: HitTestBehavior.opaque,
+              onPointerDown: (_) => setState(() => _pressed = true),
+              onPointerUp: (_) => setState(() => _pressed = false),
+              onPointerCancel: (_) => setState(() => _pressed = false),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                // While loading, taps are ignored (the spinner is showing).
+                onTap: widget.loading ? null : widget.onTap,
+                child: AnimatedScale(
+                  scale: _pressed ? 0.95 : 1.0,
+                  duration: const Duration(milliseconds: 110),
+                  curve: Curves.easeOut,
+                  child: _WedgeNodeSizedDashedRing(
+                    diameter: circleDiameter,
+                    // Neutral grey token — the SAME grey used for
+                    // extended/step relations and nodes with no category.
+                    // Never the hub's category colour, never a hardcoded
+                    // hex value.
+                    ringColor: KinshipEdgeColors.extended,
+                    child: Container(
+                      width: circleDiameter,
+                      height: circleDiameter,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        // SAME fill style as GraphNode: dark elevated
+                        // surface, with the same shadow/glow contract
+                        // (KinrelFx.shadows) so the bubble reads as part
+                        // of the family of nodes.
+                        color: KinrelColors.darkElevated,
+                        shape: BoxShape.circle,
+                        boxShadow: KinrelFx.shadows([
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.4),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]),
                       ),
-                    ]),
-                  ),
-                  child: widget.loading
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              widget.accentColor,
+                      child: widget.loading
+                          ? SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                                // The spinner uses the hub's category
+                                // colour as a subtle nod — the ring stays
+                                // neutral, but the spinner's tint hints
+                                // at which hub is loading.
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  widget.accentColor,
+                                ),
+                              ),
+                            )
+                          : Text(
+                              '+${widget.remainingCount}',
+                              // SAME font family + weight as node initials
+                              // (KinrelTypography.displayFont = 'Outfit',
+                              // FontWeight.bold = w700).
+                              style: const TextStyle(
+                                fontFamily: KinrelTypography.displayFont,
+                                fontSize: numberFontSize,
+                                fontWeight: FontWeight.bold,
+                                color: KinrelColors.textWhite,
+                                height: 1.0,
+                              ),
+                              maxLines: 1,
                             ),
-                          ),
-                        )
-                      : Text(
-                          '+${widget.remainingCount}',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.95),
-                            fontFamily: 'DMSans',
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            height: 1.0,
-                          ),
-                          maxLines: 1,
-                        ),
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
+            // Two-line label below the circle. The FIRST line uses the
+            // SAME text style as the node NAME (Outfit 14 w600, text
+            // white, letter-spacing 0.25, shadow blur 5). The SECOND
+            // line uses the SAME text style as the node RELATION label
+            // (Outfit 11 w500, the ring's neutral grey colour, shadow
+            // blur 3). Both wrapped in FittedBox so localized strings
+            // (Arabic, Hindi) don't clip in the 124-wide slot.
+            const SizedBox(height: 4),
+            SizedBox(
+              width: circleDiameter + 24, // allow text to be a bit wider
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      line1,
+                      // Same style as node name (graph_node.dart line 886):
+                      // Outfit 14 w600, textWhite, letterSpacing 0.25,
+                      // shadow blur 5 for legibility over busy bg.
+                      style: const TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.textWhite,
+                        letterSpacing: 0.25,
+                        shadows: [
+                          Shadow(blurRadius: 5, color: Colors.black87),
+                        ],
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      line2,
+                      // Same style as node relation label
+                      // (graph_node.dart line 958): Outfit 11 w500,
+                      // the ring's neutral grey colour, shadow blur 3.
+                      style: const TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 11.0,
+                        fontWeight: FontWeight.w500,
+                        // The neutral grey — same token as the ring.
+                        color: KinshipEdgeColors.extended,
+                        shadows: [
+                          Shadow(blurRadius: 3, color: Colors.black54),
+                        ],
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// A dashed circular ring (Ø52, stroke ~1.8) drawn in [color] around
-/// [child]. Purely decorative — the reserved slot owns the geometry.
-class _WedgeDashedRing extends StatelessWidget {
-  const _WedgeDashedRing({required this.color, required this.child});
+/// A node-sized DASHED circular ring drawn in [ringColor] around
+/// [child]. The ring's stroke width matches GraphNode's default
+/// borderWidth (3.0 for non-anchor non-immediate-family nodes — the
+/// "regular person" stroke width), so the bubble reads as part of
+/// the family of nodes. The ring is DASHED (not solid) so it reads
+/// as an ACTION affordance, not a person.
+///
+/// The ring sits OUTSIDE the [child]'s circle (radius = diameter/2
+/// + a small gap), matching how GraphNode's border sits on the
+/// outer edge of the circle.
+class _WedgeNodeSizedDashedRing extends StatelessWidget {
+  const _WedgeNodeSizedDashedRing({
+    required this.diameter,
+    required this.ringColor,
+    required this.child,
+  });
 
-  final Color color;
+  final double diameter;
+  final Color ringColor;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
+    // The ring is painted in a CustomPaint that wraps the child. The
+    // CustomPaint's size is the same as the child's (diameter ×
+    // diameter), and the painter strokes the ring at radius
+    // (diameter/2 - strokeWidth/2) — INSIDE the child's bounds so
+    // the layout footprint is exactly the child's size (no extra
+    // overflow into the reserved slot).
     return CustomPaint(
-      foregroundPainter: _WedgeDashedRingPainter(color: color),
-      child: SizedBox(width: 52, height: 52, child: Center(child: child)),
+      foregroundPainter: _WedgeNodeSizedDashedRingPainter(
+        color: ringColor,
+        diameter: diameter,
+      ),
+      child: child,
     );
   }
 }
 
-class _WedgeDashedRingPainter extends CustomPainter {
-  _WedgeDashedRingPainter({required this.color});
+class _WedgeNodeSizedDashedRingPainter extends CustomPainter {
+  const _WedgeNodeSizedDashedRingPainter({
+    required this.color,
+    required this.diameter,
+  });
 
   final Color color;
+  final double diameter;
 
   @override
   void paint(Canvas canvas, Size size) {
+    // The ring's stroke width matches GraphNode's default borderWidth
+    // for a regular (non-anchor, non-immediate-family) node: 3.0.
+    // (See graph_node.dart line 1090-1094 — _borderWidth defaults
+    // to 3.0 for non-anchor non-immediate-family nodes.)
+    const strokeWidth = 3.0;
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 1.0;
-    const segments = 26;
-    const dashFraction = 0.58; // dash length vs segment length
-    final segment = 2 * 3.141592653589793 / segments;
+    // Place the ring's centre radius at (size/2 - strokeWidth/2) so
+    // the ring sits just inside the child's bounds (no overflow).
+    final radius = (min(size.width, size.height) / 2) - strokeWidth / 2;
+    // Dashed ring: 24 segments, 50% duty cycle — dense enough to
+    // read clearly as "action" (vs. a sparse chain-link), sparse
+    // enough to distinguish from a solid ring at a glance.
+    const segments = 24;
+    const dashFraction = 0.5;
+    final segment = 2 * pi / segments;
     final paint = Paint()
       ..color = color.withValues(alpha: 0.9)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8
+      ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round;
     for (var i = 0; i < segments; i++) {
       final start = i * segment;
@@ -2297,8 +2460,8 @@ class _WedgeDashedRingPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_WedgeDashedRingPainter oldDelegate) =>
-      oldDelegate.color != color;
+  bool shouldRepaint(_WedgeNodeSizedDashedRingPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.diameter != diameter;
 }
 
 /// Wraps a just-emptied bubble and fades it out over ~260 ms
@@ -2335,10 +2498,15 @@ class _WedgeChipFadeOut extends StatelessWidget {
 }
 
 /// The small "+N" connection-count badge overlaying the top-right of a
-/// COLLAPSED person's node (see _buildWedgeCountBadges). Solid fill in
-/// the person's relationship colour; the tap target is a 48×48 box
-/// centred on the anchor (the badge never blocks the node's own tap —
-/// both gestures run the SAME _handleWedgeNodeTap expand flow).
+/// COLLAPSED person's node (see _buildWedgeCountBadges). It's a CORNER
+/// BADGE (not a bubble) — a small rounded pill in the NEUTRAL GREY
+/// token (KinshipEdgeColors.extended — the same slate used for
+/// extended/step relations and for nodes with no category), NOT the
+/// person's category colour. The number is at least 14px (readable
+/// at arm's length); the badge height is ~28px (compact enough to
+/// sit on the node's circle without crowding the name). The tap
+/// target is 48×48 (the accessibility minimum), centred on the badge
+/// — tapping it expands the person, exactly like tapping the node.
 class _WedgeCountBadge extends StatefulWidget {
   const _WedgeCountBadge({
     required this.count,
@@ -2348,6 +2516,11 @@ class _WedgeCountBadge extends StatefulWidget {
   });
 
   final int count;
+  /// IGNORED — kept for backward compatibility with the existing call
+  /// sites. The badge now always uses the neutral grey token
+  /// (KinshipEdgeColors.extended) per the spec ("neutral grey instead
+  /// of the person's category colour"). The person's category colour
+  /// is never used for the badge fill.
   final Color color;
   final String semanticLabel;
   final VoidCallback? onTap;
@@ -2378,20 +2551,32 @@ class _WedgeCountBadgeState extends State<_WedgeCountBadge> {
               scale: _pressed ? 0.95 : 1.0,
               duration: const Duration(milliseconds: 110),
               curve: Curves.easeOut,
+              // 48×48 tap target — the accessibility minimum. The
+              // visual badge sits centred inside this transparent
+              // hit area.
               child: Container(
                 width: 48,
                 height: 48,
                 alignment: Alignment.center,
                 color: Colors.transparent,
                 child: Container(
+                  // ~28px tall badge — compact enough to sit on the
+                  // node's circle without crowding the name, large
+                  // enough to be readable. The width auto-sizes to
+                  // the content (number + horizontal padding).
+                  height: 28,
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: widget.color,
-                    borderRadius: BorderRadius.circular(11),
+                    // Neutral grey fill — the SAME token used for
+                    // extended/step relations and the +N page bubble
+                    // ring. Never the person's category colour.
+                    color: KinshipEdgeColors.extended,
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: KinrelColors.darkBackground.withValues(alpha: 0.9),
-                      width: 1.4,
+                      color: KinrelColors.darkBackground
+                          .withValues(alpha: 0.9),
+                      width: 1.2,
                     ),
                     boxShadow: KinrelFx.shadows([
                       BoxShadow(
@@ -2401,16 +2586,21 @@ class _WedgeCountBadgeState extends State<_WedgeCountBadge> {
                       ),
                     ]),
                   ),
-                  child: Text(
-                    '+${widget.count}',
-                    style: const TextStyle(
-                      color: KinrelColors.darkBackground,
-                      fontFamily: 'DMSans',
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      height: 1.0,
+                  child: Center(
+                    child: Text(
+                      '+${widget.count}',
+                      // Number at least 14px (readable at arm's length).
+                      // Same font family as the node initials (Outfit),
+                      // bold weight, dark-on-grey for contrast.
+                      style: const TextStyle(
+                        color: KinrelColors.darkBackground,
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        height: 1.0,
+                      ),
+                      maxLines: 1,
                     ),
-                    maxLines: 1,
                   ),
                 ),
               ),
