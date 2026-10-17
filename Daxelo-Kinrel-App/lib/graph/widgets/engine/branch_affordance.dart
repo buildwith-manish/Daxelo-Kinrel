@@ -2205,172 +2205,104 @@ class _WedgePageChipBubbleState extends State<_WedgePageChipBubble> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = S.of(context);
     // Node-sized circle: Ø72 matches GraphNode's default nodeSize.
-    // The full 124×128 layout footprint reserves space for the
-    // circle (72) + the two-line label below it (~36 + breathing).
+    // The bubble is a PURE CIRCLE (no label below) — same visual
+    // shape as a person node. The "+N" text inside the circle is
+    // the only content (matching how person nodes show initials
+    // inside their circle). The localized "N more / Tap to show"
+    // label is NOT rendered below the circle (the user found the
+    // circle+label composite read as a rectangle, not a circle).
+    // The semantic label (graphMorePeople) still carries the full
+    // description for accessibility — screen readers announce
+    // "Show N more people, double tap to reveal" even though the
+    // visual is just the circle.
     const circleDiameter = 72.0;
     // Node initials use diameter * 0.28 — same scale here so "+N"
     // reads as the same visual weight as a 2-letter initials glyph.
     const numberFontSize = circleDiameter * 0.28; // ≈ 20.2
 
-    // Localized two-line label below the circle:
-    //   line 1: "N more" (graphMorePeopleShort — the count)
-    //   line 2: "Tap to show" (graphTapToShowHint — the action hint)
-    // Falls back to English when l10n is null (tests / pre-localization).
-    final line1 = l10n?.graphMorePeopleShort(widget.remainingCount) ??
-        '${widget.remainingCount} more';
-    final line2 = l10n?.graphTapToShowHint ?? 'Tap to show';
-
     return Semantics(
       button: true,
       label: widget.semanticLabel,
       child: FractionalTranslation(
-        // Centre the bubble+label composite on the reserved slot.
-        // FractionalTranslation never expands (unlike Center, it
-        // cannot eat the canvas' taps).
+        // Centre the circle on the reserved slot. The bubble is now
+        // a pure circle (no label below), so the FractionalTranslation
+        // centres the CIRCLE on the slot centre — same as a person
+        // node. FractionalTranslation never expands (unlike Center,
+        // it cannot eat the canvas' taps).
         translation: const Offset(-0.5, -0.5),
-        // The composite is a Column: circle on top, two-line label
-        // below. The Column is sized to its children (no expansion)
-        // so the FractionalTranslation centres the WHOLE composite
-        // on the reserved slot centre.
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Listener(
-              behavior: HitTestBehavior.opaque,
-              onPointerDown: (_) => setState(() => _pressed = true),
-              onPointerUp: (_) => setState(() => _pressed = false),
-              onPointerCancel: (_) => setState(() => _pressed = false),
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                // While loading, taps are ignored (the spinner is showing).
-                onTap: widget.loading ? null : widget.onTap,
-                child: AnimatedScale(
-                  scale: _pressed ? 0.95 : 1.0,
-                  duration: const Duration(milliseconds: 110),
-                  curve: Curves.easeOut,
-                  child: _WedgeNodeSizedDashedRing(
-                    diameter: circleDiameter,
-                    // Neutral grey token — the SAME grey used for
-                    // extended/step relations and nodes with no category.
-                    // Never the hub's category colour, never a hardcoded
-                    // hex value.
-                    ringColor: KinshipEdgeColors.extended,
-                    child: Container(
-                      width: circleDiameter,
-                      height: circleDiameter,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        // SAME fill style as GraphNode: dark elevated
-                        // surface, with the same shadow/glow contract
-                        // (KinrelFx.shadows) so the bubble reads as part
-                        // of the family of nodes.
-                        color: KinrelColors.darkElevated,
-                        shape: BoxShape.circle,
-                        boxShadow: KinrelFx.shadows([
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.4),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]),
+        child: Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: (_) => setState(() => _pressed = true),
+          onPointerUp: (_) => setState(() => _pressed = false),
+          onPointerCancel: (_) => setState(() => _pressed = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            // While loading, taps are ignored (the spinner is showing).
+            onTap: widget.loading ? null : widget.onTap,
+            child: AnimatedScale(
+              scale: _pressed ? 0.95 : 1.0,
+              duration: const Duration(milliseconds: 110),
+              curve: Curves.easeOut,
+              child: _WedgeNodeSizedDashedRing(
+                diameter: circleDiameter,
+                // Neutral grey token — the SAME grey used for
+                // extended/step relations and nodes with no category.
+                // Never the hub's category colour, never a hardcoded
+                // hex value.
+                ringColor: KinshipEdgeColors.extended,
+                child: Container(
+                  width: circleDiameter,
+                  height: circleDiameter,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    // SAME fill style as GraphNode: dark elevated
+                    // surface, with the same shadow/glow contract
+                    // (KinrelFx.shadows) so the bubble reads as part
+                    // of the family of nodes.
+                    color: KinrelColors.darkElevated,
+                    shape: BoxShape.circle,
+                    boxShadow: KinrelFx.shadows([
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
-                      child: widget.loading
-                          ? SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.4,
-                                // The spinner uses the hub's category
-                                // colour as a subtle nod — the ring stays
-                                // neutral, but the spinner's tint hints
-                                // at which hub is loading.
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  widget.accentColor,
-                                ),
-                              ),
-                            )
-                          : Text(
-                              '+${widget.remainingCount}',
-                              // SAME font family + weight as node initials
-                              // (KinrelTypography.displayFont = 'Outfit',
-                              // FontWeight.bold = w700).
-                              style: const TextStyle(
-                                fontFamily: KinrelTypography.displayFont,
-                                fontSize: numberFontSize,
-                                fontWeight: FontWeight.bold,
-                                color: KinrelColors.textWhite,
-                                height: 1.0,
-                              ),
-                              maxLines: 1,
-                            ),
-                    ),
+                    ]),
                   ),
+                  child: widget.loading
+                      ? SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.4,
+                            // The spinner uses the hub's category
+                            // colour as a subtle nod — the ring stays
+                            // neutral, but the spinner's tint hints
+                            // at which hub is loading.
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              widget.accentColor,
+                            ),
+                          ),
+                        )
+                      : Text(
+                          '+${widget.remainingCount}',
+                          // SAME font family + weight as node initials
+                          // (KinrelTypography.displayFont = 'Outfit',
+                          // FontWeight.bold = w700).
+                          style: const TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: numberFontSize,
+                            fontWeight: FontWeight.bold,
+                            color: KinrelColors.textWhite,
+                            height: 1.0,
+                          ),
+                          maxLines: 1,
+                        ),
                 ),
               ),
             ),
-            // Two-line label below the circle. The FIRST line uses the
-            // SAME text style as the node NAME (Outfit 14 w600, text
-            // white, letter-spacing 0.25, shadow blur 5). The SECOND
-            // line uses the SAME text style as the node RELATION label
-            // (Outfit 11 w500, the ring's neutral grey colour, shadow
-            // blur 3). Both wrapped in FittedBox so localized strings
-            // (Arabic, Hindi) don't clip in the 124-wide slot.
-            const SizedBox(height: 4),
-            SizedBox(
-              width: circleDiameter + 24, // allow text to be a bit wider
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      line1,
-                      // Same style as node name (graph_node.dart line 886):
-                      // Outfit 14 w600, textWhite, letterSpacing 0.25,
-                      // shadow blur 5 for legibility over busy bg.
-                      style: const TextStyle(
-                        fontFamily: KinrelTypography.displayFont,
-                        fontSize: 14.0,
-                        fontWeight: FontWeight.w600,
-                        color: KinrelColors.textWhite,
-                        letterSpacing: 0.25,
-                        shadows: [
-                          Shadow(blurRadius: 5, color: Colors.black87),
-                        ],
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      line2,
-                      // Same style as node relation label
-                      // (graph_node.dart line 958): Outfit 11 w500,
-                      // the ring's neutral grey colour, shadow blur 3.
-                      style: const TextStyle(
-                        fontFamily: KinrelTypography.displayFont,
-                        fontSize: 11.0,
-                        fontWeight: FontWeight.w500,
-                        // The neutral grey — same token as the ring.
-                        color: KinshipEdgeColors.extended,
-                        shadows: [
-                          Shadow(blurRadius: 3, color: Colors.black54),
-                        ],
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
