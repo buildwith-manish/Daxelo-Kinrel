@@ -955,6 +955,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
     required this.familyId,
     required this.ref,
   }) : super(const ChatState(isLoading: true)) {
+    // Capture the realtime registry BEFORE _init kicks off — dispose()
+    // needs it but can't safely ref.read() during autoDispose teardown
+    // (see _realtimeRegistry comment above). readOrNull here is safe
+    // because the container is alive during construction.
+    _realtimeRegistry = ref.read(realtimeChannelRegistryProvider);
     _init();
   }
 
@@ -977,6 +982,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
   // member roster when a Person is added/deleted.
   // ref.listen returns a ProviderSubscription.
   ProviderSubscription<AsyncValue<List<Person>>>? _memberListListener;
+  // PERF (Phase 3 — realtime leak fix companion): capture the registry
+  // at construction time so dispose() doesn't have to `ref.read` a
+  // provider from a container that may already be torn down. Riverpod
+  // 2.x disallows reads from a disposed ProviderContainer (throws
+  // "Bad state: Tried to read a provider from a ProviderContainer that
+  // was already disposed"), which would fire during the autoDispose
+  // path that runs when the chat screen unmounts. Capturing the
+  // reference up-front means dispose() uses the same instance without
+  // touching the container — same runtime behavior (the provider is
+  // single-instance per container), just defensive.
+  late final RealtimeChannelRegistry _realtimeRegistry;
 
   // ── Realtime burst batching (WhatsApp-tier scroll smoothness) ──────
   //
@@ -1064,8 +1080,28 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
-  /// Returns the current Supabase client (or null if not ready).
-  SupabaseClient? get _client => ref.read(supabaseProvider);
+  /// Returns the current Supabase client (or null if not ready / if the
+  /// container is already torn down). Defensive against the Riverpod 2.x
+  /// "Bad state: Tried to read a provider from a ProviderContainer that
+  /// was already disposed" throw that fires when an async chain
+  /// (e.g. `_listenToMemberChanges`'s microtask → `_loadMembers`)
+  /// races ahead of the autoDispose path during teardown. At runtime
+  /// (container alive) this returns the same instance as before; only
+  /// the disposed-container case changes (was throw, now null).
+  SupabaseClient? get _client {
+    try {
+      return ref.read(supabaseProvider);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Defensive variant of [_client] for use in [dispose]: returns null
+  /// if the underlying container is already torn down. Same instance at
+  /// runtime; just defensive in the dispose path. (Now identical to
+  /// [_client] — kept as an explicit alias so the dispose call site is
+  /// self-documenting.)
+  SupabaseClient? get _clientOrNull => _client;
 
   /// Returns the current user's ID (auth.users.id as string).
   String? get _currentUserId =>
@@ -1794,6 +1830,34 @@ class ChatNotifier extends StateNotifier<ChatState> {
     _burstFlushTimer?.cancel();
     _burstFlushTimer = null;
     _flushPendingBurst();
+  }
+
+  /// Test-only hook: directly invoke the realtime UPDATE handler.
+  /// Production path is the Supabase PostgresChanges callback. Exposing
+  /// this lets characterization tests pin the edit / pin / star / soft-
+  /// delete / read-state flip behavior without a live realtime feed.
+  @visibleForTesting
+  void handleMessageUpdateForTest(Map<String, dynamic> row) {
+    _handleMessageUpdate(row);
+  }
+
+  /// Test-only hook: directly invoke the realtime DELETE handler. Lets
+  /// tests pin the "message removed from state on delete-for-everyone"
+  /// behavior.
+  @visibleForTesting
+  void handleMessageDeleteForTest(Map<String, dynamic> row) {
+    _handleMessageDelete(row);
+  }
+
+  /// Test-only hook: directly invoke the realtime reaction change
+  /// handler (INSERT or DELETE of a ChatMessageReaction row). [isDelete]
+  /// selects between the add and remove paths.
+  @visibleForTesting
+  void handleReactionChangeForTest(
+    Map<String, dynamic> row, {
+    required bool isDelete,
+  }) {
+    _handleReactionChange(row, isDelete: isDelete);
   }
 
   /// Flush all buffered realtime INSERTs as a single state update.
@@ -3329,8 +3393,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   @override
   void dispose() {
-    final registry = ref.read(realtimeChannelRegistryProvider);
-    registry.unregister('chat:$familyId');
+    // PERF (Phase 3 — realtime leak fix companion): use the registry
+    // reference captured at construction time (see _realtimeRegistry).
+    // This avoids the "Tried to read a provider from a ProviderContainer
+    // that was already disposed" throw that fires when Riverpod's
+    // autoDispose path runs dispose() AFTER the container is gone.
+    _realtimeRegistry.unregister('chat:$familyId');
     // PERF (Phase 3 — realtime leak fix): use `client.removeChannel`
     // instead of `_channel?.unsubscribe()` so the channel is fully
     // evicted from the Supabase client's `channels` list (freeing
@@ -3340,7 +3408,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // call is a safety net for the case where the channel wasn't
     // registered (e.g., subscribe failed mid-way). `removeChannel`
     // is idempotent on an already-removed channel.
-    final client = _client;
+    final client = _channel != null ? _clientOrNull : null;
     if (client != null && _channel != null) {
       try {
         client.removeChannel(_channel!);
