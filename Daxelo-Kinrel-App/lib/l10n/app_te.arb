@@ -121,5 +121,50 @@
   "chatSystemMessageUserLeft": "{name} రూమ్ వదిలి వెళ్లారు",
   "chatSystemMessageUserDisconnected": "{name} డిస్కనెక్ట్ అయ్యారు",
   "chatSystemMessageRoomClosed": "{name} రూమ్ మూసివేశారు",
-  "chatSystemMessageUserReacted": "{name} ప్రతిస్పందించారు {emoji}"
+  "chatSystemMessageUserReacted": "{name} ప్రతిస్పందించారు {emoji}",
+  "chatReportMenuItem": "నివేదించం",
+  "chatReportSheetTitle": "ఈ సందేశాన్ని నివేదించం",
+  "chatReportSheetSubtitle": "{senderName} యొక్క సందేశాన్ని మాడరేటర్‌లకు నివేదించం",
+  "@chatReportSheetSubtitle": {
+    "description": "Chat block/report string: chatReportSheetSubtitle",
+    "placeholders": {
+      "senderName": {
+        "type": "String"
+      }
+    }
+  },
+  "chatReportNoPreview": "(ప్రివ్యూ లేదు)",
+  "chatReportReasonLabel": "మీరు ఎందుకు నివేదిస్తున్నారు?",
+  "chatReportReasonSpam": "స్పామ్",
+  "chatReportReasonHarassment": "వేధింపు",
+  "chatReportReasonInappropriateContent": "అనుచితమైన కంటెంట్",
+  "chatReportReasonOther": "ఇతర",
+  "chatReportDescriptionLabel": "వివరాలను జోడించం (ఐచ్ఛిక)",
+  "chatReportDescriptionHint": "ఏమి తప్పు జరిగిందో మాకు చెప్పండి",
+  "chatReportCancel": "రద్దు",
+  "chatReportSubmit": "నివేదిక సమర్పించం",
+  "chatReportSubmitted": "నివేదిక సమర్పించబడింది. ధన్యవాదాలు.",
+  "chatReportAlreadyReported": "మీరు ఇప్పటికే ఈ సందేశాన్ని నివేదించారు.",
+  "chatReportFailed": "నివేదిక సమర్పించడంలో విఫలమైంది. మళ్లీ ప్రయత్నించండి.",
+  "chatBlockedMessagePlaceholder": "బ్లాక్ చేయబడిన వినియోగదారుని సందేశం",
+  "chatBlockedMessageShow": "చూపించు",
+  "chatBlockedMessageHide": "దాచు",
+  "chatBlockMenuItem": "బ్లాక్ చేయి",
+  "chatBlockFromMessageMenuItem": "ఈ వినియోగదారుని బ్లాక్ చేయి",
+  "chatBlockDialogTitle": "{name} ను బ్లాక్ చేయాలా?",
+  "@chatBlockDialogTitle": {
+    "description": "Chat block/report string: chatBlockDialogTitle",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatBlockDialogBody": "వారు మీకు నేరుగా సందేశాలు పంపలేరు, మీరు కూడా వారికి పంపలేరు. గ్రూప్ చాట్‌లో వారి సందేశాలు ప్లేస్‌హోల్డర్ వెనుక దాచబడతాయి. వారిని బ్లాక్ చేశామని వారికి చెప్పరు.",
+  "chatBlockDialogConfirm": "బ్లాక్ చేయి",
+  "chatBlockDialogCancel": "రద్దు",
+  "chatBlockSucceeded": "వినియోగదారుడు బ్లాక్ చేయబడ్డారు.",
+  "chatBlockFailed": "వినియోగదారుని బ్లాక్ చేయడంలో విఫలమైంది. మళ్లీ ప్రయత్నించండి.",
+  "chatBlockedDirectHeader": "మీరు ఈ వ్యక్తిని బ్లాక్ చేశారు",
+  "chatBlockedDirectUnblockButton": "అన్‌బ్లాక్ చేయి"
 }

@@ -700,4 +700,100 @@ class SMr extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name ने प्रतिक्रिया दिली $emoji';
   }
+
+  @override
+  String get chatReportMenuItem => 'तक्रार करा';
+
+  @override
+  String get chatReportSheetTitle => 'हा संदेश तक्रार करा';
+
+  @override
+  String chatReportSheetSubtitle(String senderName) {
+    return '$senderName चा संदेश मॉडरेटरला तक्रार करा';
+  }
+
+  @override
+  String get chatReportNoPreview => '(पूर्वावलोकन नाही)';
+
+  @override
+  String get chatReportReasonLabel => 'तुम्ही का तक्रार करत आहात?';
+
+  @override
+  String get chatReportReasonSpam => 'स्पॅम';
+
+  @override
+  String get chatReportReasonHarassment => 'छळ';
+
+  @override
+  String get chatReportReasonInappropriateContent => 'अयोग्य मजकूर';
+
+  @override
+  String get chatReportReasonOther => 'इतर';
+
+  @override
+  String get chatReportDescriptionLabel => 'तपशील जोडा (पर्यायी)';
+
+  @override
+  String get chatReportDescriptionHint => 'काय चुकील आहे ते सांगा';
+
+  @override
+  String get chatReportCancel => 'रद्द करा';
+
+  @override
+  String get chatReportSubmit => 'तक्रार सबमिट करा';
+
+  @override
+  String get chatReportSubmitted => 'तक्रार सबमिट केली. धन्यवाद.';
+
+  @override
+  String get chatReportAlreadyReported =>
+      'तुम्ही आधीच या संदेशाची तक्रार केली आहे.';
+
+  @override
+  String get chatReportFailed =>
+      'तक्रार सबमिट करण्यात अयशस्वी. पुन्हा प्रयत्न करा.';
+
+  @override
+  String get chatBlockedMessagePlaceholder =>
+      'ब्लॉक केलेल्या वापरकर्त्याचा संदेश';
+
+  @override
+  String get chatBlockedMessageShow => 'दाखवा';
+
+  @override
+  String get chatBlockedMessageHide => 'लपवा';
+
+  @override
+  String get chatBlockMenuItem => 'ब्लॉक करा';
+
+  @override
+  String get chatBlockFromMessageMenuItem => 'या वापरकर्त्याला ब्लॉक करा';
+
+  @override
+  String chatBlockDialogTitle(String name) {
+    return '$name ला ब्लॉक करायचे?';
+  }
+
+  @override
+  String get chatBlockDialogBody =>
+      'ते तुम्हाला थेट संदेश पाठवू शकणार नाहीत, आणि तुम्हीही त्यांना पाठवू शकणार नाही. गट चॅटमध्ये त्यांचे संदेश प्लेसहोल्डरमागे लपवले जातील. त्यांना सांगणार नाही की त्यांना ब्लॉक केले आहे.';
+
+  @override
+  String get chatBlockDialogConfirm => 'ब्लॉक करा';
+
+  @override
+  String get chatBlockDialogCancel => 'रद्द करा';
+
+  @override
+  String get chatBlockSucceeded => 'वापरकर्ता ब्लॉक केला.';
+
+  @override
+  String get chatBlockFailed =>
+      'वापरकर्त्याला ब्लॉक करण्यात अयशस्वी. पुन्हा प्रयत्न करा.';
+
+  @override
+  String get chatBlockedDirectHeader => 'तुम्ही या व्यक्तीला ब्लॉक केले आहे';
+
+  @override
+  String get chatBlockedDirectUnblockButton => 'अनब्लॉक करा';
 }

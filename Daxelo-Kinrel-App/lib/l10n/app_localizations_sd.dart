@@ -700,4 +700,96 @@ class SSd extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name reacted $emoji';
   }
+
+  @override
+  String get chatReportMenuItem => 'Report';
+
+  @override
+  String get chatReportSheetTitle => 'Report this message';
+
+  @override
+  String chatReportSheetSubtitle(String senderName) {
+    return 'Report $senderName\'s message to moderators';
+  }
+
+  @override
+  String get chatReportNoPreview => '(no preview available)';
+
+  @override
+  String get chatReportReasonLabel => 'Why are you reporting?';
+
+  @override
+  String get chatReportReasonSpam => 'Spam';
+
+  @override
+  String get chatReportReasonHarassment => 'Harassment';
+
+  @override
+  String get chatReportReasonInappropriateContent => 'Inappropriate content';
+
+  @override
+  String get chatReportReasonOther => 'Other';
+
+  @override
+  String get chatReportDescriptionLabel => 'Add details (optional)';
+
+  @override
+  String get chatReportDescriptionHint => 'Tell us more about what\'s wrong';
+
+  @override
+  String get chatReportCancel => 'Cancel';
+
+  @override
+  String get chatReportSubmit => 'Submit report';
+
+  @override
+  String get chatReportSubmitted => 'Report submitted. Thank you.';
+
+  @override
+  String get chatReportAlreadyReported => 'You already reported this message.';
+
+  @override
+  String get chatReportFailed => 'Failed to submit report. Try again.';
+
+  @override
+  String get chatBlockedMessagePlaceholder => 'Message from a blocked user';
+
+  @override
+  String get chatBlockedMessageShow => 'Show';
+
+  @override
+  String get chatBlockedMessageHide => 'Hide';
+
+  @override
+  String get chatBlockMenuItem => 'Block';
+
+  @override
+  String get chatBlockFromMessageMenuItem => 'Block this user';
+
+  @override
+  String chatBlockDialogTitle(String name) {
+    return 'Block $name?';
+  }
+
+  @override
+  String get chatBlockDialogBody =>
+      'They won\'t be able to send you direct messages, and you won\'t be able to send them any. In group chats, their messages will be hidden behind a placeholder. They won\'t be told they were blocked.';
+
+  @override
+  String get chatBlockDialogConfirm => 'Block';
+
+  @override
+  String get chatBlockDialogCancel => 'Cancel';
+
+  @override
+  String get chatBlockSucceeded => 'User blocked.';
+
+  @override
+  String get chatBlockFailed => 'Failed to block user. Try again.';
+
+  @override
+  String get chatBlockedDirectHeader => 'You blocked this person';
+
+  @override
+  String get chatBlockedDirectUnblockButton => 'Unblock';
 }

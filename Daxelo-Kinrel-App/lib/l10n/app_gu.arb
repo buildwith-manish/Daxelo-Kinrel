@@ -121,5 +121,50 @@
   "chatSystemMessageUserLeft": "{name} રૂમ છોડીને ગયા",
   "chatSystemMessageUserDisconnected": "{name} ડિસ્કનેક્ટ થયા",
   "chatSystemMessageRoomClosed": "{name} એ રૂમ બંધ કર્યું",
-  "chatSystemMessageUserReacted": "{name} એ પ્રતિક્રિયા આપી {emoji}"
+  "chatSystemMessageUserReacted": "{name} એ પ્રતિક્રિયા આપી {emoji}",
+  "chatReportMenuItem": "જાણ કરો",
+  "chatReportSheetTitle": "આ સંદેશની જાણ કરો",
+  "chatReportSheetSubtitle": "{senderName} નો સંદેશ મોડરેટરને જાણ કરો",
+  "@chatReportSheetSubtitle": {
+    "description": "Chat block/report string: chatReportSheetSubtitle",
+    "placeholders": {
+      "senderName": {
+        "type": "String"
+      }
+    }
+  },
+  "chatReportNoPreview": "(પ્રિવ્યૂ નથી)",
+  "chatReportReasonLabel": "તમે શા માટે જાણ કરો છો?",
+  "chatReportReasonSpam": "સ્પેમ",
+  "chatReportReasonHarassment": "સતામણી",
+  "chatReportReasonInappropriateContent": "અયોગ્ય સામગ્રી",
+  "chatReportReasonOther": "અન્ય",
+  "chatReportDescriptionLabel": "વિગતો ઉમેરો (વૈકલ્પિક)",
+  "chatReportDescriptionHint": "શું ખોટું છે તે અમને કહો",
+  "chatReportCancel": "રદ કરો",
+  "chatReportSubmit": "જાણ સબમિટ કરો",
+  "chatReportSubmitted": "જાણ સબમિટ થઈ. આભાર.",
+  "chatReportAlreadyReported": "તમે પહેલેથી જ આ સંદેશની જાણ કરી છે.",
+  "chatReportFailed": "જાણ સબમિટ કરવામાં નિષ્ફળ. ફરી પ્રયત્ન કરો.",
+  "chatBlockedMessagePlaceholder": "બ્લોક થયેલ વપરાશકર્તાનો સંદેશ",
+  "chatBlockedMessageShow": "બતાવો",
+  "chatBlockedMessageHide": "છુપાવો",
+  "chatBlockMenuItem": "બ્લોક કરો",
+  "chatBlockFromMessageMenuItem": "આ વપરાશકર્તાને બ્લોક કરો",
+  "chatBlockDialogTitle": "{name} ને બ્લોક કરશો?",
+  "@chatBlockDialogTitle": {
+    "description": "Chat block/report string: chatBlockDialogTitle",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatBlockDialogBody": "તેઓ તમને સીધા સંદેશો મોકલી શકશે નહીં, અને તમે પણ તેમને મોકલી શકશો નહીં. જૂથ ચેટમાં તેમના સંદેશો પ્લેસહોલ્ડર પાછળ છુપાયેલા રહેશે. તેમને જણાવવામાં આવશે નહીં કે તેમને બ્લોક કરવામાં આવ્યા છે.",
+  "chatBlockDialogConfirm": "બ્લોક કરો",
+  "chatBlockDialogCancel": "રદ કરો",
+  "chatBlockSucceeded": "વપરાશકર્તા બ્લોક કર્યો.",
+  "chatBlockFailed": "વપરાશકર્તાને બ્લોક કરવામાં નિષ્ફળ. ફરી પ્રયત્ન કરો.",
+  "chatBlockedDirectHeader": "તમે આ વ્યક્તિને બ્લોક કર્યો છે",
+  "chatBlockedDirectUnblockButton": "અનબ્લોક કરો"
 }

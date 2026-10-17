@@ -700,4 +700,100 @@ class SHi extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name ने प्रतिक्रिया दी $emoji';
   }
+
+  @override
+  String get chatReportMenuItem => 'रिपोर्ट करें';
+
+  @override
+  String get chatReportSheetTitle => 'इस संदेश की रिपोर्ट करें';
+
+  @override
+  String chatReportSheetSubtitle(String senderName) {
+    return '$senderName का संदेश मॉडरेटर को रिपोर्ट करें';
+  }
+
+  @override
+  String get chatReportNoPreview => '(कोई पूर्वावलोकन नहीं)';
+
+  @override
+  String get chatReportReasonLabel => 'आप यह क्यों रिपोर्ट कर रहे हैं?';
+
+  @override
+  String get chatReportReasonSpam => 'स्पैम';
+
+  @override
+  String get chatReportReasonHarassment => 'उत्पीड़न';
+
+  @override
+  String get chatReportReasonInappropriateContent => 'अनुपयुक्त सामग्री';
+
+  @override
+  String get chatReportReasonOther => 'अन्य';
+
+  @override
+  String get chatReportDescriptionLabel => 'विवरण जोड़ें (वैकल्पिक)';
+
+  @override
+  String get chatReportDescriptionHint => 'बताएं कि क्या गलत है';
+
+  @override
+  String get chatReportCancel => 'रद्द करें';
+
+  @override
+  String get chatReportSubmit => 'रिपोर्ट सबमिट करें';
+
+  @override
+  String get chatReportSubmitted => 'रिपोर्ट सबमिट हुई। धन्यवाद।';
+
+  @override
+  String get chatReportAlreadyReported =>
+      'आपने पहले ही इस संदेश की रिपोर्ट की है।';
+
+  @override
+  String get chatReportFailed =>
+      'रिपोर्ट सबमिट करने में विफल। पुनः प्रयास करें।';
+
+  @override
+  String get chatBlockedMessagePlaceholder =>
+      'ब्लॉक किए गए उपयोगकर्ता का संदेश';
+
+  @override
+  String get chatBlockedMessageShow => 'दिखाएं';
+
+  @override
+  String get chatBlockedMessageHide => 'छिपाएं';
+
+  @override
+  String get chatBlockMenuItem => 'ब्लॉक करें';
+
+  @override
+  String get chatBlockFromMessageMenuItem => 'इस उपयोगकर्ता को ब्लॉक करें';
+
+  @override
+  String chatBlockDialogTitle(String name) {
+    return '$name को ब्लॉक करें?';
+  }
+
+  @override
+  String get chatBlockDialogBody =>
+      'वे आपको डायरेक्ट संदेश नहीं भेज सकेंगे, और आप भी उन्हें नहीं भेज सकेंगे। ग्रुप चैट में उनके संदेश प्लेसहोल्डर के पीछे छिपे रहेंगे। उन्हें नहीं बताया जाएगा कि उन्हें ब्लॉक किया गया है।';
+
+  @override
+  String get chatBlockDialogConfirm => 'ब्लॉक करें';
+
+  @override
+  String get chatBlockDialogCancel => 'रद्द करें';
+
+  @override
+  String get chatBlockSucceeded => 'उपयोगकर्ता ब्लॉक कर दिया गया।';
+
+  @override
+  String get chatBlockFailed =>
+      'उपयोगकर्ता को ब्लॉक करने में विफल। पुनः प्रयास करें।';
+
+  @override
+  String get chatBlockedDirectHeader => 'आपने इस व्यक्ति को ब्लॉक किया है';
+
+  @override
+  String get chatBlockedDirectUnblockButton => 'अनब्लॉक करें';
 }

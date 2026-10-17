@@ -686,22 +686,30 @@
   "@chatTypingSingle": {
     "description": "Shown when one user is typing in the chat",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatTypingTwo": "{name1} and {name2} are typing",
   "@chatTypingTwo": {
     "description": "Shown when two users are typing in the chat",
     "placeholders": {
-      "name1": { "type": "String" },
-      "name2": { "type": "String" }
+      "name1": {
+        "type": "String"
+      },
+      "name2": {
+        "type": "String"
+      }
     }
   },
   "chatTypingMany": "{name} and others are typing",
   "@chatTypingMany": {
     "description": "Shown when 3+ users are typing in the chat",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatActiveNow": "Active now",
@@ -712,7 +720,9 @@
   "@chatNActive": {
     "description": "Presence label shown when 2+ members are online",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatLastSeenJustNow": "Last seen just now",
@@ -723,21 +733,27 @@
   "@chatLastSeenMinutes": {
     "description": "Last seen label for minutes ago",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatLastSeenHours": "Last seen {count}h ago",
   "@chatLastSeenHours": {
     "description": "Last seen label for hours ago",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatLastSeenDays": "Last seen {count}d ago",
   "@chatLastSeenDays": {
     "description": "Last seen label for days ago",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatOffline": "Offline",
@@ -752,15 +768,21 @@
   "@chatEmptyStateSubtitle": {
     "description": "Subtitle shown in the empty chat state",
     "placeholders": {
-      "familyName": { "type": "String" },
-      "count": { "type": "int" }
+      "familyName": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatEmptyStateSubtitleNoCount": "in the {familyName} family",
   "@chatEmptyStateSubtitleNoCount": {
     "description": "Subtitle shown in the empty chat state when member count is 0",
     "placeholders": {
-      "familyName": { "type": "String" }
+      "familyName": {
+        "type": "String"
+      }
     }
   },
   "chatSuggestionNamaste": "Namaste everyone 🙏",
@@ -775,29 +797,39 @@
   "@chatSuggestionGoodMorning": {
     "description": "Quick-reply suggestion in empty chat state",
     "placeholders": {
-      "familyName": { "type": "String" }
+      "familyName": {
+        "type": "String"
+      }
     }
   },
   "chatBirthdayToday": "{name}'s birthday is today! 🎂",
   "@chatBirthdayToday": {
     "description": "Upcoming event chip when birthday is today",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatBirthdayTomorrow": "{name}'s birthday tomorrow 🎂",
   "@chatBirthdayTomorrow": {
     "description": "Upcoming event chip when birthday is tomorrow",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatBirthdayInDays": "{name}'s birthday in {count} days 🎂",
   "@chatBirthdayInDays": {
     "description": "Upcoming event chip when birthday is in N days",
     "placeholders": {
-      "name": { "type": "String" },
-      "count": { "type": "int" }
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatSearchPlaceholder": "Search messages...",
@@ -812,7 +844,9 @@
   "@chatSearchResultsCount": {
     "description": "Shown above search results",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatMessageSending": "Sending...",
@@ -835,36 +869,174 @@
   "@chatSystemMessageUserJoined": {
     "description": "System chat message when a user joins a game room",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatSystemMessageUserLeft": "{name} left the room",
   "@chatSystemMessageUserLeft": {
     "description": "System chat message when a user leaves a game room",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatSystemMessageUserDisconnected": "{name} disconnected",
   "@chatSystemMessageUserDisconnected": {
     "description": "System chat message when a user disconnects",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatSystemMessageRoomClosed": "{name} closed the room",
   "@chatSystemMessageRoomClosed": {
     "description": "System chat message when host closes the room",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatSystemMessageUserReacted": "{name} reacted {emoji}",
   "@chatSystemMessageUserReacted": {
     "description": "System chat message when a user reacts",
     "placeholders": {
-      "name": { "type": "String" },
-      "emoji": { "type": "String" }
+      "name": {
+        "type": "String"
+      },
+      "emoji": {
+        "type": "String"
+      }
     }
+  },
+  "chatReportMenuItem": "Report",
+  "@chatReportMenuItem": {
+    "description": "Chat block/report string: chatReportMenuItem"
+  },
+  "chatReportSheetTitle": "Report this message",
+  "@chatReportSheetTitle": {
+    "description": "Chat block/report string: chatReportSheetTitle"
+  },
+  "chatReportSheetSubtitle": "Report {senderName}'s message to moderators",
+  "@chatReportSheetSubtitle": {
+    "description": "Chat block/report string: chatReportSheetSubtitle",
+    "placeholders": {
+      "senderName": {
+        "type": "String"
+      }
+    }
+  },
+  "chatReportNoPreview": "(no preview available)",
+  "@chatReportNoPreview": {
+    "description": "Chat block/report string: chatReportNoPreview"
+  },
+  "chatReportReasonLabel": "Why are you reporting?",
+  "@chatReportReasonLabel": {
+    "description": "Chat block/report string: chatReportReasonLabel"
+  },
+  "chatReportReasonSpam": "Spam",
+  "@chatReportReasonSpam": {
+    "description": "Chat block/report string: chatReportReasonSpam"
+  },
+  "chatReportReasonHarassment": "Harassment",
+  "@chatReportReasonHarassment": {
+    "description": "Chat block/report string: chatReportReasonHarassment"
+  },
+  "chatReportReasonInappropriateContent": "Inappropriate content",
+  "@chatReportReasonInappropriateContent": {
+    "description": "Chat block/report string: chatReportReasonInappropriateContent"
+  },
+  "chatReportReasonOther": "Other",
+  "@chatReportReasonOther": {
+    "description": "Chat block/report string: chatReportReasonOther"
+  },
+  "chatReportDescriptionLabel": "Add details (optional)",
+  "@chatReportDescriptionLabel": {
+    "description": "Chat block/report string: chatReportDescriptionLabel"
+  },
+  "chatReportDescriptionHint": "Tell us more about what's wrong",
+  "@chatReportDescriptionHint": {
+    "description": "Chat block/report string: chatReportDescriptionHint"
+  },
+  "chatReportCancel": "Cancel",
+  "@chatReportCancel": {
+    "description": "Chat block/report string: chatReportCancel"
+  },
+  "chatReportSubmit": "Submit report",
+  "@chatReportSubmit": {
+    "description": "Chat block/report string: chatReportSubmit"
+  },
+  "chatReportSubmitted": "Report submitted. Thank you.",
+  "@chatReportSubmitted": {
+    "description": "Chat block/report string: chatReportSubmitted"
+  },
+  "chatReportAlreadyReported": "You already reported this message.",
+  "@chatReportAlreadyReported": {
+    "description": "Chat block/report string: chatReportAlreadyReported"
+  },
+  "chatReportFailed": "Failed to submit report. Try again.",
+  "@chatReportFailed": {
+    "description": "Chat block/report string: chatReportFailed"
+  },
+  "chatBlockedMessagePlaceholder": "Message from a blocked user",
+  "@chatBlockedMessagePlaceholder": {
+    "description": "Chat block/report string: chatBlockedMessagePlaceholder"
+  },
+  "chatBlockedMessageShow": "Show",
+  "@chatBlockedMessageShow": {
+    "description": "Chat block/report string: chatBlockedMessageShow"
+  },
+  "chatBlockedMessageHide": "Hide",
+  "@chatBlockedMessageHide": {
+    "description": "Chat block/report string: chatBlockedMessageHide"
+  },
+  "chatBlockMenuItem": "Block",
+  "@chatBlockMenuItem": {
+    "description": "Chat block/report string: chatBlockMenuItem"
+  },
+  "chatBlockFromMessageMenuItem": "Block this user",
+  "@chatBlockFromMessageMenuItem": {
+    "description": "Chat block/report string: chatBlockFromMessageMenuItem"
+  },
+  "chatBlockDialogTitle": "Block {name}?",
+  "@chatBlockDialogTitle": {
+    "description": "Chat block/report string: chatBlockDialogTitle",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatBlockDialogBody": "They won't be able to send you direct messages, and you won't be able to send them any. In group chats, their messages will be hidden behind a placeholder. They won't be told they were blocked.",
+  "@chatBlockDialogBody": {
+    "description": "Chat block/report string: chatBlockDialogBody"
+  },
+  "chatBlockDialogConfirm": "Block",
+  "@chatBlockDialogConfirm": {
+    "description": "Chat block/report string: chatBlockDialogConfirm"
+  },
+  "chatBlockDialogCancel": "Cancel",
+  "@chatBlockDialogCancel": {
+    "description": "Chat block/report string: chatBlockDialogCancel"
+  },
+  "chatBlockSucceeded": "User blocked.",
+  "@chatBlockSucceeded": {
+    "description": "Chat block/report string: chatBlockSucceeded"
+  },
+  "chatBlockFailed": "Failed to block user. Try again.",
+  "@chatBlockFailed": {
+    "description": "Chat block/report string: chatBlockFailed"
+  },
+  "chatBlockedDirectHeader": "You blocked this person",
+  "@chatBlockedDirectHeader": {
+    "description": "Chat block/report string: chatBlockedDirectHeader"
+  },
+  "chatBlockedDirectUnblockButton": "Unblock",
+  "@chatBlockedDirectUnblockButton": {
+    "description": "Chat block/report string: chatBlockedDirectUnblockButton"
   }
 }

@@ -702,4 +702,100 @@ class STe extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name ప్రతిస్పందించారు $emoji';
   }
+
+  @override
+  String get chatReportMenuItem => 'నివేదించం';
+
+  @override
+  String get chatReportSheetTitle => 'ఈ సందేశాన్ని నివేదించం';
+
+  @override
+  String chatReportSheetSubtitle(String senderName) {
+    return '$senderName యొక్క సందేశాన్ని మాడరేటర్‌లకు నివేదించం';
+  }
+
+  @override
+  String get chatReportNoPreview => '(ప్రివ్యూ లేదు)';
+
+  @override
+  String get chatReportReasonLabel => 'మీరు ఎందుకు నివేదిస్తున్నారు?';
+
+  @override
+  String get chatReportReasonSpam => 'స్పామ్';
+
+  @override
+  String get chatReportReasonHarassment => 'వేధింపు';
+
+  @override
+  String get chatReportReasonInappropriateContent => 'అనుచితమైన కంటెంట్';
+
+  @override
+  String get chatReportReasonOther => 'ఇతర';
+
+  @override
+  String get chatReportDescriptionLabel => 'వివరాలను జోడించం (ఐచ్ఛిక)';
+
+  @override
+  String get chatReportDescriptionHint => 'ఏమి తప్పు జరిగిందో మాకు చెప్పండి';
+
+  @override
+  String get chatReportCancel => 'రద్దు';
+
+  @override
+  String get chatReportSubmit => 'నివేదిక సమర్పించం';
+
+  @override
+  String get chatReportSubmitted => 'నివేదిక సమర్పించబడింది. ధన్యవాదాలు.';
+
+  @override
+  String get chatReportAlreadyReported =>
+      'మీరు ఇప్పటికే ఈ సందేశాన్ని నివేదించారు.';
+
+  @override
+  String get chatReportFailed =>
+      'నివేదిక సమర్పించడంలో విఫలమైంది. మళ్లీ ప్రయత్నించండి.';
+
+  @override
+  String get chatBlockedMessagePlaceholder =>
+      'బ్లాక్ చేయబడిన వినియోగదారుని సందేశం';
+
+  @override
+  String get chatBlockedMessageShow => 'చూపించు';
+
+  @override
+  String get chatBlockedMessageHide => 'దాచు';
+
+  @override
+  String get chatBlockMenuItem => 'బ్లాక్ చేయి';
+
+  @override
+  String get chatBlockFromMessageMenuItem => 'ఈ వినియోగదారుని బ్లాక్ చేయి';
+
+  @override
+  String chatBlockDialogTitle(String name) {
+    return '$name ను బ్లాక్ చేయాలా?';
+  }
+
+  @override
+  String get chatBlockDialogBody =>
+      'వారు మీకు నేరుగా సందేశాలు పంపలేరు, మీరు కూడా వారికి పంపలేరు. గ్రూప్ చాట్‌లో వారి సందేశాలు ప్లేస్‌హోల్డర్ వెనుక దాచబడతాయి. వారిని బ్లాక్ చేశామని వారికి చెప్పరు.';
+
+  @override
+  String get chatBlockDialogConfirm => 'బ్లాక్ చేయి';
+
+  @override
+  String get chatBlockDialogCancel => 'రద్దు';
+
+  @override
+  String get chatBlockSucceeded => 'వినియోగదారుడు బ్లాక్ చేయబడ్డారు.';
+
+  @override
+  String get chatBlockFailed =>
+      'వినియోగదారుని బ్లాక్ చేయడంలో విఫలమైంది. మళ్లీ ప్రయత్నించండి.';
+
+  @override
+  String get chatBlockedDirectHeader => 'మీరు ఈ వ్యక్తిని బ్లాక్ చేశారు';
+
+  @override
+  String get chatBlockedDirectUnblockButton => 'అన్‌బ్లాక్ చేయి';
 }

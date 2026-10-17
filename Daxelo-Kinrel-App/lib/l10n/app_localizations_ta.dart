@@ -703,4 +703,100 @@ class STa extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name எதிர்வினை தெரிவித்தார் $emoji';
   }
+
+  @override
+  String get chatReportMenuItem => 'புகார் அளி';
+
+  @override
+  String get chatReportSheetTitle => 'இந்தச் செய்தியைப் புகார் அளி';
+
+  @override
+  String chatReportSheetSubtitle(String senderName) {
+    return '$senderName இன் செய்தியை மதிப்பாய்வாளர்களுக்குப் புகார் அளி';
+  }
+
+  @override
+  String get chatReportNoPreview => '(முன்னோட்டம் இல்லை)';
+
+  @override
+  String get chatReportReasonLabel => 'ஏன் புகார் அளிக்கிறீர்கள்?';
+
+  @override
+  String get chatReportReasonSpam => 'ஸ்பேம்';
+
+  @override
+  String get chatReportReasonHarassment => 'தொந்தரவு';
+
+  @override
+  String get chatReportReasonInappropriateContent => 'பொருத்தமற்ற உள்ளடக்கம்';
+
+  @override
+  String get chatReportReasonOther => 'மற்றொன்று';
+
+  @override
+  String get chatReportDescriptionLabel => 'விவரங்களைச் சேர் (விரும்பினால்)';
+
+  @override
+  String get chatReportDescriptionHint =>
+      'என்ன தவறு என்று எங்களுக்குச் சொல்லுங்கள்';
+
+  @override
+  String get chatReportCancel => 'ரத்து';
+
+  @override
+  String get chatReportSubmit => 'புகாரைச் சமர்ப்பிக்கவும்';
+
+  @override
+  String get chatReportSubmitted => 'புகார் சமர்ப்பிக்கப்பட்டது. நன்றி.';
+
+  @override
+  String get chatReportAlreadyReported =>
+      'நீங்கள் ஏற்கனவே இந்தச் செய்தியைப் புகார் அளித்துள்ளீர்கள்.';
+
+  @override
+  String get chatReportFailed =>
+      'புகார் சமர்ப்பிக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.';
+
+  @override
+  String get chatBlockedMessagePlaceholder => 'தடைசெய்யப்பட்ட பயனரின் செய்தி';
+
+  @override
+  String get chatBlockedMessageShow => 'காட்டு';
+
+  @override
+  String get chatBlockedMessageHide => 'மறை';
+
+  @override
+  String get chatBlockMenuItem => 'தடைசெய்';
+
+  @override
+  String get chatBlockFromMessageMenuItem => 'இந்தப் பயனரைத் தடைசெய்';
+
+  @override
+  String chatBlockDialogTitle(String name) {
+    return '$name ஐ தடைசெய்யவா?';
+  }
+
+  @override
+  String get chatBlockDialogBody =>
+      'அவர்கள் உங்களுக்கு நேரடிச் செய்திகளை அனுப்ப முடியாது, நீங்களும் அவர்களுக்கு அனுப்ப முடியாது. குழு அரட்செய்திகளில் அவர்களின் செய்திகள் பிளேஸ்ஹோல்டருக்குப் பின்னால் மறைக்கப்படும். அவர்கள் தடைசெய்யப்பட்டதாக அறிவிக்கப்படமாட்டார்கள்.';
+
+  @override
+  String get chatBlockDialogConfirm => 'தடைசெய்';
+
+  @override
+  String get chatBlockDialogCancel => 'ரத்து';
+
+  @override
+  String get chatBlockSucceeded => 'பயனர் தடைசெய்யப்பட்டார்.';
+
+  @override
+  String get chatBlockFailed =>
+      'பயனரைத் தடைசெய்ய முடியவில்லை. மீண்டும் முயற்சிக்கவும்.';
+
+  @override
+  String get chatBlockedDirectHeader => 'இந்த நபரை நீங்கள் தடைசெய்துள்ளீர்கள்';
+
+  @override
+  String get chatBlockedDirectUnblockButton => 'தடைநீக்கு';
 }

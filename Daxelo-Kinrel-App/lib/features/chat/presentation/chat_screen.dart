@@ -61,6 +61,7 @@ import '../../../core/kinship/kinship_edge_style.dart';
 import '../../thinking/data/thinking_service.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
 import '../data/chat_enhancement_service.dart';
+import '../data/chat_block_report_service.dart';
 import '../data/chat_lock_service.dart';
 import '../providers/chat_provider.dart';
 import '../providers/chat_onboarding_provider.dart';
@@ -95,6 +96,8 @@ import 'widgets/message_preview_dialog.dart';
 // renders the SAME indicator + reaction pickers).
 import 'widgets/typing_indicator.dart';
 import 'widgets/reaction_picker.dart';
+import 'widgets/report_message_sheet.dart';
+import 'widgets/blocked_message_placeholder.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../data/chat_wallpaper_provider.dart';
 import '../data/wallpaper_picker.dart';
@@ -1275,6 +1278,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           icon: Icons.push_pin_outlined,
           onTap: _showPinnedMessages,
         ),
+        // feat(chat): block & report — direct-chat header overflow.
+        // Only shown for direct chats (where blocking the other party
+        // is meaningful). For group chats, block is reached via the
+        // long-press menu on a specific message from a specific member.
+        if (widget.isDirectChat && widget.directOtherUserId != null)
+          ChatOverflowMenuItem(
+            label: S.of(context)!.chatBlockMenuItem,
+            icon: Icons.block_rounded,
+            onTap: () => _showBlockConfirmation(
+              userId: widget.directOtherUserId!,
+              displayName: widget.familyName,
+            ),
+          ),
       ],
     );
   }
@@ -3075,6 +3091,91 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   // ── Message Actions Bottom Sheet ─────────────────────────────────
 
+  /// feat(chat): block & report — confirmation dialog for the Block
+  /// action. Triggered from the long-press menu (other members' messages)
+  /// and from the chat header overflow menu (direct chats).
+  ///
+  /// Reuses the existing block flow via ChatBlockReportService — writes
+  /// a row to the existing BlockedUser table (RLS allows
+  /// blockerId = auth.uid()). The blocked-users screen
+  /// (lib/features/profile/presentation/blocked_users_screen.dart) will
+  /// surface this row automatically — no second store.
+  ///
+  /// The dialog explains what happens (no DMs in either direction,
+  /// group chat messages hidden, the blocked person is never told).
+  /// The user must tap "Block" to confirm; "Cancel" closes the dialog.
+  Future<void> _showBlockConfirmation({
+    required String userId,
+    required String displayName,
+  }) async {
+    final l10n = S.of(context)!;
+    await HapticService.medium();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: KinrelColors.darkCard,
+        title: Text(
+          l10n.chatBlockDialogTitle(displayName),
+          style: const TextStyle(color: KinrelColors.textWhite),
+        ),
+        content: Text(
+          l10n.chatBlockDialogBody,
+          style: const TextStyle(color: KinrelColors.textSilver),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              l10n.chatBlockDialogCancel,
+              style: const TextStyle(color: KinrelColors.textSilver),
+            ),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: KinrelColors.error,
+            ),
+            child: Text(
+              l10n.chatBlockDialogConfirm,
+              style: const TextStyle(color: KinrelColors.textWhite),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final service = ref.read(chatBlockReportServiceProvider);
+    final result = await service.blockUser(userId);
+    if (!mounted) return;
+    switch (result) {
+      case ChatBlockResult.ok:
+        await HapticService.success();
+        // Refresh the in-memory blocked-user list so the chat UI
+        // (header banner, placeholder rendering, inbox unread count)
+        // updates immediately without a re-fetch round-trip.
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.chatBlockSucceeded),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: KinrelColors.darkCard,
+          ),
+        );
+        break;
+      case ChatBlockResult.error:
+        await HapticService.error();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.chatBlockFailed),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: KinrelColors.error,
+          ),
+        );
+        break;
+    }
+  }
+
   void _showMessageActions(ChatMessage message) {
     final isMe = _isMine(message);
 
@@ -3462,6 +3563,61 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     }
                   },
                 ),
+              // feat(chat): block & report — long-press menu additions.
+              // Report is available for any message (including own —
+              // user might want to flag their own message for moderator
+              // review of, e.g., an accidental PII leak). Block is only
+              // for messages from OTHER users (blocking yourself is
+              // nonsense). Both go through ChatBlockReportService which
+              // reuses the existing BlockedUser table + ContentReport
+              // table — no second store.
+              if (!isMe)
+                ListTile(
+                  leading: const Icon(
+                    Icons.block_rounded,
+                    color: KinrelColors.textSilver,
+                    size: 22,
+                  ),
+                  title: Text(
+                    S.of(context)!.chatBlockFromMessageMenuItem,
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 15,
+                      color: KinrelColors.textWhite,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showBlockConfirmation(
+                      userId: message.senderId,
+                      displayName: message.senderName,
+                    );
+                  },
+                ),
+              ListTile(
+                leading: const Icon(
+                  Icons.flag_outlined,
+                  color: KinrelColors.textSilver,
+                  size: 22,
+                ),
+                title: Text(
+                  S.of(context)!.chatReportMenuItem,
+                  style: const TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 15,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  ReportMessageSheet.show(
+                    context,
+                    messageId: message.id,
+                    messagePreview: message.content,
+                    senderName: message.senderName,
+                  );
+                },
+              ),
             ],
           ),
         ),

@@ -700,4 +700,97 @@ class SGu extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name એ પ્રતિક્રિયા આપી $emoji';
   }
+
+  @override
+  String get chatReportMenuItem => 'જાણ કરો';
+
+  @override
+  String get chatReportSheetTitle => 'આ સંદેશની જાણ કરો';
+
+  @override
+  String chatReportSheetSubtitle(String senderName) {
+    return '$senderName નો સંદેશ મોડરેટરને જાણ કરો';
+  }
+
+  @override
+  String get chatReportNoPreview => '(પ્રિવ્યૂ નથી)';
+
+  @override
+  String get chatReportReasonLabel => 'તમે શા માટે જાણ કરો છો?';
+
+  @override
+  String get chatReportReasonSpam => 'સ્પેમ';
+
+  @override
+  String get chatReportReasonHarassment => 'સતામણી';
+
+  @override
+  String get chatReportReasonInappropriateContent => 'અયોગ્ય સામગ્રી';
+
+  @override
+  String get chatReportReasonOther => 'અન્ય';
+
+  @override
+  String get chatReportDescriptionLabel => 'વિગતો ઉમેરો (વૈકલ્પિક)';
+
+  @override
+  String get chatReportDescriptionHint => 'શું ખોટું છે તે અમને કહો';
+
+  @override
+  String get chatReportCancel => 'રદ કરો';
+
+  @override
+  String get chatReportSubmit => 'જાણ સબમિટ કરો';
+
+  @override
+  String get chatReportSubmitted => 'જાણ સબમિટ થઈ. આભાર.';
+
+  @override
+  String get chatReportAlreadyReported => 'તમે પહેલેથી જ આ સંદેશની જાણ કરી છે.';
+
+  @override
+  String get chatReportFailed => 'જાણ સબમિટ કરવામાં નિષ્ફળ. ફરી પ્રયત્ન કરો.';
+
+  @override
+  String get chatBlockedMessagePlaceholder => 'બ્લોક થયેલ વપરાશકર્તાનો સંદેશ';
+
+  @override
+  String get chatBlockedMessageShow => 'બતાવો';
+
+  @override
+  String get chatBlockedMessageHide => 'છુપાવો';
+
+  @override
+  String get chatBlockMenuItem => 'બ્લોક કરો';
+
+  @override
+  String get chatBlockFromMessageMenuItem => 'આ વપરાશકર્તાને બ્લોક કરો';
+
+  @override
+  String chatBlockDialogTitle(String name) {
+    return '$name ને બ્લોક કરશો?';
+  }
+
+  @override
+  String get chatBlockDialogBody =>
+      'તેઓ તમને સીધા સંદેશો મોકલી શકશે નહીં, અને તમે પણ તેમને મોકલી શકશો નહીં. જૂથ ચેટમાં તેમના સંદેશો પ્લેસહોલ્ડર પાછળ છુપાયેલા રહેશે. તેમને જણાવવામાં આવશે નહીં કે તેમને બ્લોક કરવામાં આવ્યા છે.';
+
+  @override
+  String get chatBlockDialogConfirm => 'બ્લોક કરો';
+
+  @override
+  String get chatBlockDialogCancel => 'રદ કરો';
+
+  @override
+  String get chatBlockSucceeded => 'વપરાશકર્તા બ્લોક કર્યો.';
+
+  @override
+  String get chatBlockFailed =>
+      'વપરાશકર્તાને બ્લોક કરવામાં નિષ્ફળ. ફરી પ્રયત્ન કરો.';
+
+  @override
+  String get chatBlockedDirectHeader => 'તમે આ વ્યક્તિને બ્લોક કર્યો છે';
+
+  @override
+  String get chatBlockedDirectUnblockButton => 'અનબ્લોક કરો';
 }

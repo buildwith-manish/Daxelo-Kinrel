@@ -121,5 +121,50 @@
   "chatSystemMessageUserLeft": "{name} ரூமை விட்டு வெளியேறினார்",
   "chatSystemMessageUserDisconnected": "{name} துண்டிக்கப்பட்டார்",
   "chatSystemMessageRoomClosed": "{name} ரூமை மூடினார்",
-  "chatSystemMessageUserReacted": "{name} எதிர்வினை தெரிவித்தார் {emoji}"
+  "chatSystemMessageUserReacted": "{name} எதிர்வினை தெரிவித்தார் {emoji}",
+  "chatReportMenuItem": "புகார் அளி",
+  "chatReportSheetTitle": "இந்தச் செய்தியைப் புகார் அளி",
+  "chatReportSheetSubtitle": "{senderName} இன் செய்தியை மதிப்பாய்வாளர்களுக்குப் புகார் அளி",
+  "@chatReportSheetSubtitle": {
+    "description": "Chat block/report string: chatReportSheetSubtitle",
+    "placeholders": {
+      "senderName": {
+        "type": "String"
+      }
+    }
+  },
+  "chatReportNoPreview": "(முன்னோட்டம் இல்லை)",
+  "chatReportReasonLabel": "ஏன் புகார் அளிக்கிறீர்கள்?",
+  "chatReportReasonSpam": "ஸ்பேம்",
+  "chatReportReasonHarassment": "தொந்தரவு",
+  "chatReportReasonInappropriateContent": "பொருத்தமற்ற உள்ளடக்கம்",
+  "chatReportReasonOther": "மற்றொன்று",
+  "chatReportDescriptionLabel": "விவரங்களைச் சேர் (விரும்பினால்)",
+  "chatReportDescriptionHint": "என்ன தவறு என்று எங்களுக்குச் சொல்லுங்கள்",
+  "chatReportCancel": "ரத்து",
+  "chatReportSubmit": "புகாரைச் சமர்ப்பிக்கவும்",
+  "chatReportSubmitted": "புகார் சமர்ப்பிக்கப்பட்டது. நன்றி.",
+  "chatReportAlreadyReported": "நீங்கள் ஏற்கனவே இந்தச் செய்தியைப் புகார் அளித்துள்ளீர்கள்.",
+  "chatReportFailed": "புகார் சமர்ப்பிக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
+  "chatBlockedMessagePlaceholder": "தடைசெய்யப்பட்ட பயனரின் செய்தி",
+  "chatBlockedMessageShow": "காட்டு",
+  "chatBlockedMessageHide": "மறை",
+  "chatBlockMenuItem": "தடைசெய்",
+  "chatBlockFromMessageMenuItem": "இந்தப் பயனரைத் தடைசெய்",
+  "chatBlockDialogTitle": "{name} ஐ தடைசெய்யவா?",
+  "@chatBlockDialogTitle": {
+    "description": "Chat block/report string: chatBlockDialogTitle",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatBlockDialogBody": "அவர்கள் உங்களுக்கு நேரடிச் செய்திகளை அனுப்ப முடியாது, நீங்களும் அவர்களுக்கு அனுப்ப முடியாது. குழு அரட்செய்திகளில் அவர்களின் செய்திகள் பிளேஸ்ஹோல்டருக்குப் பின்னால் மறைக்கப்படும். அவர்கள் தடைசெய்யப்பட்டதாக அறிவிக்கப்படமாட்டார்கள்.",
+  "chatBlockDialogConfirm": "தடைசெய்",
+  "chatBlockDialogCancel": "ரத்து",
+  "chatBlockSucceeded": "பயனர் தடைசெய்யப்பட்டார்.",
+  "chatBlockFailed": "பயனரைத் தடைசெய்ய முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
+  "chatBlockedDirectHeader": "இந்த நபரை நீங்கள் தடைசெய்துள்ளீர்கள்",
+  "chatBlockedDirectUnblockButton": "தடைநீக்கு"
 }

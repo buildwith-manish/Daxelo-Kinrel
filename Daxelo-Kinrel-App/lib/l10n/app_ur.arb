@@ -90,5 +90,50 @@
   "familyMapLegendTierStale": "پرانا",
   "familyMapLegendTierStaleDesc": "< 1 گھنٹہ پہلے",
   "familyMapLegendTierCity": "شہر",
-  "familyMapLegendTierCityDesc": "شہر کا مرکز"
+  "familyMapLegendTierCityDesc": "شہر کا مرکز",
+  "chatReportMenuItem": "رپورٹ کریں",
+  "chatReportSheetTitle": "اس پیغام کی رپورٹ کریں",
+  "chatReportSheetSubtitle": "{senderName} کا پیغام منتظمین کو رپورٹ کریں",
+  "@chatReportSheetSubtitle": {
+    "description": "Chat block/report string: chatReportSheetSubtitle",
+    "placeholders": {
+      "senderName": {
+        "type": "String"
+      }
+    }
+  },
+  "chatReportNoPreview": "(پیش نظارہ نہیں)",
+  "chatReportReasonLabel": "آپ کیوں رپورٹ کر رہے ہیں؟",
+  "chatReportReasonSpam": "اسپام",
+  "chatReportReasonHarassment": "ہراسمنٹ",
+  "chatReportReasonInappropriateContent": "نامناسب مواد",
+  "chatReportReasonOther": "دیگر",
+  "chatReportDescriptionLabel": "تفصیل شامل کریں (اختیاری)",
+  "chatReportDescriptionHint": "بتائیں کیا غلط ہے",
+  "chatReportCancel": "منسوخ کریں",
+  "chatReportSubmit": "رپورٹ جمع کریں",
+  "chatReportSubmitted": "رپورٹ جمع ہوگئی۔ شکریہ۔",
+  "chatReportAlreadyReported": "آپ پہلے ہی اس پیغام کی رپورٹ کرچکے ہیں۔",
+  "chatReportFailed": "رپورٹ جمع کرنے میں ناکام۔ دوبارہ کوشش کریں۔",
+  "chatBlockedMessagePlaceholder": "بلاک شدہ صارف کا پیغام",
+  "chatBlockedMessageShow": "دکھائیں",
+  "chatBlockedMessageHide": "چھپائیں",
+  "chatBlockMenuItem": "بلاک کریں",
+  "chatBlockFromMessageMenuItem": "اس صارف کو بلاک کریں",
+  "chatBlockDialogTitle": "{name} کو بلاک کریں؟",
+  "@chatBlockDialogTitle": {
+    "description": "Chat block/report string: chatBlockDialogTitle",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatBlockDialogBody": "وہ آپ کو براہ راست پیغامات نہیں بھیج سکیں گے، اور آپ بھی انہیں نہیں بھیج سکیں گے۔ گروپ چیٹ میں ان کے پیغامات پلیس ہولڈر کے پیچھے چھپائے جائیں گے۔ انہیں نہیں بتایا جائے گا کہ انہیں بلاک کیا گیا ہے۔",
+  "chatBlockDialogConfirm": "بلاک کریں",
+  "chatBlockDialogCancel": "منسوخ کریں",
+  "chatBlockSucceeded": "صارف بلاک کردیا گیا۔",
+  "chatBlockFailed": "صارف کو بلاک کرنے میں ناکام۔ دوبارہ کوشش کریں۔",
+  "chatBlockedDirectHeader": "آپ نے اس شخص کو بلاک کیا ہے",
+  "chatBlockedDirectUnblockButton": "ان بلاک کریں"
 }

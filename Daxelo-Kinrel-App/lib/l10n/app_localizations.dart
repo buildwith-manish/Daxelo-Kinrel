@@ -1298,6 +1298,180 @@ abstract class S {
   /// In en, this message translates to:
   /// **'{name} reacted {emoji}'**
   String chatSystemMessageUserReacted(String name, String emoji);
+
+  /// Chat block/report string: chatReportMenuItem
+  ///
+  /// In en, this message translates to:
+  /// **'Report'**
+  String get chatReportMenuItem;
+
+  /// Chat block/report string: chatReportSheetTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Report this message'**
+  String get chatReportSheetTitle;
+
+  /// Chat block/report string: chatReportSheetSubtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Report {senderName}\'s message to moderators'**
+  String chatReportSheetSubtitle(String senderName);
+
+  /// Chat block/report string: chatReportNoPreview
+  ///
+  /// In en, this message translates to:
+  /// **'(no preview available)'**
+  String get chatReportNoPreview;
+
+  /// Chat block/report string: chatReportReasonLabel
+  ///
+  /// In en, this message translates to:
+  /// **'Why are you reporting?'**
+  String get chatReportReasonLabel;
+
+  /// Chat block/report string: chatReportReasonSpam
+  ///
+  /// In en, this message translates to:
+  /// **'Spam'**
+  String get chatReportReasonSpam;
+
+  /// Chat block/report string: chatReportReasonHarassment
+  ///
+  /// In en, this message translates to:
+  /// **'Harassment'**
+  String get chatReportReasonHarassment;
+
+  /// Chat block/report string: chatReportReasonInappropriateContent
+  ///
+  /// In en, this message translates to:
+  /// **'Inappropriate content'**
+  String get chatReportReasonInappropriateContent;
+
+  /// Chat block/report string: chatReportReasonOther
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get chatReportReasonOther;
+
+  /// Chat block/report string: chatReportDescriptionLabel
+  ///
+  /// In en, this message translates to:
+  /// **'Add details (optional)'**
+  String get chatReportDescriptionLabel;
+
+  /// Chat block/report string: chatReportDescriptionHint
+  ///
+  /// In en, this message translates to:
+  /// **'Tell us more about what\'s wrong'**
+  String get chatReportDescriptionHint;
+
+  /// Chat block/report string: chatReportCancel
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get chatReportCancel;
+
+  /// Chat block/report string: chatReportSubmit
+  ///
+  /// In en, this message translates to:
+  /// **'Submit report'**
+  String get chatReportSubmit;
+
+  /// Chat block/report string: chatReportSubmitted
+  ///
+  /// In en, this message translates to:
+  /// **'Report submitted. Thank you.'**
+  String get chatReportSubmitted;
+
+  /// Chat block/report string: chatReportAlreadyReported
+  ///
+  /// In en, this message translates to:
+  /// **'You already reported this message.'**
+  String get chatReportAlreadyReported;
+
+  /// Chat block/report string: chatReportFailed
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to submit report. Try again.'**
+  String get chatReportFailed;
+
+  /// Chat block/report string: chatBlockedMessagePlaceholder
+  ///
+  /// In en, this message translates to:
+  /// **'Message from a blocked user'**
+  String get chatBlockedMessagePlaceholder;
+
+  /// Chat block/report string: chatBlockedMessageShow
+  ///
+  /// In en, this message translates to:
+  /// **'Show'**
+  String get chatBlockedMessageShow;
+
+  /// Chat block/report string: chatBlockedMessageHide
+  ///
+  /// In en, this message translates to:
+  /// **'Hide'**
+  String get chatBlockedMessageHide;
+
+  /// Chat block/report string: chatBlockMenuItem
+  ///
+  /// In en, this message translates to:
+  /// **'Block'**
+  String get chatBlockMenuItem;
+
+  /// Chat block/report string: chatBlockFromMessageMenuItem
+  ///
+  /// In en, this message translates to:
+  /// **'Block this user'**
+  String get chatBlockFromMessageMenuItem;
+
+  /// Chat block/report string: chatBlockDialogTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Block {name}?'**
+  String chatBlockDialogTitle(String name);
+
+  /// Chat block/report string: chatBlockDialogBody
+  ///
+  /// In en, this message translates to:
+  /// **'They won\'t be able to send you direct messages, and you won\'t be able to send them any. In group chats, their messages will be hidden behind a placeholder. They won\'t be told they were blocked.'**
+  String get chatBlockDialogBody;
+
+  /// Chat block/report string: chatBlockDialogConfirm
+  ///
+  /// In en, this message translates to:
+  /// **'Block'**
+  String get chatBlockDialogConfirm;
+
+  /// Chat block/report string: chatBlockDialogCancel
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get chatBlockDialogCancel;
+
+  /// Chat block/report string: chatBlockSucceeded
+  ///
+  /// In en, this message translates to:
+  /// **'User blocked.'**
+  String get chatBlockSucceeded;
+
+  /// Chat block/report string: chatBlockFailed
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to block user. Try again.'**
+  String get chatBlockFailed;
+
+  /// Chat block/report string: chatBlockedDirectHeader
+  ///
+  /// In en, this message translates to:
+  /// **'You blocked this person'**
+  String get chatBlockedDirectHeader;
+
+  /// Chat block/report string: chatBlockedDirectUnblockButton
+  ///
+  /// In en, this message translates to:
+  /// **'Unblock'**
+  String get chatBlockedDirectUnblockButton;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

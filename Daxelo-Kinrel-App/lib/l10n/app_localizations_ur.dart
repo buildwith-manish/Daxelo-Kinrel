@@ -701,4 +701,98 @@ class SUr extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name reacted $emoji';
   }
+
+  @override
+  String get chatReportMenuItem => 'رپورٹ کریں';
+
+  @override
+  String get chatReportSheetTitle => 'اس پیغام کی رپورٹ کریں';
+
+  @override
+  String chatReportSheetSubtitle(String senderName) {
+    return '$senderName کا پیغام منتظمین کو رپورٹ کریں';
+  }
+
+  @override
+  String get chatReportNoPreview => '(پیش نظارہ نہیں)';
+
+  @override
+  String get chatReportReasonLabel => 'آپ کیوں رپورٹ کر رہے ہیں؟';
+
+  @override
+  String get chatReportReasonSpam => 'اسپام';
+
+  @override
+  String get chatReportReasonHarassment => 'ہراسمنٹ';
+
+  @override
+  String get chatReportReasonInappropriateContent => 'نامناسب مواد';
+
+  @override
+  String get chatReportReasonOther => 'دیگر';
+
+  @override
+  String get chatReportDescriptionLabel => 'تفصیل شامل کریں (اختیاری)';
+
+  @override
+  String get chatReportDescriptionHint => 'بتائیں کیا غلط ہے';
+
+  @override
+  String get chatReportCancel => 'منسوخ کریں';
+
+  @override
+  String get chatReportSubmit => 'رپورٹ جمع کریں';
+
+  @override
+  String get chatReportSubmitted => 'رپورٹ جمع ہوگئی۔ شکریہ۔';
+
+  @override
+  String get chatReportAlreadyReported =>
+      'آپ پہلے ہی اس پیغام کی رپورٹ کرچکے ہیں۔';
+
+  @override
+  String get chatReportFailed => 'رپورٹ جمع کرنے میں ناکام۔ دوبارہ کوشش کریں۔';
+
+  @override
+  String get chatBlockedMessagePlaceholder => 'بلاک شدہ صارف کا پیغام';
+
+  @override
+  String get chatBlockedMessageShow => 'دکھائیں';
+
+  @override
+  String get chatBlockedMessageHide => 'چھپائیں';
+
+  @override
+  String get chatBlockMenuItem => 'بلاک کریں';
+
+  @override
+  String get chatBlockFromMessageMenuItem => 'اس صارف کو بلاک کریں';
+
+  @override
+  String chatBlockDialogTitle(String name) {
+    return '$name کو بلاک کریں؟';
+  }
+
+  @override
+  String get chatBlockDialogBody =>
+      'وہ آپ کو براہ راست پیغامات نہیں بھیج سکیں گے، اور آپ بھی انہیں نہیں بھیج سکیں گے۔ گروپ چیٹ میں ان کے پیغامات پلیس ہولڈر کے پیچھے چھپائے جائیں گے۔ انہیں نہیں بتایا جائے گا کہ انہیں بلاک کیا گیا ہے۔';
+
+  @override
+  String get chatBlockDialogConfirm => 'بلاک کریں';
+
+  @override
+  String get chatBlockDialogCancel => 'منسوخ کریں';
+
+  @override
+  String get chatBlockSucceeded => 'صارف بلاک کردیا گیا۔';
+
+  @override
+  String get chatBlockFailed =>
+      'صارف کو بلاک کرنے میں ناکام۔ دوبارہ کوشش کریں۔';
+
+  @override
+  String get chatBlockedDirectHeader => 'آپ نے اس شخص کو بلاک کیا ہے';
+
+  @override
+  String get chatBlockedDirectUnblockButton => 'ان بلاک کریں';
 }
