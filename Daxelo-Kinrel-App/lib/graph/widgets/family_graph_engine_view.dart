@@ -2356,7 +2356,14 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         // safe because _framed guards the one-time init and the
         // drift check is a cheap distance comparison.
         _maybeFrame(layout, flat, viewerPersonId);
-        _maybeRecenterOnAnchorDrift(layout, flat, viewerPersonId);
+        // Only check drift when the user HAS NOT manually interacted
+        // with the camera. Without this guard, the drift handler
+        // fights the user's pan by snapping the camera back on every
+        // rebuild (the AnimatedBuilder triggers rebuilds on every
+        // panBy).
+        if (_framed && !_userHasInteractedWithCamera && _viewportSize.width > 0) {
+          _maybeRecenterOnAnchorDrift(layout, flat, viewerPersonId);
+        }
         // Wrap the graph in a Column so the graph expands to fill the space.
         // v4.9: Removed the ClaimProfileBanner — it's no longer rendered here.
         // The claim_profile_banner.dart file is left in place (unused) in case
