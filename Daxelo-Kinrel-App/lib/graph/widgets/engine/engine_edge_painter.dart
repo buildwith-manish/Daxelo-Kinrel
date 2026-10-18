@@ -1382,23 +1382,36 @@ class EngineEdgePainter extends CustomPainter {
           wedgeRoute.source == shortenedSource &&
           wedgeRoute.target == shortenedTarget;
 
-      final Path path = useWedgeRoute
-          ? wedgeRoute.path
-          : cache.getOrCreate(
-              edgeId: fullCacheId,
-              sourceId: e.sourceId,
-              targetId: e.targetId,
-              sourcePos: shortenedSource,
-              targetPos: shortenedTarget,
-              pathFactory: (Offset ss, Offset tt) =>
-                  _bezier(ss, tt,
-                      lateralOffset: totalLateralOffset,
-                      waypointDelta: waypointDelta,
-                      anchorCenter: anchorCenter,
-                      // v5.x (Feature 1): per-edge deterministic curve phase
-                      // so nearly-parallel solo edges fan out.
-                      edgeId: e.id),
-            );
+      // WEDGE MODE: while animating (positions don't match the cached
+      // route's endpoints), draw a STRAIGHT line between the animated
+      // endpoints — never the old bowed _bezier. When the animation
+      // settles, the cached route (which may be a curve) is used.
+      // RADIAL MODE: falls back to _bezier as before.
+      final Path path;
+      if (useWedgeRoute) {
+        path = wedgeRoute.path;
+      } else if (wedgeEdgeRoutes != null) {
+        // Wedge mode + animation in flight: draw a STRAIGHT line.
+        // No _bezier, no bow — the preview does the same.
+        path = Path()
+          ..moveTo(shortenedSource.dx, shortenedSource.dy)
+          ..lineTo(shortenedTarget.dx, shortenedTarget.dy);
+      } else {
+        // Radial mode: use the old _bezier (unchanged).
+        path = cache.getOrCreate(
+          edgeId: fullCacheId,
+          sourceId: e.sourceId,
+          targetId: e.targetId,
+          sourcePos: shortenedSource,
+          targetPos: shortenedTarget,
+          pathFactory: (Offset ss, Offset tt) =>
+              _bezier(ss, tt,
+                  lateralOffset: totalLateralOffset,
+                  waypointDelta: waypointDelta,
+                  anchorCenter: anchorCenter,
+                  edgeId: e.id),
+        );
+      }
 
       final bool isSelected = e.id == selectedEdgeId;
       final bool isSweep = sweepActive && e.id == sweepEdgeId;

@@ -20,7 +20,7 @@
 //      — the bubble is now node-sized, see WedgeLayoutConfig — plus
 //      124×140 for the viewer, plus 6px padding), the edge bows by
 //      the smallest amount that clears EVERY footprint.
-//      Candidate bow magnitudes are tried in order: 45, 90, 135
+//      Candidate bow magnitudes are tried in order: 90, 180, 270, 360, 450
 //      world units. For each magnitude the router tries the side
 //      AWAY from the viewer first (the perpendicular direction whose
 //      midpoint is farther from the viewer), then the other side.
@@ -150,7 +150,8 @@ class WedgeEdgeRouter {
   // Bow magnitudes tried in order when an edge is obstructed. The
   // SMALLEST magnitude that clears every footprint wins. If none
   // clears, the LARGEST is used (the spec's "use the largest" rule).
-  static const List<double> _bowCandidates = <double>[45.0, 90.0, 135.0];
+  // Matches the approved preview's `ms=[90,180,270,360,450]`.
+  static const List<double> _bowCandidates = <double>[90.0, 180.0, 270.0, 360.0, 450.0];
 
   /// Resolve routes for the given layout.
   ///
@@ -323,7 +324,7 @@ class WedgeEdgeRouter {
     }
 
     // Rule 2 — bow by the smallest amount that clears every footprint.
-    // Try 45, 90, 135 in order; for each, try the side AWAY from the
+    // Try 90, 180, 270, 360, 450 in order; for each, try the side AWAY from the
     // viewer first, then the other side.
     final perp = _perpendicularUnit(source, target);
 

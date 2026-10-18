@@ -83,17 +83,27 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // Declared HERE at the top of the builder (not later) so every
         // consumer below (load-animation lerp, node/edge rendering)
         // shares one effective position set.
-        final Map<String, Offset> effectivePositions =
-            savedOverrides.applyTo(layout.positions);
-        // Layer the live drag deltas on top (only non-empty while a
-        // drag is in progress in Rearrange mode).
-        if (_rearrangeLiveNodeOverrides.isNotEmpty) {
-          effectivePositions.addAll(_rearrangeLiveNodeOverrides);
+        //
+        // WEDGE MODE: IGNORE saved overrides. Positions come ONLY from
+        // the layout engine — the user's personal drag overrides and
+        // edge waypoints are not applied. This matches the approved
+        // preview (which has no saved-override system).
+        // RADIAL MODE: apply saved overrides + live drag deltas as before.
+        final Map<String, Offset> effectivePositions;
+        final Map<String, Offset> effectiveEdgeWaypoints;
+        if (kUseViewerWedgeLayout) {
+          effectivePositions = Map<String, Offset>.from(layout.positions);
+          effectiveEdgeWaypoints = const {};
+        } else {
+          effectivePositions = savedOverrides.applyTo(layout.positions);
+          if (_rearrangeLiveNodeOverrides.isNotEmpty) {
+            effectivePositions.addAll(_rearrangeLiveNodeOverrides);
+          }
+          effectiveEdgeWaypoints = {
+            ...savedOverrides.edgeWaypoints,
+            ..._rearrangeLiveEdgeWaypoints,
+          };
         }
-        final Map<String, Offset> effectiveEdgeWaypoints = {
-          ...savedOverrides.edgeWaypoints,
-          ..._rearrangeLiveEdgeWaypoints,
-        };
 
         // ── WEDGE MOTION (viewer-centered wedge layout) ──────────────
         //

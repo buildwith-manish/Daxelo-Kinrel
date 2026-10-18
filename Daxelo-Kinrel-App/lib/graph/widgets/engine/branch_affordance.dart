@@ -2021,6 +2021,21 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     final isExpanded = wedge.expandedRoots.contains(personId);
 
     if (!isExpanded) {
+      // Budget check: if expanding this person would exceed the wedge
+      // node budget, show a message and do nothing (matching the
+      // approved preview's `note('Budget reached (150 on screen)')`).
+      final layout = ref.read(graphLayoutProvider(widget.familyId)).valueOrNull;
+      final currentCount = layout?.positions.length ?? 0;
+      if (currentCount + 9 > kWedgeNodeBudget) {
+        // 9 = pageSize (8 children) + 1 chip. Worst case.
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Budget reached ($kWedgeNodeBudget on screen)'),
+            duration: Duration(milliseconds: 1800),
+          ),
+        );
+        return;
+      }
       // Case 1 — collapsed person: expand in place with their first 8
       // connections, focus them, and fit the camera to them + their
       // children + their parent (the fit rides the wedge revision

@@ -49,6 +49,7 @@ import '../../features/family/presentation/providers/family_graph_provider.dart'
         familyGraphProvider,
         graphLayoutProvider,
         graphRealtimeProvider,
+        kWedgeNodeBudget,
         lastLayoutPositionsProvider, // v5.207: for branch expand layout fix
         preCollapseLayoutSnapshotProvider, // v5.210: for snapshot/restore
         justRestoredFromSnapshotProvider, // v5.212: branch-expand flag
