@@ -64,7 +64,7 @@ import '../../../../graph/interaction/proximity_graph_state.dart'
 // which branch roots the user has expanded (passed to RadialLayout so
 // each branch gets its own angular sector).
 import '../../../../graph/interaction/branch_collapse_state.dart'
-    show branchCollapseProvider, kNodeBudget;
+    show branchCollapseProvider;
 // Viewer-centered wedge layout state ("top 8 + chips + search").
 import '../../../../graph/interaction/wedge_view_state.dart'
     show wedgeViewProvider;
@@ -76,6 +76,20 @@ import '../../../../graph/interaction/expand_collapse.dart'
 // v5.165 (LAYOUT VALIDATION): post-expand validation pass.
 import '../../../../graph/engine/layout_validator.dart'
     show LayoutValidator, ValidationEdge;
+
+/// The wedge layout's node budget — 150 (up from the old radial
+/// kNodeBudget of 50). When a tap would exceed it, the tap does
+/// nothing and a short message is shown. See the spec:
+/// "Node budget: use 150 for the wedge (a new constant,
+/// kWedgeNodeBudget), instead of the old kNodeBudget of 50."
+const int kWedgeNodeBudget = 150;
+
+/// Guard set: person ids that are currently being fetched by a
+/// pending-load trigger. Prevents the same ids from being fetched
+/// twice while a fetch is in flight (the provider recomputes on
+/// every invalidation; without this guard, each recompute would
+/// re-trigger the fetch for the same pending ids).
+final Set<String> _wedgePendingFetchGuard = <String>{};
 // v5.163 (TREE REMOVAL): the `familyTreeProvider` import + realtime
 // invalidation call were removed when the Tree tab was deleted from
 // Family Space. The Graph view is now the only renderer; the realtime
@@ -2105,6 +2119,7 @@ final graphLayoutProvider =
       graphData: graphData,
       graphPersons: graphPersons,
       visibleIds: visibleIds,
+      allPersonIds: allPersonIds,
       viewerId: centerPerson.id,
     );
   }
@@ -2542,6 +2557,7 @@ GraphLayoutResult _computeViewerWedgeLayout({
   required FlatGraphResult graphData,
   required List<GraphPerson> graphPersons,
   required Set<String> visibleIds,
+  required Set<String> allPersonIds,
   required String viewerId,
 }) {
   final layoutStopwatch = Stopwatch()..start();
@@ -2583,7 +2599,14 @@ GraphLayoutResult _computeViewerWedgeLayout({
   };
 
   final output = ViewerWedgeLayout().compute(
-    loadedPersonIds: visibleIds,
+    // Pass EVERY locally loaded person as loadedPersonIds (not the old
+    // proximity set of ~50). The wedge layout builds its tree from the
+    // full edge list (allRelationships); the loadedPersonIds controls
+    // who GETS A POSITION (vs who is reported in pendingLoadIds for
+    // fetching). Using allPersonIds means every person the server has
+    // returned so far gets a position; unloaded children in the
+    // requested window are reported via output.pendingLoadIds.
+    loadedPersonIds: allPersonIds,
     nameOf: nameOf,
     links: links,
     viewerId: viewerId,
@@ -2595,7 +2618,7 @@ GraphLayoutResult _computeViewerWedgeLayout({
         : <String>{wedgeState.revealTarget!},
     rootFilter: wedgeState.filter,
     protectedIds: protectedIds,
-    nodeBudget: kNodeBudget,
+    nodeBudget: kWedgeNodeBudget,
   );
 
   // Translate viewer-at-origin coordinates into all-positive canvas
@@ -2694,6 +2717,44 @@ GraphLayoutResult _computeViewerWedgeLayout({
     'expanded_branch_count': wedgeState.expandedRoots.length,
     'page_chip_count': output.pageChips.length,
   }));
+
+  // ── PENDING LOADS: fetch unloaded children reported by the layout ──
+  //
+  // When ViewerWedgeLayout reports pendingLoadIds (children that
+  // belong to the requested window but aren't loaded yet), trigger
+  // the existing fetchBranchAndMerge flow ONCE per hub. The dedup
+  // guard (_wedgePendingFetchGuard) prevents the same hub from being
+  // fetched twice while a fetch is in flight (the provider recomputes
+  // on every invalidation; without the guard, each recompute would
+  // re-trigger the fetch).
+  //
+  // After the fetch lands, fetchBranchAndMerge invalidates
+  // graphLayoutProvider, which triggers a relayout — the newly-loaded
+  // children now have positions, and the +N count adjusts.
+  if (output.pendingLoadIds.isNotEmpty) {
+    for (final entry in output.pendingLoadIds.entries) {
+      final hubId = entry.key;
+      // Dedup: skip if this hub is already being fetched.
+      if (_wedgePendingFetchGuard.contains(hubId)) continue;
+      _wedgePendingFetchGuard.add(hubId);
+      // Fire-and-forget: the fetch runs asynchronously. When it
+      // completes, it removes the hub from the guard and invalidates
+      // the layout provider (which triggers a relayout with the
+      // newly-loaded children).
+      unawaited(() async {
+        try {
+          await ref.read(familyGraphProvider(familyId).notifier)
+              .fetchBranchAndMerge(
+            rootPersonId: hubId,
+            branchType: 'generic',
+            depth: 2,
+          );
+        } finally {
+          _wedgePendingFetchGuard.remove(hubId);
+        }
+      }());
+    }
+  }
 
   return result;
 }
