@@ -247,6 +247,7 @@ import '../../features/profile/presentation/relations_screen.dart';
 import '../../features/social/presentation/screens/sparq_viewer_screen.dart';
 import '../../features/social/presentation/screens/sparq_create_screen.dart';
 import '../../features/social/presentation/screens/sparq_viewers_screen.dart';
+import '../../features/sparq_tray/presentation/screens/family_sparq_run_screen.dart';
 import '../../features/social/presentation/screens/followers_screen.dart';
 import '../../features/social/presentation/screens/follow_requests_screen.dart';
 import '../../features/social/presentation/screens/family_invite_screen.dart';
@@ -3188,6 +3189,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: SparqViewerScreen(userId: state.pathParameters['userId']!),
+        ),
+      ),
+      // Family Sparq run — plays every family member's live Sparqs
+      // one after another, then advances to the next family with
+      // unseen Sparqs. Spec section 4 + 8.
+      GoRoute(
+        path: '/sparq/family/:familyId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilySparqRunScreen(
+            familyId: state.pathParameters['familyId']!,
+          ),
         ),
       ),
       GoRoute(
