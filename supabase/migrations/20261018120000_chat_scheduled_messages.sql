@@ -404,11 +404,13 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN NULL;
   END;
 
-  -- Schedule the new job.
+  -- Schedule the new job. Use a distinct dollar-quote tag
+  -- ('cron_body') for the inner SQL string so it doesn't collide
+  -- with the outer DO block's dollar-quote delimiters.
   PERFORM cron.schedule(
     'dispatch-scheduled-chat-messages',
     '* * * * *',  -- every minute
-    $$SELECT fn_dispatch_scheduled_chat_messages();$$
+    $cron_body$SELECT fn_dispatch_scheduled_chat_messages();$cron_body$
   );
 EXCEPTION WHEN OTHERS THEN
   -- If pg_cron isn't enabled (e.g., on a fresh DB where
