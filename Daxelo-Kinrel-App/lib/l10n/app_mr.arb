@@ -121,5 +121,222 @@
   "chatSystemMessageUserLeft": "{name} रूम सोडून गेले",
   "chatSystemMessageUserDisconnected": "{name} डिस्कनेक्ट झाले",
   "chatSystemMessageRoomClosed": "{name} ने रूम बंद केले",
-  "chatSystemMessageUserReacted": "{name} ने प्रतिक्रिया दिली {emoji}"
+  "chatSystemMessageUserReacted": "{name} ने प्रतिक्रिया दिली {emoji}",
+  "chatReportMenuItem": "तक्रार करा",
+  "chatReportSheetTitle": "हा संदेश तक्रार करा",
+  "chatReportSheetSubtitle": "{senderName} चा संदेश मॉडरेटरला तक्रार करा",
+  "@chatReportSheetSubtitle": {
+    "description": "Chat block/report string: chatReportSheetSubtitle",
+    "placeholders": {
+      "senderName": {
+        "type": "String"
+      }
+    }
+  },
+  "chatReportNoPreview": "(पूर्वावलोकन नाही)",
+  "chatReportReasonLabel": "तुम्ही का तक्रार करत आहात?",
+  "chatReportReasonSpam": "स्पॅम",
+  "chatReportReasonHarassment": "छळ",
+  "chatReportReasonInappropriateContent": "अयोग्य मजकूर",
+  "chatReportReasonOther": "इतर",
+  "chatReportDescriptionLabel": "तपशील जोडा (पर्यायी)",
+  "chatReportDescriptionHint": "काय चुकील आहे ते सांगा",
+  "chatReportCancel": "रद्द करा",
+  "chatReportSubmit": "तक्रार सबमिट करा",
+  "chatReportSubmitted": "तक्रार सबमिट केली. धन्यवाद.",
+  "chatReportAlreadyReported": "तुम्ही आधीच या संदेशाची तक्रार केली आहे.",
+  "chatReportFailed": "तक्रार सबमिट करण्यात अयशस्वी. पुन्हा प्रयत्न करा.",
+  "chatBlockedMessagePlaceholder": "ब्लॉक केलेल्या वापरकर्त्याचा संदेश",
+  "chatBlockedMessageShow": "दाखवा",
+  "chatBlockedMessageHide": "लपवा",
+  "chatBlockMenuItem": "ब्लॉक करा",
+  "chatBlockFromMessageMenuItem": "या वापरकर्त्याला ब्लॉक करा",
+  "chatBlockDialogTitle": "{name} ला ब्लॉक करायचे?",
+  "@chatBlockDialogTitle": {
+    "description": "Chat block/report string: chatBlockDialogTitle",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatBlockDialogBody": "ते तुम्हाला थेट संदेश पाठवू शकणार नाहीत, आणि तुम्हीही त्यांना पाठवू शकणार नाही. गट चॅटमध्ये त्यांचे संदेश प्लेसहोल्डरमागे लपवले जातील. त्यांना सांगणार नाही की त्यांना ब्लॉक केले आहे.",
+  "chatBlockDialogConfirm": "ब्लॉक करा",
+  "chatBlockDialogCancel": "रद्द करा",
+  "chatBlockSucceeded": "वापरकर्ता ब्लॉक केला.",
+  "chatBlockFailed": "वापरकर्त्याला ब्लॉक करण्यात अयशस्वी. पुन्हा प्रयत्न करा.",
+  "chatBlockedDirectHeader": "तुम्ही या व्यक्तीला ब्लॉक केले आहे",
+  "chatBlockedDirectUnblockButton": "अनब्लॉक करा",
+  "chatDraftPrefix": "मसुदा: {text}",
+  "@chatDraftPrefix": {
+    "description": "Chat drafts/schedule string: chatDraftPrefix",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleMenuItem": "शेड्युल केलेले संदेश",
+  "chatScheduleSheetTitle": "संदेश शेड्युल करा",
+  "chatScheduleSheetSubtitle": "\"{content}\" नंतर पाठवा",
+  "@chatScheduleSheetSubtitle": {
+    "description": "Chat drafts/schedule string: chatScheduleSheetSubtitle",
+    "placeholders": {
+      "content": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleQuickLaterToday": "आज संध्याकाळी",
+  "chatScheduleQuickTomorrow": "उद्या सकाळी",
+  "chatScheduleQuickWeekend": "या वारंत्यात",
+  "chatScheduleQuickCustom": "कस्टम...",
+  "chatScheduleQuickCustomHint": "तारीख आणि वेळ निवडा",
+  "chatScheduleCancel": "रद्द करा",
+  "chatScheduleSuccess": "{time} ला शेड्युल केले",
+  "@chatScheduleSuccess": {
+    "description": "Chat drafts/schedule string: chatScheduleSuccess",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSchedulePastTimeRejected": "भविष्यातील वेळ निवडा",
+  "chatScheduleNotSignedIn": "शेड्युल करण्यासाठी साइन इन करा",
+  "chatScheduleFailed": "शेड्युल करण्यात अयशस्वी. पुन्हा प्रयत्न करा.",
+  "chatScheduleDatePickerHelp": "तारीख निवडा",
+  "chatScheduleTimePickerHelp": "वेळ निवडा",
+  "chatScheduledListTitle": "शेड्युल केलेले संदेश",
+  "chatScheduledListEmpty": "या चॅटमध्ये शेड्युल केलेले संदेश नाहीत.",
+  "chatScheduledListCancel": "रद्द करा",
+  "chatScheduledListRetry": "पुन्हा प्रयत्न",
+  "chatScheduledListEditTime": "वेळ संपादित करा",
+  "chatScheduledListEditText": "मजकूर संपादित करा",
+  "chatScheduledListFailed": "पाठवण्यात अयशस्वी",
+  "chatScheduledListSendingAt": "{time} ला पाठवले जात आहे",
+  "@chatScheduledListSendingAt": {
+    "description": "Chat drafts/schedule string: chatScheduledListSendingAt",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduledListSentAt": "{time} ला पाठवले",
+  "@chatScheduledListSentAt": {
+    "description": "Chat drafts/schedule string: chatScheduledListSentAt",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleCancelled": "शेड्युल केलेला संदेश रद्द केला.",
+  "chatScheduleRetried": "शेड्युल केलेला संदेश पुन्हा प्रयत्न केला.",
+  "chatScheduleEditTimeUpdated": "वेळ अपडेट केली.",
+  "chatScheduleEditTextUpdated": "मजकूर अपडेट केला.",
+  "chatAttachEvent": "कार्यक्रम",
+  "chatAttachEventCreateNew": "नवीन कार्यक्रम तयार करा",
+  "chatAttachEventPickExisting": "सध्याचा कार्यक्रम निवडा",
+  "chatEventCardNoTitle": "कौटुंबिक कार्यक्रम",
+  "chatEventCardDeleted": "कार्यक्रम आता उपलब्ध नाही",
+  "chatEventRsvpGoing": "{count} येत आहेत",
+  "@chatEventRsvpGoing": {
+    "description": "Family event card string: chatEventRsvpGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpMaybe": "{count} कदाचित",
+  "@chatEventRsvpMaybe": {
+    "description": "Family event card string: chatEventRsvpMaybe",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpNotGoing": "{count} येऊ शकत नाहीत",
+  "@chatEventRsvpNotGoing": {
+    "description": "Family event card string: chatEventRsvpNotGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpGoingLabel": "येत आहे",
+  "chatEventRsvpMaybeLabel": "कदाचित",
+  "chatEventRsvpNotGoingLabel": "येऊ शकत नाही",
+  "chatEventCardSemantics": "कौटुंबिक कार्यक्रम कार्ड: {date} रोजी {title} येथे {location}। {going} येत आहेत, {maybe} कदाचित, {notGoing} येऊ शकत नाहीत।",
+  "@chatEventCardSemantics": {
+    "description": "Family event card string: chatEventCardSemantics",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      },
+      "location": {
+        "type": "String"
+      },
+      "going": {
+        "type": "int"
+      },
+      "maybe": {
+        "type": "int"
+      },
+      "notGoing": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventCardSemanticsDeleted": "कौटुंबिक कार्यक्रम कार्ड: कार्यक्रम आता उपलब्ध नाही।",
+  "chatInboxFilterAll": "सर्व",
+  "chatInboxFilterUnread": "न वाचलेले",
+  "chatInboxFilterGroups": "गट",
+  "chatInboxFilterDirect": "डायरेक्ट",
+  "chatInboxEmptyUnread": "कोणतेही न वाचलेले चॅट नाहीत",
+  "chatInboxEmptyGroups": "कोणतेही गट चॅट नाहीत",
+  "chatInboxEmptyDirect": "कोणतेही डायरेक्ट संदेश नाहीत",
+  "chatInboxNoMessages": "चॅट सुरू करण्यासाठी टॅप करा",
+  "chatInboxArchiveAction": "आर्काइव्ह",
+  "chatInboxArchived": "आर्काइव्ह केलेले",
+  "chatInboxArchivedCount": "{count} {count, plural, =1{संभाषण} other{संभाषणे}}",
+  "@chatInboxArchivedCount": {
+    "description": "Unified inbox string: chatInboxArchivedCount",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticGroup": "गट चॅट, {title}, {count} न वाचलेले",
+  "@chatInboxRowSemanticGroup": {
+    "description": "Unified inbox string: chatInboxRowSemanticGroup",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticDirect": "डायरेक्ट संदेश, {title}, {count} न वाचलेले",
+  "@chatInboxRowSemanticDirect": {
+    "description": "Unified inbox string: chatInboxRowSemanticDirect",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

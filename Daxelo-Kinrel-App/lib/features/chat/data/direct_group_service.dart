@@ -276,7 +276,71 @@ final directGroupInboxProvider =
         .timeout(const Duration(seconds: 8));
     final groups = groupsResp as List;
     if (groups.isEmpty) return [];
+    final directGroupIds = groups
+        .map((g) => (g as Map<String, dynamic>)['id'] as String?)
+        .where((id) => id != null && id.isNotEmpty)
+        .cast<String>()
+        .toList();
+    if (directGroupIds.isEmpty) return [];
 
+    // feat(unified-inbox): BATCHED queries — replaces the per-group N+1
+    // loop (3 queries per group: other member + last message + unread
+    // count) with 3 TOTAL queries across ALL direct groups.
+    //
+    // 3. ALL other members for ALL direct groups in ONE query.
+    final otherMembersResp = await client
+        .from('GroupMember')
+        .select()
+        .inFilter('groupId', directGroupIds)
+        .neq('userId', myUserId)
+        .timeout(const Duration(seconds: 10));
+    // Group by groupId — take the first non-me member per group.
+    final otherMemberByGroup = <String, Map<String, dynamic>>{};
+    for (final row in otherMembersResp as List) {
+      if (row is! Map) continue;
+      final gid = row['groupId'] as String? ?? '';
+      if (gid.isEmpty || otherMemberByGroup.containsKey(gid)) continue;
+      otherMemberByGroup[gid] = Map<String, dynamic>.from(row);
+    }
+
+    // 4. ALL latest messages for ALL direct groups in ONE query.
+    // Fetch up to 200 rows (newest-first), then take newest per groupId.
+    final lastMsgsResp = await client
+        .from('ChatMessage')
+        .select()
+        .inFilter('groupId', directGroupIds)
+        .eq('isDeletedForEveryone', false)
+        .order('createdAt', ascending: false)
+        .limit(200)
+        .timeout(const Duration(seconds: 10));
+    final lastMsgByGroup = <String, ChatMessage>{};
+    for (final row in lastMsgsResp as List) {
+      if (row is! Map) continue;
+      final gid = row['groupId'] as String? ?? '';
+      if (gid.isEmpty || lastMsgByGroup.containsKey(gid)) continue;
+      lastMsgByGroup[gid] = ChatMessage.fromJson(row.cast<String, dynamic>());
+    }
+
+    // 5. ALL unread rows for ALL direct groups in ONE query.
+    // Fetch the groupId of every unread row, then count per group.
+    final unreadResp = await client
+        .from('ChatMessage')
+        .select('groupId')
+        .inFilter('groupId', directGroupIds)
+        .eq('isDeletedForEveryone', false)
+        .eq('isRead', false)
+        .neq('senderId', myUserId)
+        .neq('messageType', 'system')
+        .timeout(const Duration(seconds: 10));
+    final unreadCounts = <String, int>{};
+    for (final row in unreadResp as List) {
+      if (row is! Map) continue;
+      final gid = row['groupId'] as String? ?? '';
+      if (gid.isEmpty) continue;
+      unreadCounts[gid] = (unreadCounts[gid] ?? 0) + 1;
+    }
+
+    // ── Build the items from the batched data ──────────────────────
     final items = <DirectGroupInboxItem>[];
     for (final g in groups) {
       final gMap = g as Map<String, dynamic>;
@@ -284,51 +348,15 @@ final directGroupInboxProvider =
       final familyId = gMap['familyId'] as String? ?? '';
       if (groupId.isEmpty) continue;
 
-      // 3. The other member (RLS lets me see my direct groups' members).
-      final others = await client
-          .from('GroupMember')
-          .select()
-          .eq('groupId', groupId)
-          .neq('userId', myUserId)
-          .limit(1)
-          .timeout(const Duration(seconds: 5));
-      if (others.isEmpty) continue;
-      final other = others.first;
+      final other = otherMemberByGroup[groupId];
+      if (other == null) continue;
       final otherUserId = other['userId'] as String? ?? '';
       if (otherUserId.isEmpty) continue;
-      final otherUserName =
-          other['displayName'] as String? ?? gMap['name'] as String? ?? 'Member';
+      final otherUserName = other['displayName'] as String? ??
+          gMap['name'] as String? ??
+          'Member';
 
-      // 4. Last message + unread count (system rows never count).
-      ChatMessage? last;
-      try {
-        final lastResp = await client
-            .from('ChatMessage')
-            .select()
-            .eq('groupId', groupId)
-            .eq('isDeletedForEveryone', false)
-            .order('createdAt', ascending: false)
-            .limit(1)
-            .timeout(const Duration(seconds: 5));
-        if (lastResp.isNotEmpty) {
-          last = ChatMessage.fromJson(lastResp.first);
-        }
-      } catch (_) {}
-
-      var unread = 0;
-      try {
-        final unreadResp = await client
-            .from('ChatMessage')
-            .select('id')
-            .eq('groupId', groupId)
-            .eq('isDeletedForEveryone', false)
-            .eq('isRead', false)
-            .neq('senderId', myUserId)
-            .neq('messageType', 'system')
-            .count()
-            .timeout(const Duration(seconds: 5));
-        unread = unreadResp.count;
-      } catch (_) {}
+      final last = lastMsgByGroup[groupId];
 
       items.add(DirectGroupInboxItem(
         groupId: groupId,
@@ -341,7 +369,7 @@ final directGroupInboxProvider =
             DateTime.tryParse(gMap['updatedAt'] as String? ?? '') ??
             DateTime.tryParse(gMap['createdAt'] as String? ?? '') ??
             DateTime.fromMillisecondsSinceEpoch(0),
-        unreadCount: unread,
+        unreadCount: unreadCounts[groupId] ?? 0,
         isArchived: prefs.getBool('dm_archived_$otherUserId') ?? false,
       ));
     }

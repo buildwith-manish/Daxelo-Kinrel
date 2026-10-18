@@ -33,6 +33,9 @@ class ChatInputBar extends StatelessWidget {
     required this.focusNode,
     required this.isComposing,
     required this.onSend,
+    // feat(chat): scheduled messages — long-press the send button opens
+    // the schedule sheet. Null = scheduling not available.
+    this.onSchedule,
     this.showAttach = true,
     this.showEmoji = true,
     this.showStickers = true,
@@ -62,6 +65,12 @@ class ChatInputBar extends StatelessWidget {
 
   /// Called when the send button is tapped.
   final VoidCallback onSend;
+
+  // feat(chat): scheduled messages — long-press the send button opens
+  // the schedule sheet. Null = scheduling not available (e.g. empty
+  // text — the send button is hidden when not composing, so this
+  // callback is only invoked from the active send button).
+  final VoidCallback? onSchedule;
 
   // ── Visibility flags ─────────────────────────────────────────────
   final bool showAttach;
@@ -189,6 +198,7 @@ class ChatInputBar extends StatelessWidget {
                             icon: Icons.send,
                             semanticsLabel: 'Send message',
                             onTap: onSend,
+                            onLongPress: onSchedule,
                           )
                         : (showVoice && onStartRecording != null)
                             ? _RoundActionCircle(
@@ -284,11 +294,16 @@ class _RoundActionCircle extends StatelessWidget {
     required this.icon,
     required this.semanticsLabel,
     this.onTap,
+    this.onLongPress,
   });
 
   final IconData icon;
   final String semanticsLabel;
   final VoidCallback? onTap;
+  // feat(chat): scheduled messages — long-press the send button opens
+  // the ScheduleMessageSheet (so the user can pick "Later today",
+  // "Tomorrow morning", or a custom date+time).
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -297,6 +312,7 @@ class _RoundActionCircle extends StatelessWidget {
       button: true,
       child: GestureDetector(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Container(
           width: 40,
           height: 40,

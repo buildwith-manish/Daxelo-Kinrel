@@ -90,5 +90,222 @@
   "familyMapLegendTierStale": "پرانا",
   "familyMapLegendTierStaleDesc": "< 1 گھنٹہ پہلے",
   "familyMapLegendTierCity": "شہر",
-  "familyMapLegendTierCityDesc": "شہر کا مرکز"
+  "familyMapLegendTierCityDesc": "شہر کا مرکز",
+  "chatReportMenuItem": "رپورٹ کریں",
+  "chatReportSheetTitle": "اس پیغام کی رپورٹ کریں",
+  "chatReportSheetSubtitle": "{senderName} کا پیغام منتظمین کو رپورٹ کریں",
+  "@chatReportSheetSubtitle": {
+    "description": "Chat block/report string: chatReportSheetSubtitle",
+    "placeholders": {
+      "senderName": {
+        "type": "String"
+      }
+    }
+  },
+  "chatReportNoPreview": "(پیش نظارہ نہیں)",
+  "chatReportReasonLabel": "آپ کیوں رپورٹ کر رہے ہیں؟",
+  "chatReportReasonSpam": "اسپام",
+  "chatReportReasonHarassment": "ہراسمنٹ",
+  "chatReportReasonInappropriateContent": "نامناسب مواد",
+  "chatReportReasonOther": "دیگر",
+  "chatReportDescriptionLabel": "تفصیل شامل کریں (اختیاری)",
+  "chatReportDescriptionHint": "بتائیں کیا غلط ہے",
+  "chatReportCancel": "منسوخ کریں",
+  "chatReportSubmit": "رپورٹ جمع کریں",
+  "chatReportSubmitted": "رپورٹ جمع ہوگئی۔ شکریہ۔",
+  "chatReportAlreadyReported": "آپ پہلے ہی اس پیغام کی رپورٹ کرچکے ہیں۔",
+  "chatReportFailed": "رپورٹ جمع کرنے میں ناکام۔ دوبارہ کوشش کریں۔",
+  "chatBlockedMessagePlaceholder": "بلاک شدہ صارف کا پیغام",
+  "chatBlockedMessageShow": "دکھائیں",
+  "chatBlockedMessageHide": "چھپائیں",
+  "chatBlockMenuItem": "بلاک کریں",
+  "chatBlockFromMessageMenuItem": "اس صارف کو بلاک کریں",
+  "chatBlockDialogTitle": "{name} کو بلاک کریں؟",
+  "@chatBlockDialogTitle": {
+    "description": "Chat block/report string: chatBlockDialogTitle",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatBlockDialogBody": "وہ آپ کو براہ راست پیغامات نہیں بھیج سکیں گے، اور آپ بھی انہیں نہیں بھیج سکیں گے۔ گروپ چیٹ میں ان کے پیغامات پلیس ہولڈر کے پیچھے چھپائے جائیں گے۔ انہیں نہیں بتایا جائے گا کہ انہیں بلاک کیا گیا ہے۔",
+  "chatBlockDialogConfirm": "بلاک کریں",
+  "chatBlockDialogCancel": "منسوخ کریں",
+  "chatBlockSucceeded": "صارف بلاک کردیا گیا۔",
+  "chatBlockFailed": "صارف کو بلاک کرنے میں ناکام۔ دوبارہ کوشش کریں۔",
+  "chatBlockedDirectHeader": "آپ نے اس شخص کو بلاک کیا ہے",
+  "chatBlockedDirectUnblockButton": "ان بلاک کریں",
+  "chatDraftPrefix": "مسودہ: {text}",
+  "@chatDraftPrefix": {
+    "description": "Chat drafts/schedule string: chatDraftPrefix",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleMenuItem": "طے شدہ پیغامات",
+  "chatScheduleSheetTitle": "پیغام طے کریں",
+  "chatScheduleSheetSubtitle": "\"{content}\" کو بعد میں بھیجیں",
+  "@chatScheduleSheetSubtitle": {
+    "description": "Chat drafts/schedule string: chatScheduleSheetSubtitle",
+    "placeholders": {
+      "content": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleQuickLaterToday": "آج شام",
+  "chatScheduleQuickTomorrow": "کل صبح",
+  "chatScheduleQuickWeekend": "اس ہفتے کے آخر میں",
+  "chatScheduleQuickCustom": "کسٹم...",
+  "chatScheduleQuickCustomHint": "تاریخ اور وقت منتخب کریں",
+  "chatScheduleCancel": "منسوخ کریں",
+  "chatScheduleSuccess": "{time} کے لیے طے شدہ",
+  "@chatScheduleSuccess": {
+    "description": "Chat drafts/schedule string: chatScheduleSuccess",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSchedulePastTimeRejected": "مستقبل میں وقت منتخب کریں",
+  "chatScheduleNotSignedIn": "طے کرنے کے لیے سائن ان کریں",
+  "chatScheduleFailed": "طے کرنے میں ناکام۔ دوبارہ کوشش کریں۔",
+  "chatScheduleDatePickerHelp": "تاریخ منتخب کریں",
+  "chatScheduleTimePickerHelp": "وقت منتخب کریں",
+  "chatScheduledListTitle": "طے شدہ پیغامات",
+  "chatScheduledListEmpty": "اس چیٹ میں کوئی طے شدہ پیغامات نہیں ہیں۔",
+  "chatScheduledListCancel": "منسوخ",
+  "chatScheduledListRetry": "دوبارہ کوشش",
+  "chatScheduledListEditTime": "وقت میں ترمیم",
+  "chatScheduledListEditText": "ٹیکسٹ میں ترمیم",
+  "chatScheduledListFailed": "بھیجنے میں ناکام",
+  "chatScheduledListSendingAt": "{time} پر بھیجا جا رہا ہے",
+  "@chatScheduledListSendingAt": {
+    "description": "Chat drafts/schedule string: chatScheduledListSendingAt",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduledListSentAt": "{time} پر بھیجا گیا",
+  "@chatScheduledListSentAt": {
+    "description": "Chat drafts/schedule string: chatScheduledListSentAt",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleCancelled": "طے شدہ پیغام منسوخ کر دیا گیا۔",
+  "chatScheduleRetried": "طے شدہ پیغام دوبارہ کوشش کیا گیا۔",
+  "chatScheduleEditTimeUpdated": "وقت اپ ڈیٹ ہوا۔",
+  "chatScheduleEditTextUpdated": "ٹیکسٹ اپ ڈیٹ ہوا۔",
+  "chatAttachEvent": "ایونٹ",
+  "chatAttachEventCreateNew": "نیا ایونٹ بنائیں",
+  "chatAttachEventPickExisting": "موجودہ ایونٹ منتخب کریں",
+  "chatEventCardNoTitle": "خاندانی ایونٹ",
+  "chatEventCardDeleted": "ایونٹ اب دستیاب نہیں",
+  "chatEventRsvpGoing": "{count} آ رہے ہیں",
+  "@chatEventRsvpGoing": {
+    "description": "Family event card string: chatEventRsvpGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpMaybe": "{count} شاید",
+  "@chatEventRsvpMaybe": {
+    "description": "Family event card string: chatEventRsvpMaybe",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpNotGoing": "{count} نہیں آ سکتے",
+  "@chatEventRsvpNotGoing": {
+    "description": "Family event card string: chatEventRsvpNotGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpGoingLabel": "آ رہا ہوں",
+  "chatEventRsvpMaybeLabel": "شاید",
+  "chatEventRsvpNotGoingLabel": "نہیں آ سکتا",
+  "chatEventCardSemantics": "خاندانی ایونٹ کارڈ: {date} کو {title} پر {location}۔ {going} آ رہے ہیں، {maybe} شاید، {notGoing} نہیں آ سکتے۔",
+  "@chatEventCardSemantics": {
+    "description": "Family event card string: chatEventCardSemantics",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      },
+      "location": {
+        "type": "String"
+      },
+      "going": {
+        "type": "int"
+      },
+      "maybe": {
+        "type": "int"
+      },
+      "notGoing": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventCardSemanticsDeleted": "خاندانی ایونٹ کارڈ: ایونٹ اب دستیاب نہیں۔",
+  "chatInboxFilterAll": "سبھی",
+  "chatInboxFilterUnread": "غیر پڑھے",
+  "chatInboxFilterGroups": "گروپس",
+  "chatInboxFilterDirect": "ڈائریکٹ",
+  "chatInboxEmptyUnread": "کوئی غیر پڑھی چیٹ نہیں",
+  "chatInboxEmptyGroups": "کوئی گروپ چیٹ نہیں",
+  "chatInboxEmptyDirect": "کوئی ڈائریکٹ پیغام نہیں",
+  "chatInboxNoMessages": "چیٹ شروع کرنے کے لیے ٹیپ کریں",
+  "chatInboxArchiveAction": "آرکائیو",
+  "chatInboxArchived": "آرکائیو شدہ",
+  "chatInboxArchivedCount": "{count} {count, plural, =1{باتچیت} other{باتچیتیں}}",
+  "@chatInboxArchivedCount": {
+    "description": "Unified inbox string: chatInboxArchivedCount",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticGroup": "گروپ چیٹ، {title}، {count} غیر پڑھے",
+  "@chatInboxRowSemanticGroup": {
+    "description": "Unified inbox string: chatInboxRowSemanticGroup",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticDirect": "ڈائریکٹ پیغام، {title}، {count} غیر پڑھے",
+  "@chatInboxRowSemanticDirect": {
+    "description": "Unified inbox string: chatInboxRowSemanticDirect",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

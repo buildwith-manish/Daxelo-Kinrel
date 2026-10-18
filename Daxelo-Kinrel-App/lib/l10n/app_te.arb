@@ -121,5 +121,222 @@
   "chatSystemMessageUserLeft": "{name} రూమ్ వదిలి వెళ్లారు",
   "chatSystemMessageUserDisconnected": "{name} డిస్కనెక్ట్ అయ్యారు",
   "chatSystemMessageRoomClosed": "{name} రూమ్ మూసివేశారు",
-  "chatSystemMessageUserReacted": "{name} ప్రతిస్పందించారు {emoji}"
+  "chatSystemMessageUserReacted": "{name} ప్రతిస్పందించారు {emoji}",
+  "chatReportMenuItem": "నివేదించం",
+  "chatReportSheetTitle": "ఈ సందేశాన్ని నివేదించం",
+  "chatReportSheetSubtitle": "{senderName} యొక్క సందేశాన్ని మాడరేటర్‌లకు నివేదించం",
+  "@chatReportSheetSubtitle": {
+    "description": "Chat block/report string: chatReportSheetSubtitle",
+    "placeholders": {
+      "senderName": {
+        "type": "String"
+      }
+    }
+  },
+  "chatReportNoPreview": "(ప్రివ్యూ లేదు)",
+  "chatReportReasonLabel": "మీరు ఎందుకు నివేదిస్తున్నారు?",
+  "chatReportReasonSpam": "స్పామ్",
+  "chatReportReasonHarassment": "వేధింపు",
+  "chatReportReasonInappropriateContent": "అనుచితమైన కంటెంట్",
+  "chatReportReasonOther": "ఇతర",
+  "chatReportDescriptionLabel": "వివరాలను జోడించం (ఐచ్ఛిక)",
+  "chatReportDescriptionHint": "ఏమి తప్పు జరిగిందో మాకు చెప్పండి",
+  "chatReportCancel": "రద్దు",
+  "chatReportSubmit": "నివేదిక సమర్పించం",
+  "chatReportSubmitted": "నివేదిక సమర్పించబడింది. ధన్యవాదాలు.",
+  "chatReportAlreadyReported": "మీరు ఇప్పటికే ఈ సందేశాన్ని నివేదించారు.",
+  "chatReportFailed": "నివేదిక సమర్పించడంలో విఫలమైంది. మళ్లీ ప్రయత్నించండి.",
+  "chatBlockedMessagePlaceholder": "బ్లాక్ చేయబడిన వినియోగదారుని సందేశం",
+  "chatBlockedMessageShow": "చూపించు",
+  "chatBlockedMessageHide": "దాచు",
+  "chatBlockMenuItem": "బ్లాక్ చేయి",
+  "chatBlockFromMessageMenuItem": "ఈ వినియోగదారుని బ్లాక్ చేయి",
+  "chatBlockDialogTitle": "{name} ను బ్లాక్ చేయాలా?",
+  "@chatBlockDialogTitle": {
+    "description": "Chat block/report string: chatBlockDialogTitle",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatBlockDialogBody": "వారు మీకు నేరుగా సందేశాలు పంపలేరు, మీరు కూడా వారికి పంపలేరు. గ్రూప్ చాట్‌లో వారి సందేశాలు ప్లేస్‌హోల్డర్ వెనుక దాచబడతాయి. వారిని బ్లాక్ చేశామని వారికి చెప్పరు.",
+  "chatBlockDialogConfirm": "బ్లాక్ చేయి",
+  "chatBlockDialogCancel": "రద్దు",
+  "chatBlockSucceeded": "వినియోగదారుడు బ్లాక్ చేయబడ్డారు.",
+  "chatBlockFailed": "వినియోగదారుని బ్లాక్ చేయడంలో విఫలమైంది. మళ్లీ ప్రయత్నించండి.",
+  "chatBlockedDirectHeader": "మీరు ఈ వ్యక్తిని బ్లాక్ చేశారు",
+  "chatBlockedDirectUnblockButton": "అన్‌బ్లాక్ చేయి",
+  "chatDraftPrefix": "డ్రాఫ్ట్: {text}",
+  "@chatDraftPrefix": {
+    "description": "Chat drafts/schedule string: chatDraftPrefix",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleMenuItem": "షెడ్యూల్ చేసిన సందేశాలు",
+  "chatScheduleSheetTitle": "సందేశాన్ని షెడ్యూల్ చేయండి",
+  "chatScheduleSheetSubtitle": "\"{content}\" ని తర్వాత పంపండి",
+  "@chatScheduleSheetSubtitle": {
+    "description": "Chat drafts/schedule string: chatScheduleSheetSubtitle",
+    "placeholders": {
+      "content": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleQuickLaterToday": "ఈరోజు సాయంత్రం",
+  "chatScheduleQuickTomorrow": "రేపు ఉదయ",
+  "chatScheduleQuickWeekend": "ఈ వారాంత్రం",
+  "chatScheduleQuickCustom": "కస్టమ్...",
+  "chatScheduleQuickCustomHint": "తేదీ మరియు సమయాన్ని ఎంచుకోండి",
+  "chatScheduleCancel": "రద్దు",
+  "chatScheduleSuccess": "{time} కు షెడ్యూల్ చేయబడింది",
+  "@chatScheduleSuccess": {
+    "description": "Chat drafts/schedule string: chatScheduleSuccess",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSchedulePastTimeRejected": "భవిష్యత్తులో సమయాన్ని ఎంచుకోండి",
+  "chatScheduleNotSignedIn": "షెడ్యూల్ చేయడానికి సైన్ ఇన్ అవ్వండి",
+  "chatScheduleFailed": "షెడ్యూల్ చేయడంలో విఫలం. మళ్లీ ప్రయత్నించండి.",
+  "chatScheduleDatePickerHelp": "తేదీని ఎంచుకోండి",
+  "chatScheduleTimePickerHelp": "సమయాన్ని ఎంచుకోండి",
+  "chatScheduledListTitle": "షెడ్యూల్ చేసిన సందేశాలు",
+  "chatScheduledListEmpty": "ఈ చాట్‌లో షెడ్యూల్ చేసిన సందేశాలు లేవు.",
+  "chatScheduledListCancel": "రద్దు",
+  "chatScheduledListRetry": "మళ్లీ ప్రయత్నించు",
+  "chatScheduledListEditTime": "సమయాన్ని సవరించు",
+  "chatScheduledListEditText": "టెక్స్ట్ సవరించు",
+  "chatScheduledListFailed": "పంపడంలో విఫలం",
+  "chatScheduledListSendingAt": "{time} కి పంపబడుతోంది",
+  "@chatScheduledListSendingAt": {
+    "description": "Chat drafts/schedule string: chatScheduledListSendingAt",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduledListSentAt": "{time} కి పంపబడింది",
+  "@chatScheduledListSentAt": {
+    "description": "Chat drafts/schedule string: chatScheduledListSentAt",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleCancelled": "షెడ్యూల్ చేసిన సందేశం రద్దు చేయబడింది.",
+  "chatScheduleRetried": "షెడ్యూల్ చేసిన సందేశం మళ్లీ ప్రయత్నించబడింది.",
+  "chatScheduleEditTimeUpdated": "సమయం నవీకరించబడింది.",
+  "chatScheduleEditTextUpdated": "టెక్స్ట్ నవీకరించబడింది.",
+  "chatAttachEvent": "కార్యక్రమం",
+  "chatAttachEventCreateNew": "కొత్త కార్యక్రమం సృష్టించండి",
+  "chatAttachEventPickExisting": "ఇప్పటికే ఉన్న కార్యక్రమం ఎంచుకోండి",
+  "chatEventCardNoTitle": "కుటుంబ కార్యక్రమం",
+  "chatEventCardDeleted": "కార్యక్రమం ఇకపై అందుబాటులో లేదు",
+  "chatEventRsvpGoing": "{count} వస్తున్నారు",
+  "@chatEventRsvpGoing": {
+    "description": "Family event card string: chatEventRsvpGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpMaybe": "{count} బహుశా",
+  "@chatEventRsvpMaybe": {
+    "description": "Family event card string: chatEventRsvpMaybe",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpNotGoing": "{count} రాలేరు",
+  "@chatEventRsvpNotGoing": {
+    "description": "Family event card string: chatEventRsvpNotGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpGoingLabel": "వస్తున్నాను",
+  "chatEventRsvpMaybeLabel": "బహుశా",
+  "chatEventRsvpNotGoingLabel": "రాలేను",
+  "chatEventCardSemantics": "కుటుంబ కార్యక్రమ కార్డ్: {date} న {title} వద్ద {location}। {going} వస్తున్నారు, {maybe} బహుశా, {notGoing} రాలేరు।",
+  "@chatEventCardSemantics": {
+    "description": "Family event card string: chatEventCardSemantics",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      },
+      "location": {
+        "type": "String"
+      },
+      "going": {
+        "type": "int"
+      },
+      "maybe": {
+        "type": "int"
+      },
+      "notGoing": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventCardSemanticsDeleted": "కుటుంబ కార్యక్రమ కార్డ్: కార్యక్రమం ఇకపై అందుబాటులో లేదు।",
+  "chatInboxFilterAll": "అన్నీ",
+  "chatInboxFilterUnread": "చదవనివి",
+  "chatInboxFilterGroups": "గ్రూపులు",
+  "chatInboxFilterDirect": "డైరెక్ట్",
+  "chatInboxEmptyUnread": "చదవని చాట్‌లు లేవు",
+  "chatInboxEmptyGroups": "గ్రూప్ చాట్‌లు లేవు",
+  "chatInboxEmptyDirect": "డైరెక్ట్ సందేశాలు లేవు",
+  "chatInboxNoMessages": "చాట్ ప్రారంభించడానికి ట్యాప్ చేయండి",
+  "chatInboxArchiveAction": "ఆర్కైవ్",
+  "chatInboxArchived": "ఆర్కైవ్ చేయబడినవి",
+  "chatInboxArchivedCount": "{count} {count, plural, =1{సంభాషణ} other{సంభాషణలు}}",
+  "@chatInboxArchivedCount": {
+    "description": "Unified inbox string: chatInboxArchivedCount",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticGroup": "గ్రూప్ చాట్, {title}, {count} చదవనివి",
+  "@chatInboxRowSemanticGroup": {
+    "description": "Unified inbox string: chatInboxRowSemanticGroup",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticDirect": "డైరెక్ట్ సందేశం, {title}, {count} చదవనివి",
+  "@chatInboxRowSemanticDirect": {
+    "description": "Unified inbox string: chatInboxRowSemanticDirect",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

@@ -1298,6 +1298,517 @@ abstract class S {
   /// In en, this message translates to:
   /// **'{name} reacted {emoji}'**
   String chatSystemMessageUserReacted(String name, String emoji);
+
+  /// Chat block/report string: chatReportMenuItem
+  ///
+  /// In en, this message translates to:
+  /// **'Report'**
+  String get chatReportMenuItem;
+
+  /// Chat block/report string: chatReportSheetTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Report this message'**
+  String get chatReportSheetTitle;
+
+  /// Chat block/report string: chatReportSheetSubtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Report {senderName}\'s message to moderators'**
+  String chatReportSheetSubtitle(String senderName);
+
+  /// Chat block/report string: chatReportNoPreview
+  ///
+  /// In en, this message translates to:
+  /// **'(no preview available)'**
+  String get chatReportNoPreview;
+
+  /// Chat block/report string: chatReportReasonLabel
+  ///
+  /// In en, this message translates to:
+  /// **'Why are you reporting?'**
+  String get chatReportReasonLabel;
+
+  /// Chat block/report string: chatReportReasonSpam
+  ///
+  /// In en, this message translates to:
+  /// **'Spam'**
+  String get chatReportReasonSpam;
+
+  /// Chat block/report string: chatReportReasonHarassment
+  ///
+  /// In en, this message translates to:
+  /// **'Harassment'**
+  String get chatReportReasonHarassment;
+
+  /// Chat block/report string: chatReportReasonInappropriateContent
+  ///
+  /// In en, this message translates to:
+  /// **'Inappropriate content'**
+  String get chatReportReasonInappropriateContent;
+
+  /// Chat block/report string: chatReportReasonOther
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get chatReportReasonOther;
+
+  /// Chat block/report string: chatReportDescriptionLabel
+  ///
+  /// In en, this message translates to:
+  /// **'Add details (optional)'**
+  String get chatReportDescriptionLabel;
+
+  /// Chat block/report string: chatReportDescriptionHint
+  ///
+  /// In en, this message translates to:
+  /// **'Tell us more about what\'s wrong'**
+  String get chatReportDescriptionHint;
+
+  /// Chat block/report string: chatReportCancel
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get chatReportCancel;
+
+  /// Chat block/report string: chatReportSubmit
+  ///
+  /// In en, this message translates to:
+  /// **'Submit report'**
+  String get chatReportSubmit;
+
+  /// Chat block/report string: chatReportSubmitted
+  ///
+  /// In en, this message translates to:
+  /// **'Report submitted. Thank you.'**
+  String get chatReportSubmitted;
+
+  /// Chat block/report string: chatReportAlreadyReported
+  ///
+  /// In en, this message translates to:
+  /// **'You already reported this message.'**
+  String get chatReportAlreadyReported;
+
+  /// Chat block/report string: chatReportFailed
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to submit report. Try again.'**
+  String get chatReportFailed;
+
+  /// Chat block/report string: chatBlockedMessagePlaceholder
+  ///
+  /// In en, this message translates to:
+  /// **'Message from a blocked user'**
+  String get chatBlockedMessagePlaceholder;
+
+  /// Chat block/report string: chatBlockedMessageShow
+  ///
+  /// In en, this message translates to:
+  /// **'Show'**
+  String get chatBlockedMessageShow;
+
+  /// Chat block/report string: chatBlockedMessageHide
+  ///
+  /// In en, this message translates to:
+  /// **'Hide'**
+  String get chatBlockedMessageHide;
+
+  /// Chat block/report string: chatBlockMenuItem
+  ///
+  /// In en, this message translates to:
+  /// **'Block'**
+  String get chatBlockMenuItem;
+
+  /// Chat block/report string: chatBlockFromMessageMenuItem
+  ///
+  /// In en, this message translates to:
+  /// **'Block this user'**
+  String get chatBlockFromMessageMenuItem;
+
+  /// Chat block/report string: chatBlockDialogTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Block {name}?'**
+  String chatBlockDialogTitle(String name);
+
+  /// Chat block/report string: chatBlockDialogBody
+  ///
+  /// In en, this message translates to:
+  /// **'They won\'t be able to send you direct messages, and you won\'t be able to send them any. In group chats, their messages will be hidden behind a placeholder. They won\'t be told they were blocked.'**
+  String get chatBlockDialogBody;
+
+  /// Chat block/report string: chatBlockDialogConfirm
+  ///
+  /// In en, this message translates to:
+  /// **'Block'**
+  String get chatBlockDialogConfirm;
+
+  /// Chat block/report string: chatBlockDialogCancel
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get chatBlockDialogCancel;
+
+  /// Chat block/report string: chatBlockSucceeded
+  ///
+  /// In en, this message translates to:
+  /// **'User blocked.'**
+  String get chatBlockSucceeded;
+
+  /// Chat block/report string: chatBlockFailed
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to block user. Try again.'**
+  String get chatBlockFailed;
+
+  /// Chat block/report string: chatBlockedDirectHeader
+  ///
+  /// In en, this message translates to:
+  /// **'You blocked this person'**
+  String get chatBlockedDirectHeader;
+
+  /// Chat block/report string: chatBlockedDirectUnblockButton
+  ///
+  /// In en, this message translates to:
+  /// **'Unblock'**
+  String get chatBlockedDirectUnblockButton;
+
+  /// Chat drafts/schedule string: chatDraftPrefix
+  ///
+  /// In en, this message translates to:
+  /// **'Draft: {text}'**
+  String chatDraftPrefix(String text);
+
+  /// Chat drafts/schedule string: chatScheduleMenuItem
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled messages'**
+  String get chatScheduleMenuItem;
+
+  /// Chat drafts/schedule string: chatScheduleSheetTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Schedule message'**
+  String get chatScheduleSheetTitle;
+
+  /// Chat drafts/schedule string: chatScheduleSheetSubtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Send \"{content}\" at a later time'**
+  String chatScheduleSheetSubtitle(String content);
+
+  /// Chat drafts/schedule string: chatScheduleQuickLaterToday
+  ///
+  /// In en, this message translates to:
+  /// **'Later today'**
+  String get chatScheduleQuickLaterToday;
+
+  /// Chat drafts/schedule string: chatScheduleQuickTomorrow
+  ///
+  /// In en, this message translates to:
+  /// **'Tomorrow morning'**
+  String get chatScheduleQuickTomorrow;
+
+  /// Chat drafts/schedule string: chatScheduleQuickWeekend
+  ///
+  /// In en, this message translates to:
+  /// **'This weekend'**
+  String get chatScheduleQuickWeekend;
+
+  /// Chat drafts/schedule string: chatScheduleQuickCustom
+  ///
+  /// In en, this message translates to:
+  /// **'Custom...'**
+  String get chatScheduleQuickCustom;
+
+  /// Chat drafts/schedule string: chatScheduleQuickCustomHint
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a date and time'**
+  String get chatScheduleQuickCustomHint;
+
+  /// Chat drafts/schedule string: chatScheduleCancel
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get chatScheduleCancel;
+
+  /// Chat drafts/schedule string: chatScheduleSuccess
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled for {time}'**
+  String chatScheduleSuccess(String time);
+
+  /// Chat drafts/schedule string: chatSchedulePastTimeRejected
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a time in the future'**
+  String get chatSchedulePastTimeRejected;
+
+  /// Chat drafts/schedule string: chatScheduleNotSignedIn
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to schedule messages'**
+  String get chatScheduleNotSignedIn;
+
+  /// Chat drafts/schedule string: chatScheduleFailed
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to schedule. Try again.'**
+  String get chatScheduleFailed;
+
+  /// Chat drafts/schedule string: chatScheduleDatePickerHelp
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a date'**
+  String get chatScheduleDatePickerHelp;
+
+  /// Chat drafts/schedule string: chatScheduleTimePickerHelp
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a time'**
+  String get chatScheduleTimePickerHelp;
+
+  /// Chat drafts/schedule string: chatScheduledListTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled messages'**
+  String get chatScheduledListTitle;
+
+  /// Chat drafts/schedule string: chatScheduledListEmpty
+  ///
+  /// In en, this message translates to:
+  /// **'No scheduled messages in this chat.'**
+  String get chatScheduledListEmpty;
+
+  /// Chat drafts/schedule string: chatScheduledListCancel
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get chatScheduledListCancel;
+
+  /// Chat drafts/schedule string: chatScheduledListRetry
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get chatScheduledListRetry;
+
+  /// Chat drafts/schedule string: chatScheduledListEditTime
+  ///
+  /// In en, this message translates to:
+  /// **'Edit time'**
+  String get chatScheduledListEditTime;
+
+  /// Chat drafts/schedule string: chatScheduledListEditText
+  ///
+  /// In en, this message translates to:
+  /// **'Edit text'**
+  String get chatScheduledListEditText;
+
+  /// Chat drafts/schedule string: chatScheduledListFailed
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send'**
+  String get chatScheduledListFailed;
+
+  /// Chat drafts/schedule string: chatScheduledListSendingAt
+  ///
+  /// In en, this message translates to:
+  /// **'Sending at {time}'**
+  String chatScheduledListSendingAt(String time);
+
+  /// Chat drafts/schedule string: chatScheduledListSentAt
+  ///
+  /// In en, this message translates to:
+  /// **'Sent at {time}'**
+  String chatScheduledListSentAt(String time);
+
+  /// Chat drafts/schedule string: chatScheduleCancelled
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled message cancelled.'**
+  String get chatScheduleCancelled;
+
+  /// Chat drafts/schedule string: chatScheduleRetried
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled message retried.'**
+  String get chatScheduleRetried;
+
+  /// Chat drafts/schedule string: chatScheduleEditTimeUpdated
+  ///
+  /// In en, this message translates to:
+  /// **'Time updated.'**
+  String get chatScheduleEditTimeUpdated;
+
+  /// Chat drafts/schedule string: chatScheduleEditTextUpdated
+  ///
+  /// In en, this message translates to:
+  /// **'Text updated.'**
+  String get chatScheduleEditTextUpdated;
+
+  /// Family event card string: chatAttachEvent
+  ///
+  /// In en, this message translates to:
+  /// **'Event'**
+  String get chatAttachEvent;
+
+  /// Family event card string: chatAttachEventCreateNew
+  ///
+  /// In en, this message translates to:
+  /// **'Create a new event'**
+  String get chatAttachEventCreateNew;
+
+  /// Family event card string: chatAttachEventPickExisting
+  ///
+  /// In en, this message translates to:
+  /// **'Pick an existing event'**
+  String get chatAttachEventPickExisting;
+
+  /// Family event card string: chatEventCardNoTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Family event'**
+  String get chatEventCardNoTitle;
+
+  /// Family event card string: chatEventCardDeleted
+  ///
+  /// In en, this message translates to:
+  /// **'Event no longer available'**
+  String get chatEventCardDeleted;
+
+  /// Family event card string: chatEventRsvpGoing
+  ///
+  /// In en, this message translates to:
+  /// **'{count} going'**
+  String chatEventRsvpGoing(int count);
+
+  /// Family event card string: chatEventRsvpMaybe
+  ///
+  /// In en, this message translates to:
+  /// **'{count} maybe'**
+  String chatEventRsvpMaybe(int count);
+
+  /// Family event card string: chatEventRsvpNotGoing
+  ///
+  /// In en, this message translates to:
+  /// **'{count} can\'t go'**
+  String chatEventRsvpNotGoing(int count);
+
+  /// Family event card string: chatEventRsvpGoingLabel
+  ///
+  /// In en, this message translates to:
+  /// **'Going'**
+  String get chatEventRsvpGoingLabel;
+
+  /// Family event card string: chatEventRsvpMaybeLabel
+  ///
+  /// In en, this message translates to:
+  /// **'Maybe'**
+  String get chatEventRsvpMaybeLabel;
+
+  /// Family event card string: chatEventRsvpNotGoingLabel
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t go'**
+  String get chatEventRsvpNotGoingLabel;
+
+  /// Family event card string: chatEventCardSemantics
+  ///
+  /// In en, this message translates to:
+  /// **'Family event card: {title} on {date} at {location}. {going} going, {maybe} maybe, {notGoing} can\'t go.'**
+  String chatEventCardSemantics(
+    String title,
+    String date,
+    String location,
+    int going,
+    int maybe,
+    int notGoing,
+  );
+
+  /// Family event card string: chatEventCardSemanticsDeleted
+  ///
+  /// In en, this message translates to:
+  /// **'Family event card: event no longer available.'**
+  String get chatEventCardSemanticsDeleted;
+
+  /// Unified inbox string: chatInboxFilterAll
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get chatInboxFilterAll;
+
+  /// Unified inbox string: chatInboxFilterUnread
+  ///
+  /// In en, this message translates to:
+  /// **'Unread'**
+  String get chatInboxFilterUnread;
+
+  /// Unified inbox string: chatInboxFilterGroups
+  ///
+  /// In en, this message translates to:
+  /// **'Groups'**
+  String get chatInboxFilterGroups;
+
+  /// Unified inbox string: chatInboxFilterDirect
+  ///
+  /// In en, this message translates to:
+  /// **'Direct'**
+  String get chatInboxFilterDirect;
+
+  /// Unified inbox string: chatInboxEmptyUnread
+  ///
+  /// In en, this message translates to:
+  /// **'No unread chats'**
+  String get chatInboxEmptyUnread;
+
+  /// Unified inbox string: chatInboxEmptyGroups
+  ///
+  /// In en, this message translates to:
+  /// **'No group chats'**
+  String get chatInboxEmptyGroups;
+
+  /// Unified inbox string: chatInboxEmptyDirect
+  ///
+  /// In en, this message translates to:
+  /// **'No direct messages'**
+  String get chatInboxEmptyDirect;
+
+  /// Unified inbox string: chatInboxNoMessages
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to start chatting'**
+  String get chatInboxNoMessages;
+
+  /// Unified inbox string: chatInboxArchiveAction
+  ///
+  /// In en, this message translates to:
+  /// **'Archive'**
+  String get chatInboxArchiveAction;
+
+  /// Unified inbox string: chatInboxArchived
+  ///
+  /// In en, this message translates to:
+  /// **'Archived'**
+  String get chatInboxArchived;
+
+  /// Unified inbox string: chatInboxArchivedCount
+  ///
+  /// In en, this message translates to:
+  /// **'{count} {count, plural, =1{conversation} other{conversations}}'**
+  String chatInboxArchivedCount(int count);
+
+  /// Unified inbox string: chatInboxRowSemanticGroup
+  ///
+  /// In en, this message translates to:
+  /// **'Group chat, {title}, {count} unread'**
+  String chatInboxRowSemanticGroup(String title, int count);
+
+  /// Unified inbox string: chatInboxRowSemanticDirect
+  ///
+  /// In en, this message translates to:
+  /// **'Direct message, {title}, {count} unread'**
+  String chatInboxRowSemanticDirect(String title, int count);
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

@@ -700,4 +700,306 @@ class SHi extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name ने प्रतिक्रिया दी $emoji';
   }
+
+  @override
+  String get chatReportMenuItem => 'रिपोर्ट करें';
+
+  @override
+  String get chatReportSheetTitle => 'इस संदेश की रिपोर्ट करें';
+
+  @override
+  String chatReportSheetSubtitle(String senderName) {
+    return '$senderName का संदेश मॉडरेटर को रिपोर्ट करें';
+  }
+
+  @override
+  String get chatReportNoPreview => '(कोई पूर्वावलोकन नहीं)';
+
+  @override
+  String get chatReportReasonLabel => 'आप यह क्यों रिपोर्ट कर रहे हैं?';
+
+  @override
+  String get chatReportReasonSpam => 'स्पैम';
+
+  @override
+  String get chatReportReasonHarassment => 'उत्पीड़न';
+
+  @override
+  String get chatReportReasonInappropriateContent => 'अनुपयुक्त सामग्री';
+
+  @override
+  String get chatReportReasonOther => 'अन्य';
+
+  @override
+  String get chatReportDescriptionLabel => 'विवरण जोड़ें (वैकल्पिक)';
+
+  @override
+  String get chatReportDescriptionHint => 'बताएं कि क्या गलत है';
+
+  @override
+  String get chatReportCancel => 'रद्द करें';
+
+  @override
+  String get chatReportSubmit => 'रिपोर्ट सबमिट करें';
+
+  @override
+  String get chatReportSubmitted => 'रिपोर्ट सबमिट हुई। धन्यवाद।';
+
+  @override
+  String get chatReportAlreadyReported =>
+      'आपने पहले ही इस संदेश की रिपोर्ट की है।';
+
+  @override
+  String get chatReportFailed =>
+      'रिपोर्ट सबमिट करने में विफल। पुनः प्रयास करें।';
+
+  @override
+  String get chatBlockedMessagePlaceholder =>
+      'ब्लॉक किए गए उपयोगकर्ता का संदेश';
+
+  @override
+  String get chatBlockedMessageShow => 'दिखाएं';
+
+  @override
+  String get chatBlockedMessageHide => 'छिपाएं';
+
+  @override
+  String get chatBlockMenuItem => 'ब्लॉक करें';
+
+  @override
+  String get chatBlockFromMessageMenuItem => 'इस उपयोगकर्ता को ब्लॉक करें';
+
+  @override
+  String chatBlockDialogTitle(String name) {
+    return '$name को ब्लॉक करें?';
+  }
+
+  @override
+  String get chatBlockDialogBody =>
+      'वे आपको डायरेक्ट संदेश नहीं भेज सकेंगे, और आप भी उन्हें नहीं भेज सकेंगे। ग्रुप चैट में उनके संदेश प्लेसहोल्डर के पीछे छिपे रहेंगे। उन्हें नहीं बताया जाएगा कि उन्हें ब्लॉक किया गया है।';
+
+  @override
+  String get chatBlockDialogConfirm => 'ब्लॉक करें';
+
+  @override
+  String get chatBlockDialogCancel => 'रद्द करें';
+
+  @override
+  String get chatBlockSucceeded => 'उपयोगकर्ता ब्लॉक कर दिया गया।';
+
+  @override
+  String get chatBlockFailed =>
+      'उपयोगकर्ता को ब्लॉक करने में विफल। पुनः प्रयास करें।';
+
+  @override
+  String get chatBlockedDirectHeader => 'आपने इस व्यक्ति को ब्लॉक किया है';
+
+  @override
+  String get chatBlockedDirectUnblockButton => 'अनब्लॉक करें';
+
+  @override
+  String chatDraftPrefix(String text) {
+    return 'ड्राफ्ट: $text';
+  }
+
+  @override
+  String get chatScheduleMenuItem => 'शेड्यूल किए गए संदेश';
+
+  @override
+  String get chatScheduleSheetTitle => 'संदेश शेड्यूल करें';
+
+  @override
+  String chatScheduleSheetSubtitle(String content) {
+    return '\"$content\" बाद में भेजें';
+  }
+
+  @override
+  String get chatScheduleQuickLaterToday => 'आज शाम';
+
+  @override
+  String get chatScheduleQuickTomorrow => 'कल सुबह';
+
+  @override
+  String get chatScheduleQuickWeekend => 'इस सप्ताहांत';
+
+  @override
+  String get chatScheduleQuickCustom => 'कस्टम...';
+
+  @override
+  String get chatScheduleQuickCustomHint => 'तारीख और समय चुनें';
+
+  @override
+  String get chatScheduleCancel => 'रद्द करें';
+
+  @override
+  String chatScheduleSuccess(String time) {
+    return '$time के लिए शेड्यूल किया';
+  }
+
+  @override
+  String get chatSchedulePastTimeRejected => 'भविष्य में समय चुनें';
+
+  @override
+  String get chatScheduleNotSignedIn => 'शेड्यूल करने के लिए साइन इन करें';
+
+  @override
+  String get chatScheduleFailed => 'शेड्यूल करने में विफल। पुनः प्रयास करें।';
+
+  @override
+  String get chatScheduleDatePickerHelp => 'तारीख चुनें';
+
+  @override
+  String get chatScheduleTimePickerHelp => 'समय चुनें';
+
+  @override
+  String get chatScheduledListTitle => 'शेड्यूल किए गए संदेश';
+
+  @override
+  String get chatScheduledListEmpty =>
+      'इस चैट में कोई शेड्यूल किए गए संदेश नहीं हैं।';
+
+  @override
+  String get chatScheduledListCancel => 'रद्द करें';
+
+  @override
+  String get chatScheduledListRetry => 'पुनः प्रयास';
+
+  @override
+  String get chatScheduledListEditTime => 'समय संपादित करें';
+
+  @override
+  String get chatScheduledListEditText => 'टेक्स्ट संपादित करें';
+
+  @override
+  String get chatScheduledListFailed => 'भेजने में विफल';
+
+  @override
+  String chatScheduledListSendingAt(String time) {
+    return '$time पर भेजा जा रहा है';
+  }
+
+  @override
+  String chatScheduledListSentAt(String time) {
+    return '$time पर भेजा गया';
+  }
+
+  @override
+  String get chatScheduleCancelled =>
+      'शेड्यूल किया गया संदेश रद्द कर दिया गया।';
+
+  @override
+  String get chatScheduleRetried =>
+      'शेड्यूल किए गए संदेश को पुनः प्रयास किया गया।';
+
+  @override
+  String get chatScheduleEditTimeUpdated => 'समय अपडेट किया गया।';
+
+  @override
+  String get chatScheduleEditTextUpdated => 'टेक्स्ट अपडेट किया गया।';
+
+  @override
+  String get chatAttachEvent => 'कार्यक्रम';
+
+  @override
+  String get chatAttachEventCreateNew => 'नया कार्यक्रम बनाएं';
+
+  @override
+  String get chatAttachEventPickExisting => 'मौजूदा कार्यक्रम चुनें';
+
+  @override
+  String get chatEventCardNoTitle => 'परिवार कार्यक्रम';
+
+  @override
+  String get chatEventCardDeleted => 'कार्यक्रम अब उपलब्ध नहीं है';
+
+  @override
+  String chatEventRsvpGoing(int count) {
+    return '$count जा रहे हैं';
+  }
+
+  @override
+  String chatEventRsvpMaybe(int count) {
+    return '$count शायद';
+  }
+
+  @override
+  String chatEventRsvpNotGoing(int count) {
+    return '$count नहीं जा सकते';
+  }
+
+  @override
+  String get chatEventRsvpGoingLabel => 'जा रहे हैं';
+
+  @override
+  String get chatEventRsvpMaybeLabel => 'शायद';
+
+  @override
+  String get chatEventRsvpNotGoingLabel => 'नहीं जा सकते';
+
+  @override
+  String chatEventCardSemantics(
+    String title,
+    String date,
+    String location,
+    int going,
+    int maybe,
+    int notGoing,
+  ) {
+    return 'परिवार कार्यक्रम कार्ड: $date को $title स्थान पर $location। $going जा रहे हैं, $maybe शायद, $notGoing नहीं जा सकते।';
+  }
+
+  @override
+  String get chatEventCardSemanticsDeleted =>
+      'परिवार कार्यक्रम कार्ड: कार्यक्रम अब उपलब्ध नहीं है।';
+
+  @override
+  String get chatInboxFilterAll => 'सभी';
+
+  @override
+  String get chatInboxFilterUnread => 'अपठित';
+
+  @override
+  String get chatInboxFilterGroups => 'समूह';
+
+  @override
+  String get chatInboxFilterDirect => 'डायरेक्ट';
+
+  @override
+  String get chatInboxEmptyUnread => 'कोई अपठित चैट नहीं';
+
+  @override
+  String get chatInboxEmptyGroups => 'कोई समूह चैट नहीं';
+
+  @override
+  String get chatInboxEmptyDirect => 'कोई डायरेक्ट मैसेज नहीं';
+
+  @override
+  String get chatInboxNoMessages => 'चैट शुरू करने के लिए टैप करें';
+
+  @override
+  String get chatInboxArchiveAction => 'आर्काइव';
+
+  @override
+  String get chatInboxArchived => 'आर्काइव किए गए';
+
+  @override
+  String chatInboxArchivedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'वार्तालाप',
+      one: 'वार्तालाप',
+    );
+    return '$count $_temp0';
+  }
+
+  @override
+  String chatInboxRowSemanticGroup(String title, int count) {
+    return 'समूह चैट, $title, $count अपठित';
+  }
+
+  @override
+  String chatInboxRowSemanticDirect(String title, int count) {
+    return 'डायरेक्ट संदेश, $title, $count अपठित';
+  }
 }

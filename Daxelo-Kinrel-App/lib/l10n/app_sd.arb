@@ -90,5 +90,222 @@
   "familyMapLegendTierStale": "پراڻو",
   "familyMapLegendTierStaleDesc": "< 1 ڪلاڪ اڳ",
   "familyMapLegendTierCity": "شهر",
-  "familyMapLegendTierCityDesc": "شهر مرڪز"
+  "familyMapLegendTierCityDesc": "شهر مرڪز",
+  "chatReportMenuItem": "Report",
+  "chatReportSheetTitle": "Report this message",
+  "chatReportSheetSubtitle": "Report {senderName}'s message to moderators",
+  "@chatReportSheetSubtitle": {
+    "description": "Chat block/report string: chatReportSheetSubtitle",
+    "placeholders": {
+      "senderName": {
+        "type": "String"
+      }
+    }
+  },
+  "chatReportNoPreview": "(no preview available)",
+  "chatReportReasonLabel": "Why are you reporting?",
+  "chatReportReasonSpam": "Spam",
+  "chatReportReasonHarassment": "Harassment",
+  "chatReportReasonInappropriateContent": "Inappropriate content",
+  "chatReportReasonOther": "Other",
+  "chatReportDescriptionLabel": "Add details (optional)",
+  "chatReportDescriptionHint": "Tell us more about what's wrong",
+  "chatReportCancel": "Cancel",
+  "chatReportSubmit": "Submit report",
+  "chatReportSubmitted": "Report submitted. Thank you.",
+  "chatReportAlreadyReported": "You already reported this message.",
+  "chatReportFailed": "Failed to submit report. Try again.",
+  "chatBlockedMessagePlaceholder": "Message from a blocked user",
+  "chatBlockedMessageShow": "Show",
+  "chatBlockedMessageHide": "Hide",
+  "chatBlockMenuItem": "Block",
+  "chatBlockFromMessageMenuItem": "Block this user",
+  "chatBlockDialogTitle": "Block {name}?",
+  "@chatBlockDialogTitle": {
+    "description": "Chat block/report string: chatBlockDialogTitle",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatBlockDialogBody": "They won't be able to send you direct messages, and you won't be able to send them any. In group chats, their messages will be hidden behind a placeholder. They won't be told they were blocked.",
+  "chatBlockDialogConfirm": "Block",
+  "chatBlockDialogCancel": "Cancel",
+  "chatBlockSucceeded": "User blocked.",
+  "chatBlockFailed": "Failed to block user. Try again.",
+  "chatBlockedDirectHeader": "You blocked this person",
+  "chatBlockedDirectUnblockButton": "Unblock",
+  "chatDraftPrefix": "Draft: {text}",
+  "@chatDraftPrefix": {
+    "description": "Chat drafts/schedule string: chatDraftPrefix",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleMenuItem": "Scheduled messages",
+  "chatScheduleSheetTitle": "Schedule message",
+  "chatScheduleSheetSubtitle": "Send \"{content}\" at a later time",
+  "@chatScheduleSheetSubtitle": {
+    "description": "Chat drafts/schedule string: chatScheduleSheetSubtitle",
+    "placeholders": {
+      "content": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleQuickLaterToday": "Later today",
+  "chatScheduleQuickTomorrow": "Tomorrow morning",
+  "chatScheduleQuickWeekend": "This weekend",
+  "chatScheduleQuickCustom": "Custom...",
+  "chatScheduleQuickCustomHint": "Pick a date and time",
+  "chatScheduleCancel": "Cancel",
+  "chatScheduleSuccess": "Scheduled for {time}",
+  "@chatScheduleSuccess": {
+    "description": "Chat drafts/schedule string: chatScheduleSuccess",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSchedulePastTimeRejected": "Pick a time in the future",
+  "chatScheduleNotSignedIn": "Sign in to schedule messages",
+  "chatScheduleFailed": "Failed to schedule. Try again.",
+  "chatScheduleDatePickerHelp": "Pick a date",
+  "chatScheduleTimePickerHelp": "Pick a time",
+  "chatScheduledListTitle": "Scheduled messages",
+  "chatScheduledListEmpty": "No scheduled messages in this chat.",
+  "chatScheduledListCancel": "Cancel",
+  "chatScheduledListRetry": "Retry",
+  "chatScheduledListEditTime": "Edit time",
+  "chatScheduledListEditText": "Edit text",
+  "chatScheduledListFailed": "Failed to send",
+  "chatScheduledListSendingAt": "Sending at {time}",
+  "@chatScheduledListSendingAt": {
+    "description": "Chat drafts/schedule string: chatScheduledListSendingAt",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduledListSentAt": "Sent at {time}",
+  "@chatScheduledListSentAt": {
+    "description": "Chat drafts/schedule string: chatScheduledListSentAt",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleCancelled": "Scheduled message cancelled.",
+  "chatScheduleRetried": "Scheduled message retried.",
+  "chatScheduleEditTimeUpdated": "Time updated.",
+  "chatScheduleEditTextUpdated": "Text updated.",
+  "chatAttachEvent": "Event",
+  "chatAttachEventCreateNew": "Create a new event",
+  "chatAttachEventPickExisting": "Pick an existing event",
+  "chatEventCardNoTitle": "Family event",
+  "chatEventCardDeleted": "Event no longer available",
+  "chatEventRsvpGoing": "{count} going",
+  "@chatEventRsvpGoing": {
+    "description": "Family event card string: chatEventRsvpGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpMaybe": "{count} maybe",
+  "@chatEventRsvpMaybe": {
+    "description": "Family event card string: chatEventRsvpMaybe",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpNotGoing": "{count} can't go",
+  "@chatEventRsvpNotGoing": {
+    "description": "Family event card string: chatEventRsvpNotGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpGoingLabel": "Going",
+  "chatEventRsvpMaybeLabel": "Maybe",
+  "chatEventRsvpNotGoingLabel": "Can't go",
+  "chatEventCardSemantics": "Family event card: {title} on {date} at {location}. {going} going, {maybe} maybe, {notGoing} can't go.",
+  "@chatEventCardSemantics": {
+    "description": "Family event card string: chatEventCardSemantics",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      },
+      "location": {
+        "type": "String"
+      },
+      "going": {
+        "type": "int"
+      },
+      "maybe": {
+        "type": "int"
+      },
+      "notGoing": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventCardSemanticsDeleted": "Family event card: event no longer available.",
+  "chatInboxFilterAll": "All",
+  "chatInboxFilterUnread": "Unread",
+  "chatInboxFilterGroups": "Groups",
+  "chatInboxFilterDirect": "Direct",
+  "chatInboxEmptyUnread": "No unread chats",
+  "chatInboxEmptyGroups": "No group chats",
+  "chatInboxEmptyDirect": "No direct messages",
+  "chatInboxNoMessages": "Tap to start chatting",
+  "chatInboxArchiveAction": "Archive",
+  "chatInboxArchived": "Archived",
+  "chatInboxArchivedCount": "{count} {count, plural, =1{conversation} other{conversations}}",
+  "@chatInboxArchivedCount": {
+    "description": "Unified inbox string: chatInboxArchivedCount",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticGroup": "Group chat, {title}, {count} unread",
+  "@chatInboxRowSemanticGroup": {
+    "description": "Unified inbox string: chatInboxRowSemanticGroup",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticDirect": "Direct message, {title}, {count} unread",
+  "@chatInboxRowSemanticDirect": {
+    "description": "Unified inbox string: chatInboxRowSemanticDirect",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

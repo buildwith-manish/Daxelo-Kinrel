@@ -121,5 +121,222 @@
   "chatSystemMessageUserLeft": "{name} ரூமை விட்டு வெளியேறினார்",
   "chatSystemMessageUserDisconnected": "{name} துண்டிக்கப்பட்டார்",
   "chatSystemMessageRoomClosed": "{name} ரூமை மூடினார்",
-  "chatSystemMessageUserReacted": "{name} எதிர்வினை தெரிவித்தார் {emoji}"
+  "chatSystemMessageUserReacted": "{name} எதிர்வினை தெரிவித்தார் {emoji}",
+  "chatReportMenuItem": "புகார் அளி",
+  "chatReportSheetTitle": "இந்தச் செய்தியைப் புகார் அளி",
+  "chatReportSheetSubtitle": "{senderName} இன் செய்தியை மதிப்பாய்வாளர்களுக்குப் புகார் அளி",
+  "@chatReportSheetSubtitle": {
+    "description": "Chat block/report string: chatReportSheetSubtitle",
+    "placeholders": {
+      "senderName": {
+        "type": "String"
+      }
+    }
+  },
+  "chatReportNoPreview": "(முன்னோட்டம் இல்லை)",
+  "chatReportReasonLabel": "ஏன் புகார் அளிக்கிறீர்கள்?",
+  "chatReportReasonSpam": "ஸ்பேம்",
+  "chatReportReasonHarassment": "தொந்தரவு",
+  "chatReportReasonInappropriateContent": "பொருத்தமற்ற உள்ளடக்கம்",
+  "chatReportReasonOther": "மற்றொன்று",
+  "chatReportDescriptionLabel": "விவரங்களைச் சேர் (விரும்பினால்)",
+  "chatReportDescriptionHint": "என்ன தவறு என்று எங்களுக்குச் சொல்லுங்கள்",
+  "chatReportCancel": "ரத்து",
+  "chatReportSubmit": "புகாரைச் சமர்ப்பிக்கவும்",
+  "chatReportSubmitted": "புகார் சமர்ப்பிக்கப்பட்டது. நன்றி.",
+  "chatReportAlreadyReported": "நீங்கள் ஏற்கனவே இந்தச் செய்தியைப் புகார் அளித்துள்ளீர்கள்.",
+  "chatReportFailed": "புகார் சமர்ப்பிக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
+  "chatBlockedMessagePlaceholder": "தடைசெய்யப்பட்ட பயனரின் செய்தி",
+  "chatBlockedMessageShow": "காட்டு",
+  "chatBlockedMessageHide": "மறை",
+  "chatBlockMenuItem": "தடைசெய்",
+  "chatBlockFromMessageMenuItem": "இந்தப் பயனரைத் தடைசெய்",
+  "chatBlockDialogTitle": "{name} ஐ தடைசெய்யவா?",
+  "@chatBlockDialogTitle": {
+    "description": "Chat block/report string: chatBlockDialogTitle",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatBlockDialogBody": "அவர்கள் உங்களுக்கு நேரடிச் செய்திகளை அனுப்ப முடியாது, நீங்களும் அவர்களுக்கு அனுப்ப முடியாது. குழு அரட்செய்திகளில் அவர்களின் செய்திகள் பிளேஸ்ஹோல்டருக்குப் பின்னால் மறைக்கப்படும். அவர்கள் தடைசெய்யப்பட்டதாக அறிவிக்கப்படமாட்டார்கள்.",
+  "chatBlockDialogConfirm": "தடைசெய்",
+  "chatBlockDialogCancel": "ரத்து",
+  "chatBlockSucceeded": "பயனர் தடைசெய்யப்பட்டார்.",
+  "chatBlockFailed": "பயனரைத் தடைசெய்ய முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
+  "chatBlockedDirectHeader": "இந்த நபரை நீங்கள் தடைசெய்துள்ளீர்கள்",
+  "chatBlockedDirectUnblockButton": "தடைநீக்கு",
+  "chatDraftPrefix": "வரைவு: {text}",
+  "@chatDraftPrefix": {
+    "description": "Chat drafts/schedule string: chatDraftPrefix",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleMenuItem": "திட்டமிடப்பட்ட செய்திகள்",
+  "chatScheduleSheetTitle": "செய்தியைத் திட்டமிடு",
+  "chatScheduleSheetSubtitle": "\"{content}\" ஐப் பிறகு அனுப்பு",
+  "@chatScheduleSheetSubtitle": {
+    "description": "Chat drafts/schedule string: chatScheduleSheetSubtitle",
+    "placeholders": {
+      "content": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleQuickLaterToday": "இன்று மாலை",
+  "chatScheduleQuickTomorrow": "நாளை காலை",
+  "chatScheduleQuickWeekend": "இந்த வார இறுதியில்",
+  "chatScheduleQuickCustom": "தனிப்பயன்...",
+  "chatScheduleQuickCustomHint": "தேதி மற்றும் நேரத்தைத் தேர்ந்தெடு",
+  "chatScheduleCancel": "ரத்து",
+  "chatScheduleSuccess": "{time} க்குத் திட்டமிடப்பட்டது",
+  "@chatScheduleSuccess": {
+    "description": "Chat drafts/schedule string: chatScheduleSuccess",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSchedulePastTimeRejected": "எதிர்காலத்தில் நேரத்தைத் தேர்ந்தெடு",
+  "chatScheduleNotSignedIn": "திட்டமிட உள்நுழையவும்",
+  "chatScheduleFailed": "திட்டமிட முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
+  "chatScheduleDatePickerHelp": "தேதியைத் தேர்ந்தெடு",
+  "chatScheduleTimePickerHelp": "நேரத்தைத் தேர்ந்தெடு",
+  "chatScheduledListTitle": "திட்டமிடப்பட்ட செய்திகள்",
+  "chatScheduledListEmpty": "இந்த அரட்செய்தியில் திட்டமிடப்பட்ட செய்திகள் இல்லை.",
+  "chatScheduledListCancel": "ரத்து",
+  "chatScheduledListRetry": "மீண்டும் முயற்சி",
+  "chatScheduledListEditTime": "நேரத்தை திருத்து",
+  "chatScheduledListEditText": "உரையை திருத்து",
+  "chatScheduledListFailed": "அனுப்ப முடியவில்லை",
+  "chatScheduledListSendingAt": "{time} க்கு அனுப்பப்படுகிறது",
+  "@chatScheduledListSendingAt": {
+    "description": "Chat drafts/schedule string: chatScheduledListSendingAt",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduledListSentAt": "{time} க்கு அனுப்பப்பட்டது",
+  "@chatScheduledListSentAt": {
+    "description": "Chat drafts/schedule string: chatScheduledListSentAt",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatScheduleCancelled": "திட்டமிடப்பட்ட செய்தி ரத்து செய்யப்பட்டது.",
+  "chatScheduleRetried": "திட்டமிடப்பட்ட செய்தி மீண்டும் முயற்சிக்கப்பட்டது.",
+  "chatScheduleEditTimeUpdated": "நேரம் புதுப்பிக்கப்பட்டது.",
+  "chatScheduleEditTextUpdated": "உரை புதுப்பிக்கப்பட்டது.",
+  "chatAttachEvent": "நிகழ்வு",
+  "chatAttachEventCreateNew": "புதிய நிகழ்வை உருவாக்கு",
+  "chatAttachEventPickExisting": "ஏற்கனவே உள்ள நிகழ்வைத் தேர்ந்தெடு",
+  "chatEventCardNoTitle": "குடும்ப நிகழ்வு",
+  "chatEventCardDeleted": "நிகழ்வு இனி கிடைக்கவில்லை",
+  "chatEventRsvpGoing": "{count} வருகிறார்கள்",
+  "@chatEventRsvpGoing": {
+    "description": "Family event card string: chatEventRsvpGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpMaybe": "{count} ஒருவேளை",
+  "@chatEventRsvpMaybe": {
+    "description": "Family event card string: chatEventRsvpMaybe",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpNotGoing": "{count} வர முடியாது",
+  "@chatEventRsvpNotGoing": {
+    "description": "Family event card string: chatEventRsvpNotGoing",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventRsvpGoingLabel": "வருகிறேன்",
+  "chatEventRsvpMaybeLabel": "ஒருவேளை",
+  "chatEventRsvpNotGoingLabel": "வர முடியாது",
+  "chatEventCardSemantics": "குடும்ப நிகழ்வு அட்டை: {date} அன்று {title} இடத்தில் {location}। {going} வருகிறார்கள், {maybe} ஒருவேளை, {notGoing} வர முடியாது।",
+  "@chatEventCardSemantics": {
+    "description": "Family event card string: chatEventCardSemantics",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      },
+      "location": {
+        "type": "String"
+      },
+      "going": {
+        "type": "int"
+      },
+      "maybe": {
+        "type": "int"
+      },
+      "notGoing": {
+        "type": "int"
+      }
+    }
+  },
+  "chatEventCardSemanticsDeleted": "குடும்ப நிகழ்வு அட்டை: நிகழ்வு இனி கிடைக்கவில்லை।",
+  "chatInboxFilterAll": "அனைத்தும்",
+  "chatInboxFilterUnread": "படிக்காத",
+  "chatInboxFilterGroups": "குழுக்கள்",
+  "chatInboxFilterDirect": "நேரடி",
+  "chatInboxEmptyUnread": "படிக்காத அரட்செய்திகள் இல்லை",
+  "chatInboxEmptyGroups": "குழு அரட்செய்திகள் இல்லை",
+  "chatInboxEmptyDirect": "நேரடி செய்திகள் இல்லை",
+  "chatInboxNoMessages": "அரட்செய்தியைத் தொடங்கத் தட்டவும்",
+  "chatInboxArchiveAction": "காப்பகம்",
+  "chatInboxArchived": "காப்பகப்படுத்தியவை",
+  "chatInboxArchivedCount": "{count} {count, plural, =1{உரையாடல்} other{உரையாடல்கள்}}",
+  "@chatInboxArchivedCount": {
+    "description": "Unified inbox string: chatInboxArchivedCount",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticGroup": "குழு அரட்செய்தி, {title}, {count} படிக்காத",
+  "@chatInboxRowSemanticGroup": {
+    "description": "Unified inbox string: chatInboxRowSemanticGroup",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticDirect": "நேரடி செய்தி, {title}, {count} படிக்காத",
+  "@chatInboxRowSemanticDirect": {
+    "description": "Unified inbox string: chatInboxRowSemanticDirect",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

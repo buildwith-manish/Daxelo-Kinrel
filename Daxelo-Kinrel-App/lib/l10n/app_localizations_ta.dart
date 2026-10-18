@@ -703,4 +703,308 @@ class STa extends S {
   String chatSystemMessageUserReacted(String name, String emoji) {
     return '$name எதிர்வினை தெரிவித்தார் $emoji';
   }
+
+  @override
+  String get chatReportMenuItem => 'புகார் அளி';
+
+  @override
+  String get chatReportSheetTitle => 'இந்தச் செய்தியைப் புகார் அளி';
+
+  @override
+  String chatReportSheetSubtitle(String senderName) {
+    return '$senderName இன் செய்தியை மதிப்பாய்வாளர்களுக்குப் புகார் அளி';
+  }
+
+  @override
+  String get chatReportNoPreview => '(முன்னோட்டம் இல்லை)';
+
+  @override
+  String get chatReportReasonLabel => 'ஏன் புகார் அளிக்கிறீர்கள்?';
+
+  @override
+  String get chatReportReasonSpam => 'ஸ்பேம்';
+
+  @override
+  String get chatReportReasonHarassment => 'தொந்தரவு';
+
+  @override
+  String get chatReportReasonInappropriateContent => 'பொருத்தமற்ற உள்ளடக்கம்';
+
+  @override
+  String get chatReportReasonOther => 'மற்றொன்று';
+
+  @override
+  String get chatReportDescriptionLabel => 'விவரங்களைச் சேர் (விரும்பினால்)';
+
+  @override
+  String get chatReportDescriptionHint =>
+      'என்ன தவறு என்று எங்களுக்குச் சொல்லுங்கள்';
+
+  @override
+  String get chatReportCancel => 'ரத்து';
+
+  @override
+  String get chatReportSubmit => 'புகாரைச் சமர்ப்பிக்கவும்';
+
+  @override
+  String get chatReportSubmitted => 'புகார் சமர்ப்பிக்கப்பட்டது. நன்றி.';
+
+  @override
+  String get chatReportAlreadyReported =>
+      'நீங்கள் ஏற்கனவே இந்தச் செய்தியைப் புகார் அளித்துள்ளீர்கள்.';
+
+  @override
+  String get chatReportFailed =>
+      'புகார் சமர்ப்பிக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.';
+
+  @override
+  String get chatBlockedMessagePlaceholder => 'தடைசெய்யப்பட்ட பயனரின் செய்தி';
+
+  @override
+  String get chatBlockedMessageShow => 'காட்டு';
+
+  @override
+  String get chatBlockedMessageHide => 'மறை';
+
+  @override
+  String get chatBlockMenuItem => 'தடைசெய்';
+
+  @override
+  String get chatBlockFromMessageMenuItem => 'இந்தப் பயனரைத் தடைசெய்';
+
+  @override
+  String chatBlockDialogTitle(String name) {
+    return '$name ஐ தடைசெய்யவா?';
+  }
+
+  @override
+  String get chatBlockDialogBody =>
+      'அவர்கள் உங்களுக்கு நேரடிச் செய்திகளை அனுப்ப முடியாது, நீங்களும் அவர்களுக்கு அனுப்ப முடியாது. குழு அரட்செய்திகளில் அவர்களின் செய்திகள் பிளேஸ்ஹோல்டருக்குப் பின்னால் மறைக்கப்படும். அவர்கள் தடைசெய்யப்பட்டதாக அறிவிக்கப்படமாட்டார்கள்.';
+
+  @override
+  String get chatBlockDialogConfirm => 'தடைசெய்';
+
+  @override
+  String get chatBlockDialogCancel => 'ரத்து';
+
+  @override
+  String get chatBlockSucceeded => 'பயனர் தடைசெய்யப்பட்டார்.';
+
+  @override
+  String get chatBlockFailed =>
+      'பயனரைத் தடைசெய்ய முடியவில்லை. மீண்டும் முயற்சிக்கவும்.';
+
+  @override
+  String get chatBlockedDirectHeader => 'இந்த நபரை நீங்கள் தடைசெய்துள்ளீர்கள்';
+
+  @override
+  String get chatBlockedDirectUnblockButton => 'தடைநீக்கு';
+
+  @override
+  String chatDraftPrefix(String text) {
+    return 'வரைவு: $text';
+  }
+
+  @override
+  String get chatScheduleMenuItem => 'திட்டமிடப்பட்ட செய்திகள்';
+
+  @override
+  String get chatScheduleSheetTitle => 'செய்தியைத் திட்டமிடு';
+
+  @override
+  String chatScheduleSheetSubtitle(String content) {
+    return '\"$content\" ஐப் பிறகு அனுப்பு';
+  }
+
+  @override
+  String get chatScheduleQuickLaterToday => 'இன்று மாலை';
+
+  @override
+  String get chatScheduleQuickTomorrow => 'நாளை காலை';
+
+  @override
+  String get chatScheduleQuickWeekend => 'இந்த வார இறுதியில்';
+
+  @override
+  String get chatScheduleQuickCustom => 'தனிப்பயன்...';
+
+  @override
+  String get chatScheduleQuickCustomHint => 'தேதி மற்றும் நேரத்தைத் தேர்ந்தெடு';
+
+  @override
+  String get chatScheduleCancel => 'ரத்து';
+
+  @override
+  String chatScheduleSuccess(String time) {
+    return '$time க்குத் திட்டமிடப்பட்டது';
+  }
+
+  @override
+  String get chatSchedulePastTimeRejected =>
+      'எதிர்காலத்தில் நேரத்தைத் தேர்ந்தெடு';
+
+  @override
+  String get chatScheduleNotSignedIn => 'திட்டமிட உள்நுழையவும்';
+
+  @override
+  String get chatScheduleFailed =>
+      'திட்டமிட முடியவில்லை. மீண்டும் முயற்சிக்கவும்.';
+
+  @override
+  String get chatScheduleDatePickerHelp => 'தேதியைத் தேர்ந்தெடு';
+
+  @override
+  String get chatScheduleTimePickerHelp => 'நேரத்தைத் தேர்ந்தெடு';
+
+  @override
+  String get chatScheduledListTitle => 'திட்டமிடப்பட்ட செய்திகள்';
+
+  @override
+  String get chatScheduledListEmpty =>
+      'இந்த அரட்செய்தியில் திட்டமிடப்பட்ட செய்திகள் இல்லை.';
+
+  @override
+  String get chatScheduledListCancel => 'ரத்து';
+
+  @override
+  String get chatScheduledListRetry => 'மீண்டும் முயற்சி';
+
+  @override
+  String get chatScheduledListEditTime => 'நேரத்தை திருத்து';
+
+  @override
+  String get chatScheduledListEditText => 'உரையை திருத்து';
+
+  @override
+  String get chatScheduledListFailed => 'அனுப்ப முடியவில்லை';
+
+  @override
+  String chatScheduledListSendingAt(String time) {
+    return '$time க்கு அனுப்பப்படுகிறது';
+  }
+
+  @override
+  String chatScheduledListSentAt(String time) {
+    return '$time க்கு அனுப்பப்பட்டது';
+  }
+
+  @override
+  String get chatScheduleCancelled =>
+      'திட்டமிடப்பட்ட செய்தி ரத்து செய்யப்பட்டது.';
+
+  @override
+  String get chatScheduleRetried =>
+      'திட்டமிடப்பட்ட செய்தி மீண்டும் முயற்சிக்கப்பட்டது.';
+
+  @override
+  String get chatScheduleEditTimeUpdated => 'நேரம் புதுப்பிக்கப்பட்டது.';
+
+  @override
+  String get chatScheduleEditTextUpdated => 'உரை புதுப்பிக்கப்பட்டது.';
+
+  @override
+  String get chatAttachEvent => 'நிகழ்வு';
+
+  @override
+  String get chatAttachEventCreateNew => 'புதிய நிகழ்வை உருவாக்கு';
+
+  @override
+  String get chatAttachEventPickExisting => 'ஏற்கனவே உள்ள நிகழ்வைத் தேர்ந்தெடு';
+
+  @override
+  String get chatEventCardNoTitle => 'குடும்ப நிகழ்வு';
+
+  @override
+  String get chatEventCardDeleted => 'நிகழ்வு இனி கிடைக்கவில்லை';
+
+  @override
+  String chatEventRsvpGoing(int count) {
+    return '$count வருகிறார்கள்';
+  }
+
+  @override
+  String chatEventRsvpMaybe(int count) {
+    return '$count ஒருவேளை';
+  }
+
+  @override
+  String chatEventRsvpNotGoing(int count) {
+    return '$count வர முடியாது';
+  }
+
+  @override
+  String get chatEventRsvpGoingLabel => 'வருகிறேன்';
+
+  @override
+  String get chatEventRsvpMaybeLabel => 'ஒருவேளை';
+
+  @override
+  String get chatEventRsvpNotGoingLabel => 'வர முடியாது';
+
+  @override
+  String chatEventCardSemantics(
+    String title,
+    String date,
+    String location,
+    int going,
+    int maybe,
+    int notGoing,
+  ) {
+    return 'குடும்ப நிகழ்வு அட்டை: $date அன்று $title இடத்தில் $location। $going வருகிறார்கள், $maybe ஒருவேளை, $notGoing வர முடியாது।';
+  }
+
+  @override
+  String get chatEventCardSemanticsDeleted =>
+      'குடும்ப நிகழ்வு அட்டை: நிகழ்வு இனி கிடைக்கவில்லை।';
+
+  @override
+  String get chatInboxFilterAll => 'அனைத்தும்';
+
+  @override
+  String get chatInboxFilterUnread => 'படிக்காத';
+
+  @override
+  String get chatInboxFilterGroups => 'குழுக்கள்';
+
+  @override
+  String get chatInboxFilterDirect => 'நேரடி';
+
+  @override
+  String get chatInboxEmptyUnread => 'படிக்காத அரட்செய்திகள் இல்லை';
+
+  @override
+  String get chatInboxEmptyGroups => 'குழு அரட்செய்திகள் இல்லை';
+
+  @override
+  String get chatInboxEmptyDirect => 'நேரடி செய்திகள் இல்லை';
+
+  @override
+  String get chatInboxNoMessages => 'அரட்செய்தியைத் தொடங்கத் தட்டவும்';
+
+  @override
+  String get chatInboxArchiveAction => 'காப்பகம்';
+
+  @override
+  String get chatInboxArchived => 'காப்பகப்படுத்தியவை';
+
+  @override
+  String chatInboxArchivedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'உரையாடல்கள்',
+      one: 'உரையாடல்',
+    );
+    return '$count $_temp0';
+  }
+
+  @override
+  String chatInboxRowSemanticGroup(String title, int count) {
+    return 'குழு அரட்செய்தி, $title, $count படிக்காத';
+  }
+
+  @override
+  String chatInboxRowSemanticDirect(String title, int count) {
+    return 'நேரடி செய்தி, $title, $count படிக்காத';
+  }
 }
