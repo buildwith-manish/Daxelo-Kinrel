@@ -2247,35 +2247,30 @@ class _WedgePageChipBubbleState extends State<_WedgePageChipBubble> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = S.of(context);
     // Node-sized circle: Ø72 matches GraphNode's default nodeSize.
-    // The bubble now uses the EXACT SAME Pseudo3DNodePainter as a real
+    // The bubble uses the EXACT SAME Pseudo3DNodePainter as a real
     // GraphNode — same shadow, extruded wall, face fill, rim, bevel,
-    // specular highlight — so it reads as a NODE, not a chip. The only
-    // differences from a person node:
+    // specular highlight — so it reads as a NODE, not a chip. The
+    // only differences from a person node:
     //   • border color = KinshipEdgeColors.extended (the neutral grey
     //     used for extended/step relations and nodes with no category)
     //   • content = "+N" instead of initials
+    //   • below: "N more" (name style) + "Tap to show" (relation style)
     //   • onTap = the page-advance handler (not node selection)
-    // The dashed ring is GONE — the user said "it should not be a chip
-    // anymore even it should feel like node with grey color". A real
-    // node has a SOLID border ring, not a dashed one.
+    // NO dashed ring — a solid border ring, same as any person node.
     const circleDiameter = 72.0;
-    // Node initials use diameter * 0.28 — same scale here so "+N"
-    // reads as the same visual weight as a 2-letter initials glyph.
     const numberFontSize = circleDiameter * 0.28; // ≈ 20.2
 
-    // Build the Pseudo3DNodeParams exactly like GraphNode does for a
-    // regular (non-anchor, non-immediate-family) node — see
-    // graph_node.dart line 1087-1094. The border color is the neutral
-    // grey token (KinshipEdgeColors.extended) instead of the hub's
-    // category color.
+    // Localized labels below the circle (matching graphMorePeopleShort
+    // and graphTapToShowHint from the ARB files).
+    final line1 = l10n?.graphMorePeopleShort(widget.remainingCount) ??
+        '${widget.remainingCount} more';
+    final line2 = l10n?.graphTapToShowHint ?? 'Tap to show';
+
     final nodeParams = Pseudo3DNodeParams(
       diameter: circleDiameter,
       borderColor: KinshipEdgeColors.extended,
-      // GraphNode's default borderWidth for non-anchor non-immediate-
-      // family nodes is 3.0 (see graph_node.dart line 1090-1094:
-      // isAnchor ? 4.5 : isImmediateFamily ? 3.5 : _borderWidth where
-      // _borderWidth defaults to 3.0).
       borderWidth: 3.0,
       generationIndex: 0,
       isAnchor: false,
@@ -2288,75 +2283,115 @@ class _WedgePageChipBubbleState extends State<_WedgePageChipBubble> {
       button: true,
       label: widget.semanticLabel,
       child: FractionalTranslation(
-        // Centre the circle on the reserved slot. FractionalTranslation
-        // never expands (unlike Center, it cannot eat the canvas' taps).
         translation: const Offset(-0.5, -0.5),
-        child: Listener(
-          behavior: HitTestBehavior.opaque,
-          onPointerDown: (_) => setState(() => _pressed = true),
-          onPointerUp: (_) => setState(() => _pressed = false),
-          onPointerCancel: (_) => setState(() => _pressed = false),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            // While loading, taps are ignored (the spinner is showing).
-            onTap: widget.loading ? null : widget.onTap,
-            child: AnimatedScale(
-              scale: _pressed ? 0.95 : 1.0,
-              duration: const Duration(milliseconds: 110),
-              curve: Curves.easeOut,
-              child: SizedBox(
-                width: circleDiameter,
-                height: circleDiameter,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // The pseudo-3D node painter — renders the EXACT
-                    // same visual as a real GraphNode (shadow, wall,
-                    // face, rim, bevel, specular). This is what makes
-                    // the bubble "feel like a node" instead of a chip.
-                    CustomPaint(
-                      size: const Size(circleDiameter, circleDiameter),
-                      painter: Pseudo3DNodePainter(nodeParams),
-                    ),
-                    // Content layer: "+N" (or spinner during fetch).
-                    // Same font family + weight as node initials.
-                    if (widget.loading)
-                      SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.4,
-                          // The spinner uses the hub's category colour
-                          // as a subtle nod — the node's border stays
-                          // neutral grey, but the spinner's tint hints
-                          // at which hub is loading.
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            widget.accentColor,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Listener(
+              behavior: HitTestBehavior.opaque,
+              onPointerDown: (_) => setState(() => _pressed = true),
+              onPointerUp: (_) => setState(() => _pressed = false),
+              onPointerCancel: (_) => setState(() => _pressed = false),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: widget.loading ? null : widget.onTap,
+                child: AnimatedScale(
+                  scale: _pressed ? 0.95 : 1.0,
+                  duration: const Duration(milliseconds: 110),
+                  curve: Curves.easeOut,
+                  child: SizedBox(
+                    width: circleDiameter,
+                    height: circleDiameter,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        CustomPaint(
+                          size: const Size(circleDiameter, circleDiameter),
+                          painter: Pseudo3DNodePainter(nodeParams),
+                        ),
+                        if (widget.loading)
+                          SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                widget.accentColor,
+                              ),
+                            ),
+                          )
+                        else
+                          Text(
+                            '+${widget.remainingCount}',
+                            style: const TextStyle(
+                              fontFamily: KinrelTypography.displayFont,
+                              fontSize: numberFontSize,
+                              fontWeight: FontWeight.bold,
+                              color: KinrelColors.textWhite,
+                              height: 1.0,
+                            ),
+                            maxLines: 1,
                           ),
-                        ),
-                      )
-                    else
-                      Text(
-                        '+${widget.remainingCount}',
-                        // SAME font family + weight as node initials
-                        // (KinrelTypography.displayFont = 'Outfit',
-                        // FontWeight.bold = w700). Same color
-                        // (KinrelColors.textWhite) so the "+N" reads
-                        // exactly like a person's initials.
-                        style: const TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: numberFontSize,
-                          fontWeight: FontWeight.bold,
-                          color: KinrelColors.textWhite,
-                          height: 1.0,
-                        ),
-                        maxLines: 1,
-                      ),
-                  ],
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
+            // Two-line label below the circle — same layout as a
+            // person node's name + relation label.
+            const SizedBox(height: 4),
+            SizedBox(
+              width: circleDiameter + 24,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Line 1: "N more" — same style as node NAME
+                  // (Outfit 14 w600, textWhite, letterSpacing 0.25,
+                  // shadow blur 5).
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      line1,
+                      style: const TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.textWhite,
+                        letterSpacing: 0.25,
+                        shadows: [
+                          Shadow(blurRadius: 5, color: Colors.black87),
+                        ],
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // Line 2: "Tap to show" — same style as node RELATION
+                  // label (Outfit 11 w500, the grey token, shadow 3).
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      line2,
+                      style: const TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 11.0,
+                        fontWeight: FontWeight.w500,
+                        color: KinshipEdgeColors.extended,
+                        shadows: [
+                          Shadow(blurRadius: 3, color: Colors.black54),
+                        ],
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

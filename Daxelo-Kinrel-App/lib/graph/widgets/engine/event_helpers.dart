@@ -97,21 +97,18 @@ extension _EventHelpers on _FamilyGraphEngineViewState {
   /// "Outermost ring" = the person is visible but has NOT been expanded
   /// yet (their neighbors haven't been revealed).
   void _maybeExpandFromPerson(String personId, FlatGraphResult flat) {
-    final proximityState = ref.read(proximityGraphProvider);
-    if (!proximityState.isInitialized) return;
-    if (!proximityState.visibleIds.contains(personId)) return;
-
-    // WEDGE MODE — the full tap state machine (matching the approved
-    // preview):
-    //   • collapsed person  → expand in place (first 8) + focus + fit
-    //   • expanded, unfocused → focus + fit
-    //   • focused, expanded  → collapse + focus their parent
-    // The implementation lives in branch_affordance.dart's
-    // _handleWedgeNodeTap (next to the other wedge tap flows).
+    // WEDGE MODE — call the wedge tap handler BEFORE the proximity
+    // guards. The wedge layout positions every loaded person, so the
+    // proximity visibleIds check is irrelevant and silently drops
+    // taps on nodes that aren't in the old proximity set.
     if (kUseViewerWedgeLayout) {
       _handleWedgeNodeTap(personId);
       return;
     }
+
+    final proximityState = ref.read(proximityGraphProvider);
+    if (!proximityState.isInitialized) return;
+    if (!proximityState.visibleIds.contains(personId)) return;
 
     // Already expanded — no-op.
     if (proximityState.expandedPersonIds.contains(personId)) return;

@@ -2312,7 +2312,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
   Widget _buildTruncationBanner(FlatGraphResult graph) {
     final l10n = S.of(context);
     final shownCount = kUseViewerWedgeLayout
-        ? (ref.read(wedgeLayoutSummaryProvider(widget.familyId))
+        ? (ref.watch(wedgeLayoutSummaryProvider(widget.familyId))
                 ?.visibleCount ??
             graph.persons.length)
         : graph.persons.length;
