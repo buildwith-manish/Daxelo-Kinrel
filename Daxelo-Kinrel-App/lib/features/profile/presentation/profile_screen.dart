@@ -147,7 +147,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     final user = ref.watch(currentUserProvider);
     final profile = ref.watch(profileProvider.select((s) => s.profile));
     final stats = ref.watch(profileStatsProvider);
-    final families = ref.watch(familyListProvider).valueOrNull ?? [];
+    // Use profileProvider.state.families (List<FamilyTreeNode>) which
+    // has the role field, NOT familyListProvider (List<Family>) which
+    // does not. The old _buildFamilyIdsSection used familyListProvider
+    // for the KIN IDs only because it didn't need role; the Me screen
+    // needs role to render "{n} members · {Admin|Member}".
+    final families = ref.watch(profileProvider.select((s) => s.families));
     final pendingInvites =
         ref.watch(profileProvider).invitations.where((i) => i.status == 'pending').toList();
 
