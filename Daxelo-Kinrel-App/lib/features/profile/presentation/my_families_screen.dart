@@ -7,16 +7,20 @@
 // Leave for non-admin). Loads families from profileProvider.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
 
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../family/providers/family_invite_provider.dart';
 import '../data/profile_provider.dart';
+import 'settings/settings_widgets.dart' show FamilyIdRow;
 
 // ── Design Tokens (theme-agnostic) ────────────────────────────────
 const Color _orange = Color(0xFFE8612A);
@@ -200,6 +204,32 @@ class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
           isAdmin: isAdmin,
           onManage: () => context.push('/family/${family.id}'),
           onLeave: () => _showLeaveConfirmDialog(family),
+          // KIN ID row actions — wired to the same handlers as the old
+          // profile_screen's _buildFamilyIdsSection.
+          onCopyId: family.kinFamilyId != null
+              ? () {
+                  Clipboard.setData(
+                      ClipboardData(text: family.kinFamilyId!));
+                  context.showSnackBar('Family ID copied');
+                  ref
+                      .read(familyInviteProvider.notifier)
+                      .trackInviteSent(
+                        familyId: family.id,
+                        channel: 'direct',
+                      );
+                }
+              : null,
+          onQRId: (family.kinFamilyId != null && kEnableQrJoin)
+              ? () => context.push(
+                    '/family-qr?familyId=${family.id}&familyName=${Uri.encodeComponent(family.name)}&kinFamilyId=${family.kinFamilyId}',
+                  )
+              : null,
+          onShareId: family.kinFamilyId != null
+              ? () => ref
+                  .read(familyInviteProvider.notifier)
+                  .shareInviteLink(family.kinFamilyId!,
+                      familyName: family.name)
+              : null,
         );
       },
     );
@@ -369,6 +399,9 @@ class _FamilyCard extends StatelessWidget {
     required this.isAdmin,
     required this.onManage,
     required this.onLeave,
+    this.onCopyId,
+    this.onQRId,
+    this.onShareId,
   });
 
   final FamilyTreeNode family;
@@ -381,6 +414,12 @@ class _FamilyCard extends StatelessWidget {
   final bool isAdmin;
   final VoidCallback onManage;
   final VoidCallback onLeave;
+  // KIN family ID row callbacks (copy / QR / share). When all three
+  // are null OR the family has no kinFamilyId, the KIN ID row is
+  // hidden.
+  final VoidCallback? onCopyId;
+  final VoidCallback? onQRId;
+  final VoidCallback? onShareId;
 
   @override
   Widget build(BuildContext context) {
@@ -518,6 +557,29 @@ class _FamilyCard extends StatelessWidget {
                 ),
             ],
           ),
+
+          // ── KIN Family ID row (copy / QR / share) ──────────────────
+          // Ported from profile_screen's _buildFamilyIdsSection so the
+          // KIN ID copy/share behavior is reachable here (per the spec
+          // the My Family IDs section is removed from the Me screen).
+          if (family.kinFamilyId != null && family.kinFamilyId!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: _orange.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _borderSubtle.withValues(alpha: 0.5)),
+              ),
+              child: FamilyIdRow(
+                familyName: family.name,
+                kinFamilyId: family.kinFamilyId,
+                familyId: family.id,
+                onCopy: onCopyId,
+                onQR: onQRId,
+                onShare: onShareId,
+              ),
+            ),
+          ],
         ],
       ),
     );
