@@ -109,7 +109,7 @@ COMMENT ON COLUMN "ChatMessage"."eventDeletedAt" IS
   'renders "Event no longer available" with disabled RSVP buttons '
   'until the ChatMessage row itself is deleted.';
 
--- ─── 2. fn_sync_family_event_chat_cards(p_event_id) ──────────────────
+-- ─── 2. fn_sync_family_event_chat_cards() — trigger function ──────────
 -- SECURITY DEFINER so the function can UPDATE ChatMessage rows even
 -- if the acting user (e.g. a family member submitting an RSVP) doesn't
 -- have UPDATE rights on someone else's ChatMessage rows. The chat
@@ -118,18 +118,42 @@ COMMENT ON COLUMN "ChatMessage"."eventDeletedAt" IS
 -- this function runs as supabase_admin so it works even when the
 -- trigger fires from a non-family-member path (e.g. admin moderation).
 --
+-- The function takes NO args — it uses TG_OP + NEW/OLD internally
+-- (the standard Postgres trigger-function pattern). It branches on
+-- TG_OP ('INSERT' / 'UPDATE' / 'DELETE') and reads the event id from
+-- NEW (for INSERT/UPDATE) or OLD (for DELETE). The COALESCE handles
+-- both calendar_events (column = "id") and calendar_event_rsvps
+-- (column = "eventId") — the same function is wired as the trigger
+-- on both tables.
+--
 -- Idempotent: a no-op if no ChatMessage rows reference the event.
-CREATE OR REPLACE FUNCTION fn_sync_family_event_chat_cards(p_event_id text)
-RETURNS void
+DROP FUNCTION IF EXISTS fn_sync_family_event_chat_cards(text);
+DROP FUNCTION IF EXISTS fn_sync_family_event_chat_cards();
+
+CREATE OR REPLACE FUNCTION fn_sync_family_event_chat_cards()
+RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  p_event_id text;
   v_event RECORD;
   v_exists boolean;
 BEGIN
-  -- Check whether the calendar_events row still exists.
+  -- Determine the event id from NEW or OLD depending on the operation.
+  -- INSERT/UPDATE → NEW.eventId (or NEW.id for calendar_events);
+  -- DELETE → OLD.eventId (or OLD.id for calendar_events).
+  IF TG_OP = 'DELETE' THEN
+    p_event_id := COALESCE(OLD."eventId", OLD."id");
+  ELSE
+    p_event_id := COALESCE(NEW."eventId", NEW."id");
+  END IF;
+
+  IF p_event_id IS NULL THEN
+    RETURN NULL;
+  END IF;
+
   SELECT EXISTS(
     SELECT 1 FROM "calendar_events" WHERE id = p_event_id
   ) INTO v_exists;
@@ -146,7 +170,7 @@ BEGIN
           "updatedAt" = now()
       WHERE "eventId" = p_event_id
         AND "messageType" = 'familyEvent';
-    RETURN;
+    RETURN NULL;
   END IF;
 
   -- The event exists — recompute the denormalized fields from the
@@ -166,10 +190,10 @@ BEGIN
   -- UPDATE every ChatMessage row referencing the event.
   UPDATE "ChatMessage"
     SET
-      "eventTitle"        = v_event."title",
-      "eventDate"        = v_event."eventDate",
-      "eventLocation"    = v_event."location",
-      "eventCategory"    = v_event."category",
+      "eventTitle"        = v_event.title,
+      "eventDate"        = v_event.eventDate,
+      "eventLocation"    = v_event.location,
+      "eventCategory"    = v_event.category,
       "eventRsvpGoing"   = v_event.rsvp_going,
       "eventRsvpMaybe"   = v_event.rsvp_maybe,
       "eventRsvpNotGoing" = v_event.rsvp_not_going,
@@ -177,39 +201,39 @@ BEGIN
       "updatedAt"        = now()
     WHERE "eventId" = p_event_id
       AND "messageType" = 'familyEvent';
+  RETURN NULL;
 END;
 $$;
 
 COMMENT ON FUNCTION fn_sync_family_event_chat_cards IS
-  'Recomputes the denormalized event fields (title, date, location, '
-  'category, RSVP counts) on every ChatMessage row referencing the '
-  'given event. Called by AFTER INSERT/UPDATE/DELETE triggers on '
-  'calendar_events + calendar_event_rsvps. The chat_provider realtime '
-  'UPDATE subscription on ChatMessage propagates the synced fields to '
-  'every open chat UI — the cards stay live without any client-side '
-  're-fetch. SECURITY DEFINER so the acting user (who may be a family '
-  'member submitting an RSVP) can update the host''s card row even '
-  'without direct UPDATE rights.';
+  'Trigger function (no args). Branches on TG_OP and reads the event '
+  'id from NEW (INSERT/UPDATE) or OLD (DELETE). COALESCE handles both '
+  'calendar_events (column = id) and calendar_event_rsvps (column = '
+  'eventId) — the same function is wired as the trigger on both tables. '
+  'Recomputes the denormalized event fields on every ChatMessage row '
+  'referencing the event. SECURITY DEFINER so the acting user can '
+  'update the host''s card row even without direct UPDATE rights.';
 
 -- ─── 3. AFTER INSERT/UPDATE triggers on calendar_events ───────────────
 DROP TRIGGER IF EXISTS "trg_events_sync_event_chat_cards_insert" ON "calendar_events";
 DROP TRIGGER IF EXISTS "trg_events_sync_event_chat_cards_update" ON "calendar_events";
 DROP TRIGGER IF EXISTS "trg_events_sync_event_chat_cards_delete" ON "calendar_events";
 
+-- Triggers take NO args — the function uses TG_OP + NEW/OLD internally.
 CREATE TRIGGER "trg_events_sync_event_chat_cards_insert"
   AFTER INSERT ON "calendar_events"
   FOR EACH ROW
-  EXECUTE FUNCTION fn_sync_family_event_chat_cards(NEW."id");
+  EXECUTE FUNCTION fn_sync_family_event_chat_cards();
 
 CREATE TRIGGER "trg_events_sync_event_chat_cards_update"
   AFTER UPDATE ON "calendar_events"
   FOR EACH ROW
-  EXECUTE FUNCTION fn_sync_family_event_chat_cards(NEW."id");
+  EXECUTE FUNCTION fn_sync_family_event_chat_cards();
 
 CREATE TRIGGER "trg_events_sync_event_chat_cards_delete"
   AFTER DELETE ON "calendar_events"
   FOR EACH ROW
-  EXECUTE FUNCTION fn_sync_family_event_chat_cards(OLD."id");
+  EXECUTE FUNCTION fn_sync_family_event_chat_cards();
 
 -- ─── 4. AFTER INSERT/UPDATE/DELETE triggers on calendar_event_rsvps ────
 DROP TRIGGER IF EXISTS "trg_rsvps_sync_event_chat_cards_insert" ON "calendar_event_rsvps";
@@ -219,17 +243,17 @@ DROP TRIGGER IF EXISTS "trg_rsvps_sync_event_chat_cards_delete" ON "calendar_eve
 CREATE TRIGGER "trg_rsvps_sync_event_chat_cards_insert"
   AFTER INSERT ON "calendar_event_rsvps"
   FOR EACH ROW
-  EXECUTE FUNCTION fn_sync_family_event_chat_cards(NEW."eventId");
+  EXECUTE FUNCTION fn_sync_family_event_chat_cards();
 
 CREATE TRIGGER "trg_rsvps_sync_event_chat_cards_update"
   AFTER UPDATE ON "calendar_event_rsvps"
   FOR EACH ROW
-  EXECUTE FUNCTION fn_sync_family_event_chat_cards(NEW."eventId");
+  EXECUTE FUNCTION fn_sync_family_event_chat_cards();
 
 CREATE TRIGGER "trg_rsvps_sync_event_chat_cards_delete"
   AFTER DELETE ON "calendar_event_rsvps"
   FOR EACH ROW
-  EXECUTE FUNCTION fn_sync_family_event_chat_cards(OLD."eventId");
+  EXECUTE FUNCTION fn_sync_family_event_chat_cards();
 
 -- ─── 5. Partial index for the sync UPDATE scan ────────────────────────
 CREATE INDEX IF NOT EXISTS "ChatMessage_familyEvent_eventId_idx"
