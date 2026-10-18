@@ -127,8 +127,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         }
       }
     }
-    // Invalidate to refresh with new KIN IDs
+    // Invalidate both providers so the new KIN IDs propagate:
+    //   • familyListProvider (List<Family>) — used by the old
+    //     profile_screen's KIN-IDs section and by _ensureFamilyIds
+    //     on its next run.
+    //   • profileProvider.state.families (List<FamilyTreeNode>) —
+    //     used by the new Me screen's My families section AND by
+    //     the My Families screen's KIN-ID rows. Without this refresh
+    //     those surfaces would keep showing "no KIN ID" even after
+    //     the backend has generated one.
     ref.invalidate(familyListProvider);
+    unawaited(ref.read(profileProvider.notifier).loadFamilies());
   }
 
   Future<void> _loadStreak() async {
