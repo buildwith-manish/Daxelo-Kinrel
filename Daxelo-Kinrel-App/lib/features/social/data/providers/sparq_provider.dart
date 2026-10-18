@@ -21,6 +21,7 @@ class SparqState {
     this.allowReplies = true,
     this.echoedSparqs = const {},
     this.echoCounts = const {},
+    this.locallyViewedSparqIds = const <String>{},
   });
   final List<UserSparqGroup> feed;
   final bool isLoading;
@@ -41,6 +42,16 @@ class SparqState {
 
   // ── Echo counts: sparqId → echoCount ────────────────────────────
   final Map<String, int> echoCounts;
+
+  // ── Locally-tracked viewed Sparq IDs ─────────────────────────────
+  //
+  // The Home Family Sparq tray uses this to decide which petals to
+  // render as outline (seen) vs filled (unseen). The viewer's local
+  // view of "what have I already looked at" is more responsive than
+  // waiting for the next feed refresh — `markSparqViewed` updates
+  // this set AND the optimistic `UserSparqGroup.allSeen` flag, so
+  // the ring switches to outline the moment a Sparq finishes playing.
+  final Set<String> locallyViewedSparqIds;
 
   /// Maps intensity slider value (0.0-1.0) to string label
   String get intensityLabel {
@@ -64,6 +75,7 @@ class SparqState {
     bool? allowReplies,
     Map<String, bool>? echoedSparqs,
     Map<String, int>? echoCounts,
+    Set<String>? locallyViewedSparqIds,
   }) {
     return SparqState(
       feed: feed ?? this.feed,
@@ -79,6 +91,7 @@ class SparqState {
       allowReplies: allowReplies ?? this.allowReplies,
       echoedSparqs: echoedSparqs ?? this.echoedSparqs,
       echoCounts: echoCounts ?? this.echoCounts,
+      locallyViewedSparqIds: locallyViewedSparqIds ?? this.locallyViewedSparqIds,
     );
   }
 }
@@ -90,11 +103,18 @@ class SparqNotifier extends StateNotifier<SparqState> {
 
   final Ref _ref;
 
-  /// Refresh the Sparq feed
-  Future<void> refreshFeed() async {
+  /// Refresh the Sparq feed.
+  ///
+  /// The optional [limit] argument lets callers request a larger page
+  /// than the server's default 20-row cap (spec section 5: the Home
+  /// Family Sparq tray asks for `limit: 60` on first load so members
+  /// in large families are not hidden by pagination). Existing
+  /// callers keep the default behavior — `limit: null` is forwarded
+  /// to the repository as `limit: 20` (the server default).
+  Future<void> refreshFeed({int? limit}) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final feed = await _ref.read(sparqRepositoryProvider).getFeed();
+      final feed = await _ref.read(sparqRepositoryProvider).getFeed(limit: limit);
       state = state.copyWith(feed: feed, isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: 'Failed to load Sparqs');
@@ -173,6 +193,13 @@ class SparqNotifier extends StateNotifier<SparqState> {
 
   /// Mark a Sparq as viewed and update seen status locally
   Future<void> markSparqViewed(String sparqId, String userId) async {
+    // Track locally so the Home Family Sparq tray's Petal ring flips
+    // this Sparq's petal to outline (seen) without waiting for the
+    // server-side refresh. Also drives the optimistic group.allSeen
+    // computation below.
+    _viewedSparqIds.add(sparqId);
+    final newViewedSet = Set<String>.from(_viewedSparqIds);
+
     // Optimistically update feed
     final updatedFeed = state.feed.map((group) {
       if (group.userId == userId) {
@@ -187,7 +214,10 @@ class SparqNotifier extends StateNotifier<SparqState> {
       }
       return group;
     }).toList();
-    state = state.copyWith(feed: updatedFeed);
+    state = state.copyWith(
+      feed: updatedFeed,
+      locallyViewedSparqIds: newViewedSet,
+    );
 
     // Fire and forget API call
     try {
@@ -232,6 +262,9 @@ class SparqNotifier extends StateNotifier<SparqState> {
 
   void markLocalViewed(String sparqId) {
     _viewedSparqIds.add(sparqId);
+    state = state.copyWith(
+      locallyViewedSparqIds: Set<String>.from(_viewedSparqIds),
+    );
   }
 
   // ── State setters for create screen ──────────────────────────────
