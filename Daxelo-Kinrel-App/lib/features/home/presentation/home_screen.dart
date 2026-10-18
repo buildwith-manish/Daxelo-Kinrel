@@ -48,6 +48,8 @@ import '../../stories/providers/stories_provider.dart';
 import '../../stories/presentation/stories_viewer_screen.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
 import '../../occasions/widgets/upcoming_occasions_row.dart';
+import '../../sparq_tray/presentation/widgets/family_sparq_tray_widget.dart'
+    show FamilySparqTray;
 import '../../../core/utils/accessibility_utils.dart';
 import '../../../core/theme/kinrel_fx.dart';
 
@@ -282,7 +284,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Family Switcher
-                _FamilySwitcherRow(families: families)
+                // kEnableSparqTray (default true): render the new Petal-ring
+                // Sparq tray (Your Sparq + one entry per family + New
+                // family). When false, fall back to the legacy
+                // _FamilySwitcherRow which only ever pushed /family/{id}.
+                (kEnableSparqTray
+                        ? FamilySparqTray(families: families)
+                        : _FamilySwitcherRow(families: families))
                     .animate()
                     .fadeIn(duration: 350.ms, delay: 50.ms)
                     .slideX(begin: -0.05, end: 0),

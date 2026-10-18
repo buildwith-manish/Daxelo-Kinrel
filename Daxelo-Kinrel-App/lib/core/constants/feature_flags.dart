@@ -104,6 +104,28 @@ const bool kEnableAutoKinshipInference = false;
 /// the Flutter UI surface.
 const bool kEnableKinrel = true;
 
+/// Family Sparq tray on the Home screen.
+///
+/// When true, the Home family row renders as the Petal-ring Sparq tray
+/// (Your Sparq + one entry per family + New family, with mood-colored
+/// petals). When false, the legacy `_FamilySwitcherRow` (which only
+/// ever pushed `/family/{id}`) is rendered.
+///
+/// Spec: Family Sparq tray. Default true so the feature is on for
+/// builds after step 2's commit; flip to false to keep the legacy
+/// row visible while the run screen + Moment Sparqs are still in
+/// development. Tapping a family entry still routes to the family
+/// page when this flag is on but no Sparqs exist for the family.
+const bool kEnableSparqTray = true;
+
+/// Family Sparq run navigation — when true, tapping a family entry
+/// with live Sparqs navigates to `/sparq/family/{id}` (the full-
+/// screen run). When false, ALL family entries route to
+/// `/family/{id}` (the legacy family page) — used during step 2
+/// when the run screen + route haven't been added yet. Flipped to
+/// true in step 5 after the route is registered.
+const bool kEnableSparqRunNavigation = false;
+
 /// v5.55: TEMPORARY debug flag — shows an on-screen dialog with the actual
 /// runtime values of relKey, result.id, linkToPersonId, widget.fromGraph
 /// right before createRelationship() is called. This helps diagnose why
