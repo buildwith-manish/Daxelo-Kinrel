@@ -1296,7 +1296,16 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // Select / highlight the node. A normal tap does NOT open the
     // member info bottom sheet — that is reserved for long-press
     // (see [_handleNodeLongPress]).
-    ref.read(selectedNodeProvider.notifier).state = nodeId;
+    //
+    // WEDGE MODE (no focus): skip selection — it triggers the
+    // tapHighlight dim. Clear it so a leftover long-press selection
+    // can't dim the graph. The old behaviour is restored by setting
+    // kWedgeTapFocusEnabled = true.
+    if (kUseViewerWedgeLayout && !kWedgeTapFocusEnabled) {
+      ref.read(selectedNodeProvider.notifier).state = null;
+    } else {
+      ref.read(selectedNodeProvider.notifier).state = nodeId;
+    }
 
     // v5.74 (BUG 2 FIX): Removed the tap-to-zoom camera animation
     // entirely. The user reported that tapping a node causes a zoom

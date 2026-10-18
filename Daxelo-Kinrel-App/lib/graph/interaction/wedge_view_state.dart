@@ -19,6 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/kinship/kinship_edge_style.dart'
     show KinshipEdgeCategory;
+import '../engine/wedge_tap_config.dart' show kWedgeTapFocusEnabled;
 
 /// Immutable state for the viewer-centered wedge view.
 @immutable
@@ -204,7 +205,9 @@ class WedgeViewNotifier extends StateNotifier<WedgeViewState> {
     state = state.copyWith(
       pages: pages,
       lastActionPersonId: personId,
-      focusedPersonId: personId,
+      // Only set focus when the old tap-focus behaviour is enabled.
+      focusedPersonId:
+          kWedgeTapFocusEnabled ? personId : state.focusedPersonId,
       revision: state.revision + 1,
     );
   }

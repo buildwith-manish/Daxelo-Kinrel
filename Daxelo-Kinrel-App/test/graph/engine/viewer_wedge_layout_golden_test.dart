@@ -196,8 +196,11 @@ void main() {
       final out = f.compute(loaded: loaded);
       expect(out.positions.containsKey('r3'), isFalse);
       expect(out.pendingLoadIds['root'], contains('r3'));
-      // "+N" still counts the person that is not shown yet.
-      expect(out.pageChips['root']!.remainingCount, 13);
+      // "+N" counts the total children beyond the window (20 - 8 = 12),
+      // NOT the unloaded children (20 - 7 = 13). The count is stable
+      // while loading: it shows what WILL be hidden after the fetch
+      // lands, not what is currently missing.
+      expect(out.pageChips['root']!.remainingCount, 12);
     });
 
     test('no overlaps while expanding everything up to the budget', () {

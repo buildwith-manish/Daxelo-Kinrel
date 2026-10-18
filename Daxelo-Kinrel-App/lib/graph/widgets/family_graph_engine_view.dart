@@ -137,6 +137,9 @@ import '../interaction/proximity_graph_state.dart'
 // Viewer-centered wedge layout ("top 8 + chips + search").
 import '../engine/viewer_wedge_layout.dart'
     show kUseViewerWedgeLayout, WedgePageChip;
+// Wedge tap behaviour flags (focus/camera/badge gates).
+import '../engine/wedge_tap_config.dart'
+    show kWedgeTapFocusEnabled, kWedgeShowCountBadges;
 // Wedge motion (animation interpolation, camera fit, edge routing) —
 // pure Dart, 1:1 port of the approved preview's math.
 import '../engine/wedge_motion.dart'

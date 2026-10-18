@@ -174,19 +174,14 @@ void main() {
         reason: 'the hub is collapsed — its children are hidden');
     expect(find.text('Hub Kid 11'), findsNothing);
 
-    // 2. Count badges on collapsed hubs with connections: hub has 12
-    //    connections, a1 has 4, a2 has 3.
-    expect(find.text('+12'), findsOneWidget,
-        reason: 'the collapsed hub shows its connection count');
-    expect(find.text('+4'), findsOneWidget,
-        reason: 'collapsed a1 (4 connections) shows a badge');
-    expect(
-      find.byWidgetPredicate((w) =>
-          w is Text && w.data == '+3' && (w.style?.fontSize ?? 0) >= 14),
-      findsOneWidget,
-      reason: 'collapsed a2 (3 connections) shows a readable badge '
-          '(number at least 14px per the spec)',
-    );
+    // 2. Count badges are OFF (kWedgeShowCountBadges = false). No gray
+    //    "+N" pills should appear on collapsed nodes.
+    expect(find.text('+12'), findsNothing,
+        reason: 'count badges are disabled (kWedgeShowCountBadges=false)');
+    expect(find.text('+4'), findsNothing,
+        reason: 'no count badge on collapsed a1');
+    expect(find.text('+3'), findsNothing,
+        reason: 'no count badge on collapsed a2');
 
     // 3. Tap the collapsed hub → expands in place with its FIRST 8
     //    children + a "+3" page bubble. (Tap the node's AVATAR CIRCLE —
@@ -371,8 +366,9 @@ void main() {
     }
     expect(hubKidsAfterCollapse, 0,
         reason: 'tapping the focused, expanded hub collapsed it');
-    // ...and its count badge comes back.
-    expect(find.text('+12'), findsOneWidget);
+    // Count badges are OFF (kWedgeShowCountBadges = false). No "+12"
+    // pill should reappear after collapse.
+    expect(find.text('+12'), findsNothing);
 
     // Let the collapse's async provider work (layout recompute +
     // microtask-scheduled chip-slot writes) settle while the tree is

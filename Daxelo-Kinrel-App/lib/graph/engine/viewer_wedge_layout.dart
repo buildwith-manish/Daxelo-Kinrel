@@ -541,7 +541,12 @@ class ViewerWedgeLayout {
       ];
       if (missing.isNotEmpty) pendingLoad[person] = missing;
       shownChildren[person] = displayed;
-      final remaining = kids.length - displayed.length;
+      // Count remaining as the total children minus the window end
+      // (not minus displayed.length, which changes while loading).
+      // This keeps the "+N" count stable: if the window asks for 8
+      // but only 6 are loaded, "+N" still shows the count as if all
+      // 8 will appear (e.g. 12 total - 8 window = 4, not 12 - 6 = 6).
+      final remaining = kids.length - windowEnd;
       if (remaining > 0) {
         final displayedSet = displayed.toSet();
         var hasNested = false;

@@ -112,14 +112,13 @@ void main() {
       expect(notifier.state.revision, revision + 1);
     });
 
-    test('a +N tap on ANOTHER hub moves the focus to that hub '
-        '("Tapping loads the next 8 ... focuses the hub")', () {
+    test('a +N tap on ANOTHER hub advances the page '
+        '(focus is off by default — kWedgeTapFocusEnabled=false)', () {
       notifier.expandPerson('a1');
-      notifier.focusPerson('a1');
       notifier.expandPerson('a2');
       notifier.advancePage('a2');
-      expect(notifier.state.focusedPersonId, 'a2',
-          reason: 'the +N tap focuses the hub it loads');
+      expect(notifier.state.focusedPersonId, isNull,
+          reason: 'focus is not set when kWedgeTapFocusEnabled=false');
       expect(notifier.state.lastActionPersonId, 'a2');
     });
 

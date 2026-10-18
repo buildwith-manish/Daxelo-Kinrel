@@ -2003,31 +2003,79 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     final viewerId =
         ref.read(viewerPersonIdProvider(widget.familyId)).valueOrNull;
 
-    // Exit any isolate-connections focus (search jump / "Isolate
-    // connections") — an active wedge browse supersedes it. Focus mode
-    // dims the rest of the graph to 18%, which fights the wedge
-    // overview; clearing it here never moves the camera by itself.
+    // ── OLD BEHAVIOUR (focus/camera/dim on tap) ──────────────────
+    // Restore by setting kWedgeTapFocusEnabled = true in
+    // lib/graph/engine/wedge_tap_config.dart.
+    if (kWedgeTapFocusEnabled) {
+      // Exit any isolate-connections focus (search jump / "Isolate
+      // connections") — an active wedge browse supersedes it.
+      if (ref.read(graphFocusProvider).focusedPersonId != null) {
+        ref.read(graphFocusProvider.notifier).clearFocus();
+      }
+
+      // The viewer/root is ALWAYS expanded and never collapses —
+      // tapping it just (re-)focuses the root branch.
+      if (personId == viewerId) {
+        ref.read(wedgeViewProvider.notifier).focusPerson(personId);
+        return;
+      }
+
+      final isExpanded = wedge.expandedRoots.contains(personId);
+
+      if (!isExpanded) {
+        final layout =
+            ref.read(graphLayoutProvider(widget.familyId)).valueOrNull;
+        final currentCount = layout?.positions.length ?? 0;
+        if (currentCount + 9 > kWedgeNodeBudget) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Budget reached ($kWedgeNodeBudget on screen)'),
+              duration: Duration(milliseconds: 1800),
+            ),
+          );
+          return;
+        }
+        _focusWedgePerson(personId);
+        _expandWedgeNode(personId);
+        return;
+      }
+
+      if (wedge.focusedPersonId != personId) {
+        ref.read(wedgeViewProvider.notifier).focusPerson(personId);
+        return;
+      }
+
+      final summary =
+          ref.read(wedgeLayoutSummaryProvider(widget.familyId));
+      final parent = summary?.parentOf[personId];
+      ref
+          .read(wedgeViewProvider.notifier)
+          .collapseAndFocusParent(personId, parent);
+      _cancelEntranceAnimation();
+      ref.invalidate(graphLayoutProvider(widget.familyId));
+      return;
+    }
+
+    // ── NEW BEHAVIOUR: tap = expand/collapse only ────────────────
+    // Matches the approved preview's `tap()` function: one tap,
+    // always. No focus, no camera, no dim, no selection glow.
+
+    // Clear any isolate-connections focus so it doesn't fight the view.
     if (ref.read(graphFocusProvider).focusedPersonId != null) {
       ref.read(graphFocusProvider.notifier).clearFocus();
     }
 
-    // The viewer/root is ALWAYS expanded and never collapses — tapping
-    // it just (re-)focuses the root branch (top-8 + its parent fit).
-    if (personId == viewerId) {
-      ref.read(wedgeViewProvider.notifier).focusPerson(personId);
-      return;
-    }
+    // Viewer/root: do nothing (no toggle, no focus, no camera).
+    if (personId == viewerId) return;
 
     final isExpanded = wedge.expandedRoots.contains(personId);
 
     if (!isExpanded) {
-      // Budget check: if expanding this person would exceed the wedge
-      // node budget, show a message and do nothing (matching the
-      // approved preview's `note('Budget reached (150 on screen)')`).
-      final layout = ref.read(graphLayoutProvider(widget.familyId)).valueOrNull;
+      // Collapsed → expand (first 8 children + chip if more remain).
+      final layout =
+          ref.read(graphLayoutProvider(widget.familyId)).valueOrNull;
       final currentCount = layout?.positions.length ?? 0;
       if (currentCount + 9 > kWedgeNodeBudget) {
-        // 9 = pageSize (8 children) + 1 chip. Worst case.
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Budget reached ($kWedgeNodeBudget on screen)'),
@@ -2036,36 +2084,13 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
         );
         return;
       }
-      // Case 1 — collapsed person: expand in place with their first 8
-      // connections, focus them, and fit the camera to them + their
-      // children + their parent (the fit rides the wedge revision
-      // change that _expandWedgeNode's expansion triggers).
-      _focusWedgePerson(personId);
       _expandWedgeNode(personId);
-      return;
+    } else {
+      // Expanded → collapse. Do NOT focus parent. Just collapse.
+      ref.read(wedgeViewProvider.notifier).collapsePerson(personId);
+      _cancelEntranceAnimation();
+      ref.invalidate(graphLayoutProvider(widget.familyId));
     }
-
-    if (wedge.focusedPersonId != personId) {
-      // Case 2 — expanded but not focused: focus them and fit the
-      // camera to their branch (focusPerson bumps the revision with
-      // lastActionPersonId = the person → _maybeFitCameraOnWedgeChange
-      // fits them + their children + their parent).
-      ref.read(wedgeViewProvider.notifier).focusPerson(personId);
-      return;
-    }
-
-    // Case 3 — focused + expanded: collapse them and focus their
-    // parent. The camera fit rides the collapse's revision change
-    // (lastActionPersonId = the collapsed person, whose fit set
-    // includes their parent).
-    final summary =
-        ref.read(wedgeLayoutSummaryProvider(widget.familyId));
-    final parent = summary?.parentOf[personId];
-    ref
-        .read(wedgeViewProvider.notifier)
-        .collapseAndFocusParent(personId, parent);
-    _cancelEntranceAnimation();
-    ref.invalidate(graphLayoutProvider(widget.familyId));
   }
 
   /// Sets the WEDGE browsing focus on [personId] (WedgeViewState, not

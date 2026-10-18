@@ -324,7 +324,16 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       // interaction in Rearrange mode is dragging/repositioning.
       onTap: () {
         if (ref.read(rearrangeModeProvider)) return;
-        ref.read(selectedNodeProvider.notifier).state = id;
+        // WEDGE MODE (no focus): skip selection — it triggers the
+        // tapHighlight dim in _buildFullNode. Only expand/collapse.
+        // The old behaviour (selection + dim) is restored by setting
+        // kWedgeTapFocusEnabled = true in wedge_tap_config.dart.
+        if (kUseViewerWedgeLayout && !kWedgeTapFocusEnabled) {
+          // Clear any leftover selection so it doesn't dim.
+          ref.read(selectedNodeProvider.notifier).state = null;
+        } else {
+          ref.read(selectedNodeProvider.notifier).state = id;
+        }
         // v5.114: Tap-to-expand — if this node is on the outermost visible
         // ring, expand its immediate neighborhood into the visible set.
         // This is incremental: only the tapped node's direct neighbors

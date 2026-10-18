@@ -2591,6 +2591,14 @@ GraphLayoutResult _computeViewerWedgeLayout({
     // The WEDGE tap-focus (the currently-focused browsing person) is
     // never auto-collapsed by the node budget.
     if (wedgeState.focusedPersonId != null) wedgeState.focusedPersonId!,
+    // The person just expanded/paged (lastActionPersonId) is also
+    // protected — when focus is off (kWedgeTapFocusEnabled=false),
+    // focusedPersonId stays null, so lastActionPersonId is the only
+    // signal that this branch was just opened and must not be
+    // budget-collapsed on the next recompute.
+    if (wedgeState.lastActionPersonId != null &&
+        wedgeState.lastActionPersonId!.isNotEmpty)
+      wedgeState.lastActionPersonId!,
     if (focusState.focusedPersonId != null) focusState.focusedPersonId!,
     ...focusState.firstDegreeIds,
     ...searchState.revealedPathIds,

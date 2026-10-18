@@ -1810,8 +1810,8 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 // connections (drawn by this chip layer — GraphNode stays
                 // untouched). ONLY for nodes that are actually RENDERED
                 // on screen (in [renderVisible]) — no floating badges for
-                // off-screen nodes.
-                ..._buildWedgeCountBadges(renderVisible),
+                // off-screen nodes. Gated behind kWedgeShowCountBadges.
+                if (kWedgeShowCountBadges) ..._buildWedgeCountBadges(renderVisible),
               ],
             ),
           ),
@@ -2248,6 +2248,12 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
     final wedgeState = ref.read(wedgeViewProvider);
     if (wedgeState.revision == _lastWedgeRevision) return;
     _lastWedgeRevision = wedgeState.revision;
+
+    // WEDGE MODE (no focus): do NOT move the camera on tap. Only
+    // search reveal and Fit/Reset buttons should animate the camera.
+    // The old behaviour (camera fit on every tap) is restored by
+    // setting kWedgeTapFocusEnabled = true.
+    if (!kWedgeTapFocusEnabled && wedgeState.revealTarget == null) return;
 
     final actionPersonId = wedgeState.lastActionPersonId;
     if (actionPersonId == null || actionPersonId.isEmpty) return;
