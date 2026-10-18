@@ -280,11 +280,16 @@ void main() {
               .where((id) => id.startsWith('k'))
               .length ??
           0;
-      expect(hubKidPositions, 3,
-          reason: 'the next page window shows the remaining 3 children');
+      // CUMULATIVE PAGING: the +N tap ADDS the remaining 3 children to
+      // the first 8 (which stay). So all 11 hub kids are now on the
+      // canvas (hub has 11 children total: k1..k11).
+      expect(hubKidPositions, 11,
+          reason: 'cumulative paging: all 11 hub kids are shown (8 + 3)');
     }
-    expect(hubKidsVisible <= 8 && hubKidsVisible >= 3, isTrue,
-        reason: 'the next page window renders (at most 8 per hub)');
+    // With cumulative paging, all 11 hub kids are visible (8 from page 0
+    // + 3 from the +N tap). The chip disappears when nothing remains.
+    expect(hubKidsVisible, 11,
+        reason: 'cumulative paging: all 11 hub kids are rendered');
     // The bubble's exit is ANIMATED by design: after the hub pages to
     // its very end, the chip fades out over a short cycle (260ms fade
     // + 400ms cleanup) that only starts once the re-paced layout lands.

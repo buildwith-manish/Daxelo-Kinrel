@@ -7,10 +7,12 @@
 //   • Each person has exactly ONE tree parent, found by shortest path
 //     from the viewer (ties broken by closer relationship first — via
 //     the kProximityCategoryKeepPriority ordering — then by lower id).
-//   • Each EXPANDED person shows at most [WedgeLayoutConfig.pageSize]
-//     children; when more remain, ONE extra leaf slot is reserved for
-//     the "+N" chip (rendered by the existing chip widget at the slot
-//     centre — chip visuals unchanged).
+//   • Each EXPANDED person shows its first [WedgeLayoutConfig.pageSize]
+//     children (8). Tapping "+N" ADDS the next page: paging is
+//     CUMULATIVE (page p shows the first (p + 1) * pageSize children),
+//     exactly like the approved preview — earlier people never vanish.
+//     When more remain, ONE extra leaf slot is reserved for the "+N"
+//     chip, the SAME footprint as a person node.
 //   • Angular wedges are split among children in proportion to each
 //     child's subtree weight, so branches never crowd shared rings.
 //   • Ring radii satisfy BOTH a minimum gap AND an arc-space constraint
@@ -104,7 +106,15 @@ class WedgeLayoutOutput {
     required this.parentOf,
     required this.visibleIds,
     required this.extentSize,
+    this.pendingLoadIds = const <String, List<String>>{},
   });
+
+  /// Hub id → children that belong to the requested window (the
+  /// first (page + 1) * pageSize ranked children) but are NOT in
+  /// `loadedPersonIds` yet. The caller should fetch these (existing
+  /// fetchBranchAndMerge flow); once loaded, the next compute shows
+  /// them. The layout never invents positions for unloaded people.
+  final Map<String, List<String>> pendingLoadIds;
 
   /// Person id → position. ALWAYS contains the viewer at (0, 0).
   final Map<String, Offset> positions;
@@ -134,15 +144,6 @@ class WedgeLayoutConfig {
     this.pageSize = 8,
     this.rootFootprint = const Size(124, 140),
     this.nodeFootprint = const Size(124, 128),
-    // The "+N" page bubble is now node-sized (124×128, the same as
-    // nodeFootprint) so it reads as part of the family of nodes —
-    // same circle diameter, same reserved slot, same label space
-    // below. The bubble widget itself draws a Ø72 circle (matching
-    // GraphNode's default nodeSize) plus the "N more / Tap to show"
-    // label underneath, so the full 124×128 footprint is consumed.
-    // The no-overlap guarantee still holds: the layout engine treats
-    // chip slots with the SAME footprint as nodes when scanning for
-    // axis-aligned box overlaps.
     this.chipFootprint = const Size(124, 128),
     this.footprintPadding = 6.0,
     this.firstRingRadius = 220.0,
@@ -163,7 +164,7 @@ class WedgeLayoutConfig {
   /// Axis-aligned footprint of a normal node.
   final Size nodeFootprint;
 
-  /// Axis-aligned footprint of a "+N" chip slot.
+  /// Axis-aligned footprint of a "+N" chip slot (same as a person).
   final Size chipFootprint;
 
   /// Inflation added to every footprint box before overlap tests.
@@ -199,14 +200,6 @@ class ViewerWedgeLayout {
 
   final WedgeLayoutConfig _config;
 
-  /// Insertion-order index: the order in which each person id first
-  /// appears in the [links] list. Used as the tiebreaker in
-  /// [compareChildren] so children keep the order their edges were
-  /// declared in (matching the spec's "in that order"), instead of
-  /// being sorted lexicographically (which puts r10 before r2).
-  /// Built fresh on every [compute] call.
-  Map<String, int> _orderIndex = const {};
-
   /// Mirror of kProximityCategoryKeepPriority (proximity_graph_state.dart).
   /// Local copy so the engine stays free of Riverpod/provider imports —
   /// kept in EXACT sync with the canonical ordering: closer relationships
@@ -241,12 +234,15 @@ class ViewerWedgeLayout {
   ///
   /// [loadedPersonIds] — persons whose data is fetched (position
   ///   candidates). The tree itself may reference unloaded persons
-  ///   (via [links]) so "+N" counts stay truthful.
+  ///   (via [links]) so "+N" counts stay truthful. Unloaded people in
+  ///   the requested window are returned in
+  ///   [WedgeLayoutOutput.pendingLoadIds] for the caller to fetch.
   /// [nameOf] — display names (deterministic child ordering).
   /// [links] — the full family edge list.
   /// [viewerId] — the root person.
   /// [expandedPersonIds] — persons whose children are shown (paged).
-  /// [manualPages] — user-driven page indexes (+N chip taps).
+  /// [manualPages] — user-driven page indexes (+N chip taps). Paging
+  ///   is CUMULATIVE: page p shows the first (p + 1) * pageSize.
   /// [expansionOrder] — expansion order, OLDEST first (LRU budget).
   /// [revealTargets] — search results that must be visible together
   ///   with their full path from the viewer (pages auto-selected).
@@ -278,20 +274,10 @@ class ViewerWedgeLayout {
     // keyTo[a][b] = relationship key meaning "b is a's <key>".
     final keyTo = <String, Map<String, String>>{};
     final adjacency = <String, Set<String>>{};
-    // Build the insertion-order index: the order in which each person
-    // first appears in the [links] list. Used by compareChildren as
-    // the tiebreaker so children keep edge-list order (numeric:
-    // r0, r1, r2, ...) instead of lexicographic order (r0, r1, r10, ...).
-    _orderIndex = <String, int>{};
-    var order = 0;
-    // Ensure the viewer gets index 0 (it's the root, always first).
-    _orderIndex[viewerId] = order++;
     for (final link in links) {
       final a = link.fromId;
       final b = link.toId;
       if (a.isEmpty || b.isEmpty || a == b) continue;
-      if (!_orderIndex.containsKey(a)) _orderIndex[a] = order++;
-      if (!_orderIndex.containsKey(b)) _orderIndex[b] = order++;
       adjacency.putIfAbsent(a, () => <String>{}).add(b);
       adjacency.putIfAbsent(b, () => <String>{}).add(a);
       final forward = link.keyAtoB ?? link.relationshipKey;
@@ -354,15 +340,9 @@ class ViewerWedgeLayout {
 
     // ── 3. Ordered children lists ──────────────────────────────────
     // Ordered by closeness (category rank of the connecting edge),
-    // then by INSERTION ORDER (the order in which each person first
-    // appears in the [links] list). This matches the spec's "in rank
-    // order" and "in that order" — when all relationships have the
-    // same rank, children keep the order their edges were declared
-    // in (numeric: r0, r1, r2, ... not lexicographic: r0, r1, r10, ...).
-    //
-    // The insertion order is tracked via _orderIndex, built from the
-    // links list above. Persons not in the links get a high index
-    // (sorted last), breaking ties by id.
+    // then name, then id. (Pinned/recent ranking signals do not exist
+    // on the graph person model — a Phase 0 gap; the documented
+    // fallback ordering is exactly this.)
     final childrenOf = <String, List<String>>{};
     parentOf.forEach((child, parent) {
       if (parent == null) return;
@@ -372,10 +352,8 @@ class ViewerWedgeLayout {
       final rankA = _rankOfKey(keyFromParent[a] ?? '');
       final rankB = _rankOfKey(keyFromParent[b] ?? '');
       if (rankA != rankB) return rankA.compareTo(rankB);
-      // Tiebreak by insertion order (edge list order), not by name.
-      final oa = _orderIndex[a] ?? 0x7FFFFFFF;
-      final ob = _orderIndex[b] ?? 0x7FFFFFFF;
-      if (oa != ob) return oa.compareTo(ob);
+      final byName = (nameOf[a] ?? '').compareTo(nameOf[b] ?? '');
+      if (byName != 0) return byName;
       return a.compareTo(b);
     }
 
@@ -411,7 +389,7 @@ class ViewerWedgeLayout {
         if (idx >= 0) {
           final page = idx ~/ _config.pageSize;
           final existing = pageOverride[parent];
-          if (existing == null || page < existing) {
+          if (existing == null || page > existing) {
             pageOverride[parent] = page;
           }
         }
@@ -485,7 +463,7 @@ class ViewerWedgeLayout {
     );
     for (var attempt = 0; attempt <= _config.maxArcRelaxAttempts; attempt++) {
       final overlaps = _countOverlaps(candidate, viewerId);
-      if (overlaps == 0) return candidate;
+      if (overlaps == 0) return _withPending(candidate, shown.pendingLoad);
       arcSpacing *= _config.arcSpacingGrowth;
       candidate = _layoutOnce(
         viewerId: viewerId,
@@ -497,7 +475,24 @@ class ViewerWedgeLayout {
     }
 
     // ── 7. Deterministic radial push for any remaining conflict ────
-    return _pushConflictsOutward(candidate, viewerId);
+    return _withPending(
+        _pushConflictsOutward(candidate, viewerId), shown.pendingLoad);
+  }
+
+  static WedgeLayoutOutput _withPending(
+    WedgeLayoutOutput output,
+    Map<String, List<String>> pending,
+  ) {
+    if (pending.isEmpty) return output;
+    return WedgeLayoutOutput(
+      positions: output.positions,
+      pageChips: output.pageChips,
+      depthById: output.depthById,
+      parentOf: output.parentOf,
+      visibleIds: output.visibleIds,
+      extentSize: output.extentSize,
+      pendingLoadIds: pending,
+    );
   }
 
   // ── internals ────────────────────────────────────────────────────
@@ -522,28 +517,37 @@ class ViewerWedgeLayout {
   }) {
     final shownChildren = <String, List<String>>{};
     final chipFor = <String, _ChipPlaceholder>{};
+    final pendingLoad = <String, List<String>>{};
     final orderedExpanded = expandedEff.toList()..sort();
 
     for (final person in orderedExpanded) {
       final kids = childrenOfPerson(person);
       if (kids.isEmpty) continue;
       final page = pageOfPerson(person, kids);
-      final sliceStart = page * _config.pageSize;
-      final sliceEnd = sliceStart + _config.pageSize;
-      final slice = kids.sublist(
-        sliceStart.clamp(0, kids.length),
-        sliceEnd.clamp(0, kids.length),
-      );
-      // Only loaded children can be positioned right now; the rest
-      // appear when their branch fetch lands.
-      shownChildren[person] = <String>[
-        for (final k in slice) if (loadedPersonIds.contains(k)) k,
+      // CUMULATIVE window: page p shows the first (p + 1) * pageSize
+      // ranked children, so "+N" adds people and nobody disappears.
+      final windowEnd = math.min((page + 1) * _config.pageSize, kids.length);
+      final window = kids.sublist(0, windowEnd);
+      // Only loaded children can be positioned. The unloaded ones are
+      // reported in pendingLoadIds so the caller can fetch them; they
+      // still count as "not shown" in the +N number.
+      final displayed = <String>[
+        for (final k in window)
+          if (loadedPersonIds.contains(k)) k,
       ];
-      final remaining = kids.length - sliceEnd;
+      final missing = <String>[
+        for (final k in window)
+          if (!loadedPersonIds.contains(k)) k,
+      ];
+      if (missing.isNotEmpty) pendingLoad[person] = missing;
+      shownChildren[person] = displayed;
+      final remaining = kids.length - displayed.length;
       if (remaining > 0) {
+        final displayedSet = displayed.toSet();
         var hasNested = false;
-        for (var i = sliceEnd; i < kids.length; i++) {
-          if (childrenOfPerson(kids[i]).isNotEmpty) {
+        for (final k in kids) {
+          if (displayedSet.contains(k)) continue;
+          if (childrenOfPerson(k).isNotEmpty) {
             hasNested = true;
             break;
           }
@@ -571,6 +575,7 @@ class ViewerWedgeLayout {
       shownChildren: shownChildren,
       chipFor: chipFor,
       visibleIds: visible,
+      pendingLoad: pendingLoad,
     );
   }
 
@@ -655,12 +660,6 @@ class ViewerWedgeLayout {
     }
 
     // ── c. Ring radii: base gaps + arc-space constraints ──────────
-    // For every node, the ring at the node's own depth must have
-    // radius at least arcSpacing * weight(node) / span(node). This
-    // ensures the node's OWN wedge is wide enough to fit its
-    // subtree's widest level. Nodes with large subtrees (e.g. an
-    // expanded hub with 9 children) push their OWN ring outward,
-    // which in turn pushes their siblings' ring outward too.
     var maxRing = 0;
     ringOf.forEach((_, ring) {
       if (ring > maxRing) maxRing = ring;
@@ -670,29 +669,20 @@ class ViewerWedgeLayout {
       var radius = ring == 1
           ? _config.firstRingRadius
           : radii[ring - 1] + _config.minRingGap;
-      // Constraint 1: from ancestors ABOVE this ring. For each
-      // ancestor at ring (ring - d), its level-d count must fit:
-      // r >= arcSpacing * count / ancestor_span.
+      // For every node v on ring (ring - d) with wedge angle θ, the
+      // ring holding v's depth-d subtree nodes must grant each of them
+      // arcSpacing of arc: r ≥ arcSpacing · count / θ.
+      // d = 0 IS INCLUDED: a node must also fit in its OWN wedge
+      // (r ≥ arcSpacing / θ). Without that term a light sibling next
+      // to a heavy expanded branch gets a sliver of angle and only the
+      // overlap-relaxation loop pushed it apart (huge, messy spacing).
       ringOf.forEach((node, nodeRing) {
-        if (nodeRing >= ring) return;
+        if (nodeRing > ring) return;
         final d = ring - nodeRing;
         final count = countByNode[node]?[d] ?? 0;
         if (count == 0) return;
         final span = wedgeSpan[node]!;
         final required = arcSpacing * count / span;
-        if (required > radius) radius = required;
-      });
-      // Constraint 2: from nodes AT this ring. Each node's OWN
-      // weight (its subtree's widest level) must fit in its wedge:
-      // r >= arcSpacing * weight / node_span. This is what pushes
-      // expanded hubs outward — their weight is large, their span
-      // is small, so the required radius is large.
-      ringOf.forEach((node, nodeRing) {
-        if (nodeRing != ring) return;
-        final w = weightOf(node);
-        final span = wedgeSpan[node]!;
-        if (span <= 0) return;
-        final required = arcSpacing * w / span;
         if (required > radius) radius = required;
       });
       radii.add(radius);
@@ -939,8 +929,10 @@ class _ShownTree {
     required this.shownChildren,
     required this.chipFor,
     required this.visibleIds,
+    required this.pendingLoad,
   });
 
+  final Map<String, List<String>> pendingLoad;
   final Map<String, List<String>> shownChildren;
   final Map<String, _ChipPlaceholder> chipFor;
   final Set<String> visibleIds;

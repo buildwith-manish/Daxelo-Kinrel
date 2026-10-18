@@ -628,18 +628,20 @@ void main() {
         // The chip never overlaps a node (footprint boxes).
         _expectZeroOverlaps(page0, 'viewer');
 
-        // Page 1 (the "+4" tap): the remaining 4 children load in —
-        // the window turns over (still at most 8 per person) — and
-        // NOTHING remains, so the bubble disappears.
+        // Page 1 (the "+4" tap): paging is CUMULATIVE — the first 8
+        // children STAY and the remaining 4 are ADDED. So all 12
+        // children are now on the canvas, and the chip disappears
+        // (nothing remains).
         final page1 = pageOf(1);
-        expect(page1.positions.length, 6,
-            reason: 'viewer + hub + the remaining 4 kids');
+        expect(page1.positions.length, 14,
+            reason: 'viewer + hub + all 12 kids (cumulative paging)');
         final shownOnPage1 = page1.positions.keys
             .where((id) => id.startsWith('c'))
             .toSet();
-        expect(shownOnPage1.length, 4);
-        expect(shownOnPage1.intersection(shownOnPage0), isEmpty,
-            reason: 'the next page shows the children not yet seen');
+        expect(shownOnPage1.length, 12);
+        // The first 8 children from page 0 are STILL on the canvas.
+        expect(shownOnPage0.intersection(shownOnPage1), shownOnPage0,
+            reason: 'cumulative paging: earlier people stay');
         expect(
           shownOnPage0.union(shownOnPage1).length,
           12,
