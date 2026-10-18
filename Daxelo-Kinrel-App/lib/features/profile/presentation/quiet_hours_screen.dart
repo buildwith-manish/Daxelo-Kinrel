@@ -17,6 +17,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/networking/dio_client.dart' show dioProvider;
 import '../data/profile_provider.dart';
+import 'settings/settings_providers.dart' show quietHoursSummaryProvider;
 
 // ── Design Tokens ──────────────────────────────────────────────────
 const Color _bg = Color(0xFF131416);
@@ -147,6 +148,9 @@ class _QuietHoursScreenState extends ConsumerState<QuietHoursScreen> {
     } catch (_) {
       // Silently fail — backend is the source of truth
     }
+    // Refresh the Me screen + Settings Notifications summary so the
+    // "10pm-6am" / "Off" line updates without an app restart.
+    ref.invalidate(quietHoursSummaryProvider);
   }
 
   String _formatTime(TimeOfDay time) {
