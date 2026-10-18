@@ -1962,10 +1962,10 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     }
 
     if (loadedNeighborIds.isNotEmpty) {
-      ref.read(proximityGraphProvider.notifier).revealPersons(
-            personIds: loadedNeighborIds,
-            allPersons: loadedIds,
-          );
+      // Do NOT call proximityGraphProvider.revealPersons — the wedge
+      // layout uses allRelationships and loadedPersonIds (every loaded
+      // person), so the proximity set is irrelevant. The layout will
+      // position the children automatically.
       final layout =
           ref.read(graphLayoutProvider(widget.familyId)).valueOrNull;
       _markNodesForEntrance(

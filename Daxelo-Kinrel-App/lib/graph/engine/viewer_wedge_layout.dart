@@ -107,6 +107,7 @@ class WedgeLayoutOutput {
     required this.visibleIds,
     required this.extentSize,
     this.pendingLoadIds = const <String, List<String>>{},
+    this.treeChildCount = const <String, int>{},
   });
 
   /// Hub id → children that belong to the requested window (the
@@ -136,6 +137,14 @@ class WedgeLayoutOutput {
   /// (width, height) of the axis-aligned bounding box around every
   /// footprint, padding included.
   final Size extentSize;
+
+  /// Person id → number of TREE children that person has over the full
+  /// link set (the same BFS children the layout uses), for EVERY person
+  /// in the tree (shown or not). This is the ONE source of truth for the
+  /// sub-node count shown on a node: a collapsed person with treeChildCount
+  /// of N has N hidden sub-nodes; an expanded person's remaining count is
+  /// treeChildCount minus the children already shown.
+  final Map<String, int> treeChildCount;
 }
 
 /// All tunable constants for the wedge layout in ONE class.
@@ -335,6 +344,7 @@ class ViewerWedgeLayout {
         parentOf: parentOf,
         visibleIds: {viewerId},
         extentSize: _config.rootFootprint,
+        treeChildCount: const {},
       );
     }
 
@@ -453,6 +463,11 @@ class ViewerWedgeLayout {
     }
 
     // ── 6. Wedges → radii → positions (arc-relaxation loop) ────────
+    // Build treeChildCount: person id → number of BFS tree children.
+    // This is the ONE source of truth for sub-node counts.
+    final treeChildCount = <String, int>{
+      for (final entry in childrenOf.entries) entry.key: entry.value.length,
+    };
     var arcSpacing = _config.arcSpacing;
     WedgeLayoutOutput candidate = _layoutOnce(
       viewerId: viewerId,
@@ -460,6 +475,7 @@ class ViewerWedgeLayout {
       keyFromParent: keyFromParent,
       shown: shown,
       arcSpacing: arcSpacing,
+      treeChildCount: treeChildCount,
     );
     for (var attempt = 0; attempt <= _config.maxArcRelaxAttempts; attempt++) {
       final overlaps = _countOverlaps(candidate, viewerId);
@@ -471,6 +487,7 @@ class ViewerWedgeLayout {
         keyFromParent: keyFromParent,
         shown: shown,
         arcSpacing: arcSpacing,
+        treeChildCount: treeChildCount,
       );
     }
 
@@ -492,6 +509,7 @@ class ViewerWedgeLayout {
       visibleIds: output.visibleIds,
       extentSize: output.extentSize,
       pendingLoadIds: pending,
+      treeChildCount: output.treeChildCount,
     );
   }
 
@@ -504,6 +522,7 @@ class ViewerWedgeLayout {
         parentOf: viewerId.isEmpty ? const {} : {viewerId: null},
         visibleIds: viewerId.isEmpty ? const {} : {viewerId},
         extentSize: const Size(124, 140),
+        treeChildCount: const {},
       );
 
   /// Builds the paged visible tree: which persons are positioned and
@@ -591,6 +610,7 @@ class ViewerWedgeLayout {
     required Map<String, String> keyFromParent,
     required _ShownTree shown,
     required double arcSpacing,
+    required Map<String, int> treeChildCount,
   }) {
     // Chip slots participate in the tree as ONE extra leaf child of
     // each expanded person whose children overflow the current page.
@@ -729,6 +749,7 @@ class ViewerWedgeLayout {
       parentOf: parentOf,
       visibleIds: shown.visibleIds,
       extentSize: _extentSize(viewerId, positions, pageChips),
+      treeChildCount: treeChildCount,
     );
   }
 
@@ -875,11 +896,8 @@ class ViewerWedgeLayout {
         depthById: working.depthById,
         parentOf: working.parentOf,
         visibleIds: working.visibleIds,
-        // The pushes above moved nodes OUTWARD — recompute the extent
-        // so the canvas dimensions always match the final positions
-        // (a stale extent produced a canvas smaller than the content,
-        // breaking the camera fit).
         extentSize: _extentSize(viewerId, pushed, pushedChips),
+        treeChildCount: working.treeChildCount,
       );
     }
     return working;

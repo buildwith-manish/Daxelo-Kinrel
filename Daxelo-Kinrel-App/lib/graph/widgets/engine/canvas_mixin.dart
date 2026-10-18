@@ -2249,15 +2249,26 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
     if (wedgeState.revision == _lastWedgeRevision) return;
     _lastWedgeRevision = wedgeState.revision;
 
-    // WEDGE MODE (no focus): do NOT move the camera on tap. Only
-    // search reveal and Fit/Reset buttons should animate the camera.
-    // The old behaviour (camera fit on every tap) is restored by
-    // setting kWedgeTapFocusEnabled = true.
-    if (!kWedgeTapFocusEnabled && wedgeState.revealTarget == null) return;
-
     final actionPersonId = wedgeState.lastActionPersonId;
     if (actionPersonId == null || actionPersonId.isEmpty) return;
     if (layout.positions.isEmpty) return;
+
+    // WEDGE MODE camera logic:
+    // - kWedgeTapFocusEnabled = true: old behaviour (fit to person +
+    //   parent + children). Search reveal always fits.
+    // - kWedgeFitOnExpand = true (default): fit ONLY the expanded
+    //   person + its newly shown children + its +N bubble (NOT the
+    //   parent, NOT the rest of the graph). On collapse, don't move.
+    // - Both false: never move the camera on tap. Only search reveal
+    //   and Fit/Reset buttons animate the camera.
+    if (!kWedgeTapFocusEnabled && wedgeState.revealTarget == null) {
+      if (!kWedgeFitOnExpand) return;
+      // Check if this was an expand or +N tap (not a collapse).
+      // On collapse, do NOT move the camera.
+      final wedge = ref.read(wedgeViewProvider);
+      final isExpanded = wedge.expandedRoots.contains(actionPersonId);
+      if (!isExpanded) return; // collapse — don't move camera
+    }
 
     final summary =
         ref.read(wedgeLayoutSummaryProvider(widget.familyId));
@@ -2266,10 +2277,15 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
     };
     if (focusIds.isEmpty) return;
 
-    // The opened branch's parent (when known and positioned).
-    final parent = summary?.parentOf[actionPersonId];
-    if (parent != null && layout.positions.containsKey(parent)) {
-      focusIds.add(parent);
+    if (kWedgeFitOnExpand && !kWedgeTapFocusEnabled) {
+      // Fit ONLY the expanded person + its children + its chip.
+      // Do NOT include the parent or the rest of the graph.
+    } else {
+      // Old behaviour: also include the parent.
+      final parent = summary?.parentOf[actionPersonId];
+      if (parent != null && layout.positions.containsKey(parent)) {
+        focusIds.add(parent);
+      }
     }
     // The opened branch's positioned children.
     summary?.parentOf.forEach((child, childParent) {
@@ -2336,6 +2352,8 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
     final boundsRect = Rect.fromLTRB(minX, minY, maxX, maxY);
 
     // Use WedgeCameraFit.fit with the real insets.
+    // kWedgeFitOnExpand uses maxScale 1.2 (tighter than the 1.6 used
+    // by the old focus path) so the camera doesn't over-zoom.
     final cameraFit = WedgeCameraFit.fit(
       boxes: [boundsRect],
       viewport: size,
@@ -2346,7 +2364,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         bottom: bottomInset,
       ),
       minScale: 0.50, // names visible at this zoom
-      maxScale: 1.6,
+      maxScale: (kWedgeFitOnExpand && !kWedgeTapFocusEnabled) ? 1.2 : 1.6,
     );
 
     final reduced = MediaQuery.disableAnimationsOf(context);

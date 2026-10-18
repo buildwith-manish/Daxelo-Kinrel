@@ -38,6 +38,7 @@ import '../../core/constants/feature_flags.dart';
 import '../../core/kinship/kinship_edge_style.dart';
 import '../../core/theme/kinrel_fx.dart';
 import '../../core/widgets/cached_avatar.dart';
+import '../engine/viewer_wedge_layout.dart' show kUseViewerWedgeLayout;
 import 'engine/node_decoration.dart';
 import 'engine/node_paint_helpers.dart';
 import 'engine/node_role_glyph_badge.dart';
@@ -1341,16 +1342,14 @@ class _GraphNodeState extends ConsumerState<GraphNode>
             ),
           // v5.188 (Affordance — Norman door fix): "N descendants" pill
           // at bottom-center, just below the circle border. Purely
-          // informational — surfaces the otherwise-hidden "this branch
-          // can be collapsed" capability BEFORE the user collapses it.
-          // Gated on childCount >= 2 and !isAnchor; the pill is small
-          // (28×14) and sits in the natural gap between the role glyph
-          // (bottom-right) and the indirect-relation badge (bottom-left).
-          // No separate tap target — it lives inside the node's
-          // existing tap region. The user discovers collapse via
-          // long-press → "Collapse this branch" (now the FIRST item in
-          // the chunked quick-actions sheet — see v5.188 #3).
-          if (widget.childCount >= 2 && !widget.isAnchor)
+          // informational — surfaces the "this branch can be expanded"
+          // capability.
+          // WEDGE MODE: shows for childCount >= 1 (not >= 2), uses
+          // the neutral grey token (KinshipEdgeColors.extended) instead
+          // of the category color. Hidden for expanded nodes and the
+          // viewer (the childCount is already 0 in those cases — the
+          // caller handles it).
+          if (widget.childCount >= 1 && !widget.isAnchor)
             Positioned(
               left: 0,
               right: 0,
@@ -1358,7 +1357,9 @@ class _GraphNodeState extends ConsumerState<GraphNode>
               child: Center(
                 child: _DescendantsPill(
                   count: widget.childCount,
-                  color: _borderColor,
+                  color: kUseViewerWedgeLayout
+                      ? KinshipEdgeColors.extended
+                      : _borderColor,
                 ),
               ),
             ),

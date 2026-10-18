@@ -25,3 +25,11 @@ const bool kWedgeTapFocusEnabled = false;
 /// true = gray "+N" pill on collapsed nodes. false = no pills (the
 /// approved preview uses only the dashed "+N" node).
 const bool kWedgeShowCountBadges = false;
+
+/// true = on expand or +N tap, run ONE camera move: WedgeCameraFit.fit
+/// over the expanded person, its newly shown children and its +N bubble
+/// only (not the parent, not the rest of the graph). On collapse, do
+/// not move the camera. This is independent of kWedgeTapFocusEnabled
+/// (which controls focus/dim/selection). When false, the camera never
+/// moves on tap at all.
+const bool kWedgeFitOnExpand = true;

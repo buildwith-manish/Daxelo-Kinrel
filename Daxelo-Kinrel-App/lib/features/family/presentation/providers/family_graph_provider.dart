@@ -2698,6 +2698,7 @@ GraphLayoutResult _computeViewerWedgeLayout({
   scheduleMicrotask(() => summaryNotifier.state = WedgeLayoutSummary(
         visibleCount: output.visibleIds.length,
         parentOf: parentOf,
+        treeChildCount: output.treeChildCount,
       ));
 
   // Keep the shared position cache coherent (used by the revert path
@@ -2838,10 +2839,16 @@ class WedgeLayoutSummary {
   const WedgeLayoutSummary({
     required this.visibleCount,
     required this.parentOf,
+    this.treeChildCount = const <String, int>{},
   });
 
   final int visibleCount;
   final Map<String, String> parentOf;
+
+  /// Person id → number of tree children (the ONE source of truth for
+  /// the sub-node indicator inside each node). Read by node_builders
+  /// to feed GraphNode.childCount.
+  final Map<String, int> treeChildCount;
 }
 
 /// Per-family wedge layout summary, written by graphLayoutProvider's

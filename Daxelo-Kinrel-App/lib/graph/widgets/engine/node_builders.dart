@@ -305,11 +305,29 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       // PERF v5.175: prefer the O(1) precomputed map (childCountById,
       // built once per data change in canvas_mixin); the legacy O(E)
       // per-node scan is only the fallback for non-canvas callers.
-      childCount: flat == null
-          ? 0
-          : (childCountById != null
-              ? (childCountById[id] ?? 0)
-              : _countChildrenOf(id, flat)),
+      // WEDGE MODE: use treeChildCount from wedgeLayoutSummaryProvider
+      // (the ONE source of truth). Hide the pill for expanded nodes
+      // (the +N bubble covers the remainder). Show for count >= 1
+      // (not >= 2 as before).
+      // RADIAL MODE: use the old _cachedChildCountById / _countChildrenOf.
+      childCount: kUseViewerWedgeLayout
+          ? (() {
+              final summary = ref.read(wedgeLayoutSummaryProvider(widget.familyId));
+              final tc = summary?.treeChildCount[id] ?? 0;
+              // Hide the pill when the node is expanded (its children
+              // are already visible — the +N bubble handles the
+              // remainder if any).
+              final wedge = ref.read(wedgeViewProvider);
+              if (wedge.expandedRoots.contains(id)) return 0;
+              // The viewer is always expanded — hide its pill.
+              if (isViewer) return 0;
+              return tc;
+            }())
+          : (flat == null
+              ? 0
+              : (childCountById != null
+                  ? (childCountById[id] ?? 0)
+                  : _countChildrenOf(id, flat))),
       // v93 (ZOOM FIX) legacy fallback — still computed for the
       // camera-null case (e.g. tests). When [camera] is non-null this
       // flag is ignored by GraphNode.
