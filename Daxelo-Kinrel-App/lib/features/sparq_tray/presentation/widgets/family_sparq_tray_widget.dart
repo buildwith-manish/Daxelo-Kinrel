@@ -55,6 +55,7 @@ import '../../../social/data/models/sparq_model.dart' show UserSparqGroup;
 import '../../../social/data/providers/sparq_provider.dart' show sparqProvider;
 import '../../data/family_sparq_tray_item.dart';
 import '../../providers/family_sparq_tray_provider.dart';
+import '../../sparq_tray_analytics.dart' show SparqTrayAnalytics;
 import '../../sparq_tray_strings.dart';
 import 'family_sparq_petal_ring.dart';
 
@@ -77,6 +78,11 @@ class FamilySparqTray extends ConsumerStatefulWidget {
 class _FamilySparqTrayState extends ConsumerState<FamilySparqTray>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulseController;
+
+  /// Per-app-session flag — `sparq_tray_viewed` should fire at most
+  /// once per Home session (spec section 10). A static field so it
+  /// survives widget rebuilds / re-mounts within the same session.
+  static bool _trayViewedThisSession = false;
 
   @override
   void initState() {
@@ -129,6 +135,21 @@ class _FamilySparqTrayState extends ConsumerState<FamilySparqTray>
         _stopPulse();
       } else {
         _maybeStartPulse();
+      }
+    });
+
+    // Spec section 10: fire sparq_tray_viewed once per Home session
+    // (static flag survives rebuilds). Only fires when the tray has
+    // actual data — loading + error states don't count.
+    trayAsync.whenData((items) {
+      if (!_trayViewedThisSession) {
+        _trayViewedThisSession = true;
+        final familiesWithUnseen =
+            items.where((i) => i.unseenCount > 0 || i.moment != null).length;
+        SparqTrayAnalytics.logTrayViewed(
+          familyCount: items.length,
+          familiesWithUnseen: familiesWithUnseen,
+        );
       }
     });
 
@@ -367,6 +388,13 @@ class _FamilySparqTrayEntryWidget extends ConsumerWidget {
         // kEnableSparqRunNavigation to true so families with live
         // Sparqs route to /sparq/family/{id} instead.
         if (kEnableSparqRunNavigation && item.hasLive) {
+          // Spec section 10: fire sparq_tray_open with the family id,
+          // unseen count, and has_moment flag.
+          SparqTrayAnalytics.logTrayOpen(
+            familyId: item.family.id,
+            unseenCount: item.unseenCount,
+            hasMoment: item.moment != null,
+          );
           context.push('/sparq/family/${item.family.id}');
         } else {
           context.push('/family/${item.family.id}');

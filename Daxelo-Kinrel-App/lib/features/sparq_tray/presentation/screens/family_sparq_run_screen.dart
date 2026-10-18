@@ -58,6 +58,7 @@ import '../../data/family_sparq_tray_item.dart';
 import '../../providers/family_sparq_tray_provider.dart';
 import '../../providers/moment_sparq_provider.dart'
     show familyMomentSparqProvider, markMomentSparqSeen;
+import '../../sparq_tray_analytics.dart' show SparqTrayAnalytics;
 import '../../sparq_tray_strings.dart';
 
 /// Full-screen Family Sparq run.
@@ -87,7 +88,6 @@ class _FamilySparqRunScreenState extends ConsumerState<FamilySparqRunScreen> {
   /// `sparq_family_run_completed` analytics event
   /// (families_played, members_played). Kept as a field so the count
   /// is preserved across member transitions.
-  // ignore: unused_field
   int _membersPlayed = 0;
 
   /// Number of distinct families played (for analytics on close).
@@ -283,8 +283,15 @@ class _FamilySparqRunScreenState extends ConsumerState<FamilySparqRunScreen> {
   /// Close the run screen and refresh the feed so tray rings update.
   void _closeSafely() {
     if (!mounted) return;
-    // Spec: when closing (any way), call refreshFeed() so rings update
-    // to seen.
+    // Spec section 10: fire sparq_family_run_completed with the count
+    // of families + members played. Fires on every close path
+    // (queue exhausted, swipe down, close button, family-pill tap).
+    SparqTrayAnalytics.logRunCompleted(
+      familiesPlayed: _familiesPlayed.length,
+      membersPlayed: _membersPlayed,
+    );
+    // Spec: when closing (any way), call refreshFeed() so rings
+    // update to seen.
     ref.read(sparqProvider.notifier).refreshFeed();
     if (context.canPop()) {
       context.pop();
@@ -677,13 +684,19 @@ class _MomentSparqCardState extends State<_MomentSparqCard>
     widget.onFinished();
   }
 
-  void _onActionTap() {
+  void _onActionTap({String? actionLabel}) {
     if (!mounted) return;
     HapticService.tap();
     if (!_markedSeen) {
       markMomentSparqSeen(widget.moment);
       _markedSeen = true;
     }
+    // Spec section 10: fire sparq_moment_action with the event type
+    // (birthday/anniversary/festival/on_this_day) and the action label.
+    SparqTrayAnalytics.logMomentAction(
+      type: widget.moment.eventType.name,
+      action: actionLabel ?? SparqTrayStrings.sendAWish,
+    );
     _finish();
   }
 
@@ -801,7 +814,9 @@ class _MomentSparqCardState extends State<_MomentSparqCard>
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _onActionTap,
+                    onPressed: () => _onActionTap(
+                      actionLabel: SparqTrayStrings.sendAWish,
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2B1A05),
                       foregroundColor: const Color(0xFFD4AF37),
@@ -852,7 +867,7 @@ class _MomentSparqCardState extends State<_MomentSparqCard>
 
   Widget _quickReply(String label) {
     return GestureDetector(
-      onTap: _onActionTap,
+      onTap: () => _onActionTap(actionLabel: label),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
