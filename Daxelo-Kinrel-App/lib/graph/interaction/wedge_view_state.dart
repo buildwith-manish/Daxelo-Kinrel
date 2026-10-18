@@ -253,6 +253,56 @@ class WedgeViewNotifier extends StateNotifier<WedgeViewState> {
   void reset() {
     state = WedgeViewState(revision: state.revision + 1);
   }
+
+  /// ACCORDION MODE: expand [personId] EXCLUSIVELY — close every
+  /// branch that is NOT an ancestor of [personId] (or [personId]
+  /// itself), then open [personId].
+  ///
+  /// [ancestors] = the set of person ids on the tree path from the
+  /// viewer to [personId] (inclusive of [personId]). These are the
+  /// ONLY branches that stay open. Everything else closes, and its
+  /// pages / expansionOrder entries are removed.
+  void expandExclusive(String personId, Set<String> ancestors) {
+    if (personId.isEmpty) return;
+    final keep = ancestors.union({personId});
+    final roots = Set<String>.from(state.expandedRoots)
+      ..removeWhere((id) => !keep.contains(id))
+      ..add(personId);
+    final order = List<String>.from(state.expansionOrder)
+      ..removeWhere((id) => !keep.contains(id));
+    if (!order.contains(personId)) order.add(personId);
+    final pages = Map<String, int>.from(state.pages)
+      ..removeWhere((id, _) => !keep.contains(id));
+    state = state.copyWith(
+      expandedRoots: roots,
+      expansionOrder: order,
+      pages: pages,
+      lastActionPersonId: personId,
+      revision: state.revision + 1,
+    );
+  }
+
+  /// ACCORDION MODE: collapse [personId] AND every expansion under it
+  /// (its descendants in the tree). [descendants] = the set of person
+  /// ids that are descendants of [personId] (exclusive of [personId]
+  /// itself, which is also collapsed).
+  void collapseWithDescendants(String personId, Set<String> descendants) {
+    if (personId.isEmpty) return;
+    final remove = descendants.union({personId});
+    final roots = Set<String>.from(state.expandedRoots)
+      ..removeWhere((id) => remove.contains(id));
+    final order = List<String>.from(state.expansionOrder)
+      ..removeWhere((id) => remove.contains(id));
+    final pages = Map<String, int>.from(state.pages)
+      ..removeWhere((id, _) => remove.contains(id));
+    state = state.copyWith(
+      expandedRoots: roots,
+      expansionOrder: order,
+      pages: pages,
+      lastActionPersonId: personId,
+      revision: state.revision + 1,
+    );
+  }
 }
 
 /// The wedge view intent provider. Watched by graphLayoutProvider —

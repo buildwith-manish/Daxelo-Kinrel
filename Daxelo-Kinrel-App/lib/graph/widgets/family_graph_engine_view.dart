@@ -139,7 +139,14 @@ import '../engine/viewer_wedge_layout.dart'
     show kUseViewerWedgeLayout, WedgePageChip;
 // Wedge tap behaviour flags (focus/camera/badge gates).
 import '../engine/wedge_tap_config.dart'
-    show kWedgeTapFocusEnabled, kWedgeShowCountBadges, kWedgeFitOnExpand;
+    show
+        kWedgeTapFocusEnabled,
+        kWedgeShowCountBadges,
+        kWedgeFitOnExpand,
+        kWedgeAlwaysFullNodes,
+        kWedgeEnforceBudget,
+        kWedgeAccordionMode,
+        kWedgeDeclutterEdges;
 // Wedge motion (animation interpolation, camera fit, edge routing) —
 // pure Dart, 1:1 port of the approved preview's math.
 import '../engine/wedge_motion.dart'
@@ -2048,25 +2055,23 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   }
 
   Lod _lodFor(double zoom) {
-    // v5.141 (LOW-END PERF): Use the tier-aware LOD function from the
-    // performance profile.
-    //
-    // • High-end: always Lod.full (per the user's v5.112 request —
-    //   "nodes should NEVER degrade to simple colored dots or
-    //   circles"). The profile's lodForZoom returns Lod.full for
-    //   every zoom on high-end devices.
-    // • Mid-range: Lod.full for zoom >= 0.50, Lod.compact below.
-    //   Compact is still a full GraphNode — just with the relation
-    //   label faded. The user's "no dots" request is respected.
-    // • Low-end: Lod.full for zoom >= 0.65, Lod.compact for 0.30–0.65,
-    //   Lod.mini (circle + initial) below 0.30. Mini is still
-    //   recognizable — NOT anonymous dots.
-    //
-    // Additionally, on low-end/mid devices, if the visible node count
-    // exceeds _perfProfile.maxVisibleNodesBeforeForceMini, the graph
-    // FORCES Lod.mini regardless of zoom — preventing the culler from
-    // juggling 100+ premium GraphNode widgets (each with 5
-    // AnimationControllers) on devices that can't handle it.
+    // WEDGE MODE (always full nodes): never degrade to mini/micro/dot.
+    // Nodes look the same at every zoom — same Pseudo3D body, ring,
+    // initials/avatar, name + relation labels, badges.
+    // The old LOD swap is gated behind kWedgeAlwaysFullNodes.
+    if (kUseViewerWedgeLayout && kWedgeAlwaysFullNodes) {
+      // Still compute SemanticTier for backward compat (focus-mode).
+      final focusActive = ref.read(graphFocusProvider).focusedPersonId != null;
+      final thresholds = thresholdsForMemberCount(_currentMemberCount);
+      _currentSemanticTier = computeSemanticTier(
+        zoom,
+        currentTier: _currentSemanticTier,
+        thresholds: thresholds,
+        memberCount: _currentMemberCount,
+        focusActive: focusActive,
+      );
+      return Lod.full;
+    }
 
     // Preserve the SemanticTier computation for backward compat
     // (focus-mode logic, tests). This no longer drives the Lod
@@ -2084,9 +2089,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     final forceMiniThreshold = _perfProfile.maxVisibleNodesBeforeForceMini;
     if (forceMiniThreshold != null &&
         _culler.visibleCount > forceMiniThreshold) {
-      // Too many visible nodes for this device tier — force mini to
-      // keep the frame rate stable. The user's "no dots" request is
-      // still respected (mini = circle + initial, not anonymous dots).
       return Lod.mini;
     }
     return _perfProfile.lodForZoom(zoom);

@@ -46,6 +46,8 @@ import '../../../../graph/engine/viewer_wedge_layout.dart'
         ViewerWedgeLayout,
         WedgeLink,
         WedgePageChip;
+import '../../../../graph/engine/wedge_tap_config.dart'
+    show kWedgeEnforceBudget;
 import '../../../../graph/engine/wedge_edge_router.dart'
     show WedgeEdgeRouter, WedgeEdgeRoutes;
 import '../../../../graph/engine/edge_dedup.dart' show EdgeDeduplicator;
@@ -83,6 +85,11 @@ import '../../../../graph/engine/layout_validator.dart'
 /// "Node budget: use 150 for the wedge (a new constant,
 /// kWedgeNodeBudget), instead of the old kNodeBudget of 50."
 const int kWedgeNodeBudget = 150;
+
+/// When kWedgeEnforceBudget is false (the default), the budget is
+/// effectively unlimited — every member is reachable by expanding.
+/// The old 150 cap is gated behind the flag.
+const int _kWedgeUnlimitedBudget = 1 << 20;
 
 /// Guard set: person ids that are currently being fetched by a
 /// pending-load trigger. Prevents the same ids from being fetched
@@ -2626,7 +2633,7 @@ GraphLayoutResult _computeViewerWedgeLayout({
         : <String>{wedgeState.revealTarget!},
     rootFilter: wedgeState.filter,
     protectedIds: protectedIds,
-    nodeBudget: kWedgeNodeBudget,
+    nodeBudget: kWedgeEnforceBudget ? kWedgeNodeBudget : _kWedgeUnlimitedBudget,
   );
 
   // Translate viewer-at-origin coordinates into all-positive canvas

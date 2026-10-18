@@ -2035,17 +2035,20 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
       final isExpanded = wedge.expandedRoots.contains(personId);
 
       if (!isExpanded) {
-        final layout =
-            ref.read(graphLayoutProvider(widget.familyId)).valueOrNull;
-        final currentCount = layout?.positions.length ?? 0;
-        if (currentCount + 9 > kWedgeNodeBudget) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Budget reached ($kWedgeNodeBudget on screen)'),
-              duration: Duration(milliseconds: 1800),
-            ),
-          );
-          return;
+        // Budget check — only when kWedgeEnforceBudget is true.
+        if (kWedgeEnforceBudget) {
+          final layout =
+              ref.read(graphLayoutProvider(widget.familyId)).valueOrNull;
+          final currentCount = layout?.positions.length ?? 0;
+          if (currentCount + 9 > kWedgeNodeBudget) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Budget reached ($kWedgeNodeBudget on screen)'),
+                duration: Duration(milliseconds: 1800),
+              ),
+            );
+            return;
+          }
         }
         _focusWedgePerson(personId);
         _expandWedgeNode(personId);
@@ -2096,28 +2099,86 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     if (personId == viewerId) return;
 
     final isExpanded = wedge.expandedRoots.contains(personId);
+    final summary =
+        ref.read(wedgeLayoutSummaryProvider(widget.familyId));
+    final parentOf = summary?.parentOf ?? const <String, String>{};
 
     if (!isExpanded) {
-      // Collapsed → expand (first 8 children + chip if more remain).
-      final layout =
-          ref.read(graphLayoutProvider(widget.familyId)).valueOrNull;
-      final currentCount = layout?.positions.length ?? 0;
-      if (currentCount + 9 > kWedgeNodeBudget) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Budget reached ($kWedgeNodeBudget on screen)'),
-            duration: Duration(milliseconds: 1800),
-          ),
-        );
-        return;
+      // Collapsed → expand.
+      // ACCORDION MODE: close every branch NOT on the ancestor path,
+      // then open this person. Non-accordion: just expand.
+      if (kWedgeAccordionMode) {
+        final ancestors = _collectAncestors(personId, parentOf, viewerId ?? '');
+        ref.read(wedgeViewProvider.notifier)
+            .expandExclusive(personId, ancestors);
+      }
+      // Budget check only when kWedgeEnforceBudget is true.
+      if (kWedgeEnforceBudget) {
+        final layout =
+            ref.read(graphLayoutProvider(widget.familyId)).valueOrNull;
+        final currentCount = layout?.positions.length ?? 0;
+        if (currentCount + 9 > kWedgeNodeBudget) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Budget reached ($kWedgeNodeBudget on screen)'),
+              duration: Duration(milliseconds: 1800),
+            ),
+          );
+          return;
+        }
       }
       _expandWedgeNode(personId);
     } else {
-      // Expanded → collapse. Do NOT focus parent. Just collapse.
-      ref.read(wedgeViewProvider.notifier).collapsePerson(personId);
+      // Expanded → collapse.
+      // ACCORDION MODE: also collapse every descendant expansion.
+      if (kWedgeAccordionMode) {
+        final descendants = _collectDescendants(personId, parentOf);
+        ref.read(wedgeViewProvider.notifier)
+            .collapseWithDescendants(personId, descendants);
+      } else {
+        ref.read(wedgeViewProvider.notifier).collapsePerson(personId);
+      }
       _cancelEntranceAnimation();
       ref.invalidate(graphLayoutProvider(widget.familyId));
     }
+  }
+
+  /// Walks the parentOf map from [personId] up to the viewer,
+  /// collecting every ancestor id (NOT including the viewer itself).
+  Set<String> _collectAncestors(
+    String personId,
+    Map<String, String> parentOf,
+    String viewerId,
+  ) {
+    final ancestors = <String>{};
+    var cursor = personId;
+    while (parentOf.containsKey(cursor)) {
+      final parent = parentOf[cursor]!;
+      if (parent == viewerId) break;
+      ancestors.add(parent);
+      cursor = parent;
+    }
+    return ancestors;
+  }
+
+  /// Collects every descendant of [personId] from the parentOf map
+  /// (persons whose tree parent is [personId] or a descendant of it).
+  Set<String> _collectDescendants(
+    String personId,
+    Map<String, String> parentOf,
+  ) {
+    final descendants = <String>{};
+    final queue = <String>[personId];
+    while (queue.isNotEmpty) {
+      final current = queue.removeLast();
+      parentOf.forEach((child, parent) {
+        if (parent == current && !descendants.contains(child)) {
+          descendants.add(child);
+          queue.add(child);
+        }
+      });
+    }
+    return descendants;
   }
 
   /// Sets the WEDGE browsing focus on [personId] (WedgeViewState, not
