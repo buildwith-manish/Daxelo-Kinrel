@@ -295,5 +295,48 @@
       }
     }
   },
-  "chatEventCardSemanticsDeleted": "कौटुंबिक कार्यक्रम कार्ड: कार्यक्रम आता उपलब्ध नाही।"
+  "chatEventCardSemanticsDeleted": "कौटुंबिक कार्यक्रम कार्ड: कार्यक्रम आता उपलब्ध नाही।",
+  "chatInboxFilterAll": "सर्व",
+  "chatInboxFilterUnread": "न वाचलेले",
+  "chatInboxFilterGroups": "गट",
+  "chatInboxFilterDirect": "डायरेक्ट",
+  "chatInboxEmptyUnread": "कोणतेही न वाचलेले चॅट नाहीत",
+  "chatInboxEmptyGroups": "कोणतेही गट चॅट नाहीत",
+  "chatInboxEmptyDirect": "कोणतेही डायरेक्ट संदेश नाहीत",
+  "chatInboxNoMessages": "चॅट सुरू करण्यासाठी टॅप करा",
+  "chatInboxArchiveAction": "आर्काइव्ह",
+  "chatInboxArchived": "आर्काइव्ह केलेले",
+  "chatInboxArchivedCount": "{count} {count, plural, =1{संभाषण} other{संभाषणे}}",
+  "@chatInboxArchivedCount": {
+    "description": "Unified inbox string: chatInboxArchivedCount",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticGroup": "गट चॅट, {title}, {count} न वाचलेले",
+  "@chatInboxRowSemanticGroup": {
+    "description": "Unified inbox string: chatInboxRowSemanticGroup",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticDirect": "डायरेक्ट संदेश, {title}, {count} न वाचलेले",
+  "@chatInboxRowSemanticDirect": {
+    "description": "Unified inbox string: chatInboxRowSemanticDirect",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

@@ -295,5 +295,48 @@
       }
     }
   },
-  "chatEventCardSemanticsDeleted": "পরিবার ইভেন্ট কার্ড: ইভেন্ট আর উপলব্ধ নেই।"
+  "chatEventCardSemanticsDeleted": "পরিবার ইভেন্ট কার্ড: ইভেন্ট আর উপলব্ধ নেই।",
+  "chatInboxFilterAll": "সব",
+  "chatInboxFilterUnread": "অপঠিত",
+  "chatInboxFilterGroups": "গ্রুপ",
+  "chatInboxFilterDirect": "ডিরেক্ট",
+  "chatInboxEmptyUnread": "কোনো অপঠিত চ্যাট নেই",
+  "chatInboxEmptyGroups": "কোনো গ্রুপ চ্যাট নেই",
+  "chatInboxEmptyDirect": "কোনো ডিরেক্ট বার্তা নেই",
+  "chatInboxNoMessages": "চ্যাট শুরু করতে ট্যাপ করুন",
+  "chatInboxArchiveAction": "আর্কাইভ",
+  "chatInboxArchived": "আর্কাইভ করা",
+  "chatInboxArchivedCount": "{count} {count, plural, =1{কথোপকথন} other{কথোপকথন}}",
+  "@chatInboxArchivedCount": {
+    "description": "Unified inbox string: chatInboxArchivedCount",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticGroup": "গ্রুপ চ্যাট, {title}, {count} অপঠিত",
+  "@chatInboxRowSemanticGroup": {
+    "description": "Unified inbox string: chatInboxRowSemanticGroup",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticDirect": "ডিরেক্ট বার্তা, {title}, {count} অপঠিত",
+  "@chatInboxRowSemanticDirect": {
+    "description": "Unified inbox string: chatInboxRowSemanticDirect",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

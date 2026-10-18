@@ -295,5 +295,48 @@
       }
     }
   },
-  "chatEventCardSemanticsDeleted": "குடும்ப நிகழ்வு அட்டை: நிகழ்வு இனி கிடைக்கவில்லை।"
+  "chatEventCardSemanticsDeleted": "குடும்ப நிகழ்வு அட்டை: நிகழ்வு இனி கிடைக்கவில்லை।",
+  "chatInboxFilterAll": "அனைத்தும்",
+  "chatInboxFilterUnread": "படிக்காத",
+  "chatInboxFilterGroups": "குழுக்கள்",
+  "chatInboxFilterDirect": "நேரடி",
+  "chatInboxEmptyUnread": "படிக்காத அரட்செய்திகள் இல்லை",
+  "chatInboxEmptyGroups": "குழு அரட்செய்திகள் இல்லை",
+  "chatInboxEmptyDirect": "நேரடி செய்திகள் இல்லை",
+  "chatInboxNoMessages": "அரட்செய்தியைத் தொடங்கத் தட்டவும்",
+  "chatInboxArchiveAction": "காப்பகம்",
+  "chatInboxArchived": "காப்பகப்படுத்தியவை",
+  "chatInboxArchivedCount": "{count} {count, plural, =1{உரையாடல்} other{உரையாடல்கள்}}",
+  "@chatInboxArchivedCount": {
+    "description": "Unified inbox string: chatInboxArchivedCount",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticGroup": "குழு அரட்செய்தி, {title}, {count} படிக்காத",
+  "@chatInboxRowSemanticGroup": {
+    "description": "Unified inbox string: chatInboxRowSemanticGroup",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticDirect": "நேரடி செய்தி, {title}, {count} படிக்காத",
+  "@chatInboxRowSemanticDirect": {
+    "description": "Unified inbox string: chatInboxRowSemanticDirect",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

@@ -950,4 +950,55 @@ class SMr extends S {
   @override
   String get chatEventCardSemanticsDeleted =>
       'कौटुंबिक कार्यक्रम कार्ड: कार्यक्रम आता उपलब्ध नाही।';
+
+  @override
+  String get chatInboxFilterAll => 'सर्व';
+
+  @override
+  String get chatInboxFilterUnread => 'न वाचलेले';
+
+  @override
+  String get chatInboxFilterGroups => 'गट';
+
+  @override
+  String get chatInboxFilterDirect => 'डायरेक्ट';
+
+  @override
+  String get chatInboxEmptyUnread => 'कोणतेही न वाचलेले चॅट नाहीत';
+
+  @override
+  String get chatInboxEmptyGroups => 'कोणतेही गट चॅट नाहीत';
+
+  @override
+  String get chatInboxEmptyDirect => 'कोणतेही डायरेक्ट संदेश नाहीत';
+
+  @override
+  String get chatInboxNoMessages => 'चॅट सुरू करण्यासाठी टॅप करा';
+
+  @override
+  String get chatInboxArchiveAction => 'आर्काइव्ह';
+
+  @override
+  String get chatInboxArchived => 'आर्काइव्ह केलेले';
+
+  @override
+  String chatInboxArchivedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'संभाषणे',
+      one: 'संभाषण',
+    );
+    return '$count $_temp0';
+  }
+
+  @override
+  String chatInboxRowSemanticGroup(String title, int count) {
+    return 'गट चॅट, $title, $count न वाचलेले';
+  }
+
+  @override
+  String chatInboxRowSemanticDirect(String title, int count) {
+    return 'डायरेक्ट संदेश, $title, $count न वाचलेले';
+  }
 }

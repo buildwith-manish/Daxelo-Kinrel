@@ -264,5 +264,48 @@
       }
     }
   },
-  "chatEventCardSemanticsDeleted": "خاندانی ایونٹ کارڈ: ایونٹ اب دستیاب نہیں۔"
+  "chatEventCardSemanticsDeleted": "خاندانی ایونٹ کارڈ: ایونٹ اب دستیاب نہیں۔",
+  "chatInboxFilterAll": "سبھی",
+  "chatInboxFilterUnread": "غیر پڑھے",
+  "chatInboxFilterGroups": "گروپس",
+  "chatInboxFilterDirect": "ڈائریکٹ",
+  "chatInboxEmptyUnread": "کوئی غیر پڑھی چیٹ نہیں",
+  "chatInboxEmptyGroups": "کوئی گروپ چیٹ نہیں",
+  "chatInboxEmptyDirect": "کوئی ڈائریکٹ پیغام نہیں",
+  "chatInboxNoMessages": "چیٹ شروع کرنے کے لیے ٹیپ کریں",
+  "chatInboxArchiveAction": "آرکائیو",
+  "chatInboxArchived": "آرکائیو شدہ",
+  "chatInboxArchivedCount": "{count} {count, plural, =1{باتچیت} other{باتچیتیں}}",
+  "@chatInboxArchivedCount": {
+    "description": "Unified inbox string: chatInboxArchivedCount",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticGroup": "گروپ چیٹ، {title}، {count} غیر پڑھے",
+  "@chatInboxRowSemanticGroup": {
+    "description": "Unified inbox string: chatInboxRowSemanticGroup",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticDirect": "ڈائریکٹ پیغام، {title}، {count} غیر پڑھے",
+  "@chatInboxRowSemanticDirect": {
+    "description": "Unified inbox string: chatInboxRowSemanticDirect",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

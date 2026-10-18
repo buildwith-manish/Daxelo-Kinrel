@@ -1731,6 +1731,84 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Family event card: event no longer available.'**
   String get chatEventCardSemanticsDeleted;
+
+  /// Unified inbox string: chatInboxFilterAll
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get chatInboxFilterAll;
+
+  /// Unified inbox string: chatInboxFilterUnread
+  ///
+  /// In en, this message translates to:
+  /// **'Unread'**
+  String get chatInboxFilterUnread;
+
+  /// Unified inbox string: chatInboxFilterGroups
+  ///
+  /// In en, this message translates to:
+  /// **'Groups'**
+  String get chatInboxFilterGroups;
+
+  /// Unified inbox string: chatInboxFilterDirect
+  ///
+  /// In en, this message translates to:
+  /// **'Direct'**
+  String get chatInboxFilterDirect;
+
+  /// Unified inbox string: chatInboxEmptyUnread
+  ///
+  /// In en, this message translates to:
+  /// **'No unread chats'**
+  String get chatInboxEmptyUnread;
+
+  /// Unified inbox string: chatInboxEmptyGroups
+  ///
+  /// In en, this message translates to:
+  /// **'No group chats'**
+  String get chatInboxEmptyGroups;
+
+  /// Unified inbox string: chatInboxEmptyDirect
+  ///
+  /// In en, this message translates to:
+  /// **'No direct messages'**
+  String get chatInboxEmptyDirect;
+
+  /// Unified inbox string: chatInboxNoMessages
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to start chatting'**
+  String get chatInboxNoMessages;
+
+  /// Unified inbox string: chatInboxArchiveAction
+  ///
+  /// In en, this message translates to:
+  /// **'Archive'**
+  String get chatInboxArchiveAction;
+
+  /// Unified inbox string: chatInboxArchived
+  ///
+  /// In en, this message translates to:
+  /// **'Archived'**
+  String get chatInboxArchived;
+
+  /// Unified inbox string: chatInboxArchivedCount
+  ///
+  /// In en, this message translates to:
+  /// **'{count} {count, plural, =1{conversation} other{conversations}}'**
+  String chatInboxArchivedCount(int count);
+
+  /// Unified inbox string: chatInboxRowSemanticGroup
+  ///
+  /// In en, this message translates to:
+  /// **'Group chat, {title}, {count} unread'**
+  String chatInboxRowSemanticGroup(String title, int count);
+
+  /// Unified inbox string: chatInboxRowSemanticDirect
+  ///
+  /// In en, this message translates to:
+  /// **'Direct message, {title}, {count} unread'**
+  String chatInboxRowSemanticDirect(String title, int count);
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

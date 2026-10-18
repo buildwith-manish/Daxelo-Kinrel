@@ -1266,5 +1266,78 @@
   "chatEventCardSemanticsDeleted": "Family event card: event no longer available.",
   "@chatEventCardSemanticsDeleted": {
     "description": "Family event card string: chatEventCardSemanticsDeleted"
+  },
+  "chatInboxFilterAll": "All",
+  "@chatInboxFilterAll": {
+    "description": "Unified inbox string: chatInboxFilterAll"
+  },
+  "chatInboxFilterUnread": "Unread",
+  "@chatInboxFilterUnread": {
+    "description": "Unified inbox string: chatInboxFilterUnread"
+  },
+  "chatInboxFilterGroups": "Groups",
+  "@chatInboxFilterGroups": {
+    "description": "Unified inbox string: chatInboxFilterGroups"
+  },
+  "chatInboxFilterDirect": "Direct",
+  "@chatInboxFilterDirect": {
+    "description": "Unified inbox string: chatInboxFilterDirect"
+  },
+  "chatInboxEmptyUnread": "No unread chats",
+  "@chatInboxEmptyUnread": {
+    "description": "Unified inbox string: chatInboxEmptyUnread"
+  },
+  "chatInboxEmptyGroups": "No group chats",
+  "@chatInboxEmptyGroups": {
+    "description": "Unified inbox string: chatInboxEmptyGroups"
+  },
+  "chatInboxEmptyDirect": "No direct messages",
+  "@chatInboxEmptyDirect": {
+    "description": "Unified inbox string: chatInboxEmptyDirect"
+  },
+  "chatInboxNoMessages": "Tap to start chatting",
+  "@chatInboxNoMessages": {
+    "description": "Unified inbox string: chatInboxNoMessages"
+  },
+  "chatInboxArchiveAction": "Archive",
+  "@chatInboxArchiveAction": {
+    "description": "Unified inbox string: chatInboxArchiveAction"
+  },
+  "chatInboxArchived": "Archived",
+  "@chatInboxArchived": {
+    "description": "Unified inbox string: chatInboxArchived"
+  },
+  "chatInboxArchivedCount": "{count} {count, plural, =1{conversation} other{conversations}}",
+  "@chatInboxArchivedCount": {
+    "description": "Unified inbox string: chatInboxArchivedCount",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticGroup": "Group chat, {title}, {count} unread",
+  "@chatInboxRowSemanticGroup": {
+    "description": "Unified inbox string: chatInboxRowSemanticGroup",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticDirect": "Direct message, {title}, {count} unread",
+  "@chatInboxRowSemanticDirect": {
+    "description": "Unified inbox string: chatInboxRowSemanticDirect",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

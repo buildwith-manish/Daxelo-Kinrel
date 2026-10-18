@@ -954,4 +954,55 @@ class STe extends S {
   @override
   String get chatEventCardSemanticsDeleted =>
       'కుటుంబ కార్యక్రమ కార్డ్: కార్యక్రమం ఇకపై అందుబాటులో లేదు।';
+
+  @override
+  String get chatInboxFilterAll => 'అన్నీ';
+
+  @override
+  String get chatInboxFilterUnread => 'చదవనివి';
+
+  @override
+  String get chatInboxFilterGroups => 'గ్రూపులు';
+
+  @override
+  String get chatInboxFilterDirect => 'డైరెక్ట్';
+
+  @override
+  String get chatInboxEmptyUnread => 'చదవని చాట్‌లు లేవు';
+
+  @override
+  String get chatInboxEmptyGroups => 'గ్రూప్ చాట్‌లు లేవు';
+
+  @override
+  String get chatInboxEmptyDirect => 'డైరెక్ట్ సందేశాలు లేవు';
+
+  @override
+  String get chatInboxNoMessages => 'చాట్ ప్రారంభించడానికి ట్యాప్ చేయండి';
+
+  @override
+  String get chatInboxArchiveAction => 'ఆర్కైవ్';
+
+  @override
+  String get chatInboxArchived => 'ఆర్కైవ్ చేయబడినవి';
+
+  @override
+  String chatInboxArchivedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'సంభాషణలు',
+      one: 'సంభాషణ',
+    );
+    return '$count $_temp0';
+  }
+
+  @override
+  String chatInboxRowSemanticGroup(String title, int count) {
+    return 'గ్రూప్ చాట్, $title, $count చదవనివి';
+  }
+
+  @override
+  String chatInboxRowSemanticDirect(String title, int count) {
+    return 'డైరెక్ట్ సందేశం, $title, $count చదవనివి';
+  }
 }

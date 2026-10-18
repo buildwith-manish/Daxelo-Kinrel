@@ -945,4 +945,55 @@ class SGu extends S {
   @override
   String get chatEventCardSemanticsDeleted =>
       'કુટુંબ કાર્યક્રમ કાર્ડ: કાર્યક્રમ હવે ઉપલબ્ધ નથી।';
+
+  @override
+  String get chatInboxFilterAll => 'બધા';
+
+  @override
+  String get chatInboxFilterUnread => 'ન વાંચેલા';
+
+  @override
+  String get chatInboxFilterGroups => 'જૂથો';
+
+  @override
+  String get chatInboxFilterDirect => 'ડાયરેક્ટ';
+
+  @override
+  String get chatInboxEmptyUnread => 'કોઈ ન વાંચેલી ચેટ નથી';
+
+  @override
+  String get chatInboxEmptyGroups => 'કોઈ જૂથ ચેટ નથી';
+
+  @override
+  String get chatInboxEmptyDirect => 'કોઈ ડાયરેક્ટ સંદેશ નથી';
+
+  @override
+  String get chatInboxNoMessages => 'ચેટ શરૂ કરવા માટે ટૅપ કરો';
+
+  @override
+  String get chatInboxArchiveAction => 'આર્કાઇવ';
+
+  @override
+  String get chatInboxArchived => 'આર્કાઇવ કરેલ';
+
+  @override
+  String chatInboxArchivedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'વાર્તાલાપ',
+      one: 'વાર્તાલાપ',
+    );
+    return '$count $_temp0';
+  }
+
+  @override
+  String chatInboxRowSemanticGroup(String title, int count) {
+    return 'જૂથ ચેટ, $title, $count ન વાંચેલા';
+  }
+
+  @override
+  String chatInboxRowSemanticDirect(String title, int count) {
+    return 'ડાયરેક્ટ સંદેશ, $title, $count ન વાંચેલા';
+  }
 }

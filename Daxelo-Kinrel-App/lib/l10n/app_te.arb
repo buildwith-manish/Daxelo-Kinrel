@@ -295,5 +295,48 @@
       }
     }
   },
-  "chatEventCardSemanticsDeleted": "కుటుంబ కార్యక్రమ కార్డ్: కార్యక్రమం ఇకపై అందుబాటులో లేదు।"
+  "chatEventCardSemanticsDeleted": "కుటుంబ కార్యక్రమ కార్డ్: కార్యక్రమం ఇకపై అందుబాటులో లేదు।",
+  "chatInboxFilterAll": "అన్నీ",
+  "chatInboxFilterUnread": "చదవనివి",
+  "chatInboxFilterGroups": "గ్రూపులు",
+  "chatInboxFilterDirect": "డైరెక్ట్",
+  "chatInboxEmptyUnread": "చదవని చాట్‌లు లేవు",
+  "chatInboxEmptyGroups": "గ్రూప్ చాట్‌లు లేవు",
+  "chatInboxEmptyDirect": "డైరెక్ట్ సందేశాలు లేవు",
+  "chatInboxNoMessages": "చాట్ ప్రారంభించడానికి ట్యాప్ చేయండి",
+  "chatInboxArchiveAction": "ఆర్కైవ్",
+  "chatInboxArchived": "ఆర్కైవ్ చేయబడినవి",
+  "chatInboxArchivedCount": "{count} {count, plural, =1{సంభాషణ} other{సంభాషణలు}}",
+  "@chatInboxArchivedCount": {
+    "description": "Unified inbox string: chatInboxArchivedCount",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticGroup": "గ్రూప్ చాట్, {title}, {count} చదవనివి",
+  "@chatInboxRowSemanticGroup": {
+    "description": "Unified inbox string: chatInboxRowSemanticGroup",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticDirect": "డైరెక్ట్ సందేశం, {title}, {count} చదవనివి",
+  "@chatInboxRowSemanticDirect": {
+    "description": "Unified inbox string: chatInboxRowSemanticDirect",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

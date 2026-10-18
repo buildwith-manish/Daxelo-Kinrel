@@ -295,5 +295,48 @@
       }
     }
   },
-  "chatEventCardSemanticsDeleted": "કુટુંબ કાર્યક્રમ કાર્ડ: કાર્યક્રમ હવે ઉપલબ્ધ નથી।"
+  "chatEventCardSemanticsDeleted": "કુટુંબ કાર્યક્રમ કાર્ડ: કાર્યક્રમ હવે ઉપલબ્ધ નથી।",
+  "chatInboxFilterAll": "બધા",
+  "chatInboxFilterUnread": "ન વાંચેલા",
+  "chatInboxFilterGroups": "જૂથો",
+  "chatInboxFilterDirect": "ડાયરેક્ટ",
+  "chatInboxEmptyUnread": "કોઈ ન વાંચેલી ચેટ નથી",
+  "chatInboxEmptyGroups": "કોઈ જૂથ ચેટ નથી",
+  "chatInboxEmptyDirect": "કોઈ ડાયરેક્ટ સંદેશ નથી",
+  "chatInboxNoMessages": "ચેટ શરૂ કરવા માટે ટૅપ કરો",
+  "chatInboxArchiveAction": "આર્કાઇવ",
+  "chatInboxArchived": "આર્કાઇવ કરેલ",
+  "chatInboxArchivedCount": "{count} {count, plural, =1{વાર્તાલાપ} other{વાર્તાલાપ}}",
+  "@chatInboxArchivedCount": {
+    "description": "Unified inbox string: chatInboxArchivedCount",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticGroup": "જૂથ ચેટ, {title}, {count} ન વાંચેલા",
+  "@chatInboxRowSemanticGroup": {
+    "description": "Unified inbox string: chatInboxRowSemanticGroup",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticDirect": "ડાયરેક્ટ સંદેશ, {title}, {count} ન વાંચેલા",
+  "@chatInboxRowSemanticDirect": {
+    "description": "Unified inbox string: chatInboxRowSemanticDirect",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

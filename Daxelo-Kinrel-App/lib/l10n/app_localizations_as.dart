@@ -944,4 +944,55 @@ class SAs extends S {
   @override
   String get chatEventCardSemanticsDeleted =>
       'Family event card: event no longer available.';
+
+  @override
+  String get chatInboxFilterAll => 'All';
+
+  @override
+  String get chatInboxFilterUnread => 'Unread';
+
+  @override
+  String get chatInboxFilterGroups => 'Groups';
+
+  @override
+  String get chatInboxFilterDirect => 'Direct';
+
+  @override
+  String get chatInboxEmptyUnread => 'No unread chats';
+
+  @override
+  String get chatInboxEmptyGroups => 'No group chats';
+
+  @override
+  String get chatInboxEmptyDirect => 'No direct messages';
+
+  @override
+  String get chatInboxNoMessages => 'Tap to start chatting';
+
+  @override
+  String get chatInboxArchiveAction => 'Archive';
+
+  @override
+  String get chatInboxArchived => 'Archived';
+
+  @override
+  String chatInboxArchivedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'conversations',
+      one: 'conversation',
+    );
+    return '$count $_temp0';
+  }
+
+  @override
+  String chatInboxRowSemanticGroup(String title, int count) {
+    return 'Group chat, $title, $count unread';
+  }
+
+  @override
+  String chatInboxRowSemanticDirect(String title, int count) {
+    return 'Direct message, $title, $count unread';
+  }
 }

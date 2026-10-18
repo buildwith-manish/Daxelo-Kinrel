@@ -295,5 +295,48 @@
       }
     }
   },
-  "chatEventCardSemanticsDeleted": "Family event card: event no longer available."
+  "chatEventCardSemanticsDeleted": "Family event card: event no longer available.",
+  "chatInboxFilterAll": "All",
+  "chatInboxFilterUnread": "Unread",
+  "chatInboxFilterGroups": "Groups",
+  "chatInboxFilterDirect": "Direct",
+  "chatInboxEmptyUnread": "No unread chats",
+  "chatInboxEmptyGroups": "No group chats",
+  "chatInboxEmptyDirect": "No direct messages",
+  "chatInboxNoMessages": "Tap to start chatting",
+  "chatInboxArchiveAction": "Archive",
+  "chatInboxArchived": "Archived",
+  "chatInboxArchivedCount": "{count} {count, plural, =1{conversation} other{conversations}}",
+  "@chatInboxArchivedCount": {
+    "description": "Unified inbox string: chatInboxArchivedCount",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticGroup": "Group chat, {title}, {count} unread",
+  "@chatInboxRowSemanticGroup": {
+    "description": "Unified inbox string: chatInboxRowSemanticGroup",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatInboxRowSemanticDirect": "Direct message, {title}, {count} unread",
+  "@chatInboxRowSemanticDirect": {
+    "description": "Unified inbox string: chatInboxRowSemanticDirect",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

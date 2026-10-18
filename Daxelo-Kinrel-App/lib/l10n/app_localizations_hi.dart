@@ -951,4 +951,55 @@ class SHi extends S {
   @override
   String get chatEventCardSemanticsDeleted =>
       'परिवार कार्यक्रम कार्ड: कार्यक्रम अब उपलब्ध नहीं है।';
+
+  @override
+  String get chatInboxFilterAll => 'सभी';
+
+  @override
+  String get chatInboxFilterUnread => 'अपठित';
+
+  @override
+  String get chatInboxFilterGroups => 'समूह';
+
+  @override
+  String get chatInboxFilterDirect => 'डायरेक्ट';
+
+  @override
+  String get chatInboxEmptyUnread => 'कोई अपठित चैट नहीं';
+
+  @override
+  String get chatInboxEmptyGroups => 'कोई समूह चैट नहीं';
+
+  @override
+  String get chatInboxEmptyDirect => 'कोई डायरेक्ट मैसेज नहीं';
+
+  @override
+  String get chatInboxNoMessages => 'चैट शुरू करने के लिए टैप करें';
+
+  @override
+  String get chatInboxArchiveAction => 'आर्काइव';
+
+  @override
+  String get chatInboxArchived => 'आर्काइव किए गए';
+
+  @override
+  String chatInboxArchivedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'वार्तालाप',
+      one: 'वार्तालाप',
+    );
+    return '$count $_temp0';
+  }
+
+  @override
+  String chatInboxRowSemanticGroup(String title, int count) {
+    return 'समूह चैट, $title, $count अपठित';
+  }
+
+  @override
+  String chatInboxRowSemanticDirect(String title, int count) {
+    return 'डायरेक्ट संदेश, $title, $count अपठित';
+  }
 }

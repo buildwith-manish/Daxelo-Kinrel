@@ -948,4 +948,55 @@ class SUr extends S {
   @override
   String get chatEventCardSemanticsDeleted =>
       'خاندانی ایونٹ کارڈ: ایونٹ اب دستیاب نہیں۔';
+
+  @override
+  String get chatInboxFilterAll => 'سبھی';
+
+  @override
+  String get chatInboxFilterUnread => 'غیر پڑھے';
+
+  @override
+  String get chatInboxFilterGroups => 'گروپس';
+
+  @override
+  String get chatInboxFilterDirect => 'ڈائریکٹ';
+
+  @override
+  String get chatInboxEmptyUnread => 'کوئی غیر پڑھی چیٹ نہیں';
+
+  @override
+  String get chatInboxEmptyGroups => 'کوئی گروپ چیٹ نہیں';
+
+  @override
+  String get chatInboxEmptyDirect => 'کوئی ڈائریکٹ پیغام نہیں';
+
+  @override
+  String get chatInboxNoMessages => 'چیٹ شروع کرنے کے لیے ٹیپ کریں';
+
+  @override
+  String get chatInboxArchiveAction => 'آرکائیو';
+
+  @override
+  String get chatInboxArchived => 'آرکائیو شدہ';
+
+  @override
+  String chatInboxArchivedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'باتچیتیں',
+      one: 'باتچیت',
+    );
+    return '$count $_temp0';
+  }
+
+  @override
+  String chatInboxRowSemanticGroup(String title, int count) {
+    return 'گروپ چیٹ، $title، $count غیر پڑھے';
+  }
+
+  @override
+  String chatInboxRowSemanticDirect(String title, int count) {
+    return 'ڈائریکٹ پیغام، $title، $count غیر پڑھے';
+  }
 }

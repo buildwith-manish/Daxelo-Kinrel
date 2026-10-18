@@ -947,4 +947,55 @@ class SBn extends S {
   @override
   String get chatEventCardSemanticsDeleted =>
       'পরিবার ইভেন্ট কার্ড: ইভেন্ট আর উপলব্ধ নেই।';
+
+  @override
+  String get chatInboxFilterAll => 'সব';
+
+  @override
+  String get chatInboxFilterUnread => 'অপঠিত';
+
+  @override
+  String get chatInboxFilterGroups => 'গ্রুপ';
+
+  @override
+  String get chatInboxFilterDirect => 'ডিরেক্ট';
+
+  @override
+  String get chatInboxEmptyUnread => 'কোনো অপঠিত চ্যাট নেই';
+
+  @override
+  String get chatInboxEmptyGroups => 'কোনো গ্রুপ চ্যাট নেই';
+
+  @override
+  String get chatInboxEmptyDirect => 'কোনো ডিরেক্ট বার্তা নেই';
+
+  @override
+  String get chatInboxNoMessages => 'চ্যাট শুরু করতে ট্যাপ করুন';
+
+  @override
+  String get chatInboxArchiveAction => 'আর্কাইভ';
+
+  @override
+  String get chatInboxArchived => 'আর্কাইভ করা';
+
+  @override
+  String chatInboxArchivedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'কথোপকথন',
+      one: 'কথোপকথন',
+    );
+    return '$count $_temp0';
+  }
+
+  @override
+  String chatInboxRowSemanticGroup(String title, int count) {
+    return 'গ্রুপ চ্যাট, $title, $count অপঠিত';
+  }
+
+  @override
+  String chatInboxRowSemanticDirect(String title, int count) {
+    return 'ডিরেক্ট বার্তা, $title, $count অপঠিত';
+  }
 }

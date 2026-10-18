@@ -956,4 +956,55 @@ class STa extends S {
   @override
   String get chatEventCardSemanticsDeleted =>
       'குடும்ப நிகழ்வு அட்டை: நிகழ்வு இனி கிடைக்கவில்லை।';
+
+  @override
+  String get chatInboxFilterAll => 'அனைத்தும்';
+
+  @override
+  String get chatInboxFilterUnread => 'படிக்காத';
+
+  @override
+  String get chatInboxFilterGroups => 'குழுக்கள்';
+
+  @override
+  String get chatInboxFilterDirect => 'நேரடி';
+
+  @override
+  String get chatInboxEmptyUnread => 'படிக்காத அரட்செய்திகள் இல்லை';
+
+  @override
+  String get chatInboxEmptyGroups => 'குழு அரட்செய்திகள் இல்லை';
+
+  @override
+  String get chatInboxEmptyDirect => 'நேரடி செய்திகள் இல்லை';
+
+  @override
+  String get chatInboxNoMessages => 'அரட்செய்தியைத் தொடங்கத் தட்டவும்';
+
+  @override
+  String get chatInboxArchiveAction => 'காப்பகம்';
+
+  @override
+  String get chatInboxArchived => 'காப்பகப்படுத்தியவை';
+
+  @override
+  String chatInboxArchivedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'உரையாடல்கள்',
+      one: 'உரையாடல்',
+    );
+    return '$count $_temp0';
+  }
+
+  @override
+  String chatInboxRowSemanticGroup(String title, int count) {
+    return 'குழு அரட்செய்தி, $title, $count படிக்காத';
+  }
+
+  @override
+  String chatInboxRowSemanticDirect(String title, int count) {
+    return 'நேரடி செய்தி, $title, $count படிக்காத';
+  }
 }
