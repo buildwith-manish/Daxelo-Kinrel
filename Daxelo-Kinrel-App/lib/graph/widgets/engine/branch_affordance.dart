@@ -1844,6 +1844,18 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     // time — the fetch + layout recompute must land first).
     if (_optimisticLoadingChipRootId != null) return;
 
+    // Re-entry guard: ignore a second call for the same hub within
+    // 400 ms. A tap must never advance two pages.
+    final now = DateTime.now();
+    if (_lastChipTapId == personId &&
+        _lastChipTapTime != null &&
+        now.difference(_lastChipTapTime!) <
+            const Duration(milliseconds: 400)) {
+      return;
+    }
+    _lastChipTapId = personId;
+    _lastChipTapTime = now;
+
     // Optimistic feedback + page turn.
     // ignore: invalid_use_of_protected_member
     setState(() {
@@ -2059,6 +2071,21 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     // ── NEW BEHAVIOUR: tap = expand/collapse only ────────────────
     // Matches the approved preview's `tap()` function: one tap,
     // always. No focus, no camera, no dim, no selection glow.
+
+    // Re-entry guard: ignore a second call for the same id within
+    // 400 ms. This prevents a double-toggle (expand then collapse)
+    // when both the canvas-level timer and GraphNode.onTap fire
+    // (which can happen on mobile or when the gesture arena resolves
+    // to both).
+    final now = DateTime.now();
+    if (_lastWedgeNodeTapId == personId &&
+        _lastWedgeNodeTapTime != null &&
+        now.difference(_lastWedgeNodeTapTime!) <
+            const Duration(milliseconds: 400)) {
+      return;
+    }
+    _lastWedgeNodeTapId = personId;
+    _lastWedgeNodeTapTime = now;
 
     // Clear any isolate-connections focus so it doesn't fight the view.
     if (ref.read(graphFocusProvider).focusedPersonId != null) {

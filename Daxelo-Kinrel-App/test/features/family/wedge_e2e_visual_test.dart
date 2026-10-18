@@ -199,6 +199,8 @@ void main() {
 
     await tapHubNode();
     await tester.pump();
+    // Pump 200ms to ensure the 150ms canvas-level tap timer fires.
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump(const Duration(seconds: 1));
     {
@@ -356,6 +358,7 @@ void main() {
     }
     await tapHubNode();
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump(const Duration(seconds: 1));
     await _shoot(tester, 'wedge_4_hub_collapsed');

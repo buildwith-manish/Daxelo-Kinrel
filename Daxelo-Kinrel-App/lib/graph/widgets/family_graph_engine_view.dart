@@ -1004,6 +1004,24 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // unreliable, so taps are intercepted geometrically).
   String? _pendingWedgeChipTapPersonId;
 
+  // WEDGE NODE TAP: the person id awaiting a 150ms tap-vs-drag
+  // discrimination timer. On Flutter Web, GraphNode.onTap does not
+  // fire (the canvas ScaleGestureRecognizer wins the arena). So node
+  // taps are handled at the CANVAS level (same as chips): the canvas
+  // hit-test finds the node id, starts a 150ms timer, and on tap-up
+  // fires _handleWedgeNodeTap. A drag > 6px cancels it.
+  String? _pendingWedgeNodeTapId;
+  Timer? _wedgeNodeTapTimer;
+
+  // Re-entry guard: prevent a double-toggle (expand then collapse)
+  // when both the canvas timer and GraphNode.onTap fire within 400 ms.
+  String? _lastWedgeNodeTapId;
+  DateTime? _lastWedgeNodeTapTime;
+
+  // Re-entry guard for chip taps (same pattern as node taps).
+  String? _lastChipTapId;
+  DateTime? _lastChipTapTime;
+
   // TAP-VS-DRAG: where the current (potential) tap started. The raw
   // pointer-move Listener on the canvas cancels pending deferred chip
   // taps once the pointer drags more than 6 px from this spot.
@@ -2797,11 +2815,58 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     final drift = (currentAnchorPos - _lastFramedAnchorPos!).distance;
     if (drift < kDriftThreshold) return; // no meaningful drift
 
-    // The anchor drifted — re-center the camera on the new position.
-    // Use the SAME shared helper as _maybeFrame and the recenter
-    // button, so all three produce identical centering. Snap
-    // instantly (1ms) — this is a background re-centering, not a
-    // user-initiated action, so no animation is needed.
+    // WEDGE MODE (no focus): do NOT change zoom. Do NOT re-center.
+    // Instead, compensate the canvas offset Δ so the screen doesn't
+    // move: the viewer's canvas position changed because the layout
+    // grew (tx/ty shifted). We shift the camera pan by the SAME Δ
+    // (scaled by zoom) so the viewer stays at the same screen position.
+    // We also rebase _wedgeGlideFromPositions by +Δ so existing nodes
+    // start exactly where they were on screen and glide only by their
+    // real world-space move.
+    if (kUseViewerWedgeLayout && !kWedgeTapFocusEnabled) {
+      final delta = currentAnchorPos - _lastFramedAnchorPos!;
+      final zoom = _camera.zoomLevel;
+      // Compensate camera pan so screen doesn't move (instant, no
+      // animation — this is a background correction, not user-initiated).
+      _camera.animateTo(
+        _camera.panX - delta.dx * zoom,
+        _camera.panY - delta.dy * zoom,
+        zoom, // keep zoom unchanged
+        duration: Duration.zero,
+      );
+      // Rebase glide from-positions so existing nodes start where they
+      // were on screen (their old canvas position + Δ = new canvas
+      // position, but their world position didn't change, so the lerp
+      // starts from the right place).
+      if (_wedgeGlideFromPositions != null) {
+        final rebased = <String, Offset>{};
+        _wedgeGlideFromPositions!.forEach((id, pos) {
+          rebased[id] = Offset(pos.dx + delta.dx, pos.dy + delta.dy);
+        });
+        _wedgeGlideFromPositions = rebased;
+      }
+      // Also rebase chip glide from-positions.
+      if (_wedgeGlideFromChipSlots != null) {
+        final rebasedChips = <String, WedgePageChip>{};
+        _wedgeGlideFromChipSlots!.forEach((owner, chip) {
+          rebasedChips[owner] = WedgePageChip(
+            personId: chip.personId,
+            slotCenter: Offset(
+              chip.slotCenter.dx + delta.dx,
+              chip.slotCenter.dy + delta.dy,
+            ),
+            remainingCount: chip.remainingCount,
+            hasNested: chip.hasNested,
+          );
+        });
+        _wedgeGlideFromChipSlots = rebasedChips;
+      }
+      _lastFramedAnchorPos = currentAnchorPos;
+      return;
+    }
+
+    // RADIAL MODE or kWedgeTapFocusEnabled: re-center the camera on
+    // the new position (old behaviour — zoom + pan).
     final cam = _computeAnchorCenteredCamera(
       anchorPos: currentAnchorPos,
       viewportSize: _viewportSize,

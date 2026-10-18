@@ -331,14 +331,20 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
         if (kUseViewerWedgeLayout && !kWedgeTapFocusEnabled) {
           // Clear any leftover selection so it doesn't dim.
           ref.read(selectedNodeProvider.notifier).state = null;
+          // On mobile and in tests, GraphNode.onTap DOES fire. On
+          // Flutter Web it usually does NOT (the canvas
+          // ScaleGestureRecognizer wins the arena). The canvas-level
+          // path (_handleNodeTapDown → 150ms timer →
+          // _handleWedgeNodeTap) handles the Web case. Here we handle
+          // the mobile/test case. The 400ms re-entry guard in
+          // _handleWedgeNodeTap prevents a double-toggle when both
+          // paths fire.
+          if (flat != null) _maybeExpandFromPerson(id, flat);
         } else {
           ref.read(selectedNodeProvider.notifier).state = id;
+          // v5.114: Tap-to-expand (radial mode only).
+          if (flat != null) _maybeExpandFromPerson(id, flat);
         }
-        // v5.114: Tap-to-expand — if this node is on the outermost visible
-        // ring, expand its immediate neighborhood into the visible set.
-        // This is incremental: only the tapped node's direct neighbors
-        // are added, the rest of the graph is unchanged.
-        if (flat != null) _maybeExpandFromPerson(id, flat);
       },
       // Long-press = open the member information bottom sheet. This is
       // the ONLY gesture that opens the info panel from a node.

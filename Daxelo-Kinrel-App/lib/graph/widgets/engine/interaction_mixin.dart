@@ -801,6 +801,9 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     _chipExpandTimer = null;
     _pendingChipTapBranch = null;
     _pendingWedgeChipTapPersonId = null;
+    _wedgeNodeTapTimer?.cancel();
+    _wedgeNodeTapTimer = null;
+    _pendingWedgeNodeTapId = null;
   }
 
   /// TAP-VS-DRAG (approved preview): a raw-pointer move observer. A
@@ -811,7 +814,8 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   /// crossed the pending taps are cancelled.
   void _handleCanvasPointerMove(PointerEvent event) {
     if (_pendingChipTapBranch == null &&
-        _pendingWedgeChipTapPersonId == null) {
+        _pendingWedgeChipTapPersonId == null &&
+        _pendingWedgeNodeTapId == null) {
       return; // nothing pending — no bookkeeping.
     }
     final down = _lastCanvasTapDownPosition;
@@ -882,7 +886,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       } else {
         _pendingChipTapBranch = branch;
         _chipExpandTimer?.cancel();
-        _chipExpandTimer = Timer(const Duration(milliseconds: 500), () {
+        _chipExpandTimer = Timer(const Duration(milliseconds: 150), () {
           // Timer fired — no long-press happened. Expand the branch.
           final b = _pendingChipTapBranch;
           _pendingChipTapBranch = null;
@@ -903,7 +907,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       if (wedgeChipOwner != null) {
         _pendingWedgeChipTapPersonId = wedgeChipOwner;
         _chipExpandTimer?.cancel();
-        _chipExpandTimer = Timer(const Duration(milliseconds: 500), () {
+        _chipExpandTimer = Timer(const Duration(milliseconds: 150), () {
           final owner = _pendingWedgeChipTapPersonId;
           _pendingWedgeChipTapPersonId = null;
           if (owner != null) {
@@ -1305,6 +1309,23 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       ref.read(selectedNodeProvider.notifier).state = null;
     } else {
       ref.read(selectedNodeProvider.notifier).state = nodeId;
+    }
+
+    // WEDGE MODE (no focus): start a 150ms deferred node tap. On
+    // Flutter Web, GraphNode.onTap does not fire (the canvas
+    // ScaleGestureRecognizer wins the gesture arena). So node taps
+    // are handled at the CANVAS level, same as chips. The 150ms
+    // timer discriminates tap-vs-drag; a drag > 6px cancels it.
+    // Long-press is handled separately and does NOT expand.
+    if (kUseViewerWedgeLayout && !kWedgeTapFocusEnabled) {
+      _pendingWedgeNodeTapId = nodeId;
+      _wedgeNodeTapTimer?.cancel();
+      _wedgeNodeTapTimer = Timer(const Duration(milliseconds: 150), () {
+        final id = _pendingWedgeNodeTapId;
+        _pendingWedgeNodeTapId = null;
+        _wedgeNodeTapTimer = null;
+        if (id != null) _handleWedgeNodeTap(id);
+      });
     }
 
     // v5.74 (BUG 2 FIX): Removed the tap-to-zoom camera animation
