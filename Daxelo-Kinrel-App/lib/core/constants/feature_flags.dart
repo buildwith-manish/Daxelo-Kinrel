@@ -122,9 +122,11 @@ const bool kEnableSparqTray = true;
 /// with live Sparqs navigates to `/sparq/family/{id}` (the full-
 /// screen run). When false, ALL family entries route to
 /// `/family/{id}` (the legacy family page) — used during step 2
-/// when the run screen + route haven't been added yet. Flipped to
-/// true in step 5 after the route is registered.
-const bool kEnableSparqRunNavigation = false;
+/// when the run screen + route haven't been added yet.
+///
+/// Step 5: flipped to true now that the /sparq/family/:id route is
+/// registered and FamilySparqRunScreen is in place.
+const bool kEnableSparqRunNavigation = true;
 
 /// v5.55: TEMPORARY debug flag — shows an on-screen dialog with the actual
 /// runtime values of relKey, result.id, linkToPersonId, widget.fromGraph

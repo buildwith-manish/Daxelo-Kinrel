@@ -44,12 +44,14 @@ import 'widgets/streak_badge.dart';
 import '../../family/presentation/join_family_screen.dart';
 import '../../feed/presentation/widgets/feed_post_card.dart';
 import '../../feed/providers/feed_provider.dart';
-import '../../stories/providers/stories_provider.dart';
-import '../../stories/presentation/stories_viewer_screen.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
 import '../../occasions/widgets/upcoming_occasions_row.dart';
+import '../../sparq_tray/data/family_sparq_tray_item.dart' show FamilySparqTrayItem;
 import '../../sparq_tray/presentation/widgets/family_sparq_tray_widget.dart'
     show FamilySparqTray;
+import '../../sparq_tray/providers/family_sparq_tray_provider.dart'
+    show familySparqTrayProvider;
+import '../../social/data/providers/sparq_provider.dart' show sparqProvider;
 import '../../../core/utils/accessibility_utils.dart';
 import '../../../core/theme/kinrel_fx.dart';
 
@@ -266,7 +268,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       onRefresh: () async {
         ref.invalidate(familyListProvider);
         ref.invalidate(homeFeedProvider);
-        ref.invalidate(storiesProvider(primaryFamily.id));
+        // Spec section 5: Home pull-to-refresh should call
+        // refreshFeed() in place of the stories invalidate. The tray
+        // rebuilds off sparqProvider's feed list identity.
+        await ref.read(sparqProvider.notifier).refreshFeed();
       },
       child: CustomScrollView(
         controller: _feedScrollController,
@@ -1157,8 +1162,24 @@ class _HeroFamilyCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final storiesAsync = ref.watch(storiesProvider(familyId));
-    final hasStories = storiesAsync.valueOrNull?.isNotEmpty ?? false;
+    // Spec section 7: the avatar tap that previously opened
+    // StoriesViewerScreen for the primary family now opens
+    // /sparq/family/{familyId} when that family has live Sparqs
+    // (or a Moment Sparq), and the "eye" hint badge becomes a small
+    // petal-colored dot.
+    final trayAsync = ref.watch(familySparqTrayProvider);
+    final trayItems = trayAsync.valueOrNull ?? const <FamilySparqTrayItem>[];
+    FamilySparqTrayItem? trayItem;
+    for (final t in trayItems) {
+      if (t.family.id == familyId) {
+        trayItem = t;
+        break;
+      }
+    }
+    final hasLive = trayItem?.hasLive ?? false;
+    final petalColor = trayItem != null && trayItem.petals.isNotEmpty
+        ? trayItem.petals.first.color
+        : _cOrange;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
@@ -1243,20 +1264,13 @@ class _HeroFamilyCard extends ConsumerWidget {
                           child: Column(
                             children: [
                               // Family initial avatar (48px, Ignite gradient bg)
-                            // — Tappable: opens stories viewer for this family
-                            // — Eye icon glow indicates stories are available
+                            // — Tappable: opens /sparq/family/{id} when the
+                            //   family has live Sparqs (or a Moment Sparq).
+                            // — Petal-colored dot hint indicates live Sparqs.
                             GestureDetector(
                               onTap: () {
-                                if (hasStories) {
-                                  final groups = storiesAsync.valueOrNull ?? [];
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => StoriesViewerScreen(
-                                        storyGroups: groups,
-                                        familyId: familyId,
-                                      ),
-                                    ),
-                                  );
+                                if (hasLive) {
+                                  context.push('/sparq/family/$familyId');
                                 }
                               },
                               child: Stack(
@@ -1268,17 +1282,17 @@ class _HeroFamilyCard extends ConsumerWidget {
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       gradient: KinrelGradients.igniteGradient,
-                                      boxShadow: hasStories
+                                      boxShadow: hasLive
                                           ? [
                                               BoxShadow(
-                                                color: _cOrange.withValues(alpha: 0.4),
+                                                color: petalColor.withValues(alpha: 0.4),
                                                 blurRadius: 12,
                                                 spreadRadius: 2,
                                               ),
-                                              // Extra glow ring when stories exist
-                                              // PERF (Tier A2): clamped on web
+                                              // Extra glow ring when Sparqs are live.
+                                              // PERF (Tier A2): clamped on web.
                                               BoxShadow(
-                                                color: _cOrange.withValues(alpha: 0.15),
+                                                color: petalColor.withValues(alpha: 0.15),
                                                 blurRadius: kIsWeb ? 8 : 20,
                                                 spreadRadius: kIsWeb ? 2 : 4,
                                               ),
@@ -1305,8 +1319,12 @@ class _HeroFamilyCard extends ConsumerWidget {
                                       ),
                                     ),
                                   ),
-                                  // Small eye icon hint when stories are available
-                                  if (hasStories)
+                                  // Small petal-colored dot hint when Sparqs
+                                  // are live (spec section 7 — replaces the
+                                  // legacy "eye" icon with a mood-colored
+                                  // dot so the hero card matches the tray's
+                                  // Petal-ring visual identity).
+                                  if (hasLive)
                                     Positioned(
                                       right: -2,
                                       bottom: -2,
@@ -1315,7 +1333,7 @@ class _HeroFamilyCard extends ConsumerWidget {
                                         height: 18,
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
-                                          color: _cOrange,
+                                          color: petalColor,
                                           border: Border.all(
                                             color: _cBg,
                                             width: 1.5,
