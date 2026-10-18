@@ -136,6 +136,10 @@ import '../interaction/proximity_graph_state.dart'
 // Viewer-centered wedge layout ("top 8 + chips + search").
 import '../engine/viewer_wedge_layout.dart'
     show kUseViewerWedgeLayout, WedgePageChip;
+// Wedge motion (animation interpolation, camera fit, edge routing) —
+// pure Dart, 1:1 port of the approved preview's math.
+import '../engine/wedge_motion.dart'
+    show WedgeMotion, WedgeCameraFit, WedgeViewInsets;
 import '../interaction/wedge_view_state.dart'
     show wedgeViewProvider, shouldShowWedgeCountBadge;
 // Wedge bubble/badge accessibility labels (localized).
@@ -928,7 +932,15 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // layout-computation latency behind smooth motion.
   AnimationController? _branchExpandController;
   bool _animatingBranchExpand = false;
+  // These fields are written by _markNodesForEntrance / _cancelEntranceAnimation
+  // (called from branch_affordance.dart) but are no longer READ by the
+  // canvas_mixin lerp block — WedgeMotion.interpolate handles new-node
+  // entrance (they start at their parent's previous position) without
+  // needing the old origin-based lerp. Kept so the callers compile
+  // without changes; will be removed in a follow-up cleanup.
+  // ignore: unused_field
   Set<String> _branchAnimatingNodeIds = {};
+  // ignore: unused_field
   Offset _branchAnimationOrigin = Offset.zero;
   double _branchAnimationProgress = 1.0;
   // v5.143: Optimistic chip loading state — set immediately on tap
@@ -943,6 +955,10 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // nodes FLY OUT from the bubble instead of popping in, while their
   // edges follow (edge paths derive from effectivePositions every
   // frame, keeping node + connecting line GLUED together).
+  // NOTE: With WedgeMotion.interpolate, new nodes start at their parent's
+  // previous position automatically — this field is still written by
+  // _markNodesForEntrance but is no longer READ by the canvas lerp.
+  // ignore: unused_field
   Set<String> _pendingEntranceNodeIds = {};
 
   // ── Viewer-centered wedge layout state ──────────────────────────

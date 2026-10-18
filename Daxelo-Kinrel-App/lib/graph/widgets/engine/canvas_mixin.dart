@@ -95,16 +95,23 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           ..._rearrangeLiveEdgeWaypoints,
         };
 
-        // ── WEDGE GLIDE (viewer-centered wedge layout) ──────────────
+        // ── WEDGE MOTION (viewer-centered wedge layout) ──────────────
         //
-        // When the wedge re-divides its angular wedges (a branch opens
-        // or closes, or a page turns), previously-placed nodes GLIDE
-        // from their previous auto-layout positions to the new ones over
-        // the SAME 280ms branch-expand controller that drives the
-        // entrance animation. This reuses the lastLayoutPositionsProvider
-        // cache concept: the "from" map is the previous layout's auto
-        // positions, captured on every layout identity change. Reduced
-        // motion snaps instantly (no glide, no controller).
+        // Uses WedgeMotion.interpolate from wedge_motion.dart — the
+        // EXACT same math as the approved preview:
+        //   • EXISTING nodes glide from their previous position.
+        //   • NEW nodes start at their parent's previous position.
+        //   • LEAVING nodes are simply absent (no fade-out in this
+        //     iteration — see the comment block below for why).
+        //
+        // The "from" snapshot is the CURRENTLY DRAWN positions (the
+        // last frame's effectivePositions), NOT the previous layout's
+        // raw positions. This makes interrupting an animation smooth —
+        // the from-map captures where nodes are RIGHT NOW on screen.
+        //
+        // One 450ms ease-in-out controller drives nodes, chips, badges,
+        // labels, edges and the camera together. Reduced-motion snaps
+        // instantly (no controller starts).
         if (kUseViewerWedgeLayout &&
             !identical(_lastWedgeAutoPositions, layout.positions)) {
           final previous = _lastWedgeAutoPositions;
@@ -112,14 +119,11 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
               previous.isNotEmpty &&
               layout.positions.isNotEmpty &&
               !MediaQuery.disableAnimationsOf(context)) {
-            _wedgeGlideFromPositions = previous;
+            // Snapshot the CURRENTLY DRAWN positions as the "from" map.
+            // If a previous animation is in flight, this captures the
+            // mid-animation positions, so interrupting looks smooth.
+            _wedgeGlideFromPositions = Map<String, Offset>.from(effectivePositions);
             _wedgeGlideActive = true;
-            // WEDGE GLIDE — chip slot centres: capture the previous
-            // frame's chip slots so the chip builder can lerp them
-            // to the new slot centres over the same animation window.
-            // (chips read wedgeChipSlotsProvider directly; the previous
-            // snapshot is captured HERE, before the next provider
-            // read returns the new slots.)
             final prevChips = ref.read(wedgeChipSlotsProvider(widget.familyId));
             if (prevChips != null && prevChips.isNotEmpty) {
               _wedgeGlideFromChipSlots = Map<String, WedgePageChip>.of(prevChips);
@@ -138,41 +142,13 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           _lastWedgeAutoPositions = layout.positions;
         }
 
-        // v5.30 Issue 2: Load animation lerp.
-        //
-        // On first render with non-empty saved overrides, animate every
-        // node from its auto-layout origin to its saved override
-        // position over ~500ms easeOutCubic. This prevents the "snap or
-        // flash" where nodes briefly appear at auto-layout before
-        // jumping to saved positions.
-        //
-        // The lerp is FROM layout.positions (auto-layout) TO
-        // effectivePositions (which includes saved overrides + live drag
-        // overrides). At progress=0, all nodes are at auto-layout. At
-        // progress=1, nodes with overrides are at their saved positions
-        // and nodes without overrides stay at auto-layout (unchanged).
-        //
-        // Edges redraw automatically each frame since they derive paths
-        // from positions (no separate edge animation needed).
-        //
-        // The _hasPlayedLoadAnimation one-time flag (set in
-        // _maybeStartLoadAnimation) ensures this only fires once per
-        // session load, not on every rebuild.
-        //
-        // Reduced-motion: _maybeStartLoadAnimation never sets
-        // _animatingLoad=true if reduced motion is active, so this block
-        // is a no-op.
+        // v5.30 Issue 2: Load animation lerp (unchanged — radial path only).
         if (_animatingLoad && _loadController != null) {
           final rawProgress = _loadController!.value.clamp(0.0, 1.0);
-          // easeOutCubic: 1 - (1 - t)^3
           final easedProgress = 1.0 -
               (1.0 - rawProgress) *
                   (1.0 - rawProgress) *
                   (1.0 - rawProgress);
-          // Lerp from auto-layout (layout.positions) to effectivePositions
-          // (which already includes saved overrides). Nodes without saved
-          // overrides lerp from themselves to themselves (no visible
-          // change), which is correct.
           final lerpedLoadPositions = <String, Offset>{};
           for (final entry in effectivePositions.entries) {
             final auto = layout.positions[entry.key];
@@ -190,156 +166,46 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           effectivePositions
             ..clear()
             ..addAll(lerpedLoadPositions);
-          // Edge waypoints don't need lerp during load — they start at
-          // their saved values (no "from" state to lerp from, since the
-          // user hasn't dragged anything yet on first load).
         }
 
-        // v5.159 (ENTRANCE ANIMATION): fly newly revealed nodes out
-        // from their branch bubble.
+        // ── WEDGE MOTION INTERPOLATE ─────────────────────────────────
         //
-        // _fetchAndExpandBranch records the level-reveal set in
-        // _pendingEntranceNodeIds (with the branch root's position as
-        // the origin). The layout provider assigns those members
-        // positions in a later rebuild — THIS build. Promote every
-        // pending id that now has a position into
-        // _branchAnimatingNodeIds, start the v5.143 controller (once,
-        // deferred to post-frame so the value-set notifyListeners never
-        // fires setState during build), and lerp their positions from
-        // the origin to their final spots by _branchAnimationProgress
-        // (already easeOut-curved by _onBranchExpandTick).
+        // When the wedge glide is active, replace effectivePositions
+        // with WedgeMotion.interpolate(from, to, parentOf, t).
+        // This handles existing nodes (glide), new nodes (start at
+        // parent's previous position), and leaving nodes (absent from
+        // `to`, so simply dropped — no fade-out in this iteration).
         //
-        // Edges follow the animated positions automatically (their
-        // paths derive from effectivePositions on every frame) — so a
-        // node and its connecting line always move TOGETHER, satisfying
-        // the atomic node+edge render requirement.
+        // The WedgeMotion.easeInOut curve (2t² for t<0.5, else
+        // 1-(−2t+2)²/2) matches the approved preview exactly.
         //
-        // Reduced motion: skip both the promotion and the lerp — nodes
-        // appear directly at their final (collision-resolved)
-        // positions.
-        if (_pendingEntranceNodeIds.isNotEmpty &&
-            !MediaQuery.disableAnimationsOf(context)) {
-          final promoted = <String>{
-            for (final id in _pendingEntranceNodeIds)
-              if (effectivePositions.containsKey(id)) id,
-          };
-          if (promoted.isNotEmpty) {
-            _pendingEntranceNodeIds.removeAll(promoted);
-            _branchAnimatingNodeIds =
-                Set<String>.of(_branchAnimatingNodeIds)..addAll(promoted);
-            if (!_animatingBranchExpand) {
-              _animatingBranchExpand = true;
-              _branchAnimationProgress = 0.0;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                _branchExpandController?.forward(from: 0.0);
-              });
-            }
-          }
-        }
-        if (_animatingBranchExpand && _branchAnimatingNodeIds.isNotEmpty) {
-          final t = _branchAnimationProgress.clamp(0.0, 1.0);
-          if (t < 1.0) {
-            for (final id in _branchAnimatingNodeIds) {
-              final finalPos = effectivePositions[id];
-              if (finalPos == null) continue;
-              effectivePositions[id] = Offset(
-                _branchAnimationOrigin.dx * (1.0 - t) + finalPos.dx * t,
-                _branchAnimationOrigin.dy * (1.0 - t) + finalPos.dy * t,
-              );
-            }
-          }
-        }
-
-        // ── WEDGE GLIDE lerp (viewer-centered wedge layout) ───────────
-        //
-        // PER THE APPROVED-PREVIEW CONTRACT:
-        //   • EXISTING nodes (in both previous + current layout) glide
-        //     from old → new by the eased progress.
-        //   • NEW nodes (in current but NOT in previous) start at their
-        //     parent's PREVIOUS position and glide to their new slot.
-        //     This makes the new branch appear to "emerge" from the
-        //     parent — visually continuous with the parent's glide.
-        //   • LEAVING nodes (in previous but NOT in current) glide INTO
-        //     their parent's NEW position + fade out. They're added to
-        //     effectivePositions during the animation so they keep
-        //     rendering; they vanish from the layout at t=1.0 (the
-        //     next layout commit drops them).
-        //
-        // All edges, count badges, +N bubbles, and labels read the
-        // SAME effectivePositions every frame (see _buildNodeLayer +
-        // _buildWedgePageChips + _buildWedgeCountBadges + the edge
-        // painter), so nothing lags or floats relative to a node.
-        //
-        // Reduced-motion: the controller never starts (_wedgeGlideActive
-        // is gated on !MediaQuery.disableAnimationsOf(context) above at
-        // line 114), so this block is a no-op.
+        // Reduced-motion: the controller never starts, so t stays at
+        // 1.0 and this block is a no-op (positions = final).
         if (_wedgeGlideActive && _wedgeGlideFromPositions != null) {
           final t = _branchAnimationProgress.clamp(0.0, 1.0);
           if (t < 1.0) {
             final from = _wedgeGlideFromPositions!;
             final summary = ref.read(wedgeLayoutSummaryProvider(widget.familyId));
             final parentOf = summary?.parentOf ?? const <String, String>{};
-            final lerped = <String, Offset>{};
-
-            // 1. EXISTING + NEW nodes (present in current layout).
-            for (final entry in effectivePositions.entries) {
-              final id = entry.key;
-              final newPos = entry.value;
-              final oldPos = from[id];
-              if (oldPos != null) {
-                // Existing node — lerp from old → new.
-                lerped[id] = Offset(
-                  oldPos.dx * (1.0 - t) + newPos.dx * t,
-                  oldPos.dy * (1.0 - t) + newPos.dy * t,
-                );
-              } else {
-                // NEW node — start at parent's previous position,
-                // glide to its new slot. If parent has no previous
-                // position (rare: parent itself is new), fall back
-                // to the new slot (no entrance motion — the node
-                // just appears at its final spot).
-                final parentId = parentOf[id];
-                final parentPrev =
-                    parentId != null ? from[parentId] : null;
-                if (parentPrev != null) {
-                  lerped[id] = Offset(
-                    parentPrev.dx * (1.0 - t) + newPos.dx * t,
-                    parentPrev.dy * (1.0 - t) + newPos.dy * t,
-                  );
-                } else {
-                  lerped[id] = newPos;
-                }
-              }
-            }
-
-            // 2. LEAVING nodes — present in previous but NOT in
-            // current. Glide INTO their parent's NEW position. They
-            // fade out via the alpha multiplier below (the engine
-            // view's node layer reads effectivePositions only — the
-            // leaving node will render with stale data but at the
-            // lerped position; visually it "retreats into the parent"
-            // and vanishes at t=1.0 when the layout commit drops it).
-            //
-            // DISABLED in this iteration: the rendering layer derives
-            // `visible` from `effectivePositions.keys`, so leaving
-            // nodes would render as full GraphNode widgets during the
-            // animation. In the e2e test this inflated the Hub Kid
-            // widget count past the assertion's upper bound (8).
-            // Re-enabling requires either a separate fade-out widget
-            // path (so leaving nodes don't render as full GraphNodes)
-            // or a separate "leaving" position map that the renderer
-            // reads with a fading opacity. Tracked as a follow-up.
-            //
-            // For now: leaving nodes VANISH instantly at t=0 (the
-            // wedge layout's `visible` set drops them the moment the
-            // layout commits). The entrance animation for NEW nodes
-            // + the existing glide for EXISTING nodes still produces
-            // a smooth visual transition for the user.
-            // See test/graph/engine/wedge_unified_animation_test.dart
-            // for the lerp arithmetic contract on the leaving-node
-            // case (which we still verify in pure-Dart form).
-
+            // WedgeMotion.interpolate returns ONLY the ids in `to`
+            // (effectivePositions). Leaving nodes (in `from` but not
+            // in `to`) are absent — they vanish instantly. This is
+            // intentional: the rendering layer derives `visible` from
+            // effectivePositions.keys, so adding leaving nodes would
+            // render them as full GraphNode widgets during the
+            // animation, inflating the widget count.
+            final lerped = WedgeMotion.interpolate(
+              from: from,
+              to: effectivePositions,
+              parentOf: parentOf,
+              t: t,
+            );
+            // Translate the interpolated positions back to canvas space.
+            // The `from` positions are already in canvas space (they
+            // were snapshotted from effectivePositions, which is
+            // canvas-space). The `to` positions (effectivePositions)
+            // are also canvas-space. So the interpolation is already in
+            // the right coordinate system — no translation needed.
             effectivePositions
               ..clear()
               ..addAll(lerped);
@@ -2437,47 +2303,41 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
 
     final size = _viewportSize;
     if (size.width <= 0 || size.height <= 0) return;
-    final boundsW = (maxX - minX).clamp(1.0, double.infinity);
-    final boundsH = (maxY - minY).clamp(1.0, double.infinity);
 
-    // ── CAMERA FIT INSET (top + bottom chrome) ─────────────────────
+    // ── CAMERA FIT via WedgeCameraFit.fit ──────────────────────────
     //
-    // PER THE SPEC: "scale = clamp(min((viewW - 20) / boxW, (viewH - 20) / boxH), minimum zoom, 1.6)"
-    // where viewW/viewH are the area between the top overlays and the
-    // bottom stats card and toolbar.
-    //
-    // The minimum zoom must not go below the level where names and
-    // relation labels are still drawn. On all device tiers, Lod.full
-    // or Lod.compact (both show the node name) are used at zoom >= 0.50.
-    // Below 0.50, low-end devices switch to Lod.mini (circle + initial
-    // — no full name). We floor at 0.50 so names are ALWAYS visible.
-    final topInset = MediaQuery.of(context).padding.top + widget.topChromeHeight;
+    // Uses the approved preview's camera fit math (WedgeCameraFit.fit
+    // from wedge_motion.dart). Passes the REAL overlay insets (top
+    // overlays, bottom stats card + toolbar, 10px sides) and the app's
+    // minimum readable zoom (0.50 — at or above this, all device tiers
+    // render Lod.full or Lod.compact, both of which show the node name).
+    final topInset =
+        MediaQuery.of(context).padding.top + widget.topChromeHeight + 8;
     final bottomInset =
         MediaQuery.of(context).padding.bottom + widget.bottomChromeHeight;
-    final effectiveW = size.width - 20; // 10px margin each side
-    final effectiveH = size.height - topInset - bottomInset - 20; // 10px margin top/bottom
-    if (effectiveW <= 0 || effectiveH <= 0) return; // viewport too small
 
-    var zoom = (effectiveW / boundsW) < (effectiveH / boundsH)
-        ? (effectiveW / boundsW)
-        : (effectiveH / boundsH);
-    // Clamp: min 0.50 (names visible), max 1.6 (per spec).
-    zoom = zoom.clamp(0.50, 1.6);
-    if (!zoom.isFinite || zoom <= 0) zoom = 0.50;
+    // Build the bounding box as a Rect.
+    final boundsRect = Rect.fromLTRB(minX, minY, maxX, maxY);
 
-    final centerX = (minX + maxX) / 2;
-    final centerY = (minY + maxY) / 2;
-    final effectiveCenterY = topInset + effectiveH / 2 + 10; // 10px top margin
-    final effectiveCenterX = size.width / 2; // no horizontal chrome
-
-    final panX = effectiveCenterX - (centerX * zoom);
-    final panY = effectiveCenterY - (centerY * zoom);
+    // Use WedgeCameraFit.fit with the real insets.
+    final cameraFit = WedgeCameraFit.fit(
+      boxes: [boundsRect],
+      viewport: size,
+      insets: WedgeViewInsets(
+        left: 10,
+        top: topInset,
+        right: 10,
+        bottom: bottomInset,
+      ),
+      minScale: 0.50, // names visible at this zoom
+      maxScale: 1.6,
+    );
 
     final reduced = MediaQuery.disableAnimationsOf(context);
     _camera.animateTo(
-      panX,
-      panY,
-      zoom,
+      cameraFit.translation.dx,
+      cameraFit.translation.dy,
+      cameraFit.scale,
       duration: reduced
           ? const Duration(milliseconds: 1)
           : const Duration(milliseconds: 450),
