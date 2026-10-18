@@ -56,6 +56,8 @@ import '../../../social/data/providers/sparq_provider.dart' show sparqProvider;
 import '../../../social/presentation/screens/sparq_viewer_screen.dart';
 import '../../data/family_sparq_tray_item.dart';
 import '../../providers/family_sparq_tray_provider.dart';
+import '../../providers/moment_sparq_provider.dart'
+    show familyMomentSparqProvider, markMomentSparqSeen;
 import '../../sparq_tray_strings.dart';
 
 /// Full-screen Family Sparq run.
@@ -141,6 +143,23 @@ class _FamilySparqRunScreenState extends ConsumerState<FamilySparqRunScreen> {
   ) {
     final queue = <_RunMember>[];
 
+    // 0. The family's Moment Sparq (if any) — first item in the run.
+    // Local-only; never counted as a viewed Sparq on the server.
+    final moment = ref.read(familyMomentSparqProvider(tapped.family.id));
+    if (moment != null) {
+      queue.add(_RunMember(
+        familyId: tapped.family.id,
+        familyName: tapped.family.name,
+        userId: '__moment__', // sentinel — no real user
+        userName: tapped.family.name,
+        userAvatarUrl: null,
+        latestMoodColor: const Color(0xFFD4AF37), // gold
+        isSeen: false,
+        isMoment: true,
+        moment: moment,
+      ));
+    }
+
     // 1. Tapped family's members (unseen first, then seen).
     final unseen = <UserSparqGroup>[];
     final seen = <UserSparqGroup>[];
@@ -174,6 +193,8 @@ class _FamilySparqRunScreenState extends ConsumerState<FamilySparqRunScreen> {
             ? g.sparqs.first.moodColor
             : const Color(0xFFFFB300),
         isSeen: g.allSeen,
+        isMoment: false,
+        moment: null,
       ));
     }
 
@@ -181,6 +202,24 @@ class _FamilySparqRunScreenState extends ConsumerState<FamilySparqRunScreen> {
     for (final item in tray) {
       if (item.family.id == tapped.family.id) continue;
       if (item.unseenCount == 0) continue; // only families with unseen
+
+      // Other family's Moment Sparq (if any) at the head of its run.
+      final otherMoment =
+          ref.read(familyMomentSparqProvider(item.family.id));
+      if (otherMoment != null) {
+        queue.add(_RunMember(
+          familyId: item.family.id,
+          familyName: item.family.name,
+          userId: '__moment__',
+          userName: item.family.name,
+          userAvatarUrl: null,
+          latestMoodColor: const Color(0xFFD4AF37),
+          isSeen: false,
+          isMoment: true,
+          moment: otherMoment,
+        ));
+      }
+
       for (final g in item.memberGroups) {
         final isSeen = g.sparqs.every(
           (s) =>
@@ -198,6 +237,8 @@ class _FamilySparqRunScreenState extends ConsumerState<FamilySparqRunScreen> {
               ? g.sparqs.first.moodColor
               : const Color(0xFFFFB300),
           isSeen: false,
+          isMoment: false,
+          moment: null,
         ));
       }
     }
@@ -291,19 +332,29 @@ class _FamilySparqRunScreenState extends ConsumerState<FamilySparqRunScreen> {
           children: [
             // The viewer for the current member — keyed so each
             // member's state is independent. AnimatedSwitcher gives a
-            // clean fade between members.
+            // clean fade between members. For a Moment entry, render
+            // the Moment card instead of a SparqViewerScreen.
             Positioned.fill(
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 280),
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
-                child: SparqViewerScreen(
-                  key: ValueKey(
-                      'sparq-run-${current.familyId}-${current.userId}'),
-                  userId: current.userId,
-                  onFinished: _onMemberFinished,
-                  onPrevious: _onMemberPrevious,
-                ),
+                child: current.isMoment && current.moment != null
+                    ? _MomentSparqCard(
+                        key: ValueKey(
+                            'sparq-run-moment-${current.familyId}'),
+                        moment: current.moment!,
+                        familyName: current.familyName,
+                        onFinished: _onMemberFinished,
+                        onClose: _closeSafely,
+                      )
+                    : SparqViewerScreen(
+                        key: ValueKey(
+                            'sparq-run-${current.familyId}-${current.userId}'),
+                        userId: current.userId,
+                        onFinished: _onMemberFinished,
+                        onPrevious: _onMemberPrevious,
+                      ),
               ),
             ),
 
@@ -483,7 +534,8 @@ class _FamilySparqRunScreenState extends ConsumerState<FamilySparqRunScreen> {
 }
 
 /// One entry in the run queue — the data the run screen needs to
-/// host a SparqViewerScreen for one member.
+/// host a SparqViewerScreen for one member (or a Moment Sparq card
+/// when [isMoment] is true and [moment] is set).
 class _RunMember {
   const _RunMember({
     required this.familyId,
@@ -493,6 +545,8 @@ class _RunMember {
     required this.userAvatarUrl,
     required this.latestMoodColor,
     required this.isSeen,
+    required this.isMoment,
+    required this.moment,
   });
 
   final String familyId;
@@ -502,6 +556,16 @@ class _RunMember {
   final String? userAvatarUrl;
   final Color latestMoodColor;
   final bool isSeen;
+
+  /// True when this entry represents the family's Moment Sparq
+  /// (birthday/anniversary/festival/on-this-day) rather than a
+  /// member's Sparqs. The run screen renders a gold-gradient card
+  /// instead of hosting a SparqViewerScreen.
+  final bool isMoment;
+
+  /// The Moment Sparq payload (when [isMoment] is true). Null for
+  /// regular member entries.
+  final MomentSparq? moment;
 }
 
 /// 44dp avatar with a 2dp border in the member's mood color (outline
@@ -549,6 +613,265 @@ class _AvatarChip extends StatelessWidget {
                 ),
               )
             : null,
+      ),
+    );
+  }
+}
+
+/// Gold-to-amber gradient Moment Sparq card. Spec section 6.
+///
+/// Local-only — never counted as a viewed Sparq on the server. On
+/// display, the card auto-advances after 5s (matching the viewer's
+/// IMAGE/TEXT auto-advance duration). Tapping "Send a wish" or any
+/// quick reply marks the Moment as seen locally and advances to the
+/// next member. Swiping down closes the run.
+class _MomentSparqCard extends StatefulWidget {
+  const _MomentSparqCard({
+    super.key,
+    required this.moment,
+    required this.familyName,
+    required this.onFinished,
+    required this.onClose,
+  });
+
+  final MomentSparq moment;
+  final String familyName;
+  final VoidCallback onFinished;
+  final VoidCallback onClose;
+
+  @override
+  State<_MomentSparqCard> createState() => _MomentSparqCardState();
+}
+
+class _MomentSparqCardState extends State<_MomentSparqCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _progressController;
+  bool _markedSeen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _progressController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 5),
+    );
+    _progressController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _finish();
+      }
+    });
+    _progressController.forward();
+    // Mark the Moment as seen as soon as it's displayed (local only).
+    markMomentSparqSeen(widget.moment);
+    _markedSeen = true;
+  }
+
+  @override
+  void dispose() {
+    _progressController.dispose();
+    super.dispose();
+  }
+
+  void _finish() {
+    if (!mounted) return;
+    widget.onFinished();
+  }
+
+  void _onActionTap() {
+    if (!mounted) return;
+    HapticService.tap();
+    if (!_markedSeen) {
+      markMomentSparqSeen(widget.moment);
+      _markedSeen = true;
+    }
+    _finish();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final m = widget.moment;
+    return GestureDetector(
+      onVerticalDragEnd: (details) {
+        if (details.primaryVelocity != null && details.primaryVelocity! > 300) {
+          widget.onClose();
+        }
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFD4AF37), Color(0xFFF59240)],
+            stops: [0.0, 1.0],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Header — "K" avatar + "Kinrel moment · Today" + family name.
+                Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFF2B1A05),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'K',
+                          style: TextStyle(
+                            color: Color(0xFFD4AF37),
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            SparqTrayStrings.kinrelMomentToday,
+                            style: TextStyle(
+                              color: Color(0xFF2B1A05),
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Text(
+                            widget.familyName,
+                            style: const TextStyle(
+                              color: Color(0xFF2B1A05),
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close,
+                          color: Color(0xFF2B1A05), size: 22),
+                      onPressed: widget.onClose,
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                // Headline + relation line.
+                Center(
+                  child: Column(
+                    children: [
+                      Text(
+                        m.headline,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xFF2B1A05),
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      if (m.relationLine.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          m.relationLine,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Color(0xFF2B1A05),
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                // Primary CTA + quick replies.
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _onActionTap,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2B1A05),
+                      foregroundColor: const Color(0xFFD4AF37),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ),
+                    child: const Text(
+                      SparqTrayStrings.sendAWish,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _quickReply(SparqTrayStrings.pranam),
+                    _quickReply(SparqTrayStrings.happyBirthday),
+                    _quickReply(SparqTrayStrings.voiceBlessing),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Single progress bar.
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(1),
+                  child: LinearProgressIndicator(
+                    value: _progressController.value,
+                    minHeight: 2,
+                    backgroundColor:
+                        const Color(0xFF2B1A05).withValues(alpha: 0.15),
+                    valueColor:
+                        const AlwaysStoppedAnimation<Color>(Color(0xFF2B1A05)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _quickReply(String label) {
+    return GestureDetector(
+      onTap: _onActionTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2B1A05).withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF2B1A05).withValues(alpha: 0.20),
+            width: 0.5,
+          ),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF2B1A05),
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
