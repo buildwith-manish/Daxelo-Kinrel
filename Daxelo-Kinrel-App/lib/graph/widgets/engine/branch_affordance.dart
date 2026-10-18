@@ -2073,7 +2073,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
   /// Builds positioned "+N" count badges for every VISIBLE, COLLAPSED
   /// person that has at least one connection. Renders nothing in
   /// radial mode or when no counts are cached yet.
-  List<Widget> _buildWedgeCountBadges() {
+  List<Widget> _buildWedgeCountBadges(Set<String> renderVisible) {
     if (!kUseViewerWedgeLayout) return const [];
     final counts = _cachedConnectionCountById;
     if (counts == null || counts.isEmpty) return const [];
@@ -2086,8 +2086,14 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     final viewerId =
         ref.read(viewerPersonIdProvider(widget.familyId)).valueOrNull;
 
-    // Deterministic order: angle around the canvas origin, then id.
+    // ONLY draw badges for persons whose node is actually RENDERED on
+    // screen (in [renderVisible]). This prevents floating badges in
+    // empty space — the user reported "+N rectangles hang in empty
+    // space with no node under them" because badges were drawn for
+    // positioned-but-culled nodes. Now a badge is drawn ONLY when the
+    // node widget it belongs to is on screen.
     final entries = layout.positions.entries.where((entry) {
+      if (!renderVisible.contains(entry.key)) return false;
       return shouldShowWedgeCountBadge(
         personId: entry.key,
         viewerId: viewerId,

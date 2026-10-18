@@ -1228,7 +1228,21 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
 
         // v64 (BUG-2 FIX): Deduplicate with smart category-strength
         // selection + lateral offsets for parallel edges.
-        final edges = List<DedupedEdge>.from(EdgeDeduplicator.deduplicate(rawEdges));
+        final allDedupedEdges = List<DedupedEdge>.from(EdgeDeduplicator.deduplicate(rawEdges));
+
+        // WEDGE MODE: filter edges to ONLY those where BOTH endpoints
+        // are in [renderVisible] (actually rendered on screen). This
+        // prevents edges from running to off-screen / culled nodes —
+        // the user reported "The red dashed line runs off-screen to a
+        // person who isn't visible." In radial mode, keep the legacy
+        // behaviour (the culler handles it).
+        final edges = kUseViewerWedgeLayout
+            ? allDedupedEdges
+                .where((e) =>
+                    renderVisible.contains(e.edge.sourceId) &&
+                    renderVisible.contains(e.edge.targetId))
+                .toList()
+            : allDedupedEdges;
 
         // v5.152/v5.153: SAFEGUARD — ensure every visible node has at
         // least one rendered edge connecting it to ANOTHER VISIBLE node.
@@ -1918,8 +1932,10 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 // WEDGE MODE: "+N" connection-count badges overlaying the
                 // top-right of every visible COLLAPSED person with
                 // connections (drawn by this chip layer — GraphNode stays
-                // untouched).
-                ..._buildWedgeCountBadges(),
+                // untouched). ONLY for nodes that are actually RENDERED
+                // on screen (in [renderVisible]) — no floating badges for
+                // off-screen nodes.
+                ..._buildWedgeCountBadges(renderVisible),
               ],
             ),
           ),
@@ -2423,45 +2439,35 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
     if (size.width <= 0 || size.height <= 0) return;
     final boundsW = (maxX - minX).clamp(1.0, double.infinity);
     final boundsH = (maxY - minY).clamp(1.0, double.infinity);
-    // 30% padding — same contract as CameraController.fitToView.
-    var zoom = (size.width * 0.7 / boundsW) < (size.height * 0.7 / boundsH)
-        ? (size.width * 0.7 / boundsW)
-        : (size.height * 0.7 / boundsH);
-    zoom = zoom.clamp(0.2, 2.0);
-    if (!zoom.isFinite || zoom <= 0) zoom = 1.0;
-
-    final centerX = (minX + maxX) / 2;
-    final centerY = (minY + maxY) / 2;
 
     // ── CAMERA FIT INSET (top + bottom chrome) ─────────────────────
     //
-    // PER THE SPEC: "when fitting to a hub, its children and its
-    // parent, leave padding for the top overlays (app bar, Graph/Linking
-    // toggle, banner) and the bottom stats card and toolbar. Fit into
-    // the visible area between them, not the full screen, so no node
-    // ends up under the toolbar or banner."
+    // PER THE SPEC: "scale = clamp(min((viewW - 20) / boxW, (viewH - 20) / boxH), minimum zoom, 1.6)"
+    // where viewW/viewH are the area between the top overlays and the
+    // bottom stats card and toolbar.
     //
-    // The camera controller's `setAppTopChromeHeight` / `setAppBottomChromeHeight`
-    // feed the SAME insets into `fitToView` (see camera_controller.dart
-    // lines 545-548). We mirror that contract here: the effective
-    // vertical center is the midpoint of the visible area BETWEEN the
-    // top and bottom overlays, NOT the raw viewport centre.
-    //
-    // `widget.topChromeHeight` is 0 in family_graph_screen.dart (the
-    // AppBar is excluded by the Scaffold body), so the top inset
-    // falls back to the OS safe area top. `widget.bottomChromeHeight`
-    // is the stats panel + toolbar + OS safe area bottom (already
-    // computed in family_graph_screen.dart line 1183).
-    //
-    // The horizontal center is unaffected (no horizontal chrome).
+    // The minimum zoom must not go below the level where names and
+    // relation labels are still drawn. On all device tiers, Lod.full
+    // or Lod.compact (both show the node name) are used at zoom >= 0.50.
+    // Below 0.50, low-end devices switch to Lod.mini (circle + initial
+    // — no full name). We floor at 0.50 so names are ALWAYS visible.
     final topInset = MediaQuery.of(context).padding.top + widget.topChromeHeight;
     final bottomInset =
         MediaQuery.of(context).padding.bottom + widget.bottomChromeHeight;
-    final effectiveHeight = size.height - topInset - bottomInset;
-    // Guard against negative effective height (extreme aspect ratios
-    // or a very small viewport during initial layout). Fall back to
-    // the raw viewport centre — visually no worse than the old code.
-    final effectiveCenterY = topInset + effectiveHeight / 2;
+    final effectiveW = size.width - 20; // 10px margin each side
+    final effectiveH = size.height - topInset - bottomInset - 20; // 10px margin top/bottom
+    if (effectiveW <= 0 || effectiveH <= 0) return; // viewport too small
+
+    var zoom = (effectiveW / boundsW) < (effectiveH / boundsH)
+        ? (effectiveW / boundsW)
+        : (effectiveH / boundsH);
+    // Clamp: min 0.50 (names visible), max 1.6 (per spec).
+    zoom = zoom.clamp(0.50, 1.6);
+    if (!zoom.isFinite || zoom <= 0) zoom = 0.50;
+
+    final centerX = (minX + maxX) / 2;
+    final centerY = (minY + maxY) / 2;
+    final effectiveCenterY = topInset + effectiveH / 2 + 10; // 10px top margin
     final effectiveCenterX = size.width / 2; // no horizontal chrome
 
     final panX = effectiveCenterX - (centerX * zoom);

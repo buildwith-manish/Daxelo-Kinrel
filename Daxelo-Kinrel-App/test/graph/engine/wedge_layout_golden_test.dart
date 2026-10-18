@@ -12,7 +12,7 @@
 //   B — also r0 expanded: 19 nodes, rings 541.1, 741.1
 //   C — also r4 expanded: 28 nodes, rings 795.8, 995.8
 
-import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/graph/engine/viewer_wedge_layout.dart';
 
@@ -286,6 +286,7 @@ void main() {
         manualPages: const {},
         expansionOrder: const ['r0'],
       );
+      // ignore: unused_local_variable
       final collapsed = ViewerWedgeLayout().compute(
         loadedPersonIds: allIds,
         nameOf: names,
