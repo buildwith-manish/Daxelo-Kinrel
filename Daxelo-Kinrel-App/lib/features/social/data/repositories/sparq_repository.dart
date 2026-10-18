@@ -43,10 +43,17 @@ class SparqRepository {
   SparqRepository(this._ref);
   final Ref _ref;
 
-  /// Get the Sparq feed (grouped by user)
-  Future<List<UserSparqGroup>> getFeed({int page = 1, int limit = 20}) async {
+  /// Get the Sparq feed (grouped by user).
+  ///
+  /// [limit] is forwarded as a query param when provided; null falls
+  /// back to the server default (20). The Home Family Sparq tray
+  /// passes 60 on first load so members in large families are not
+  /// hidden by pagination — see spec section 5.
+  Future<List<UserSparqGroup>> getFeed({int page = 1, int? limit}) async {
     final httpClient = _ref.read(dioProvider);
-    final response = await httpClient.get('/sparq/feed', queryParameters: {'page': page, 'limit': limit});
+    final params = <String, dynamic>{'page': page};
+    if (limit != null) params['limit'] = limit;
+    final response = await httpClient.get('/sparq/feed', queryParameters: params);
     final list = response.data as List? ?? [];
     return list.map((e) => UserSparqGroup.fromJson(e as Map<String, dynamic>)).toList();
   }
