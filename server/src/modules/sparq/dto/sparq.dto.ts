@@ -58,4 +58,11 @@ export class SparqFeedDto {
 
   @ApiPropertyOptional({ default: 20 })
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number = 20;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional family id. When present, the caller must be a member of that family and the feed is restricted to that family\'s member user ids. Default behavior (followed users + all family members) is preserved when this param is absent.',
+  })
+  @IsOptional() @IsString()
+  familyId?: string;
 }
