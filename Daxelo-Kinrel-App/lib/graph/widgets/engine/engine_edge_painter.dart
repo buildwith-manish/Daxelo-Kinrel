@@ -2557,18 +2557,64 @@ class EngineEdgePainter extends CustomPainter {
             waypointDelta == Offset.zero)
         ? wedgeEdgeRoutes!.byEdgeId[edgeId]
         : null;
+    // 2026-10-19 (Fix 6b part 2 — the "dot out of edge" bug):
+    //
+    // Use the SAME tolerance-based comparison as the line-drawing path
+    // (`useWedgeRoute` above uses `_offsetsApproxEqual`). The previous
+    // exact `==` comparison failed on float drift (1e-15 from matrix
+    // math), which made `routeMatchesThisEdge` false even when the
+    // route WAS the one being drawn. The painter then fell back to
+    // `computeVisualMidpoint` (which uses `_bezier`) — a DIFFERENT
+    // path than the wedge route's straight/curved line. The dot then
+    // sat on the bezier curve's midpoint, NOT on the wedge route's
+    // line — producing the "dot out of edge" failure mode the user
+    // reported ("dots come out of the edge").
+    //
+    // Using the same tolerance here ensures: if the line was drawn
+    // from the wedge route, the midpoint is also computed from the
+    // wedge route. They can never disagree.
+    //
+    // 2026-10-19 (Fix 6b part 3 — the "dot out of edge" bug for
+    // ANIMATED edges):
+    //
+    // When the wedge glide animation is in flight, the painter uses
+    // lerped positions that don't match the wedge route's cached
+    // positions (within 0.5px tolerance). In that case:
+    //   • The LINE is drawn as a STRAIGHT moveTo + lineTo (the
+    //     "animation in flight" fallback at the `else if
+    //     (wedgeEdgeRoutes != null)` branch).
+    //   • But `computeVisualMidpoint` uses `_bezier` — a CURVED path.
+    //   • The dot sits on the bezier curve's midpoint, NOT on the
+    //     straight line → "dot out of edge".
+    //
+    // Fix: when the wedge route exists but DOESN'T match the current
+    // endpoints (animation in flight), AND there's no user drag, use
+    // the LINEAR midpoint of the straight line (s + t) / 2 — which is
+    // exactly where the straight fallback line's t=0.5 point is. This
+    // guarantees the dot sits ON the drawn straight line.
     final bool routeMatchesThisEdge = routeForMidpoint != null &&
-        routeForMidpoint.source == s &&
-        routeForMidpoint.target == t;
+        _offsetsApproxEqual(routeForMidpoint.source, s) &&
+        _offsetsApproxEqual(routeForMidpoint.target, t);
+    // `wedgeAnimationFallback` is true when we're in wedge mode (routes
+    // exist) but the current edge's route doesn't match (animated
+    // positions). In that case the line is a straight moveTo + lineTo,
+    // so the midpoint must be the linear midpoint.
+    final bool wedgeAnimationFallback = !routeMatchesThisEdge &&
+        wedgeEdgeRoutes != null &&
+        waypointDelta == Offset.zero;
     final Offset midPoint = routeMatchesThisEdge
         ? routeForMidpoint.midpoint
-        : computeVisualMidpoint(
-            s, t,
-            lateralOffset: lateralOffset,
-            waypointDelta: waypointDelta,
-            anchorCenter: anchorCenter,
-            edgeId: edgeId,
-          );
+        : wedgeAnimationFallback
+            // The straight fallback line goes from s to t. Its
+            // arc-length t=0.5 point is the linear midpoint.
+            ? Offset((s.dx + t.dx) / 2.0, (s.dy + t.dy) / 2.0)
+            : computeVisualMidpoint(
+                s, t,
+                lateralOffset: lateralOffset,
+                waypointDelta: waypointDelta,
+                anchorCenter: anchorCenter,
+                edgeId: edgeId,
+              );
 
     // Resolve the effective midpoint color.
     //   • Default relationship → style.midpointColor (pink for spouse,

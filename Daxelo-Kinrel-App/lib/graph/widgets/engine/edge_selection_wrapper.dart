@@ -426,9 +426,35 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
     final Map<String, double> connectOnOpenEdgeDelays; // v5.187
     if (connController != null) {
       final s = connController.state;
-      connectOnOpenActive = s.traceActive ||
-          s.completedEdgeIds.isNotEmpty ||
-          s.currentEdgeIds.isNotEmpty;
+      // 2026-10-19 (color-preservation fix):
+      //
+      // `connectOnOpenActive` must be TRUE only while the animation is
+      // actually running — NOT after it completes. The previous logic
+      // (`s.traceActive || s.completedEdgeIds.isNotEmpty || s.currentEdgeIds.isNotEmpty`)
+      // kept `connectOnOpenActive` true FOREVER after the first
+      // animation, because `completedEdgeIds` was non-empty after
+      // `revealAll`.
+      //
+      // While this didn't change the edge color (revealed edges get
+      // `connectOnOpenAlpha = 1.0`, same as the default), it caused
+      // the painter to enter the `connectOnOpenActive` branch for
+      // every edge on every frame — a Set lookup per edge per frame
+      // forever. More importantly, it meant NEW edges (added after
+      // the animation via branch expand) fell into the `else` branch
+      // of the painter's connect-on-open logic, which (while correct
+      // after Fix 1) is a different code path than the default. This
+      // subtle path difference could interact with future bugs to
+      // produce visual inconsistencies.
+      //
+      // Fix: `connectOnOpenActive` is true ONLY when `traceActive` is
+      // true (the animation is running). After the animation completes
+      // or is force-revealed, `traceActive` becomes false, so
+      // `connectOnOpenActive` becomes false — the painter takes the
+      // default path for every edge. The `completedEdgeIds` set is
+      // still passed through as `connectOnOpenRevealedEdgeIds` for
+      // backward compat, but the painter only reads it when
+      // `connectOnOpenActive` is true.
+      connectOnOpenActive = s.traceActive;
       connectOnOpenCurrentEdgeId = s.currentEdgeId;
       connectOnOpenProgress = s.traceProgress;
       connectOnOpenRevealedEdgeIds = s.completedEdgeIds;
