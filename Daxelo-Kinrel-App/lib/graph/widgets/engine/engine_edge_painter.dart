@@ -190,6 +190,26 @@ class EngineEdgePainter extends CustomPainter {
   // read-only.
   static Expando<Map<String, Path>> _dashPathCache = Expando();
 
+  /// 2026-10-19 (Fix 6d): Per-instance set of edge IDs that have been
+  /// logged as dropped due to a missing endpoint position. Prevents
+  /// log flooding — each missing edge is logged at most once per
+  /// painter instance.
+  final Set<String> _missingPositionEdgeIds = <String>{};
+
+  /// 2026-10-19 (Fix 7): Per-paint counter of edges that actually
+  /// reached a drawPath call. Reset to 0 at the start of every
+  /// paint() invocation, incremented by `_recordDrawnEdge` right
+  /// before each drawPath. Used by the stats-parity assert at the
+  /// end of paint() to verify every expected edge was drawn.
+  int _drawnEdgeCount = 0;
+  int get drawnEdgeCount => _drawnEdgeCount;
+  void _recordDrawnEdge() => _drawnEdgeCount++;
+
+  /// 2026-10-19 (Fix 7): Last stats-parity fingerprint logged. Used to
+  /// throttle the debug log so it fires at most once per distinct
+  /// (edges, positions, drawn) tuple — not on every paint.
+  String _statsParityLastLoggedFingerprint = '';
+
   /// PERF (Phase 2 — Task 5): Single clearly-named boolean controlling
   /// whether dashed edges fall back to a single solid stroke while the
   /// user is actively panning or zooming (and for ~150 ms after, while
@@ -1103,6 +1123,12 @@ class EngineEdgePainter extends CustomPainter {
     if (edges.isEmpty) return;
     if (positions.isEmpty) return;
 
+    // 2026-10-19 (Fix 7): Reset the per-paint drawn-edge counter.
+    // Incremented by `_recordDrawnEdge()` at each drawPath call in
+    // the loop below. The stats-parity assert at the end of paint()
+    // uses this to verify every expected edge was drawn.
+    _drawnEdgeCount = 0;
+
     // Pre-resolve a few per-frame constants from the lighting contract.
     final bool isDot = edgeQuality == EdgeQuality.dot;
     // PERF v5.175 (60fps PAN/ZOOM): the cull rect for painter-side
@@ -1252,6 +1278,33 @@ class EngineEdgePainter extends CustomPainter {
       final Offset? s = positions[e.sourceId];
       final Offset? t = positions[e.targetId];
       if (s == null || t == null) {
+        // 2026-10-19 (Fix 6d): debug-only log when an edge is dropped
+        // because one of its endpoint positions is missing. Previously
+        // this was a silent `continue`, which made it impossible to
+        // diagnose the "LINKS count says X but only Y lines are drawn"
+        // mismatch. The log is throttled via a static counter so it
+        // doesn't flood the console on every paint — it fires at most
+        // once per `paint()` call per distinct missing edge id.
+        //
+        // This is a SYMPTOM of a layout bug upstream (the edge's
+        // endpoints should ALWAYS have positions when both endpoints
+        // are in the visible set). The painter cannot fix it — the
+        // fix is in the layout provider or the deduplicator. But
+        // surfacing it here turns a silent visual failure into a
+        // diagnosable log line.
+        assert(() {
+          if (!_missingPositionEdgeIds.contains(e.id)) {
+            _missingPositionEdgeIds.add(e.id);
+            debugPrint('[EngineEdgePainter] Edge ${e.id} dropped: '
+                'sourcePos=${s == null ? "null" : "ok"} '
+                'targetPos=${t == null ? "null" : "ok"} '
+                '(sourceId=${e.sourceId}, targetId=${e.targetId}). '
+                'Both endpoints must be in `positions` for the edge '
+                'to render. This is a layout bug — the painter cannot '
+                'draw an edge to a node it has no position for.');
+          }
+          return true;
+        }());
         continue;
       }
       // Phase 6 (hit-test parity): Apply the couple-union redirect to
@@ -1293,19 +1346,46 @@ class EngineEdgePainter extends CustomPainter {
       // when zoomed in. The 400px inflation on edgeCullRect absorbs
       // every bow/offset mechanism (max lateral ~60px, anchor bow
       // ~110px) PLUS the adaptive culler threshold (up to 200px).
+      //
+      // 2026-10-19 (Fix 6a): widen the cull test to use the bounding
+      // box of the ENDPOINTS PLUS the maximum possible bow (110px for
+      // the anchor bow, 60px for lateral offsets, 100px for the
+      // _bezier's `distance * 0.25` bow clamped to [15, 100]).
+      //
+      // Previously the cull test used only the endpoint bounding box.
+      // A long curved edge whose endpoints are BOTH off-screen but
+      // whose bezier curve crosses the viewport was incorrectly
+      // culled, producing a missing line (while the midpoint dot
+      // could still paint elsewhere — contributing to the dot-only
+      // failure mode when the midpoint computation succeeded but the
+      // line was culled).
+      //
+      // The cull rect itself is the graphViewport (computed in
+      // canvas_mixin's _buildCanvas at paint time, NOT cached across
+      // frames — see the `vp` computation that feeds
+      // _quantizeViewportForEdgeCulling). So freshness is already
+      // correct; the bug was the bounding-box test being too tight.
       if (edgeCullRect != null) {
-        final double loX = effectiveSource.dx < effectiveTarget.dx
-            ? effectiveSource.dx
-            : effectiveTarget.dx;
-        final double hiX = effectiveSource.dx < effectiveTarget.dx
-            ? effectiveTarget.dx
-            : effectiveSource.dx;
-        final double loY = effectiveSource.dy < effectiveTarget.dy
-            ? effectiveSource.dy
-            : effectiveTarget.dy;
-        final double hiY = effectiveSource.dy < effectiveTarget.dy
-            ? effectiveTarget.dy
-            : effectiveSource.dy;
+        // Maximum possible bow magnitude for any edge in this graph:
+        //   • _bezier bow: (distance * 0.25).clamp(15, 100) → max 100
+        //   • lateral offset (parallel edges): up to 60
+        //   • anchor bow: up to 110
+        //   • waypointDelta (user drag): unbounded, but the 400px
+        //     inflation on edgeCullRect already covers typical drags.
+        // Use 110px as the worst-case bow on each axis.
+        const double kMaxBow = 110.0;
+        final double loX = (effectiveSource.dx < effectiveTarget.dx
+                ? effectiveSource.dx
+                : effectiveTarget.dx) - kMaxBow;
+        final double hiX = (effectiveSource.dx < effectiveTarget.dx
+                ? effectiveTarget.dx
+                : effectiveSource.dx) + kMaxBow;
+        final double loY = (effectiveSource.dy < effectiveTarget.dy
+                ? effectiveSource.dy
+                : effectiveTarget.dy) - kMaxBow;
+        final double hiY = (effectiveSource.dy < effectiveTarget.dy
+                ? effectiveTarget.dy
+                : effectiveSource.dy) + kMaxBow;
         if (hiX < edgeCullRect.left ||
             loX > edgeCullRect.right ||
             hiY < edgeCullRect.top ||
@@ -1428,9 +1508,28 @@ class EngineEdgePainter extends CustomPainter {
           (wedgeEdgeRoutes != null && waypointDelta == Offset.zero)
               ? wedgeEdgeRoutes!.byEdgeId[e.id]
               : null;
+      // 2026-10-19 (Fix 6b): use a tolerance when comparing the
+      // route's cached endpoints to the painter's current endpoints.
+      //
+      // The previous exact `==` comparison on Offset failed whenever
+      // floating-point drift crept in between the layout's stored
+      // position and the route's cached position (e.g. a 1e-15
+      // difference from a matrix multiplication). When the comparison
+      // failed, the painter fell through to the "Wedge mode +
+      // animation in flight" branch (line `else if (wedgeEdgeRoutes
+      // != null)`) — which builds a STRAIGHT line. That's fine for
+      // straight edges, but for edges whose wedge route is a CURVE
+      // (because the straight line is obstructed by a third node),
+      // the painter drew the straight line THROUGH the obstructing
+      // node — making the edge appear to cross a node. Combined with
+      // the dot-only bug, this could also produce visible dots at the
+      // wrong midpoint.
+      //
+      // 0.5px tolerance: small enough that visually-identical routes
+      // match; large enough to absorb float drift from matrix math.
       final bool useWedgeRoute = wedgeRoute != null &&
-          wedgeRoute.source == shortenedSource &&
-          wedgeRoute.target == shortenedTarget;
+          _offsetsApproxEqual(wedgeRoute.source, shortenedSource) &&
+          _offsetsApproxEqual(wedgeRoute.target, shortenedTarget);
 
       // WEDGE MODE: while animating (positions don't match the cached
       // route's endpoints), draw a STRAIGHT line between the animated
@@ -1534,6 +1633,16 @@ class EngineEdgePainter extends CustomPainter {
       // width never drops below the per-tier minimum:
       //   full = 2.5px, chip = 2.0px, dot = 1.5px screen.
       // v5.108: Increased minimums for better visibility at zoom-out.
+      //
+      // 2026-10-19 (Fix 6e): harden against NaN/zero/negative width.
+      // If `style.strokeWidth` or `clampBodyWidth` ever returns NaN
+      // (e.g. a style table bug or a divide-by-zero in a future edit),
+      // `math.max(NaN, x)` returns NaN, and the painter would call
+      // `Paint()..strokeWidth = NaN` — which Flutter silently treats
+      // as 0, producing an invisible line. The midpoint dot would
+      // still paint, giving the "dot without line" failure mode.
+      // We clamp the final value to a strictly positive minimum so
+      // the line is ALWAYS at least visible.
       final double minScreenStroke = switch (edgeQuality) {
         EdgeQuality.full => 2.5,
         EdgeQuality.chip => 2.0,
@@ -1541,10 +1650,17 @@ class EngineEdgePainter extends CustomPainter {
       };
       final double safeZoom = zoom > 0.01 ? zoom : 0.01;
       final double minGraphWidth = minScreenStroke / safeZoom;
+      final double rawBodyWidth = GraphLighting.clampBodyWidth(style.strokeWidth);
       double bodyWidth = math.max(
-        GraphLighting.clampBodyWidth(style.strokeWidth),
+        rawBodyWidth.isFinite && rawBodyWidth > 0 ? rawBodyWidth : minGraphWidth,
         minGraphWidth,
       );
+      // Final safety net: never let bodyWidth be 0, NaN, or negative.
+      if (!bodyWidth.isFinite || bodyWidth <= 0) {
+        bodyWidth = minGraphWidth.isFinite && minGraphWidth > 0
+            ? minGraphWidth
+            : 1.5;
+      }
 
       // v5.164 (CROSS-BRANCH EDGE STYLING): long edges (genuine cross-
       // branch links) get thinner stroke + lower opacity + dashed
@@ -1569,32 +1685,45 @@ class EngineEdgePainter extends CustomPainter {
 
       // v5.27 Task 2: Connect-on-open animation.
       //
-      // While connectOnOpenActive is true, the painter HIDES non-revealed
-      // edges (alpha=0) instead of dimming them. The current edge is
-      // progressively DRAWN (path-draw) from its BFS-arrival endpoint
-      // toward the new endpoint using connectOnOpenProgress (0..1).
-      // Revealed edges (in connectOnOpenRevealedEdgeIds) are drawn at
-      // their full effectiveAlpha.
+      // 2026-10-19 FIX (the "dot without line" bug):
       //
-      // v5.92: Changed from alpha fade-in to progressive path-draw.
-      // The current edge's alpha stays at full effectiveAlpha, but the
-      // drawn Path is truncated via PathMetric.extractPath so the line
-      // visibly grows from the already-revealed node toward the new
-      // node. The midpoint symbol (heart/dot) is skipped until
-      // progress >= 1.0 so it doesn't appear before the line reaches it.
-      // v5.98: Replaced progressive path-draw with fade+scale reveal.
-      // Instead of truncating the path via PathMetric (expensive per-frame
-      // geometry recomputation), we draw the FULL bezier path immediately
-      // and animate only opacity (0→1) and strokeWidth (60%→100%).
-      // This removes ALL PathMetric calls from the connect-on-open path.
+      // The connect-on-open animation is now a PURE COSMETIC OVERLAY.
+      // It animates ONLY the edges that are part of the animation set
+      // (i.e. in `connectOnOpenCurrentEdgeIds` or are the single
+      // `connectOnOpenCurrentEdgeId`). Edges NOT in the animation set
+      // are ALWAYS drawn at FULL alpha with FULL width — they are not
+      // hidden, dimmed, or delayed by the animation.
+      //
+      // This is the inverse of the previous behaviour, which set
+      // `connectOnOpenAlpha = 0.0` for any edge not in the revealed/
+      // current sets. That hid the line but left `skipMidpointForConnectOnOpen
+      // = false`, so the midpoint dot was still painted — producing
+      // the "dot without line" failure mode the user reported.
+      //
+      // Coupling: a single `edgeLineVisible` flag drives BOTH the line
+      // and the midpoint. If the line is invisible (alpha == 0), the
+      // midpoint is skipped. If the line is visible, the midpoint is
+      // always painted (unless the symbol is `none`). They can never
+      // disagree.
+      //
+      // Edges in the animation set that have not started yet (progress
+      // == 0 because of their stagger delay) are treated as fully
+      // hidden — BOTH line and midpoint are skipped. Once they start
+      // (progress > 0), BOTH fade in together. Once they complete
+      // (progress >= 1), both are at full alpha.
       double connectOnOpenAlpha = 1.0;
-      double connectOnOpenWidthScale = 1.0; // v5.98: width scale for "settling" feel
-      bool skipMidpointForConnectOnOpen = false;
+      double connectOnOpenWidthScale = 1.0;
+      // `edgeLineVisible` is the SINGLE source of truth for whether
+      // BOTH the line and the midpoint are drawn. When false, the
+      // DOT-LOD path skips both (continues without drawing); the
+      // FULL-LOD path also skips both.
+      bool edgeLineVisible = true;
       if (connectOnOpenActive) {
         if (connectOnOpenRevealedEdgeIds.contains(e.id)) {
-          // Already revealed — full alpha, full width, midpoint shown.
+          // Already revealed — full alpha, full width, line + midpoint shown.
           connectOnOpenAlpha = 1.0;
           connectOnOpenWidthScale = 1.0;
+          edgeLineVisible = true;
         } else if (connectOnOpenCurrentEdgeIds.contains(e.id) ||
             e.id == connectOnOpenCurrentEdgeId) {
           // v5.98: Currently animating — fade in opacity + scale width.
@@ -1612,11 +1741,21 @@ class EngineEdgePainter extends CustomPainter {
           connectOnOpenAlpha = progress;
           // Width eases from 60% → 100% for a subtle "settling" feel
           connectOnOpenWidthScale = 0.6 + 0.4 * progress;
-          // Skip midpoint until fully revealed
-          skipMidpointForConnectOnOpen = progress < 1.0;
+          // Line + midpoint visibility are coupled: both hidden until
+          // progress > 0, both visible once progress > 0. This is the
+          // SINGLE decision point — the midpoint guard below reads
+          // this same flag, never a separate one.
+          edgeLineVisible = progress > 0.0;
         } else {
-          // Not yet started — completely hidden.
-          connectOnOpenAlpha = 0.0;
+          // 2026-10-19: NOT part of the animation set. Draw at FULL
+          // alpha + FULL width. This is the default-visible contract:
+          // every edge that the painter sees must render its full line
+          // AND its midpoint dot/heart. The connect-on-open animation
+          // is a cosmetic overlay on top of the always-visible base
+          // layer, never a substitution that hides edges.
+          connectOnOpenAlpha = 1.0;
+          connectOnOpenWidthScale = 1.0;
+          edgeLineVisible = true;
         }
       }
 
@@ -1643,13 +1782,19 @@ class EngineEdgePainter extends CustomPainter {
       // thicker stroke + a subtle orange aura so focus is still
       // legible at the cheapest tier.
       //
-      // v105 (MIDPOINT ALWAYS VISIBLE): The midpoint symbol (dot/heart)
-      // IS still painted at DOT LOD — see the block after the stroke
-      // passes below. Previously it was skipped here (the old `continue`
-      // jumped past the midpoint block), which caused the heart to
-      // disappear when zoomed out. The midpoint is now painted BEFORE
-      // the `continue` so it stays visible at every zoom level.
+      // 2026-10-19 (LINE/MIDPOINT COUPLING): the DOT-LOD path now honors
+      // the `edgeLineVisible` flag computed above. When the edge is
+      // hidden (e.g. its stagger delay hasn't elapsed yet during
+      // connect-on-open), we `continue` BEFORE drawing the line OR
+      // the midpoint — both are skipped together, so a dot can never
+      // appear without its line. When the edge IS visible, BOTH the
+      // line and the midpoint are drawn (unless the symbol is `none`).
       if (isDot) {
+        if (!edgeLineVisible) {
+          // Line is invisible — midpoint is also skipped. They can
+          // never disagree.
+          continue;
+        }
         if (isSelected) {
           // PASS D — orange interaction aura (cheap, no blur)
           // PERF (raster audit): hoisted Paint — only color/strokeWidth
@@ -1675,11 +1820,11 @@ class EngineEdgePainter extends CustomPainter {
         // v5.62: lateralOffset + waypointDelta are now required so the
         // marker is rendered at the SAME position the hit-tester checks.
         //
-        // v5.92: Skip the midpoint for the connect-on-open current edge
-        // until progress >= 1.0, so the symbol doesn't appear before
-        // the line reaches it.
-        if (midpointSymbol != KinshipMidpointSymbol.none &&
-            !skipMidpointForConnectOnOpen) {
+        // 2026-10-19: the midpoint is painted when `edgeLineVisible`
+        // is true (we already `continue`d above when it was false) AND
+        // the symbol is non-none. The line and midpoint are coupled:
+        // they appear and disappear together.
+        if (midpointSymbol != KinshipMidpointSymbol.none) {
           _paintMidpoint(
             canvas: canvas,
             path: path,
@@ -1702,10 +1847,20 @@ class EngineEdgePainter extends CustomPainter {
             edgeId: e.id,
           );
         }
+        // 2026-10-19 (Fix 7): Record that this edge was drawn (DOT LOD).
+        _recordDrawnEdge();
         continue;
       }
 
       // ── FULL / CHIP LOD: physical 3-pass thread ───────────────────
+      //
+      // 2026-10-19 (LINE/MIDPOINT COUPLING): if `edgeLineVisible` is
+      // false (e.g. the edge is in the connect-on-open set but its
+      // stagger delay hasn't elapsed yet), skip BOTH the line AND the
+      // midpoint. The line and midpoint can never disagree.
+      if (!edgeLineVisible) {
+        continue;
+      }
       //
       // For dashed edges we apply the SAME 3 passes to each visible
       // dash segment (no continuous glow underneath). For solid edges
@@ -1840,10 +1995,17 @@ class EngineEdgePainter extends CustomPainter {
       // marker is rendered at the SAME position the hit-tester checks.
       //
       // v5.92: Skip the midpoint for the connect-on-open current edge
-      // until progress >= 1.0, so the symbol doesn't appear before
-      // the line reaches it.
+      // until progress > 0 (i.e. until the line starts drawing), so the
+      // symbol doesn't appear before the line.
+      //
+      // 2026-10-19: this guard now reads `edgeLineVisible` — the SAME
+      // flag the line-drawing block above already used to decide
+      // whether to draw the line. Since we already `continue`d above
+      // when `!edgeLineVisible`, this guard is always true here, but
+      // we keep the explicit check for clarity + safety: the line and
+      // midpoint are coupled, they appear and disappear together.
       if (midpointSymbol != KinshipMidpointSymbol.none &&
-          !skipMidpointForConnectOnOpen) {
+          edgeLineVisible) {
         _paintMidpoint(
           canvas: canvas,
           path: path,
@@ -1892,6 +2054,14 @@ class EngineEdgePainter extends CustomPainter {
       // EdgeSelectionWrapper are all kept for API compatibility but
       // are now UNUSED — the paint loop no longer calls
       // _paintPathFocusLabel.
+
+      // 2026-10-19 (Fix 7): Record that this edge was drawn (FULL/CHIP
+      // LOD). The edge reached at least one drawPath call above
+      // (selected / dashed / solid body, plus optional sweep/trace).
+      // The midpoint was painted (or skipped because the symbol is
+      // `none`). This counter is read by the stats-parity assert at
+      // the end of paint() to verify every expected edge was drawn.
+      _recordDrawnEdge();
     }
 
     // v5.62 (BUG 1 FIX): The separate union-junction orange dot has
@@ -1923,6 +2093,64 @@ class EngineEdgePainter extends CustomPainter {
     // the bezier's t=0.5 — the curve still goes from one spouse's
     // center to the other's, so the heart lands at the linear midpoint
     // of the two spouse centers, exactly as before).
+
+    // 2026-10-19 (Fix 7): DEBUG-ONLY stats parity log.
+    //
+    // Counts the edges the painter ACTUALLY drew (i.e. reached the
+    // drawPath call) vs the edges it SHOULD have drawn (both endpoints
+    // have positions). Prints any mismatch with the edge IDs. This
+    // catches:
+    //   • Edges skipped due to missing positions (Fix 6d log fires too)
+    //   • Edges skipped due to cull rect (Fix 6a widens the test)
+    //   • Edges skipped due to `!edgeLineVisible` (Fix 1+2 coupling)
+    //   • Any future regression that silently drops an edge
+    //
+    // The "LINKS" stat in the stats card counts `flat.relationships`
+    // (the data-layer edge count). The painter's drawn-edge count
+    // should match (modulo dedup — `edges` here is the deduped list,
+    // so the count may be smaller than `flat.relationships.length`).
+    // This log lets you verify the painter drew every deduped edge
+    // whose endpoints were positioned.
+    //
+    // The log is throttled via `_statsParityLastLoggedFingerprint` so
+    // it fires at most once per (edges count + positions count) change
+    // — not on every paint (which would flood the console during pan).
+    assert(() {
+      final edgeCount = edges.length;
+      final posCount = positions.length;
+      final fingerprint = '$edgeCount:$posCount:$drawnEdgeCount';
+      if (_statsParityLastLoggedFingerprint != fingerprint) {
+        _statsParityLastLoggedFingerprint = fingerprint;
+        final expected = <String>[];
+        final missingPositions = <String>[];
+        for (final deduped in edges) {
+          final e = deduped.edge;
+          final s = positions[e.sourceId];
+          final t = positions[e.targetId];
+          if (s == null || t == null) {
+            missingPositions.add(e.id);
+          } else {
+            expected.add(e.id);
+          }
+        }
+        // `drawnEdgeCount` is the count of edges that actually reached
+        // a drawPath call. It's incremented in the loop body via the
+        // `_recordDrawnEdge(e.id)` helper below.
+        final droppedDueToVisibility = expected.length - drawnEdgeCount;
+        if (missingPositions.isNotEmpty || droppedDueToVisibility != 0) {
+          debugPrint('[EngineEdgePainter] STATS PARITY: '
+              'edges=$edgeCount positions=$posCount '
+              'drawn=$drawnEdgeCount expected=${expected.length} '
+              'missingPositions=${missingPositions.length} '
+              'droppedDueToVisibility=$droppedDueToVisibility');
+          if (missingPositions.isNotEmpty && missingPositions.length <= 10) {
+            debugPrint('[EngineEdgePainter] missing-position edge ids: '
+                '${missingPositions.join(", ")}');
+          }
+        }
+      }
+      return true;
+    }());
   }
 
   // ── Physical paint helpers ───────────────────────────────────────────
@@ -2827,6 +3055,24 @@ class EngineEdgePainter extends CustomPainter {
     if (a == null || b == null) return false;
     if (a.length != b.length) return false;
     return a.containsAll(b);
+  }
+
+  /// 2026-10-19 (Fix 6b): approximate Offset equality with a 0.5px
+  /// tolerance. Used by the wedge-route match check so floating-point
+  /// drift between the layout's stored positions and the route's
+  /// cached positions doesn't cause the painter to fall back to a
+  /// straight line for an edge whose route is actually a curve.
+  ///
+  /// 0.5px tolerance: small enough that visually-identical routes
+  /// match (the wedge layout positions are quantized to integer
+  /// pixels in the layout engine), large enough to absorb float drift
+  /// from matrix multiplication in the camera transform pipeline.
+  static bool _offsetsApproxEqual(Offset a, Offset b) {
+    final dx = a.dx - b.dx;
+    final dy = a.dy - b.dy;
+    if (dx.isNaN || dy.isNaN) return false;
+    // Squared distance comparison (avoid sqrt).
+    return (dx * dx + dy * dy) <= 0.25; // 0.5^2 = 0.25
   }
 }
 

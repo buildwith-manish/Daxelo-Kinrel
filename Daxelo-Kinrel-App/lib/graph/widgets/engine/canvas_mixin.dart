@@ -371,6 +371,48 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // PERF: Only recompute relation labels/keys when the underlying
         // flat data or viewer changes — NOT on every pan/zoom frame.
         if (!identical(_lastFlat, flat) || _lastViewerId != viewerPersonId) {
+          // 2026-10-19 (Fix 5): If a connect-on-open trace is active
+          // AND the edge set changed (new edges appeared — e.g. branch
+          // expand loaded more persons, an edge was added, a step-
+          // relation was created), force-reveal the trace so the new
+          // edges render at FULL alpha on their FIRST frame.
+          //
+          // Without this, new edges that arrive while a trace is
+          // active are not in `connectOnOpenCurrentEdgeIds` (the
+          // trace's edge set was captured at start). They fall into
+          // the painter's "else" branch — which (post-Fix 1) draws
+          // them at full alpha. So functionally they're visible.
+          //
+          // However, force-revealing is still correct: it terminates
+          // the trace cleanly (traceActive → false), which means:
+          //   • The painter's per-edge `connectOnOpenActive` branch
+          //     stops being entered — every edge goes through the
+          //     normal path. Future bugs in the connect-on-open
+          //     branch can't affect new edges.
+          //   • The safety timer is disarmed (no lingering timer).
+          //   • The stats-parity assert sees a stable state.
+          //
+          // We detect "edge set changed" by comparing the edge count
+          // (cheap) — a more precise fingerprint would compare edge
+          // IDs, but count is sufficient because edges are only ever
+          // ADDED (never removed) during a trace, and adding any edge
+          // means the trace's snapshot is stale.
+          if (_connectOnOpenController != null &&
+              _connectOnOpenController!.state.traceActive &&
+              flat.relationships.length !=
+                  _lastConnectOnOpenEdgeCount) {
+            // Edge set changed mid-trace — force-reveal.
+            // Pass the CURRENT flat.relationships as the new
+            // orderedEdgeIds so the controller's `completedEdgeIds`
+            // includes the new edges (they'll be drawn at full alpha).
+            final newEdgeIds = <String>[];
+            for (final r in flat.relationships) {
+              final id = r['id']?.toString();
+              if (id != null) newEdgeIds.add(id);
+            }
+            _connectOnOpenController!.revealAll(newEdgeIds);
+            _lastConnectOnOpenEdgeCount = flat.relationships.length;
+          }
           // CRITICAL FIX: Invalidate the RelationshipEngine cache when
           // graph data changes. Without this, the engine returns stale
           // cached results from before the new person was added, so the

@@ -40,6 +40,8 @@
 //
 // No continuous animation. No repeat. No per-edge ticker.
 
+import 'dart:async' show Timer;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/animation.dart';
 
@@ -179,6 +181,26 @@ class GraphPathTraceController extends ChangeNotifier {
   List<String> _orderedEdgeIds = const [];
   int _currentIndex = 0;
 
+  /// 2026-10-19 (Fix 4): Safety timeout. Fires `duration + 500ms` after
+  /// a trace starts. If the trace hasn't completed by then (e.g. the
+  /// AnimationController got stuck, the widget tree disposed without
+  /// calling detach, the family switched mid-trace and the listener
+  /// was removed but the controller kept running, etc.), this timer
+  /// calls `revealAll` to force the trace to terminate.
+  ///
+  /// Without this safety net, a stuck trace would leave `traceActive
+  /// = true` forever — and the painter would keep edges in the
+  /// "current" set at partial alpha, producing the "dot without line"
+  /// failure mode indefinitely (when combined with any future bug
+  /// that decouples line and midpoint visibility).
+  ///
+  /// The timer is cancelled when:
+  ///   • The trace completes normally (`_onTick` sees progress >= 1.0)
+  ///   • `reset()` or `revealAll()` is called
+  ///   • `detach()` is called
+  ///   • A new trace starts (`startTrace` / `startTraceSimultaneous`)
+  Timer? _safetyTimeoutTimer;
+
   /// v5.93: Optional per-edge pixel lengths for the connect-on-open
   /// animation. When non-null, each edge's duration is computed
   /// individually via [_connectOnOpenDurationMs] so all edges appear
@@ -221,6 +243,8 @@ class GraphPathTraceController extends ChangeNotifier {
   /// Disconnect the controller from its ticker. Safe to call multiple
   /// times.
   void detach() {
+    _safetyTimeoutTimer?.cancel();
+    _safetyTimeoutTimer = null;
     _controller?.removeListener(_controllerListener!);
     _controller?.dispose();
     _controller = null;
@@ -296,11 +320,20 @@ class GraphPathTraceController extends ChangeNotifier {
     }
     _controller!.duration = Duration(milliseconds: firstEdgeDurationMs);
     _controller!.forward(from: 0.0);
+    // 2026-10-19 (Fix 4): Arm the safety timeout. If the trace hasn't
+    // completed `totalDurationMs + 500ms` after start, force-reveal.
+    // Total duration = firstEdgeDurationMs + (n-1) * firstEdgeDurationMs
+    // (sequential mode reuses the same per-edge duration).
+    _armSafetyTimeout(
+      totalDurationMs: firstEdgeDurationMs * orderedEdgeIds.length,
+    );
   }
 
   /// Reveal the entire path statically without animation. Used when
   /// reduced motion is active.
   void revealAll(List<String> orderedEdgeIds) {
+    _safetyTimeoutTimer?.cancel();
+    _safetyTimeoutTimer = null;
     _controller?.stop();
     _orderedEdgeIds = List.unmodifiable(orderedEdgeIds);
     _currentIndex = orderedEdgeIds.length;
@@ -405,11 +438,18 @@ class GraphPathTraceController extends ChangeNotifier {
     }
     _controller!.duration = Duration(milliseconds: durationMs);
     _controller!.forward(from: 0.0);
+    // 2026-10-19 (Fix 4): Arm the safety timeout. If the parallel
+    // animation hasn't completed `durationMs + 500ms` after start,
+    // force-reveal. Single-duration mode (parallel) uses just one
+    // interval, so totalDurationMs == durationMs.
+    _armSafetyTimeout(totalDurationMs: durationMs);
   }
 
   /// Reset to idle — clears all trace state. Called when the path
   /// focus is cleared.
   void reset() {
+    _safetyTimeoutTimer?.cancel();
+    _safetyTimeoutTimer = null;
     _controller?.stop();
     _resetToIdle();
   }
@@ -422,6 +462,52 @@ class GraphPathTraceController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 2026-10-19 (Fix 4): Arm the safety timeout. If the trace hasn't
+  /// completed `totalDurationMs + 500ms` after start, force-reveal
+  /// every edge (call revealAll). This guarantees `traceActive`
+  /// eventually becomes false even if:
+  ///   • The AnimationController gets stuck (rare Flutter bug)
+  ///   • The widget tree disposes without calling detach()
+  ///   • The family switches mid-trace and the listener was removed
+  ///   • A new trace starts but the old one's listener lingered
+  ///
+  /// The 500ms grace period is generous enough to avoid racing with
+  /// the normal completion path (which fires at exactly
+  /// `totalDurationMs`), but short enough that a stuck trace is
+  /// cleaned up in under 3 seconds in the worst case (the longest
+  /// normal trace is ~2.2s, +500ms = 2.7s).
+  void _armSafetyTimeout({required int totalDurationMs}) {
+    _safetyTimeoutTimer?.cancel();
+    final safetyMs = totalDurationMs + 500;
+    _safetyTimeoutTimer = Timer(
+      Duration(milliseconds: safetyMs),
+      _onSafetyTimeout,
+    );
+  }
+
+  /// 2026-10-19 (Fix 4): Safety timeout callback. Fires if the trace
+  /// hasn't completed within the safety window. Force-reveals every
+  /// ordered edge so the painter transitions to "all edges visible"
+  /// and `traceActive` becomes false.
+  void _onSafetyTimeout() {
+    if (_state.traceActive) {
+      // Force-reveal: mark every ordered edge as completed, set
+      // traceActive=false. This is the same end-state as a normal
+      // completion — the painter sees all edges in
+      // `connectOnOpenRevealedEdgeIds` and draws them at full alpha.
+      _state = GraphPathTraceState(
+        phase: GraphPathTracePhase.idle,
+        currentEdgeId: null,
+        completedEdgeIds: _orderedEdgeIds.toSet(),
+        traceProgress: 0.0,
+        traceActive: false,
+        currentEdgeIds: const {},
+      );
+      notifyListeners();
+    }
+    _safetyTimeoutTimer = null;
+  }
+
   void _onTick() {
     if (_controller == null) return;
 
@@ -430,6 +516,10 @@ class GraphPathTraceController extends ChangeNotifier {
       final progress = _controller!.value;
       if (progress >= 1.0) {
         // All edges finished — transition to completed.
+        // 2026-10-19 (Fix 4): disarm the safety timer on normal
+        // completion so it doesn't fire after the trace is done.
+        _safetyTimeoutTimer?.cancel();
+        _safetyTimeoutTimer = null;
         GraphHaptics.pathTraceStep(reducedMotion: _reducedMotion);
         _state = GraphPathTraceState(
           phase: GraphPathTracePhase.idle,
@@ -468,6 +558,10 @@ class GraphPathTraceController extends ChangeNotifier {
 
       if (_currentIndex >= _orderedEdgeIds.length) {
         // Trace complete.
+        // 2026-10-19 (Fix 4): disarm the safety timer on normal
+        // completion.
+        _safetyTimeoutTimer?.cancel();
+        _safetyTimeoutTimer = null;
         _state = GraphPathTraceState(
           phase: GraphPathTracePhase.idle,
           currentEdgeId: null,

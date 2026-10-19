@@ -911,6 +911,13 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   GraphPathTraceController? _connectOnOpenController;
   bool _hasPlayedConnectOnOpen = false;
 
+  /// 2026-10-19 (Fix 5): The edge count at the moment the most recent
+  /// connect-on-open trace started (or was force-revealed). Used by
+  /// canvas_mixin to detect when new edges arrive mid-trace — at which
+  /// point the trace is force-revealed so the new edges render at full
+  /// alpha on their first frame, and `traceActive` becomes false.
+  int _lastConnectOnOpenEdgeCount = 0;
+
   // ── v5.30 Issue 2 — Load animation for saved node overrides ──────
   //
   // When the graph first renders with personalLayoutOverridesProvider
@@ -1048,6 +1055,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// The lastActionPersonId we've SEEN in wedgeState. Used to detect
   /// when a new action has happened (different from the previous one)
   /// — that's when we set `_pendingFitActionPersonId`.
+  // ignore: unused_field
   String? _lastSeenWedgeActionPersonId;
 
   /// Identity of the layout object we last used for a fit. When the
@@ -1059,6 +1067,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// least one of their children were all positioned, so the fit
   /// captured the full branch (not just the action person alone).
   /// If false, the next layout update should retry.
+  // ignore: unused_field
   bool _lastFitCapturedFullBranch = true;
 
   // WEDGE PAGE CHIP: the chip owner awaiting the 500ms tap-vs-longpress
@@ -1801,6 +1810,43 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         }
       }
     }
+
+    // 2026-10-19 (Fix 3): append every remaining edge in
+    // flat.relationships that the BFS did not reach.
+    //
+    // The BFS starts from the viewer and walks the adjacency list. Any
+    // edge whose BOTH endpoints are unreachable from the viewer (e.g.
+    // a step-parent married into a different subtree, an in-law from a
+    // disconnected component, an edge added later by expanding a branch,
+    // an edge whose endpoints exist in flat.relationships but were not
+    // yet in the positions map when the BFS ran) is never enqueued,
+    // so it's missing from `orderedEdgeIds`.
+    //
+    // The painter's connect-on-open animation reads the set of edges
+    // in `connectOnOpenCurrentEdgeIds` (set by startTraceSimultaneous
+    // from `orderedEdgeIds`). Any edge NOT in this set falls into the
+    // painter's "else" branch — which (post-Fix 1) draws it at full
+    // alpha. So functionally, missing edges are still drawn.
+    //
+    // However, including them here is still correct: it lets them
+    // participate in the staggered reveal animation (at depth 2+ so
+    // they get the 0.66 delay), and it makes the stats-parity check
+    // trivially true (every edge in flat.relationships is in some
+    // animation set). It also future-proofs against any code path
+    // that re-introduces the "hide non-animation edges" bug.
+    //
+    // Use depth 2 for these edges so they get the last-wave stagger
+    // delay (0.66) — they're "extended family" by definition since
+    // they're not directly connected to the viewer.
+    for (final r in flat.relationships) {
+      final id = r['id']?.toString();
+      if (id == null) continue;
+      if (visitedEdges.contains(id)) continue;
+      orderedEdgeIds.add(id);
+      bfsDepths[id] = 2; // depth 2 → 0.66 stagger delay
+      visitedEdges.add(id);
+    }
+
     return (ordered: orderedEdgeIds, depths: bfsDepths);
   }
 
@@ -1839,6 +1885,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _connectOnOpenController!.reducedMotion = reduced;
     if (skipAnimation) {
       _connectOnOpenController!.revealAll(result.ordered);
+      _lastConnectOnOpenEdgeCount = flat.relationships.length;
     } else {
       final edgeLengths = <String, double>{};
       final edgeById = <String, Map<String, dynamic>>{};
@@ -1867,6 +1914,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         edgeLengths: edgeLengths,
         edgeBfsDepths: result.depths, // v5.187: pass BFS depths for stagger
       );
+      // 2026-10-19 (Fix 5): record the edge count at trace start so
+      // canvas_mixin can detect when new edges arrive mid-trace.
+      _lastConnectOnOpenEdgeCount = flat.relationships.length;
     }
   }
 
