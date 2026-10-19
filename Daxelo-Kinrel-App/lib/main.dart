@@ -47,7 +47,10 @@ import 'core/theme/theme_provider.dart';
 import 'core/database/sync/background_sync_manager.dart';
 import 'core/network/socket_service.dart';
 import 'core/network/supabase_realtime_service.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+// Phase 2: flutter_cache_manager import removed — DefaultCacheManager
+// is no longer used in main.dart (the emptyCache() call was removed).
+// KinrelImageCacheManager (in image_cache_config.dart) uses its own
+// CacheManager import internally.
 import 'core/utils/device_tier.dart';
 import 'core/utils/a11y_checker.dart';
 import 'core/utils/memory_monitor.dart';
@@ -277,18 +280,22 @@ void main() async {
   }
 
   // ── Call runApp FIRST — services init in background ────────────────
-  // ── Configure CachedNetworkImage global settings ────────────────────
-  // 7-day disk cache, 100MB max size, scaled-down decoded images to save RAM
-  // WEB: DefaultCacheManager uses path_provider which doesn't work on web.
-  // Skip on web — images will load from network without disk caching.
-  if (!kIsWeb) {
-    try {
-      DefaultCacheManager().emptyCache().catchError((_) {}); // no-op; just warming
-    } catch (_) {}
-  }
-  // Image cache is configured via the maxDuration parameter in
-  // CachedNetworkImage's cacheManager — the default is 30 days.
-  // We create a custom cache manager below for 7-day / 100MB limits.
+  // ── Configure image cache ───────────────────────────────────────────
+  // 2026-10-19 (Phase 2): REMOVED DefaultCacheManager().emptyCache()
+  // from startup. This call wiped the ENTIRE image disk cache on every
+  // app launch — the comment said "no-op; just warming" but
+  // emptyCache() actually deletes every cached file, forcing every
+  // image to be re-downloaded on every launch. This was a massive
+  // performance + data-usage regression.
+  //
+  // The image cache is now configured via:
+  //   • KinrelImageCacheManager (custom cache manager with 30-day
+  //     stalePeriod + 500 max objects — see image_cache_config.dart)
+  //   • PaintingBinding.instance.imageCache.maximumSizeBytes (tuned
+  //     by device tier in DeviceTierCache — see below)
+  //
+  // The disk cache is only cleared on an explicit user action ("Clear
+  // cache" in settings) or a genuine low-memory event — NEVER at startup.
 
   // ── Shader pre-warm (low-end device jank fix) ───────────────────────
   // Compiles the SkSL for the Prediction Battle v1 card's gradient +

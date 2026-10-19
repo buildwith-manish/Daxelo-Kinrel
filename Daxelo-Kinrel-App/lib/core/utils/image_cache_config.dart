@@ -24,8 +24,12 @@ import 'device_tier.dart' show DeviceTier, DeviceTierCache;
 /// Custom [CacheManager] for Kinrel avatar / profile images.
 ///
 /// Configuration:
-/// - **Stale period**: 7 days — images older than 7 days are re-downloaded
-/// - **Max cache objects**: 200 — keeps the 200 most-recently-used images
+/// - **Stale period**: 30 days — images older than 30 days are re-downloaded
+///   (Phase 2: was 7 days, bumped to 30 to match the user's expectation
+///   that avatars don't change often)
+/// - **Max cache objects**: 500 — keeps the 500 most-recently-used images
+///   (Phase 2: was 200, bumped to 500 to cover a large family + chat
+///   avatars without eviction churn)
 /// - **Cache key**: `kinrel_image_cache` — isolated from other cache managers
 ///
 /// Usage:
@@ -40,8 +44,8 @@ class KinrelImageCacheManager extends CacheManager {
       : super(
           Config(
             'kinrel_image_cache',
-            stalePeriod: const Duration(days: 7),
-            maxNrOfCacheObjects: 200,
+            stalePeriod: const Duration(days: 30),
+            maxNrOfCacheObjects: 500,
             repo: JsonCacheInfoRepository(databaseName: 'kinrel_image_cache'),
             fileService: HttpFileService(),
           ),
@@ -96,12 +100,21 @@ class ImageCacheConfig {
   ImageCacheConfig._();
 
   /// v5.141 (LOW-END PERF): Default maximum in-memory image cache size
-  /// in bytes for high-end devices (100 MB). Mid-range devices use 60
-  /// MB, low-end devices use 40 MB. The actual limit is computed in
-  /// [initialize] from [DeviceTierCache].
-  static const int _maxMemoryCacheBytesHigh = 100 * 1024 * 1024;
-  static const int _maxMemoryCacheBytesMid = 60 * 1024 * 1024;
-  static const int _maxMemoryCacheBytesLow = 40 * 1024 * 1024;
+  /// in bytes for high-end devices.
+  ///
+  /// 2026-10-19 (Phase 2): bumped the tiers to match the spec:
+  ///   high 200 MB (was 100) — premium devices with 6+ GB RAM
+  ///   mid  100 MB (was  60) — mid-range devices with 4 GB RAM
+  ///   low   50 MB (was  40) — low-end devices with 2-3 GB RAM
+  ///
+  /// These limits control Flutter's in-memory image cache
+  /// (PaintingBinding.instance.imageCache.maximumSizeBytes), which
+  /// holds decoded image pixels. Larger = fewer re-decodes = smoother
+  /// scroll, but uses more RAM. The disk cache (KinrelImageCacheManager)
+  /// is separate and capped at 100 MB.
+  static const int _maxMemoryCacheBytesHigh = 200 * 1024 * 1024;
+  static const int _maxMemoryCacheBytesMid = 100 * 1024 * 1024;
+  static const int _maxMemoryCacheBytesLow = 50 * 1024 * 1024;
 
   /// Whether the cache has been initialized.
   static bool _initialized = false;
