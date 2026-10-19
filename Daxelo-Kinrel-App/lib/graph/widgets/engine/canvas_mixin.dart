@@ -2239,6 +2239,25 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
   ///
   /// Runs once per wedge view revision change (a chip tap, a node
   /// expansion, a page turn, or a search reveal) — NOT on every build.
+  ///
+  /// 2026-10-19 FIX ("camera fit only happens for a few taps"):
+  ///
+  /// The original revision-only check (`wedgeState.revision !=
+  /// _lastWedgeRevision`) is NOT sufficient. The wedge revision bumps
+  /// SYNCHRONOUSLY when the user taps, but the layout's positions
+  /// update ASYNCHRONOUSLY after `fetchBranchAndMerge` completes
+  /// (Supabase RPC, ~150-300ms). On the FIRST fit attempt the layout
+  /// is still showing the OLD positions — the fit either captures
+  /// only the action person (children not positioned yet) or fails
+  /// entirely. Then `_lastWedgeRevision` is set, so subsequent layout
+  /// updates (with the new positions) don't trigger a re-fit.
+  ///
+  /// FIX: track a "pending fit" — the action person whose branch we
+  /// EXPECT to fit. The fit is re-tried on every layout identity
+  /// change until either:
+  ///   • The action person's children are positioned → fit and clear
+  ///   • A new action supersedes the old one → update pending person
+  ///   • The wedge state's lastActionPersonId becomes null → clear
   void _maybeFitCameraOnWedgeChange(
     GraphLayoutResult layout,
     String? viewerPersonId,
@@ -2246,12 +2265,39 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
     if (!mounted) return;
     if (!kUseViewerWedgeLayout) return;
     final wedgeState = ref.read(wedgeViewProvider);
-    if (wedgeState.revision == _lastWedgeRevision) return;
-    _lastWedgeRevision = wedgeState.revision;
 
+    // ── Step 1: detect a NEW wedge action (revision + lastActionPersonId).
+    //
+    // When the wedge revision changes AND lastActionPersonId is set,
+    // record a pending fit. This is the trigger for the fit cycle.
+    //
+    // We DON'T immediately clear the pending fit on the first attempt
+    // — the layout might not have caught up to the wedge action yet
+    // (see the doc block above). The fit is re-tried on every layout
+    // identity change until either:
+    //   • The action person + their children are positioned → fit + clear
+    //   • A new action supersedes the old one → update pending person
+    //   • lastActionPersonId becomes null → clear pending
     final actionPersonId = wedgeState.lastActionPersonId;
-    if (actionPersonId == null || actionPersonId.isEmpty) return;
-    if (layout.positions.isEmpty) return;
+    final wedgeRevisionChanged =
+        wedgeState.revision != _lastWedgeRevision;
+    final bool firstAttemptForThisAction;
+    if (wedgeRevisionChanged) {
+      _lastWedgeRevision = wedgeState.revision;
+      if (actionPersonId != null && actionPersonId.isNotEmpty) {
+        // New (or repeated) wedge action — record a pending fit.
+        _pendingFitActionPersonId = actionPersonId;
+        _lastSeenWedgeActionPersonId = actionPersonId;
+        firstAttemptForThisAction = true;
+      } else {
+        // lastActionPersonId is null — clear any stale pending fit.
+        _pendingFitActionPersonId = null;
+        _lastSeenWedgeActionPersonId = null;
+        firstAttemptForThisAction = false;
+      }
+    } else {
+      firstAttemptForThisAction = false;
+    }
 
     // WEDGE MODE camera logic:
     // - kWedgeTapFocusEnabled = true: old behaviour (fit to person +
@@ -2261,42 +2307,161 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
     //   parent, NOT the rest of the graph). On collapse, don't move.
     // - Both false: never move the camera on tap. Only search reveal
     //   and Fit/Reset buttons animate the camera.
+    //
+    // 2026-10-19: the original revision-only check (`wedgeState.revision
+    // != _lastWedgeRevision`) was replaced by a "pending fit" cycle
+    // that waits for the layout to catch up to the wedge action
+    // (see the doc block above). This gate below now decides whether
+    // to PROCEED with the pending-fit cycle for this action — if both
+    // flags are false AND there's no search reveal, we clear the
+    // pending fit and return (the camera never moves on tap).
     if (!kWedgeTapFocusEnabled && wedgeState.revealTarget == null) {
-      if (!kWedgeFitOnExpand) return;
-      // Check if this was an expand or +N tap (not a collapse).
-      // On collapse, do NOT move the camera.
+      if (!kWedgeFitOnExpand) {
+        // Both camera-move flags are off — clear any pending fit and
+        // bail out. The camera only moves via search reveal or the
+        // Fit/Reset buttons.
+        _pendingFitActionPersonId = null;
+        _lastFitLayoutIdentity = layout;
+        return;
+      }
+      // kWedgeFitOnExpand = true. On collapse, do NOT move the camera
+      // (the spec says collapse doesn't move the camera). Check if this
+      // was an expand or a collapse by looking at the wedge state.
       final wedge = ref.read(wedgeViewProvider);
       final isExpanded = wedge.expandedRoots.contains(actionPersonId);
-      if (!isExpanded) return; // collapse — don't move camera
+      if (!isExpanded) {
+        // Collapse — clear pending fit, don't move camera, but
+        // record the layout identity so we don't re-evaluate.
+        _pendingFitActionPersonId = null;
+        _lastFitLayoutIdentity = layout;
+        return;
+      }
     }
 
+    // ── Step 2: detect a NEW layout (identity changed).
+    //
+    // The layout's identity changes whenever graphLayoutProvider
+    // produces a new GraphLayoutResult — which happens after
+    // `ref.invalidate(graphLayoutProvider)` in `_expandWedgeNode`'s
+    // async tail (after fetchBranchAndMerge completes).
+    final layoutIdentityChanged =
+        !identical(layout, _lastFitLayoutIdentity);
+
+    // If there's no pending fit AND the layout hasn't changed → nothing
+    // to do. (Common case: a pan/zoom triggered a rebuild but no wedge
+    // action happened and no layout update arrived.)
+    if (_pendingFitActionPersonId == null && !layoutIdentityChanged) {
+      return;
+    }
+
+    // If we have no pending fit but the layout changed → just record
+    // the new identity. The camera stays where the user left it.
+    // (This happens when the layout recomputes for an unrelated
+    // reason — e.g., realtime event invalidates the provider —
+    // and there's no pending wedge action to fit to.)
+    if (_pendingFitActionPersonId == null) {
+      _lastFitLayoutIdentity = layout;
+      return;
+    }
+
+    // We have a pending fit. Decide whether to attempt the fit now:
+    //
+    //   • If this is the FIRST attempt for this action (the wedge
+    //     revision just changed in this call), attempt the fit
+    //     immediately using the CURRENT layout — this covers Case 2
+    //     (focus-only, no expand) where the layout doesn't change at
+    //     all and we'd otherwise wait forever.
+    //
+    //   • If this is a SUBSEQUENT attempt (the wedge revision didn't
+    //     change in this call, but the layout did), attempt the fit
+    //     using the NEW layout — this covers Case 1 (expand with
+    //     async fetch) where the first attempt's layout was stale.
+    //
+    //   • If neither condition holds (no wedge change AND no layout
+    //     change), we've already evaluated this layout for this
+    //     pending action — wait for the next layout update.
+    if (!firstAttemptForThisAction && !layoutIdentityChanged) {
+      return;
+    }
+
+    final pendingId = _pendingFitActionPersonId!;
+    if (layout.positions.isEmpty) {
+      // Layout is empty — wait for the next update.
+      return;
+    }
+    if (!layout.positions.containsKey(pendingId)) {
+      // Action person not yet positioned — wait for the next layout
+      // update. The fit cycle continues.
+      // (Record the new layout identity so we don't re-evaluate it.)
+      if (layoutIdentityChanged) _lastFitLayoutIdentity = layout;
+      return;
+    }
+
+    // ── Step 3: check if the action person's children are positioned.
+    //
+    // After an expand, the action person's children should appear in
+    // the layout's positions. If NONE of them are positioned yet,
+    // the layout hasn't caught up — wait.
+    //
+    // (We use wedgeLayoutSummaryProvider.parentOf — it tells us which
+    // persons are children of which parent in the wedge tree. If the
+    // summary says the action person has N children but NONE are in
+    // layout.positions, the async fetch hasn't landed yet.)
+    //
+    // IMPORTANT: this check is SKIPPED on the first attempt for the
+    // action when the summary says the action person has NO children
+    // yet (e.g., Case 2: focus-only on a person whose children were
+    // already expanded in a previous action — they're already in
+    // positions). In that case we proceed to the fit immediately.
     final summary =
         ref.read(wedgeLayoutSummaryProvider(widget.familyId));
-    final focusIds = <String>{
-      if (layout.positions.containsKey(actionPersonId)) actionPersonId,
-    };
-    if (focusIds.isEmpty) return;
+    final childrenOfAction = <String>[];
+    summary?.parentOf.forEach((child, parent) {
+      if (parent == pendingId) {
+        childrenOfAction.add(child);
+      }
+    });
+    if (childrenOfAction.isNotEmpty) {
+      final positionedChildren = childrenOfAction
+          .where((c) => layout.positions.containsKey(c))
+          .length;
+      if (positionedChildren == 0) {
+        // Layout hasn't caught up — wait for the next update.
+        if (layoutIdentityChanged) _lastFitLayoutIdentity = layout;
+        return;
+      }
+    }
 
-    if (kWedgeFitOnExpand && !kWedgeTapFocusEnabled) {
-      // Fit ONLY the expanded person + its children + its chip.
-      // Do NOT include the parent or the rest of the graph.
-    } else {
+    // ── Step 4: all preconditions met — do the fit.
+    //
+    // The action person is positioned AND at least one child (if any)
+    // is positioned. Compute the fit bounds and animate the camera.
+    _lastFitLayoutIdentity = layout;
+    _lastFitCapturedFullBranch = true;
+
+    final focusIds = <String>{pendingId};
+    // The opened branch's parent (when known and positioned).
+    //
+    // 2026-10-19: kWedgeFitOnExpand mode (the default) fits ONLY the
+    // expanded person + its children + its chip — NOT the parent and
+    // NOT the rest of the graph. The old behaviour (kWedgeTapFocusEnabled)
+    // also includes the parent. We honour both flags here.
+    if (!(kWedgeFitOnExpand && !kWedgeTapFocusEnabled)) {
       // Old behaviour: also include the parent.
-      final parent = summary?.parentOf[actionPersonId];
+      final parent = summary?.parentOf[pendingId];
       if (parent != null && layout.positions.containsKey(parent)) {
         focusIds.add(parent);
       }
     }
     // The opened branch's positioned children.
-    summary?.parentOf.forEach((child, childParent) {
-      if (childParent == actionPersonId &&
-          layout.positions.containsKey(child)) {
+    for (final child in childrenOfAction) {
+      if (layout.positions.containsKey(child)) {
         focusIds.add(child);
       }
-    });
+    }
     // Search reveal: fit the hub (viewer) and the revealed person.
     final revealTarget = wedgeState.revealTarget;
-    if (revealTarget != null && revealTarget != actionPersonId &&
+    if (revealTarget != null && revealTarget != pendingId &&
         layout.positions.containsKey(revealTarget)) {
       focusIds.add(revealTarget);
       if (viewerPersonId != null &&
@@ -2315,12 +2480,15 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
       minY = minY < pos.dy ? minY : pos.dy;
       maxY = maxY > pos.dy ? maxY : pos.dy;
     }
-    if (!minX.isFinite || !minY.isFinite) return;
+    if (!minX.isFinite || !minY.isFinite) {
+      // Should not happen — we checked containsKey above — but guard.
+      return;
+    }
     // The action person's "+N" page bubble (when one exists) joins the
     // fit — the pager must be on-screen after the branch opens (the
     // approved preview shows the chip in-frame with its hub).
     final chips = ref.read(wedgeChipSlotsProvider(widget.familyId));
-    final chip = chips?[actionPersonId];
+    final chip = chips?[pendingId];
     if (chip != null) {
       if (chip.slotCenter.dx - 48 < minX) minX = chip.slotCenter.dx - 48;
       if (chip.slotCenter.dx + 48 > maxX) maxX = chip.slotCenter.dx + 48;
@@ -2376,6 +2544,18 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           ? const Duration(milliseconds: 1)
           : const Duration(milliseconds: 450),
     );
+
+    // ── Step 5: clear the pending fit — cycle complete.
+    //
+    // The fit has been issued with the action person's full branch
+    // (parent + positioned children + chip). If new children arrive
+    // later (another async fetch, another invalidate), the wedge
+    // state's `lastActionPersonId` will still be the same person —
+    // but `_pendingFitActionPersonId` is now null, so we won't re-fit
+    // unless the user takes ANOTHER action (which is the desired
+    // behavior: the camera shouldn't keep re-fitting every time the
+    // layout updates for unrelated reasons like realtime events).
+    _pendingFitActionPersonId = null;
   }
 
 }

@@ -51,7 +51,7 @@
 // is well within the 16ms frame budget for ~100 edges.
 
 import 'dart:math' as math;
-import 'dart:ui' show Offset, Path;
+import 'dart:ui' show Offset, Path, Rect;
 
 import 'viewer_wedge_layout.dart'
     show WedgeLayoutConfig, WedgePageChip, kUseViewerWedgeLayout;
@@ -252,9 +252,43 @@ class WedgeEdgeRouter {
   }) {
     final double distance = (source - target).distance;
     if (distance < 1.0) {
-      // Degenerate — both endpoints coincide. Render a single moveTo
-      // so the painter strokes nothing; the marker sits at the point.
-      final path = Path()..moveTo(source.dx, source.dy);
+      // ── Degenerate (coincident endpoints) — VISIBLE marker, not nothing.
+      //
+      // 2026-10-19 FIX (the "only dot, no line" bug):
+      // Previously this returned a Path containing only `moveTo` — when
+      // the painter stroked that Path with PaintingStyle.stroke, NOTHING
+      // was drawn (a stroke requires a line/curve segment). The midpoint
+      // marker (the kinship dot/heart) was still painted at [source], so
+      // the user saw an isolated dot where the line should have been.
+      //
+      // This happened whenever two nodes shared (almost) the same
+      // position — which is legitimate during the wedge glide
+      // animation (a newly-expanded child starts at its parent's
+      // previous position and lerps outward over ~450 ms), and can
+      // also happen transiently when the layout's overlap-resolution
+      // pass hasn't completed for the current frame.
+      //
+      // Fix: draw a SMALL visible loop at the coincident point so the
+      // edge body is always rendered as *something* the painter can
+      // stroke — a circle outline of radius `kDegenerateMarkerRadius`
+      // (graph-space units; ~5 px on screen at zoom=1.0, scales with
+      // zoom like every other graph-space measurement). The midpoint
+      // marker (dot/heart) is then painted ON TOP at [source] by
+      // _paintMidpoint in the painter, so the user sees:
+      //
+      //   • A small ring (the edge body) — visible at any zoom
+      //   • A filled dot or heart (the kinship symbol) — on top of it
+      //
+      // This guarantees the "only dot, no line" failure mode can
+      // NEVER occur, even for a single edge between coincident
+      // endpoints. Normal edges (distance >= 1.0) are completely
+      // unchanged.
+      const double kDegenerateMarkerRadius = 5.0;
+      final path = Path()
+        ..addOval(Rect.fromCircle(
+          center: source,
+          radius: kDegenerateMarkerRadius,
+        ));
       return WedgeEdgeRoute(
         edgeId: edgeId,
         path: path,

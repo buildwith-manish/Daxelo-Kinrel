@@ -1007,6 +1007,60 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // children and its parent once the new layout lands.
   int _lastWedgeRevision = -1;
 
+  // 2026-10-19 FIX ("camera fit only happens for a few taps"):
+  //
+  // The wedge revision check above (`wedgeState.revision != _lastWedgeRevision`)
+  // is NOT enough on its own. When the user taps a collapsed node to
+  // expand it, the flow is:
+  //
+  //   1. _handleWedgeNodeTap synchronously calls focusPerson (bumps
+  //      revision N→N+1) and _expandWedgeNode (calls expandPerson,
+  //      bumps N+1→N+2). _expandWedgeNode then `await`s
+  //      fetchBranchAndMerge (Supabase RPC) — the function returns the
+  //      Future WITHOUT awaiting.
+  //   2. The state change triggers a rebuild, which registers a
+  //      PostFrameCallback for _maybeFitCameraOnWedgeChange.
+  //   3. After the frame, the fit runs — but at this point the layout's
+  //      positions are STILL the OLD positions (the async fetch hasn't
+  //      completed). The fit either fits to just the action person
+  //      alone (children not positioned yet) or fails entirely.
+  //   4. Crucially, this sets `_lastWedgeRevision = N+2`.
+  //   5. Later the async fetch completes, ref.invalidate triggers
+  //      another rebuild. The PostFrameCallback fires again — but
+  //      wedgeState.revision == _lastWedgeRevision (both N+2) →
+  //      returns immediately.
+  //   6. The camera NEVER re-fits with the new positions.
+  //
+  // This explains the user's "only for a few" symptom: it works when
+  // the action person was already loaded (no async fetch needed) and
+  // fails when branch fetch is needed (the common case for "+N" taps
+  // that load new branches).
+  //
+  // FIX: track a "pending fit" — the action person whose children we
+  // EXPECT to be positioned but haven't yet been. The fit is re-tried
+  // on every layout update (whenever the layout's identity changes)
+  // until either:
+  //   • The action person's children are all positioned → fit and clear
+  //   • A new action supersedes the old one → update pending person
+  //   • The wedge state's lastActionPersonId becomes null → clear
+  String? _pendingFitActionPersonId;
+
+  /// The lastActionPersonId we've SEEN in wedgeState. Used to detect
+  /// when a new action has happened (different from the previous one)
+  /// — that's when we set `_pendingFitActionPersonId`.
+  String? _lastSeenWedgeActionPersonId;
+
+  /// Identity of the layout object we last used for a fit. When the
+  /// layout's identity changes (a new GraphLayoutResult was produced),
+  /// we check if there's a pending fit and re-try.
+  Object? _lastFitLayoutIdentity;
+
+  /// Whether the last fit SUCCEEDED — i.e., the action person AND at
+  /// least one of their children were all positioned, so the fit
+  /// captured the full branch (not just the action person alone).
+  /// If false, the next layout update should retry.
+  bool _lastFitCapturedFullBranch = true;
+
   // WEDGE PAGE CHIP: the chip owner awaiting the 500ms tap-vs-longpress
   // discrimination timer (same pattern as _pendingChipTapBranch —
   // Flutter Web's gesture arena makes the chip's own GestureDetector

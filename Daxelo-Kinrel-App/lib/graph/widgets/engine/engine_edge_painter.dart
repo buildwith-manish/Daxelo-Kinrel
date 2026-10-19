@@ -614,9 +614,42 @@ class EngineEdgePainter extends CustomPainter {
 
     // v5.45: NO straight-line fallback. ALL edges get a visible curve.
     // Even very short edges get a minimum bow of 15px.
-    // The only exception is when source == target (distance == 0).
+    //
+    // 2026-10-19 FIX (the "only dot, no line" bug):
+    // Previously, when source == target (distance < 1.0), this returned
+    // `Path()..moveTo(s.dx, s.dy)` — a Path containing ONLY a moveTo and
+    // no line/curve segment. When the painter stroked that Path with
+    // PaintingStyle.stroke, NOTHING was drawn (stroke requires a
+    // segment). The midpoint marker (the kinship dot/heart) was still
+    // painted at [s], so the user saw an isolated dot — the exact
+    // "only dot, no line" failure mode the user reported.
+    //
+    // This case is hit whenever the painter's effective positions
+    // have two nodes at (almost) the same coordinate — which is
+    // legitimate during the wedge glide animation (a newly-expanded
+    // child starts at its parent's previous position and lerps outward
+    // over ~450 ms), and can also happen transiently during layout
+    // overlap resolution. It is NOT a sign of a layout bug — it is a
+    // legitimate intermediate state that the painter must handle
+    // gracefully.
+    //
+    // Fix: instead of an empty moveTo, return a small visible loop
+    // (a circle outline) at the coincident point. The painter strokes
+    // this as the edge body — a small ring of radius
+    // `kDegenerateMarkerRadius` (graph-space units; ~5 px on screen at
+    // zoom=1.0). The midpoint marker is then painted ON TOP at [s] by
+    // _paintMidpoint, so the user sees a small ring + the kinship
+    // symbol, never just an isolated dot.
+    //
+    // Normal edges (distance >= 1.0) are completely unchanged — the
+    // existing bow + cubic bezier code below runs as before.
     if (distance < 1.0) {
-      return Path()..moveTo(s.dx, s.dy);
+      const double kDegenerateMarkerRadius = 5.0;
+      return Path()
+        ..addOval(Rect.fromCircle(
+          center: s,
+          radius: kDegenerateMarkerRadius,
+        ));
     }
 
     // v5.45: Compute the perpendicular direction to the connecting line.
@@ -1015,6 +1048,23 @@ class EngineEdgePainter extends CustomPainter {
     Offset? anchorCenter,
     String? edgeId,
   }) {
+    // 2026-10-19 FIX (the "only dot, no line" bug, part 2):
+    //
+    // When source ≈ target (degenerate edge — see the matching fix in
+    // [_bezier] above), the midpoint marker MUST sit at [s] (where the
+    // user expects to see the dot/heart, and where the small visible
+    // ring is drawn by the painter). Without this early-return, the
+    // function would walk the small circle Path returned by [_bezier]
+    // and return a point ON the circle's edge — placing the marker
+    // off-center, away from the visible ring, which would look broken.
+    //
+    // This early-return also matches the WedgeEdgeRouter's degenerate
+    // route, which sets `midpoint = source` directly (see
+    // wedge_edge_router.dart _resolveOne).
+    if ((s - t).distance < 1.0) {
+      return s;
+    }
+
     final path = _bezier(
       s,
       t,

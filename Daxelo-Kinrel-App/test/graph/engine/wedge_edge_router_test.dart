@@ -308,6 +308,123 @@ void main() {
             reason: 'Edge ${e.id} should be straight (no obstruction).');
       }
     });
+
+    // ─────────────────────────────────────────────────────────────────
+    // 2026-10-19 REGRESSION TEST (the "only dot, no line" bug).
+    //
+    // When two nodes share (almost) the same position — which is
+    // legitimate during the wedge glide animation (a newly-expanded
+    // child starts at its parent's previous position and lerps
+    // outward) and can also happen transiently during layout overlap
+    // resolution — the wedge edge router MUST return a Path that
+    // produces VISIBLE pixels when stroked.
+    //
+    // Before the fix, the router returned `Path()..moveTo(s.dx, s.dy)`
+    // for the degenerate case — a Path containing only a moveTo with
+    // no line/curve segment. When the painter stroked that Path with
+    // PaintingStyle.stroke, NOTHING was drawn. The midpoint marker
+    // (the kinship dot/heart) was still painted at [s], so the user
+    // saw an isolated dot — exactly the "only dot, no line" failure
+    // mode the user reported on the live Vercel deployment.
+    //
+    // The fix: the router returns a small visible loop (a circle
+    // outline) at the coincident point. The painter strokes it as
+    // the edge body — a small ring of radius ~5px (graph-space
+    // units, scales with zoom). The midpoint marker is painted on
+    // top by _paintMidpoint in the painter.
+    //
+    // This test asserts the contract:
+    //   1. The Path has non-zero length (the painter can stroke it).
+    //   2. The midpoint is at the source position.
+    //   3. The route is marked `isStraight=true` (semantic: no bow).
+    //
+    group('Degenerate (coincident endpoints) — "only dot, no line" fix', () {
+      test('source == target produces a VISIBLE Path, not an empty moveTo', () {
+        // Two nodes at the EXACT same position.
+        final positions = <String, Offset>{
+          'viewer': Offset.zero,
+          'p1': Offset.zero, // identical to viewer
+        };
+        final deduped = EdgeDeduplicator.deduplicate(
+          [_edge('e1', 'viewer', 'p1', labelAtoB: 'son')],
+        );
+
+        final routes = WedgeEdgeRouter().resolve(
+          positions: positions,
+          edges: deduped,
+          viewerId: 'viewer',
+        );
+
+        final route = routes.byEdgeId['e1'];
+        expect(route, isNotNull,
+            reason: 'Coincident endpoints must still produce a route.');
+        expect(route!.isStraight, isTrue);
+
+        // The Path's total length must be > 0 — a moveTo-only Path
+        // has length 0 and the painter strokes nothing. The fix
+        // produces a small oval (circle outline) whose metric length
+        // is 2π × radius > 0.
+        final metrics = route.path.computeMetrics().toList();
+        expect(metrics, isNotEmpty,
+            reason: 'Path must contain at least one contour.');
+        final totalLength =
+            metrics.fold<double>(0.0, (sum, m) => sum + m.length);
+        expect(totalLength, greaterThan(0.0),
+            reason:
+                'Path must have non-zero length so the painter can stroke '
+                'it. A moveTo-only Path has length 0 and produces no '
+                'visible pixels — that was the "only dot, no line" bug.');
+      });
+
+      test('source ≈ target (within 1.0 unit) produces a visible Path', () {
+        // Two nodes 0.5 units apart — still degenerate (< 1.0 threshold).
+        final positions = <String, Offset>{
+          'viewer': Offset.zero,
+          'p1': const Offset(0.5, 0.0),
+        };
+        final deduped = EdgeDeduplicator.deduplicate(
+          [_edge('e1', 'viewer', 'p1', labelAtoB: 'son')],
+        );
+
+        final routes = WedgeEdgeRouter().resolve(
+          positions: positions,
+          edges: deduped,
+          viewerId: 'viewer',
+        );
+
+        final route = routes.byEdgeId['e1']!;
+        final metrics = route.path.computeMetrics().toList();
+        expect(metrics, isNotEmpty);
+        final totalLength =
+            metrics.fold<double>(0.0, (sum, m) => sum + m.length);
+        expect(totalLength, greaterThan(0.0),
+            reason: 'Near-coincident endpoints must still produce a '
+                'visible Path.');
+      });
+
+      test('midpoint is at the source position for coincident endpoints', () {
+        // The midpoint marker (dot/heart) sits at the source position
+        // so it lands inside the visible ring drawn by the painter.
+        final positions = <String, Offset>{
+          'viewer': const Offset(100, 100),
+          'p1': const Offset(100, 100), // identical to viewer
+        };
+        final deduped = EdgeDeduplicator.deduplicate(
+          [_edge('e1', 'viewer', 'p1', labelAtoB: 'son')],
+        );
+
+        final routes = WedgeEdgeRouter().resolve(
+          positions: positions,
+          edges: deduped,
+          viewerId: 'viewer',
+        );
+
+        final route = routes.byEdgeId['e1']!;
+        expect(route.midpoint, equals(const Offset(100, 100)),
+            reason: 'Midpoint marker must sit at the source position so '
+                'it is visible inside the drawn ring.');
+      });
+    });
   });
 }
 
