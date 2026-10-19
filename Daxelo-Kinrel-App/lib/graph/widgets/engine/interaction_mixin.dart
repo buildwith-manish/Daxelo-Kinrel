@@ -921,24 +921,51 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
 
     _handleNodeTapDown(details, layout, flat, viewerPersonId);
 
-    // v5.x (Feature 2): Empty-canvas tap → clear the selection so the
-    // edge dim hierarchy returns to the default-dim state. _handleNodeTapDown
-    // above returns early if no node was hit, so by the time we reach here
-    // with no node selection change, the tap missed every node. We clear
-    // selectedNodeProvider so the painter's `_computeDimmedEdgeIds` falls
-    // through to the "dim ALL edges" default state.
+    // 2026-10-19 (Fix 3): Single tap on edge midpoint dot/heart →
+    // select the edge + highlight both endpoint nodes. This does NOT
+    // open the bottom sheet (that's long-press only). The painter
+    // already renders the selected edge via _paintSelectedEdge + the
+    // selected bead. Selecting the edge also dims all other edges
+    // via _computeDimmedEdgeIds (which checks selectedEdgeProvider).
     //
-    // Guard: only clear when something was previously selected (avoids
-    // spurious rebuilds / state writes when there's nothing to clear).
-    // Also: don't clear during a branch-chip tap (that early-returns
-    // above), and don't clear during a node tap that DID hit a node
-    // (selectedNodeProvider was just set to the new node ID by
-    // _handleNodeTapDown — clearing it would undo the user's tap).
+    // Only check for edge hits when NO node was hit (node has priority
+    // per the spec: "Tapping a node has priority over a dot if both
+    // overlap"). _handleNodeTapDown returns early if no node was hit,
+    // so by the time we reach here, either a node was selected OR the
+    // tap missed every node.
     final hitNodeId = _hitTestNode(details.localPosition, layout);
     if (hitNodeId == null) {
-      final currentSelection = ref.read(selectedNodeProvider);
-      if (currentSelection != null) {
-        ref.read(selectedNodeProvider.notifier).state = null;
+      // No node hit — check for edge midpoint hit.
+      final edgeId = _hitTestEdge(details.localPosition);
+      if (edgeId != null) {
+        // Edge midpoint hit — select the edge. The painter renders
+        // the selected edge with the aura pass + brighter bead.
+        // Do NOT open the sheet (long-press only).
+        GraphHaptics.edgeTap(context);
+        ref.read(selectedEdgeProvider.notifier).state = edgeId;
+        // Also select BOTH endpoint nodes so they get the selection
+        // ring. We pick the source node as the "primary" selected
+        // node (selectedNodeProvider is a single ID, not a set).
+        // The painter's dimmedEdgeIds logic uses selectedNodeId to
+        // keep attached edges bright — so setting it to the source
+        // keeps the selected edge bright too.
+        final deduped = _currentEdges
+            .where((d) => d.edge.id == edgeId)
+            .firstOrNull;
+        if (deduped != null) {
+          ref.read(selectedNodeProvider.notifier).state =
+              deduped.edge.sourceId;
+        }
+      } else {
+        // No node AND no edge hit — empty canvas tap → clear selection.
+        final currentSelection = ref.read(selectedNodeProvider);
+        if (currentSelection != null) {
+          ref.read(selectedNodeProvider.notifier).state = null;
+        }
+        final currentEdge = ref.read(selectedEdgeProvider);
+        if (currentEdge != null) {
+          ref.read(selectedEdgeProvider.notifier).state = null;
+        }
       }
     }
   }
@@ -1301,15 +1328,18 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // member info bottom sheet — that is reserved for long-press
     // (see [_handleNodeLongPress]).
     //
-    // WEDGE MODE (no focus): skip selection — it triggers the
-    // tapHighlight dim. Clear it so a leftover long-press selection
-    // can't dim the graph. The old behaviour is restored by setting
-    // kWedgeTapFocusEnabled = true.
-    if (kUseViewerWedgeLayout && !kWedgeTapFocusEnabled) {
-      ref.read(selectedNodeProvider.notifier).state = null;
-    } else {
-      ref.read(selectedNodeProvider.notifier).state = nodeId;
-    }
+    // 2026-10-19 (Fix 3): single tap on a node now highlights it + dims
+    // unrelated edges in ALL modes (including wedge mode with
+    // kWedgeTapFocusEnabled=false). The accordion expand/collapse still
+    // fires after the 150ms timer — the selection is immediate so the
+    // visual highlight appears before the expand. This satisfies the
+    // spec: "Single tap on a NODE: highlight that node and the connection
+    // lines attached to it... everything unrelated is dimmed."
+    //
+    // Previously, in wedge mode (no focus), the selection was CLEARED to
+    // avoid the dim. Now we SET it so the highlight shows. The accordion
+    // expand is independent (timer-based) and still works.
+    ref.read(selectedNodeProvider.notifier).state = nodeId;
 
     // WEDGE MODE (no focus): start a 150ms deferred node tap. On
     // Flutter Web, GraphNode.onTap does not fire (the canvas

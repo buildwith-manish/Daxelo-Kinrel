@@ -201,7 +201,7 @@ class _RelationshipInfoContentState
 
     final fwd = _formatKey(relationshipKey);
     final inv = _formatKey(
-        _genderAwareInverse(relationshipKey, targetGender));
+        genderAwareInverse(relationshipKey, targetGender));
     final sourceInitials = _initials(sourceName);
     final targetInitials = _initials(targetName);
     final sourceColor = _avatarColor(sourceGender);
@@ -843,7 +843,12 @@ String _formatKey(String key) {
 
 /// Returns the inverse relationship key, taking the target's gender
 /// into account for parent/child and sibling types.
-String _genderAwareInverse(String key, String? targetGender) {
+///
+/// 2026-10-19 (Fix 2b): made public so it can be unit-tested directly.
+/// The inverse label is used by the RelationshipInfoSheet to show both
+/// directions of a relationship (e.g. "Asha → Ravi: Mother" and
+/// "Ravi → Asha: Son").
+String genderAwareInverse(String key, String? targetGender) {
   final isFemale = targetGender == 'female';
   final isMale = targetGender == 'male';
 

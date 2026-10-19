@@ -166,6 +166,33 @@ class EngineEdgePainter extends CustomPainter {
     ..strokeCap = StrokeCap.round
     ..isAntiAlias = true;
 
+  // ── 2026-10-19 (Fix 1 — vector bead paints) ──────────────────────
+  //
+  // Pre-allocated Paint objects for the pseudo-3D dot bead. These are
+  // mutated per-edge (only color + shader change), never reallocated.
+  // This eliminates ~4 Paint allocations per visible edge per frame
+  // (shadow + rim arc + face gradient + highlight) — for 100 edges at
+  // 60fps that's 24,000 allocations/sec removed.
+  //
+  // The bead is now drawn as PURE VECTOR every frame (4 cheap draw
+  // calls: drawCircle for shadow, drawArc for rim, drawCircle for
+  // face, drawOval for highlight). No bitmap cache, no drawImageRect.
+  // This keeps the bead crisp at every zoom (0.1x to 10x) because the
+  // vector draws re-rasterize at the GPU's current resolution on
+  // every repaint.
+  static final Paint _beadShadowPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..isAntiAlias = true;
+  static final Paint _beadRimPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..isAntiAlias = true;
+  static final Paint _beadFacePaint = Paint()
+    ..style = PaintingStyle.fill
+    ..isAntiAlias = true;
+  static final Paint _beadHighlightPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..isAntiAlias = true;
+
   // PERF (Phase 1 — dashed-edge raster audit): Cache of COMBINED dash
   // Path objects. Each entry is ONE Path containing every dash segment
   // for a given (bezier path, dash pattern) pair, built once via
@@ -2683,8 +2710,6 @@ class EngineEdgePainter extends CustomPainter {
         // DO NOT early-return here.
       } else {
         // ── DOT-tier midpoint tuning knobs ──────────────────────────
-        // Bead radius (graph space) for non-spouse edges.
-        const double kDotBeadRadius = 4.5;
         // v5.65 (ISOLATE CONNECTIONS): Floor lowered from 0.5 to 0.18
         // so dimmed midpoint dots at DOT LOD fade consistently with
         // the new stronger isolation dimming. At 0.18, the dot is
@@ -2701,9 +2726,23 @@ class EngineEdgePainter extends CustomPainter {
             ? (midpointAlpha * (1.0 - kDotDimAlphaFloor) + kDotDimAlphaFloor)
                 .clamp(0.0, 1.0)
             : 1.0;
+        // 2026-10-19 (Fix 1b): clamp the DOT-LOD bead's screen-space
+        // radius to [4px, 14px] so it stays sensible at every zoom.
+        // kDotBeadRadius is in graph space (4.5); at high zoom it
+        // becomes huge on screen. Clamp the screen-space radius and
+        // convert back to graph space.
+        const double kDotBeadRadius = 4.5;
+        final double dotSafeZoom =
+            (zoom > 0.001 && zoom.isFinite) ? zoom : 1.0;
+        final double dotScreenR = kDotBeadRadius * dotSafeZoom;
+        const double kDotMinScreenR = 4.0;
+        const double kDotMaxScreenR = 14.0;
+        final double dotClampedScreenR =
+            dotScreenR.clamp(kDotMinScreenR, kDotMaxScreenR);
+        final double dotBeadR = dotClampedScreenR / dotSafeZoom;
         canvas.drawCircle(
           midPoint,
-          kDotBeadRadius,
+          dotBeadR,
           Paint()
             ..color =
                 effectiveMidpointColor.withValues(alpha: dotAlpha)
@@ -2715,8 +2754,20 @@ class EngineEdgePainter extends CustomPainter {
 
     if (midpointSymbol == KinshipMidpointSymbol.heart) {
       // ── HEART (spouse only by default) ───────────────────────
-      final double heartSize =
+      // 2026-10-19 (Fix 1b): clamp the heart's screen-space size to
+      // [6px, 18px] so it stays sensible at every zoom. HeartShape
+      // already draws as pure vector (drawPath), so no bitmap issue —
+      // but the size needs clamping to avoid a giant heart at 10x zoom.
+      final double rawHeartSize =
           GraphLighting.heartSizeFor(effectiveStrokeWidth);
+      final double heartSafeZoom =
+          (zoom > 0.001 && zoom.isFinite) ? zoom : 1.0;
+      final double heartScreenSize = rawHeartSize * heartSafeZoom;
+      const double kHeartMinScreen = 6.0;
+      const double kHeartMaxScreen = 18.0;
+      final double clampedHeartScreen =
+          heartScreenSize.clamp(kHeartMinScreen, kHeartMaxScreen);
+      final double heartSize = clampedHeartScreen / heartSafeZoom;
       // v105: apply dim alpha via a colour lerp toward the background
       // so the heart stays visible but recedes when dimmed. Using
       // withValues(alpha:) on the heart colour would not work for the
@@ -2734,191 +2785,127 @@ class EngineEdgePainter extends CustomPainter {
         compact: edgeQuality != EdgeQuality.full,
       );
     } else {
-      // ── PSEUDO-3D DOT BEAD (cached as pre-rendered image) ──
-      // v5.98: The bead (shadow + rim arc + radial gradient + specular)
-      // is now rendered ONCE per unique (radius, color, isDimmed,
-      // isSelected, edgeQuality) signature via PictureRecorder, then
-      // cached as a ui.Image. Subsequent paints just blit the cached
-      // image via drawImageRect — no gradient shader or blur recomputation
-      // per edge per frame. This is a major perf win for graphs with
-      // many edges (500+ nodes → 500+ midpoint beads per frame).
-      final double beadR =
+      // ── PSEUDO-3D DOT BEAD (pure vector — 2026-10-19 Fix 1) ──────
+      //
+      // PREVIOUSLY (v5.98): the bead was rendered ONCE per unique
+      // (radius, color, isDimmed, isSelected, edgeQuality) signature
+      // via PictureRecorder → picture.toImageSync, then cached as a
+      // ui.Image. Subsequent paints blitted the cached image via
+      // drawImageRect. The cache key had NO zoom or devicePixelRatio,
+      // so the tiny bitmap (imgSize = (beadR + pad) * 2 ≈ 20px) was
+      // magnified by the camera zoom and became pixelated/blurry.
+      // The MaskFilter.blur shadow baked into the bitmap made it worse.
+      //
+      // NOW: draw the bead as PURE VECTOR every frame — 4 cheap draw
+      // calls (drawCircle shadow, drawArc rim, drawCircle face with
+      // RadialGradient shader, drawOval highlight). These re-rasterize
+      // at the GPU's current resolution on every repaint, so the bead
+      // stays crisp at every zoom (0.1x to 10x).
+      //
+      // Screen-space radius clamp: the bead's graph-space radius is
+      // sized by `beadRadiusFor(strokeWidth)`, which becomes huge when
+      // zoomed in (e.g. 6px * 10x = 60px on screen). Clamp the
+      // screen-space radius to [4px, 14px] so it stays sensible:
+      //   • min 4px: visible when zoomed out
+      //   • max 14px: never a giant blob when zoomed in
+      final double rawBeadR =
           GraphLighting.beadRadiusFor(effectiveStrokeWidth);
+      final double safeZoom = (zoom > 0.001 && zoom.isFinite) ? zoom : 1.0;
+      final double screenR = rawBeadR * safeZoom;
+      const double kMinScreenR = 4.0;
+      const double kMaxScreenR = 14.0;
+      final double clampedScreenR =
+          screenR.clamp(kMinScreenR, kMaxScreenR);
+      // Convert back to graph space for drawing (the canvas is in
+      // graph space; the camera Transform scales it to screen).
+      final double beadR = clampedScreenR / safeZoom;
+
       final double shadowAlpha = isSelected
           ? GraphLighting.selectedShadowAlpha
           : GraphLighting.shadowAlpha;
       final double blurSigma =
           edgeQuality == EdgeQuality.full ? 2.0 : 1.4;
 
-      // Build cache key. Quantize radius to 0.5px steps to limit
-      // cache entries (beadR varies continuously with zoom/LOD).
-      final String cacheKey =
-          '${beadR.roundToDouble()}_${effectiveMidpointColor.toARGB32()}_'
-          '${isDimmed}_${isSelected}_${edgeQuality.name}';
-
-      ui.Image? cachedImage = _midpointImageCache[cacheKey];
-
-      // Cache miss — render the bead once and store it.
-      if (cachedImage == null) {
-        final double pad = beadR * 2.5; // padding for shadow blur
-        final int imgSize = ((beadR + pad) * 2).ceil();
-        final recorder = ui.PictureRecorder();
-        final canvas2 = ui.Canvas(recorder);
-        final center = Offset(imgSize / 2, imgSize / 2);
-
-        // Shadow — down-right per global lighting contract.
-        if (!isDimmed) {
-          canvas2.drawCircle(
-            center + GraphLighting.shadowOffset,
-            beadR,
-            Paint()
-              ..color = Colors.black.withValues(alpha: shadowAlpha)
-              ..maskFilter = MaskFilter.blur(BlurStyle.normal, blurSigma),
-          );
+      // 1. Shadow — down-right per global lighting contract.
+      // Use a plain offset darker circle instead of MaskFilter.blur
+      // when zoomed in (blur at high zoom is expensive + the blur
+      // radius scales with zoom making it look wrong). At low zoom
+      // the blur is cheap and adds depth.
+      if (!isDimmed) {
+        _beadShadowPaint.color =
+            Colors.black.withValues(alpha: shadowAlpha);
+        // Only use blur when zoomed out (cheap + looks good). When
+        // zoomed in, blur sigma in graph space gets multiplied by
+        // zoom on screen → huge blur. Skip it and use a plain offset
+        // circle (still reads as a shadow).
+        if (safeZoom < 2.0) {
+          _beadShadowPaint.maskFilter =
+              MaskFilter.blur(BlurStyle.normal, blurSigma);
+        } else {
+          _beadShadowPaint.maskFilter = null;
         }
-
-        // Dark rim (bottom) — adds convex depth reading.
-        canvas2.drawArc(
-          Rect.fromCircle(
-              center: center + const Offset(0, 1.5), radius: beadR),
-          0.0,
-          math.pi,
-          false,
-          Paint()
-            ..color = isDimmed
-                ? effectiveMidpointColor
-                    .withValues(alpha: midpointAlpha * 0.5)
-                : Color.lerp(effectiveMidpointColor, Colors.black, 0.5)!,
-        );
-
-        // Face gradient — upper-left light, darker bottom-right.
-        canvas2.drawCircle(
-          center,
+        canvas.drawCircle(
+          midPoint + GraphLighting.shadowOffset,
           beadR,
-          Paint()
-            ..shader = RadialGradient(
-              center: const Alignment(-0.3, -0.4),
-              radius: 0.8,
-              colors: isDimmed
-                  ? [
-                      effectiveMidpointColor
-                          .withValues(alpha: midpointAlpha),
-                      effectiveMidpointColor
-                          .withValues(alpha: midpointAlpha * 0.8),
-                      effectiveMidpointColor
-                          .withValues(alpha: midpointAlpha * 0.6),
-                    ]
-                  : [
-                      Color.lerp(effectiveMidpointColor, Colors.white, 0.3)!,
-                      effectiveMidpointColor,
-                      Color.lerp(effectiveMidpointColor, Colors.black, 0.3)!,
-                    ],
-              stops: const [0.0, 0.5, 1.0],
-            ).createShader(Rect.fromCircle(center: center, radius: beadR)),
+          _beadShadowPaint,
         );
-
-        // Specular highlight — tiny, upper-left.
-        if (!isDimmed) {
-          canvas2.drawOval(
-            Rect.fromCenter(
-              center: Offset(
-                  center.dx - beadR * 0.25, center.dy - beadR * 0.3),
-              width: beadR * 0.5,
-              height: beadR * 0.3,
-            ),
-            Paint()..color = Colors.white.withValues(alpha: 0.15),
-          );
-        }
-
-        final picture = recorder.endRecording();
-        // toImage is async, but we can use the sync variant via
-        // picture.toImageSync (Flutter 3.7+). Fall back to a
-        // synchronous approach using PictureRecorder.
-        // Actually, toImage is the only way — but it returns a Future.
-        // Since CustomPainter.paint is sync, we use toImageSync if
-        // available, otherwise fall back to drawing directly (no cache).
-        try {
-          // toImageSync is available in Flutter 3.7+
-          cachedImage = picture.toImageSync(imgSize, imgSize);
-          _midpointImageCache[cacheKey] = cachedImage;
-        } catch (_) {
-          // Fallback: draw directly (no caching) if toImageSync fails
-          cachedImage = null;
-        }
       }
 
-      if (cachedImage != null) {
-        // Blit the cached bead image at the midpoint position.
-        final src = Rect.fromLTWH(
-          0, 0,
-          cachedImage.width.toDouble(), cachedImage.height.toDouble(),
+      // 2. Dark rim (bottom half) — adds convex depth reading.
+      _beadRimPaint.color = isDimmed
+          ? effectiveMidpointColor
+              .withValues(alpha: midpointAlpha * 0.5)
+          : Color.lerp(effectiveMidpointColor, Colors.black, 0.5)!;
+      canvas.drawArc(
+        Rect.fromCircle(
+            center: midPoint + const Offset(0, 1.5), radius: beadR),
+        0.0,
+        math.pi,
+        false,
+        _beadRimPaint,
+      );
+
+      // 3. Face gradient — upper-left light, darker bottom-right.
+      final beadRect =
+          Rect.fromCircle(center: midPoint, radius: beadR);
+      _beadFacePaint.shader = RadialGradient(
+        center: const Alignment(-0.3, -0.4),
+        radius: 0.8,
+        colors: isDimmed
+            ? [
+                effectiveMidpointColor
+                    .withValues(alpha: midpointAlpha),
+                effectiveMidpointColor
+                    .withValues(alpha: midpointAlpha * 0.8),
+                effectiveMidpointColor
+                    .withValues(alpha: midpointAlpha * 0.6),
+              ]
+            : [
+                Color.lerp(effectiveMidpointColor, Colors.white, 0.3)!,
+                effectiveMidpointColor,
+                Color.lerp(effectiveMidpointColor, Colors.black, 0.3)!,
+              ],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(beadRect);
+      canvas.drawCircle(
+        midPoint,
+        beadR,
+        _beadFacePaint,
+      );
+
+      // 4. Specular highlight — tiny, upper-left.
+      if (!isDimmed) {
+        _beadHighlightPaint.color =
+            Colors.white.withValues(alpha: 0.15);
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: Offset(
+                midPoint.dx - beadR * 0.25, midPoint.dy - beadR * 0.3),
+            width: beadR * 0.5,
+            height: beadR * 0.3,
+          ),
+          _beadHighlightPaint,
         );
-        final double pad = beadR * 2.5;
-        final dst = Rect.fromCircle(
-          center: midPoint,
-          radius: beadR + pad,
-        );
-        canvas.drawImageRect(cachedImage, src, dst, Paint());
-      } else {
-        // Fallback: draw directly (same code as before caching)
-        final beadRect =
-            Rect.fromCircle(center: midPoint, radius: beadR);
-        if (!isDimmed) {
-          canvas.drawCircle(
-            midPoint + GraphLighting.shadowOffset,
-            beadR,
-            Paint()
-              ..color = Colors.black.withValues(alpha: shadowAlpha)
-              ..maskFilter = MaskFilter.blur(BlurStyle.normal, blurSigma),
-          );
-        }
-        canvas.drawArc(
-          Rect.fromCircle(
-              center: midPoint + const Offset(0, 1.5), radius: beadR),
-          0.0,
-          math.pi,
-          false,
-          Paint()
-            ..color = isDimmed
-                ? effectiveMidpointColor
-                    .withValues(alpha: midpointAlpha * 0.5)
-                : Color.lerp(effectiveMidpointColor, Colors.black, 0.5)!,
-        );
-        canvas.drawCircle(
-          midPoint,
-          beadR,
-          Paint()
-            ..shader = RadialGradient(
-              center: const Alignment(-0.3, -0.4),
-              radius: 0.8,
-              colors: isDimmed
-                  ? [
-                      effectiveMidpointColor
-                          .withValues(alpha: midpointAlpha),
-                      effectiveMidpointColor
-                          .withValues(alpha: midpointAlpha * 0.8),
-                      effectiveMidpointColor
-                          .withValues(alpha: midpointAlpha * 0.6),
-                    ]
-                  : [
-                      Color.lerp(effectiveMidpointColor, Colors.white, 0.3)!,
-                      effectiveMidpointColor,
-                      Color.lerp(effectiveMidpointColor, Colors.black, 0.3)!,
-                    ],
-              stops: const [0.0, 0.5, 1.0],
-            ).createShader(beadRect),
-        );
-        if (!isDimmed) {
-          canvas.drawOval(
-            Rect.fromCenter(
-              center: Offset(
-                  midPoint.dx - beadR * 0.25, midPoint.dy - beadR * 0.3),
-              width: beadR * 0.5,
-              height: beadR * 0.3,
-            ),
-            Paint()..color = Colors.white.withValues(alpha: 0.15),
-          );
-        }
       }
     }
   }
