@@ -332,6 +332,7 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       // camera-null case (e.g. tests). When [camera] is non-null this
       // flag is ignored by GraphNode.
       showRelationLabel: shouldShowLabel(_camera.zoomLevel),
+      showName: shouldShowName(_camera.zoomLevel),
       // Tap = select / highlight ONLY. A normal tap must never open
       // the member information bottom sheet — that is reserved for
       // long-press (see onLongPress below). This mirrors the parent

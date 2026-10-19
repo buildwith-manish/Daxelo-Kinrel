@@ -178,6 +178,7 @@ class GraphNode extends ConsumerStatefulWidget {
     this.onBadgeTap,
     this.familyId,
     this.showRelationLabel = true,
+    this.showName = true,
     // P3.3: birthday glow parameters.
     this.isNearBirthday = false,
     this.birthdayPulseValue = 0.0,
@@ -334,6 +335,11 @@ class GraphNode extends ConsumerStatefulWidget {
   /// is driven smoothly by the camera's zoom level via
   /// [relationLabelOpacityFor] and this flag is ignored.
   final bool showRelationLabel;
+
+  /// When true, the name label is visible. When false (zoomed out
+  /// below kWedgeNameMinZoom in wedge mode), only the circle with
+  /// initials is shown — the name text is hidden.
+  final bool showName;
 
   /// v104: Optional camera controller used to drive a smooth zoom-
   /// fade for the relationship label. When non-null, the label is
@@ -879,7 +885,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
         // stronger shadow gives the text a small lift off the canvas
         // without looking heavy. Font family, weight, and size are
         // unchanged — this is purely a contrast/legibility tweak.
-        if (!widget.isAnonymous)
+        if (!widget.isAnonymous && widget.showName)
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(

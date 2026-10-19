@@ -146,7 +146,9 @@ import '../engine/wedge_tap_config.dart'
         kWedgeAlwaysFullNodes,
         kWedgeEnforceBudget,
         kWedgeAccordionMode,
-        kWedgeDeclutterEdges;
+        kWedgeDeclutterEdges,
+        kWedgeNameMinZoom,
+        kWedgeRelationMinZoom;
 // Wedge motion (animation interpolation, camera fit, edge routing) —
 // pure Dart, 1:1 port of the approved preview's math.
 import '../engine/wedge_motion.dart'
@@ -1019,6 +1021,15 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // fires _handleWedgeNodeTap. A drag > 6px cancels it.
   String? _pendingWedgeNodeTapId;
   Timer? _wedgeNodeTapTimer;
+
+  // EXPANSION REQUEST TOKEN: each call to _expandWedgeNode gets a
+  // unique token. After the async fetch completes, the continuation
+  // checks if its token is still the "current" one. If not (because
+  // the user tapped another node in the meantime), the continuation
+  // does NOTHING — no layout invalidation, no entrance animation.
+  // This prevents the stale-async bug where JD's fetch finishes after
+  // HD was already opened, corrupting the expansion state.
+  int _wedgeExpansionToken = 0;
 
   // Re-entry guard: prevent a double-toggle (expand then collapse)
   // when both the canvas timer and GraphNode.onTap fire within 400 ms.
@@ -2137,8 +2148,26 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   }
 
   /// Returns true when labels should be visible at [zoom].
+  /// Returns true when labels should be visible at [zoom].
+  /// WEDGE MODE: uses kWedgeRelationMinZoom (0.8) — below this zoom,
+  /// the relation label is hidden (the name may still show if zoom
+  /// >= kWedgeNameMinZoom).
+  /// RADIAL MODE: uses the old _kLabelHideZoom (1.0).
   bool shouldShowLabel(double zoom) {
+    if (kUseViewerWedgeLayout) {
+      return zoom >= kWedgeRelationMinZoom;
+    }
     return zoom >= _kLabelHideZoom;
+  }
+
+  /// Returns true when the NAME label should be visible at [zoom].
+  /// WEDGE MODE: uses kWedgeNameMinZoom (0.6). Below this, the name
+  /// is hidden but the node body (circle with initials) stays.
+  bool shouldShowName(double zoom) {
+    if (kUseViewerWedgeLayout) {
+      return zoom >= kWedgeNameMinZoom;
+    }
+    return true; // radial mode always shows the name
   }
 
   /// v97: Returns the LOD tier name for the current zoom.

@@ -1926,7 +1926,20 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
   /// pages the children (top 8) instead of revealing everything.
   Future<void> _expandWedgeNode(String personId) async {
     if (personId.isEmpty) return;
-    ref.read(wedgeViewProvider.notifier).expandPerson(personId);
+    // Assign a unique token to this expansion request. After the async
+    // fetch completes, we check if this token is still current. If not
+    // (the user tapped another node), we abort — no layout invalidation,
+    // no entrance animation. This prevents the stale-async bug.
+    final myToken = ++_wedgeExpansionToken;
+    // In accordion mode, expandExclusive was already called by
+    // _handleWedgeNodeTap — don't call expandPerson again (it would
+    // add the person to expandedRoots AFTER expandExclusive already
+    // set the correct set, and the async continuation would then
+    // invalidate the layout with stale state).
+    // In non-accordion mode, expandPerson hasn't been called yet.
+    if (!kWedgeAccordionMode) {
+      ref.read(wedgeViewProvider.notifier).expandPerson(personId);
+    }
 
     final flat = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
     if (flat == null) {
@@ -1939,8 +1952,6 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     };
     final rawEdges = flat.allRelationships ?? flat.relationships;
 
-    // Every neighbour over the FULL edge list (loaded or not) — the
-    // fetch below will load the rest.
     final allNeighborIds = <String>{};
     final loadedNeighborIds = <String>{};
     for (final Map<String, dynamic> r in rawEdges) {
@@ -1962,10 +1973,6 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     }
 
     if (loadedNeighborIds.isNotEmpty) {
-      // Do NOT call proximityGraphProvider.revealPersons — the wedge
-      // layout uses allRelationships and loadedPersonIds (every loaded
-      // person), so the proximity set is irrelevant. The layout will
-      // position the children automatically.
       final layout =
           ref.read(graphLayoutProvider(widget.familyId)).valueOrNull;
       _markNodesForEntrance(
@@ -1988,6 +1995,23 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
       } catch (e) {
         debugPrint('[WedgeNode] branch fetch failed for $personId: $e');
       }
+    }
+
+    // STALE-ASYNC GUARD: if the user tapped another node while we were
+    // fetching, this token is no longer current. Abort — don't
+    // invalidate the layout (that would re-trigger with stale state).
+    if (myToken != _wedgeExpansionToken) {
+      debugPrint('[WedgeNode] stale async for $personId — aborted '
+          '(token $myToken != current $_wedgeExpansionToken)');
+      return;
+    }
+
+    // Also check if this person is still expanded (the user might have
+    // tapped it again to collapse while the fetch was in flight).
+    final wedge = ref.read(wedgeViewProvider);
+    if (!wedge.expandedRoots.contains(personId)) {
+      debugPrint('[WedgeNode] $personId was collapsed during fetch — abort');
+      return;
     }
 
     ref.invalidate(graphLayoutProvider(widget.familyId));

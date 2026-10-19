@@ -59,3 +59,12 @@ const bool kWedgeAccordionMode = true;
 /// visible nodes, hidden when > 40. Midpoint dots/hearts hidden when
 /// zoom < 0.5 or visible nodes > 40. When false, all edges drawn.
 const bool kWedgeDeclutterEdges = true;
+
+/// Below this zoom, hide the name label on nodes (the circle with
+/// initials, ring, managed badge and grey sub-node circle stay).
+/// The node body (Pseudo3D) is ALWAYS rendered — never dots.
+const double kWedgeNameMinZoom = 0.6;
+
+/// Below this zoom, hide the relation label (e.g. "Father", "Spouse").
+/// The name is still visible if zoom >= kWedgeNameMinZoom.
+const double kWedgeRelationMinZoom = 0.8;
