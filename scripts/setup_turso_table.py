@@ -15,10 +15,17 @@ TURSO_URL = os.environ.get(
     "TURSO_URL",
     "libsql://kinrel-kinship-daxelo-kinrel.aws-ap-south-1.turso.io"
 )
-TURSO_AUTH_TOKEN = os.environ.get(
-    "TURSO_AUTH_TOKEN",
-    "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODI1NzgxMjQsImlkIjoiMDE5ZjA5YzItMzAwMS03ZGU1LWE3NTQtMWEwZmZmNjQzODljIiwicmlkIjoiODg2ZjM1MzctOGFlZC00ZjdiLTg4MzctMjRmN2ZhZDFhOTIzIn0.pKftSB12uJCZlKHPTjazhmte6uOKieqSG-1s1aiZj-c3pYI9eP2ddcxNah2fZ80m1sREfQW6lzZDFVVgztR3DA"
-)
+# 2026-10-19 (Phase 1 Security): read the Turso auth token from the
+# environment. Previously the token was hardcoded here as the default
+# fallback — a leaked secret that must be rotated (see
+# docs/security/ROTATE_KEYS.md). There is NO default — the script
+# exits with a clear error if the env var is missing.
+TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN")
+if not TURSO_AUTH_TOKEN:
+    print("FATAL: TURSO_AUTH_TOKEN environment variable is not set.")
+    print("   Set it to the Turso auth token from your Turso dashboard.")
+    print("   NEVER commit the token to git. See docs/security/ROTATE_KEYS.md.")
+    sys.exit(1)
 
 # Convert libsql:// to https://
 HTTP_URL = TURSO_URL.replace("libsql://", "https://").rstrip("/")

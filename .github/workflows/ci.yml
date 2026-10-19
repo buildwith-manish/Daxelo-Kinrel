@@ -27,6 +27,39 @@ env:
 
 jobs:
   # ═══════════════════════════════════════════════════════════════
+  # Job 0: Secret Scanning (gitleaks) — Phase 1 Security
+  # ═══════════════════════════════════════════════════════════════
+  # Fails the CI run if any secret (Supabase service_role JWT, Turso
+  # token, DB password, API key) is found in the codebase. This is a
+  # defense-in-depth measure: even if a developer accidentally commits
+  # a secret, this job catches it before merge.
+  #
+  # The old hardcoded secrets were removed in Phase 1 (commit message
+  # "perf(phase1): security — remove hardcoded secrets"), but gitleaks
+  # also scans the FULL git history for the diff of each commit — so
+  # if the old secrets are still in history (before the purge), this
+  # job WILL fail until the owner purges them (see
+  # docs/security/ROTATE_KEYS.md).
+  gitleaks:
+    name: Secret Scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history for leak scanning
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          # Optional: set GITHUB_TOKEN to enable PR comments on leaks.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional: set GITLEAKS_LICENSE for the hosted version with
+          # custom rules. The free OSS version is sufficient for
+          # detecting hardcoded JWTs, API keys, and connection strings.
+          # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # ═══════════════════════════════════════════════════════════════
   # Job 1: Flutter Analyze
   # ═══════════════════════════════════════════════════════════════
   flutter-analyze:

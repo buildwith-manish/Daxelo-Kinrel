@@ -1,7 +1,18 @@
 // E2E test using the server's own /api/auth/register + /api/auth/login flow
-const SERVER_URL = 'https://daxelo-kinrel-server.onrender.com';
-const SUPABASE_URL = 'https://promxswvsnvilplmrtsj.supabase.co';
-const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTU5NzE4MCwiZXhwIjoyMDk1MTczMTgwfQ.sgaciYwaTVd3FoGqZEe_cQamSXiAXA9SYdLjf2ICcCE';
+const SERVER_URL = process.env.SERVER_URL || 'https://daxelo-kinrel-server.onrender.com';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://promxswvsnvilplmrtsj.supabase.co';
+// 2026-10-19 (Phase 1 Security): read the service_role key from the
+// environment. Previously it was hardcoded here — a leaked secret that
+// must be rotated (see docs/security/ROTATE_KEYS.md). The variable
+// name is SUPABASE_SERVICE_ROLE_KEY (not SUPABASE_SERVICE_KEY) to match
+// the Supabase dashboard convention.
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!SUPABASE_SERVICE_KEY) {
+  console.error('FATAL: SUPABASE_SERVICE_ROLE_KEY environment variable is not set.');
+  console.error('   Set it to the Supabase service_role JWT from Dashboard → Settings → API.');
+  console.error('   NEVER commit the key to git. See docs/security/ROTATE_KEYS.md.');
+  process.exit(1);
+}
 const { createClient } = require('@supabase/supabase-js');
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 

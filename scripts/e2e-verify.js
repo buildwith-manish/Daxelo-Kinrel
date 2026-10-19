@@ -1,10 +1,33 @@
 // Full E2E test using the known token format
-const SERVER_URL = 'https://daxelo-kinrel-server.onrender.com';
+const SERVER_URL = process.env.SERVER_URL || 'https://daxelo-kinrel-server.onrender.com';
 const { createClient } = require('@supabase/supabase-js');
 const { Client } = require('pg');
 const bcrypt = require('bcryptjs');
-const supabaseAdmin = createClient('https://promxswvsnvilplmrtsj.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTU5NzE4MCwiZXhwIjoyMDk1MTczMTgwfQ.sgaciYwaTVd3FoGqZEe_cQamSXiAXA9SYdLjf2ICcCE');
-const pg = new Client({ connectionString: 'postgresql://postgres.promxswvsnvilplmrtsj:tvAFZQp89nUulXeE@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres' });
+// 2026-10-19 (Phase 1 Security): read the service_role key + DB
+// connection string from the environment. Previously both were
+// hardcoded here — leaked secrets that must be rotated (see
+// docs/security/ROTATE_KEYS.md).
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://promxswvsnvilplmrtsj.supabase.co';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!SUPABASE_SERVICE_KEY) {
+  console.error('FATAL: SUPABASE_SERVICE_ROLE_KEY environment variable is not set.');
+  console.error('   Set it to the Supabase service_role JWT from Dashboard → Settings → API.');
+  console.error('   NEVER commit the key to git. See docs/security/ROTATE_KEYS.md.');
+  process.exit(1);
+}
+const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+// Read the DB connection string from the environment. Falls back to
+// the Supabase pooler URL (without password) so the error message is
+// clear when DATABASE_URL is not set.
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  console.error('FATAL: DATABASE_URL environment variable is not set.');
+  console.error('   Set it to the Supabase pooler connection string from Dashboard → Settings → Database.');
+  console.error('   Example: postgresql://postgres.<ref>:<password>@aws-1-<region>.pooler.supabase.com:6543/postgres');
+  console.error('   NEVER commit the password to git. See docs/security/ROTATE_KEYS.md.');
+  process.exit(1);
+}
+const pg = new Client({ connectionString: DATABASE_URL });
 
 let accessToken, userId, familyId;
 let decisionId, timelineEventId, insightId, artifactId;
