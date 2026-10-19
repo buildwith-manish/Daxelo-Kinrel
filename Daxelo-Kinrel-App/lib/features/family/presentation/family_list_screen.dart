@@ -159,6 +159,23 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
+          // ── Communities chip — discovery feature surfaced on the
+          // Family tab (per spec section 6 / Step 6: Communities also
+          // lives in Settings → Family & my data, but the Family tab
+          // is the canonical entry point because it's a discovery
+          // feature, not a setting).
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: KinrelSpacing.base,
+              ),
+              child: _CommunitiesChip(
+                onTap: () => context.push('/community'),
+              ),
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
           // Family cards or empty state
           if (families.isEmpty)
             SliverToBoxAdapter(
@@ -640,6 +657,77 @@ class _JoinFamilyCard extends StatelessWidget {
         )
         .animate(onPlay: (c) => c.forward())
         .fadeIn(duration: 400.ms, delay: 100.ms);
+  }
+}
+
+// ── Communities chip ─────────────────────────────────────────────
+//
+// Discovery entry point for gotra / village / surname communities.
+// Lives on the Family tab per spec section 6 (Step 6) — Communities
+// is a discovery feature, not a setting, so the canonical entry
+// point is here. A duplicate row also stays in Settings → Family &
+// my data until all surfaces migrate; see settings_category_screen
+// _buildFamilyData for the other entry.
+class _CommunitiesChip extends StatelessWidget {
+  const _CommunitiesChip({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return DKCard(
+      borderColor: DKColors.brandPurple.withValues(alpha: 0.25),
+      backgroundColor: DKColors.brandPurple.withValues(alpha: 0.06),
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: DKColors.brandPurple.withValues(alpha: 0.15),
+            ),
+            child: const Icon(
+              Icons.groups_outlined,
+              color: DKColors.brandPurple,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Communities',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: DKColors.textPrimary(context),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Browse gotra, village, and surname communities',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    color: DKColors.textSecondary(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(
+            Icons.arrow_forward_ios_rounded,
+            size: 16,
+            color: DKColors.brandPurple,
+          ),
+        ],
+      ),
+    )
+        .animate(onPlay: (c) => c.forward())
+        .fadeIn(duration: 400.ms, delay: 150.ms);
   }
 }
 

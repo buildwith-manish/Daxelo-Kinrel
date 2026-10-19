@@ -1,141 +1,358 @@
 {
-  "@@locale": "bn",
-  "appName": "Kinrel",
-  "appTagline": "AI দিয়ে আপনার পরিবারের মানচিত্র তৈরি করুন",
-  "homeTitle": "হোম",
-  "kinshipTitle": "সম্পর্ক",
-  "graphTitle": "গ্রাফ",
-  "alertsTitle": "সতর্কতা",
-  "profileTitle": "আমি",
-  "notificationsTitle": "বিজ্ঞপ্তি",
-  "eventsTitle": "অনুষ্ঠান ও উৎসব",
-  "memoriesTitle": "স্মৃতি ও সময়রেখা",
-  "chatTitle": "পারিবারিক চ্যাট",
-  "documentsTitle": "নথি ভল্ট",
-  "achievementsTitle": "অর্জন",
-  "shareTitle": "শেয়ার ও আমন্ত্রণ",
-  "settingsTitle": "সেটিংস",
-  "signInTitle": "সাইন ইন",
-  "signUpTitle": "সাইন আপ",
-  "onboardingTitle1": "আপনার পরিবার, আপনার গল্প",
-  "onboardingBody1": "Kinrel আপনার পরিবারের প্রতিটি সম্পর্ক ম্যাপ করে — আপনার দাদা-দাদি থেকে আপনার নাতি-নাতনি পর্যন্ত, যে ভাষায় আপনি বেড়ে উঠেছেন।",
-  "onboardingTitle2": "নাম যা বাড়ির মতো মনে হয়",
-  "onboardingBody2": "শুধু 'আঙ্কেল' এবং 'আন্টি' নয় — Kinrel আপনার কাকা, মামা, ফুফা এবং জ্যাঠার মধ্যে পার্থক্য জানে।",
-  "onboardingTitle3": "বড় ছবিটি দেখুন",
-  "onboardingBody3": "আপনার পুরো পরিবার একটি সুন্দর, ইন্টারেক্টিভ গ্রাফ হিসেবে। জুম ইন করুন, সংযোগ অন্বেষণ করুন, এমন সম্পর্ক আবিষ্কার করুন যা আপনি জানতেন না।",
-  "onboardingTitle4": "যেকোনো সম্পর্ক তৎক্ষণাৎ খুঁজুন",
-  "onboardingBody4": "পরিবারের যেকোনো দুজন সদস্য নির্বাচন করুন — Kinrel-এর AI আপনার ভাষায় সঠিক সম্পর্কের নাম গণনা করবে।",
-  "addMember": "সদস্য যোগ করুন",
-  "shareFamily": "পরিবার শেয়ার করুন",
-  "findPath": "পথ খুঁজুন",
-  "viewFullGraph": "সম্পূর্ণ গ্রাফ দেখুন",
-  "recentActivity": "সাম্প্রতিক কার্যকলাপ",
-  "familyInsights": "পরিবার একনজরে",
-  "noNotifications": "সব ঠিক আছে! কোনো নতুন বিজ্ঞপ্তি নেই।",
-  "noEvents": "এখনো কোনো অনুষ্ঠান নেই। আপনার পরিবারের জন্মদিন ও বার্ষিকী এখানে স্বয়ংক্রিয়ভাবে দেখা যাবে।",
-  "noMemories": "এখনো কোনো স্মৃতি নেই। আপনার প্রথম পারিবারিক স্মৃতি যোগ করে শুরু করুন।",
-  "noDocuments": "এখনো কোনো নথি নেই। আপনার পরিবারের গুরুত্বপূর্ণ নথি নিরাপদে সংরক্ষণ করুন।",
-  "createFamily": "পরিবার তৈরি করুন",
-  "joinFamily": "পরিবারে যোগ দিন",
-  "searchHint": "সম্পর্ক খুঁজুন",
-  "birthdayTomorrow": "{name}-এর জন্মদিন আগামীকাল!",
-  "anniversarySoon": "{name} ও {name2}-এর বার্ষিকী {days} দিনে!",
-  "sendWishes": "শুভেচ্ছা পাঠাবেন?",
-  "streakDays": "{count} দিনের ধারা",
-  "profileCompletion": "{percent}% সম্পন্ন",
-  "treeCompleteness": "আপনার গাছ {percent}% সম্পূর্ণ",
-  "encryptNotice": "AES-256 দিয়ে এনক্রিপ্টেড",
-  "generatedByKinrel": "Kinrel দ্বারা তৈরি",
-  "madeByDaxelo": "Daxelo-এর ভালোবাসায় তৈরি",
-  "welcomeBack": "ফিরে স্বাগতম",
-  "goodMorning": "সুপ্রভাত",
-  "goodAfternoon": "শুভ দুপুর",
-  "goodEvening": "শুভ সন্ধ্যা",
-  "goodNight": "শুভ রাত্রি",
-  "languageName": "বাংলা",
-  "familyMapControlLocate": "আমার অবস্থান খুঁজুন",
-  "familyMapControlZoomIn": "জুম ইন",
-  "familyMapControlZoomOut": "জুম আউট",
-  "familyMapControlLayers": "স্তর",
-  "familyMapControlDarkMode": "ডার্ক ম্যাপ",
-  "familyMapControlLightMode": "লাইট ম্যাপ",
-  "familyMapControl3DBuildingsOn": "Turn on 3D buildings",
-  "familyMapControl3DBuildingsOff": "Turn off 3D buildings",
-  "familyMapLocateServiceOff": "লোকেশন পরিষেবা বন্ধ আছে।",
-  "familyMapLocatePermissionDenied": "লোকেশন অনুমতি অস্বীকৃত।",
-  "familyMapLocateFailed": "আপনার বর্তমান অবস্থান পাওয়া যায়নি।",
-  "familyMapLayersTitle": "ম্যাপ স্তর",
-  "familyMapLayersDone": "সম্পন্ন",
-  "familyMapLayerHomes": "পারিবারিক বাড়ি",
-  "familyMapLayerWeddings": "বিবাহ স্থল",
-  "familyMapLayerMemorials": "স্মৃতিস্তম্ভ",
-  "familyMapLayerSchools": "স্কুল",
-  "familyMapLayerPlaces": "গুরুত্বপূর্ণ স্থান",
-  "familyMapLayerRelationships": "সম্পর্ক পথ",
-  "familyMapLayerCallouts": "স্থান লেবেল",
-  "familyMapLayerLivePulses": "লাইভ স্পন্দন",
-  "familyMapSearchHint": "শহর বা পরিবারের সদস্য খুঁজুন",
-  "familyMapSearchCollapsed": "শহর বা পরিবারের সদস্য খুঁজুন",
-  "familyMapSearchClear": "মুছুন",
-  "familyMapSearchCityHint": "শহর",
-  "familyMapLegendPinned": "অবস্থিত",
-  "familyMapLegendCities": "শহর",
-  "familyMapLegendStatusTitle": "স্থিতি স্তর",
-  "familyMapLegendCategoriesTitle": "স্থান বিভাগ",
-  "familyMapLegendUnpinnedTitle": "ম্যাপে নেই",
-  "familyMapLegendTierLive": "লাইভ",
-  "familyMapLegendTierLiveDesc": "< ২ মিনিট আগে",
-  "familyMapLegendTierRecent": "সাম্প্রতিক",
-  "familyMapLegendTierRecentDesc": "< ১৫ মিনিট আগে",
-  "familyMapLegendTierStale": "পুরোনো",
-  "familyMapLegendTierStaleDesc": "< ১ ঘন্টা আগে",
-  "familyMapLegendTierCity": "শহর",
-  "familyMapLegendTierCityDesc": "শহর কেন্দ্র",
-  "chatTypingSingle": "{name} টাইপ করছে",
-  "chatTypingTwo": "{name1} এবং {name2} টাইপ করছে",
-  "chatTypingMany": "{name} এবং অন্যরা টাইপ করছে",
-  "chatActiveNow": "এখন অনলাইন",
-  "chatNActive": "{count} অনলাইন",
-  "chatLastSeenJustNow": "এইমাত্র দেখা গেছে",
-  "chatLastSeenMinutes": "{count} মিনিট আগে দেখা গেছে",
-  "chatLastSeenHours": "{count} ঘন্টা আগে দেখা গেছে",
-  "chatLastSeenDays": "{count} দিন আগে দেখা গেছে",
-  "chatOffline": "অফলাইন",
-  "chatEmptyStateTitle": "কথোপকথন শুরু করুন",
-  "chatEmptyStateSubtitle": "{familyName} পরিবারে ({count} সদস্য)",
-  "chatEmptyStateSubtitleNoCount": "{familyName} পরিবারে",
-  "chatSuggestionNamaste": "সবাইকে নমস্কার 🙏",
-  "chatSuggestionHowIsEveryone": "সবাই কেমন আছো?",
-  "chatSuggestionGoodMorning": "সুপ্রভাত, {familyName} পরিবার! ☀️",
-  "chatBirthdayToday": "আজ {name}-এর জন্মদিন! 🎂",
-  "chatBirthdayTomorrow": "আগামীকাল {name}-এর জন্মদিন 🎂",
-  "chatBirthdayInDays": "{count} দিনে {name}-এর জন্মদিন 🎂",
-  "chatSearchPlaceholder": "বার্তা খুঁজুন...",
-  "chatSearchNoResults": "কোনো বার্তা পাওয়া যায়নি",
-  "chatSearchResultsCount": "{count} ফলাফল",
-  "chatMessageSending": "পাঠানো হচ্ছে...",
-  "chatMessageFailed": "পাঠাতে ব্যর্থ",
-  "chatMessageFailedRetry": "আবার চেষ্টা করতে ট্যাপ করুন",
-  "chatReplyToOriginalNotFound": "বার্তাটি লোড করা ইতিহাসের চেয়ে পুরোনো — খুঁজে পেতে উপরে স্ক্রোল করুন।",
-  "chatSystemMessageUserJoined": "{name} রুমে যোগ দিয়েছে",
-  "chatSystemMessageUserLeft": "{name} রুম ছেড়েছে",
-  "chatSystemMessageUserDisconnected": "{name} সংযোগ বিচ্ছিন্ন হয়েছে",
-  "chatSystemMessageRoomClosed": "{name} রুম বন্ধ করেছে",
-  "chatSystemMessageUserReacted": "{name} প্রতিক্রিয়া দেখিয়েছে {emoji}",
-  "graphShowingCount": "মোট {total} জনের মধ্যে {shown} জন দেখানো হচ্ছে।",
-  "graphFilterAll": "সব {count}",
-  "graphCatSelf": "আপনি",
-  "graphCatSpouse": "সঙ্গী",
-  "graphCatParent": "পিতামাতা",
-  "graphCatChild": "সন্তানেরা",
-  "graphCatSibling": "ভাইবোন",
-  "graphCatGrandparent": "দাদু-দিদা",
-  "graphCatAuntUncle": "চাচা-মামা",
-  "graphCatCousin": "চাচাতো ভাইবোন",
-  "graphCatInLaw": "শ্বশুরবাড়ি",
-  "graphCatExtended": "বর্ধিত পরিবার",
-  "graphCatIndirect": "পরোক্ষ",
-  "graphMorePeople": "{count} জন আরও মানুষ দেখুন, ডাবল ট্যাপ করুন",
-  "graphMorePeopleShort": "{count} জন বেশি",
-  "graphTapToShowHint": "দেখাতে ট্যাপ করুন"
+    "@@locale":  "bn",
+    "appName":  "Kinrel",
+    "appTagline":  "AI αªªαª┐αª»αª╝αºç αªåαª¬αª¿αª╛αª░ αª¬αª░αª┐αª¼αª╛αª░αºçαª░ αª«αª╛αª¿αªÜαª┐αªñαºìαª░ αªñαºêαª░αª┐ αªòαª░αºüαª¿",
+    "homeTitle":  "αª╣αºïαª«",
+    "kinshipTitle":  "αª╕αª«αºìαª¬αª░αºìαªò",
+    "graphTitle":  "αªùαºìαª░αª╛αª½",
+    "alertsTitle":  "αª╕αªñαª░αºìαªòαªñαª╛",
+    "profileTitle":  "αªåαª«αª┐",
+    "notificationsTitle":  "αª¼αª┐αª£αºìαª₧αª¬αºìαªñαª┐",
+    "eventsTitle":  "αªàαª¿αºüαª╖αºìαªáαª╛αª¿ αªô αªëαºÄαª╕αª¼",
+    "memoriesTitle":  "αª╕αºìαª«αºâαªñαª┐ αªô αª╕αª«αª»αª╝αª░αºçαªûαª╛",
+    "chatTitle":  "αª¬αª╛αª░αª┐αª¼αª╛αª░αª┐αªò αªÜαºìαª»αª╛αªƒ",
+    "documentsTitle":  "αª¿αªÑαª┐ αª¡αª▓αºìαªƒ",
+    "achievementsTitle":  "αªàαª░αºìαª£αª¿",
+    "shareTitle":  "αª╢αºçαª»αª╝αª╛αª░ αªô αªåαª«αª¿αºìαªñαºìαª░αªú",
+    "settingsTitle":  "αª╕αºçαªƒαª┐αªéαª╕",
+    "signInTitle":  "αª╕αª╛αªçαª¿ αªçαª¿",
+    "signUpTitle":  "αª╕αª╛αªçαª¿ αªåαª¬",
+    "onboardingTitle1":  "αªåαª¬αª¿αª╛αª░ αª¬αª░αª┐αª¼αª╛αª░, αªåαª¬αª¿αª╛αª░ αªùαª▓αºìαª¬",
+    "onboardingBody1":  "Kinrel αªåαª¬αª¿αª╛αª░ αª¬αª░αª┐αª¼αª╛αª░αºçαª░ αª¬αºìαª░αªñαª┐αªƒαª┐ αª╕αª«αºìαª¬αª░αºìαªò αª«αºìαª»αª╛αª¬ αªòαª░αºç ΓÇö αªåαª¬αª¿αª╛αª░ αªªαª╛αªªαª╛-αªªαª╛αªªαª┐ αªÑαºçαªòαºç αªåαª¬αª¿αª╛αª░ αª¿αª╛αªñαª┐-αª¿αª╛αªñαª¿αª┐ αª¬αª░αºìαª»αª¿αºìαªñ, αª»αºç αª¡αª╛αª╖αª╛αª»αª╝ αªåαª¬αª¿αª┐ αª¼αºçαªíαª╝αºç αªëαªáαºçαª¢αºçαª¿αÑñ",
+    "onboardingTitle2":  "αª¿αª╛αª« αª»αª╛ αª¼αª╛αªíαª╝αª┐αª░ αª«αªñαºï αª«αª¿αºç αª╣αª»αª╝",
+    "onboardingBody2":  "αª╢αºüαªºαºü \u0027αªåαªÖαºìαªòαºçαª▓\u0027 αªÅαª¼αªé \u0027αªåαª¿αºìαªƒαª┐\u0027 αª¿αª»αª╝ ΓÇö Kinrel αªåαª¬αª¿αª╛αª░ αªòαª╛αªòαª╛, αª«αª╛αª«αª╛, αª½αºüαª½αª╛ αªÅαª¼αªé αª£αºìαª»αª╛αªáαª╛αª░ αª«αªºαºìαª»αºç αª¬αª╛αª░αºìαªÑαªòαºìαª» αª£αª╛αª¿αºçαÑñ",
+    "onboardingTitle3":  "αª¼αªíαª╝ αª¢αª¼αª┐αªƒαª┐ αªªαºçαªûαºüαª¿",
+    "onboardingBody3":  "αªåαª¬αª¿αª╛αª░ αª¬αºüαª░αºï αª¬αª░αª┐αª¼αª╛αª░ αªÅαªòαªƒαª┐ αª╕αºüαª¿αºìαªªαª░, αªçαª¿αºìαªƒαª╛αª░αºçαªòαºìαªƒαª┐αª¡ αªùαºìαª░αª╛αª½ αª╣αª┐αª╕αºçαª¼αºçαÑñ αª£αºüαª« αªçαª¿ αªòαª░αºüαª¿, αª╕αªéαª»αºïαªù αªàαª¿αºìαª¼αºçαª╖αªú αªòαª░αºüαª¿, αªÅαª«αª¿ αª╕αª«αºìαª¬αª░αºìαªò αªåαª¼αª┐αª╖αºìαªòαª╛αª░ αªòαª░αºüαª¿ αª»αª╛ αªåαª¬αª¿αª┐ αª£αª╛αª¿αªñαºçαª¿ αª¿αª╛αÑñ",
+    "onboardingTitle4":  "αª»αºçαªòαºïαª¿αºï αª╕αª«αºìαª¬αª░αºìαªò αªñαºÄαªòαºìαª╖αªúαª╛αºÄ αªûαºüαªüαª£αºüαª¿",
+    "onboardingBody4":  "αª¬αª░αª┐αª¼αª╛αª░αºçαª░ αª»αºçαªòαºïαª¿αºï αªªαºüαª£αª¿ αª╕αªªαª╕αºìαª» αª¿αª┐αª░αºìαª¼αª╛αªÜαª¿ αªòαª░αºüαª¿ ΓÇö Kinrel-αªÅαª░ AI αªåαª¬αª¿αª╛αª░ αª¡αª╛αª╖αª╛αª»αª╝ αª╕αªáαª┐αªò αª╕αª«αºìαª¬αª░αºìαªòαºçαª░ αª¿αª╛αª« αªùαªúαª¿αª╛ αªòαª░αª¼αºçαÑñ",
+    "addMember":  "αª╕αªªαª╕αºìαª» αª»αºïαªù αªòαª░αºüαª¿",
+    "shareFamily":  "αª¬αª░αª┐αª¼αª╛αª░ αª╢αºçαª»αª╝αª╛αª░ αªòαª░αºüαª¿",
+    "findPath":  "αª¬αªÑ αªûαºüαªüαª£αºüαª¿",
+    "viewFullGraph":  "αª╕αª«αºìαª¬αºéαª░αºìαªú αªùαºìαª░αª╛αª½ αªªαºçαªûαºüαª¿",
+    "recentActivity":  "αª╕αª╛αª«αºìαª¬αºìαª░αªñαª┐αªò αªòαª╛αª░αºìαª»αªòαª▓αª╛αª¬",
+    "familyInsights":  "αª¬αª░αª┐αª¼αª╛αª░ αªÅαªòαª¿αª£αª░αºç",
+    "noNotifications":  "αª╕αª¼ αªáαª┐αªò αªåαª¢αºç! αªòαºïαª¿αºï αª¿αªñαºüαª¿ αª¼αª┐αª£αºìαª₧αª¬αºìαªñαª┐ αª¿αºçαªçαÑñ",
+    "noEvents":  "αªÅαªûαª¿αºï αªòαºïαª¿αºï αªàαª¿αºüαª╖αºìαªáαª╛αª¿ αª¿αºçαªçαÑñ αªåαª¬αª¿αª╛αª░ αª¬αª░αª┐αª¼αª╛αª░αºçαª░ αª£αª¿αºìαª«αªªαª┐αª¿ αªô αª¼αª╛αª░αºìαª╖αª┐αªòαºÇ αªÅαªûαª╛αª¿αºç αª╕αºìαª¼αª»αª╝αªéαªòαºìαª░αª┐αª»αª╝αª¡αª╛αª¼αºç αªªαºçαªûαª╛ αª»αª╛αª¼αºçαÑñ",
+    "noMemories":  "αªÅαªûαª¿αºï αªòαºïαª¿αºï αª╕αºìαª«αºâαªñαª┐ αª¿αºçαªçαÑñ αªåαª¬αª¿αª╛αª░ αª¬αºìαª░αªÑαª« αª¬αª╛αª░αª┐αª¼αª╛αª░αª┐αªò αª╕αºìαª«αºâαªñαª┐ αª»αºïαªù αªòαª░αºç αª╢αºüαª░αºü αªòαª░αºüαª¿αÑñ",
+    "noDocuments":  "αªÅαªûαª¿αºï αªòαºïαª¿αºï αª¿αªÑαª┐ αª¿αºçαªçαÑñ αªåαª¬αª¿αª╛αª░ αª¬αª░αª┐αª¼αª╛αª░αºçαª░ αªùαºüαª░αºüαªñαºìαª¼αª¬αºéαª░αºìαªú αª¿αªÑαª┐ αª¿αª┐αª░αª╛αª¬αªªαºç αª╕αªéαª░αªòαºìαª╖αªú αªòαª░αºüαª¿αÑñ",
+    "createFamily":  "αª¬αª░αª┐αª¼αª╛αª░ αªñαºêαª░αª┐ αªòαª░αºüαª¿",
+    "joinFamily":  "αª¬αª░αª┐αª¼αª╛αª░αºç αª»αºïαªù αªªαª┐αª¿",
+    "searchHint":  "αª╕αª«αºìαª¬αª░αºìαªò αªûαºüαªüαª£αºüαª¿",
+    "birthdayTomorrow":  "{name}-αªÅαª░ αª£αª¿αºìαª«αªªαª┐αª¿ αªåαªùαª╛αª«αºÇαªòαª╛αª▓!",
+    "anniversarySoon":  "{name} αªô {name2}-αªÅαª░ αª¼αª╛αª░αºìαª╖αª┐αªòαºÇ {days} αªªαª┐αª¿αºç!",
+    "sendWishes":  "αª╢αºüαª¡αºçαªÜαºìαª¢αª╛ αª¬αª╛αªáαª╛αª¼αºçαª¿?",
+    "streakDays":  "{count} αªªαª┐αª¿αºçαª░ αªºαª╛αª░αª╛",
+    "profileCompletion":  "{percent}% αª╕αª«αºìαª¬αª¿αºìαª¿",
+    "treeCompleteness":  "αªåαª¬αª¿αª╛αª░ αªùαª╛αª¢ {percent}% αª╕αª«αºìαª¬αºéαª░αºìαªú",
+    "encryptNotice":  "AES-256 αªªαª┐αª»αª╝αºç αªÅαª¿αªòαºìαª░αª┐αª¬αºìαªƒαºçαªí",
+    "generatedByKinrel":  "Kinrel αªªαºìαª¼αª╛αª░αª╛ αªñαºêαª░αª┐",
+    "madeByDaxelo":  "Daxelo-αªÅαª░ αª¡αª╛αª▓αºïαª¼αª╛αª╕αª╛αª»αª╝ αªñαºêαª░αª┐",
+    "welcomeBack":  "αª½αª┐αª░αºç αª╕αºìαª¼αª╛αªùαªñαª«",
+    "goodMorning":  "αª╕αºüαª¬αºìαª░αª¡αª╛αªñ",
+    "goodAfternoon":  "αª╢αºüαª¡ αªªαºüαª¬αºüαª░",
+    "goodEvening":  "αª╢αºüαª¡ αª╕αª¿αºìαªºαºìαª»αª╛",
+    "goodNight":  "αª╢αºüαª¡ αª░αª╛αªñαºìαª░αª┐",
+    "languageName":  "αª¼αª╛αªéαª▓αª╛",
+    "familyMapControlLocate":  "αªåαª«αª╛αª░ αªàαª¼αª╕αºìαªÑαª╛αª¿ αªûαºüαªüαª£αºüαª¿",
+    "familyMapControlZoomIn":  "αª£αºüαª« αªçαª¿",
+    "familyMapControlZoomOut":  "αª£αºüαª« αªåαªëαªƒ",
+    "familyMapControlLayers":  "αª╕αºìαªñαª░",
+    "familyMapControlDarkMode":  "αªíαª╛αª░αºìαªò αª«αºìαª»αª╛αª¬",
+    "familyMapControlLightMode":  "αª▓αª╛αªçαªƒ αª«αºìαª»αª╛αª¬",
+    "familyMapControl3DBuildingsOn":  "Turn on 3D buildings",
+    "familyMapControl3DBuildingsOff":  "Turn off 3D buildings",
+    "familyMapLocateServiceOff":  "αª▓αºïαªòαºçαª╢αª¿ αª¬αª░αª┐αª╖αºçαª¼αª╛ αª¼αª¿αºìαªº αªåαª¢αºçαÑñ",
+    "familyMapLocatePermissionDenied":  "αª▓αºïαªòαºçαª╢αª¿ αªàαª¿αºüαª«αªñαª┐ αªàαª╕αºìαª¼αºÇαªòαºâαªñαÑñ",
+    "familyMapLocateFailed":  "αªåαª¬αª¿αª╛αª░ αª¼αª░αºìαªñαª«αª╛αª¿ αªàαª¼αª╕αºìαªÑαª╛αª¿ αª¬αª╛αªôαª»αª╝αª╛ αª»αª╛αª»αª╝αª¿αª┐αÑñ",
+    "familyMapLayersTitle":  "αª«αºìαª»αª╛αª¬ αª╕αºìαªñαª░",
+    "familyMapLayersDone":  "αª╕αª«αºìαª¬αª¿αºìαª¿",
+    "familyMapLayerHomes":  "αª¬αª╛αª░αª┐αª¼αª╛αª░αª┐αªò αª¼αª╛αªíαª╝αª┐",
+    "familyMapLayerWeddings":  "αª¼αª┐αª¼αª╛αª╣ αª╕αºìαªÑαª▓",
+    "familyMapLayerMemorials":  "αª╕αºìαª«αºâαªñαª┐αª╕αºìαªñαª«αºìαª¡",
+    "familyMapLayerSchools":  "αª╕αºìαªòαºüαª▓",
+    "familyMapLayerPlaces":  "αªùαºüαª░αºüαªñαºìαª¼αª¬αºéαª░αºìαªú αª╕αºìαªÑαª╛αª¿",
+    "familyMapLayerRelationships":  "αª╕αª«αºìαª¬αª░αºìαªò αª¬αªÑ",
+    "familyMapLayerCallouts":  "αª╕αºìαªÑαª╛αª¿ αª▓αºçαª¼αºçαª▓",
+    "familyMapLayerLivePulses":  "αª▓αª╛αªçαª¡ αª╕αºìαª¬αª¿αºìαªªαª¿",
+    "familyMapSearchHint":  "αª╢αª╣αª░ αª¼αª╛ αª¬αª░αª┐αª¼αª╛αª░αºçαª░ αª╕αªªαª╕αºìαª» αªûαºüαªüαª£αºüαª¿",
+    "familyMapSearchCollapsed":  "αª╢αª╣αª░ αª¼αª╛ αª¬αª░αª┐αª¼αª╛αª░αºçαª░ αª╕αªªαª╕αºìαª» αªûαºüαªüαª£αºüαª¿",
+    "familyMapSearchClear":  "αª«αºüαª¢αºüαª¿",
+    "familyMapSearchCityHint":  "αª╢αª╣αª░",
+    "familyMapLegendPinned":  "αªàαª¼αª╕αºìαªÑαª┐αªñ",
+    "familyMapLegendCities":  "αª╢αª╣αª░",
+    "familyMapLegendStatusTitle":  "αª╕αºìαªÑαª┐αªñαª┐ αª╕αºìαªñαª░",
+    "familyMapLegendCategoriesTitle":  "αª╕αºìαªÑαª╛αª¿ αª¼αª┐αª¡αª╛αªù",
+    "familyMapLegendUnpinnedTitle":  "αª«αºìαª»αª╛αª¬αºç αª¿αºçαªç",
+    "familyMapLegendTierLive":  "αª▓αª╛αªçαª¡",
+    "familyMapLegendTierLiveDesc":  "\u003c αº¿ αª«αª┐αª¿αª┐αªƒ αªåαªùαºç",
+    "familyMapLegendTierRecent":  "αª╕αª╛αª«αºìαª¬αºìαª░αªñαª┐αªò",
+    "familyMapLegendTierRecentDesc":  "\u003c αººαº½ αª«αª┐αª¿αª┐αªƒ αªåαªùαºç",
+    "familyMapLegendTierStale":  "αª¬αºüαª░αºïαª¿αºï",
+    "familyMapLegendTierStaleDesc":  "\u003c αºº αªÿαª¿αºìαªƒαª╛ αªåαªùαºç",
+    "familyMapLegendTierCity":  "αª╢αª╣αª░",
+    "familyMapLegendTierCityDesc":  "αª╢αª╣αª░ αªòαºçαª¿αºìαªªαºìαª░",
+    "chatTypingSingle":  "{name} αªƒαª╛αªçαª¬ αªòαª░αª¢αºç",
+    "chatTypingTwo":  "{name1} αªÅαª¼αªé {name2} αªƒαª╛αªçαª¬ αªòαª░αª¢αºç",
+    "chatTypingMany":  "{name} αªÅαª¼αªé αªàαª¿αºìαª»αª░αª╛ αªƒαª╛αªçαª¬ αªòαª░αª¢αºç",
+    "chatActiveNow":  "αªÅαªûαª¿ αªàαª¿αª▓αª╛αªçαª¿",
+    "chatNActive":  "{count} αªàαª¿αª▓αª╛αªçαª¿",
+    "chatLastSeenJustNow":  "αªÅαªçαª«αª╛αªñαºìαª░ αªªαºçαªûαª╛ αªùαºçαª¢αºç",
+    "chatLastSeenMinutes":  "{count} αª«αª┐αª¿αª┐αªƒ αªåαªùαºç αªªαºçαªûαª╛ αªùαºçαª¢αºç",
+    "chatLastSeenHours":  "{count} αªÿαª¿αºìαªƒαª╛ αªåαªùαºç αªªαºçαªûαª╛ αªùαºçαª¢αºç",
+    "chatLastSeenDays":  "{count} αªªαª┐αª¿ αªåαªùαºç αªªαºçαªûαª╛ αªùαºçαª¢αºç",
+    "chatOffline":  "αªàαª½αª▓αª╛αªçαª¿",
+    "chatEmptyStateTitle":  "αªòαªÑαºïαª¬αªòαªÑαª¿ αª╢αºüαª░αºü αªòαª░αºüαª¿",
+    "chatEmptyStateSubtitle":  "{familyName} αª¬αª░αª┐αª¼αª╛αª░αºç ({count} αª╕αªªαª╕αºìαª»)",
+    "chatEmptyStateSubtitleNoCount":  "{familyName} αª¬αª░αª┐αª¼αª╛αª░αºç",
+    "chatSuggestionNamaste":  "αª╕αª¼αª╛αªçαªòαºç αª¿αª«αª╕αºìαªòαª╛αª░ ≡ƒÖÅ",
+    "chatSuggestionHowIsEveryone":  "αª╕αª¼αª╛αªç αªòαºçαª«αª¿ αªåαª¢αºï?",
+    "chatSuggestionGoodMorning":  "αª╕αºüαª¬αºìαª░αª¡αª╛αªñ, {familyName} αª¬αª░αª┐αª¼αª╛αª░! ΓÿÇ∩╕Å",
+    "chatBirthdayToday":  "αªåαª£ {name}-αªÅαª░ αª£αª¿αºìαª«αªªαª┐αª¿! ≡ƒÄé",
+    "chatBirthdayTomorrow":  "αªåαªùαª╛αª«αºÇαªòαª╛αª▓ {name}-αªÅαª░ αª£αª¿αºìαª«αªªαª┐αª¿ ≡ƒÄé",
+    "chatBirthdayInDays":  "{count} αªªαª┐αª¿αºç {name}-αªÅαª░ αª£αª¿αºìαª«αªªαª┐αª¿ ≡ƒÄé",
+    "chatSearchPlaceholder":  "αª¼αª╛αª░αºìαªñαª╛ αªûαºüαªüαª£αºüαª¿...",
+    "chatSearchNoResults":  "αªòαºïαª¿αºï αª¼αª╛αª░αºìαªñαª╛ αª¬αª╛αªôαª»αª╝αª╛ αª»αª╛αª»αª╝αª¿αª┐",
+    "chatSearchResultsCount":  "{count} αª½αª▓αª╛αª½αª▓",
+    "chatMessageSending":  "αª¬αª╛αªáαª╛αª¿αºï αª╣αªÜαºìαª¢αºç...",
+    "chatMessageFailed":  "αª¬αª╛αªáαª╛αªñαºç αª¼αºìαª»αª░αºìαªÑ",
+    "chatMessageFailedRetry":  "αªåαª¼αª╛αª░ αªÜαºçαª╖αºìαªƒαª╛ αªòαª░αªñαºç αªƒαºìαª»αª╛αª¬ αªòαª░αºüαª¿",
+    "chatReplyToOriginalNotFound":  "αª¼αª╛αª░αºìαªñαª╛αªƒαª┐ αª▓αºïαªí αªòαª░αª╛ αªçαªñαª┐αª╣αª╛αª╕αºçαª░ αªÜαºçαª»αª╝αºç αª¬αºüαª░αºïαª¿αºï ΓÇö αªûαºüαªüαª£αºç αª¬αºçαªñαºç αªëαª¬αª░αºç αª╕αºìαªòαºìαª░αºïαª▓ αªòαª░αºüαª¿αÑñ",
+    "chatSystemMessageUserJoined":  "{name} αª░αºüαª«αºç αª»αºïαªù αªªαª┐αª»αª╝αºçαª¢αºç",
+    "chatSystemMessageUserLeft":  "{name} αª░αºüαª« αª¢αºçαªíαª╝αºçαª¢αºç",
+    "chatSystemMessageUserDisconnected":  "{name} αª╕αªéαª»αºïαªù αª¼αª┐αªÜαºìαª¢αª┐αª¿αºìαª¿ αª╣αª»αª╝αºçαª¢αºç",
+    "chatSystemMessageRoomClosed":  "{name} αª░αºüαª« αª¼αª¿αºìαªº αªòαª░αºçαª¢αºç",
+    "chatSystemMessageUserReacted":  "{name} αª¬αºìαª░αªñαª┐αªòαºìαª░αª┐αª»αª╝αª╛ αªªαºçαªûαª┐αª»αª╝αºçαª¢αºç {emoji}",
+    "graphShowingCount":  "αª«αºïαªƒ {total} αª£αª¿αºçαª░ αª«αªºαºìαª»αºç {shown} αª£αª¿ αªªαºçαªûαª╛αª¿αºï αª╣αªÜαºìαª¢αºçαÑñ",
+    "graphFilterAll":  "αª╕αª¼ {count}",
+    "graphCatSelf":  "αªåαª¬αª¿αª┐",
+    "graphCatSpouse":  "αª╕αªÖαºìαªùαºÇ",
+    "graphCatParent":  "αª¬αª┐αªñαª╛αª«αª╛αªñαª╛",
+    "graphCatChild":  "αª╕αª¿αºìαªñαª╛αª¿αºçαª░αª╛",
+    "graphCatSibling":  "αª¡αª╛αªçαª¼αºïαª¿",
+    "graphCatGrandparent":  "αªªαª╛αªªαºü-αªªαª┐αªªαª╛",
+    "graphCatAuntUncle":  "αªÜαª╛αªÜαª╛-αª«αª╛αª«αª╛",
+    "graphCatCousin":  "αªÜαª╛αªÜαª╛αªñαºï αª¡αª╛αªçαª¼αºïαª¿",
+    "graphCatInLaw":  "αª╢αºìαª¼αª╢αºüαª░αª¼αª╛αªíαª╝αª┐",
+    "graphCatExtended":  "αª¼αª░αºìαªºαª┐αªñ αª¬αª░αª┐αª¼αª╛αª░",
+    "graphCatIndirect":  "αª¬αª░αºïαªòαºìαª╖",
+    "graphMorePeople":  "{count} αª£αª¿ αªåαª░αªô αª«αª╛αª¿αºüαª╖ αªªαºçαªûαºüαª¿, αªíαª╛αª¼αª▓ αªƒαºìαª»αª╛αª¬ αªòαª░αºüαª¿",
+    "graphMorePeopleShort":  "{count} αª£αª¿ αª¼αºçαª╢αª┐",
+    "graphTapToShowHint":  "αªªαºçαªûαª╛αªñαºç αªƒαºìαª»αª╛αª¬ αªòαª░αºüαª¿",
+    "chatReportMenuItem":  "αª░αª┐αª¬αºïαª░αºìαªƒ αªòαª░αºüαª¿",
+    "chatReportSheetTitle":  "αªÅαªç αª¼αª╛αª░αºìαªñαª╛αªƒαª┐ αª░αª┐αª¬αºïαª░αºìαªƒ αªòαª░αºüαª¿",
+    "chatReportSheetSubtitle":  "{senderName} αªÅαª░ αª¼αª╛αª░αºìαªñαª╛ αª«αªíαª╛αª░αºçαªƒαª░αªªαºçαª░ αª░αª┐αª¬αºïαª░αºìαªƒ αªòαª░αºüαª¿",
+    "@chatReportSheetSubtitle":  {
+                                     "description":  "Chat block/report string: chatReportSheetSubtitle",
+                                     "placeholders":  {
+                                                          "senderName":  {
+                                                                             "type":  "String"
+                                                                         }
+                                                      }
+                                 },
+    "chatReportNoPreview":  "(αªòαºïαª¿αºï αª¬αºìαª░αª┐αª¡αª┐αªë αª¿αºçαªç)",
+    "chatReportReasonLabel":  "αªåαª¬αª¿αª┐ αªòαºçαª¿ αª░αª┐αª¬αºïαª░αºìαªƒ αªòαª░αª¢αºçαª¿?",
+    "chatReportReasonSpam":  "αª╕αºìαª¬αºìαª»αª╛αª«",
+    "chatReportReasonHarassment":  "αª╣αª»αª╝αª░αª╛αª¿αª┐",
+    "chatReportReasonInappropriateContent":  "αªàαª¿αºüαª¬αª»αºüαªòαºìαªñ αª¼αª┐αª╖αª»αª╝αª¼αª╕αºìαªñαºü",
+    "chatReportReasonOther":  "αªàαª¿αºìαª»αª╛αª¿αºìαª»",
+    "chatReportDescriptionLabel":  "αª¼αª┐αª¼αª░αªú αª»αºïαªù αªòαª░αºüαª¿ (αªÉαªÜαºìαª¢αª┐αªò)",
+    "chatReportDescriptionHint":  "αªòαºÇ αª¡αºüαª▓ αª╣αª»αª╝αºçαª¢αºç αªåαª«αª╛αªªαºçαª░ αª¼αª▓αºüαª¿",
+    "chatReportCancel":  "αª¼αª╛αªñαª┐αª▓",
+    "chatReportSubmit":  "αª░αª┐αª¬αºïαª░αºìαªƒ αª£αª«αª╛ αªªαª┐αª¿",
+    "chatReportSubmitted":  "αª░αª┐αª¬αºïαª░αºìαªƒ αª£αª«αª╛ αª╣αª»αª╝αºçαª¢αºçαÑñ αªºαª¿αºìαª»αª¼αª╛αªªαÑñ",
+    "chatReportAlreadyReported":  "αªåαª¬αª¿αª┐ αªçαªñαª┐αª«αªºαºìαª»αºç αªÅαªç αª¼αª╛αª░αºìαªñαª╛αªƒαª┐ αª░αª┐αª¬αºïαª░αºìαªƒ αªòαª░αºçαª¢αºçαª¿αÑñ",
+    "chatReportFailed":  "αª░αª┐αª¬αºïαª░αºìαªƒ αª£αª«αª╛ αªªαª┐αªñαºç αª¼αºìαª»αª░αºìαªÑαÑñ αªåαª¼αª╛αª░ αªÜαºçαª╖αºìαªƒαª╛ αªòαª░αºüαª¿αÑñ",
+    "chatBlockedMessagePlaceholder":  "αª¼αºìαª▓αªò αªòαª░αª╛ αª¼αºìαª»αª¼αª╣αª╛αª░αªòαª╛αª░αºÇαª░ αª¼αª╛αª░αºìαªñαª╛",
+    "chatBlockedMessageShow":  "αªªαºçαªûαª╛αª¿",
+    "chatBlockedMessageHide":  "αª▓αºüαªòαª╛αª¿",
+    "chatBlockMenuItem":  "αª¼αºìαª▓αªò αªòαª░αºüαª¿",
+    "chatBlockFromMessageMenuItem":  "αªÅαªç αª¼αºìαª»αª¼αª╣αª╛αª░αªòαª╛αª░αºÇαªòαºç αª¼αºìαª▓αªò αªòαª░αºüαª¿",
+    "chatBlockDialogTitle":  "{name} αªòαºç αª¼αºìαª▓αªò αªòαª░αª¼αºçαª¿?",
+    "@chatBlockDialogTitle":  {
+                                  "description":  "Chat block/report string: chatBlockDialogTitle",
+                                  "placeholders":  {
+                                                       "name":  {
+                                                                    "type":  "String"
+                                                                }
+                                                   }
+                              },
+    "chatBlockDialogBody":  "αªñαª╛αª░αª╛ αªåαª¬αª¿αª╛αªòαºç αª╕αª░αª╛αª╕αª░αª┐ αª¼αª╛αª░αºìαªñαª╛ αª¬αª╛αªáαª╛αªñαºç αª¬αª╛αª░αª¼αºç αª¿αª╛, αªÅαª¼αªé αªåαª¬αª¿αª┐αªô αªñαª╛αªªαºçαª░ αª¬αª╛αªáαª╛αªñαºç αª¬αª╛αª░αª¼αºçαª¿ αª¿αª╛αÑñ αªùαºìαª░αºüαª¬ αªÜαºìαª»αª╛αªƒαºç αªñαª╛αªªαºçαª░ αª¼αª╛αª░αºìαªñαª╛ αª¬αºìαª▓αºçαª╕αª╣αºïαª▓αºìαªíαª╛αª░αºçαª░ αª¬αª┐αª¢αª¿αºç αª▓αºüαªòαª╛αª¿αºï αªÑαª╛αªòαª¼αºçαÑñ αªñαª╛αªªαºçαª░ αª£αª╛αª¿αª╛αª¿αºï αª╣αª¼αºç αª¿αª╛ αª»αºç αªñαª╛αªªαºçαª░ αª¼αºìαª▓αªò αªòαª░αª╛ αª╣αª»αª╝αºçαª¢αºçαÑñ",
+    "chatBlockDialogConfirm":  "αª¼αºìαª▓αªò αªòαª░αºüαª¿",
+    "chatBlockDialogCancel":  "αª¼αª╛αªñαª┐αª▓",
+    "chatBlockSucceeded":  "αª¼αºìαª»αª¼αª╣αª╛αª░αªòαª╛αª░αºÇ αª¼αºìαª▓αªò αªòαª░αª╛ αª╣αª»αª╝αºçαª¢αºçαÑñ",
+    "chatBlockFailed":  "αª¼αºìαª»αª¼αª╣αª╛αª░αªòαª╛αª░αºÇαªòαºç αª¼αºìαª▓αªò αªòαª░αªñαºç αª¼αºìαª»αª░αºìαªÑαÑñ αªåαª¼αª╛αª░ αªÜαºçαª╖αºìαªƒαª╛ αªòαª░αºüαª¿αÑñ",
+    "chatBlockedDirectHeader":  "αªåαª¬αª¿αª┐ αªÅαªç αª¼αºìαª»αªòαºìαªñαª┐αªòαºç αª¼αºìαª▓αªò αªòαª░αºçαª¢αºçαª¿",
+    "chatBlockedDirectUnblockButton":  "αªåαª¿αª¼αºìαª▓αªò αªòαª░αºüαª¿",
+    "chatDraftPrefix":  "αªûαª╕αªíαª╝αª╛: {text}",
+    "@chatDraftPrefix":  {
+                             "description":  "Chat drafts/schedule string: chatDraftPrefix",
+                             "placeholders":  {
+                                                  "text":  {
+                                                               "type":  "String"
+                                                           }
+                                              }
+                         },
+    "chatScheduleMenuItem":  "αª¿αª┐αª░αºìαªºαª╛αª░αª┐αªñ αª¼αª╛αª░αºìαªñαª╛",
+    "chatScheduleSheetTitle":  "αª¼αª╛αª░αºìαªñαª╛ αª¿αª┐αª░αºìαªºαª╛αª░αªú αªòαª░αºüαª¿",
+    "chatScheduleSheetSubtitle":  "\"{content}\" αª¬αª░αºç αª¬αª╛αªáαª╛αª¿",
+    "@chatScheduleSheetSubtitle":  {
+                                       "description":  "Chat drafts/schedule string: chatScheduleSheetSubtitle",
+                                       "placeholders":  {
+                                                            "content":  {
+                                                                            "type":  "String"
+                                                                        }
+                                                        }
+                                   },
+    "chatScheduleQuickLaterToday":  "αªåαª£ αª╕αª¿αºìαªºαºìαª»αª╛αª»αª╝",
+    "chatScheduleQuickTomorrow":  "αªåαªùαª╛αª«αºÇαªòαª╛αª▓ αª╕αªòαª╛αª▓",
+    "chatScheduleQuickWeekend":  "αªÅαªç αª╕αª¬αºìαªñαª╛αª╣αª╛αª¿αºìαªñαºç",
+    "chatScheduleQuickCustom":  "αªòαª╛αª╕αºìαªƒαª«...",
+    "chatScheduleQuickCustomHint":  "αªñαª╛αª░αª┐αªû αªÅαª¼αªé αª╕αª«αª»αª╝ αª¿αª┐αª░αºìαª¼αª╛αªÜαª¿ αªòαª░αºüαª¿",
+    "chatScheduleCancel":  "αª¼αª╛αªñαª┐αª▓",
+    "chatScheduleSuccess":  "{time} αªÅαª░ αª£αª¿αºìαª» αª¿αª┐αª░αºìαªºαª╛αª░αª┐αªñ",
+    "@chatScheduleSuccess":  {
+                                 "description":  "Chat drafts/schedule string: chatScheduleSuccess",
+                                 "placeholders":  {
+                                                      "time":  {
+                                                                   "type":  "String"
+                                                               }
+                                                  }
+                             },
+    "chatSchedulePastTimeRejected":  "αª¡αª¼αª┐αª╖αºìαª»αªñαºç αª╕αª«αª»αª╝ αª¿αª┐αª░αºìαª¼αª╛αªÜαª¿ αªòαª░αºüαª¿",
+    "chatScheduleNotSignedIn":  "αª¿αª┐αª░αºìαªºαª╛αª░αªú αªòαª░αªñαºç αª╕αª╛αªçαª¿ αªçαª¿ αªòαª░αºüαª¿",
+    "chatScheduleFailed":  "αª¿αª┐αª░αºìαªºαª╛αª░αªúαºç αª¼αºìαª»αª░αºìαªÑαÑñ αªåαª¼αª╛αª░ αªÜαºçαª╖αºìαªƒαª╛ αªòαª░αºüαª¿αÑñ",
+    "chatScheduleDatePickerHelp":  "αªñαª╛αª░αª┐αªû αª¿αª┐αª░αºìαª¼αª╛αªÜαª¿ αªòαª░αºüαª¿",
+    "chatScheduleTimePickerHelp":  "αª╕αª«αª»αª╝ αª¿αª┐αª░αºìαª¼αª╛αªÜαª¿ αªòαª░αºüαª¿",
+    "chatScheduledListTitle":  "αª¿αª┐αª░αºìαªºαª╛αª░αª┐αªñ αª¼αª╛αª░αºìαªñαª╛",
+    "chatScheduledListEmpty":  "αªÅαªç αªÜαºìαª»αª╛αªƒαºç αªòαºïαª¿αºï αª¿αª┐αª░αºìαªºαª╛αª░αª┐αªñ αª¼αª╛αª░αºìαªñαª╛ αª¿αºçαªçαÑñ",
+    "chatScheduledListCancel":  "αª¼αª╛αªñαª┐αª▓",
+    "chatScheduledListRetry":  "αª¬αºüαª¿αª░αª╛αª»αª╝ αªÜαºçαª╖αºìαªƒαª╛",
+    "chatScheduledListEditTime":  "αª╕αª«αª»αª╝ αª╕αª«αºìαª¬αª╛αªªαª¿αª╛",
+    "chatScheduledListEditText":  "αªƒαºçαªòαºìαª╕αªƒ αª╕αª«αºìαª¬αª╛αªªαª¿αª╛",
+    "chatScheduledListFailed":  "αª¬αª╛αªáαª╛αªñαºç αª¼αºìαª»αª░αºìαªÑ",
+    "chatScheduledListSendingAt":  "{time} αªÅ αª¬αª╛αªáαª╛αª¿αºï αª╣αªÜαºìαª¢αºç",
+    "@chatScheduledListSendingAt":  {
+                                        "description":  "Chat drafts/schedule string: chatScheduledListSendingAt",
+                                        "placeholders":  {
+                                                             "time":  {
+                                                                          "type":  "String"
+                                                                      }
+                                                         }
+                                    },
+    "chatScheduledListSentAt":  "{time} αªÅ αª¬αª╛αªáαª╛αª¿αºï αª╣αª»αª╝αºçαª¢αºç",
+    "@chatScheduledListSentAt":  {
+                                     "description":  "Chat drafts/schedule string: chatScheduledListSentAt",
+                                     "placeholders":  {
+                                                          "time":  {
+                                                                       "type":  "String"
+                                                                   }
+                                                      }
+                                 },
+    "chatScheduleCancelled":  "αª¿αª┐αª░αºìαªºαª╛αª░αª┐αªñ αª¼αª╛αª░αºìαªñαª╛ αª¼αª╛αªñαª┐αª▓ αªòαª░αª╛ αª╣αª»αª╝αºçαª¢αºçαÑñ",
+    "chatScheduleRetried":  "αª¿αª┐αª░αºìαªºαª╛αª░αª┐αªñ αª¼αª╛αª░αºìαªñαª╛ αª¬αºüαª¿αª░αª╛αª»αª╝ αªÜαºçαª╖αºìαªƒαª╛ αªòαª░αª╛ αª╣αª»αª╝αºçαª¢αºçαÑñ",
+    "chatScheduleEditTimeUpdated":  "αª╕αª«αª»αª╝ αªåαª¬αªíαºçαªƒ αª╣αª»αª╝αºçαª¢αºçαÑñ",
+    "chatScheduleEditTextUpdated":  "αªƒαºçαªòαºìαª╕αªƒ αªåαª¬αªíαºçαªƒ αª╣αª»αª╝αºçαª¢αºçαÑñ",
+    "chatAttachEvent":  "αªçαª¡αºçαª¿αºìαªƒ",
+    "chatAttachEventCreateNew":  "αª¿αªñαºüαª¿ αªçαª¡αºçαª¿αºìαªƒ αªñαºêαª░αª┐ αªòαª░αºüαª¿",
+    "chatAttachEventPickExisting":  "αª¼αª┐αªªαºìαª»αª«αª╛αª¿ αªçαª¡αºçαª¿αºìαªƒ αª¿αª┐αª░αºìαª¼αª╛αªÜαª¿ αªòαª░αºüαª¿",
+    "chatEventCardNoTitle":  "αª¬αª░αª┐αª¼αª╛αª░ αªçαª¡αºçαª¿αºìαªƒ",
+    "chatEventCardDeleted":  "αªçαª¡αºçαª¿αºìαªƒ αªåαª░ αªëαª¬αª▓αª¼αºìαªº αª¿αºçαªç",
+    "chatEventRsvpGoing":  "{count} αª»αª╛αªÜαºìαª¢αºçαª¿",
+    "@chatEventRsvpGoing":  {
+                                "description":  "Family event card string: chatEventRsvpGoing",
+                                "placeholders":  {
+                                                     "count":  {
+                                                                   "type":  "int"
+                                                               }
+                                                 }
+                            },
+    "chatEventRsvpMaybe":  "{count} αª╣αª»αª╝αªñαºï",
+    "@chatEventRsvpMaybe":  {
+                                "description":  "Family event card string: chatEventRsvpMaybe",
+                                "placeholders":  {
+                                                     "count":  {
+                                                                   "type":  "int"
+                                                               }
+                                                 }
+                            },
+    "chatEventRsvpNotGoing":  "{count} αª»αºçαªñαºç αª¬αª╛αª░αª¢αºçαª¿ αª¿αª╛",
+    "@chatEventRsvpNotGoing":  {
+                                   "description":  "Family event card string: chatEventRsvpNotGoing",
+                                   "placeholders":  {
+                                                        "count":  {
+                                                                      "type":  "int"
+                                                                  }
+                                                    }
+                               },
+    "chatEventRsvpGoingLabel":  "αª»αª╛αªÜαºìαª¢αºçαª¿",
+    "chatEventRsvpMaybeLabel":  "αª╣αª»αª╝αªñαºï",
+    "chatEventRsvpNotGoingLabel":  "αª»αºçαªñαºç αª¬αª╛αª░αª¢αºçαª¿ αª¿αª╛",
+    "chatEventCardSemantics":  "αª¬αª░αª┐αª¼αª╛αª░ αªçαª¡αºçαª¿αºìαªƒ αªòαª╛αª░αºìαªí: {date} αªñαª╛αª░αª┐αªûαºç {title} αªÅ {location}αÑñ {going} αª»αª╛αªÜαºìαª¢αºçαª¿, {maybe} αª╣αª»αª╝αªñαºï, {notGoing} αª»αºçαªñαºç αª¬αª╛αª░αª¢αºçαª¿ αª¿αª╛αÑñ",
+    "@chatEventCardSemantics":  {
+                                    "description":  "Family event card string: chatEventCardSemantics",
+                                    "placeholders":  {
+                                                         "title":  {
+                                                                       "type":  "String"
+                                                                   },
+                                                         "date":  {
+                                                                      "type":  "String"
+                                                                  },
+                                                         "location":  {
+                                                                          "type":  "String"
+                                                                      },
+                                                         "going":  {
+                                                                       "type":  "int"
+                                                                   },
+                                                         "maybe":  {
+                                                                       "type":  "int"
+                                                                   },
+                                                         "notGoing":  {
+                                                                          "type":  "int"
+                                                                      }
+                                                     }
+                                },
+    "chatEventCardSemanticsDeleted":  "αª¬αª░αª┐αª¼αª╛αª░ αªçαª¡αºçαª¿αºìαªƒ αªòαª╛αª░αºìαªí: αªçαª¡αºçαª¿αºìαªƒ αªåαª░ αªëαª¬αª▓αª¼αºìαªº αª¿αºçαªçαÑñ",
+    "chatInboxFilterAll":  "αª╕αª¼",
+    "chatInboxFilterUnread":  "αªàαª¬αªáαª┐αªñ",
+    "chatInboxFilterGroups":  "αªùαºìαª░αºüαª¬",
+    "chatInboxFilterDirect":  "αªíαª┐αª░αºçαªòαºìαªƒ",
+    "chatInboxEmptyUnread":  "αªòαºïαª¿αºï αªàαª¬αªáαª┐αªñ αªÜαºìαª»αª╛αªƒ αª¿αºçαªç",
+    "chatInboxEmptyGroups":  "αªòαºïαª¿αºï αªùαºìαª░αºüαª¬ αªÜαºìαª»αª╛αªƒ αª¿αºçαªç",
+    "chatInboxEmptyDirect":  "αªòαºïαª¿αºï αªíαª┐αª░αºçαªòαºìαªƒ αª¼αª╛αª░αºìαªñαª╛ αª¿αºçαªç",
+    "chatInboxNoMessages":  "αªÜαºìαª»αª╛αªƒ αª╢αºüαª░αºü αªòαª░αªñαºç αªƒαºìαª»αª╛αª¬ αªòαª░αºüαª¿",
+    "chatInboxArchiveAction":  "αªåαª░αºìαªòαª╛αªçαª¡",
+    "chatInboxArchived":  "αªåαª░αºìαªòαª╛αªçαª¡ αªòαª░αª╛",
+    "chatInboxArchivedCount":  "{count} {count, plural, =1{αªòαªÑαºïαª¬αªòαªÑαª¿} other{αªòαªÑαºïαª¬αªòαªÑαª¿}}",
+    "@chatInboxArchivedCount":  {
+                                    "description":  "Unified inbox string: chatInboxArchivedCount",
+                                    "placeholders":  {
+                                                         "count":  {
+                                                                       "type":  "int"
+                                                                   }
+                                                     }
+                                },
+    "chatInboxRowSemanticGroup":  "αªùαºìαª░αºüαª¬ αªÜαºìαª»αª╛αªƒ, {title}, {count} αªàαª¬αªáαª┐αªñ",
+    "@chatInboxRowSemanticGroup":  {
+                                       "description":  "Unified inbox string: chatInboxRowSemanticGroup",
+                                       "placeholders":  {
+                                                            "title":  {
+                                                                          "type":  "String"
+                                                                      },
+                                                            "count":  {
+                                                                          "type":  "int"
+                                                                      }
+                                                        }
+                                   },
+    "chatInboxRowSemanticDirect":  "αªíαª┐αª░αºçαªòαºìαªƒ αª¼αª╛αª░αºìαªñαª╛, {title}, {count} αªàαª¬αªáαª┐αªñ",
+    "@chatInboxRowSemanticDirect":  {
+                                        "description":  "Unified inbox string: chatInboxRowSemanticDirect",
+                                        "placeholders":  {
+                                                             "title":  {
+                                                                           "type":  "String"
+                                                                       },
+                                                             "count":  {
+                                                                           "type":  "int"
+                                                                       }
+                                                         }
+                                    }
 }

@@ -226,6 +226,8 @@ import '../../features/profile/presentation/profile_edit_screen.dart';
 import '../../features/profile/presentation/account_information_screen.dart';
 // v5.189: Instagram-style account switcher — long-press on Me tab opens this sheet.
 import '../../features/profile/presentation/account_switcher_sheet.dart';
+import '../../features/profile/presentation/settings/settings_hub_screen.dart';
+import '../../features/profile/presentation/settings/settings_category_screen.dart';
 import '../../features/family/presentation/family_management_screen.dart';
 import '../../features/profile/presentation/quiet_hours_screen.dart';
 import '../../features/profile/presentation/sessions_screen.dart';
@@ -247,6 +249,7 @@ import '../../features/profile/presentation/relations_screen.dart';
 import '../../features/social/presentation/screens/sparq_viewer_screen.dart';
 import '../../features/social/presentation/screens/sparq_create_screen.dart';
 import '../../features/social/presentation/screens/sparq_viewers_screen.dart';
+import '../../features/sparq_tray/presentation/screens/family_sparq_run_screen.dart';
 import '../../features/social/presentation/screens/followers_screen.dart';
 import '../../features/social/presentation/screens/follow_requests_screen.dart';
 import '../../features/social/presentation/screens/family_invite_screen.dart';
@@ -1307,6 +1310,26 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => _instantPage(
               key: state.pageKey,
               child: _PrefetchProfile(child: ProfileScreen()),
+            ),
+          ),
+          // ── Settings redesign: hub + category screens ───────────────
+          // Lives INSIDE the ShellRoute so the bottom nav stays visible
+          // with the Me tab highlighted (matched by `location.startsWith('/profile')`
+          // in _BottomNav._currentIndex).
+          GoRoute(
+            path: '/profile/settings',
+            pageBuilder: (context, state) => _instantPage(
+              key: state.pageKey,
+              child: const SettingsHubScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/profile/settings/:category',
+            pageBuilder: (context, state) => _instantPage(
+              key: state.pageKey,
+              child: SettingsCategoryScreen(
+                categoryId: state.pathParameters['category']!,
+              ),
             ),
           ),
         ],
@@ -3188,6 +3211,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: SparqViewerScreen(userId: state.pathParameters['userId']!),
+        ),
+      ),
+      // Family Sparq run — plays every family member's live Sparqs
+      // one after another, then advances to the next family with
+      // unseen Sparqs. Spec section 4 + 8.
+      GoRoute(
+        path: '/sparq/family/:familyId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilySparqRunScreen(
+            familyId: state.pathParameters['familyId']!,
+          ),
         ),
       ),
       GoRoute(

@@ -21,7 +21,14 @@ export class SparqService {
     private readonly config: ConfigService,
   ) {}
 
-  /** Get the Sparq feed — grouped by user, unseen users first */
+  /** Get the Sparq feed — grouped by user, unseen users first.
+   *
+   * Optional `familyId` (spec section 11 — server improvement):
+   * when present, the caller must be a member of that family and the
+   * feed is restricted to that family's member user ids. Default
+   * behavior (followed users + all family members) is preserved
+   * when the param is absent.
+   */
   async getFeed(userId: string, dto: SparqFeedDto) {
     const page = dto.page ?? 1;
     const limit = dto.limit ?? 20;
@@ -41,21 +48,49 @@ export class SparqService {
     });
     const familyIds = familyMemberships.map((m) => m.familyId);
 
-    // Get member IDs from those families
-    const familyMemberRecords = familyIds.length
-      ? await this.prisma.familyMember.findMany({
-          where: { familyId: { in: familyIds } },
-          select: { userId: true },
-          distinct: ['userId'],
-        })
-      : [];
-    const familyMemberIds = familyMemberRecords.map((m) => m.userId);
+    // ── Spec section 11: optional familyId filter ─────────────────
+    // When dto.familyId is present:
+    //   1. Verify the caller is a member of that family (else 403).
+    //   2. Restrict relevantUserIds to that family's member user ids
+    //      only (no followed users, no other-family members).
+    // When absent: the default behavior is unchanged — relevantUserIds
+    // = followedIds + all familyMemberIds across all of the caller's
+    // families.
+    let familyMemberIds: string[];
+    let relevantUserIds: string[];
+
+    if (dto.familyId) {
+      // Authorize: caller must be a member of the requested family.
+      if (!familyIds.includes(dto.familyId)) {
+        throw new ForbiddenException(
+          'You are not a member of this family',
+        );
+      }
+      const familyMemberRecords = await this.prisma.familyMember.findMany({
+        where: { familyId: dto.familyId },
+        select: { userId: true },
+        distinct: ['userId'],
+      });
+      familyMemberIds = familyMemberRecords.map((m) => m.userId);
+      // Restrict to that family's members only.
+      relevantUserIds = [...new Set(familyMemberIds)];
+    } else {
+      // Default behavior: get member IDs from ALL of the caller's
+      // families.
+      const familyMemberRecords = familyIds.length
+        ? await this.prisma.familyMember.findMany({
+            where: { familyId: { in: familyIds } },
+            select: { userId: true },
+            distinct: ['userId'],
+          })
+        : [];
+      familyMemberIds = familyMemberRecords.map((m) => m.userId);
+      // Combine: followed users + family members, deduplicated
+      relevantUserIds = [...new Set([...followedIds, ...familyMemberIds])];
+    }
 
     // Get IDs of mutual followers (users who follow each other) for VIP_CIRCLE
     const mutualFollowerIds = await this.getMutualFollowerIds(userId);
-
-    // Combine: followed users + family members, deduplicated
-    const relevantUserIds = [...new Set([...followedIds, ...familyMemberIds])];
 
     if (relevantUserIds.length === 0) {
       return { items: [], total: 0, page, limit };

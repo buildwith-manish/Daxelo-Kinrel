@@ -11,8 +11,31 @@ import '../../data/providers/sparq_provider.dart';
 import '../../data/repositories/sparq_repository.dart';
 
 class SparqViewerScreen extends ConsumerStatefulWidget {
-  const SparqViewerScreen({super.key, required this.userId});
+  const SparqViewerScreen({
+    super.key,
+    required this.userId,
+    this.onFinished,
+    this.onPrevious,
+  });
   final String userId;
+
+  /// Called when this user's Sparqs finish playing (auto-advance past
+  /// the last Sparq), when the user swipes down to close, OR when the
+  /// user taps the close button. In standalone mode (the existing
+  /// `/sparq/viewer/:userId` route) this is null and the screen calls
+  /// `context.pop()` / `context.go('/home')` exactly as before.
+  ///
+  /// In Family Sparq run mode (step 4 onward), the parent
+  /// `FamilySparqRunScreen` supplies this callback to advance to the
+  /// next member (or the next family with unseen Sparqs).
+  final VoidCallback? onFinished;
+
+  /// Called when the user taps back past the FIRST Sparq of this
+  /// member. In standalone mode this is null and the screen does
+  /// nothing (the existing behavior — `_goToPrevious` is a no-op at
+  /// index 0). In Family Sparq run mode the parent supplies this to
+  /// jump to the previous member in the run queue.
+  final VoidCallback? onPrevious;
 
   @override
   ConsumerState<SparqViewerScreen> createState() => _SparqViewerScreenState();
@@ -54,15 +77,19 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
       if (mounted && sparqs.isNotEmpty) {
         setState(() => _sparqs = sparqs);
         _startProgress();
+      } else if (mounted) {
+        // Empty/missing Sparqs — finish immediately. In standalone
+        // mode this pops; in Family Sparq run mode this advances.
+        _close();
       }
     } catch (e) {
-      if (mounted) context.pop();
+      if (mounted) _close();
     }
   }
 
   void _startProgress() {
     if (_currentIndex >= _sparqs.length) {
-      context.pop();
+      _close();
       return;
     }
     final sparq = _sparqs[_currentIndex];
@@ -79,7 +106,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
       setState(() => _currentIndex++);
       _startProgress();
     } else {
-      context.pop();
+      _close();
     }
   }
 
@@ -87,6 +114,28 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
     if (_currentIndex > 0) {
       setState(() => _currentIndex--);
       _startProgress();
+    } else if (widget.onPrevious != null) {
+      // Family Sparq run mode — jump to previous member in the queue.
+      widget.onPrevious!();
+    }
+    // Standalone mode at index 0: no-op (existing behavior).
+  }
+
+  /// Unified close handler. In standalone mode (onFinished == null)
+  /// this pops the route, falling back to context.go('/home') when
+  /// there's nothing to pop (deep-link entry). In Family Sparq run
+  /// mode the parent supplies onFinished to advance to the next
+  /// member or family.
+  void _close() {
+    if (widget.onFinished != null) {
+      widget.onFinished!();
+      return;
+    }
+    if (!mounted) return;
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/home');
     }
   }
 
@@ -123,7 +172,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
     if (confirmed == true && mounted) {
       await ref.read(sparqProvider.notifier).deleteSparq(_sparqs[_currentIndex].id);
       if (_sparqs.length <= 1) {
-        context.pop();
+        _close();
       } else {
         setState(() {
           _sparqs.removeAt(_currentIndex);
@@ -246,7 +295,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
       body: GestureDetector(
         onVerticalDragEnd: (details) {
           if (details.primaryVelocity != null && details.primaryVelocity! > 300) {
-            context.pop();
+            _close();
           }
         },
         child: Stack(
@@ -397,7 +446,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                   // Close button
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.white70, size: 22),
-                    onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
+                    onPressed: _close,
                   ),
                 ],
               ),
@@ -722,7 +771,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                 const SizedBox(height: 40),
                 IconButton(
                   icon: const Icon(Icons.close, color: KinrelColors.textSilver, size: 24),
-                  onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
+                  onPressed: _close,
                 ),
               ],
             ),

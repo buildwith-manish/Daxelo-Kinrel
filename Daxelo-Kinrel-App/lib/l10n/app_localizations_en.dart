@@ -64,14 +64,14 @@ class SEn extends S {
 
   @override
   String get onboardingBody1 =>
-      'Kinrel maps every relationship in your family — from your grandparents to your grandchildren, in the language you grew up with.';
+      'Kinrel maps every relationship in your family ΓÇö from your grandparents to your grandchildren, in the language you grew up with.';
 
   @override
   String get onboardingTitle2 => 'Names That Feel Like Home';
 
   @override
   String get onboardingBody2 =>
-      'Not just \'uncle\' and \'aunt\' — Kinrel knows the difference between your Chacha, Mama, Fufa, and Tauji.';
+      'Not just \'uncle\' and \'aunt\' ΓÇö Kinrel knows the difference between your Chacha, Mama, Fufa, and Tauji.';
 
   @override
   String get onboardingTitle3 => 'See the Big Picture';
@@ -85,7 +85,7 @@ class SEn extends S {
 
   @override
   String get onboardingBody4 =>
-      'Select any two family members — Kinrel\'s AI calculates the exact relationship name in your language.';
+      'Select any two family members ΓÇö Kinrel\'s AI calculates the exact relationship name in your language.';
 
   @override
   String get addMember => 'Add Member';
@@ -204,10 +204,10 @@ class SEn extends S {
   String get kinrelRecomputeButton => 'Recompute';
 
   @override
-  String get kinrelLoadingTitle => 'Computing Kinrel…';
+  String get kinrelLoadingTitle => 'Computing KinrelΓÇª';
 
   @override
-  String get kinrelCachedBanner => 'Showing cached Kinrel — offline mode';
+  String get kinrelCachedBanner => 'Showing cached Kinrel ΓÇö offline mode';
 
   @override
   String get kinrelErrorTitle => 'Could not load Kinrel';
@@ -217,7 +217,7 @@ class SEn extends S {
 
   @override
   String kinrelShareText(String familyName) {
-    return 'Our family\'s Kinrel — $familyName';
+    return 'Our family\'s Kinrel ΓÇö $familyName';
   }
 
   @override
@@ -244,7 +244,7 @@ class SEn extends S {
   String get kinrelFeatureDisabled => 'Kinrel is not available.';
 
   @override
-  String get familyMapLoading => 'Loading family map…';
+  String get familyMapLoading => 'Loading family mapΓÇª';
 
   @override
   String get familyMapEmptyTitle => 'No family locations yet';
@@ -282,7 +282,7 @@ class SEn extends S {
 
   @override
   String familyMapHouseholdMembers(int count) {
-    return 'Household — $count members';
+    return 'Household ΓÇö $count members';
   }
 
   @override
@@ -345,7 +345,7 @@ class SEn extends S {
 
   @override
   String get familyMapFlyToBengaluruSnackbar =>
-      'Flying to Bengaluru — 3D buildings should appear at this zoom level';
+      'Flying to Bengaluru ΓÇö 3D buildings should appear at this zoom level';
 
   @override
   String get familyMapFamilyMember => 'Family Member';
@@ -379,7 +379,7 @@ class SEn extends S {
 
   @override
   String familyMapTimelineRange(int min, int max) {
-    return '$min–$max';
+    return '$minΓÇô$max';
   }
 
   @override
@@ -415,7 +415,7 @@ class SEn extends S {
   String get familyMapAvatarDoubleTapFocus => 'Double-tap to focus.';
 
   @override
-  String get familyMapTierLive => 'Live • now';
+  String get familyMapTierLive => 'Live ΓÇó now';
 
   @override
   String get familyMapTierUpdatedRecently => 'Updated recently';
@@ -432,28 +432,28 @@ class SEn extends S {
   String get familyMapTierLastKnown => 'Last known';
 
   @override
-  String get familyMapProgressOffline => 'Offline — showing cached data';
+  String get familyMapProgressOffline => 'Offline ΓÇö showing cached data';
 
   @override
-  String get familyMapProgressRestoring => 'Restoring your view…';
+  String get familyMapProgressRestoring => 'Restoring your viewΓÇª';
 
   @override
-  String get familyMapProgressMap => 'Loading map…';
+  String get familyMapProgressMap => 'Loading mapΓÇª';
 
   @override
-  String get familyMapProgressLandmarks => 'Loading landmarks…';
+  String get familyMapProgressLandmarks => 'Loading landmarksΓÇª';
 
   @override
-  String get familyMapProgressFamilyPlaces => 'Loading family places…';
+  String get familyMapProgressFamilyPlaces => 'Loading family placesΓÇª';
 
   @override
-  String get familyMapProgressConnections => 'Loading connections…';
+  String get familyMapProgressConnections => 'Loading connectionsΓÇª';
 
   @override
-  String get familyMapProgressMembers => 'Loading family members…';
+  String get familyMapProgressMembers => 'Loading family membersΓÇª';
 
   @override
-  String get familyMapProgressAlmost => 'Almost there…';
+  String get familyMapProgressAlmost => 'Almost thereΓÇª';
 
   @override
   String get familyMapControlLocate => 'Locate me';
@@ -627,29 +627,29 @@ class SEn extends S {
   }
 
   @override
-  String get chatSuggestionNamaste => 'Namaste everyone 🙏';
+  String get chatSuggestionNamaste => 'Namaste everyone ≡ƒÖÅ';
 
   @override
   String get chatSuggestionHowIsEveryone => 'How is everyone doing?';
 
   @override
   String chatSuggestionGoodMorning(String familyName) {
-    return 'Good morning, $familyName family! ☀️';
+    return 'Good morning, $familyName family! ΓÿÇ∩╕Å';
   }
 
   @override
   String chatBirthdayToday(String name) {
-    return '$name\'s birthday is today! 🎂';
+    return '$name\'s birthday is today! ≡ƒÄé';
   }
 
   @override
   String chatBirthdayTomorrow(String name) {
-    return '$name\'s birthday tomorrow 🎂';
+    return '$name\'s birthday tomorrow ≡ƒÄé';
   }
 
   @override
   String chatBirthdayInDays(String name, int count) {
-    return '$name\'s birthday in $count days 🎂';
+    return '$name\'s birthday in $count days ≡ƒÄé';
   }
 
   @override
@@ -674,7 +674,7 @@ class SEn extends S {
 
   @override
   String get chatReplyToOriginalNotFound =>
-      'Message is older than loaded history — scroll up to find it.';
+      'Message is older than loaded history ΓÇö scroll up to find it.';
 
   @override
   String chatSystemMessageUserJoined(String name) {
@@ -756,4 +756,299 @@ class SEn extends S {
 
   @override
   String get graphTapToShowHint => 'Tap to show';
+
+  @override
+  String get chatReportMenuItem => 'Report';
+
+  @override
+  String get chatReportSheetTitle => 'Report this message';
+
+  @override
+  String chatReportSheetSubtitle(String senderName) {
+    return 'Report $senderName\'s message to moderators';
+  }
+
+  @override
+  String get chatReportNoPreview => '(no preview available)';
+
+  @override
+  String get chatReportReasonLabel => 'Why are you reporting?';
+
+  @override
+  String get chatReportReasonSpam => 'Spam';
+
+  @override
+  String get chatReportReasonHarassment => 'Harassment';
+
+  @override
+  String get chatReportReasonInappropriateContent => 'Inappropriate content';
+
+  @override
+  String get chatReportReasonOther => 'Other';
+
+  @override
+  String get chatReportDescriptionLabel => 'Add details (optional)';
+
+  @override
+  String get chatReportDescriptionHint => 'Tell us more about what\'s wrong';
+
+  @override
+  String get chatReportCancel => 'Cancel';
+
+  @override
+  String get chatReportSubmit => 'Submit report';
+
+  @override
+  String get chatReportSubmitted => 'Report submitted. Thank you.';
+
+  @override
+  String get chatReportAlreadyReported => 'You already reported this message.';
+
+  @override
+  String get chatReportFailed => 'Failed to submit report. Try again.';
+
+  @override
+  String get chatBlockedMessagePlaceholder => 'Message from a blocked user';
+
+  @override
+  String get chatBlockedMessageShow => 'Show';
+
+  @override
+  String get chatBlockedMessageHide => 'Hide';
+
+  @override
+  String get chatBlockMenuItem => 'Block';
+
+  @override
+  String get chatBlockFromMessageMenuItem => 'Block this user';
+
+  @override
+  String chatBlockDialogTitle(String name) {
+    return 'Block $name?';
+  }
+
+  @override
+  String get chatBlockDialogBody =>
+      'They won\'t be able to send you direct messages, and you won\'t be able to send them any. In group chats, their messages will be hidden behind a placeholder. They won\'t be told they were blocked.';
+
+  @override
+  String get chatBlockDialogConfirm => 'Block';
+
+  @override
+  String get chatBlockDialogCancel => 'Cancel';
+
+  @override
+  String get chatBlockSucceeded => 'User blocked.';
+
+  @override
+  String get chatBlockFailed => 'Failed to block user. Try again.';
+
+  @override
+  String get chatBlockedDirectHeader => 'You blocked this person';
+
+  @override
+  String get chatBlockedDirectUnblockButton => 'Unblock';
+
+  @override
+  String chatDraftPrefix(String text) {
+    return 'Draft: $text';
+  }
+
+  @override
+  String get chatScheduleMenuItem => 'Scheduled messages';
+
+  @override
+  String get chatScheduleSheetTitle => 'Schedule message';
+
+  @override
+  String chatScheduleSheetSubtitle(String content) {
+    return 'Send \"$content\" at a later time';
+  }
+
+  @override
+  String get chatScheduleQuickLaterToday => 'Later today';
+
+  @override
+  String get chatScheduleQuickTomorrow => 'Tomorrow morning';
+
+  @override
+  String get chatScheduleQuickWeekend => 'This weekend';
+
+  @override
+  String get chatScheduleQuickCustom => 'Custom...';
+
+  @override
+  String get chatScheduleQuickCustomHint => 'Pick a date and time';
+
+  @override
+  String get chatScheduleCancel => 'Cancel';
+
+  @override
+  String chatScheduleSuccess(String time) {
+    return 'Scheduled for $time';
+  }
+
+  @override
+  String get chatSchedulePastTimeRejected => 'Pick a time in the future';
+
+  @override
+  String get chatScheduleNotSignedIn => 'Sign in to schedule messages';
+
+  @override
+  String get chatScheduleFailed => 'Failed to schedule. Try again.';
+
+  @override
+  String get chatScheduleDatePickerHelp => 'Pick a date';
+
+  @override
+  String get chatScheduleTimePickerHelp => 'Pick a time';
+
+  @override
+  String get chatScheduledListTitle => 'Scheduled messages';
+
+  @override
+  String get chatScheduledListEmpty => 'No scheduled messages in this chat.';
+
+  @override
+  String get chatScheduledListCancel => 'Cancel';
+
+  @override
+  String get chatScheduledListRetry => 'Retry';
+
+  @override
+  String get chatScheduledListEditTime => 'Edit time';
+
+  @override
+  String get chatScheduledListEditText => 'Edit text';
+
+  @override
+  String get chatScheduledListFailed => 'Failed to send';
+
+  @override
+  String chatScheduledListSendingAt(String time) {
+    return 'Sending at $time';
+  }
+
+  @override
+  String chatScheduledListSentAt(String time) {
+    return 'Sent at $time';
+  }
+
+  @override
+  String get chatScheduleCancelled => 'Scheduled message cancelled.';
+
+  @override
+  String get chatScheduleRetried => 'Scheduled message retried.';
+
+  @override
+  String get chatScheduleEditTimeUpdated => 'Time updated.';
+
+  @override
+  String get chatScheduleEditTextUpdated => 'Text updated.';
+
+  @override
+  String get chatAttachEvent => 'Event';
+
+  @override
+  String get chatAttachEventCreateNew => 'Create a new event';
+
+  @override
+  String get chatAttachEventPickExisting => 'Pick an existing event';
+
+  @override
+  String get chatEventCardNoTitle => 'Family event';
+
+  @override
+  String get chatEventCardDeleted => 'Event no longer available';
+
+  @override
+  String chatEventRsvpGoing(int count) {
+    return '$count going';
+  }
+
+  @override
+  String chatEventRsvpMaybe(int count) {
+    return '$count maybe';
+  }
+
+  @override
+  String chatEventRsvpNotGoing(int count) {
+    return '$count can\'t go';
+  }
+
+  @override
+  String get chatEventRsvpGoingLabel => 'Going';
+
+  @override
+  String get chatEventRsvpMaybeLabel => 'Maybe';
+
+  @override
+  String get chatEventRsvpNotGoingLabel => 'Can\'t go';
+
+  @override
+  String chatEventCardSemantics(
+    String title,
+    String date,
+    String location,
+    int going,
+    int maybe,
+    int notGoing,
+  ) {
+    return 'Family event card: $title on $date at $location. $going going, $maybe maybe, $notGoing can\'t go.';
+  }
+
+  @override
+  String get chatEventCardSemanticsDeleted =>
+      'Family event card: event no longer available.';
+
+  @override
+  String get chatInboxFilterAll => 'All';
+
+  @override
+  String get chatInboxFilterUnread => 'Unread';
+
+  @override
+  String get chatInboxFilterGroups => 'Groups';
+
+  @override
+  String get chatInboxFilterDirect => 'Direct';
+
+  @override
+  String get chatInboxEmptyUnread => 'No unread chats';
+
+  @override
+  String get chatInboxEmptyGroups => 'No group chats';
+
+  @override
+  String get chatInboxEmptyDirect => 'No direct messages';
+
+  @override
+  String get chatInboxNoMessages => 'Tap to start chatting';
+
+  @override
+  String get chatInboxArchiveAction => 'Archive';
+
+  @override
+  String get chatInboxArchived => 'Archived';
+
+  @override
+  String chatInboxArchivedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'conversations',
+      one: 'conversation',
+    );
+    return '$count $_temp0';
+  }
+
+  @override
+  String chatInboxRowSemanticGroup(String title, int count) {
+    return 'Group chat, $title, $count unread';
+  }
+
+  @override
+  String chatInboxRowSemanticDirect(String title, int count) {
+    return 'Direct message, $title, $count unread';
+  }
 }

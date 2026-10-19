@@ -143,6 +143,130 @@ describe('SparqService', () => {
         expect(unseenIndex).toBeLessThan(seenIndex);
       }
     });
+
+    // ── Spec section 11: optional familyId filter ──────────────────
+    it('should restrict the feed to a single family when familyId is present and the caller is a member', async () => {
+      // Caller (user-1) is a member of fam-1 only.
+      mockPrisma.follow.findMany.mockResolvedValue([]); // no follows
+      mockPrisma.familyMember.findMany
+        .mockResolvedValueOnce([{ familyId: 'fam-1' }]) // family memberships
+        .mockResolvedValueOnce([
+          { userId: 'user-2' },
+          { userId: 'user-3' },
+        ]); // fam-1's members
+
+      const now = new Date();
+      const futureDate = new Date(now.getTime() + 86400000);
+
+      // Only user-2's sparq should be returned (user-3 has a sparq
+      // too, but we only mock one here to keep the assertion simple).
+      mockPrisma.sparq.findMany.mockResolvedValue([
+        {
+          id: 's1',
+          userId: 'user-2',
+          expiresAt: futureDate,
+          audience: 'PUBLIC',
+          createdAt: now,
+          isTimeCapsule: false,
+          isRevealed: true,
+          views: [],
+          user: {
+            id: 'user-2',
+            name: 'User 2',
+            username: 'u2',
+            avatarUrl: null,
+            photoThumb: null,
+          },
+        },
+      ]);
+
+      const result = await service.getFeed(userId, {
+        page: 1,
+        limit: 20,
+        familyId: 'fam-1',
+      });
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].user.id).toBe('user-2');
+
+      // Verify the prisma query was restricted to fam-1's members —
+      // familyMember.findMany should have been called twice: once
+      // for the caller's memberships, once for fam-1's members.
+      expect(mockPrisma.familyMember.findMany).toHaveBeenCalledTimes(2);
+      // The second call (fam-1's members) should filter by familyId.
+      const secondCallArgs = mockPrisma.familyMember.findMany.mock.calls[1][0];
+      expect(secondCallArgs.where.familyId).toBe('fam-1');
+    });
+
+    it('should throw ForbiddenException when familyId is present and the caller is NOT a member', async () => {
+      // Caller (user-1) is a member of fam-2 only — not fam-1.
+      mockPrisma.follow.findMany.mockResolvedValue([]);
+      mockPrisma.familyMember.findMany.mockResolvedValueOnce([
+        { familyId: 'fam-2' },
+      ]); // family memberships
+
+      await expect(
+        service.getFeed(userId, {
+          page: 1,
+          limit: 20,
+          familyId: 'fam-1',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+
+      // Verify no sparq query was issued — the authorization check
+      // should short-circuit before the sparq.findMany call.
+      expect(mockPrisma.sparq.findMany).not.toHaveBeenCalled();
+    });
+
+    it('should preserve the default behavior (followed + all families) when familyId is absent', async () => {
+      // Caller follows user-2 and is a member of fam-1 (which has
+      // user-3 as a member). Default behavior = relevantUserIds =
+      // [user-2, user-3].
+      mockPrisma.follow.findMany
+        .mockResolvedValueOnce([{ followingId: 'user-2' }])
+        .mockResolvedValueOnce([]) // mutual followers
+        .mockResolvedValueOnce([]) // mutual forward
+        .mockResolvedValueOnce([]); // mutual reverse
+
+      mockPrisma.familyMember.findMany
+        .mockResolvedValueOnce([{ familyId: 'fam-1' }]) // family memberships
+        .mockResolvedValueOnce([{ userId: 'user-3' }]); // fam-1's members
+
+      const now = new Date();
+      const futureDate = new Date(now.getTime() + 86400000);
+      mockPrisma.sparq.findMany.mockResolvedValue([
+        {
+          id: 's1',
+          userId: 'user-2',
+          expiresAt: futureDate,
+          audience: 'PUBLIC',
+          createdAt: now,
+          isTimeCapsule: false,
+          isRevealed: true,
+          views: [],
+          user: { id: 'user-2', name: 'User 2', username: 'u2', avatarUrl: null, photoThumb: null },
+        },
+        {
+          id: 's2',
+          userId: 'user-3',
+          expiresAt: futureDate,
+          audience: 'PUBLIC',
+          createdAt: now,
+          isTimeCapsule: false,
+          isRevealed: true,
+          views: [],
+          user: { id: 'user-3', name: 'User 3', username: 'u3', avatarUrl: null, photoThumb: null },
+        },
+      ]);
+
+      const result = await service.getFeed(userId, { page: 1, limit: 20 });
+
+      // Default behavior preserved — both followed (user-2) and
+      // family-member (user-3) sparqs appear.
+      expect(result.items).toHaveLength(2);
+      const returnedUserIds = result.items.map((g: any) => g.user.id).sort();
+      expect(returnedUserIds).toEqual(['user-2', 'user-3']);
+    });
   });
 
   // ─── createSparq ───────────────────────────────────────────────────

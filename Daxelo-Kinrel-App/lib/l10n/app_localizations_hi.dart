@@ -12,177 +12,189 @@ class SHi extends S {
   String get appName => 'Kinrel';
 
   @override
-  String get appTagline => 'AI के साथ अपने परिवार का मानचित्र बनाएं';
+  String get appTagline =>
+      'AI αñòαÑç αñ╕αñ╛αñÑ αñàαñ¬αñ¿αÑç αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñòαñ╛ αñ«αñ╛αñ¿αñÜαñ┐αññαÑìαñ░ αñ¼αñ¿αñ╛αñÅαñé';
 
   @override
-  String get homeTitle => 'होम';
+  String get homeTitle => 'αñ╣αÑïαñ«';
 
   @override
-  String get kinshipTitle => 'रिश्ते';
+  String get kinshipTitle => 'αñ░αñ┐αñ╢αÑìαññαÑç';
 
   @override
-  String get graphTitle => 'ग्राफ';
+  String get graphTitle => 'αñùαÑìαñ░αñ╛αñ½';
 
   @override
-  String get alertsTitle => 'अलर्ट';
+  String get alertsTitle => 'αñàαñ▓αñ░αÑìαñƒ';
 
   @override
-  String get profileTitle => 'मैं';
+  String get profileTitle => 'αñ«αÑêαñé';
 
   @override
-  String get notificationsTitle => 'सूचनाएं';
+  String get notificationsTitle => 'αñ╕αÑéαñÜαñ¿αñ╛αñÅαñé';
 
   @override
-  String get eventsTitle => 'कार्यक्रम और उत्सव';
+  String get eventsTitle =>
+      'αñòαñ╛αñ░αÑìαñ»αñòαÑìαñ░αñ« αñöαñ░ αñëαññαÑìαñ╕αñ╡';
 
   @override
-  String get memoriesTitle => 'यादें और समयरेखा';
+  String get memoriesTitle => 'αñ»αñ╛αñªαÑçαñé αñöαñ░ αñ╕αñ«αñ»αñ░αÑçαñûαñ╛';
 
   @override
-  String get chatTitle => 'पारिवारिक चैट';
+  String get chatTitle => 'αñ¬αñ╛αñ░αñ┐αñ╡αñ╛αñ░αñ┐αñò αñÜαÑêαñƒ';
 
   @override
-  String get documentsTitle => 'दस्तावेज़ वॉल्ट';
+  String get documentsTitle => 'αñªαñ╕αÑìαññαñ╛αñ╡αÑçαñ£αñ╝ αñ╡αÑëαñ▓αÑìαñƒ';
 
   @override
-  String get achievementsTitle => 'उपलब्धियां';
+  String get achievementsTitle => 'αñëαñ¬αñ▓αñ¼αÑìαñºαñ┐αñ»αñ╛αñé';
 
   @override
-  String get shareTitle => 'शेयर और आमंत्रण';
+  String get shareTitle => 'αñ╢αÑçαñ»αñ░ αñöαñ░ αñåαñ«αñéαññαÑìαñ░αñú';
 
   @override
-  String get settingsTitle => 'सेटिंग्स';
+  String get settingsTitle => 'αñ╕αÑçαñƒαñ┐αñéαñùαÑìαñ╕';
 
   @override
-  String get signInTitle => 'साइन इन करें';
+  String get signInTitle => 'αñ╕αñ╛αñçαñ¿ αñçαñ¿ αñòαñ░αÑçαñé';
 
   @override
-  String get signUpTitle => 'साइन अप करें';
+  String get signUpTitle => 'αñ╕αñ╛αñçαñ¿ αñàαñ¬ αñòαñ░αÑçαñé';
 
   @override
-  String get onboardingTitle1 => 'आपका परिवार, आपकी कहानी';
+  String get onboardingTitle1 =>
+      'αñåαñ¬αñòαñ╛ αñ¬αñ░αñ┐αñ╡αñ╛αñ░, αñåαñ¬αñòαÑÇ αñòαñ╣αñ╛αñ¿αÑÇ';
 
   @override
   String get onboardingBody1 =>
-      'Kinrel आपके परिवार के हर रिश्ते को मैप करता है — आपके दादा-दादी से लेकर आपके पोते-पोतियों तक, उस भाषा में जिसमें आपने पले-बढ़े हैं।';
+      'Kinrel αñåαñ¬αñòαÑç αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñòαÑç αñ╣αñ░ αñ░αñ┐αñ╢αÑìαññαÑç αñòαÑï αñ«αÑêαñ¬ αñòαñ░αññαñ╛ αñ╣αÑê ΓÇö αñåαñ¬αñòαÑç αñªαñ╛αñªαñ╛-αñªαñ╛αñªαÑÇ αñ╕αÑç αñ▓αÑçαñòαñ░ αñåαñ¬αñòαÑç αñ¬αÑïαññαÑç-αñ¬αÑïαññαñ┐αñ»αÑïαñé αññαñò, αñëαñ╕ αñ¡αñ╛αñ╖αñ╛ αñ«αÑçαñé αñ£αñ┐αñ╕αñ«αÑçαñé αñåαñ¬αñ¿αÑç αñ¬αñ▓αÑç-αñ¼αñóαñ╝αÑç αñ╣αÑêαñéαÑñ';
 
   @override
-  String get onboardingTitle2 => 'वे नाम जो घर जैसा लगें';
+  String get onboardingTitle2 =>
+      'αñ╡αÑç αñ¿αñ╛αñ« αñ£αÑï αñÿαñ░ αñ£αÑêαñ╕αñ╛ αñ▓αñùαÑçαñé';
 
   @override
   String get onboardingBody2 =>
-      'सिर्फ \'अंकल\' और \'आंटी\' नहीं — Kinrel आपके चाचा, मामा, फूफा और ताऊजी के बीच का अंतर जानता है।';
+      'αñ╕αñ┐αñ░αÑìαñ½ \'αñàαñéαñòαñ▓\' αñöαñ░ \'αñåαñéαñƒαÑÇ\' αñ¿αñ╣αÑÇαñé ΓÇö Kinrel αñåαñ¬αñòαÑç αñÜαñ╛αñÜαñ╛, αñ«αñ╛αñ«αñ╛, αñ½αÑéαñ½αñ╛ αñöαñ░ αññαñ╛αñèαñ£αÑÇ αñòαÑç αñ¼αÑÇαñÜ αñòαñ╛ αñàαñéαññαñ░ αñ£αñ╛αñ¿αññαñ╛ αñ╣αÑêαÑñ';
 
   @override
-  String get onboardingTitle3 => 'पूरी तस्वीर देखें';
+  String get onboardingTitle3 =>
+      'αñ¬αÑéαñ░αÑÇ αññαñ╕αÑìαñ╡αÑÇαñ░ αñªαÑçαñûαÑçαñé';
 
   @override
   String get onboardingBody3 =>
-      'आपका पूरा परिवार एक सुंदर, इंटरैक्टिव ग्राफ के रूप में। ज़ूम इन करें, कनेक्शन एक्सप्लोर करें, वो रिश्ते खोजें जिनके बारे में आपको पता ही नहीं था।';
+      'αñåαñ¬αñòαñ╛ αñ¬αÑéαñ░αñ╛ αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñÅαñò αñ╕αÑüαñéαñªαñ░, αñçαñéαñƒαñ░αÑêαñòαÑìαñƒαñ┐αñ╡ αñùαÑìαñ░αñ╛αñ½ αñòαÑç αñ░αÑéαñ¬ αñ«αÑçαñéαÑñ αñ£αñ╝αÑéαñ« αñçαñ¿ αñòαñ░αÑçαñé, αñòαñ¿αÑçαñòαÑìαñ╢αñ¿ αñÅαñòαÑìαñ╕αñ¬αÑìαñ▓αÑïαñ░ αñòαñ░αÑçαñé, αñ╡αÑï αñ░αñ┐αñ╢αÑìαññαÑç αñûαÑïαñ£αÑçαñé αñ£αñ┐αñ¿αñòαÑç αñ¼αñ╛αñ░αÑç αñ«αÑçαñé αñåαñ¬αñòαÑï αñ¬αññαñ╛ αñ╣αÑÇ αñ¿αñ╣αÑÇαñé αñÑαñ╛αÑñ';
 
   @override
-  String get onboardingTitle4 => 'कोई भी रिश्ता तुरंत खोजें';
+  String get onboardingTitle4 =>
+      'αñòαÑïαñê αñ¡αÑÇ αñ░αñ┐αñ╢αÑìαññαñ╛ αññαÑüαñ░αñéαññ αñûαÑïαñ£αÑçαñé';
 
   @override
   String get onboardingBody4 =>
-      'परिवार के किन्हीं दो सदस्यों को चुनें — Kinrel का AI आपकी भाषा में सटीक रिश्ते का नाम बताएगा।';
+      'αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñòαÑç αñòαñ┐αñ¿αÑìαñ╣αÑÇαñé αñªαÑï αñ╕αñªαñ╕αÑìαñ»αÑïαñé αñòαÑï αñÜαÑüαñ¿αÑçαñé ΓÇö Kinrel αñòαñ╛ AI αñåαñ¬αñòαÑÇ αñ¡αñ╛αñ╖αñ╛ αñ«αÑçαñé αñ╕αñƒαÑÇαñò αñ░αñ┐αñ╢αÑìαññαÑç αñòαñ╛ αñ¿αñ╛αñ« αñ¼αññαñ╛αñÅαñùαñ╛αÑñ';
 
   @override
-  String get addMember => 'सदस्य जोड़ें';
+  String get addMember => 'αñ╕αñªαñ╕αÑìαñ» αñ£αÑïαñíαñ╝αÑçαñé';
 
   @override
-  String get shareFamily => 'परिवार शेयर करें';
+  String get shareFamily => 'αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñ╢αÑçαñ»αñ░ αñòαñ░αÑçαñé';
 
   @override
-  String get findPath => 'रास्ता खोजें';
+  String get findPath => 'αñ░αñ╛αñ╕αÑìαññαñ╛ αñûαÑïαñ£αÑçαñé';
 
   @override
-  String get viewFullGraph => 'पूरा ग्राफ देखें';
+  String get viewFullGraph => 'αñ¬αÑéαñ░αñ╛ αñùαÑìαñ░αñ╛αñ½ αñªαÑçαñûαÑçαñé';
 
   @override
-  String get recentActivity => 'हाल की गतिविधि';
+  String get recentActivity => 'αñ╣αñ╛αñ▓ αñòαÑÇ αñùαññαñ┐αñ╡αñ┐αñºαñ┐';
 
   @override
-  String get familyInsights => 'परिवार एक नज़र में';
+  String get familyInsights =>
+      'αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñÅαñò αñ¿αñ£αñ╝αñ░ αñ«αÑçαñé';
 
   @override
-  String get noNotifications => 'सब पक्का! कोई नई सूचना नहीं।';
+  String get noNotifications =>
+      'αñ╕αñ¼ αñ¬αñòαÑìαñòαñ╛! αñòαÑïαñê αñ¿αñê αñ╕αÑéαñÜαñ¿αñ╛ αñ¿αñ╣αÑÇαñéαÑñ';
 
   @override
   String get noEvents =>
-      'अभी कोई कार्यक्रम नहीं। आपके परिवार के जन्मदिन और सालगिरह यहां स्वचालित रूप से दिखेंगे।';
+      'αñàαñ¡αÑÇ αñòαÑïαñê αñòαñ╛αñ░αÑìαñ»αñòαÑìαñ░αñ« αñ¿αñ╣αÑÇαñéαÑñ αñåαñ¬αñòαÑç αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñòαÑç αñ£αñ¿αÑìαñ«αñªαñ┐αñ¿ αñöαñ░ αñ╕αñ╛αñ▓αñùαñ┐αñ░αñ╣ αñ»αñ╣αñ╛αñé αñ╕αÑìαñ╡αñÜαñ╛αñ▓αñ┐αññ αñ░αÑéαñ¬ αñ╕αÑç αñªαñ┐αñûαÑçαñéαñùαÑçαÑñ';
 
   @override
   String get noMemories =>
-      'अभी कोई याद नहीं। अपनी पहली पारिवारिक याद जोड़कर शुरू करें।';
+      'αñàαñ¡αÑÇ αñòαÑïαñê αñ»αñ╛αñª αñ¿αñ╣αÑÇαñéαÑñ αñàαñ¬αñ¿αÑÇ αñ¬αñ╣αñ▓αÑÇ αñ¬αñ╛αñ░αñ┐αñ╡αñ╛αñ░αñ┐αñò αñ»αñ╛αñª αñ£αÑïαñíαñ╝αñòαñ░ αñ╢αÑüαñ░αÑé αñòαñ░αÑçαñéαÑñ';
 
   @override
   String get noDocuments =>
-      'अभी कोई दस्तावेज़ नहीं। अपने परिवार के महत्वपूर्ण दस्तावेज़ सुरक्षित रूप से संग्रहित करें।';
+      'αñàαñ¡αÑÇ αñòαÑïαñê αñªαñ╕αÑìαññαñ╛αñ╡αÑçαñ£αñ╝ αñ¿αñ╣αÑÇαñéαÑñ αñàαñ¬αñ¿αÑç αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñòαÑç αñ«αñ╣αññαÑìαñ╡αñ¬αÑéαñ░αÑìαñú αñªαñ╕αÑìαññαñ╛αñ╡αÑçαñ£αñ╝ αñ╕αÑüαñ░αñòαÑìαñ╖αñ┐αññ αñ░αÑéαñ¬ αñ╕αÑç αñ╕αñéαñùαÑìαñ░αñ╣αñ┐αññ αñòαñ░αÑçαñéαÑñ';
 
   @override
-  String get createFamily => 'परिवार बनाएं';
+  String get createFamily => 'αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñ¼αñ¿αñ╛αñÅαñé';
 
   @override
-  String get joinFamily => 'परिवार में शामिल हों';
+  String get joinFamily =>
+      'αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñ«αÑçαñé αñ╢αñ╛αñ«αñ┐αñ▓ αñ╣αÑïαñé';
 
   @override
-  String get searchHint => 'रिश्ते खोजें';
+  String get searchHint => 'αñ░αñ┐αñ╢αÑìαññαÑç αñûαÑïαñ£αÑçαñé';
 
   @override
   String birthdayTomorrow(String name) {
-    return '$name का जन्मदिन कल है!';
+    return '$name αñòαñ╛ αñ£αñ¿αÑìαñ«αñªαñ┐αñ¿ αñòαñ▓ αñ╣αÑê!';
   }
 
   @override
   String anniversarySoon(String name, String name2, int days) {
-    return '$name और $name2 की सालगिरह $days दिन में है!';
+    return '$name αñöαñ░ $name2 αñòαÑÇ αñ╕αñ╛αñ▓αñùαñ┐αñ░αñ╣ $days αñªαñ┐αñ¿ αñ«αÑçαñé αñ╣αÑê!';
   }
 
   @override
-  String get sendWishes => 'शुभकामनाएं भेजें?';
+  String get sendWishes => 'αñ╢αÑüαñ¡αñòαñ╛αñ«αñ¿αñ╛αñÅαñé αñ¡αÑçαñ£αÑçαñé?';
 
   @override
   String streakDays(int count) {
-    return '$count दिन का सिलसिला';
+    return '$count αñªαñ┐αñ¿ αñòαñ╛ αñ╕αñ┐αñ▓αñ╕αñ┐αñ▓αñ╛';
   }
 
   @override
   String profileCompletion(int percent) {
-    return '$percent% पूर्ण';
+    return '$percent% αñ¬αÑéαñ░αÑìαñú';
   }
 
   @override
   String treeCompleteness(int percent) {
-    return 'आपका पेड़ $percent% पूरा है';
+    return 'αñåαñ¬αñòαñ╛ αñ¬αÑçαñíαñ╝ $percent% αñ¬αÑéαñ░αñ╛ αñ╣αÑê';
   }
 
   @override
-  String get encryptNotice => 'AES-256 से एन्क्रिप्टेड';
+  String get encryptNotice =>
+      'AES-256 αñ╕αÑç αñÅαñ¿αÑìαñòαÑìαñ░αñ┐αñ¬αÑìαñƒαÑçαñí';
 
   @override
-  String get generatedByKinrel => 'Kinrel द्वारा बनाया गया';
+  String get generatedByKinrel =>
+      'Kinrel αñªαÑìαñ╡αñ╛αñ░αñ╛ αñ¼αñ¿αñ╛αñ»αñ╛ αñùαñ»αñ╛';
 
   @override
-  String get madeByDaxelo => 'Daxelo द्वारा प्रेम से बनाया गया';
+  String get madeByDaxelo =>
+      'Daxelo αñªαÑìαñ╡αñ╛αñ░αñ╛ αñ¬αÑìαñ░αÑçαñ« αñ╕αÑç αñ¼αñ¿αñ╛αñ»αñ╛ αñùαñ»αñ╛';
 
   @override
-  String get welcomeBack => 'वापस स्वागत है';
+  String get welcomeBack => 'αñ╡αñ╛αñ¬αñ╕ αñ╕αÑìαñ╡αñ╛αñùαññ αñ╣αÑê';
 
   @override
-  String get goodMorning => 'सुप्रभात';
+  String get goodMorning => 'αñ╕αÑüαñ¬αÑìαñ░αñ¡αñ╛αññ';
 
   @override
-  String get goodAfternoon => 'शुभ दोपहर';
+  String get goodAfternoon => 'αñ╢αÑüαñ¡ αñªαÑïαñ¬αñ╣αñ░';
 
   @override
-  String get goodEvening => 'शुभ संध्या';
+  String get goodEvening => 'αñ╢αÑüαñ¡ αñ╕αñéαñºαÑìαñ»αñ╛';
 
   @override
-  String get goodNight => 'शुभ रात्रि';
+  String get goodNight => 'αñ╢αÑüαñ¡ αñ░αñ╛αññαÑìαñ░αñ┐';
 
   @override
-  String get languageName => 'हिन्दी';
+  String get languageName => 'αñ╣αñ┐αñ¿αÑìαñªαÑÇ';
 
   @override
   String get kinrelNavLabel => 'Kinrel';
@@ -204,10 +216,10 @@ class SHi extends S {
   String get kinrelRecomputeButton => 'Recompute';
 
   @override
-  String get kinrelLoadingTitle => 'Computing Kinrel…';
+  String get kinrelLoadingTitle => 'Computing KinrelΓÇª';
 
   @override
-  String get kinrelCachedBanner => 'Showing cached Kinrel — offline mode';
+  String get kinrelCachedBanner => 'Showing cached Kinrel ΓÇö offline mode';
 
   @override
   String get kinrelErrorTitle => 'Could not load Kinrel';
@@ -217,7 +229,7 @@ class SHi extends S {
 
   @override
   String kinrelShareText(String familyName) {
-    return 'Our family\'s Kinrel — $familyName';
+    return 'Our family\'s Kinrel ΓÇö $familyName';
   }
 
   @override
@@ -244,7 +256,7 @@ class SHi extends S {
   String get kinrelFeatureDisabled => 'Kinrel is not available.';
 
   @override
-  String get familyMapLoading => 'Loading family map…';
+  String get familyMapLoading => 'Loading family mapΓÇª';
 
   @override
   String get familyMapEmptyTitle => 'No family locations yet';
@@ -282,7 +294,7 @@ class SHi extends S {
 
   @override
   String familyMapHouseholdMembers(int count) {
-    return 'Household — $count members';
+    return 'Household ΓÇö $count members';
   }
 
   @override
@@ -345,7 +357,7 @@ class SHi extends S {
 
   @override
   String get familyMapFlyToBengaluruSnackbar =>
-      'Flying to Bengaluru — 3D buildings should appear at this zoom level';
+      'Flying to Bengaluru ΓÇö 3D buildings should appear at this zoom level';
 
   @override
   String get familyMapFamilyMember => 'Family Member';
@@ -379,7 +391,7 @@ class SHi extends S {
 
   @override
   String familyMapTimelineRange(int min, int max) {
-    return '$min–$max';
+    return '$minΓÇô$max';
   }
 
   @override
@@ -415,7 +427,7 @@ class SHi extends S {
   String get familyMapAvatarDoubleTapFocus => 'Double-tap to focus.';
 
   @override
-  String get familyMapTierLive => 'Live • now';
+  String get familyMapTierLive => 'Live ΓÇó now';
 
   @override
   String get familyMapTierUpdatedRecently => 'Updated recently';
@@ -432,46 +444,47 @@ class SHi extends S {
   String get familyMapTierLastKnown => 'Last known';
 
   @override
-  String get familyMapProgressOffline => 'Offline — showing cached data';
+  String get familyMapProgressOffline => 'Offline ΓÇö showing cached data';
 
   @override
-  String get familyMapProgressRestoring => 'Restoring your view…';
+  String get familyMapProgressRestoring => 'Restoring your viewΓÇª';
 
   @override
-  String get familyMapProgressMap => 'Loading map…';
+  String get familyMapProgressMap => 'Loading mapΓÇª';
 
   @override
-  String get familyMapProgressLandmarks => 'Loading landmarks…';
+  String get familyMapProgressLandmarks => 'Loading landmarksΓÇª';
 
   @override
-  String get familyMapProgressFamilyPlaces => 'Loading family places…';
+  String get familyMapProgressFamilyPlaces => 'Loading family placesΓÇª';
 
   @override
-  String get familyMapProgressConnections => 'Loading connections…';
+  String get familyMapProgressConnections => 'Loading connectionsΓÇª';
 
   @override
-  String get familyMapProgressMembers => 'Loading family members…';
+  String get familyMapProgressMembers => 'Loading family membersΓÇª';
 
   @override
-  String get familyMapProgressAlmost => 'Almost there…';
+  String get familyMapProgressAlmost => 'Almost thereΓÇª';
 
   @override
-  String get familyMapControlLocate => 'मेरा स्थान खोजें';
+  String get familyMapControlLocate =>
+      'αñ«αÑçαñ░αñ╛ αñ╕αÑìαñÑαñ╛αñ¿ αñûαÑïαñ£αÑçαñé';
 
   @override
-  String get familyMapControlZoomIn => 'ज़ूम इन';
+  String get familyMapControlZoomIn => 'αñ£αñ╝αÑéαñ« αñçαñ¿';
 
   @override
-  String get familyMapControlZoomOut => 'ज़ूम आउट';
+  String get familyMapControlZoomOut => 'αñ£αñ╝αÑéαñ« αñåαñëαñƒ';
 
   @override
-  String get familyMapControlLayers => 'परतें';
+  String get familyMapControlLayers => 'αñ¬αñ░αññαÑçαñé';
 
   @override
-  String get familyMapControlDarkMode => 'डार्क मैप';
+  String get familyMapControlDarkMode => 'αñíαñ╛αñ░αÑìαñò αñ«αÑêαñ¬';
 
   @override
-  String get familyMapControlLightMode => 'लाइट मैप';
+  String get familyMapControlLightMode => 'αñ▓αñ╛αñçαñƒ αñ«αÑêαñ¬';
 
   @override
   String get familyMapControl3DBuildingsOn => 'Turn on 3D buildings';
@@ -480,280 +493,625 @@ class SHi extends S {
   String get familyMapControl3DBuildingsOff => 'Turn off 3D buildings';
 
   @override
-  String get familyMapLocateServiceOff => 'लोकेशन सेवाएं बंद हैं।';
+  String get familyMapLocateServiceOff =>
+      'αñ▓αÑïαñòαÑçαñ╢αñ¿ αñ╕αÑçαñ╡αñ╛αñÅαñé αñ¼αñéαñª αñ╣αÑêαñéαÑñ';
 
   @override
-  String get familyMapLocatePermissionDenied => 'लोकेशन अनुमति अस्वीकृत।';
+  String get familyMapLocatePermissionDenied =>
+      'αñ▓αÑïαñòαÑçαñ╢αñ¿ αñàαñ¿αÑüαñ«αññαñ┐ αñàαñ╕αÑìαñ╡αÑÇαñòαÑâαññαÑñ';
 
   @override
-  String get familyMapLocateFailed => 'आपका वर्तमान स्थान नहीं मिल सका।';
+  String get familyMapLocateFailed =>
+      'αñåαñ¬αñòαñ╛ αñ╡αñ░αÑìαññαñ«αñ╛αñ¿ αñ╕αÑìαñÑαñ╛αñ¿ αñ¿αñ╣αÑÇαñé αñ«αñ┐αñ▓ αñ╕αñòαñ╛αÑñ';
 
   @override
-  String get familyMapLayersTitle => 'मैप परतें';
+  String get familyMapLayersTitle => 'αñ«αÑêαñ¬ αñ¬αñ░αññαÑçαñé';
 
   @override
-  String get familyMapLayersDone => 'पूर्ण';
+  String get familyMapLayersDone => 'αñ¬αÑéαñ░αÑìαñú';
 
   @override
-  String get familyMapLayerHomes => 'पारिवारिक घर';
+  String get familyMapLayerHomes => 'αñ¬αñ╛αñ░αñ┐αñ╡αñ╛αñ░αñ┐αñò αñÿαñ░';
 
   @override
-  String get familyMapLayerWeddings => 'विवाह स्थल';
+  String get familyMapLayerWeddings => 'αñ╡αñ┐αñ╡αñ╛αñ╣ αñ╕αÑìαñÑαñ▓';
 
   @override
-  String get familyMapLayerMemorials => 'स्मारक';
+  String get familyMapLayerMemorials => 'αñ╕αÑìαñ«αñ╛αñ░αñò';
 
   @override
-  String get familyMapLayerSchools => 'स्कूल';
+  String get familyMapLayerSchools => 'αñ╕αÑìαñòαÑéαñ▓';
 
   @override
-  String get familyMapLayerPlaces => 'महत्वपूर्ण स्थान';
+  String get familyMapLayerPlaces =>
+      'αñ«αñ╣αññαÑìαñ╡αñ¬αÑéαñ░αÑìαñú αñ╕αÑìαñÑαñ╛αñ¿';
 
   @override
-  String get familyMapLayerRelationships => 'रिश्ते पथ';
+  String get familyMapLayerRelationships => 'αñ░αñ┐αñ╢αÑìαññαÑç αñ¬αñÑ';
 
   @override
-  String get familyMapLayerCallouts => 'स्थान लेबल';
+  String get familyMapLayerCallouts => 'αñ╕αÑìαñÑαñ╛αñ¿ αñ▓αÑçαñ¼αñ▓';
 
   @override
-  String get familyMapLayerLivePulses => 'लाइव स्पंदन';
+  String get familyMapLayerLivePulses => 'αñ▓αñ╛αñçαñ╡ αñ╕αÑìαñ¬αñéαñªαñ¿';
 
   @override
-  String get familyMapSearchHint => 'शहर या परिवार के सदस्य को खोजें';
+  String get familyMapSearchHint =>
+      'αñ╢αñ╣αñ░ αñ»αñ╛ αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñòαÑç αñ╕αñªαñ╕αÑìαñ» αñòαÑï αñûαÑïαñ£αÑçαñé';
 
   @override
-  String get familyMapSearchCollapsed => 'शहर या परिवार के सदस्य को खोजें';
+  String get familyMapSearchCollapsed =>
+      'αñ╢αñ╣αñ░ αñ»αñ╛ αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñòαÑç αñ╕αñªαñ╕αÑìαñ» αñòαÑï αñûαÑïαñ£αÑçαñé';
 
   @override
-  String get familyMapSearchClear => 'साफ़ करें';
+  String get familyMapSearchClear => 'αñ╕αñ╛αñ½αñ╝ αñòαñ░αÑçαñé';
 
   @override
-  String get familyMapSearchCityHint => 'शहर';
+  String get familyMapSearchCityHint => 'αñ╢αñ╣αñ░';
 
   @override
-  String get familyMapLegendPinned => 'स्थित';
+  String get familyMapLegendPinned => 'αñ╕αÑìαñÑαñ┐αññ';
 
   @override
-  String get familyMapLegendCities => 'शहर';
+  String get familyMapLegendCities => 'αñ╢αñ╣αñ░';
 
   @override
-  String get familyMapLegendStatusTitle => 'स्थिति स्तर';
+  String get familyMapLegendStatusTitle => 'αñ╕αÑìαñÑαñ┐αññαñ┐ αñ╕αÑìαññαñ░';
 
   @override
-  String get familyMapLegendCategoriesTitle => 'स्थान श्रेणियाँ';
+  String get familyMapLegendCategoriesTitle =>
+      'αñ╕αÑìαñÑαñ╛αñ¿ αñ╢αÑìαñ░αÑçαñúαñ┐αñ»αñ╛αñü';
 
   @override
-  String get familyMapLegendUnpinnedTitle => 'मैप पर नहीं';
+  String get familyMapLegendUnpinnedTitle => 'αñ«αÑêαñ¬ αñ¬αñ░ αñ¿αñ╣αÑÇαñé';
 
   @override
-  String get familyMapLegendTierLive => 'लाइव';
+  String get familyMapLegendTierLive => 'αñ▓αñ╛αñçαñ╡';
 
   @override
-  String get familyMapLegendTierLiveDesc => '< 2 मिनट पहले';
+  String get familyMapLegendTierLiveDesc => '< 2 αñ«αñ┐αñ¿αñƒ αñ¬αñ╣αñ▓αÑç';
 
   @override
-  String get familyMapLegendTierRecent => 'हाल का';
+  String get familyMapLegendTierRecent => 'αñ╣αñ╛αñ▓ αñòαñ╛';
 
   @override
-  String get familyMapLegendTierRecentDesc => '< 15 मिनट पहले';
+  String get familyMapLegendTierRecentDesc => '< 15 αñ«αñ┐αñ¿αñƒ αñ¬αñ╣αñ▓αÑç';
 
   @override
-  String get familyMapLegendTierStale => 'पुराना';
+  String get familyMapLegendTierStale => 'αñ¬αÑüαñ░αñ╛αñ¿αñ╛';
 
   @override
-  String get familyMapLegendTierStaleDesc => '< 1 घंटे पहले';
+  String get familyMapLegendTierStaleDesc => '< 1 αñÿαñéαñƒαÑç αñ¬αñ╣αñ▓αÑç';
 
   @override
-  String get familyMapLegendTierCity => 'शहर';
+  String get familyMapLegendTierCity => 'αñ╢αñ╣αñ░';
 
   @override
-  String get familyMapLegendTierCityDesc => 'शहर केंद्र';
+  String get familyMapLegendTierCityDesc => 'αñ╢αñ╣αñ░ αñòαÑçαñéαñªαÑìαñ░';
 
   @override
   String chatTypingSingle(String name) {
-    return '$name टाइप कर रहे हैं';
+    return '$name αñƒαñ╛αñçαñ¬ αñòαñ░ αñ░αñ╣αÑç αñ╣αÑêαñé';
   }
 
   @override
   String chatTypingTwo(String name1, String name2) {
-    return '$name1 और $name2 टाइप कर रहे हैं';
+    return '$name1 αñöαñ░ $name2 αñƒαñ╛αñçαñ¬ αñòαñ░ αñ░αñ╣αÑç αñ╣αÑêαñé';
   }
 
   @override
   String chatTypingMany(String name) {
-    return '$name और अन्य टाइप कर रहे हैं';
+    return '$name αñöαñ░ αñàαñ¿αÑìαñ» αñƒαñ╛αñçαñ¬ αñòαñ░ αñ░αñ╣αÑç αñ╣αÑêαñé';
   }
 
   @override
-  String get chatActiveNow => 'अभी एक्टिव';
+  String get chatActiveNow => 'αñàαñ¡αÑÇ αñÅαñòαÑìαñƒαñ┐αñ╡';
 
   @override
   String chatNActive(int count) {
-    return '$count एक्टिव';
+    return '$count αñÅαñòαÑìαñƒαñ┐αñ╡';
   }
 
   @override
-  String get chatLastSeenJustNow => 'अभी-अभी देखा';
+  String get chatLastSeenJustNow => 'αñàαñ¡αÑÇ-αñàαñ¡αÑÇ αñªαÑçαñûαñ╛';
 
   @override
   String chatLastSeenMinutes(int count) {
-    return '$count मिनट पहले देखा';
+    return '$count αñ«αñ┐αñ¿αñƒ αñ¬αñ╣αñ▓αÑç αñªαÑçαñûαñ╛';
   }
 
   @override
   String chatLastSeenHours(int count) {
-    return '$count घंटे पहले देखा';
+    return '$count αñÿαñéαñƒαÑç αñ¬αñ╣αñ▓αÑç αñªαÑçαñûαñ╛';
   }
 
   @override
   String chatLastSeenDays(int count) {
-    return '$count दिन पहले देखा';
+    return '$count αñªαñ┐αñ¿ αñ¬αñ╣αñ▓αÑç αñªαÑçαñûαñ╛';
   }
 
   @override
-  String get chatOffline => 'ऑफलाइन';
+  String get chatOffline => 'αñæαñ½αñ▓αñ╛αñçαñ¿';
 
   @override
-  String get chatEmptyStateTitle => 'बातचीत शुरू करें';
+  String get chatEmptyStateTitle =>
+      'αñ¼αñ╛αññαñÜαÑÇαññ αñ╢αÑüαñ░αÑé αñòαñ░αÑçαñé';
 
   @override
   String chatEmptyStateSubtitle(String familyName, int count) {
-    return '$familyName परिवार में ($count सदस्य)';
+    return '$familyName αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñ«αÑçαñé ($count αñ╕αñªαñ╕αÑìαñ»)';
   }
 
   @override
   String chatEmptyStateSubtitleNoCount(String familyName) {
-    return '$familyName परिवार में';
+    return '$familyName αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñ«αÑçαñé';
   }
 
   @override
-  String get chatSuggestionNamaste => 'सबको नमस्ते 🙏';
+  String get chatSuggestionNamaste => 'αñ╕αñ¼αñòαÑï αñ¿αñ«αñ╕αÑìαññαÑç ≡ƒÖÅ';
 
   @override
-  String get chatSuggestionHowIsEveryone => 'सब कैसे हैं?';
+  String get chatSuggestionHowIsEveryone => 'αñ╕αñ¼ αñòαÑêαñ╕αÑç αñ╣αÑêαñé?';
 
   @override
   String chatSuggestionGoodMorning(String familyName) {
-    return 'सुप्रभात, $familyName परिवार! ☀️';
+    return 'αñ╕αÑüαñ¬αÑìαñ░αñ¡αñ╛αññ, $familyName αñ¬αñ░αñ┐αñ╡αñ╛αñ░! ΓÿÇ∩╕Å';
   }
 
   @override
   String chatBirthdayToday(String name) {
-    return 'आज $name का जन्मदिन है! 🎂';
+    return 'αñåαñ£ $name αñòαñ╛ αñ£αñ¿αÑìαñ«αñªαñ┐αñ¿ αñ╣αÑê! ≡ƒÄé';
   }
 
   @override
   String chatBirthdayTomorrow(String name) {
-    return 'कल $name का जन्मदिन है 🎂';
+    return 'αñòαñ▓ $name αñòαñ╛ αñ£αñ¿αÑìαñ«αñªαñ┐αñ¿ αñ╣αÑê ≡ƒÄé';
   }
 
   @override
   String chatBirthdayInDays(String name, int count) {
-    return '$count दिन में $name का जन्मदिन है 🎂';
+    return '$count αñªαñ┐αñ¿ αñ«αÑçαñé $name αñòαñ╛ αñ£αñ¿αÑìαñ«αñªαñ┐αñ¿ αñ╣αÑê ≡ƒÄé';
   }
 
   @override
-  String get chatSearchPlaceholder => 'संदेश खोजें...';
+  String get chatSearchPlaceholder => 'αñ╕αñéαñªαÑçαñ╢ αñûαÑïαñ£αÑçαñé...';
 
   @override
-  String get chatSearchNoResults => 'कोई संदेश नहीं मिला';
+  String get chatSearchNoResults =>
+      'αñòαÑïαñê αñ╕αñéαñªαÑçαñ╢ αñ¿αñ╣αÑÇαñé αñ«αñ┐αñ▓αñ╛';
 
   @override
   String chatSearchResultsCount(int count) {
-    return '$count परिणाम';
+    return '$count αñ¬αñ░αñ┐αñúαñ╛αñ«';
   }
 
   @override
-  String get chatMessageSending => 'भेजा जा रहा है...';
+  String get chatMessageSending => 'αñ¡αÑçαñ£αñ╛ αñ£αñ╛ αñ░αñ╣αñ╛ αñ╣αÑê...';
 
   @override
-  String get chatMessageFailed => 'भेजने में विफल';
+  String get chatMessageFailed => 'αñ¡αÑçαñ£αñ¿αÑç αñ«αÑçαñé αñ╡αñ┐αñ½αñ▓';
 
   @override
-  String get chatMessageFailedRetry => 'पुनः प्रयास करने के लिए टैप करें';
+  String get chatMessageFailedRetry =>
+      'αñ¬αÑüαñ¿αñâ αñ¬αÑìαñ░αñ»αñ╛αñ╕ αñòαñ░αñ¿αÑç αñòαÑç αñ▓αñ┐αñÅ αñƒαÑêαñ¬ αñòαñ░αÑçαñé';
 
   @override
   String get chatReplyToOriginalNotFound =>
-      'संदेश लोड किए गए इतिहास से पुराना है — खोजने के लिए ऊपर स्क्रॉल करें।';
+      'αñ╕αñéαñªαÑçαñ╢ αñ▓αÑïαñí αñòαñ┐αñÅ αñùαñÅ αñçαññαñ┐αñ╣αñ╛αñ╕ αñ╕αÑç αñ¬αÑüαñ░αñ╛αñ¿αñ╛ αñ╣αÑê ΓÇö αñûαÑïαñ£αñ¿αÑç αñòαÑç αñ▓αñ┐αñÅ αñèαñ¬αñ░ αñ╕αÑìαñòαÑìαñ░αÑëαñ▓ αñòαñ░αÑçαñéαÑñ';
 
   @override
   String chatSystemMessageUserJoined(String name) {
-    return '$name रूम में शामिल हुए';
+    return '$name αñ░αÑéαñ« αñ«αÑçαñé αñ╢αñ╛αñ«αñ┐αñ▓ αñ╣αÑüαñÅ';
   }
 
   @override
   String chatSystemMessageUserLeft(String name) {
-    return '$name रूम छोड़ गए';
+    return '$name αñ░αÑéαñ« αñ¢αÑïαñíαñ╝ αñùαñÅ';
   }
 
   @override
   String chatSystemMessageUserDisconnected(String name) {
-    return '$name डिस्कनेक्ट हो गए';
+    return '$name αñíαñ┐αñ╕αÑìαñòαñ¿αÑçαñòαÑìαñƒ αñ╣αÑï αñùαñÅ';
   }
 
   @override
   String chatSystemMessageRoomClosed(String name) {
-    return '$name ने रूम बंद कर दिया';
+    return '$name αñ¿αÑç αñ░αÑéαñ« αñ¼αñéαñª αñòαñ░ αñªαñ┐αñ»αñ╛';
   }
 
   @override
   String chatSystemMessageUserReacted(String name, String emoji) {
-    return '$name ने प्रतिक्रिया दी $emoji';
+    return '$name αñ¿αÑç αñ¬αÑìαñ░αññαñ┐αñòαÑìαñ░αñ┐αñ»αñ╛ αñªαÑÇ $emoji';
   }
 
   @override
   String graphShowingCount(int shown, int total) {
-    return 'कुल $total में से $shown व्यक्ति दिख रहे हैं।';
+    return 'αñòαÑüαñ▓ $total αñ«αÑçαñé αñ╕αÑç $shown αñ╡αÑìαñ»αñòαÑìαññαñ┐ αñªαñ┐αñû αñ░αñ╣αÑç αñ╣αÑêαñéαÑñ';
   }
 
   @override
   String graphFilterAll(int count) {
-    return 'सभी $count';
+    return 'αñ╕αñ¡αÑÇ $count';
   }
 
   @override
-  String get graphCatSelf => 'आप';
+  String get graphCatSelf => 'αñåαñ¬';
 
   @override
-  String get graphCatSpouse => 'जीवनसाथी';
+  String get graphCatSpouse => 'αñ£αÑÇαñ╡αñ¿αñ╕αñ╛αñÑαÑÇ';
 
   @override
-  String get graphCatParent => 'माता-पिता';
+  String get graphCatParent => 'αñ«αñ╛αññαñ╛-αñ¬αñ┐αññαñ╛';
 
   @override
-  String get graphCatChild => 'बच्चे';
+  String get graphCatChild => 'αñ¼αñÜαÑìαñÜαÑç';
 
   @override
-  String get graphCatSibling => 'भाई-बहन';
+  String get graphCatSibling => 'αñ¡αñ╛αñê-αñ¼αñ╣αñ¿';
 
   @override
-  String get graphCatGrandparent => 'दादा-दादी';
+  String get graphCatGrandparent => 'αñªαñ╛αñªαñ╛-αñªαñ╛αñªαÑÇ';
 
   @override
-  String get graphCatAuntUncle => 'चाचा-मामा';
+  String get graphCatAuntUncle => 'αñÜαñ╛αñÜαñ╛-αñ«αñ╛αñ«αñ╛';
 
   @override
-  String get graphCatCousin => 'चचेरे भाई-बहन';
+  String get graphCatCousin => 'αñÜαñÜαÑçαñ░αÑç αñ¡αñ╛αñê-αñ¼αñ╣αñ¿';
 
   @override
-  String get graphCatInLaw => 'ससुराल';
+  String get graphCatInLaw => 'αñ╕αñ╕αÑüαñ░αñ╛αñ▓';
 
   @override
-  String get graphCatExtended => 'विस्तृत परिवार';
+  String get graphCatExtended => 'αñ╡αñ┐αñ╕αÑìαññαÑâαññ αñ¬αñ░αñ┐αñ╡αñ╛αñ░';
 
   @override
-  String get graphCatIndirect => 'अप्रत्यक्ष';
+  String get graphCatIndirect => 'αñàαñ¬αÑìαñ░αññαÑìαñ»αñòαÑìαñ╖';
 
   @override
   String graphMorePeople(int count) {
-    return '$count और लोगों को दिखाएँ, डबल टैप करें';
+    return '$count αñöαñ░ αñ▓αÑïαñùαÑïαñé αñòαÑï αñªαñ┐αñûαñ╛αñÅαñü, αñíαñ¼αñ▓ αñƒαÑêαñ¬ αñòαñ░αÑçαñé';
   }
 
   @override
   String graphMorePeopleShort(int count) {
-    return '$count और';
+    return '$count αñöαñ░';
   }
 
   @override
-  String get graphTapToShowHint => 'दिखाने के लिए टैप करें';
+  String get graphTapToShowHint =>
+      'αñªαñ┐αñûαñ╛αñ¿αÑç αñòαÑç αñ▓αñ┐αñÅ αñƒαÑêαñ¬ αñòαñ░αÑçαñé';
+
+  @override
+  String get chatReportMenuItem => 'αñ░αñ┐αñ¬αÑïαñ░αÑìαñƒ αñòαñ░αÑçαñé';
+
+  @override
+  String get chatReportSheetTitle =>
+      'αñçαñ╕ αñ╕αñéαñªαÑçαñ╢ αñòαÑÇ αñ░αñ┐αñ¬αÑïαñ░αÑìαñƒ αñòαñ░αÑçαñé';
+
+  @override
+  String chatReportSheetSubtitle(String senderName) {
+    return '$senderName αñòαñ╛ αñ╕αñéαñªαÑçαñ╢ αñ«αÑëαñíαñ░αÑçαñƒαñ░ αñòαÑï αñ░αñ┐αñ¬αÑïαñ░αÑìαñƒ αñòαñ░αÑçαñé';
+  }
+
+  @override
+  String get chatReportNoPreview =>
+      '(αñòαÑïαñê αñ¬αÑéαñ░αÑìαñ╡αñ╛αñ╡αñ▓αÑïαñòαñ¿ αñ¿αñ╣αÑÇαñé)';
+
+  @override
+  String get chatReportReasonLabel =>
+      'αñåαñ¬ αñ»αñ╣ αñòαÑìαñ»αÑïαñé αñ░αñ┐αñ¬αÑïαñ░αÑìαñƒ αñòαñ░ αñ░αñ╣αÑç αñ╣αÑêαñé?';
+
+  @override
+  String get chatReportReasonSpam => 'αñ╕αÑìαñ¬αÑêαñ«';
+
+  @override
+  String get chatReportReasonHarassment => 'αñëαññαÑìαñ¬αÑÇαñíαñ╝αñ¿';
+
+  @override
+  String get chatReportReasonInappropriateContent =>
+      'αñàαñ¿αÑüαñ¬αñ»αÑüαñòαÑìαññ αñ╕αñ╛αñ«αñùαÑìαñ░αÑÇ';
+
+  @override
+  String get chatReportReasonOther => 'αñàαñ¿αÑìαñ»';
+
+  @override
+  String get chatReportDescriptionLabel =>
+      'αñ╡αñ┐αñ╡αñ░αñú αñ£αÑïαñíαñ╝αÑçαñé (αñ╡αÑêαñòαñ▓αÑìαñ¬αñ┐αñò)';
+
+  @override
+  String get chatReportDescriptionHint =>
+      'αñ¼αññαñ╛αñÅαñé αñòαñ┐ αñòαÑìαñ»αñ╛ αñùαñ▓αññ αñ╣αÑê';
+
+  @override
+  String get chatReportCancel => 'αñ░αñªαÑìαñª αñòαñ░αÑçαñé';
+
+  @override
+  String get chatReportSubmit =>
+      'αñ░αñ┐αñ¬αÑïαñ░αÑìαñƒ αñ╕αñ¼αñ«αñ┐αñƒ αñòαñ░αÑçαñé';
+
+  @override
+  String get chatReportSubmitted =>
+      'αñ░αñ┐αñ¬αÑïαñ░αÑìαñƒ αñ╕αñ¼αñ«αñ┐αñƒ αñ╣αÑüαñêαÑñ αñºαñ¿αÑìαñ»αñ╡αñ╛αñªαÑñ';
+
+  @override
+  String get chatReportAlreadyReported =>
+      'αñåαñ¬αñ¿αÑç αñ¬αñ╣αñ▓αÑç αñ╣αÑÇ αñçαñ╕ αñ╕αñéαñªαÑçαñ╢ αñòαÑÇ αñ░αñ┐αñ¬αÑïαñ░αÑìαñƒ αñòαÑÇ αñ╣αÑêαÑñ';
+
+  @override
+  String get chatReportFailed =>
+      'αñ░αñ┐αñ¬αÑïαñ░αÑìαñƒ αñ╕αñ¼αñ«αñ┐αñƒ αñòαñ░αñ¿αÑç αñ«αÑçαñé αñ╡αñ┐αñ½αñ▓αÑñ αñ¬αÑüαñ¿αñâ αñ¬αÑìαñ░αñ»αñ╛αñ╕ αñòαñ░αÑçαñéαÑñ';
+
+  @override
+  String get chatBlockedMessagePlaceholder =>
+      'αñ¼αÑìαñ▓αÑëαñò αñòαñ┐αñÅ αñùαñÅ αñëαñ¬αñ»αÑïαñùαñòαñ░αÑìαññαñ╛ αñòαñ╛ αñ╕αñéαñªαÑçαñ╢';
+
+  @override
+  String get chatBlockedMessageShow => 'αñªαñ┐αñûαñ╛αñÅαñé';
+
+  @override
+  String get chatBlockedMessageHide => 'αñ¢αñ┐αñ¬αñ╛αñÅαñé';
+
+  @override
+  String get chatBlockMenuItem => 'αñ¼αÑìαñ▓αÑëαñò αñòαñ░αÑçαñé';
+
+  @override
+  String get chatBlockFromMessageMenuItem =>
+      'αñçαñ╕ αñëαñ¬αñ»αÑïαñùαñòαñ░αÑìαññαñ╛ αñòαÑï αñ¼αÑìαñ▓αÑëαñò αñòαñ░αÑçαñé';
+
+  @override
+  String chatBlockDialogTitle(String name) {
+    return '$name αñòαÑï αñ¼αÑìαñ▓αÑëαñò αñòαñ░αÑçαñé?';
+  }
+
+  @override
+  String get chatBlockDialogBody =>
+      'αñ╡αÑç αñåαñ¬αñòαÑï αñíαñ╛αñ»αñ░αÑçαñòαÑìαñƒ αñ╕αñéαñªαÑçαñ╢ αñ¿αñ╣αÑÇαñé αñ¡αÑçαñ£ αñ╕αñòαÑçαñéαñùαÑç, αñöαñ░ αñåαñ¬ αñ¡αÑÇ αñëαñ¿αÑìαñ╣αÑçαñé αñ¿αñ╣αÑÇαñé αñ¡αÑçαñ£ αñ╕αñòαÑçαñéαñùαÑçαÑñ αñùαÑìαñ░αÑüαñ¬ αñÜαÑêαñƒ αñ«αÑçαñé αñëαñ¿αñòαÑç αñ╕αñéαñªαÑçαñ╢ αñ¬αÑìαñ▓αÑçαñ╕αñ╣αÑïαñ▓αÑìαñíαñ░ αñòαÑç αñ¬αÑÇαñ¢αÑç αñ¢αñ┐αñ¬αÑç αñ░αñ╣αÑçαñéαñùαÑçαÑñ αñëαñ¿αÑìαñ╣αÑçαñé αñ¿αñ╣αÑÇαñé αñ¼αññαñ╛αñ»αñ╛ αñ£αñ╛αñÅαñùαñ╛ αñòαñ┐ αñëαñ¿αÑìαñ╣αÑçαñé αñ¼αÑìαñ▓αÑëαñò αñòαñ┐αñ»αñ╛ αñùαñ»αñ╛ αñ╣αÑêαÑñ';
+
+  @override
+  String get chatBlockDialogConfirm => 'αñ¼αÑìαñ▓αÑëαñò αñòαñ░αÑçαñé';
+
+  @override
+  String get chatBlockDialogCancel => 'αñ░αñªαÑìαñª αñòαñ░αÑçαñé';
+
+  @override
+  String get chatBlockSucceeded =>
+      'αñëαñ¬αñ»αÑïαñùαñòαñ░αÑìαññαñ╛ αñ¼αÑìαñ▓αÑëαñò αñòαñ░ αñªαñ┐αñ»αñ╛ αñùαñ»αñ╛αÑñ';
+
+  @override
+  String get chatBlockFailed =>
+      'αñëαñ¬αñ»αÑïαñùαñòαñ░αÑìαññαñ╛ αñòαÑï αñ¼αÑìαñ▓αÑëαñò αñòαñ░αñ¿αÑç αñ«αÑçαñé αñ╡αñ┐αñ½αñ▓αÑñ αñ¬αÑüαñ¿αñâ αñ¬αÑìαñ░αñ»αñ╛αñ╕ αñòαñ░αÑçαñéαÑñ';
+
+  @override
+  String get chatBlockedDirectHeader =>
+      'αñåαñ¬αñ¿αÑç αñçαñ╕ αñ╡αÑìαñ»αñòαÑìαññαñ┐ αñòαÑï αñ¼αÑìαñ▓αÑëαñò αñòαñ┐αñ»αñ╛ αñ╣αÑê';
+
+  @override
+  String get chatBlockedDirectUnblockButton =>
+      'αñàαñ¿αñ¼αÑìαñ▓αÑëαñò αñòαñ░αÑçαñé';
+
+  @override
+  String chatDraftPrefix(String text) {
+    return 'αñíαÑìαñ░αñ╛αñ½αÑìαñƒ: $text';
+  }
+
+  @override
+  String get chatScheduleMenuItem =>
+      'αñ╢αÑçαñíαÑìαñ»αÑéαñ▓ αñòαñ┐αñÅ αñùαñÅ αñ╕αñéαñªαÑçαñ╢';
+
+  @override
+  String get chatScheduleSheetTitle =>
+      'αñ╕αñéαñªαÑçαñ╢ αñ╢αÑçαñíαÑìαñ»αÑéαñ▓ αñòαñ░αÑçαñé';
+
+  @override
+  String chatScheduleSheetSubtitle(String content) {
+    return '\"$content\" αñ¼αñ╛αñª αñ«αÑçαñé αñ¡αÑçαñ£αÑçαñé';
+  }
+
+  @override
+  String get chatScheduleQuickLaterToday => 'αñåαñ£ αñ╢αñ╛αñ«';
+
+  @override
+  String get chatScheduleQuickTomorrow => 'αñòαñ▓ αñ╕αÑüαñ¼αñ╣';
+
+  @override
+  String get chatScheduleQuickWeekend => 'αñçαñ╕ αñ╕αñ¬αÑìαññαñ╛αñ╣αñ╛αñéαññ';
+
+  @override
+  String get chatScheduleQuickCustom => 'αñòαñ╕αÑìαñƒαñ«...';
+
+  @override
+  String get chatScheduleQuickCustomHint =>
+      'αññαñ╛αñ░αÑÇαñû αñöαñ░ αñ╕αñ«αñ» αñÜαÑüαñ¿αÑçαñé';
+
+  @override
+  String get chatScheduleCancel => 'αñ░αñªαÑìαñª αñòαñ░αÑçαñé';
+
+  @override
+  String chatScheduleSuccess(String time) {
+    return '$time αñòαÑç αñ▓αñ┐αñÅ αñ╢αÑçαñíαÑìαñ»αÑéαñ▓ αñòαñ┐αñ»αñ╛';
+  }
+
+  @override
+  String get chatSchedulePastTimeRejected =>
+      'αñ¡αñ╡αñ┐αñ╖αÑìαñ» αñ«αÑçαñé αñ╕αñ«αñ» αñÜαÑüαñ¿αÑçαñé';
+
+  @override
+  String get chatScheduleNotSignedIn =>
+      'αñ╢αÑçαñíαÑìαñ»αÑéαñ▓ αñòαñ░αñ¿αÑç αñòαÑç αñ▓αñ┐αñÅ αñ╕αñ╛αñçαñ¿ αñçαñ¿ αñòαñ░αÑçαñé';
+
+  @override
+  String get chatScheduleFailed =>
+      'αñ╢αÑçαñíαÑìαñ»αÑéαñ▓ αñòαñ░αñ¿αÑç αñ«αÑçαñé αñ╡αñ┐αñ½αñ▓αÑñ αñ¬αÑüαñ¿αñâ αñ¬αÑìαñ░αñ»αñ╛αñ╕ αñòαñ░αÑçαñéαÑñ';
+
+  @override
+  String get chatScheduleDatePickerHelp => 'αññαñ╛αñ░αÑÇαñû αñÜαÑüαñ¿αÑçαñé';
+
+  @override
+  String get chatScheduleTimePickerHelp => 'αñ╕αñ«αñ» αñÜαÑüαñ¿αÑçαñé';
+
+  @override
+  String get chatScheduledListTitle =>
+      'αñ╢αÑçαñíαÑìαñ»αÑéαñ▓ αñòαñ┐αñÅ αñùαñÅ αñ╕αñéαñªαÑçαñ╢';
+
+  @override
+  String get chatScheduledListEmpty =>
+      'αñçαñ╕ αñÜαÑêαñƒ αñ«αÑçαñé αñòαÑïαñê αñ╢αÑçαñíαÑìαñ»αÑéαñ▓ αñòαñ┐αñÅ αñùαñÅ αñ╕αñéαñªαÑçαñ╢ αñ¿αñ╣αÑÇαñé αñ╣αÑêαñéαÑñ';
+
+  @override
+  String get chatScheduledListCancel => 'αñ░αñªαÑìαñª αñòαñ░αÑçαñé';
+
+  @override
+  String get chatScheduledListRetry => 'αñ¬αÑüαñ¿αñâ αñ¬αÑìαñ░αñ»αñ╛αñ╕';
+
+  @override
+  String get chatScheduledListEditTime =>
+      'αñ╕αñ«αñ» αñ╕αñéαñ¬αñ╛αñªαñ┐αññ αñòαñ░αÑçαñé';
+
+  @override
+  String get chatScheduledListEditText =>
+      'αñƒαÑçαñòαÑìαñ╕αÑìαñƒ αñ╕αñéαñ¬αñ╛αñªαñ┐αññ αñòαñ░αÑçαñé';
+
+  @override
+  String get chatScheduledListFailed =>
+      'αñ¡αÑçαñ£αñ¿αÑç αñ«αÑçαñé αñ╡αñ┐αñ½αñ▓';
+
+  @override
+  String chatScheduledListSendingAt(String time) {
+    return '$time αñ¬αñ░ αñ¡αÑçαñ£αñ╛ αñ£αñ╛ αñ░αñ╣αñ╛ αñ╣αÑê';
+  }
+
+  @override
+  String chatScheduledListSentAt(String time) {
+    return '$time αñ¬αñ░ αñ¡αÑçαñ£αñ╛ αñùαñ»αñ╛';
+  }
+
+  @override
+  String get chatScheduleCancelled =>
+      'αñ╢αÑçαñíαÑìαñ»αÑéαñ▓ αñòαñ┐αñ»αñ╛ αñùαñ»αñ╛ αñ╕αñéαñªαÑçαñ╢ αñ░αñªαÑìαñª αñòαñ░ αñªαñ┐αñ»αñ╛ αñùαñ»αñ╛αÑñ';
+
+  @override
+  String get chatScheduleRetried =>
+      'αñ╢αÑçαñíαÑìαñ»αÑéαñ▓ αñòαñ┐αñÅ αñùαñÅ αñ╕αñéαñªαÑçαñ╢ αñòαÑï αñ¬αÑüαñ¿αñâ αñ¬αÑìαñ░αñ»αñ╛αñ╕ αñòαñ┐αñ»αñ╛ αñùαñ»αñ╛αÑñ';
+
+  @override
+  String get chatScheduleEditTimeUpdated =>
+      'αñ╕αñ«αñ» αñàαñ¬αñíαÑçαñƒ αñòαñ┐αñ»αñ╛ αñùαñ»αñ╛αÑñ';
+
+  @override
+  String get chatScheduleEditTextUpdated =>
+      'αñƒαÑçαñòαÑìαñ╕αÑìαñƒ αñàαñ¬αñíαÑçαñƒ αñòαñ┐αñ»αñ╛ αñùαñ»αñ╛αÑñ';
+
+  @override
+  String get chatAttachEvent => 'αñòαñ╛αñ░αÑìαñ»αñòαÑìαñ░αñ«';
+
+  @override
+  String get chatAttachEventCreateNew =>
+      'αñ¿αñ»αñ╛ αñòαñ╛αñ░αÑìαñ»αñòαÑìαñ░αñ« αñ¼αñ¿αñ╛αñÅαñé';
+
+  @override
+  String get chatAttachEventPickExisting =>
+      'αñ«αÑîαñ£αÑéαñªαñ╛ αñòαñ╛αñ░αÑìαñ»αñòαÑìαñ░αñ« αñÜαÑüαñ¿αÑçαñé';
+
+  @override
+  String get chatEventCardNoTitle =>
+      'αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñòαñ╛αñ░αÑìαñ»αñòαÑìαñ░αñ«';
+
+  @override
+  String get chatEventCardDeleted =>
+      'αñòαñ╛αñ░αÑìαñ»αñòαÑìαñ░αñ« αñàαñ¼ αñëαñ¬αñ▓αñ¼αÑìαñº αñ¿αñ╣αÑÇαñé αñ╣αÑê';
+
+  @override
+  String chatEventRsvpGoing(int count) {
+    return '$count αñ£αñ╛ αñ░αñ╣αÑç αñ╣αÑêαñé';
+  }
+
+  @override
+  String chatEventRsvpMaybe(int count) {
+    return '$count αñ╢αñ╛αñ»αñª';
+  }
+
+  @override
+  String chatEventRsvpNotGoing(int count) {
+    return '$count αñ¿αñ╣αÑÇαñé αñ£αñ╛ αñ╕αñòαññαÑç';
+  }
+
+  @override
+  String get chatEventRsvpGoingLabel => 'αñ£αñ╛ αñ░αñ╣αÑç αñ╣αÑêαñé';
+
+  @override
+  String get chatEventRsvpMaybeLabel => 'αñ╢αñ╛αñ»αñª';
+
+  @override
+  String get chatEventRsvpNotGoingLabel => 'αñ¿αñ╣αÑÇαñé αñ£αñ╛ αñ╕αñòαññαÑç';
+
+  @override
+  String chatEventCardSemantics(
+    String title,
+    String date,
+    String location,
+    int going,
+    int maybe,
+    int notGoing,
+  ) {
+    return 'αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñòαñ╛αñ░αÑìαñ»αñòαÑìαñ░αñ« αñòαñ╛αñ░αÑìαñí: $date αñòαÑï $title αñ╕αÑìαñÑαñ╛αñ¿ αñ¬αñ░ $locationαÑñ $going αñ£αñ╛ αñ░αñ╣αÑç αñ╣αÑêαñé, $maybe αñ╢αñ╛αñ»αñª, $notGoing αñ¿αñ╣αÑÇαñé αñ£αñ╛ αñ╕αñòαññαÑçαÑñ';
+  }
+
+  @override
+  String get chatEventCardSemanticsDeleted =>
+      'αñ¬αñ░αñ┐αñ╡αñ╛αñ░ αñòαñ╛αñ░αÑìαñ»αñòαÑìαñ░αñ« αñòαñ╛αñ░αÑìαñí: αñòαñ╛αñ░αÑìαñ»αñòαÑìαñ░αñ« αñàαñ¼ αñëαñ¬αñ▓αñ¼αÑìαñº αñ¿αñ╣αÑÇαñé αñ╣αÑêαÑñ';
+
+  @override
+  String get chatInboxFilterAll => 'αñ╕αñ¡αÑÇ';
+
+  @override
+  String get chatInboxFilterUnread => 'αñàαñ¬αñáαñ┐αññ';
+
+  @override
+  String get chatInboxFilterGroups => 'αñ╕αñ«αÑéαñ╣';
+
+  @override
+  String get chatInboxFilterDirect => 'αñíαñ╛αñ»αñ░αÑçαñòαÑìαñƒ';
+
+  @override
+  String get chatInboxEmptyUnread =>
+      'αñòαÑïαñê αñàαñ¬αñáαñ┐αññ αñÜαÑêαñƒ αñ¿αñ╣αÑÇαñé';
+
+  @override
+  String get chatInboxEmptyGroups =>
+      'αñòαÑïαñê αñ╕αñ«αÑéαñ╣ αñÜαÑêαñƒ αñ¿αñ╣αÑÇαñé';
+
+  @override
+  String get chatInboxEmptyDirect =>
+      'αñòαÑïαñê αñíαñ╛αñ»αñ░αÑçαñòαÑìαñƒ αñ«αÑêαñ╕αÑçαñ£ αñ¿αñ╣αÑÇαñé';
+
+  @override
+  String get chatInboxNoMessages =>
+      'αñÜαÑêαñƒ αñ╢αÑüαñ░αÑé αñòαñ░αñ¿αÑç αñòαÑç αñ▓αñ┐αñÅ αñƒαÑêαñ¬ αñòαñ░αÑçαñé';
+
+  @override
+  String get chatInboxArchiveAction => 'αñåαñ░αÑìαñòαñ╛αñçαñ╡';
+
+  @override
+  String get chatInboxArchived => 'αñåαñ░αÑìαñòαñ╛αñçαñ╡ αñòαñ┐αñÅ αñùαñÅ';
+
+  @override
+  String chatInboxArchivedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'αñ╡αñ╛αñ░αÑìαññαñ╛αñ▓αñ╛αñ¬',
+      one: 'αñ╡αñ╛αñ░αÑìαññαñ╛αñ▓αñ╛αñ¬',
+    );
+    return '$count $_temp0';
+  }
+
+  @override
+  String chatInboxRowSemanticGroup(String title, int count) {
+    return 'αñ╕αñ«αÑéαñ╣ αñÜαÑêαñƒ, $title, $count αñàαñ¬αñáαñ┐αññ';
+  }
+
+  @override
+  String chatInboxRowSemanticDirect(String title, int count) {
+    return 'αñíαñ╛αñ»αñ░αÑçαñòαÑìαñƒ αñ╕αñéαñªαÑçαñ╢, $title, $count αñàαñ¬αñáαñ┐αññ';
+  }
 }
