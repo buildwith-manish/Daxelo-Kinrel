@@ -12,7 +12,6 @@
 // KinrelTypography, KinrelSpacing, KinrelGradients, flutter_animate.
 // Dark mode is the primary experience.
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:go_router/go_router.dart';

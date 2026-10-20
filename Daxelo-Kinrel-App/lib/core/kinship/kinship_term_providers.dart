@@ -40,7 +40,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../relationship/relationship_engine.dart';
 import '../services/graph_layout_service.dart' show GraphPerson;
 import 'kinship_service.dart';
-import '../family/family_provider.dart' show familyDetailProvider;
 import '../viewer/viewer_provider.dart' show viewerPersonIdProvider;
 import '../../features/family/presentation/providers/family_graph_provider.dart'
     show familyGraphProvider;
@@ -398,22 +397,6 @@ final kinshipTermsForFamilyProvider =
     // must run here.
     final kinship = KinshipService.instance;
     final result = <String, KinshipTerm>{};
-
-    // Look up the viewer's own name for the "You" entry (not in the
-    // map — self returns null in resolveClassification).
-    String? viewerName;
-    try {
-      final detailAsync = ref.read(familyDetailProvider(familyId));
-      final detail = detailAsync.valueOrNull;
-      if (detail != null) {
-        for (final m in detail.members) {
-          if (m.id == viewerPersonId) {
-            viewerName = m.name;
-            break;
-          }
-        }
-      }
-    } catch (_) {}
 
     for (final person in graph.persons) {
       final personId = person['id']?.toString();
