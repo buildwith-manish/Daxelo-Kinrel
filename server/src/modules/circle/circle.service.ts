@@ -184,8 +184,10 @@ export class CircleService {
       where: {
         circleId: { in: circleIds },
         senderId: { not: userId },
-        readBy: { not: { has: userId } },
         isDeletedForEveryone: false,
+        NOT: {
+          readBy: { has: userId },
+        },
       },
       _count: true,
     });
@@ -448,6 +450,7 @@ export class CircleService {
     });
 
     this.logger.log(`Member left: circle=${circleId}, user=${userId}`);
+    return { left: true };
   }
 
   /**
@@ -658,8 +661,10 @@ export class CircleService {
         where: {
           circleId,
           senderId: { not: userId },
-          readBy: { not: { has: userId } },
           isDeletedForEveryone: false,
+          NOT: {
+            readBy: { has: userId },
+          },
         },
         select: { id: true },
       });

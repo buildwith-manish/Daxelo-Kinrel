@@ -148,7 +148,12 @@ export class CircleController {
     @Query('limit') limit?: string,
     @Query('before') before?: string,
   ) {
-    return this.circleService.listMessages(circleId, userId, limit, before);
+    return this.circleService.listMessages(
+      circleId,
+      userId,
+      limit ? parseInt(limit, 10) : undefined,
+      before,
+    );
   }
 
   @Post(':circleId/messages/read')
