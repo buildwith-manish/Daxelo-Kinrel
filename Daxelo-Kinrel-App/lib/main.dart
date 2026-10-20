@@ -97,6 +97,17 @@ void main() async {
   // ── CRITICAL: Ensure Flutter binding BEFORE any async work ────────
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 2026-10-19 (Phase 9): Silence debugPrint in release builds.
+  // This is a zero-cost-instant win: every debugPrint call throughout
+  // the app becomes a no-op without any call-site edits. The string
+  // interpolation in each debugPrint call still runs (the string is
+  // built before the function is called), so for HOT PATHS use
+  // dlog(() => '...') instead (lib/core/utils/dlog.dart) — the closure
+  // is never invoked in release, so the string is never built.
+  if (kReleaseMode) {
+    debugPrint = (String? message, {int? wrapWidth}) {};
+  }
+
   // ── Chat UI Reference / section E: UI gallery home route ──────────
   // When the compile-time define UI_GALLERY=true, boot straight into
   // the 4-page chat UI gallery (fixed sample data, real widgets, no

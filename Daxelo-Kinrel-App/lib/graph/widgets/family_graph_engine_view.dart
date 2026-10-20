@@ -2310,7 +2310,10 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // Keep Supabase Realtime invalidation alive while this view is mounted.
     ref.watch(graphRealtimeProvider(widget.familyId));
 
-    final bool isOnline = ref.watch(isOnlineProvider).valueOrNull ?? true;
+    // 2026-10-19 (Phase 6): use .select() to avoid full rebuilds when
+    // the AsyncValue's loading state changes but the actual bool doesn't.
+    final bool isOnline =
+        ref.watch(isOnlineProvider.select((v) => v.valueOrNull ?? true));
     final layoutAsync = ref.watch(graphLayoutProvider(widget.familyId));
     final flat = ref.watch(familyGraphProvider(widget.familyId)).valueOrNull;
     // PERF: selectedEdgeProvider is NOT watched here — it's watched inside
