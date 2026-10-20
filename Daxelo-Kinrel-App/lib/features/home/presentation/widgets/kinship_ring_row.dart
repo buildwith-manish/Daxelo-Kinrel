@@ -2,63 +2,60 @@
 //
 // DAXELO KINREL — Kinship Ring Row (Phase A — Home, the Instagram-level idea)
 //
-// Horizontal scrollable row of family-member avatars that:
-//   • Item 0 = "You / Add yours" — opens /sparq/create (the Sparq
-//     composer). Per the user's Phase A decision, we do NOT revive
-//     the legacy add_story_sheet / stories system. Sparq is the
-//     existing story-like surface.
-//   • Each other item = ring avatar with the person's kinship TERM
-//     (bold, e.g. "Mausi") as the primary label and first name
-//     (e.g. "Priya") as the secondary line — in the viewer's chosen
-//     language. Birthday badge ("3d") when occasionRemindersProvider
-//     says the person's birthday is within 7 days.
+// Horizontal scrollable row. The row is ALWAYS rendered at the same
+// position in every Home state (newUser, growing, active) and NEVER
+// changes height between states — so the page does not jump when a
+// Sparq appears or expires.
 //
-// Ordering (Phase A decision 2):
-//   1. People with current Sparqs first — unseen first, then seen.
-//      No cap (all Sparq authors are surfaced so the viewer can
-//      catch up on everyone).
-//   2. Then up to 8 closest relatives + elders with a dim ring
-//      (no Sparq). Closeness is a heuristic on the kinship key:
-//      parent < spouse < sibling < child < grandparent < in-law
-//      < aunt/uncle < niece/nephew < cousin < extended. Elders
-//      (grandparents, great-grandparents) are prioritized by the
-//      closeness score itself.
+// Composition (final rules — replaces all earlier ring-row rules):
 //
-// Visibility (Phase A decision 2):
-//   • Hide the row entirely if the viewer has fewer than 2 relatives
-//     (i.e. terms.length < 2). The parent screen then shows the
-//     "Next step" invite card.
+//   1. "You" is ALWAYS the first item, in every state, even with
+//      zero relatives and zero Sparqs.
+//        • Viewer has no current Sparq → avatar + plus badge.
+//          Labels: "You" (bold) + "Add yours" (small). Tap →
+//          /sparq/create.
+//        • Viewer has a current Sparq → avatar with a story ring +
+//          a small plus badge. Tap → own Sparq viewer
+//          (/sparq/viewer/<ownUserId>). The plus badge → /sparq/create.
 //
-// Tap behavior (Phase A decision 2):
-//   • Person WITH a Sparq → /sparq/viewer/<linkedUserId> (the
-//     existing Sparq viewer route expects the auth userId, which
-//     we read from Person.linkedUserId).
-//   • Person WITHOUT a Sparq → PersonDetailSheet.show(person,
-//     familyId). Opens the existing profile sheet — no new route.
+//   2. After "You", show ONLY relatives who have a current
+//      (non-expired) Sparq, using the existing Sparq rules for what
+//      counts as current (see SparqModel.isExpired in
+//      social/data/models/sparq_model.dart).
+//      Order:
+//        • unseen first (gradient ring)
+//        • then seen (dim ring)
+//        • within each group: birthday-soon first, then closest
+//          relationship (closeness heuristic on the kinship key —
+//          see _closenessScoreForKey).
 //
-// The ring state (gradient when unseen, dim when seen / no-Sparq)
-// reuses the SparqRingAvatar's visual language. This deliberately
-// does NOT add a third "story" system; it lays the existing sparq
-// seen/unseen state under the new kinship labels.
+//   3. Relatives WITHOUT a current Sparq are NOT shown. If nobody
+//      has a Sparq, the row contains only "You +". No empty
+//      placeholders, no ghost circles, no "no stories" text.
 //
-// Performance:
-//   • Reads the precomputed Map<String, KinshipTerm> once at the
-//     row level — no per-avatar provider watches.
-//   • Each avatar looks up its term by id in the Map (O(1)).
-//   • The Map is recomputed off-UI-thread by
-//     kinshipTermsForFamilyProvider; this widget just renders.
+//   4. With a single item (just "You +"), the row stays
+//      left-aligned at the normal item size. No stretching.
+//
+//   5. Labels for relatives: primary = kinship term in the viewer's
+//      chosen language (bold), secondary = first name (small). The
+//      birthday badge (e.g. "3d") appears ONLY when that person has
+//      a Sparq AND a birthday within 7 days. Names are never
+//      translated.
+//
+// Loading: while Sparq data loads, "You" appears immediately and
+// skeleton circles fill the remaining slots (no spinner).
 //
 // Accessibility:
-//   • Minimum tap target 44dp on every avatar (52px visual + 4px
-//     hit-padding = 56px tap target).
+//   • Minimum tap target 44dp on every item (56px visual + 4px
+//     hit-padding = 60px tap target).
 //   • Primary text ≥ 12sp bold; secondary text ≥ 10sp.
-//   • Semantic label = "{primary} {firstName}, {unseen|seen|no
-//     sparq}, {birthday in N days|no upcoming birthday}".
-//   • Respects reduced motion (no fire-pulse on calm rings when
-//     Toggler is off — handled inside SparqRingAvatar via KinrelFx).
-//   • Works at 1.5x font scale (SizedBox width is 56 but text
-//     expands vertically with maxLines: 1 + ellipsis; the row
-//     stays horizontal-scroll so it never overflows).
+//   • Semantic labels: "Add your Sparq" for the You affordance;
+//     "Mama's Sparq, new" for unseen relatives; "Mama's Sparq,
+//     seen" for seen relatives.
+//   • Works at 1.5x text scale + RTL (the Row stays horizontal
+//     scrollable, no clipping).
+//   • Design tokens only (KinrelColors, KinrelTypography,
+//     KinrelSpacing, KinrelGradients).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -67,13 +64,12 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/constants/brand_spacing.dart';
-import '../../../../core/family/family_provider.dart' show Person;
 import '../../../../core/kinship/kinship_term_providers.dart';
 import '../../../../core/services/haptic_service.dart';
 import '../../../../core/utils/accessibility_utils.dart';
-import '../../../family/presentation/person_detail_sheet.dart';
 import '../../../family/presentation/providers/family_graph_provider.dart';
 import '../../../occasions/providers/occasion_reminders_provider.dart';
+import '../../../social/data/models/sparq_model.dart' show SparqModel;
 import '../../../social/data/providers/sparq_provider.dart';
 import '../../../social/presentation/widgets/sparq_ring_avatar.dart';
 
@@ -86,63 +82,34 @@ const _cTextSecondary = KinrelColors.textSilver;
 const _cTextDim = KinrelColors.textDim;
 const _cBirthday = KinrelColors.gold;
 
-/// Cap for the "no-Sparq closest relatives" section. Per Phase A
-/// decision 2: "up to 8 closest relatives and elders with a dim
-/// ring (no Sparq)".
-const int kNoSparqRelativesCap = 8;
-
-/// Minimum number of reachable relatives for the row to render at
-/// all. Per Phase A decision 2: "Hide the row if the viewer has
-/// fewer than 2 relatives."
-const int kMinRelativesToRenderRow = 2;
-
 /// A single ring-row item after all the data has been resolved.
 ///
 /// Pre-computed at row level so the build method is pure paint.
 class _RingItem {
   const _RingItem({
     required this.personId,
-    required this.person,
     required this.firstName,
     required this.kinshipPrimary,
     this.kinshipSecondary,
     this.avatarUrl,
     this.linkedUserId,
     this.daysUntilBirthday,
-    this.hasActiveSparq = false,
     this.isSeen = false,
     this.closenessScore = 99,
   });
 
   final String personId;
-  final Person person;
   final String firstName;
   final String kinshipPrimary;
   final String? kinshipSecondary;
   final String? avatarUrl;
   final String? linkedUserId;
   final int? daysUntilBirthday;
-
-  /// True when this person has at least one Sparq in sparqState.feed
-  /// (i.e. they're a Sparq author). Drives the tap target: with-Sparq
-  /// → opens `/sparq/viewer/<userId>`; without-Sparq → opens
-  /// `PersonDetailSheet` (profile).
-  final bool hasActiveSparq;
-
-  /// Sparq-seen state from sparqState.feed. Only meaningful when
-  /// [hasActiveSparq] is true; false-positive "seen" for no-Sparq
-  /// items so the ring renders dim (matches decision 2's "dim ring
-  /// (no Sparq)" requirement).
   final bool isSeen;
-
-  /// Closeness score for the no-Sparq section's sort. Lower = closer.
-  /// Computed from the kinship key (see _closenessScoreForKey).
   final int closenessScore;
 }
 
-/// The kinship ring row. Renders nothing (zero height) when the
-/// viewer has fewer than [kMinRelativesToRenderRow] relatives —
-/// per Phase A decision 2.
+/// The kinship ring row. Always visible, never changes height.
 class KinshipRingRow extends ConsumerWidget {
   const KinshipRingRow({
     super.key,
@@ -151,41 +118,26 @@ class KinshipRingRow extends ConsumerWidget {
   });
 
   final String familyId;
+
+  /// Called when the viewer taps the leading "You / Add yours"
+  /// affordance (avatar or plus badge) when they have no current
+  /// Sparq. Opens /sparq/create.
   final VoidCallback onAddYours;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch the precomputed kinship terms — one watch at the row
-    // level, NOT per avatar.
-    final termsAsync = ref.watch(
-      kinshipTermsForFamilyProvider(familyId),
-    );
-
+    // Watch all upstream inputs so Riverpod auto-rebuilds.
+    final termsAsync =
+        ref.watch(kinshipTermsForFamilyProvider(familyId));
     final graphAsync = ref.watch(familyGraphProvider(familyId));
     final occasionsAsync = ref.watch(occasionRemindersProvider);
     final sparqState = ref.watch(sparqProvider);
 
     final graph = graphAsync.valueOrNull;
-    final terms = termsAsync.valueOrNull;
+    final terms = termsAsync.valueOrNull ?? const <String, KinshipTerm>{};
 
-    // If the graph isn't loaded yet, render the skeleton. The
-    // skeleton is shimmer circles (no spinner) per Phase A spec.
-    if (graph == null || graph.persons.isEmpty) {
-      return const _RingSkeleton();
-    }
-
-    // Per-person seen/unseen map from the sparq feed. sparqState.feed
-    // is a List<UserSparqGroup> keyed by auth userId. We join via
-    // Person.linkedUserId.
-    final hasSparqByLinkedUserId = <String, bool>{};
-    final seenByLinkedUserId = <String, bool>{};
-    for (final group in sparqState.feed) {
-      hasSparqByLinkedUserId[group.userId] = group.sparqs.isNotEmpty;
-      seenByLinkedUserId[group.userId] = group.allSeen;
-    }
-
-    // Birthday badges: occasionRemindersProvider already computes
-    // daysUntil for every person across all families.
+    // ── Birthday badges: occasionRemindersProvider already
+    // computes daysUntil for every person across all families.
     final birthdayByPersonId = <String, int>{};
     final occasions = occasionsAsync.valueOrNull;
     if (occasions != null) {
@@ -196,84 +148,119 @@ class KinshipRingRow extends ConsumerWidget {
       }
     }
 
-    // Build the candidate list (all non-viewer persons).
-    final candidates = <_RingItem>[];
-    for (final p in graph.persons) {
-      final id = p['id']?.toString() ?? '';
-      if (id.isEmpty) continue;
-      if (p['isViewer'] == true) continue; // skip self
+    // ── Identify the viewer's own Person + Sparq state ────────
+    // The graph marks the viewer's person with `isViewer: true`
+    // (see FlatGraphResult.fromRpc).
+    Map<String, dynamic>? viewerPerson;
+    if (graph != null) {
+      for (final p in graph.persons) {
+        if (p['isViewer'] == true) {
+          viewerPerson = p;
+          break;
+        }
+      }
+    }
+    // Fallback: if the graph isn't loaded yet, derive the viewer's
+    // auth id from sparqState (each UserSparqGroup has a userId —
+    // the viewer's own group, if it exists, gives us their id).
+    final viewerLinkedUserId = viewerPerson?['linkedUserId']?.toString();
+    final viewerPersonId = viewerPerson?['id']?.toString();
+    final viewerFirstName = viewerPerson == null
+        ? 'You'
+        : kinrelFirstName(viewerPerson['name']?.toString() ?? 'You');
+    final viewerAvatarUrl = viewerPerson == null
+        ? null
+        : (viewerPerson['photoUrl']?.toString() ??
+            viewerPerson['avatarUrl']?.toString());
 
-      final name = p['name']?.toString() ?? 'Relative';
-      final firstName = kinrelFirstName(name);
-      final linkedUserId = p['linkedUserId']?.toString();
-      final avatarUrl =
-          p['photoUrl']?.toString() ?? p['avatarUrl']?.toString();
-      final term = terms?[id];
+    // Viewer's own Sparq state — a current Sparq means the viewer's
+    // linkedUserId is in sparqState.feed AND has at least one
+    // non-expired Sparq AND not all are seen.
+    final viewerGroup = sparqState.feed
+        .where((g) => g.userId == viewerLinkedUserId)
+        .firstOrNull;
+    final viewerHasCurrentSparq = viewerGroup != null &&
+        viewerGroup.sparqs.any((s) => !s.isExpired);
+    final viewerAllSeen = viewerGroup?.allSeen ?? true;
 
-      final hasActiveSparq =
-          linkedUserId != null && (hasSparqByLinkedUserId[linkedUserId] ?? false);
-      final isSeen = seenByLinkedUserId[linkedUserId ?? ''] ?? true;
+    // ── Build the items list: ONLY relatives with current Sparqs ──
+    // Skip:
+    //   • the viewer (rendered as the leading You item)
+    //   • relatives whose Sparq is expired (SparqModel.isExpired)
+    //   • relatives with NO Sparq at all (no entry in sparqState.feed)
+    final items = <_RingItem>[];
 
-      // Build the Person object for the tap-to-profile behavior.
-      // The graph person Map has the keys Person.fromJson expects
-      // PLUS a few extras (isViewer, photoUrl) — fromJson ignores
-      // unknown keys, and we add familyId which is required.
-      final personJson = Map<String, dynamic>.from(p);
-      personJson['familyId'] = familyId;
-      final person = Person.fromJson(personJson);
+    if (graph != null) {
+      // Build per-linkedUserId → hasCurrentSparq + allSeen map.
+      final hasCurrentByUserId = <String, bool>{};
+      final seenByUserId = <String, bool>{};
+      for (final group in sparqState.feed) {
+        final hasCurrent =
+            group.sparqs.any((s) => !s.isExpired);
+        hasCurrentByUserId[group.userId] = hasCurrent;
+        seenByUserId[group.userId] = group.allSeen;
+      }
 
-      candidates.add(_RingItem(
-        personId: id,
-        person: person,
-        firstName: firstName,
-        kinshipPrimary: term?.primary ?? firstName,
-        kinshipSecondary: term?.secondary,
-        avatarUrl: avatarUrl,
-        linkedUserId: linkedUserId,
-        daysUntilBirthday: birthdayByPersonId[id],
-        hasActiveSparq: hasActiveSparq,
-        isSeen: isSeen,
-        closenessScore: _closenessScoreForKey(term?.kinshipKey),
-      ));
+      for (final p in graph.persons) {
+        final id = p['id']?.toString() ?? '';
+        if (id.isEmpty) continue;
+        if (p['isViewer'] == true) continue; // skip self
+
+        final linkedUserId = p['linkedUserId']?.toString();
+        if (linkedUserId == null || linkedUserId.isEmpty) continue;
+        // Only relatives with a CURRENT Sparq.
+        if (hasCurrentByUserId[linkedUserId] != true) continue;
+
+        final name = p['name']?.toString() ?? 'Relative';
+        final firstName = kinrelFirstName(name);
+        final avatarUrl =
+            p['photoUrl']?.toString() ?? p['avatarUrl']?.toString();
+        final term = terms[id];
+        final isSeen = seenByUserId[linkedUserId] ?? true;
+
+        items.add(_RingItem(
+          personId: id,
+          firstName: firstName,
+          kinshipPrimary: term?.primary ?? firstName,
+          kinshipSecondary: term?.secondary,
+          avatarUrl: avatarUrl,
+          linkedUserId: linkedUserId,
+          daysUntilBirthday: birthdayByPersonId[id],
+          isSeen: isSeen,
+          closenessScore: _closenessScoreForKey(term?.kinshipKey),
+        ));
+      }
     }
 
-    // Phase A decision 2: hide if viewer has fewer than 2 relatives.
-    // "Relatives" = persons with a kinship term resolved (reachable).
-    final reachableCount =
-        candidates.where((c) => c.kinshipPrimary != c.firstName).length;
-    // Also count candidates who have an active Sparq — they're
-    // "relatives" too even if the kinship isolate hasn't resolved
-    // yet (graceful degradation while loading).
-    final totalRelatives = candidates.length;
-    if (totalRelatives < kMinRelativesToRenderRow &&
-        reachableCount < kMinRelativesToRenderRow) {
-      return const SizedBox(width: 0, height: 0);
-    }
-
-    // ── Sort: Section A (Sparq authors) + Section B (closest no-Sparq) ──
-    final withSparq = candidates.where((c) => c.hasActiveSparq).toList();
-    final withoutSparq = candidates.where((c) => !c.hasActiveSparq).toList();
-
-    // Section A sort: unseen first, then seen. Stable tie-break by name.
-    withSparq.sort((a, b) {
+    // ── Sort: unseen first, then seen; within each group:
+    // birthday-soon first, then closest relationship (lower score =
+    // closer). Stable tie-break by firstName.
+    items.sort((a, b) {
       final aSeen = a.isSeen ? 1 : 0;
       final bSeen = b.isSeen ? 1 : 0;
       if (aSeen != bSeen) return aSeen.compareTo(bSeen);
-      return a.firstName.compareTo(b.firstName);
-    });
-
-    // Section B sort: by closeness score (lower = closer), then by
-    // name. Cap at kNoSparqRelativesCap.
-    withoutSparq.sort((a, b) {
+      // Within the same seen-state: birthday-soon first.
+      final aBirth = a.daysUntilBirthday;
+      final bBirth = b.daysUntilBirthday;
+      final aHasBirth = (aBirth != null && aBirth <= 7) ? 0 : 1;
+      final bHasBirth = (bBirth != null && bBirth <= 7) ? 0 : 1;
+      if (aHasBirth != bHasBirth) return aHasBirth.compareTo(bHasBirth);
+      // Then closest relationship (lower score = closer).
       final c = a.closenessScore.compareTo(b.closenessScore);
       if (c != 0) return c;
       return a.firstName.compareTo(b.firstName);
     });
-    final noSparqCapped = withoutSparq.length > kNoSparqRelativesCap
-        ? withoutSparq.sublist(0, kNoSparqRelativesCap)
-        : withoutSparq;
 
-    final items = [...withSparq, ...noSparqCapped];
+    // ── Build the row. Always 96px tall. The leading item is
+    // always "You / Add yours" — even when the row has no other
+    // items. With a single item, the row stays left-aligned at the
+    // normal item size (no stretching — ListView.separated keeps
+    // items at their natural width).
+    final showSkeletonForOthers =
+        graph == null && sparqState.isLoading && sparqState.feed.isEmpty;
+    final otherCount = showSkeletonForOthers
+        ? 3
+        : items.length; // 3 skeleton slots during initial load
 
     return SizedBox(
       height: 96, // avatar (52) + label (12+10) + breathing room
@@ -284,14 +271,26 @@ class KinshipRingRow extends ConsumerWidget {
           vertical: KinrelSpacing.sm,
         ),
         // +1 for the leading "You / Add yours" item.
-        itemCount: items.length + 1,
+        itemCount: 1 + otherCount,
         separatorBuilder: (_, __) => const SizedBox(width: 14),
         itemBuilder: (context, index) {
           if (index == 0) {
-            return _AddYoursItem(onTap: onAddYours);
+            // "You" is always first.
+            return _YouItem(
+              hasCurrentSparq: viewerHasCurrentSparq,
+              allSeen: viewerAllSeen,
+              avatarUrl: viewerAvatarUrl,
+              firstName: viewerFirstName,
+              viewerLinkedUserId: viewerLinkedUserId,
+              viewerPersonId: viewerPersonId,
+              onAddYours: onAddYours,
+            );
+          }
+          if (showSkeletonForOthers) {
+            return const _SkeletonCircle();
           }
           final item = items[index - 1];
-          return _KinshipRingItem(item: item, familyId: familyId);
+          return _KinshipRingItem(item: item);
         },
       ),
     );
@@ -299,7 +298,8 @@ class KinshipRingRow extends ConsumerWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Closeness score — drives the no-Sparq section's "8 closest" cap
+// Closeness score — drives the within-group sort (birthday-soon is
+// the primary sort; this is the secondary tie-break after that).
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Heuristic kinship-key → closeness score (lower = closer).
@@ -316,25 +316,18 @@ class KinshipRingRow extends ConsumerWidget {
 /// Tier 7: niece/nephew.
 /// Tier 8: cousin.
 /// Tier 9: extended/other/unknown.
-///
-/// The exact tier boundaries aren't critical — the goal is just to
-/// surface the viewer's nearest kin first when capping at 8.
 int _closenessScoreForKey(String? key) {
   if (key == null || key.isEmpty) return 9;
   final k = key.toLowerCase();
 
-  // Parents
   if (k == 'father' || k == 'mother' || k == 'parent' ||
       k == 'step_father' || k == 'step_mother' ||
       k == 'stepfather' || k == 'stepmother') {
     return 0;
   }
-  // Spouses
-  if (k == 'husband' || k == 'wife' || k == 'spouse' ||
-      k == 'partner') {
+  if (k == 'husband' || k == 'wife' || k == 'spouse' || k == 'partner') {
     return 1;
   }
-  // Siblings
   if (k == 'brother' || k == 'sister' || k == 'sibling' ||
       k.contains('half_brother') || k.contains('half_sister') ||
       k.contains('step_brother') || k.contains('step_sister') ||
@@ -342,21 +335,17 @@ int _closenessScoreForKey(String? key) {
       k == 'elder_sister' || k == 'younger_sister') {
     return 2;
   }
-  // Children
   if (k == 'son' || k == 'daughter' || k == 'child' ||
       k == 'step_son' || k == 'step_daughter') {
     return 3;
   }
-  // Grandparents (elders — prioritized by the score itself)
   if (k.contains('grandfather') || k.contains('grandmother') ||
       k.contains('grandparent') || k.contains('great_grand')) {
     return 4;
   }
-  // In-laws
   if (k.contains('in_law')) {
     return 5;
   }
-  // Aunts / uncles
   if (k == 'uncle' || k == 'aunt' ||
       k.contains('paternal_uncle') || k.contains('paternal_aunt') ||
       k.contains('maternal_uncle') || k.contains('maternal_aunt') ||
@@ -365,83 +354,247 @@ int _closenessScoreForKey(String? key) {
       k.contains('parents_sibling')) {
     return 6;
   }
-  // Nieces / nephews
   if (k == 'nephew' || k == 'niece' ||
       k.contains('brothers_son') || k.contains('brothers_daughter') ||
       k.contains('sisters_son') || k.contains('sisters_daughter') ||
       k.contains('sibling_child')) {
     return 7;
   }
-  // Cousins
   if (k.contains('cousin')) {
     return 8;
   }
-  // Extended / unknown / compound we couldn't classify
   return 9;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// "You / Add yours" — leading item
+// "You / Add yours" — leading item, ALWAYS first
 // ═══════════════════════════════════════════════════════════════════════
 
-class _AddYoursItem extends StatelessWidget {
-  const _AddYoursItem({required this.onTap});
+class _YouItem extends ConsumerWidget {
+  const _YouItem({
+    required this.hasCurrentSparq,
+    required this.allSeen,
+    required this.avatarUrl,
+    required this.firstName,
+    required this.viewerLinkedUserId,
+    required this.viewerPersonId,
+    required this.onAddYours,
+  });
 
-  final VoidCallback onTap;
+  /// True when the viewer has at least one current (non-expired)
+  /// Sparq. Drives whether we render the story ring around the
+  /// avatar.
+  final bool hasCurrentSparq;
+
+  /// Whether all of the viewer's own Sparqs have been seen. Only
+  /// meaningful when [hasCurrentSparq] is true.
+  final bool allSeen;
+
+  final String? avatarUrl;
+  final String firstName;
+  final String? viewerLinkedUserId;
+  final String? viewerPersonId;
+  final VoidCallback onAddYours;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // The "You" item is always rendered — even with no Sparq at
+    // all. The plus badge always sits at the bottom-right of the
+    // avatar so the user can always create a new Sparq.
+    //
+    // When the viewer has a current Sparq, the avatar gets a story
+    // ring (gradient when unseen, dim when seen). Tapping the
+    // avatar opens the viewer's own Sparq viewer. Tapping the plus
+    // badge always opens /sparq/create.
+    final semanticLabel = hasCurrentSparq
+        ? 'Your Sparq${allSeen ? ', seen' : ', new'}'
+        : 'Add your Sparq';
+
+    return semanticButton(
+      label: semanticLabel,
+      hint: hasCurrentSparq
+          ? 'Double tap to view your Sparq. The plus badge opens the Sparq composer.'
+          : 'Double tap to add your Sparq',
+      child: _YouAvatarWithPlus(
+        hasCurrentSparq: hasCurrentSparq,
+        allSeen: allSeen,
+        avatarUrl: avatarUrl,
+        firstName: firstName,
+        linkedUserId: viewerLinkedUserId,
+        // When the viewer has no Sparq, the whole avatar opens the
+        // composer (matches the plus badge). When they have a
+        // Sparq, the avatar opens their Sparq viewer.
+        onAvatarTap: () {
+          HapticService.selection();
+          if (hasCurrentSparq && viewerLinkedUserId != null) {
+            context.push('/sparq/viewer/$viewerLinkedUserId');
+          } else {
+            onAddYours();
+          }
+        },
+        onPlusTap: () {
+          HapticService.tap();
+          onAddYours();
+        },
+      ),
+    );
+  }
+}
+
+/// Composite widget: avatar + optional story ring + plus badge +
+/// labels below. Extracted so semanticButton can wrap the whole
+/// tap target (≥44dp) while we keep the avatar + plus badge as
+/// distinct hit regions.
+class _YouAvatarWithPlus extends StatelessWidget {
+  const _YouAvatarWithPlus({
+    required this.hasCurrentSparq,
+    required this.allSeen,
+    required this.avatarUrl,
+    required this.firstName,
+    required this.linkedUserId,
+    required this.onAvatarTap,
+    required this.onPlusTap,
+  });
+
+  final bool hasCurrentSparq;
+  final bool allSeen;
+  final String? avatarUrl;
+  final String firstName;
+  final String? linkedUserId;
+  final VoidCallback onAvatarTap;
+  final VoidCallback onPlusTap;
 
   @override
   Widget build(BuildContext context) {
-    return semanticButton(
-      label: 'Add yours, create a Sparq',
-      hint: 'Double tap to open the Sparq composer',
-      child: GestureDetector(
-        onTap: () {
-          HapticService.tap();
-          onTap();
-        },
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          // 56px tap target (≥ 44dp minimum) — wide enough for
-          // elder-friendly tapping.
-          width: 56,
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Dashed-orange circle with a "+" — matches the existing
-              // _AddFamilyCircle visual language on the legacy family
-              // switcher so users recognize "add" affordance.
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _cElevated,
-                  border: Border.all(
-                    color: _cOrange.withValues(alpha: 0.5),
-                    width: 1.5,
+    // The avatar size is 52px. Wrap in a 60px-wide Column so the
+    // labels have breathing room.
+    return SizedBox(
+      width: 60,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 52,
+            height: 52,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Avatar (with optional story ring) — fills the
+                // 52x52 box. Tap opens the viewer's Sparq viewer
+                // (when they have a Sparq) or the Sparq composer
+                // (when they don't).
+                Positioned.fill(
+                  child: GestureDetector(
+                    onTap: onAvatarTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: hasCurrentSparq
+                        ? SparqRingAvatar(
+                            // The viewer's own linkedUserId —
+                            // SparqRingAvatar's internal
+                            // sparqState.feed lookup finds the
+                            // matching group and renders the
+                            // right ring state (unseen gradient /
+                            // seen dim).
+                            userId: linkedUserId ?? '',
+                            avatarUrl: avatarUrl,
+                            radius: 22,
+                            isSeen: allSeen,
+                            onTap: onAvatarTap,
+                          )
+                        : _PlainAvatar(avatarUrl: avatarUrl),
                   ),
                 ),
-                child: const Icon(
-                  Icons.add_rounded,
-                  color: _cOrange,
-                  size: 24,
+                // Plus badge — always present (bottom-right). Even
+                // when the viewer has a current Sparq, the plus
+                // badge lets them create a new one.
+                Positioned(
+                  bottom: -2,
+                  right: -2,
+                  child: GestureDetector(
+                    onTap: onPlusTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _cOrange,
+                        border: Border.all(
+                          color: _cBg,
+                          width: 2,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.add_rounded,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'You',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: _cTextSecondary,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+          const SizedBox(height: 4),
+          // "You" — bold. ≥ 12sp.
+          SizedBox(
+            width: 58,
+            child: const Text(
+              'You',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: _cTextPrimary,
+              ),
+            ),
+          ),
+          // Sub-label: "Add yours" (no Sparq) or firstName (has
+          // Sparq). ≥ 10sp.
+          SizedBox(
+            width: 58,
+            child: Text(
+              hasCurrentSparq ? firstName : 'Add yours',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: _cTextDim,
+              ),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+/// A plain avatar (no ring) for the no-Sparq case. Mirrors
+/// SparqRingAvatar's avatar rendering so the visual stays
+/// consistent.
+class _PlainAvatar extends StatelessWidget {
+  const _PlainAvatar({required this.avatarUrl});
+  final String? avatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return CircleAvatar(
+      radius: 22,
+      backgroundImage: avatarUrl != null && avatarUrl!.isNotEmpty
+          ? NetworkImage(avatarUrl!)
+          : null,
+      backgroundColor: _cElevated,
+      child: avatarUrl == null || avatarUrl!.isEmpty
+          ? Icon(Icons.person,
+              size: 22,
+              color: _cTextSecondary.withValues(alpha: 0.4))
+          : null,
     );
   }
 }
@@ -451,49 +604,38 @@ class _AddYoursItem extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _KinshipRingItem extends ConsumerWidget {
-  const _KinshipRingItem({required this.item, required this.familyId});
+  const _KinshipRingItem({required this.item});
 
   final _RingItem item;
-  final String familyId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Birthday badge appears ONLY when the person has a Sparq
+    // (which they do — only Sparq authors are rendered) AND a
+    // birthday within 7 days.
     final hasBirthday =
         item.daysUntilBirthday != null && item.daysUntilBirthday! <= 7;
 
-    final semanticState = item.hasActiveSparq
-        ? (item.isSeen ? 'seen Sparqs' : 'unseen Sparqs')
-        : 'no Sparqs yet';
+    final semanticState = item.isSeen ? 'seen' : 'new';
+    final semanticLabel =
+        '${item.kinshipPrimary}\'s Sparq, $semanticState';
 
     return semanticButton(
-      label: '${item.kinshipPrimary} ${item.firstName}, $semanticState'
-          '${hasBirthday ? ', birthday in ${item.daysUntilBirthday} days' : ''}',
-      hint: item.hasActiveSparq
-          ? 'Double tap to view ${item.firstName}\'s Sparqs'
-          : 'Double tap to open ${item.firstName}\'s profile',
+      label: semanticLabel,
+      hint: 'Double tap to view ${item.firstName}\'s Sparq',
       child: GestureDetector(
         onTap: () {
           HapticService.selection();
-          if (item.hasActiveSparq && item.linkedUserId != null) {
-            // With-Sparq → open the Sparq viewer route. The route
-            // expects the auth userId (linkedUserId), NOT the
-            // Person.id — see sparq_feed_row.dart's usage.
+          // Open the Sparq viewer for this relative. The route
+          // expects the auth userId (linkedUserId), NOT the
+          // Person.id.
+          if (item.linkedUserId != null) {
             context.push('/sparq/viewer/${item.linkedUserId}');
-          } else {
-            // Without-Sparq → open the person's profile sheet.
-            // Phase A decision 2: tapping a relative without a
-            // Sparq opens their profile, not the sparq viewer.
-            PersonDetailSheet.show(
-              context,
-              person: item.person,
-              familyId: familyId,
-            );
           }
         },
         behavior: HitTestBehavior.opaque,
-        child: Container(
+        child: SizedBox(
           width: 60, // 56px tap target + 4px breathing room
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -508,29 +650,20 @@ class _KinshipRingItem extends ConsumerWidget {
                         // Pass the linkedUserId so SparqRingAvatar's
                         // internal sparqState.feed lookup finds the
                         // matching group and renders the right ring
-                        // state (unseen gradient, seen dim, or no
-                        // active sparqs = no ring).
+                        // state (unseen gradient / seen dim).
                         userId: item.linkedUserId ?? item.personId,
                         avatarUrl: item.avatarUrl,
                         radius: 22,
                         isSeen: item.isSeen,
                         onTap: () {
                           HapticService.selection();
-                          if (item.hasActiveSparq &&
-              item.linkedUserId != null) {
+                          if (item.linkedUserId != null) {
                             context.push(
                                 '/sparq/viewer/${item.linkedUserId}');
-                          } else {
-                            PersonDetailSheet.show(
-                              context,
-                              person: item.person,
-                              familyId: familyId,
-                            );
                           }
                         },
                       ),
                     ),
-                    // Birthday badge ("3d") — gold pill, top-right.
                     if (hasBirthday)
                       Positioned(
                         top: -2,
@@ -569,9 +702,7 @@ class _KinshipRingItem extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              // PRIMARY LABEL — kinship term, bold. ≥ 12sp per
-              // accessibility rules. Single-line with ellipsis; the
-              // row is horizontally scrollable so clipping is fine.
+              // PRIMARY LABEL — kinship term, bold.
               SizedBox(
                 width: 58,
                 child: Text(
@@ -583,15 +714,11 @@ class _KinshipRingItem extends ConsumerWidget {
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    // Unseen Sparqs get the bright primary color.
-                    // Seen / no-Sparq → secondary (dim) per decision 2.
-                    color: (item.hasActiveSparq && !item.isSeen)
-                        ? _cTextPrimary
-                        : _cTextSecondary,
+                    color: item.isSeen ? _cTextSecondary : _cTextPrimary,
                   ),
                 ),
               ),
-              // SECONDARY LABEL — first name, smaller. ≥ 10sp.
+              // SECONDARY LABEL — first name, small.
               SizedBox(
                 width: 58,
                 child: Text(
@@ -602,9 +729,8 @@ class _KinshipRingItem extends ConsumerWidget {
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10,
-                    fontWeight: (item.hasActiveSparq && !item.isSeen)
-                        ? FontWeight.w500
-                        : FontWeight.w400,
+                    fontWeight:
+                        item.isSeen ? FontWeight.w400 : FontWeight.w500,
                     color: _cTextDim,
                   ),
                 ),
@@ -618,17 +744,17 @@ class _KinshipRingItem extends ConsumerWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Skeleton — shimmer circles, no spinner (per Phase A spec)
+// Skeleton circle — shimmer during initial Sparq load
 // ═══════════════════════════════════════════════════════════════════════
 
-class _RingSkeleton extends StatefulWidget {
-  const _RingSkeleton();
+class _SkeletonCircle extends StatefulWidget {
+  const _SkeletonCircle();
 
   @override
-  State<_RingSkeleton> createState() => _RingSkeletonState();
+  State<_SkeletonCircle> createState() => _SkeletonCircleState();
 }
 
-class _RingSkeletonState extends State<_RingSkeleton>
+class _SkeletonCircleState extends State<_SkeletonCircle>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
@@ -650,86 +776,31 @@ class _RingSkeletonState extends State<_RingSkeleton>
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 96,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(
-          horizontal: KinrelSpacing.base,
-          vertical: KinrelSpacing.sm,
-        ),
-        itemCount: 6,
-        separatorBuilder: (_, __) => const SizedBox(width: 14),
-        itemBuilder: (_, index) {
-          // The first skeleton slot represents the "You / Add yours"
-          // item — render it as a dashed circle to communicate the
-          // "add" affordance even during loading.
-          if (index == 0) {
-            return Container(
-              width: 56,
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Column(
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _cElevated,
-                      border: Border.all(
-                        color: _cOrange.withValues(alpha: 0.3),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.add_rounded,
-                      color: _cOrange,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'You',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 11,
-                      color: _cTextSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-          return AnimatedBuilder(
-            animation: _controller,
-            builder: (_, __) {
-              final opacity = 0.08 + (_controller.value * 0.08);
-              return Container(
-                width: 56,
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: opacity),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      width: 40,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: opacity),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ],
+      width: 60,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (_, __) {
+          final opacity = 0.08 + (_controller.value * 0.08);
+          return Column(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: opacity),
                 ),
-              );
-            },
+              ),
+              const SizedBox(height: 6),
+              Container(
+                width: 40,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: opacity),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ],
           );
         },
       ),
