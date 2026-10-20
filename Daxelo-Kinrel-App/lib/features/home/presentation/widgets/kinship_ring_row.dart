@@ -69,7 +69,6 @@ import '../../../../core/services/haptic_service.dart';
 import '../../../../core/utils/accessibility_utils.dart';
 import '../../../family/presentation/providers/family_graph_provider.dart';
 import '../../../occasions/providers/occasion_reminders_provider.dart';
-import '../../../social/data/models/sparq_model.dart' show SparqModel;
 import '../../../social/data/providers/sparq_provider.dart';
 import '../../../social/presentation/widgets/sparq_ring_avatar.dart';
 

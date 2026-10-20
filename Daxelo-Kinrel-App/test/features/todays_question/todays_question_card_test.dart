@@ -253,7 +253,7 @@ class _MockWidgetRef implements WidgetRef {
 
   @override
   T watch<T>(ProviderListenable<T> provider) =>
-      _container.watch(provider);
+      _container.read(provider);
 
   @override
   void invalidate(ProviderOrFamily provider) {

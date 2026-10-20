@@ -25,8 +25,8 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/kinship/kinship_term_providers.dart';
-import '../../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider;
+import '../../../../core/kinship/kinship_term_providers.dart';
+import '../../../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider;
 import '../../../family/presentation/providers/family_graph_provider.dart'
     show familyGraphProvider;
 import '../../../feed/providers/feed_provider.dart' show homeFeedProvider;
@@ -113,8 +113,7 @@ final homeStateProvider = FutureProvider.family<HomeState, String>(
 
     final hasRecentSparq = sparqState.feed.any((group) {
       return group.sparqs.any((sparq) {
-        final created = sparq.createdAt;
-        return created != null && created.isAfter(cutoff);
+        return sparq.createdAt.isAfter(cutoff);
       });
     });
 
