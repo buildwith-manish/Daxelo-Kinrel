@@ -301,11 +301,20 @@ CREATE POLICY "circlemember_select_member_or_self" ON "CircleMember"
 DROP POLICY IF EXISTS "circlemember_insert_admin" ON "CircleMember";
 CREATE POLICY "circlemember_insert_admin" ON "CircleMember"
     FOR INSERT TO authenticated WITH CHECK (
-        (fn_user_is_circle_admin("circleId") OR (
-            -- anyoneCanAdd: any member can add
-            SELECT "anyoneCanAdd" FROM "Circle" WHERE id = "circleId"
-        ))
-        AND fn_user_can_be_added_to_circle("circleId", "userId")
+        -- Creator self-add bootstrap: the circle owner can always add
+        -- themselves as the first member (admin). This bypasses the
+        -- admin + eligibility checks for the self-add case only —
+        -- without this, there's a catch-22 where the creator can't
+        -- become an admin because they're not yet an admin.
+        ("userId" = auth.uid()::text
+         AND auth.uid()::text = (SELECT "ownerId" FROM "Circle" WHERE id = "circleId"))
+        OR (
+            -- Normal case: admin or anyoneCanAdd, with eligibility check
+            (fn_user_is_circle_admin("circleId") OR (
+                SELECT "anyoneCanAdd" FROM "Circle" WHERE id = "circleId"
+            ))
+            AND fn_user_can_be_added_to_circle("circleId", "userId")
+        )
     );
 
 -- UPDATE: self-update (archive/mute only) OR admin-update (role changes)
