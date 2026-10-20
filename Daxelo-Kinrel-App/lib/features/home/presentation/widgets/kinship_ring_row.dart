@@ -3,19 +3,43 @@
 // DAXELO KINREL — Kinship Ring Row (Phase A — Home, the Instagram-level idea)
 //
 // Horizontal scrollable row of family-member avatars that:
-//   • Item 0 = "You / Add yours" — opens add_story_sheet
+//   • Item 0 = "You / Add yours" — opens /sparq/create (the Sparq
+//     composer). Per the user's Phase A decision, we do NOT revive
+//     the legacy add_story_sheet / stories system. Sparq is the
+//     existing story-like surface.
 //   • Each other item = ring avatar with the person's kinship TERM
 //     (bold, e.g. "Mausi") as the primary label and first name
 //     (e.g. "Priya") as the secondary line — in the viewer's chosen
 //     language. Birthday badge ("3d") when occasionRemindersProvider
 //     says the person's birthday is within 7 days.
 //
-// The ring state (gradient when unseen, dim when seen) reuses the
-// SparqRingAvatar's visual language so the row matches the rest of
-// the app — but the data source for "what to show" is the kinship
-// term provider, not the sparq feed. This deliberately does NOT add a
-// third "story" system; it lays the existing sparq seen/unseen
-// state under the new kinship labels.
+// Ordering (Phase A decision 2):
+//   1. People with current Sparqs first — unseen first, then seen.
+//      No cap (all Sparq authors are surfaced so the viewer can
+//      catch up on everyone).
+//   2. Then up to 8 closest relatives + elders with a dim ring
+//      (no Sparq). Closeness is a heuristic on the kinship key:
+//      parent < spouse < sibling < child < grandparent < in-law
+//      < aunt/uncle < niece/nephew < cousin < extended. Elders
+//      (grandparents, great-grandparents) are prioritized by the
+//      closeness score itself.
+//
+// Visibility (Phase A decision 2):
+//   • Hide the row entirely if the viewer has fewer than 2 relatives
+//     (i.e. terms.length < 2). The parent screen then shows the
+//     "Next step" invite card.
+//
+// Tap behavior (Phase A decision 2):
+//   • Person WITH a Sparq → /sparq/viewer/<linkedUserId> (the
+//     existing Sparq viewer route expects the auth userId, which
+//     we read from Person.linkedUserId).
+//   • Person WITHOUT a Sparq → PersonDetailSheet.show(person,
+//     familyId). Opens the existing profile sheet — no new route.
+//
+// The ring state (gradient when unseen, dim when seen / no-Sparq)
+// reuses the SparqRingAvatar's visual language. This deliberately
+// does NOT add a third "story" system; it lays the existing sparq
+// seen/unseen state under the new kinship labels.
 //
 // Performance:
 //   • Reads the precomputed Map<String, KinshipTerm> once at the
@@ -28,8 +52,8 @@
 //   • Minimum tap target 44dp on every avatar (52px visual + 4px
 //     hit-padding = 56px tap target).
 //   • Primary text ≥ 12sp bold; secondary text ≥ 10sp.
-//   • Semantic label = "{primary} {firstName}, {unseen|seen} stories,
-//     {birthday in N days|no upcoming birthday}".
+//   • Semantic label = "{primary} {firstName}, {unseen|seen|no
+//     sparq}, {birthday in N days|no upcoming birthday}".
 //   • Respects reduced motion (no fire-pulse on calm rings when
 //     Toggler is off — handled inside SparqRingAvatar via KinrelFx).
 //   • Works at 1.5x font scale (SizedBox width is 56 but text
@@ -43,9 +67,11 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/constants/brand_spacing.dart';
+import '../../../../core/family/family_provider.dart' show Person;
 import '../../../../core/kinship/kinship_term_providers.dart';
 import '../../../../core/services/haptic_service.dart';
 import '../../../../core/utils/accessibility_utils.dart';
+import '../../../family/presentation/person_detail_sheet.dart';
 import '../../../family/presentation/providers/family_graph_provider.dart';
 import '../../../occasions/providers/occasion_reminders_provider.dart';
 import '../../../social/data/providers/sparq_provider.dart';
@@ -54,12 +80,21 @@ import '../../../social/presentation/widgets/sparq_ring_avatar.dart';
 // ── Color shortcuts ──────────────────────────────────────────────
 const _cOrange = KinrelColors.orange;
 const _cBg = KinrelColors.darkBackground;
-const _cCard = KinrelColors.darkCard;
 const _cElevated = KinrelColors.darkElevated;
 const _cTextPrimary = KinrelColors.textWhite;
 const _cTextSecondary = KinrelColors.textSilver;
 const _cTextDim = KinrelColors.textDim;
 const _cBirthday = KinrelColors.gold;
+
+/// Cap for the "no-Sparq closest relatives" section. Per Phase A
+/// decision 2: "up to 8 closest relatives and elders with a dim
+/// ring (no Sparq)".
+const int kNoSparqRelativesCap = 8;
+
+/// Minimum number of reachable relatives for the row to render at
+/// all. Per Phase A decision 2: "Hide the row if the viewer has
+/// fewer than 2 relatives."
+const int kMinRelativesToRenderRow = 2;
 
 /// A single ring-row item after all the data has been resolved.
 ///
@@ -67,26 +102,47 @@ const _cBirthday = KinrelColors.gold;
 class _RingItem {
   const _RingItem({
     required this.personId,
+    required this.person,
     required this.firstName,
     required this.kinshipPrimary,
     this.kinshipSecondary,
     this.avatarUrl,
+    this.linkedUserId,
     this.daysUntilBirthday,
+    this.hasActiveSparq = false,
     this.isSeen = false,
+    this.closenessScore = 99,
   });
 
   final String personId;
+  final Person person;
   final String firstName;
   final String kinshipPrimary;
   final String? kinshipSecondary;
   final String? avatarUrl;
+  final String? linkedUserId;
   final int? daysUntilBirthday;
+
+  /// True when this person has at least one Sparq in sparqState.feed
+  /// (i.e. they're a Sparq author). Drives the tap target: with-Sparq
+  /// → opens `/sparq/viewer/<userId>`; without-Sparq → opens
+  /// `PersonDetailSheet` (profile).
+  final bool hasActiveSparq;
+
+  /// Sparq-seen state from sparqState.feed. Only meaningful when
+  /// [hasActiveSparq] is true; false-positive "seen" for no-Sparq
+  /// items so the ring renders dim (matches decision 2's "dim ring
+  /// (no Sparq)" requirement).
   final bool isSeen;
+
+  /// Closeness score for the no-Sparq section's sort. Lower = closer.
+  /// Computed from the kinship key (see _closenessScoreForKey).
+  final int closenessScore;
 }
 
 /// The kinship ring row. Renders nothing (zero height) when the
-/// family has no relatives yet — the parent screen then shows the
-/// "Next step" invite card instead (per Phase A spec).
+/// viewer has fewer than [kMinRelativesToRenderRow] relatives —
+/// per Phase A decision 2.
 class KinshipRingRow extends ConsumerWidget {
   const KinshipRingRow({
     super.key,
@@ -94,13 +150,7 @@ class KinshipRingRow extends ConsumerWidget {
     required this.onAddYours,
   });
 
-  /// The family to show members for. Drives
-  /// kinshipTermsForFamilyProvider, familyGraphProvider, and
-  /// sparqProvider (for seen/unseen state).
   final String familyId;
-
-  /// Called when the user taps the leading "You / Add yours" item.
-  /// The parent (HomeScreen) opens showAddStorySheet(familyId).
   final VoidCallback onAddYours;
 
   @override
@@ -111,21 +161,9 @@ class KinshipRingRow extends ConsumerWidget {
       kinshipTermsForFamilyProvider(familyId),
     );
 
-    // Watch the family graph for the persons list (avatar URLs,
-    // first names, ids). This provider is already cached by the time
-    // Home renders.
     final graphAsync = ref.watch(familyGraphProvider(familyId));
-
-    // Watch occasion reminders for the birthday-soon badge. Home
-    // already watches this; the watch here is a no-op for Riverpod.
     final occasionsAsync = ref.watch(occasionRemindersProvider);
-
-    // Watch sparq state for seen/unseen ring state per person.
     final sparqState = ref.watch(sparqProvider);
-
-    // Materialize the items. The list is rebuilt only when one of
-    // the upstream providers emits a new value — never per-frame.
-    final items = <_RingItem>[];
 
     final graph = graphAsync.valueOrNull;
     final terms = termsAsync.valueOrNull;
@@ -136,28 +174,14 @@ class KinshipRingRow extends ConsumerWidget {
       return const _RingSkeleton();
     }
 
-    // If the kinship terms haven't computed yet (still loading
-    // in the isolate), still render the avatars with the FIRST
-    // NAME as the label (graceful degradation). The terms will
-    // pop in as soon as the isolate completes.
-    final personById = <String, Map<String, dynamic>>{};
-    for (final p in graph.persons) {
-      final id = p['id']?.toString();
-      if (id != null && id.isNotEmpty) {
-        personById[id] = p;
-      }
-    }
-
-    // Build the per-person seen/unseen map from the sparq feed.
-    // sparqState.feed is a List<UserSparqGroup> where each group has
-    // userId + allSeen. We need to know which Person ids have unseen
-    // sparqs so the ring shows the gradient. The sparq feed uses
-    // userId (auth id), not personId — the join goes via the
-    // Person.linkedUserId column. For Phase A we use the linkedUserId
-    // on each Person to look up the sparq group.
-    final seenByUserId = <String, bool>{};
+    // Per-person seen/unseen map from the sparq feed. sparqState.feed
+    // is a List<UserSparqGroup> keyed by auth userId. We join via
+    // Person.linkedUserId.
+    final hasSparqByLinkedUserId = <String, bool>{};
+    final seenByLinkedUserId = <String, bool>{};
     for (final group in sparqState.feed) {
-      seenByUserId[group.userId] = group.allSeen;
+      hasSparqByLinkedUserId[group.userId] = group.sparqs.isNotEmpty;
+      seenByLinkedUserId[group.userId] = group.allSeen;
     }
 
     // Birthday badges: occasionRemindersProvider already computes
@@ -172,73 +196,84 @@ class KinshipRingRow extends ConsumerWidget {
       }
     }
 
-    // Sort: unseen-first, then birthday-soon-first, then default
-    // order. The viewer's own "You" entry is always first regardless.
-    final sortedPersons = List<Map<String, dynamic>>.from(graph.persons);
-
-    // Compute the order key per person.
-    int orderFor(String id, String? linkedUserId) {
-      final seen = seenByUserId[linkedUserId ?? ''] ?? true;
-      final daysUntil = birthdayByPersonId[id];
-      // Unseen + birthday: 0 (top of the relatives)
-      // Unseen, no birthday: 1
-      // Seen + birthday: 2
-      // Seen, no birthday: 3
-      if (!seen && daysUntil != null) return 0;
-      if (!seen) return 1;
-      if (daysUntil != null) return 2;
-      return 3;
-    }
-
-    sortedPersons.sort((a, b) {
-      final aId = a['id']?.toString() ?? '';
-      final bId = b['id']?.toString() ?? '';
-      final aLinked = a['linkedUserId']?.toString() ?? '';
-      final bLinked = b['linkedUserId']?.toString() ?? '';
-      final aOrder = orderFor(aId, aLinked);
-      final bOrder = orderFor(bId, bLinked);
-      if (aOrder != bOrder) return aOrder.compareTo(bOrder);
-      // Stable secondary sort by name (so the order isn't random
-      // for ties).
-      return (a['name']?.toString() ?? '').compareTo(
-        b['name']?.toString() ?? '',
-      );
-    });
-
-    for (final p in sortedPersons) {
+    // Build the candidate list (all non-viewer persons).
+    final candidates = <_RingItem>[];
+    for (final p in graph.persons) {
       final id = p['id']?.toString() ?? '';
       if (id.isEmpty) continue;
+      if (p['isViewer'] == true) continue; // skip self
+
       final name = p['name']?.toString() ?? 'Relative';
       final firstName = kinrelFirstName(name);
       final linkedUserId = p['linkedUserId']?.toString();
-      final avatarUrl = p['photoUrl']?.toString() ??
-          p['avatarUrl']?.toString();
-
-      // Look up the kinship term — O(1) Map access. Null when the
-      // isolate is still computing OR when the person is the viewer
-      // (self returns null in resolveClassification).
+      final avatarUrl =
+          p['photoUrl']?.toString() ?? p['avatarUrl']?.toString();
       final term = terms?[id];
 
-      // The viewer's own entry — skip; we render "You" separately
-      // as the leading item. The graph marks the viewer's person with
-      // `isViewer: true` (see FlatGraphResult.fromRpc).
-      if (p['isViewer'] == true) continue;
+      final hasActiveSparq =
+          linkedUserId != null && (hasSparqByLinkedUserId[linkedUserId] ?? false);
+      final isSeen = seenByLinkedUserId[linkedUserId ?? ''] ?? true;
 
-      items.add(_RingItem(
+      // Build the Person object for the tap-to-profile behavior.
+      // The graph person Map has the keys Person.fromJson expects
+      // PLUS a few extras (isViewer, photoUrl) — fromJson ignores
+      // unknown keys, and we add familyId which is required.
+      final personJson = Map<String, dynamic>.from(p);
+      personJson['familyId'] = familyId;
+      final person = Person.fromJson(personJson);
+
+      candidates.add(_RingItem(
         personId: id,
+        person: person,
         firstName: firstName,
         kinshipPrimary: term?.primary ?? firstName,
         kinshipSecondary: term?.secondary,
         avatarUrl: avatarUrl,
+        linkedUserId: linkedUserId,
         daysUntilBirthday: birthdayByPersonId[id],
-        isSeen: seenByUserId[linkedUserId ?? ''] ?? true,
+        hasActiveSparq: hasActiveSparq,
+        isSeen: isSeen,
+        closenessScore: _closenessScoreForKey(term?.kinshipKey),
       ));
     }
 
-    // Empty state — viewer has no relatives yet. Hide the row.
-    if (items.isEmpty) {
+    // Phase A decision 2: hide if viewer has fewer than 2 relatives.
+    // "Relatives" = persons with a kinship term resolved (reachable).
+    final reachableCount =
+        candidates.where((c) => c.kinshipPrimary != c.firstName).length;
+    // Also count candidates who have an active Sparq — they're
+    // "relatives" too even if the kinship isolate hasn't resolved
+    // yet (graceful degradation while loading).
+    final totalRelatives = candidates.length;
+    if (totalRelatives < kMinRelativesToRenderRow &&
+        reachableCount < kMinRelativesToRenderRow) {
       return const SizedBox(width: 0, height: 0);
     }
+
+    // ── Sort: Section A (Sparq authors) + Section B (closest no-Sparq) ──
+    final withSparq = candidates.where((c) => c.hasActiveSparq).toList();
+    final withoutSparq = candidates.where((c) => !c.hasActiveSparq).toList();
+
+    // Section A sort: unseen first, then seen. Stable tie-break by name.
+    withSparq.sort((a, b) {
+      final aSeen = a.isSeen ? 1 : 0;
+      final bSeen = b.isSeen ? 1 : 0;
+      if (aSeen != bSeen) return aSeen.compareTo(bSeen);
+      return a.firstName.compareTo(b.firstName);
+    });
+
+    // Section B sort: by closeness score (lower = closer), then by
+    // name. Cap at kNoSparqRelativesCap.
+    withoutSparq.sort((a, b) {
+      final c = a.closenessScore.compareTo(b.closenessScore);
+      if (c != 0) return c;
+      return a.firstName.compareTo(b.firstName);
+    });
+    final noSparqCapped = withoutSparq.length > kNoSparqRelativesCap
+        ? withoutSparq.sublist(0, kNoSparqRelativesCap)
+        : withoutSparq;
+
+    final items = [...withSparq, ...noSparqCapped];
 
     return SizedBox(
       height: 96, // avatar (52) + label (12+10) + breathing room
@@ -264,6 +299,88 @@ class KinshipRingRow extends ConsumerWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// Closeness score — drives the no-Sparq section's "8 closest" cap
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Heuristic kinship-key → closeness score (lower = closer).
+///
+/// Tier 0: parent (father, mother, step_father, step_mother).
+/// Tier 1: spouse (husband, wife).
+/// Tier 2: sibling (brother, sister, half_*, step_* sibling).
+/// Tier 3: child (son, daughter, step_son, step_daughter).
+/// Tier 4: grandparent (paternal/maternal_grandfather/grandmother,
+///         great_grandfather/grandmother) — prioritized as elders.
+/// Tier 5: in-law (father_in_law, mother_in_law, etc.).
+/// Tier 6: aunt/uncle (uncle, aunt, paternal_uncle, etc.,
+///         fathers_brother, mothers_sister, etc.).
+/// Tier 7: niece/nephew.
+/// Tier 8: cousin.
+/// Tier 9: extended/other/unknown.
+///
+/// The exact tier boundaries aren't critical — the goal is just to
+/// surface the viewer's nearest kin first when capping at 8.
+int _closenessScoreForKey(String? key) {
+  if (key == null || key.isEmpty) return 9;
+  final k = key.toLowerCase();
+
+  // Parents
+  if (k == 'father' || k == 'mother' || k == 'parent' ||
+      k == 'step_father' || k == 'step_mother' ||
+      k == 'stepfather' || k == 'stepmother') {
+    return 0;
+  }
+  // Spouses
+  if (k == 'husband' || k == 'wife' || k == 'spouse' ||
+      k == 'partner') {
+    return 1;
+  }
+  // Siblings
+  if (k == 'brother' || k == 'sister' || k == 'sibling' ||
+      k.contains('half_brother') || k.contains('half_sister') ||
+      k.contains('step_brother') || k.contains('step_sister') ||
+      k == 'elder_brother' || k == 'younger_brother' ||
+      k == 'elder_sister' || k == 'younger_sister') {
+    return 2;
+  }
+  // Children
+  if (k == 'son' || k == 'daughter' || k == 'child' ||
+      k == 'step_son' || k == 'step_daughter') {
+    return 3;
+  }
+  // Grandparents (elders — prioritized by the score itself)
+  if (k.contains('grandfather') || k.contains('grandmother') ||
+      k.contains('grandparent') || k.contains('great_grand')) {
+    return 4;
+  }
+  // In-laws
+  if (k.contains('in_law')) {
+    return 5;
+  }
+  // Aunts / uncles
+  if (k == 'uncle' || k == 'aunt' ||
+      k.contains('paternal_uncle') || k.contains('paternal_aunt') ||
+      k.contains('maternal_uncle') || k.contains('maternal_aunt') ||
+      k.contains('fathers_brother') || k.contains('fathers_sister') ||
+      k.contains('mothers_brother') || k.contains('mothers_sister') ||
+      k.contains('parents_sibling')) {
+    return 6;
+  }
+  // Nieces / nephews
+  if (k == 'nephew' || k == 'niece' ||
+      k.contains('brothers_son') || k.contains('brothers_daughter') ||
+      k.contains('sisters_son') || k.contains('sisters_daughter') ||
+      k.contains('sibling_child')) {
+    return 7;
+  }
+  // Cousins
+  if (k.contains('cousin')) {
+    return 8;
+  }
+  // Extended / unknown / compound we couldn't classify
+  return 9;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // "You / Add yours" — leading item
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -275,8 +392,8 @@ class _AddYoursItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return semanticButton(
-      label: 'Add yours, create a story',
-      hint: 'Double tap to add your own story',
+      label: 'Add yours, create a Sparq',
+      hint: 'Double tap to open the Sparq composer',
       child: GestureDetector(
         onTap: () {
           HapticService.tap();
@@ -344,19 +461,34 @@ class _KinshipRingItem extends ConsumerWidget {
     final hasBirthday =
         item.daysUntilBirthday != null && item.daysUntilBirthday! <= 7;
 
+    final semanticState = item.hasActiveSparq
+        ? (item.isSeen ? 'seen Sparqs' : 'unseen Sparqs')
+        : 'no Sparqs yet';
+
     return semanticButton(
-      label: '${item.kinshipPrimary} ${item.firstName}'
-          '${item.isSeen ? ', seen' : ', unseen'}'
+      label: '${item.kinshipPrimary} ${item.firstName}, $semanticState'
           '${hasBirthday ? ', birthday in ${item.daysUntilBirthday} days' : ''}',
-      hint: 'Double tap to view ${item.firstName}\'s stories',
+      hint: item.hasActiveSparq
+          ? 'Double tap to view ${item.firstName}\'s Sparqs'
+          : 'Double tap to open ${item.firstName}\'s profile',
       child: GestureDetector(
         onTap: () {
           HapticService.selection();
-          // The viewer taps a relative → open the sparq viewer for
-          // that person. We use the Person.id; the sparq viewer route
-          // resolves to the linked user. This preserves the existing
-          // navigation target — no new route is added.
-          context.push('/sparq/viewer/${item.personId}');
+          if (item.hasActiveSparq && item.linkedUserId != null) {
+            // With-Sparq → open the Sparq viewer route. The route
+            // expects the auth userId (linkedUserId), NOT the
+            // Person.id — see sparq_feed_row.dart's usage.
+            context.push('/sparq/viewer/${item.linkedUserId}');
+          } else {
+            // Without-Sparq → open the person's profile sheet.
+            // Phase A decision 2: tapping a relative without a
+            // Sparq opens their profile, not the sparq viewer.
+            PersonDetailSheet.show(
+              context,
+              person: item.person,
+              familyId: familyId,
+            );
+          }
         },
         behavior: HitTestBehavior.opaque,
         child: Container(
@@ -365,15 +497,6 @@ class _KinshipRingItem extends ConsumerWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Avatar + ring + optional birthday badge.
-              // We reuse SparqRingAvatar for the ring visual language
-              // so the design system stays consistent. SparqRingAvatar
-              // expects a userId (auth id) — but for Phase A we want
-              // to look up by personId. The avatar's internal lookup
-              // is keyed by userId, so we pass the person's
-              // linkedUserId if available; otherwise we fall back to
-              // the personId and let the ring render in seen state
-              // (no false-positive "unseen" rings).
               SizedBox(
                 width: 52,
                 height: 52,
@@ -382,20 +505,28 @@ class _KinshipRingItem extends ConsumerWidget {
                   children: [
                     Positioned.fill(
                       child: SparqRingAvatar(
-                        // Use the personId as the SparqRingAvatar's
-                        // userId — SparqRingAvatar's lookup will not
-                        // find a matching group (groups are keyed by
-                        // auth userId), so the ring renders in the
-                        // "no active sparqs" state. We pass isSeen
-                        // directly so the ring matches our precomputed
-                        // state.
-                        userId: item.personId,
+                        // Pass the linkedUserId so SparqRingAvatar's
+                        // internal sparqState.feed lookup finds the
+                        // matching group and renders the right ring
+                        // state (unseen gradient, seen dim, or no
+                        // active sparqs = no ring).
+                        userId: item.linkedUserId ?? item.personId,
                         avatarUrl: item.avatarUrl,
                         radius: 22,
                         isSeen: item.isSeen,
                         onTap: () {
                           HapticService.selection();
-                          context.push('/sparq/viewer/${item.personId}');
+                          if (item.hasActiveSparq &&
+              item.linkedUserId != null) {
+                            context.push(
+                                '/sparq/viewer/${item.linkedUserId}');
+                          } else {
+                            PersonDetailSheet.show(
+                              context,
+                              person: item.person,
+                              familyId: familyId,
+                            );
+                          }
                         },
                       ),
                     ),
@@ -452,7 +583,11 @@ class _KinshipRingItem extends ConsumerWidget {
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: item.isSeen ? _cTextSecondary : _cTextPrimary,
+                    // Unseen Sparqs get the bright primary color.
+                    // Seen / no-Sparq → secondary (dim) per decision 2.
+                    color: (item.hasActiveSparq && !item.isSeen)
+                        ? _cTextPrimary
+                        : _cTextSecondary,
                   ),
                 ),
               ),
@@ -467,7 +602,9 @@ class _KinshipRingItem extends ConsumerWidget {
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10,
-                    fontWeight: item.isSeen ? FontWeight.w400 : FontWeight.w500,
+                    fontWeight: (item.hasActiveSparq && !item.isSeen)
+                        ? FontWeight.w500
+                        : FontWeight.w400,
                     color: _cTextDim,
                   ),
                 ),

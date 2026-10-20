@@ -24,7 +24,10 @@
 //   • Reduced-motion respected — the chip has no animation.
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+// flutter_riverpod exports a `Family` typedef that clashes with the
+// `Family` class from family_provider.dart. Hide it so the only
+// `Family` in scope is our domain model.
+import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/brand_colors.dart';
@@ -33,13 +36,23 @@ import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/family/family_provider.dart';
 import '../../../../core/services/haptic_service.dart';
 import '../../../../core/utils/accessibility_utils.dart';
+// Phase A decision 3: drop FamilySparqTray from Home, but add a
+// small unseen-dot on this compact selector when ANOTHER family
+// (not the active one) has unseen Sparqs. familySparqTrayProvider
+// already computes unseenCount per family — we watch it once at
+// the chip level and surface a single gold dot when any sibling
+// family has unseenCount > 0.
+import '../../../sparq_tray/providers/family_sparq_tray_provider.dart'
+    show familySparqTrayProvider;
 
 const _cOrange = KinrelColors.orange;
 const _cCard = KinrelColors.darkCard;
 const _cElevated = KinrelColors.darkElevated;
 const _cTextPrimary = KinrelColors.textWhite;
 const _cTextSecondary = KinrelColors.textSilver;
-const _cTextDim = KinrelColors.textDim;
+// Gold for the "other family has unseen Sparqs" dot — readable as
+// "news / unread" without the error connotation of red.
+const _cUnseen = KinrelColors.gold;
 
 /// A compact family selector pill for the Home header.
 ///
@@ -71,8 +84,20 @@ class CompactFamilySwitcher extends ConsumerWidget {
       orElse: () => families.first,
     );
 
+    // Phase A decision 3: small unseen-dot on the chip when ANY
+    // OTHER family (not the active one) has unseen Sparqs. We watch
+    // familySparqTrayProvider once at the chip level — it returns
+    // per-family unseenCount, so the watch cost is amortized across
+    // every chip instance on Home.
+    final trayAsync = ref.watch(familySparqTrayProvider);
+    final trayItems = trayAsync.valueOrNull ?? const [];
+    final otherFamilyHasUnseen = trayItems.any(
+      (t) => t.family.id != active.id && t.unseenCount > 0,
+    );
+
     return semanticButton(
-      label: 'Family: ${active.name}. Active. Double tap to switch family',
+      label: 'Family: ${active.name}. Active. Double tap to switch family'
+          '${otherFamilyHasUnseen ? '. Other families have unseen Sparqs.' : ''}',
       hint: 'Opens the family switcher sheet',
       child: GestureDetector(
         onTap: () {
@@ -100,27 +125,57 @@ class CompactFamilySwitcher extends ConsumerWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Active family initial circle (Ignite gradient, 24px).
-              Container(
-                width: 24,
-                height: 24,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: KinrelGradients.igniteGradient,
-                ),
-                child: Center(
-                  child: Text(
-                    active.name.isNotEmpty
-                        ? active.name[0].toUpperCase()
-                        : 'F',
-                    style: const TextStyle(
-                      fontFamily: KinrelTypography.displayFont,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
+              // Active family initial circle (Ignite gradient, 24px)
+              // + small gold unseen-dot overlay when another family
+              // has unseen Sparqs.
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: KinrelGradients.igniteGradient,
+                    ),
+                    child: Center(
+                      child: Text(
+                        active.name.isNotEmpty
+                            ? active.name[0].toUpperCase()
+                            : 'F',
+                        style: const TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  // Gold dot — top-right, 8px diameter. Gold (not
+                  // red) so it doesn't read as "error/badge" — it's
+                  // a "news" indicator like an unread indicator on a
+                  // chat list. The dot only appears when another
+                  // family (not this active one) has unseen Sparqs
+                  // so the user knows to switch.
+                  if (otherFamilyHasUnseen)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _cUnseen,
+                          border: Border.all(
+                            color: _cElevated,
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(width: 6),
               // Family name — single line, ellipsis if long. ≥ 12sp.
@@ -178,7 +233,7 @@ class CompactFamilySwitcher extends ConsumerWidget {
               width: 0.75,
             ),
           ),
-          child: Row(
+          child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: const [
               Icon(Icons.add_rounded, color: _cOrange, size: 16),
