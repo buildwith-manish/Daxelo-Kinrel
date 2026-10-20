@@ -19,7 +19,7 @@ class SparqCreateScreen extends ConsumerStatefulWidget {
 class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  String _audience = 'PUBLIC';
+  String _audience = 'FAMILY_ONLY';
   String? _text;
   String _backgroundColor = '#1A1A2E';
   // XFile is cross-platform (works on web blob URLs and native file
@@ -998,15 +998,16 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
 
   Widget _buildAudienceSelector() {
     final segments = [
-      const _SegmentData(key: 'PUBLIC', label: 'Everyone'),
       const _SegmentData(key: 'FAMILY_ONLY', label: 'Family'),
-      const _SegmentData(key: 'VIP', label: 'VIP'),
+      const _SegmentData(key: 'VIP_CIRCLE', label: 'VIP'),
+      const _SegmentData(key: 'CIRCLE', label: 'Circles'),
     ];
 
     final descriptions = {
       'PUBLIC': 'All your followers can see this Sparq',
       'FAMILY_ONLY': 'Only family members will see this',
-      'VIP': 'Only your closest connections',
+      'VIP_CIRCLE': 'Only your closest connections',
+      'CIRCLE': 'Only members of your selected circles will see this',
     };
 
     return Column(

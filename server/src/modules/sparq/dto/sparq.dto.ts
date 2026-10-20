@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsIn, IsInt, Min, Max, IsDateString, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsIn, IsInt, Min, Max, IsDateString, IsBoolean, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateSparqDto {
@@ -19,9 +19,13 @@ export class CreateSparqDto {
   @IsOptional() @Type(() => Number) @IsInt()
   duration?: number;
 
-  @ApiPropertyOptional({ description: 'Audience scope', enum: ['PUBLIC', 'FAMILY_ONLY', 'VIP_CIRCLE'] })
-  @IsOptional() @IsIn(['PUBLIC', 'FAMILY_ONLY', 'VIP_CIRCLE'])
+  @ApiPropertyOptional({ description: 'Audience scope', enum: ['PUBLIC', 'FAMILY_ONLY', 'VIP_CIRCLE', 'CIRCLE'] })
+  @IsOptional() @IsIn(['PUBLIC', 'FAMILY_ONLY', 'VIP_CIRCLE', 'CIRCLE'])
   audience?: string;
+
+  @ApiPropertyOptional({ description: 'Circle IDs for CIRCLE audience (required when audience=CIRCLE)', type: [String] })
+  @IsOptional() @IsArray() @IsString({ each: true })
+  circleIds?: string[];
 
   @ApiPropertyOptional({ description: 'Mood of the Sparq', enum: ['happy', 'hype', 'love', 'sad', 'celebrate', 'angry'], default: 'happy' })
   @IsOptional() @IsIn(['happy', 'hype', 'love', 'sad', 'celebrate', 'angry'])

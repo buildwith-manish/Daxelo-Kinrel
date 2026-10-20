@@ -92,6 +92,18 @@ export class SparqService {
     // Get IDs of mutual followers (users who follow each other) for VIP_CIRCLE
     const mutualFollowerIds = await this.getMutualFollowerIds(userId);
 
+    // Phase 4 — get Sparq IDs scoped to circles the caller is a member of
+    const callerCircleMemberships = await this.prisma.circleMember.findMany({
+      where: { userId },
+      select: { circleId: true },
+    });
+    const circleSparqIds: string[] = callerCircleMemberships.length > 0
+      ? (await this.prisma.sparqAudienceCircle.findMany({
+          where: { circleId: { in: callerCircleMemberships.map((c) => c.circleId) } },
+          select: { sparqId: true },
+        })).map((s) => s.sparqId)
+      : [];
+
     if (relevantUserIds.length === 0) {
       return { items: [], total: 0, page, limit };
     }
@@ -106,6 +118,9 @@ export class SparqService {
           { audience: 'PUBLIC' },
           { audience: 'FAMILY_ONLY', userId: { in: familyMemberIds } },
           { audience: 'VIP_CIRCLE', userId: { in: mutualFollowerIds } },
+          ...(circleSparqIds.length > 0
+            ? [{ audience: 'CIRCLE' as const, id: { in: circleSparqIds } }]
+            : []),
         ],
       },
       include: {
@@ -204,7 +219,7 @@ export class SparqService {
         text: dto.text ?? null,
         backgroundColor: dto.backgroundColor ?? null,
         duration: dto.duration ?? null,
-        audience: (dto.audience ?? 'PUBLIC') as any,
+        audience: (dto.audience ?? 'FAMILY_ONLY') as any,
         mood: (dto.mood ?? 'happy') as any,
         intensity: (dto.intensity ?? 'warm') as any,
         allowChain: dto.allowChain ?? false,
@@ -217,13 +232,21 @@ export class SparqService {
       },
     });
 
+    // Phase 4 — if audience is CIRCLE, save the selected circleIds
+    if (dto.audience === 'CIRCLE' && dto.circleIds && dto.circleIds.length > 0) {
+      await this.prisma.sparqAudienceCircle.createMany({
+        data: dto.circleIds.map((circleId) => ({
+          sparqId: sparq.id,
+          circleId,
+        })),
+      });
+    }
+
     // Emit to relevant users
     this.gateway.emitToUser(userId, 'sparq:new', { sparqId: sparq.id, userId });
 
     return sparq;
   }
-
-  /** Toggle echo on a Sparq — adds or removes the echo */
   async toggleEcho(sparqId: string, userId: string) {
     const sparq = await this.prisma.sparq.findUnique({ where: { id: sparqId } });
     if (!sparq) throw new NotFoundException('Sparq not found');
@@ -432,6 +455,18 @@ export class SparqService {
     // Check if viewer is a mutual follower for VIP_CIRCLE
     const isMutualFollower = await this.isMutualFollower(viewerId, userId);
 
+    // Phase 4 — check if viewer shares a circle-scoped Sparq with the author
+    const viewerCircleMemberships = await this.prisma.circleMember.findMany({
+      where: { userId: viewerId },
+      select: { circleId: true },
+    });
+    const circleSparqIds: string[] = viewerCircleMemberships.length > 0
+      ? (await this.prisma.sparqAudienceCircle.findMany({
+          where: { circleId: { in: viewerCircleMemberships.map((c) => c.circleId) } },
+          select: { sparqId: true },
+        })).map((s) => s.sparqId)
+      : [];
+
     const whereClause: any = {
       userId,
       expiresAt: { gt: now },
@@ -444,6 +479,10 @@ export class SparqService {
 
     if (isMutualFollower) {
       whereClause.OR.push({ audience: 'VIP_CIRCLE' });
+    }
+
+    if (circleSparqIds.length > 0) {
+      whereClause.OR.push({ audience: 'CIRCLE', id: { in: circleSparqIds } });
     }
 
     const sparqs = await this.prisma.sparq.findMany({
