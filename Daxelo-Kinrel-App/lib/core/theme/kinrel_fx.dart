@@ -179,3 +179,119 @@ class KinrelFx {
   /// Always false in flat mode.
   static bool get ambientParticles => rich;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// 2026-10-19 (Phase 4): KinrelGlass — reusable frosted-glass widget
+// ═══════════════════════════════════════════════════════════════════════
+//
+// A reusable widget that renders a frosted-glass surface on high-end
+// devices (real BackdropFilter, sigma <= 12, bounded area, inside its
+// own RepaintBoundary) and a solid translucent fill on mid/low devices
+// or when over a scrolling area.
+//
+// Usage:
+//   KinrelGlass(
+//     tint: Colors.black.withValues(alpha: 0.3),
+//     borderRadius: BorderRadius.circular(16),
+//     child: myContent,
+//   )
+//
+// The widget automatically:
+//   • Wraps itself in a RepaintBoundary (isolates raster cost)
+//   • Uses BackdropFilter only when KinrelFx.rich == true AND
+//     !inScrollingArea (sigma clamped to 12)
+//   • Falls back to a solid translucent fill + 1px border on mid/low
+//     tier or when inside a scrolling area
+//   • Applies the borderRadius via ClipRRect in both modes
+
+/// A reusable frosted-glass surface widget.
+///
+/// On high-end devices (`KinrelFx.rich == true`) AND when NOT inside a
+/// scrolling area, renders a real [BackdropFilter] with sigma clamped
+/// to 12. On mid/low devices or inside scroll, renders a solid
+/// translucent fill with the same tint + a 1px border (no blur, no
+/// saveLayer — cheap).
+///
+/// Always wraps in a [RepaintBoundary] to isolate raster cost.
+class KinrelGlass extends StatelessWidget {
+  const KinrelGlass({
+    super.key,
+    required this.child,
+    this.tint = const Color(0x66000000),
+    this.sigma = 12.0,
+    this.borderRadius,
+    this.inScrollingArea = false,
+    this.border = const BorderSide(
+      color: Color(0x22FFFFFF),
+      width: 1.0,
+    ),
+  });
+
+  /// The content rendered inside the glass surface.
+  final Widget child;
+
+  /// The tint color. On high tier: applied as the child's background
+  /// over the blurred backdrop. On low tier: applied as a solid fill.
+  final Color tint;
+
+  /// The blur sigma. Clamped to 12.0 max (higher sigmas are expensive
+  /// on the GPU and rarely visually distinguishable above 12).
+  final double sigma;
+
+  /// Optional border radius. Applied via ClipRRect in both modes.
+  final BorderRadius? borderRadius;
+
+  /// Set to true when this glass surface is inside a scrolling area
+  /// (e.g. a ListView child, a sliver). When true, the widget ALWAYS
+  /// uses the solid fallback (never BackdropFilter) — BackdropFilter
+  /// inside a scroll causes per-frame saveLayer which is the #1 source
+  /// of raster jank on low-end devices.
+  final bool inScrollingArea;
+
+  /// The border. On high tier: 1px hairline. On low tier: 1px hairline
+  /// (same — the border is cheap and gives the surface definition).
+  final BorderSide border;
+
+  @override
+  Widget build(BuildContext context) {
+    // Clamp sigma to 12 — higher values are expensive + indistinguishable.
+    final effectiveSigma = sigma.clamp(0.0, 12.0);
+
+    // Decide: real blur or solid fallback?
+    final useRealBlur = KinrelFx.rich && !inScrollingArea;
+
+    Widget content;
+    if (useRealBlur) {
+      // High tier + non-scroll: real BackdropFilter.
+      content = ClipRRect(
+        borderRadius: borderRadius ?? BorderRadius.zero,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(
+            sigmaX: effectiveSigma,
+            sigmaY: effectiveSigma,
+          ),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: tint,
+              border: Border(top: border, left: border, right: border, bottom: border),
+            ),
+            child: child,
+          ),
+        ),
+      );
+    } else {
+      // Low/mid tier OR scrolling: solid translucent fill, no blur.
+      content = DecoratedBox(
+        decoration: BoxDecoration(
+          color: tint,
+          borderRadius: borderRadius,
+          border: Border(top: border, left: border, right: border, bottom: border),
+        ),
+        child: child,
+      );
+    }
+
+    // Always wrap in RepaintBoundary to isolate the raster cost.
+    return RepaintBoundary(child: content);
+  }
+}
