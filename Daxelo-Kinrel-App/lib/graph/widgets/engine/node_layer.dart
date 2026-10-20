@@ -42,19 +42,11 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
     Map<String, Map<String, dynamic>> customColorsByPersonId,
     String? viewerPersonId,
     FlatGraphResult flat, {
-    /// v5.143 (HIDDEN-NODE AUDIT): Pre-computed first-degree neighbor
-    /// IDs for the currently-selected node (from the FilteredGraph
-    /// adjacency map). Passed through to _buildFullNode to avoid the
-    /// per-node iteration of flat.relationships.
     Set<String>? precomputedFirstDegreeIds,
-    /// PERF v5.175 (60fps PAN/ZOOM): Pre-computed parent→child-count
-    /// map (built once per data change in canvas_mixin). Forwards to
-    /// _buildFullNode so the per-node O(E) _countChildrenOf scan is
-    /// skipped entirely (715 × 950 ≈ 680K ops per rebuild → 0).
     Map<String, int>? childCountById,
-    /// PERF (Phase 2): graph-space viewport for painter-side node
-    /// culling. See the constructor doc on [NodeMiniPainter].
     Rect? graphViewport,
+    /// 2026-10-20: Native-language kinship terms per person.
+    Map<String, ({String primary, String? secondary})>? relationTermsById,
   }) {
     final Lod lod = _lodFor(_camera.zoomLevel);
 
@@ -134,6 +126,9 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
           flat,
           precomputedFirstDegreeIds: precomputedFirstDegreeIds,
           childCountById: childCountById,
+          // 2026-10-20: pass native-language terms.
+          relationTermPrimary: relationTermsById?[id]?.primary,
+          relationTermSecondary: relationTermsById?[id]?.secondary,
         );
       } else {
         // Lod.chip — legacy fallback (shouldn't normally be reached

@@ -270,6 +270,11 @@ import '../rearrange/layout_overrides_service.dart'
         hasUnsavedChangesProvider,
         saveCompletedTriggerProvider;
 
+// 2026-10-20: VocabularyTable for native-language kinship term lookup.
+import '../../core/kinship/v4/vocabulary_table.dart' show VocabularyTable;
+// ignore: unused_import — used by part files (subtree_mixin, canvas_mixin)
+import '../../core/kinship/kinship_term_language_provider.dart';
+
 // ── P0.4: Extracted parts (MUST come after all imports) ────────────────
 part 'engine/canvas_mixin.dart';
 part 'engine/interaction_mixin.dart';
@@ -477,6 +482,15 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   FlatGraphResult? _lastFlat;
   String? _lastViewerId;
   Map<String, String>? _cachedRelationLabels;
+
+  /// 2026-10-20: Native-language kinship terms per person.
+  /// Computed once per (graph revision, viewer, language).
+  /// Key: personId, Value: (primary, secondary).
+  Map<String, ({String primary, String? secondary})>? _cachedRelationTerms;
+
+  /// The kinship language that _cachedRelationTerms was computed with.
+  /// When the language changes, the cache is invalidated.
+  String? _cachedRelationTermsLanguage;
   // v69: Cache the authoritative KinshipEdgeCategory per person —
   // eliminates the lossy string round-trip that caused grey nodes.
   Map<String, KinshipEdgeCategory>? _cachedRelationCategories;

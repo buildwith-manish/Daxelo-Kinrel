@@ -121,6 +121,59 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
     return labels;
   }
 
+  /// 2026-10-20: Computes the native-language kinship terms for every
+  /// person, alongside the English labels.
+  ///
+  /// Returns Map<personId, ({String primary, String? secondary})> where:
+  ///   - primary = the term in the chosen language (e.g. "Bhabhi")
+  ///   - secondary = the English term (e.g. "Sister-in-law"), or null
+  ///     when primary IS English (no need to show it twice)
+  ///
+  /// This is computed ONCE per (graph revision, viewer, language) — NOT
+  /// per frame or per node build. The map is cached by the caller
+  /// (canvas_mixin) and invalidated when the flat data identity or the
+  /// kinship term language changes.
+  ///
+  /// Fallback chain: chosen language → English → person's name.
+  /// Never returns an empty primary.
+  Map<String, ({String primary, String? secondary})> _relationTerms(
+    FlatGraphResult flat,
+    String? viewerPersonId,
+    String kinshipLanguage,
+  ) {
+    final terms = <String, ({String primary, String? secondary})>{};
+
+    // Reuse the English labels already computed by _relationLabels.
+    final englishLabels = _relationLabels(flat, viewerPersonId);
+
+    for (final entry in englishLabels.entries) {
+      final personId = entry.key;
+      final englishTerm = entry.value;
+
+      if (kinshipLanguage == 'en') {
+        // English is the chosen language — primary = English, no secondary.
+        terms[personId] = (primary: englishTerm, secondary: null);
+        continue;
+      }
+
+      // Look up the native term via the reverse index.
+      final nativeTerm = VocabularyTable.resolveByEnglishTerm(
+        englishTerm: englishTerm,
+        locale: kinshipLanguage,
+      );
+
+      if (nativeTerm != null && nativeTerm.isNotEmpty) {
+        // Found a native translation — show it as primary, English as secondary.
+        terms[personId] = (primary: nativeTerm, secondary: englishTerm);
+      } else {
+        // No translation found — fall back to English.
+        terms[personId] = (primary: englishTerm, secondary: null);
+      }
+    }
+
+    return terms;
+  }
+
   /// Computes the RAW kinship key (e.g., "father", "mothers_brother")
   /// for each person from the viewer's perspective.
   ///

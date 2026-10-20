@@ -34,6 +34,10 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
     /// single O(1) map lookup. Null only in non-canvas call contexts,
     /// which fall back to the legacy [_countChildrenOf].
     Map<String, int>? childCountById,
+    /// 2026-10-20: Native-language kinship term (primary, large).
+    String? relationTermPrimary,
+    /// 2026-10-20: English term (secondary, small). Null when primary IS English.
+    String? relationTermSecondary,
   }) {
     // v2.2: If this node IS the viewer, show "You" as the relation label.
     final bool isViewer = viewerPersonId != null && id == viewerPersonId;
@@ -277,6 +281,8 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       // v2.2: "You" label for the viewer's node; otherwise use the
       // computed relation label from the viewer's perspective.
       relationLabel: isViewer ? 'You' : (labels[id] ?? ''),
+      relationTermPrimary: isViewer ? null : relationTermPrimary,
+      relationTermSecondary: isViewer ? null : relationTermSecondary,
       // v104 (LABEL FADE FIX): Pass the camera so GraphNode can drive
       // a SMOOTH zoom-fade for the relation label via an internal
       // AnimatedBuilder (see GraphNode._buildRelationLabel). The old

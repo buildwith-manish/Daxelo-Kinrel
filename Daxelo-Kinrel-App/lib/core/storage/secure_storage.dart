@@ -11,6 +11,12 @@ import 'secure_storage_stub.dart'
 class SecureStorageService {
   final impl.SecureStorageBackend _backend = impl.createBackend();
 
+  // 2026-10-20: Generic read/write for custom keys (used by
+  // kinshipTermLanguageProvider + showEnglishSubtitleProvider).
+  Future<String?> read({required String key}) => _backend.read(key: key);
+  Future<void> write({required String key, required String value}) =>
+      _backend.write(key: key, value: value);
+
   // Keys
   static const _keyAccessToken = 'access_token';
   static const _keyRefreshToken = 'refresh_token';

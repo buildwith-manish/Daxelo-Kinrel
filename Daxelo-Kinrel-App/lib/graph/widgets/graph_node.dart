@@ -162,6 +162,8 @@ class GraphNode extends ConsumerStatefulWidget {
     this.relationshipKey,
     this.category,
     required this.relationLabel,
+    this.relationTermPrimary,
+    this.relationTermSecondary,
     this.nodeState = NodeState.normal,
     this.opacity = 1.0,
     this.nodeSize = 72.0,
@@ -284,7 +286,21 @@ class GraphNode extends ConsumerStatefulWidget {
   final KinshipEdgeCategory? category;
 
   /// Display label for the relationship (e.g., "Father").
+  ///
+  /// This is ALWAYS the ENGLISH label — used for color resolution
+  /// (borderColorFor) and accessibility semantics. Never put a
+  /// translated/native-language string here.
   final String relationLabel;
+
+  /// 2026-10-20: The PRIMARY kinship term in the user's chosen language
+  /// (e.g., "Bhabhi", "Mausi", "पिता"). When null, falls back to
+  /// [relationLabel] (English). This is the LARGE label shown on the node.
+  final String? relationTermPrimary;
+
+  /// 2026-10-20: The SECONDARY label — typically the English term shown
+  /// small beneath the primary (e.g., "Sister-in-law" under "Bhabhi").
+  /// When null, no secondary line is shown. Hidden when primary == English.
+  final String? relationTermSecondary;
 
   /// Current visual state of the node.
   final NodeState nodeState;
@@ -772,6 +788,12 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
     final parts = <String>[
       name,
+      // 2026-10-20: include the native term in the semantic label for
+      // accessibility. Reads as "Anita, Bhabhi, sister-in-law, generation 0".
+      if (widget.relationTermPrimary != null &&
+          widget.relationTermPrimary!.isNotEmpty &&
+          widget.relationLabel != 'You')
+        widget.relationTermPrimary!,
       widget.relationLabel,
       'Generation ${widget.generationIndex}',
     ];
@@ -938,6 +960,97 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     );
   }
 
+  /// 2026-10-20: Builds the native-language term label (primary +
+  /// optional secondary English term).
+  ///
+  /// Primary: 13-14sp bold, in the chosen language.
+  /// Secondary: 10-11sp regular, English (hidden when primary IS English).
+  ///
+  /// Font fallback covers Indic scripts + Urdu/Arabic RTL.
+  Widget _buildNativeTermLabel() {
+    final primary = widget.relationTermPrimary!;
+    final secondary = widget.relationTermSecondary;
+
+    // Detect RTL scripts (Urdu, Arabic) for correct text direction.
+    final isRtl = _isRtlText(primary);
+
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Primary term — large, bold.
+          Text(
+            primary,
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 13.0,
+              fontWeight: FontWeight.w700,
+              color: _borderColor,
+              height: 1.3, // prevent Indic ascender/matra clipping
+              fontFamilyFallback: const [
+                'NotoSansDevanagari',
+                'NotoSansTamil',
+                'NotoSansTelugu',
+                'NotoSansKannada',
+                'NotoSansMalayalam',
+                'NotoSansBengali',
+                'NotoSansGujarati',
+                'NotoSansGurmukhi',
+                'NotoSansOriya',
+                'NotoSansArabic',
+                'NotoSansCJK',
+              ],
+              shadows: const [
+                Shadow(blurRadius: 3, color: Colors.black54),
+              ],
+            ),
+            textAlign: TextAlign.center,
+            textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          // Secondary term — small, regular (English).
+          // Only shown when it differs from the primary.
+          if (secondary != null && secondary.isNotEmpty) ...[
+            const SizedBox(height: 1),
+            Text(
+              secondary,
+              style: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 10.0,
+                fontWeight: FontWeight.w400,
+                color: _borderColor.withValues(alpha: 0.7),
+                height: 1.3,
+                shadows: const [
+                  Shadow(blurRadius: 3, color: Colors.black54),
+                ],
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Returns true if [text] contains RTL script characters (Arabic, Urdu).
+  static bool _isRtlText(String text) {
+    for (final codeUnit in text.codeUnits) {
+      // Arabic block: U+0600–U+06FF, U+0750–U+077F, U+FB50–U+FDFF,
+      // U+FE70–U+FEFF
+      if ((codeUnit >= 0x0600 && codeUnit <= 0x06FF) ||
+          (codeUnit >= 0x0750 && codeUnit <= 0x077F) ||
+          (codeUnit >= 0xFB50 && codeUnit <= 0xFDFF) ||
+          (codeUnit >= 0xFE70 && codeUnit <= 0xFEFF)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /// Builds the secondary relationship label ("Husband", "Wife",
   /// "Father", "You", …) with a smooth zoom-driven opacity.
   ///
@@ -958,26 +1071,45 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     // or other nodes' circles. Matches the name label's shadow family
     // for visual consistency, just slightly lighter to keep the
     // secondary/informational tone of the relation label.
-    final labelWidget = FittedBox(
-      fit: BoxFit.scaleDown,
-      child: Text(
-        widget.relationLabel,
-        style: TextStyle(
-          fontFamily: KinrelTypography.displayFont,
-          fontSize: 11.0,
-          fontWeight: FontWeight.w500,
-          color: widget.relationLabel == 'You'
-              ? KinshipEdgeColors.kSelfNodeColor
-              : _borderColor,
-          shadows: const [
-            Shadow(blurRadius: 3, color: Colors.black54),
-          ],
-        ),
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
+    // 2026-10-20: Native-language kinship term support.
+    //
+    // When relationTermPrimary is set (and the node is not the viewer),
+    // show it as the LARGE label. When relationTermSecondary is set
+    // (the English term, shown beneath the native term), show it as a
+    // small secondary line. When primary == English (no translation
+    // found), secondary is null — single-line behavior.
+    //
+    // Font fallback: Indic scripts (Devanagari, Tamil, Telugu, etc.)
+    // are NOT covered by Outfit/DM Sans. We add fontFamilyFallback with
+    // the Noto Sans variants bundled in pubspec. Urdu/Arabic needs
+    // RTL — handled by the textDirection property.
+    final bool hasNativeTerm =
+        widget.relationTermPrimary != null &&
+        widget.relationTermPrimary!.isNotEmpty &&
+        widget.relationLabel != 'You';
+
+    final labelWidget = hasNativeTerm
+        ? _buildNativeTermLabel()
+        : FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              widget.relationLabel,
+              style: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 11.0,
+                fontWeight: FontWeight.w500,
+                color: widget.relationLabel == 'You'
+                    ? KinshipEdgeColors.kSelfNodeColor
+                    : _borderColor,
+                shadows: const [
+                  Shadow(blurRadius: 3, color: Colors.black54),
+                ],
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          );
 
     final cam = widget.camera;
     if (cam == null) {

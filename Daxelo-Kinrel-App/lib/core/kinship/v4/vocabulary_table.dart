@@ -393,9 +393,11 @@ class VocabularyTable {
     String? intermediateGender,
     String locale = 'en',
   }) {
+    // 2026-10-20: use the indexed lookup instead of scanning all entries.
+    final candidates = _indexedLookup(locale, pathPattern);
+
     // Try exact match first
-    for (final entry in entries) {
-      if (entry.locale != locale) continue;
+    for (final entry in candidates) {
       if (entry.matches(
         path: pathPattern,
         genDelta: generationDelta,
@@ -414,8 +416,7 @@ class VocabularyTable {
     }
 
     // Fallback: try without seniority
-    for (final entry in entries) {
-      if (entry.locale != locale) continue;
+    for (final entry in candidates) {
       if (entry.matches(
         path: pathPattern,
         genDelta: generationDelta,
@@ -434,8 +435,7 @@ class VocabularyTable {
     }
 
     // Fallback: try without intermediateSeniority
-    for (final entry in entries) {
-      if (entry.locale != locale) continue;
+    for (final entry in candidates) {
       if (entry.matches(
         path: pathPattern,
         genDelta: generationDelta,
@@ -472,5 +472,102 @@ class VocabularyTable {
     }
 
     return null;
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // 2026-10-20: Static index for O(1) lookup by (locale, pathPattern)
+  // ════════════════════════════════════════════════════════════════════
+  //
+  // The old resolve() looped over ALL 230+ entries (3 times for the
+  // 3-pass fallback) per lookup. With 715 nodes × 3 passes = ~2,000
+  // comparisons per language switch, this was measurable on low-end
+  // devices.
+  //
+  // The index is built lazily on first access (one-time cost ~1ms)
+  // and keyed by "locale_pathPattern" → List<VocabularyEntry>. The
+  // resolve() method now does an O(1) map lookup + a small list scan
+  // (typically 2-5 entries per key) instead of scanning all 230.
+
+  static Map<String, List<VocabularyEntry>>? _index;
+
+  /// Builds the index if not already built. Called once per app session.
+  static void _ensureIndex() {
+    if (_index != null) return;
+    _index = {};
+    for (final entry in entries) {
+      final key = '${entry.locale}_${entry.pathPattern}';
+      _index!.putIfAbsent(key, () => []).add(entry);
+    }
+  }
+
+  /// Clears the index (for testing).
+  static void clearIndex() {
+    _index = null;
+  }
+
+  /// Returns the entries for the given locale + pathPattern, or empty.
+  static List<VocabularyEntry> _indexedLookup(
+    String locale,
+    String pathPattern,
+  ) {
+    _ensureIndex();
+    final key = '${locale}_$pathPattern';
+    return _index?[key] ?? const [];
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // 2026-10-20: Reverse English → native term lookup
+  // ════════════════════════════════════════════════════════════════════
+  //
+  // The graph's _relationLabels() computes English labels via
+  // RelationshipEngine.resolveClassification() (which returns
+  // StructuralClassification.label). To get the native-language term,
+  // we need to map English term → native term per locale.
+  //
+  // This reverse index is keyed by "locale_englishTerm" → native term.
+  // It's built lazily alongside the forward index.
+
+  static Map<String, String>? _reverseIndex;
+
+  static void _ensureReverseIndex() {
+    if (_reverseIndex != null) return;
+    _reverseIndex = {};
+    // Build the English term set for each locale.
+    final englishTerms = <String, VocabularyEntry>{};
+    for (final entry in entries) {
+      if (entry.locale == 'en') {
+        englishTerms[entry.pathPattern] = entry;
+      }
+    }
+    // For each non-English entry with the same pathPattern as an English
+    // entry, map "locale_englishTerm" → native term.
+    for (final entry in entries) {
+      if (entry.locale == 'en') continue;
+      final en = englishTerms[entry.pathPattern];
+      if (en != null) {
+        final key = '${entry.locale}_${en.term}';
+        _reverseIndex![key] = entry.term;
+      }
+    }
+  }
+
+  /// Clears the reverse index (for testing).
+  static void clearReverseIndex() {
+    _reverseIndex = null;
+  }
+
+  /// Looks up a native-language term by English term + locale.
+  ///
+  /// Returns the native term (e.g. "पिता" for English "Father" + locale
+  /// "hi"), or null if no translation exists. Falls back to English
+  /// (returns null) when the locale is not found or the English term
+  /// has no entry in that locale.
+  static String? resolveByEnglishTerm({
+    required String englishTerm,
+    required String locale,
+  }) {
+    _ensureReverseIndex();
+    final key = '${locale}_$englishTerm';
+    return _reverseIndex?[key];
   }
 }

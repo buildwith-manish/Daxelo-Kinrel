@@ -427,6 +427,16 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           // set is recomputed immediately (not waiting for a pan).
           _culler.invalidate();
           _cachedRelationLabels = _relationLabels(flat, viewerPersonId);
+          // 2026-10-20: Compute native-language terms. The cache is
+          // invalidated when the language changes OR when flat/viewer
+          // changes (same as the English labels).
+          final kinshipLang = ref.read(effectiveKinshipLanguageProvider);
+          if (_cachedRelationTerms == null ||
+              _cachedRelationTermsLanguage != kinshipLang) {
+            _cachedRelationTerms =
+                _relationTerms(flat, viewerPersonId, kinshipLang);
+            _cachedRelationTermsLanguage = kinshipLang;
+          }
           // QA lint fix 2026-09-19: _cachedRelationKeys was write-only — the
           // computed map was never consumed (v69 replaced key-based color
           // resolution with _cachedRelationCategories). Call removed.
@@ -442,6 +452,8 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         final relationLabelById = _cachedRelationLabels!;
         final relationCategoryById = _cachedRelationCategories!;
         final customColorsByPersonId = _cachedCustomColors!;
+        // 2026-10-20: Native-language terms map.
+        final relationTermsById = _cachedRelationTerms ?? {};
 
         // v5.132 (System B REMOVAL): the legacy ExpandCollapseController
         // allow-list is gone. Its visibleNodeIds was never written by the
@@ -1836,7 +1848,9 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     // etc.) can cull off-screen nodes — same rect the edge
                     // painter uses, so the layers stay spatially consistent.
                     graphViewport:
-                        _FamilyGraphEngineViewState._quantizeViewportForEdgeCulling(vp)),
+                        _FamilyGraphEngineViewState._quantizeViewportForEdgeCulling(vp),
+                    // 2026-10-20: native-language terms.
+                    relationTermsById: relationTermsById),
                 // v102 (BUG-2 FIX) + v5.123 (Step 3): Collapsed-branch
                 // affordances — ALWAYS-visible "+N" chips.
                 // WEDGE MODE: the reserved per-person page-chip slots from
