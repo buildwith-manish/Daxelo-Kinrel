@@ -43,6 +43,10 @@ import 'widgets/compact_family_switcher.dart';
 import 'widgets/continue_with_family_card.dart';
 import 'widgets/kinship_ring_row.dart';
 import 'widgets/streak_badge.dart';
+// Phase B — Today's Question card inserts into the Phase B slot in
+// _buildUnifiedHomeView. Surfaces one curated prompt per cycle with
+// a tap-to-start/stop mic button + preview + Save/Discard.
+import '../../todays_question/presentation/todays_question_card.dart';
 // Phase A — Home, the Instagram-level idea:
 // Stories sheet is opened by the leading "You / Add yours" item in
 // the new kinship ring row. The stories feature itself is unchanged.
@@ -381,15 +385,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     .fadeIn(duration: 350.ms, delay: 80.ms)
                     .slideY(begin: -0.03, end: 0),
 
-                // ── [Phase B slot — TodaysQuestionCard] ────────────────
-                // Phase B will insert a `TodaysQuestionCard` widget
-                // here. The slot is left as a comment so Phase B
-                // can drop it in without reordering the surrounding
-                // widgets. Do NOT add anything here in Phase A.
-                //
-                // Expected Phase B layout:
-                //   const SizedBox(height: 16),
-                //   TodaysQuestionCard(familyId: primaryFamily.id),
+                // ── Today's Question card (Phase B) ──────────────────────
+                // Phase B — surfaces one curated prompt + a one-tap mic
+                // button. Tap-to-start/stop (NOT press-and-hold —
+                // elders struggle with it). Max 3 min. Preview with
+                // Play/Save/Discard. First-time consent notice per
+                // (familyId, elderPersonId). Reuses the existing
+                // OralHistoryNotifier recorder + upload path (no
+                // third recorder). After Save or Skip, hides until
+                // the next cycle (kQuestionCadenceDays = 7).
+                TodaysQuestionCard(familyId: primaryFamily.id)
+                    .animate()
+                    .fadeIn(duration: 350.ms, delay: 100.ms)
+                    .slideY(begin: 0.04, end: 0),
 
                 const SizedBox(height: 12),
 
