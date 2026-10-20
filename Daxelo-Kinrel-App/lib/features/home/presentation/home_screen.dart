@@ -39,8 +39,15 @@ import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../shared/widgets/kinrel_skeleton.dart';
 import '../../../shared/widgets/kinrel_empty_state.dart';
+import 'widgets/compact_family_switcher.dart';
 import 'widgets/continue_with_family_card.dart';
+import 'widgets/kinship_ring_row.dart';
 import 'widgets/streak_badge.dart';
+// Phase A — Home, the Instagram-level idea:
+// Stories sheet is opened by the leading "You / Add yours" item in
+// the new kinship ring row. The stories feature itself is unchanged.
+import '../../stories/presentation/add_story_sheet.dart'
+    show showAddStorySheet;
 import '../../family/presentation/join_family_screen.dart';
 import '../../feed/presentation/widgets/feed_post_card.dart';
 import '../../feed/providers/feed_provider.dart';
@@ -220,7 +227,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       child: Column(
         children: [
           const SizedBox(height: 24),
-          _StickyHeader(user: user),
+          // Phase A: pass an empty families list — CompactFamilySwitcher
+          // renders a "Create family" affordance in this state.
+          const _StickyHeader(user: null, families: const <Family>[]),
           const SizedBox(height: 48),
           // ── Migrated to KinrelEmptyState ──
           // Adds BounceButton + haptic + teaching subtitle. The secondary
@@ -258,6 +267,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   // ── Has families — show Unified Home Feed ────────────────────────
+  // Phase A — Home, the Instagram-level idea:
+  //   Reorder to match the mockup. From top to bottom:
+  //     1. Sticky header (K-icon wordmark + CompactFamilySwitcher
+  //        pill + Streak badge + Notification bell).
+  //     2. Compact greeting secondary line (greeting + @username —
+  //        moved out of the sticky header to free header real
+  //        estate for the family switcher).
+  //     3. KinshipRingRow (the Instagram-level idea): leading
+  //        "You / Add yours" + one item per relative, with the
+  //        kinship TERM as the bold primary label and first name
+  //        as the secondary line.
+  //     4. [Phase B slot — TodaysQuestionCard will be inserted
+  //         here. Left as a clearly-marked TODO so Phase B can drop
+  //         it in without touching the surrounding order.]
+  //     5. ContinueWithFamilyCard (kept — the WhatsApp/Telegram
+  //        "open to last chat" pattern).
+  //     6. UpcomingOccasionsRow (kept — birthday strip).
+  //     7. Home Feed section header + SliverList of FeedPostCard.
+  //
+  // Removed from Home (Phase A):
+  //   • _HeroFamilyCard — the family name, member/link/generation
+  //     stats, and the 3 quick-action chips (Graph / Add Member /
+  //     Wall). All three actions remain reachable from the Family
+  //     tab → family_detail_screen.dart:
+  //       - Graph:        family_detail_screen hero's flanking Graph
+  //                       icon (line 292 of that file).
+  //       - Add Member:   family_detail_screen's "Add Member" entry
+  //                       (line 533 — uses Find on Kinrel flow).
+  //       - Wall:         family_detail_screen's "Post to family
+  //                       wall" action in the family activity hub.
+  //     The widget class _HeroFamilyCard is preserved in this file
+  //     for future reuse (e.g. inside family_detail_screen as a
+  //     "Family summary" header); it's simply not rendered on Home
+  //     anymore.
+  //   • Inline _FamilySwitcherRow / FamilySparqTray — replaced by
+  //     CompactFamilySwitcher in the sticky header. The widget
+  //     classes are kept; only Home's rendering of them is removed.
   Widget _buildUnifiedHomeView(dynamic user, List<Family> families) {
     final primaryFamily = families.first;
     final feedState = ref.watch(homeFeedProvider);
@@ -277,10 +323,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         controller: _feedScrollController,
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // Sticky Header
+          // Sticky Header — K-icon wordmark + CompactFamilySwitcher
+          // + Streak + Notification bell.
           SliverPersistentHeader(
             pinned: true,
-            delegate: _StickyHeaderDelegate(user: user),
+            delegate: _StickyHeaderDelegate(user: user, families: families),
           ),
 
           // Main content
@@ -288,17 +335,61 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Family Switcher
-                // kEnableSparqTray (default true): render the new Petal-ring
-                // Sparq tray (Your Sparq + one entry per family + New
-                // family). When false, fall back to the legacy
-                // _FamilySwitcherRow which only ever pushed /family/{id}.
-                (kEnableSparqTray
-                        ? FamilySparqTray(families: families)
-                        : _FamilySwitcherRow(families: families))
+                // Compact greeting secondary line — moved out of the
+                // sticky header so the header can fit the family
+                // switcher pill. Scrolls away with the content (not
+                // sticky) which matches the mockup.
+                _CompactGreeting(user: user)
                     .animate()
-                    .fadeIn(duration: 350.ms, delay: 50.ms)
-                    .slideX(begin: -0.05, end: 0),
+                    .fadeIn(duration: 300.ms, delay: 50.ms),
+
+                const SizedBox(height: 8),
+
+                // ── Kinship Ring Row (Instagram-level idea) ──────────
+                // Leading "You / Add yours" + one item per relative,
+                // with the kinship TERM as the bold primary label
+                // (e.g. "Mausi") and the person's first name as the
+                // small secondary line (e.g. "Priya"). Ring gradient
+                // when unseen, dim when seen. Birthday badge "3d"
+                // when occasionRemindersProvider says their birthday
+                // is within 7 days.
+                //
+                // The row watches the precomputed
+                // kinshipTermsForFamilyProvider(familyId) — terms are
+                // resolved off the UI thread (compute() isolate) and
+                // cached. No per-avatar kinship lookups in build().
+                //
+                // When the viewer has no relatives yet (graph has
+                // only the viewer's own node), the row returns a
+                // zero-height SizedBox — and we render the "Next
+                // step" invite card in its place. The invite card
+                // reuses the existing KinrelEmptyState widget
+                // (same component Home's no-families view uses) so
+                // the visual language stays consistent.
+                KinshipRingRow(
+                  familyId: primaryFamily.id,
+                  onAddYours: () {
+                    HapticService.tap();
+                    showAddStorySheet(
+                      context,
+                      familyId: primaryFamily.id,
+                      ref: ref,
+                    );
+                  },
+                )
+                    .animate()
+                    .fadeIn(duration: 350.ms, delay: 80.ms)
+                    .slideY(begin: -0.03, end: 0),
+
+                // ── [Phase B slot — TodaysQuestionCard] ────────────────
+                // Phase B will insert a `TodaysQuestionCard` widget
+                // here. The slot is left as a comment so Phase B
+                // can drop it in without reordering the surrounding
+                // widgets. Do NOT add anything here in Phase A.
+                //
+                // Expected Phase B layout:
+                //   const SizedBox(height: 16),
+                //   TodaysQuestionCard(familyId: primaryFamily.id),
 
                 const SizedBox(height: 12),
 
@@ -309,25 +400,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 // exists. This is the WhatsApp/Telegram "open to last
                 // chat" pattern.
                 ContinueWithFamilyCard(families: families),
-
-                const SizedBox(height: 20),
-
-                // KIN-04/KIN-13 FIX: Home reduced from 7 sections to 3.
-                // Removed: Sparq row, Stories row, Memory Vault tile,
-                // Discover grid. These are accessible from their
-                // respective feature screens and the Quick-Add FAB.
-                // Home now shows: hero family card (with quick-action
-                // chips), occasions strip, and unified feed only.
-
-                // Hero Family Card (with 3 quick-action chips)
-                _HeroFamilyCard(
-                  family: primaryFamily,
-                  detailAsync: ref.watch(familyDetailProvider(primaryFamily.id)),
-                  familyId: primaryFamily.id,
-                )
-                    .animate()
-                    .fadeIn(duration: 400.ms, delay: 100.ms)
-                    .slideY(begin: 0.08, end: 0),
 
                 const SizedBox(height: 20),
 
@@ -713,15 +785,22 @@ String _greetingPrefix() {
 }
 
 class _StickyHeader extends StatelessWidget {
-  const _StickyHeader({required this.user});
+  const _StickyHeader({required this.user, required this.families});
 
   final dynamic user;
 
+  /// The list of families the viewer belongs to. Used by the
+  /// CompactFamilySwitcher pill in the header. When empty (Home's
+  /// no-families view), the switcher renders a "Create family"
+  /// affordance instead.
+  final List<Family> families;
+
   @override
   Widget build(BuildContext context) {
-    // v2.2: Real authenticated user only — no mock fallback.
-    final userName = user?.email?.split('@').first ?? 'Welcome';
-    final userUsername = user?.userMetadata?['username'] as String?;
+    // The active family is the first one in the list — Home has
+    // always used `families.first` as the primary family. The
+    // CompactFamilySwitcher marks this id as "active" in the sheet.
+    final activeFamilyId = families.isNotEmpty ? families.first.id : null;
 
     return Container(
       height: 60,
@@ -737,57 +816,29 @@ class _StickyHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // K-graph mini icon (20px)
+          // K-graph mini icon (20px) — the Kinrel wordmark.
           const KinrelIcon(size: 20),
-          const SizedBox(width: 12),
-          // Greeting with @username
-          Expanded(
-            child: semanticHeader(
-              label: '${_greetingPrefix()} $userName',
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${_greetingPrefix()} ${_greetingEmoji()}',
-                    style: const TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 12,
-                      color: _cTextDim,
-                    ),
-                  ),
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        userName,
-                        style: const TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: _cTextPrimary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (userUsername != null) ...[
-                      const SizedBox(width: 6),
-                      Text(
-                        '@$userUsername',
-                        style: const TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 12,
-                          color: _cOrange,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
+          const SizedBox(width: 10),
+          // Compact family switcher pill — Phase A. The legacy
+          // greeting block that used to live here is moved into
+          // _CompactGreeting below the header so the header can fit
+          // the switcher + wordmark + bell on a single 60px line,
+          // matching the mockup.
+          if (families.isNotEmpty)
+            CompactFamilySwitcher(
+              families: families,
+              activeFamilyId: activeFamilyId,
+            )
+          else
+            // No families — render a tiny "Create" pill so the
+            // header still has a primary affordance. (Home's
+            // empty-state view shows the full empty-state card
+            // below, but the header still renders.)
+            CompactFamilySwitcher(
+              families: const [],
+              activeFamilyId: null,
             ),
-          ),
-          ),
+          const Spacer(),
           // ── Streak badge: "🔥 N days". Hidden for new users (streak < 1).
           // This is the #1 retention lever — the user opens the app daily
           // to "not lose their streak" (Loss Aversion).
@@ -806,6 +857,77 @@ class _StickyHeader extends StatelessWidget {
           // unread count when > 0.
           _HomeNotificationBell(),
         ],
+      ),
+    );
+  }
+}
+
+/// Compact secondary line below the sticky header that shows the
+/// greeting + @username. Phase A — moved out of the sticky header
+/// so the header can fit the family-switcher pill on a single line.
+///
+/// This line scrolls with the content (not sticky) which matches
+/// the mockup (the mockup doesn't show the greeting at all, but the
+/// task says "keep greeting and streak if they fit, or move them
+/// into a compact secondary line" — so we keep the greeting here
+/// and the streak in the header).
+class _CompactGreeting extends StatelessWidget {
+  const _CompactGreeting({required this.user});
+
+  final dynamic user;
+
+  @override
+  Widget build(BuildContext context) {
+    // v2.2: Real authenticated user only — no mock fallback.
+    final userName = user?.email?.split('@').first ?? 'Welcome';
+    final userUsername = user?.userMetadata?['username'] as String?;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        KinrelSpacing.base,
+        12,
+        KinrelSpacing.base,
+        4,
+      ),
+      child: semanticHeader(
+        label: '${_greetingPrefix()} $userName',
+        child: Row(
+          children: [
+            Text(
+              '${_greetingPrefix()} ${_greetingEmoji()}',
+              style: const TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                color: _cTextDim,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                userName,
+                style: const TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: _cTextPrimary,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (userUsername != null) ...[
+              const SizedBox(width: 6),
+              Text(
+                '@$userUsername',
+                style: const TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12,
+                  color: _cOrange,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -892,9 +1014,13 @@ class _HomeNotificationBell extends ConsumerWidget {
 
 /// SliverPersistentHeaderDelegate for a sticky 60px header.
 class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
-  _StickyHeaderDelegate({required this.user});
+  _StickyHeaderDelegate({required this.user, required this.families});
 
   final dynamic user;
+
+  /// The families list — passed through to _StickyHeader so the
+  /// CompactFamilySwitcher pill can render in the header.
+  final List<Family> families;
 
   @override
   double get minExtent => 60;
@@ -904,7 +1030,7 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   bool shouldRebuild(covariant _StickyHeaderDelegate oldDelegate) =>
-      oldDelegate.user != user;
+      oldDelegate.user != user || oldDelegate.families != families;
 
   @override
   Widget build(
@@ -912,7 +1038,7 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    return _StickyHeader(user: user);
+    return _StickyHeader(user: user, families: families);
   }
 }
 
