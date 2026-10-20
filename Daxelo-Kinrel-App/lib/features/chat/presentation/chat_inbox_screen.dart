@@ -38,7 +38,7 @@ import '../../../l10n/app_localizations.dart';
 // Phase 2 — Circles: the create-circle bottom sheet + the circle
 // inbox provider key (for invalidation after circle creation).
 import '../../circle/presentation/create_circle_sheet.dart'
-    show showCreateCircleSheet, circleInboxProviderKey;
+    show showCreateCircleSheet;
 
 class ChatInboxScreen extends ConsumerStatefulWidget {
   const ChatInboxScreen({super.key});
@@ -265,6 +265,7 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
       UnifiedInboxFilter.unread => l10n.chatInboxEmptyUnread,
       UnifiedInboxFilter.groups => l10n.chatInboxEmptyGroups,
       UnifiedInboxFilter.direct => l10n.chatInboxEmptyDirect,
+      UnifiedInboxFilter.circles => 'No circles yet. Tap + to create one.',
       UnifiedInboxFilter.all => l10n.chatInboxEmptyUnread,
     };
     return Center(

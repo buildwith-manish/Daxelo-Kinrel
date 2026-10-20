@@ -34,6 +34,7 @@ import '../../../core/kinship/kinship_term_providers.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/utils/accessibility_utils.dart';
 import '../../family/presentation/providers/family_graph_provider.dart';
+import '../../chat/providers/unified_inbox_provider.dart' show unifiedInboxProvider;
 import '../data/circle_api_client.dart' as api;
 
 /// Shows the create-circle bottom sheet.
@@ -207,7 +208,7 @@ class _CreateCircleSheetState extends ConsumerState<_CreateCircleSheet> {
       );
       if (mounted) {
         // Invalidate the inbox so the new circle appears
-        ref.invalidate(api.circleInboxProviderKey);
+        ref.invalidate(unifiedInboxProvider);
         Navigator.pop(context);
       }
     } catch (e) {
@@ -905,14 +906,3 @@ class _PersonPick {
   final String familyName;
   final bool isOnKinrel;
 }
-
-/// A provider key used to invalidate the circle inbox when a new
-/// circle is created (or a member is added/removed). The actual
-/// circle inbox loading lives in unified_inbox_provider.dart.
-///
-/// Usage: `ref.invalidate(circleInboxProviderKey)` after any circle
-/// mutation to force the inbox to re-fetch.
-final circleInboxProviderKey =
-    Provider<void>((ref) {
-  // No-op provider — used only as an invalidation target.
-}, name: 'circleInboxProviderKey');

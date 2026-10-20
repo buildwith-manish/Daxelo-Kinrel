@@ -12,6 +12,7 @@
 // the round-trip cost.
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show IconData, Icons;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart' show supabaseProvider;
