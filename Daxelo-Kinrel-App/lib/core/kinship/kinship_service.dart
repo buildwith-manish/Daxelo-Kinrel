@@ -1,10 +1,83 @@
 import 'dart:convert';
 import 'dart:io' show File;
+import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'kinship_models.dart';
 import 'legacy_key_map.dart';
 import 'language_code_map.dart';
+
+// ═══════════════════════════════════════════════════════════════════════
+// 2026-10-19 (Phase 3): KINSHIP TERMS JSON — OFF THE UI THREAD
+// ═══════════════════════════════════════════════════════════════════════
+//
+// kinship_terms.json is 956 KB with 5,363 terms. Parsing it on the UI
+// thread (jsonDecode + constructing 5,363 KinshipRelationship objects +
+// building the search index) takes >8ms on a low-end device, causing
+// a visible jank frame at startup.
+//
+// The fix: read the JSON STRING on the main isolate (rootBundle.loadString
+// is async I/O — it doesn't block the UI thread for parsing), then pass
+// the string into Isolate.run which does the jsonDecode + object
+// construction + search-index building OFF the UI thread. The isolate
+// returns a plain _ParsedTermsResult (a simple data class with no
+// references to Flutter widgets or services), which the main isolate
+// merges into _byKey + _searchIndex.
+//
+// KinshipRelationship is a simple immutable class with only primitive
+// fields + a List<String> — it can be passed across isolate boundaries
+// (Dart's isolate message passing deep-copies the object graph).
+
+/// Plain result from the isolate — contains the parsed terms as a list
+/// of simple maps (not KinshipRelationship objects, to keep the isolate
+/// boundary clean). The main isolate constructs KinshipRelationship
+/// objects from these maps (cheap — just field assignments).
+class _ParsedTerm {
+  const _ParsedTerm({
+    required this.key,
+    required this.englishTerm,
+    required this.searchKeywords,
+  });
+  final String key;
+  final String englishTerm;
+  final List<String> searchKeywords;
+}
+
+/// The result returned by the isolate: the parsed terms + the count.
+class _ParsedTermsResult {
+  const _ParsedTermsResult({
+    required this.terms,
+    required this.count,
+  });
+  final List<_ParsedTerm> terms;
+  final int count;
+}
+
+/// Top-level function that runs in the isolate. Parses the kinship_terms
+/// JSON string and returns a plain _ParsedTermsResult. This function
+/// must be top-level (not a closure or instance method) so it can be
+/// passed to Isolate.run.
+///
+/// The jsonDecode + list construction happens here, OFF the UI thread.
+/// The main isolate only does the O(n) merge into _byKey + _searchIndex
+/// (which is just map insertions — cheap, ~1ms for 5,363 entries).
+_ParsedTermsResult _parseKinshipTermsInIsolate(String termsJsonStr) {
+  final termsData = jsonDecode(termsJsonStr) as Map<String, dynamic>;
+  final terms = termsData['terms'] as List<dynamic>;
+  final result = <_ParsedTerm>[];
+  for (final term in terms) {
+    final t = term as Map<String, dynamic>;
+    final key = t['k'] as String;
+    final englishTerm = t['e'] as String;
+    final searchKeywords = (t['s'] as List<dynamic>).cast<String>();
+    result.add(_ParsedTerm(
+      key: key,
+      englishTerm: englishTerm,
+      searchKeywords: searchKeywords,
+    ));
+  }
+  return _ParsedTermsResult(terms: result, count: result.length);
+}
 
 /// High-performance Indian kinship lookup service
 /// Loads 5359 relationships × 15 languages at startup
@@ -104,18 +177,24 @@ class KinshipService {
       // Step 2: Load full terms JSON (5,363 entries for search)
       // Merge into _byKey and _searchIndex WITHOUT overwriting
       // the core entries (which have chain rules).
+      //
+      // 2026-10-19 (Phase 3): the jsonDecode + 5,363 object construction
+      // now runs in a SEPARATE ISOLATE via Isolate.run, OFF the UI thread.
+      // The main isolate only reads the string (rootBundle.loadString is
+      // async I/O) and merges the result (cheap O(n) map insertions).
       try {
         final termsJsonStr = await rootBundle.loadString(
           'assets/data/kinship_terms.json',
         );
-        final termsData = jsonDecode(termsJsonStr) as Map<String, dynamic>;
-        final terms = termsData['terms'] as List<dynamic>;
+        // Parse + construct objects in the isolate, NOT on the UI thread.
+        final parsed = await Isolate.run(
+          () => _parseKinshipTermsInIsolate(termsJsonStr),
+        );
         int added = 0;
-        for (final term in terms) {
-          final t = term as Map<String, dynamic>;
-          final key = t['k'] as String;
-          final englishTerm = t['e'] as String;
-          final searchKeywords = (t['s'] as List<dynamic>).cast<String>();
+        for (final t in parsed.terms) {
+          final key = t.key;
+          final englishTerm = t.englishTerm;
+          final searchKeywords = t.searchKeywords;
 
           // If this key is NOT already in _byKey (from core), add a
           // lightweight KinshipRelationship for search purposes.
