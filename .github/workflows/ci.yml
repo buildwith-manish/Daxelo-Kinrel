@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────
 # Daxelo Kinrel — Unified CI Pipeline
 # ─────────────────────────────────────────────────────────────────
-# Runs on every push / PR to main.
+# Runs on every push / PR to main + the active phase/feature branches.
 # Jobs: Flutter analyze, Flutter test, Backend CI, Android APK build.
 # ─────────────────────────────────────────────────────────────────
 
@@ -9,9 +9,18 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - graph-layout
+      - sparq
+      - 'phase-**'      # phase-a/home-kinship-ring, phase-b/todays-question-voice, etc.
+      - 'wip/**'        # wip/phase-a-decisions, etc.
+      - 'feat/**'       # feat/family-sparq-tray, feat/settings-redesign, etc.
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - graph-layout
+      - sparq
   workflow_dispatch:
 
 concurrency:
