@@ -3,7 +3,8 @@
 // Game icons — loads glossy 3D PNG assets (generated via z.ai image generation)
 // with fallback to custom-painted line icons if the asset is missing.
 //
-// All 18 game icons are 1024×1024 PNGs in assets/icons/games/{game-id}.png
+// All game icons are 256×256 WebP files in assets/icons/games/{game-id}.webp
+// (converted from 1024×1024 PNGs in Phase 8 — 98% size reduction).
 // Generated with a consistent style: rounded squircle, glossy 3D, solid
 // background matching GameIconTokens.colors, professional app store quality.
 
@@ -32,8 +33,15 @@ class GameIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Try PNG asset first
-    final assetPath = 'assets/icons/games/$gameId.png';
+    // 2026-10-19 (Phase 8): use .webp (256×256, ~10KB each) instead of
+    // .png (1024×1024, 400-700KB each). Total asset size dropped from
+    // 9.9 MB to 211 KB (98% reduction). The .webp files are pre-resized
+    // to 256×256 (3x of the typical ~85px display size), so cacheWidth
+    // is less critical — but keeping it avoids full-resolution decode
+    // if the Image widget is ever displayed at a larger size.
+    // The .png files are kept in the repo as design source but are NOT
+    // listed in pubspec.yaml assets — they're not bundled in the APK.
+    final assetPath = 'assets/icons/games/$gameId.webp';
     // PERF (Tier K1): cap decode resolution to the displayed size × DPR.
     // The source PNGs are 1024×1024 — without cacheWidth/cacheHeight,
     // every visible game-invite card uploads a 4MB decoded bitmap as a

@@ -233,26 +233,26 @@ flutter:
     - assets/kinrel-cameo/clothing/
     - assets/kinrel-cameo/accessories/
     - assets/icons/
-    - assets/icons/games/ghost-painter.png
-    - assets/icons/games/freeze-dash.png
-    - assets/icons/games/sos.png
-    - assets/icons/games/antakshari.png
-    - assets/icons/games/bingo.png
-    - assets/icons/games/checkers.png
-    - assets/icons/games/ludo.png
-    - assets/icons/games/carrom.png
-    - assets/icons/games/chess.png
-    - assets/icons/games/chitmatch.png
-    - assets/icons/games/nameplace.png
-    - assets/icons/games/tictactoe.png
-    - assets/icons/games/truthordare.png
-    - assets/icons/games/twotruths.png
-    - assets/icons/games/dotsboxes.png
-    - assets/icons/games/hot-seat.png
-    - assets/icons/games/relation-riddles.png
-    - assets/icons/games/truth-streak.png
-    - assets/icons/games/tug-of-war.png
-    - assets/icons/games/memory-match.png
+    - assets/icons/games/ghost-painter.webp
+    - assets/icons/games/freeze-dash.webp
+    - assets/icons/games/sos.webp
+    - assets/icons/games/antakshari.webp
+    - assets/icons/games/bingo.webp
+    - assets/icons/games/checkers.webp
+    - assets/icons/games/ludo.webp
+    - assets/icons/games/carrom.webp
+    - assets/icons/games/chess.webp
+    - assets/icons/games/chitmatch.webp
+    - assets/icons/games/nameplace.webp
+    - assets/icons/games/tictactoe.webp
+    - assets/icons/games/truthordare.webp
+    - assets/icons/games/twotruths.webp
+    - assets/icons/games/dotsboxes.webp
+    - assets/icons/games/hot-seat.webp
+    - assets/icons/games/relation-riddles.webp
+    - assets/icons/games/truth-streak.webp
+    - assets/icons/games/tug-of-war.webp
+    - assets/icons/games/memory-match.webp
     - assets/images/
     - assets/fonts/
     - assets/privacy_policy.md
