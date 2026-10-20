@@ -124,18 +124,17 @@ void main() async {
   kinshipEdgeStyleRegistryCheck();
 
   // ── Step 1 — Initialize timezone package + IST location ──────────
-  // MUST run before any code reads `tz.local` (e.g., the local
-  // notification scheduler's zonedSchedule). Best-effort — failures
-  // fall back to UTC, which is fine for the notification scheduler
-  // since we use explicit IST offsets for shared scheduling.
-  // Also MUST run before any screen calls `AppTime.nowIst()` so
-  // `tz.getLocation('Asia/Kolkata')` succeeds.
-  try {
-    await AppTime.initialize();
-    debugPrint('🕐 AppTime initialized (timezone package ready)');
-  } catch (e) {
-    debugPrint('⚠️ AppTime.initialize failed (continuing with UTC): $e');
-  }
+  // 2026-10-19 (Phase 7): DEFER AppTime.initialize to post-frame.
+  // It's not needed for the first paint — only by notification scheduling
+  // and time display. Deferring saves ~5-10ms on the startup path.
+  unawaited(() async {
+    try {
+      await AppTime.initialize();
+      debugPrint('🕐 AppTime initialized (timezone package ready)');
+    } catch (e) {
+      debugPrint('⚠️ AppTime.initialize failed (continuing with UTC): $e');
+    }
+  }());
 
   // ── 1. Initialize environment ────────────────────────────────────
   try {
@@ -222,10 +221,13 @@ void main() async {
       ),
     );
 
-    await SystemChrome.setPreferredOrientations([
+    // 2026-10-19 (Phase 7): make setPreferredOrientations unawaited —
+    // it's a fire-and-forget system call that doesn't affect first paint.
+    // Awaiting it adds ~5-10ms to the startup path before runApp().
+    unawaited(SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
-    ]);
+    ]));
   } catch (_) {}
 
   // ── Detect Device Tier (fast, non-blocking) ────────────────────────
