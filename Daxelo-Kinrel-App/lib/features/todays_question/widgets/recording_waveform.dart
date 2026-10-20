@@ -107,7 +107,7 @@ class _WaveformPainter extends CustomPainter {
           width: barWidth,
           height: barHeight,
         ),
-        const Radius.circular(barWidth / 2),
+        Radius.circular(barWidth / 2),
       );
       final paint = Paint()
         ..color = color

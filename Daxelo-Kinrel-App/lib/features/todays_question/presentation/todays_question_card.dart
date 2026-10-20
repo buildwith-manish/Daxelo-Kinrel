@@ -688,14 +688,13 @@ class _PreviewCard extends StatelessWidget {
                           ),
                           child: Slider(
                             value: progress,
+                            min: 0,
+                            max: 1,
                             onChanged: (v) => onSeek(
                               Duration(
                                   milliseconds:
                                       (v * totalMs).toInt()),
                             ),
-                          ),
-                          min: 0,
-                            max: 1,
                           ),
                         )
                       : Padding(

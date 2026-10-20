@@ -48,18 +48,23 @@ import 'widgets/streak_badge.dart';
 // a tap-to-start/stop mic button + preview + Save/Discard.
 import '../../todays_question/presentation/todays_question_card.dart';
 // Phase A — Home, the Instagram-level idea:
-// Stories sheet is opened by the leading "You / Add yours" item in
-// the new kinship ring row. The stories feature itself is unchanged.
-import '../../stories/presentation/add_story_sheet.dart'
-    show showAddStorySheet;
+// The leading "You / Add yours" item in the kinship ring row opens
+// /sparq/create (the existing Sparq composer) — per the user's
+// Phase A decision, we do NOT revive the legacy add_story_sheet /
+// stories system. The Sparq feature is the existing story-like
+// surface and is what the ring row should launch.
 import '../../family/presentation/join_family_screen.dart';
 import '../../feed/presentation/widgets/feed_post_card.dart';
 import '../../feed/providers/feed_provider.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
 import '../../occasions/widgets/upcoming_occasions_row.dart';
 import '../../sparq_tray/data/family_sparq_tray_item.dart' show FamilySparqTrayItem;
-import '../../sparq_tray/presentation/widgets/family_sparq_tray_widget.dart'
-    show FamilySparqTray;
+// NOTE: FamilySparqTray (the rendered tray widget) is NO LONGER
+// rendered on Home — Phase A decision 3 dropped it. The
+// familySparqTrayProvider import below is kept because the legacy
+// _HeroFamilyCard class (still in this file for future reuse) reads
+// it for the family's "hasLive" glow state. If you remove
+// _HeroFamilyCard, you can also drop the next import.
 import '../../sparq_tray/providers/family_sparq_tray_provider.dart'
     show familySparqTrayProvider;
 import '../../social/data/providers/sparq_provider.dart' show sparqProvider;
@@ -374,11 +379,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   familyId: primaryFamily.id,
                   onAddYours: () {
                     HapticService.tap();
-                    showAddStorySheet(
-                      context,
-                      familyId: primaryFamily.id,
-                      ref: ref,
-                    );
+                    // Phase A decision: open the Sparq composer, not
+                    // the legacy add_story_sheet. The Sparq feature
+                    // is the existing story-like surface.
+                    context.push('/sparq/create');
                   },
                 )
                     .animate()
@@ -842,8 +846,8 @@ class _StickyHeader extends StatelessWidget {
             // header still has a primary affordance. (Home's
             // empty-state view shows the full empty-state card
             // below, but the header still renders.)
-            CompactFamilySwitcher(
-              families: const [],
+            const CompactFamilySwitcher(
+              families: const <Family>[],
               activeFamilyId: null,
             ),
           const Spacer(),
