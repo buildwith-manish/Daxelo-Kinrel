@@ -536,9 +536,9 @@ class _YouAvatarWithPlus extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           // "You" — bold. ≥ 12sp.
-          SizedBox(
+          const SizedBox(
             width: 58,
-            child: const Text(
+            child: Text(
               'You',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

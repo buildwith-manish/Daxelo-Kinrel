@@ -534,7 +534,7 @@ class _RecordingCard extends StatelessWidget {
             Row(
               children: [
                 // Live "REC" indicator — pulsing red dot.
-                _PulsingDot(color: _cError, size: 8),
+                const _PulsingDot(color: _cError, size: 8),
                 const SizedBox(width: 8),
                 Text(
                   'Recording ${pick.elderKinshipTerm}…',
@@ -697,8 +697,8 @@ class _PreviewCard extends StatelessWidget {
                             ),
                           ),
                         )
-                      : Padding(
-                          padding: const EdgeInsets.only(right: 8),
+                      : const Padding(
+                          padding: EdgeInsets.only(right: 8),
                           child: Text(
                             'Recording saved locally — Save to upload.',
                             style: TextStyle(
