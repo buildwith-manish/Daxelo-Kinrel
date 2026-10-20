@@ -109,6 +109,7 @@ String _initialsFromName(String name) {
 class ChatNotifier extends StateNotifier<ChatState> {
   ChatNotifier({
     required this.familyId,
+    this.groupId,
     required this.ref,
   }) : super(const ChatState(isLoading: true)) {
     // Capture the realtime registry BEFORE _init kicks off — dispose()
@@ -120,6 +121,27 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   final String familyId;
+
+  /// The group/direct chat's ID. Null = the family-wide chat.
+  /// When set, `_loadMessages` and `_handleMessageInsert` filter by
+  /// this groupId so messages from other chats (family-wide, other
+  /// groups, other DMs) don't leak in.
+  String? groupId;
+
+  /// Convenience accessor for the internal filter logic.
+  String? get _currentGroupId => groupId;
+
+  /// Sets the groupId for this chat scope. Called by ChatScreen when
+  /// it opens a group or DM. When the groupId changes, the messages
+  /// are reloaded with the new scope.
+  void setGroupId(String? newGroupId) {
+    if (groupId == newGroupId) return;
+    groupId = newGroupId;
+    // Reload messages with the new scope.
+    _initialLoadDone = false;
+    state = state.copyWith(messages: const [], isLoading: true, clearError: true);
+    _loadMessages();
+  }
   final Ref ref;
 
   // Realtime channel for this family's chat
@@ -538,20 +560,44 @@ class ChatNotifier extends StateNotifier<ChatState> {
     try {
       // Fetch the NEWEST 50 messages, ordered by createdAt DESC.
       //
-      // Previously this fetched the OLDEST 200 (ascending: true with a
-      // limit returns the first 200 by ascending order — i.e. the oldest
-      // 200), which made a freshly-opened chat render ancient history
-      // instead of the latest conversation. Descending + limit 50 returns
-      // the newest 50 directly from the index, so the chat opens on the
-      // current tail of the conversation. Older history is still
-      // reachable via loadOlderMessages (cursor pagination using the
-      // oldest loaded message).
-      final messagesResponse = await client
+      // FIX: Now filters by groupId at the QUERY level, not just the
+      // UI level. The old code loaded ALL messages for the family
+      // (including group + DM messages) and filtered client-side at
+      // the UI layer. This caused:
+      //   1. DM messages leaking into the family-wide chat (and vice
+      //      versa) when the UI filter was bypassed (e.g. by the
+      //      optimistic insert prepending to the full list).
+      //   2. DM opening spinning while ALL family messages loaded
+      //      (slow on large families).
+      //   3. Read-receipt UPDATE events from a DM affecting the
+      //      family-wide chat's display.
+      //
+      // The groupId filter scoping rules:
+      //   • _currentGroupId == null → family-wide chat: filter
+      //     groupId IS NULL (excludes group/DM messages)
+      //   • _currentGroupId != null → group/DM chat: filter
+      //     groupId = _currentGroupId (only this chat's messages)
+      //
+      // This matches the UI filter at chat_screen.dart:849-853 but
+      // pushes it down to the database query so the provider only
+      // loads + caches + handles messages for the current chat's
+      // scope.
+      var query = client
           .from('ChatMessage')
           .select()
           .eq('familyId', familyId)
           .order('createdAt', ascending: false)
           .limit(50);
+
+      // Apply groupId scoping at the query level.
+      if (_currentGroupId != null) {
+        query = query.eq('groupId', _currentGroupId!);
+      } else {
+        query = query.isFilter('groupId', null);
+      }
+
+      final messagesResponse = await query.timeout(
+          const Duration(seconds: 10));
 
       final messageIds = <String>[];
       final messages = <ChatMessage>[];
@@ -680,13 +726,22 @@ class ChatNotifier extends StateNotifier<ChatState> {
       final oldestMessage = state.messages.last;
       final cursor = oldestMessage.timestamp;
 
-      final olderResponse = await client
+      var olderQuery = client
           .from('ChatMessage')
           .select()
           .eq('familyId', familyId)
           .lt('createdAt', cursor.toIso8601String())
           .order('createdAt', ascending: false)
-          .limit(_olderMessagesPageSize)
+          .limit(_olderMessagesPageSize);
+
+      // FIX: apply groupId scoping to older-messages pagination too.
+      if (_currentGroupId != null) {
+        olderQuery = olderQuery.eq('groupId', _currentGroupId!);
+      } else {
+        olderQuery = olderQuery.isFilter('groupId', null);
+      }
+
+      final olderResponse = await olderQuery
           .timeout(const Duration(seconds: 15));
 
       final olderMessages = <ChatMessage>[];
@@ -879,6 +934,20 @@ class ChatNotifier extends StateNotifier<ChatState> {
     final msgId = row['id'] as String?;
     if (msgId == null || msgId.isEmpty) return;
 
+    // FIX: filter by groupId at the realtime level too — only accept
+    // messages that belong to THIS chat's scope. Without this, a DM
+    // message's realtime INSERT would be prepended to a family-wide
+    // chat's message list (and vice versa), causing the DM-leaking-
+    // into-group bug.
+    final rowGroupId = row['groupId'] as String?;
+    if (_currentGroupId != null) {
+      // Group/DM chat: only accept messages with this exact groupId.
+      if (rowGroupId != _currentGroupId) return;
+    } else {
+      // Family-wide chat: only accept messages with groupId IS NULL.
+      if (rowGroupId != null) return;
+    }
+
     // v3.1 (schemaVersion 9) — persist the server row to the local cache
     // BEFORE any echo de-dup or burst-buffer logic. The cache stores the
     // canonical server row (with the server-set id, createdAt, isRead,
@@ -1069,6 +1138,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
   void _handleMessageUpdate(Map<String, dynamic> row) {
     final msgId = row['id'] as String?;
     if (msgId == null) return;
+
+    // FIX: filter by groupId — don't apply UPDATEs from other chats.
+    final rowGroupId = row['groupId'] as String?;
+    if (_currentGroupId != null) {
+      if (rowGroupId != _currentGroupId) return;
+    } else {
+      if (rowGroupId != null) return;
+    }
     // v3.1 — upsert the updated server row to the local cache. Same
     // fire-and-forget + try/catch contract as the insert path. A cache
     // write failure never breaks the realtime update.
@@ -2646,6 +2723,19 @@ class ChatNotifier extends StateNotifier<ChatState> {
 /// autoDispose: tears down the realtime channel (chat:$familyId) when
 /// the chat screen is no longer watched, preventing channel accumulation
 /// across navigation.
+/// The chat provider. Keyed by familyId.
+///
+/// FIX: the ChatNotifier now accepts an optional groupId parameter.
+/// When the ChatScreen opens a group or DM, it should pass the groupId
+/// so the provider loads + filters messages for THAT chat's scope only.
+/// Without the groupId, the provider loads ALL family messages (including
+/// other groups' + DMs'), causing the DM-leaking-into-group bug + the
+/// DM-spinning-on-open bug.
+///
+/// The chat_screen.dart passes groupId via a separate provider key
+/// (see _chatSettingsKey) — the chat provider itself is still familyId-
+/// keyed for backwards compat, but the groupId is set on the notifier
+/// after construction via setGroupId().
 final chatProvider =
     StateNotifierProvider.autoDispose.family<ChatNotifier, ChatState, String>(
       (ref, familyId) => ChatNotifier(familyId: familyId, ref: ref),

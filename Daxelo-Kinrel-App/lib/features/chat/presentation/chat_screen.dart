@@ -292,6 +292,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // restore so the FIRST text-changed callback — fired by the
     // setText — doesn't trigger a redundant save).
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // FIX: set the groupId on the ChatNotifier so _loadMessages +
+      // realtime handlers filter by this chat's scope (fixes DM
+      // messages leaking into family-wide chat + DM spinning).
+      ref
+          .read(chatProvider(widget.familyId).notifier)
+          .setGroupId(widget.groupId);
       _restoreDraft();
     });
 
@@ -609,13 +615,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   void _scrollToBottom() {
-    if (_scrollController.hasClients) {
+    // FIX: the ListView is reverse: true, so offset 0 = newest message
+    // (bottom of the screen). animateTo(0) scrolls to the newest.
+    // Use jumpTo(0) if the controller isn't ready for animateTo yet
+    // (first frame after init). Use a post-frame callback so the
+    // list has been laid out with the new message before we scroll.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
       _scrollController.animateTo(
         0,
         duration: KinrelMotion.normal,
         curve: KinrelMotion.easeOut,
       );
-    }
+    });
   }
 
   /// Feature 6: scroll to a specific message by ID. Used when the user
