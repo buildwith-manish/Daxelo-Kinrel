@@ -44,6 +44,7 @@ import { SearchModule } from './modules/search/search.module';
 import { StoriesModule } from './modules/stories/stories.module';
 import { FollowModule } from './modules/follow/follow.module';
 import { SparqModule } from './modules/sparq/sparq.module';
+import { CircleModule } from './modules/circle/circle.module';
 import { RedlightModule } from './modules/games/redlight.module';
 import { KinrelModule } from './kinrel-intelligence/kinrel.module';
 import { ThinkingModule } from './modules/thinking/thinking.module';
@@ -164,6 +165,7 @@ import { TrackcModule } from './trackc/trackc.module';
     // ── Social System modules (Follow + Sparq + Privacy) ────────
     FollowModule,
     SparqModule,
+    CircleModule,
 
     // ── Game modules ─────────────────────────────────────────────
     RedlightModule,

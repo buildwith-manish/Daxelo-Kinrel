@@ -82,6 +82,7 @@ enum SparqAudience {
   PUBLIC
   FAMILY_ONLY
   VIP_CIRCLE
+  CIRCLE
 }
 
 enum SparqMood {
@@ -4213,4 +4214,150 @@ model GroupMember {
   @@index([groupId])
   @@index([userId])
   @@map("GroupMember")
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CIRCLES — account-level cross-family group chats (Phase 1)
+//
+// A circle is a named list of PEOPLE chosen manually by its creator.
+// It is NOT owned by a family and is NOT built automatically from
+// the tree. Members may come from several families. See the Phase 0
+// design doc at /home/z/my-project/download/phase0-circles-design.md
+// for the full rationale.
+// ═══════════════════════════════════════════════════════════════════════
+
+model Circle {
+  id              String   @id @default(cuid())
+  ownerId         String                                     // creator's auth.uid()
+  name            String
+  description     String?
+  iconKey         String   @default("default")
+  avatarUrl       String?
+  onlyAdminsPost  Boolean  @default(false)
+  anyoneCanAdd    Boolean  @default(false)
+  lastActivityAt  DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  members  CircleMember[]
+  messages CircleMessage[]
+
+  @@index([ownerId])
+  @@index([lastActivityAt])
+  @@map("Circle")
+}
+
+model CircleMember {
+  id          String   @id @default(cuid())
+  circleId    String
+  userId      String
+  role        String   @default("member")   // admin | member
+  joinedAt    DateTime @default(now())
+  isArchived  Boolean  @default(false)
+  mutedUntil  DateTime?
+  displayName String
+  avatarUrl   String?
+
+  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+
+  @@unique([circleId, userId])
+  @@index([circleId])
+  @@index([userId])
+  @@map("CircleMember")
+}
+
+model CircleMessage {
+  id                    String    @id @default(cuid())
+  circleId              String
+  senderId              String
+  senderName            String
+  senderInitials        String?
+  senderPersonId        String?
+  senderFamilyId        String?
+  content               String    @default("")
+  messageType            String    @default("text")
+  messageSubType         String    @default("text")
+  replyToId             String?
+  replyToContent        String?
+  replyToSenderName     String?
+  isEdited              Boolean   @default(false)
+  isDeletedForEveryone  Boolean   @default(false)
+  isPinned              Boolean   @default(false)
+  pinnedBy              String?
+  pinnedAt              DateTime?
+  messageStatus         String    @default("sent")
+  deletedForMe          Json      @default("[]")
+  mentions              Json      @default("[]")
+  mediaUrl              String?
+  mediaType             String?
+  mediaFileName         String?
+  mediaSize             BigInt?
+  thumbnailUrl          String?
+  voiceMessageDuration  Int?
+  durationSeconds       Int?
+  pollQuestion          String?
+  pollOptions           Json?
+  pollVoteCounts        Json?
+  pollVoterIds          Json?
+  pollCreatedAt         DateTime?
+  editedAt              DateTime?
+  deletedAt             DateTime?
+  readBy                String[]  @default([])
+  notified              Boolean   @default(false)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now()) @updatedAt
+
+  circle    Circle            @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  replyTo   CircleMessage?    @relation("CircleMessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   CircleMessage[]   @relation("CircleMessageReply")
+  reactions CircleReaction[]
+  receipts  CircleReadReceipt[]
+
+  @@index([circleId, createdAt])
+  @@index([senderId])
+  @@index([messageStatus])
+  @@index([isPinned])
+  @@index([notified])
+  @@map("CircleMessage")
+}
+
+model CircleReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message CircleMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@map("CircleReaction")
+}
+
+model CircleReadReceipt {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+
+  message CircleMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+  @@map("CircleReadReceipt")
+}
+
+// Phase 4 — Sparq audience scoping (many-to-many)
+model SparqAudienceCircle {
+  id        String   @id @default(cuid())
+  sparqId   String
+  circleId  String
+  createdAt DateTime @default(now())
+
+  @@unique([sparqId, circleId])
+  @@index([sparqId])
+  @@index([circleId])
+  @@map("SparqAudienceCircle")
 }
