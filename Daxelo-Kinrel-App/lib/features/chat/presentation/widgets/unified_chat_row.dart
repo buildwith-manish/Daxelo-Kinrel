@@ -57,11 +57,12 @@ class UnifiedChatRow extends ConsumerWidget {
     final l10n = S.of(context)!;
 
     // ── Preview text ──────────────────────────────────────────────
-    // For group chats: prefix with "Name: " when the sender is known
-    // and is not the current viewer. For direct chats: just the
-    // preview as-is (the other person's name is already in the title).
+    // For group + circle chats: prefix with "Name: " when the
+    // sender is known and is not the current viewer. For direct
+    // chats: just the preview as-is.
     String previewText = entry.lastMessage;
-    if (entry.kind == UnifiedChatKind.group &&
+    if ((entry.kind == UnifiedChatKind.group ||
+            entry.kind == UnifiedChatKind.circle) &&
         entry.previewSenderName != null &&
         entry.previewSenderName!.isNotEmpty &&
         previewText.isNotEmpty) {
@@ -69,16 +70,21 @@ class UnifiedChatRow extends ConsumerWidget {
     }
 
     // ── Semantic label for screen readers ─────────────────────────
-    final semanticLabel = entry.kind == UnifiedChatKind.group
-        ? l10n.chatInboxRowSemanticGroup(entry.title, entry.unreadCount)
-        : l10n.chatInboxRowSemanticDirect(entry.title, entry.unreadCount);
+    final semanticLabel = switch (entry.kind) {
+      UnifiedChatKind.group =>
+        l10n.chatInboxRowSemanticGroup(entry.title, entry.unreadCount),
+      UnifiedChatKind.direct =>
+        l10n.chatInboxRowSemanticDirect(entry.title, entry.unreadCount),
+      UnifiedChatKind.circle =>
+        'Circle, ${entry.title}, ${entry.unreadCount} unread',
+    };
 
     return Semantics(
       label: semanticLabel,
       button: true,
       child: Dismissible(
         key: ValueKey(
-            '${entry.kind == UnifiedChatKind.group ? 'group' : 'dm'}_${entry.id}'),
+            '${entry.kind == UnifiedChatKind.group ? 'group' : entry.kind == UnifiedChatKind.circle ? 'circle' : 'dm'}_${entry.id}'),
         direction: DismissDirection.endToStart,
         onDismissed: (_) => onArchived(),
         background: Container(
@@ -205,6 +211,24 @@ class UnifiedChatRow extends ConsumerWidget {
           );
 
     // Group rows get the people-icon badge at bottom-right.
+    // Circle rows get a rounded-square icon tile instead of a
+    // circular avatar (per mockup 12).
+    if (entry.kind == UnifiedChatKind.circle) {
+      // Circle: render a rounded-square tile with the circle's icon
+      final iconKey = entry.iconKey ?? 'default';
+      final icon = _iconForKey(iconKey);
+      return Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          gradient: KinrelGradients.igniteGradient,
+        ),
+        child: Center(
+          child: Icon(icon, color: Colors.white, size: 24),
+        ),
+      );
+    }
     if (entry.kind == UnifiedChatKind.group) {
       return Stack(
         clipBehavior: Clip.none,
@@ -274,18 +298,51 @@ class UnifiedChatRow extends ConsumerWidget {
   }
 
   void _navigateToChat(BuildContext context) {
-    if (entry.kind == UnifiedChatKind.group) {
-      final familyId = entry.familyId ?? entry.id;
-      context.push(
-        '/family/$familyId/chat?name=${Uri.encodeComponent(entry.title)}',
-      );
-    } else {
-      // Direct: use the openDirectChat helper from direct_group_service.
-      openDirectChat(
-        context,
-        otherUserId: entry.otherUserId ?? entry.id,
-        familyId: entry.familyId ?? '',
-      );
+    switch (entry.kind) {
+      case UnifiedChatKind.group:
+        final familyId = entry.familyId ?? entry.id;
+        context.push(
+          '/family/$familyId/chat?name=${Uri.encodeComponent(entry.title)}',
+        );
+      case UnifiedChatKind.direct:
+        openDirectChat(
+          context,
+          otherUserId: entry.otherUserId ?? entry.id,
+          familyId: entry.familyId ?? '',
+        );
+      case UnifiedChatKind.circle:
+        // Phase 2: the circle conversation screen is Phase 3.
+        // For now, navigate to a placeholder that shows a friendly
+        // message. Phase 3 will add the full circle conversation
+        // (parameterized ChatScreen with scope=circle).
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Circle conversations are coming in Phase 3.'),
+            backgroundColor: KinrelColors.darkCard,
+          ),
+        );
+    }
+  }
+
+  /// Returns the IconData for a circle icon key.
+  IconData _iconForKey(String key) {
+    switch (key) {
+      case 'family':
+        return Icons.family_restroom_rounded;
+      case 'travel':
+        return Icons.flight_takeoff_rounded;
+      case 'celebration':
+        return Icons.celebration_rounded;
+      case 'food':
+        return Icons.restaurant_rounded;
+      case 'elders':
+        return Icons.elderly_rounded;
+      case 'cousins':
+        return Icons.people_alt_rounded;
+      case 'heart':
+        return Icons.favorite_rounded;
+      default:
+        return Icons.group_rounded;
     }
   }
 }

@@ -42,9 +42,12 @@ import '../../../core/services/supabase_service.dart';
 import '../../chat/data/direct_group_service.dart';
 import '../../chat/data/models/chat_message.dart';
 import '../../chat/data/models/message_type.dart';
+// Phase 2 — Circles: batched circle inbox loading (same pattern as
+// the group batched meta loader above).
+import '../../circle/data/circle_api_client.dart' as circle_api;
 
 /// The kind of conversation a UnifiedChatEntry represents.
-enum UnifiedChatKind { group, direct }
+enum UnifiedChatKind { group, direct, circle }
 
 /// One row in the unified inbox list. Mirrors the union of:
 ///   • Family (group row) — id, name, avatarUrl, last message, unread
@@ -69,6 +72,8 @@ class UnifiedChatEntry {
     this.familyId,
     this.otherUserId,
     this.groupId,
+    this.circleId,
+    this.iconKey,
   });
 
   /// Group → familyId; Direct → otherUserId. Used as the Dismissible
@@ -110,6 +115,12 @@ class UnifiedChatEntry {
   /// Direct → the direct-group's groupId (used by DM navigation).
   final String? groupId;
 
+  /// Circle → the circle's id (used by circle navigation).
+  final String? circleId;
+
+  /// Circle → the icon key (used for the rounded-square icon tile).
+  final String? iconKey;
+
   /// True when this entry has at least one message (lastMessage non-empty
   /// AND lastMessageTime is post-epoch). Entries without messages go to
   /// the bottom of the list.
@@ -124,7 +135,7 @@ class UnifiedChatEntry {
 }
 
 /// Filter chip selection for the inbox.
-enum UnifiedInboxFilter { all, unread, groups, direct }
+enum UnifiedInboxFilter { all, unread, groups, direct, circles }
 
 /// The merged inbox list. Built by watching familyListProvider +
 /// directGroupInboxProvider and doing the batched last-message +
@@ -182,6 +193,29 @@ final unifiedInboxProvider =
       familyId: dm.familyId,
       otherUserId: dm.otherUserId,
       groupId: dm.groupId,
+    ));
+  }
+
+  // ── Phase 2 — Circles ──────────────────────────────────────────
+  // Account-level circles are loaded via the circle_api_client's
+  // batched loader (3 queries total — same pattern as the group
+  // batched meta loader above). Circles are independent of the
+  // active family — they always appear in the inbox regardless of
+  // the family switcher selection.
+  final circles = await circle_api.loadCircleInboxItems();
+  for (final c in circles) {
+    entries.add(UnifiedChatEntry(
+      kind: UnifiedChatKind.circle,
+      id: c.id,
+      title: c.name,
+      avatarUrl: c.avatarUrl,
+      lastMessage: c.lastMessage,
+      lastMessageTime: c.lastMessageTime,
+      unreadCount: c.unreadCount,
+      isArchived: c.isArchived,
+      previewSenderName: c.lastSenderName,
+      circleId: c.id,
+      iconKey: c.iconKey,
     ));
   }
 

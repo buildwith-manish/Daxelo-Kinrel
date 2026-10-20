@@ -28,12 +28,17 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/services/haptic_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/direct_group_service.dart';
 import '../providers/unified_inbox_provider.dart';
 import '../presentation/widgets/chat_inbox_filter_bar.dart';
 import '../presentation/widgets/unified_chat_row.dart';
 import '../../../l10n/app_localizations.dart';
+// Phase 2 — Circles: the create-circle bottom sheet + the circle
+// inbox provider key (for invalidation after circle creation).
+import '../../circle/presentation/create_circle_sheet.dart'
+    show showCreateCircleSheet, circleInboxProviderKey;
 
 class ChatInboxScreen extends ConsumerStatefulWidget {
   const ChatInboxScreen({super.key});
@@ -76,6 +81,16 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
         event: PostgresChangeEvent.insert,
         schema: 'public',
         table: 'ChatMessage',
+        callback: (payload) {
+          if (mounted) ref.invalidate(unifiedInboxProvider);
+        },
+      );
+      // Phase 2 — also listen for CircleMessage INSERTs so the
+      // inbox re-sorts when a new circle message arrives.
+      _inboxRealtimeChannel!.onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: 'CircleMessage',
         callback: (payload) {
           if (mounted) ref.invalidate(unifiedInboxProvider);
         },
@@ -136,7 +151,7 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
                   IconButton(
                     icon: const Icon(Icons.edit_outlined,
                         color: KinrelColors.textSilver, size: 24),
-                    onPressed: _showNewDmPicker,
+                    onPressed: _showCreateMenu,
                   ),
                 ],
               ),
@@ -240,6 +255,8 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
         return entries.where((e) => e.kind == UnifiedChatKind.group).toList();
       case UnifiedInboxFilter.direct:
         return entries.where((e) => e.kind == UnifiedChatKind.direct).toList();
+      case UnifiedInboxFilter.circles:
+        return entries.where((e) => e.kind == UnifiedChatKind.circle).toList();
     }
   }
 
@@ -272,10 +289,13 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
   }
 
   Future<void> _archiveEntry(UnifiedChatEntry entry) async {
-    if (entry.kind == UnifiedChatKind.group) {
-      await _archiveGroup(entry.id);
-    } else {
-      await _archiveDm(entry.otherUserId ?? entry.id);
+    switch (entry.kind) {
+      case UnifiedChatKind.group:
+        await _archiveGroup(entry.id);
+      case UnifiedChatKind.direct:
+        await _archiveDm(entry.otherUserId ?? entry.id);
+      case UnifiedChatKind.circle:
+        await _archiveCircle(entry.circleId ?? entry.id);
     }
   }
 
@@ -295,6 +315,110 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
       ref.invalidate(directGroupInboxProvider);
       ref.invalidate(unifiedInboxProvider);
     }
+  }
+
+  // ── Phase 2 — Circle archive (per-member, database-backed) ────
+  // Circles use the CircleMember.isArchived column (unlike groups
+  // which use SharedPreferences as a workaround). The database
+  // UPDATE ensures the archive state persists across devices.
+  Future<void> _archiveCircle(String circleId) async {
+    try {
+      final client = Supabase.instance.client;
+      final myUserId = client.auth.currentUser?.id;
+      if (myUserId != null) {
+        await client
+            .from('CircleMember')
+            .update({'isArchived': true})
+            .eq('circleId', circleId)
+            .eq('userId', myUserId);
+      }
+    } catch (e) {
+      debugPrint('⚠️ archiveCircle failed: $e');
+    }
+    if (mounted) {
+      ref.invalidate(unifiedInboxProvider);
+    }
+  }
+
+  // ── New message / New circle popup menu (Phase 2) ───────────
+
+  void _showCreateMenu() {
+    HapticService.tap();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
+        ),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'New',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: CircleAvatar(
+                backgroundColor:
+                    KinrelColors.orange.withValues(alpha: 0.15),
+                child: const Icon(Icons.chat_bubble_outline_rounded,
+                    color: KinrelColors.orange, size: 22),
+              ),
+              title: const Text('New message',
+                  style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.textWhite)),
+              subtitle: const Text('Start a direct message',
+                  style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 12,
+                      color: KinrelColors.textDim)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showNewDmPicker();
+              },
+            ),
+            ListTile(
+              leading: CircleAvatar(
+                backgroundColor:
+                    KinrelColors.orange.withValues(alpha: 0.15),
+                child: const Icon(Icons.group_rounded,
+                    color: KinrelColors.orange, size: 22),
+              ),
+              title: const Text('New circle',
+                  style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.textWhite)),
+              subtitle: const Text(
+                  'Create a cross-family group chat',
+                  style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 12,
+                      color: KinrelColors.textDim)),
+              onTap: () {
+                Navigator.pop(ctx);
+                showCreateCircleSheet(context, ref: ref);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   // ── New DM picker (kept from the old screen) ─────────────────────
