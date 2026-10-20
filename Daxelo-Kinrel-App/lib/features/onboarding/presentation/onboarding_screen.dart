@@ -488,7 +488,8 @@ class _KGraphPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _KGraphPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _KGraphPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -922,7 +923,8 @@ class _FamilyGraphPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _FamilyGraphPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _FamilyGraphPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1248,6 +1250,7 @@ class _PathFinderPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _PathFinderPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _PathFinderPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }
 

@@ -371,7 +371,7 @@ class _ConfettiPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_ConfettiPainter oldDelegate) => true;
+  bool shouldRepaint(_ConfettiPainter oldDelegate) => false;
 }
 
 /// One-shot confetti overlay. Drop it in a [Stack] and it fires the

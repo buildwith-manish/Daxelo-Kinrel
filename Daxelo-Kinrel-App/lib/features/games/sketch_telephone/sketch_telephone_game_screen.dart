@@ -1640,7 +1640,11 @@ class _SketchCanvasPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _SketchCanvasPainter old) => true;
+  bool shouldRepaint(covariant _SketchCanvasPainter old) =>
+      old.strokes != strokes ||
+      old.currentStroke != currentStroke ||
+      old.currentColor != currentColor ||
+      old.currentSize != currentSize;
 }
 
 // ─────────────────────────────────────────────────────────────────

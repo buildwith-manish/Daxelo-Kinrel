@@ -1319,5 +1319,12 @@ class CarromBoardPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CarromBoardPainter oldDelegate) => true;
+  bool shouldRepaint(covariant CarromBoardPainter oldDelegate) =>
+      oldDelegate.coins != coins ||
+      oldDelegate.liveCoinPositions != liveCoinPositions ||
+      oldDelegate.strikerBasePos != strikerBasePos ||
+      oldDelegate.liveStrikerPos != liveStrikerPos ||
+      oldDelegate.aimAngle != aimAngle ||
+      oldDelegate.aimPower != aimPower ||
+      oldDelegate.isSimulating != isSimulating;
 }

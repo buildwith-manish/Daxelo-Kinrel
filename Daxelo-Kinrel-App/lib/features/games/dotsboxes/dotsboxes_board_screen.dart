@@ -332,5 +332,12 @@ class _DotsBoardPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _DotsBoardPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _DotsBoardPainter oldDelegate) =>
+      oldDelegate.dotsCount != dotsCount ||
+      oldDelegate.cellSize != cellSize ||
+      oldDelegate.dotRadius != dotRadius ||
+      oldDelegate.drawnLines != drawnLines ||
+      oldDelegate.boxes != boxes ||
+      oldDelegate.players != players ||
+      oldDelegate.lastCapture != lastCapture;
 }

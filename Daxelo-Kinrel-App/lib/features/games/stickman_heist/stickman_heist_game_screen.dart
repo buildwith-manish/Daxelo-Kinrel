@@ -1183,7 +1183,10 @@ class _ArenaPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _ArenaPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _ArenaPainter oldDelegate) =>
+      oldDelegate.state != state ||
+      oldDelegate.myUserId != myUserId ||
+      oldDelegate.pulseValue != pulseValue;
 }
 
 // ═════════════════════════════════════════════════════════════════════
