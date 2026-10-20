@@ -585,9 +585,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       var query = client
           .from('ChatMessage')
           .select()
-          .eq('familyId', familyId)
-          .order('createdAt', ascending: false)
-          .limit(50);
+          .eq('familyId', familyId);
 
       // Apply groupId scoping at the query level.
       if (_currentGroupId != null) {
@@ -596,8 +594,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
         query = query.isFilter('groupId', null);
       }
 
-      final messagesResponse = await query.timeout(
-          const Duration(seconds: 10));
+      final messagesResponse = await query
+          .order('createdAt', ascending: false)
+          .limit(50)
+          .timeout(const Duration(seconds: 10));
 
       final messageIds = <String>[];
       final messages = <ChatMessage>[];
@@ -730,9 +730,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
           .from('ChatMessage')
           .select()
           .eq('familyId', familyId)
-          .lt('createdAt', cursor.toIso8601String())
-          .order('createdAt', ascending: false)
-          .limit(_olderMessagesPageSize);
+          .lt('createdAt', cursor.toIso8601String());
 
       // FIX: apply groupId scoping to older-messages pagination too.
       if (_currentGroupId != null) {
@@ -742,6 +740,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
       }
 
       final olderResponse = await olderQuery
+          .order('createdAt', ascending: false)
+          .limit(_olderMessagesPageSize)
           .timeout(const Duration(seconds: 15));
 
       final olderMessages = <ChatMessage>[];
