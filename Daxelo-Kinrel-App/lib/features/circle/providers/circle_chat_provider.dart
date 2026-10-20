@@ -323,9 +323,10 @@ class CircleChatNotifier extends StateNotifier<CircleChatState> {
         event: PostgresChangeEvent.insert,
         schema: 'public',
         table: 'CircleMessage',
-        filter: PostgresChangeFilter(column: 'circleId', value: _circleId),
+        
         callback: (payload) {
           final newMsg = CircleChatMessage.fromJson(payload.newRecord);
+          if (newMsg.circleId != _circleId) return; // downstream filter
           if (!state.messages.any((m) => m.id == newMsg.id)) {
             state = state.copyWith(messages: [...state.messages, newMsg]);
           }
@@ -336,9 +337,10 @@ class CircleChatNotifier extends StateNotifier<CircleChatState> {
         event: PostgresChangeEvent.update,
         schema: 'public',
         table: 'CircleMessage',
-        filter: PostgresChangeFilter(column: 'circleId', value: _circleId),
+        
         callback: (payload) {
           final updated = CircleChatMessage.fromJson(payload.newRecord);
+          if (updated.circleId != _circleId) return; // downstream filter
           final msgs = state.messages.map((m) {
             if (m.id == updated.id) return updated;
             return m;
@@ -354,9 +356,11 @@ class CircleChatNotifier extends StateNotifier<CircleChatState> {
         event: PostgresChangeEvent.delete,
         schema: 'public',
         table: 'CircleMessage',
-        filter: PostgresChangeFilter(column: 'circleId', value: _circleId),
+        
         callback: (payload) {
           final deletedId = payload.oldRecord['id']?.toString();
+          final deletedCircleId = payload.oldRecord['circleId']?.toString();
+          if (deletedCircleId != _circleId) return; // downstream filter
           if (deletedId != null) {
             state = state.copyWith(
               messages: state.messages.where((m) => m.id != deletedId).toList(),
@@ -370,9 +374,11 @@ class CircleChatNotifier extends StateNotifier<CircleChatState> {
         event: PostgresChangeEvent.delete,
         schema: 'public',
         table: 'CircleMember',
-        filter: PostgresChangeFilter(column: 'circleId', value: _circleId),
+        
         callback: (payload) {
           final deletedUserId = payload.oldRecord['userId']?.toString();
+          final deletedCircleId = payload.oldRecord['circleId']?.toString();
+          if (deletedCircleId != _circleId) return; // downstream filter
           final myUserId = client.auth.currentUser?.id;
           if (deletedUserId == myUserId) {
             // I was removed!
