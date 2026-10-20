@@ -311,16 +311,9 @@ class UnifiedChatRow extends ConsumerWidget {
           familyId: entry.familyId ?? '',
         );
       case UnifiedChatKind.circle:
-        // Phase 2: the circle conversation screen is Phase 3.
-        // For now, navigate to a placeholder that shows a friendly
-        // message. Phase 3 will add the full circle conversation
-        // (parameterized ChatScreen with scope=circle).
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Circle conversations are coming in Phase 3.'),
-            backgroundColor: KinrelColors.darkCard,
-          ),
-        );
+        // Phase 3: navigate to the circle conversation screen.
+        final circleId = entry.circleId ?? entry.id;
+        context.push('/circle/$circleId');
     }
   }
 

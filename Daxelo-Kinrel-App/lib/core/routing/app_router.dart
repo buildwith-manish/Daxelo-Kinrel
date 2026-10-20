@@ -70,6 +70,8 @@ import '../../features/family/presentation/create_family_screen.dart';
 import '../../features/family/presentation/join_family_screen.dart';
 import '../../features/family/presentation/join_or_create_family_screen.dart';
 import '../../features/family/presentation/family_qr_screen.dart';
+// Phase 3 — Circle conversation screen
+import '../../features/circle/presentation/circle_chat_screen.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_builder_screen.dart';
 import '../../features/family/presentation/family_graph_screen.dart';
@@ -1385,6 +1387,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             familyId: state.uri.queryParameters['familyId'] ?? '',
             familyName: state.uri.queryParameters['familyName'],
             kinFamilyId: state.uri.queryParameters['kinFamilyId'],
+          ),
+        ),
+      ),
+      // ── Phase 3 — Circle conversation screen ──────────────────────
+      GoRoute(
+        path: '/circle/:id',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: CircleChatScreen(
+            circleId: state.pathParameters['id'] ?? '',
           ),
         ),
       ),
