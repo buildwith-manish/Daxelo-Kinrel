@@ -601,7 +601,7 @@ export class CircleService {
     }
 
     const take = Math.min(
-      limit ? parseInt(limit, 10) : MESSAGE_PAGINATION_DEFAULT,
+      limit ?? MESSAGE_PAGINATION_DEFAULT,
       MESSAGE_PAGINATION_MAX,
     );
 
