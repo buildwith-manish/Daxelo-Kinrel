@@ -2273,16 +2273,29 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
   Map<String, String>? _buildPathFocusLabels(GraphKinshipPathFocus? pathFocus) {
     if (pathFocus == null) return null;
     if (pathFocus.steps.isEmpty) return null;
+    // 2026-10-20 (Step 8): use native-language terms for path labels.
+    final kinshipLang = ref.read(effectiveKinshipLanguageProvider);
     final labels = <String, String>{};
     for (final step in pathFocus.steps) {
       if (step.edgeId == null) continue; // first step (viewer)
       if (step.relationshipType.isEmpty) continue;
       // Capitalize the first letter for readability ("father" → "Father").
-      // Avoid title-casing every word — single-word labels read better
-      // with just the first letter capitalized.
-      final label = step.relationshipType[0].toUpperCase() +
+      final englishLabel = step.relationshipType[0].toUpperCase() +
           step.relationshipType.substring(1);
-      labels[step.edgeId!] = label;
+
+      // Look up native term via the reverse index.
+      if (kinshipLang != 'en') {
+        final nativeTerm = VocabularyTable.resolveByEnglishTerm(
+          englishTerm: englishLabel,
+          locale: kinshipLang,
+        );
+        if (nativeTerm != null && nativeTerm.isNotEmpty) {
+          labels[step.edgeId!] = nativeTerm;
+          continue;
+        }
+      }
+      // Fallback: English label.
+      labels[step.edgeId!] = englishLabel;
     }
     return labels.isEmpty ? null : labels;
   }

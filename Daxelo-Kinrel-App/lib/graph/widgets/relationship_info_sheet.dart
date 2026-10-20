@@ -41,6 +41,10 @@ import '../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider;
 import '../../features/family/presentation/relationship_picker_sheet.dart';
 import '../interaction/graph_kinship_path_focus.dart'
     show GraphKinshipPathFocus;
+// 2026-10-20 (Step 8): native-language kinship terms.
+import '../../core/kinship/v4/vocabulary_table.dart' show VocabularyTable;
+import '../../core/kinship/kinship_term_language_provider.dart'
+    show kinshipTermLanguageProvider;
 
 // ═══════════════════════════════════════════════════════════════════════
 // PUBLIC API
@@ -202,6 +206,26 @@ class _RelationshipInfoContentState
     final fwd = _formatKey(relationshipKey);
     final inv = _formatKey(
         genderAwareInverse(relationshipKey, targetGender));
+
+    // 2026-10-20 (Step 8): look up native-language terms.
+    String fwdDisplay = fwd;
+    String invDisplay = inv;
+    try {
+      final langPref = ref.read(kinshipTermLanguageProvider);
+      final kinshipLang = langPref == 'auto' ? 'en' : langPref;
+      if (kinshipLang != 'en') {
+        final nativeFwd = VocabularyTable.resolveByEnglishTerm(
+            englishTerm: fwd, locale: kinshipLang);
+        if (nativeFwd != null && nativeFwd.isNotEmpty) {
+          fwdDisplay = nativeFwd;
+        }
+        final nativeInv = VocabularyTable.resolveByEnglishTerm(
+            englishTerm: inv, locale: kinshipLang);
+        if (nativeInv != null && nativeInv.isNotEmpty) {
+          invDisplay = nativeInv;
+        }
+      }
+    } catch (_) {}
     final sourceInitials = _initials(sourceName);
     final targetInitials = _initials(targetName);
     final sourceColor = _avatarColor(sourceGender);
@@ -315,14 +339,14 @@ class _RelationshipInfoContentState
                 children: [
                   _RelationRow(
                     fromName: sourceName,
-                    relation: fwd,
+                    relation: fwdDisplay,
                     toName: targetName,
                     arrowColor: _RelationshipInfoContent._orange,
                   ),
                   const SizedBox(height: 12),
                   _RelationRow(
                     fromName: targetName,
-                    relation: inv,
+                    relation: invDisplay,
                     toName: sourceName,
                     arrowColor:
                         _RelationshipInfoContent._orange.withValues(alpha: 0.7),
@@ -843,11 +867,6 @@ String _formatKey(String key) {
 
 /// Returns the inverse relationship key, taking the target's gender
 /// into account for parent/child and sibling types.
-///
-/// 2026-10-19 (Fix 2b): made public so it can be unit-tested directly.
-/// The inverse label is used by the RelationshipInfoSheet to show both
-/// directions of a relationship (e.g. "Asha → Ravi: Mother" and
-/// "Ravi → Asha: Son").
 String genderAwareInverse(String key, String? targetGender) {
   final isFemale = targetGender == 'female';
   final isMale = targetGender == 'male';
