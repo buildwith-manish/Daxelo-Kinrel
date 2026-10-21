@@ -146,6 +146,14 @@ class MentionPickerOverlay extends StatelessWidget {
     required this.currentUserId,
     required this.strings,
     this.scrollController,
+    // Phase B — when true, the overlay is rendered in a direct-chat
+    // context. The picker shows a header line "Mention a relative ·
+    // they won't be notified" above the list, the empty state uses
+    // "No other relatives to mention in this family" instead of the
+    // generic "No one to mention in this chat", and selection inserts
+    // a MentionRef with notify=false (the third person is not
+    // notified — they're not in the DM).
+    this.isDirectChat = false,
   });
 
   /// Debounced query (post-IME-composition). The overlay re-filters
@@ -169,6 +177,9 @@ class MentionPickerOverlay extends StatelessWidget {
   /// Optional scroll controller for the result list — used by tests
   /// to drive the list to a specific position. Null in production.
   final ScrollController? scrollController;
+
+  /// Phase B — direct-chat context flag (see constructor doc).
+  final bool isDirectChat;
 
   @override
   Widget build(BuildContext context) {
@@ -194,6 +205,7 @@ class MentionPickerOverlay extends StatelessWidget {
             currentUserId: currentUserId,
             strings: strings,
             scrollController: scrollController,
+            isDirectChat: isDirectChat,
           ),
         ),
       ),
@@ -258,6 +270,7 @@ class _PickerCard extends StatefulWidget {
     required this.currentUserId,
     required this.strings,
     required this.scrollController,
+    required this.isDirectChat,
   });
 
   final ValueListenable<String> query;
@@ -267,6 +280,8 @@ class _PickerCard extends StatefulWidget {
   final String currentUserId;
   final MentionPickerStrings strings;
   final ScrollController? scrollController;
+  // Phase B — direct-chat context (see MentionPickerOverlay.isDirectChat).
+  final bool isDirectChat;
 
   @override
   State<_PickerCard> createState() => _PickerCardState();
@@ -383,23 +398,25 @@ class _PickerCardState extends State<_PickerCard> {
           return ValueListenableBuilder<String>(
             valueListenable: widget.query,
             builder: (context, query, _) {
-              return candidatesAsync.when(
-                loading: () => _buildLoading(),
-                error: (err, stack) => _buildError(err),
-                data: (candidates) {
-                  _rebuildIndexIfNeeded(candidates);
-                  final filtered = _filter(query, candidates);
-                  // Reset highlight when the filtered list shrinks past
-                  // the current index.
-                  if (_highlightedIndex >= filtered.length) {
-                    _highlightedIndex = 0;
-                  }
-                  _filtered = filtered;
-                  if (filtered.isEmpty) {
-                    return _buildEmpty(query, candidates);
-                  }
-                  return _buildList(filtered);
-                },
+              return _maybeWithDmHeader(
+                candidatesAsync.when(
+                  loading: () => _buildLoading(),
+                  error: (err, stack) => _buildError(err),
+                  data: (candidates) {
+                    _rebuildIndexIfNeeded(candidates);
+                    final filtered = _filter(query, candidates);
+                    // Reset highlight when the filtered list shrinks past
+                    // the current index.
+                    if (_highlightedIndex >= filtered.length) {
+                      _highlightedIndex = 0;
+                    }
+                    _filtered = filtered;
+                    if (filtered.isEmpty) {
+                      return _buildEmpty(query, candidates);
+                    }
+                    return _buildList(filtered);
+                  },
+                ),
               );
             },
           );
@@ -452,11 +469,78 @@ class _PickerCardState extends State<_PickerCard> {
   }
 
   Widget _buildEmpty(String query, List<MentionCandidate> allCandidates) {
-    final label = allCandidates.isEmpty
-        ? widget.strings.noCandidates
-        : widget.strings.noMatch;
+    // Phase B — direct-chat empty state uses the DM-specific string
+    // ("No other relatives to mention in this family") so the user
+    // understands the constraint (the DM only has 2 participants,
+    // so any third-person reference is a family relative, not a DM
+    // participant). When the picker is in a group/family-wide chat
+    // and there are zero candidates at all (e.g. the user is the
+    // only family member with an account), the generic "No one to
+    // mention in this chat" string is used.
+    final label = widget.isDirectChat
+        ? (allCandidates.isEmpty
+            ? widget.strings.dmNoRelatives
+            : widget.strings.noMatch)
+        : (allCandidates.isEmpty
+            ? widget.strings.noCandidates
+            : widget.strings.noMatch);
     return _pickerSurface(
       child: _StatusRow(child: Text(label)),
+    );
+  }
+
+  /// Phase B — when [widget.isDirectChat] is true, wrap the picker
+  /// body in a Column with a header line above it ("Mention a
+  /// relative · they won't be notified") so the user understands the
+  /// reference-vs-notify distinction before they pick someone. In
+  /// group/family-wide chats, no header is rendered (the notify
+  /// behavior is the default — no need to call it out).
+  Widget _maybeWithDmHeader(Widget child) {
+    if (!widget.isDirectChat) return child;
+    return _pickerSurface(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header line — muted text on a tinted background so it's
+          // visually distinct from the candidate rows below.
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.06),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 14,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    widget.strings.dmHeader,
+                    style: (Theme.of(context).textTheme.bodySmall ??
+                            const TextStyle(fontSize: 12))
+                        .copyWith(
+                      color: Theme.of(context).colorScheme.primary
+                          .withValues(alpha: 0.85),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Flexible(child: child),
+        ],
+      ),
     );
   }
 
@@ -942,7 +1026,12 @@ class MentionTracker {
   /// Insert a mention at the current cursor position. Removes the
   /// "@" + search query the user typed, replaces it with "@Name ", and
   /// registers a MentionRef with the correct [start, end) offsets.
-  void insertMention(MentionCandidate m) {
+  ///
+  /// Phase B: [notify] controls whether the mention fires a
+  /// notification. Default true (family-wide + group chat). False for
+  /// DM third-person references (the chip renders in the bubble but
+  /// the referenced user is NOT notified — they're not in the DM).
+  void insertMention(MentionCandidate m, {bool notify = true}) {
     final text = _controller.text;
     final selection = _controller.selection;
     if (!selection.isValid || !selection.isCollapsed) return;
@@ -980,6 +1069,7 @@ class MentionTracker {
       name: m.name,
       start: start,
       end: end,
+      notify: notify,
     ));
   }
 

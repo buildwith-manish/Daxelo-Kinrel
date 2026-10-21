@@ -324,6 +324,7 @@ export class ChatService {
     //    The DM check is one batched query to Group.
     const groupId = opts.groupId ?? null;
     let conversationNotify = true;
+    let isDirectChat = false;
     if (groupId) {
       const group = await this.prisma.group.findUnique({
         where: { id: groupId },
@@ -337,17 +338,49 @@ export class ChatService {
           'Cannot send a message to a group outside its family',
         );
       }
-      conversationNotify = group.groupType !== 'direct';
+      isDirectChat = group.groupType === 'direct';
+      conversationNotify = !isDirectChat;
     }
 
     // 4. Batch-validate membership. ONE query to FamilyMember for all
     //    mentioned userIds (reject any that aren't family members).
     //    When groupId is set, ONE query to GroupMember for all
     //    mentioned userIds (reject any that aren't group members).
+    //    Phase B — for DMs (groupType = direct), the spec says the
+    //    referenced person must NOT be a participant. The sender is
+    //    already filtered out below; the DM other participant is the
+    //    only remaining participant. We reject mentions of the DM
+    //    other participant here (defense-in-depth — the Flutter side
+    //    already excludes them from the picker via
+    //    MentionCandidatesArgs.excludeUserIds).
     const userIds = uniqueMentions.map((m) => m.userId);
     // Filter out self-mentions at the server boundary too (the client
     // already does this, but a direct API call might not).
     const otherUserIds = userIds.filter((id) => id !== userId);
+    if (isDirectChat && otherUserIds.length > 0) {
+      // Look up the DM's other participant (the GroupMember whose
+      // userId is NOT the sender). For a direct chat, there are
+      // exactly 2 GroupMember rows. groupId is guaranteed non-null
+      // here because isDirectChat is only true when groupId was set
+      // + the Group lookup succeeded.
+      const dmParticipants = await this.prisma.groupMember.findMany({
+        where: { groupId: groupId! },
+        select: { userId: true },
+      });
+      const dmOtherParticipant = dmParticipants
+        .map((m) => m.userId)
+        .find((uid) => uid !== userId);
+      if (dmOtherParticipant) {
+        const mentionsOtherParticipant = otherUserIds.includes(
+          dmOtherParticipant,
+        );
+        if (mentionsOtherParticipant) {
+          throw new ForbiddenException(
+            `Cannot mention the DM other participant (they're already in the conversation) — use a regular message instead`,
+          );
+        }
+      }
+    }
     if (otherUserIds.length > 0) {
       const familyMembers = await this.prisma.familyMember.findMany({
         where: { familyId, userId: { in: otherUserIds } },

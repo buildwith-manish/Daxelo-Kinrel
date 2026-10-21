@@ -948,12 +948,26 @@ describe('ChatService', () => {
           args.where.userId.in.map((uid: string) => ({ userId: uid }))
         )
       );
-      // GroupMember check (default: all valid).
-      mockPrisma.groupMember.findMany.mockImplementation((args: any) =>
-        Promise.resolve(
-          args.where.userId.in.map((uid: string) => ({ userId: uid }))
-        )
-      );
+      // GroupMember check (default: all valid). The mock returns
+      // different results depending on the query shape:
+      //   • DM participant lookup: `where: { groupId }` (no userId.in)
+      //     → returns sender + dm_other (for the DM other-participant
+      //       rejection check).
+      //   • Group membership check: `where: { groupId, userId: { in: [...] } }`
+      //     → returns all requested userIds (default: all valid).
+      mockPrisma.groupMember.findMany.mockImplementation((args: any) => {
+        if (args.where.userId && args.where.userId.in) {
+          // Group membership check — return all requested userIds as valid.
+          return Promise.resolve(
+            args.where.userId.in.map((uid: string) => ({ userId: uid }))
+          );
+        }
+        // DM participant lookup — return 2 participants (sender + dm_other).
+        return Promise.resolve([
+          { userId: 'sender' },
+          { userId: 'dm_other' },
+        ]);
+      });
       // ChatMention insert succeeds.
       mockPrisma.chatMention.createMany.mockResolvedValue({ count: 0 });
     };
@@ -1064,6 +1078,60 @@ describe('ChatService', () => {
       const createCall = mockPrisma.chatMention.createMany.mock.calls[0][0];
       expect(createCall.data).toHaveLength(1);
       expect(createCall.data[0].mentionedUserId).toBe('u1');
+    });
+
+    // ─────────────────────────────────────────────────────────────────
+    // Phase B — DM reference mentions.
+    // ─────────────────────────────────────────────────────────────────
+
+    it('Phase B: rejects mentions of the DM other participant (ForbiddenException)', async () => {
+      // DM with 2 participants: sender + 'dm_other'.
+      setupHappyPathMocks({ groupId: 'dm_grp_1', groupType: 'direct' });
+      // Override: GroupMember returns 2 participants (sender + dm_other).
+      mockPrisma.groupMember.findMany.mockResolvedValue([
+        { userId: 'sender' },
+        { userId: 'dm_other' },
+      ]);
+      // The mention tries to @-mention the DM other participant.
+      const mentions = [
+        { userId: 'dm_other', name: 'DM Other', start: 1, end: 9 },
+      ];
+
+      await expect(
+        service.sendMessageWithMentions('fam1', 'sender', 'hello', mentions, {
+          groupId: 'dm_grp_1',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('Phase B: allows DM reference to a third family member (not a participant)', async () => {
+      // DM with 2 participants: sender + 'dm_other'.
+      setupHappyPathMocks({ groupId: 'dm_grp_1', groupType: 'direct' });
+      mockPrisma.groupMember.findMany.mockResolvedValue([
+        { userId: 'sender' },
+        { userId: 'dm_other' },
+      ]);
+      // The mention references a THIRD family member (not the DM
+      // other participant). This is the legal DM reference case —
+      // the chip renders but no ChatMention row is created.
+      const mentions = [
+        { userId: 'u3', name: 'Uncle', start: 1, end: 7 },
+      ];
+
+      await service.sendMessageWithMentions('fam1', 'sender', 'hello', mentions, {
+        groupId: 'dm_grp_1',
+      });
+
+      // NO ChatMention rows created (DM = notify=false path).
+      expect(mockPrisma.chatMention.createMany).not.toHaveBeenCalled();
+      // The inline mentions JSON on the ChatMessage row IS updated
+      // (so the bubble renders the @Name chip).
+      expect(mockPrisma.chatMessage.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'cm_test_1' },
+          data: expect.objectContaining({ mentions: expect.any(Array) }),
+        }),
+      );
     });
   });
 });

@@ -312,13 +312,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _currentUserIdCache ??= _currentUserId;
+      // Phase B — when this is a direct chat, exclude the DM other
+      // participant from the candidate list. The provider already
+      // excludes self + blocked; the DM other participant is the
+      // only additional exclusion. When this is a family-wide or
+      // group chat, excludeUserIds is empty (the provider's group
+      // scoping handles the filter via GroupMember).
+      final dmOtherUserId =
+          widget.isDirectChat ? widget.directOtherUserId : null;
       final args = MentionCandidatesArgs(
         familyId: widget.familyId,
         groupId: widget.groupId,
-        // Phase A: direct chats still early-return at the picker trigger
-        // (see _onTextChanged). Phase B will wire the picker for DMs and
-        // populate excludeUserIds with the DM other participant.
-        excludeUserIds: const {},
+        excludeUserIds: dmOtherUserId != null && dmOtherUserId.isNotEmpty
+            ? {dmOtherUserId}
+            : const {},
       );
       // Prime the provider (forces the Future to start now, not on
       // first @). Wrapped in unawaited because the result is
@@ -580,18 +587,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // MentionRef offsets shift correctly when the user edits text
     // before a mention, backspaces past one, or pastes new text.
     //
-    // Kin Thread / C2: no mentions picker in direct chats in Phase A
-    // (2 people only — a group-only feature). Phase B opens the picker
-    // in DMs with "Mention a relative · they won't be notified".
-    if (widget.isDirectChat) {
-      if (_mentionOverlay != null) _hideMentionPicker();
-      // Still sync the tracker so any pending refs (e.g. pasted from
-      // another chat) stay valid in DMs too.
-      _mentionTracker.syncOnTextChange(
-          _mentionLastText ?? '', _textController.text);
-      _mentionLastText = _textController.text;
-      return;
-    }
+    // Phase B: direct chats NOW show the picker too (was an early-
+    // return in Phase A). The picker's candidates exclude the DM
+    // other participant (passed via MentionCandidatesArgs.excludeUserIds
+    // in initState), the overlay shows a "Mention a relative · they
+    // won't be notified" header line, and selection inserts a
+    // MentionRef(notify: false) — the third person is NOT notified
+    // (they're not in the DM). Server-side ChatService.sendMessageWithMentions
+    // derives notify=false for direct chats (Phase A) and skips
+    // ChatMention row creation entirely.
     // Sync pending refs (grapheme-aware) — fire-and-forget per
     // text-change, no await so the input stays responsive.
     _mentionTracker.syncOnTextChange(
@@ -732,6 +736,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           onSelected: _onMentionSelected,
           onDismissed: _hideMentionPicker,
           strings: strings,
+          // Phase B — pass the direct-chat flag so the overlay renders
+          // the "Mention a relative · they won't be notified" header
+          // and uses the DM-specific empty state.
+          isDirectChat: widget.isDirectChat,
         ),
       );
       Overlay.of(context).insert(_mentionOverlay!);
@@ -747,7 +755,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   void _onMentionSelected(MentionCandidate m) {
-    _mentionTracker.insertMention(m);
+    // Phase B — when this is a direct chat, the mention is a
+    // reference (notify=false). The chip renders in the bubble (the
+    // relation line shows the kinship context), but the referenced
+    // third person is NOT notified — they're not in the DM, and the
+    // server (ChatService.sendMessageWithMentions, Phase A) derives
+    // notify=false from the conversation type + skips ChatMention row
+    // creation. The MentionRef.notify flag is the client-side mirror
+    // of the server-side derivation — they must agree. The server
+    // RE-validates (it doesn't trust the client flag) so a malicious
+    // client can't slip a notify=true ref past the DM guard.
+    _mentionTracker.insertMention(m, notify: !widget.isDirectChat);
     _hideMentionPicker();
     _focusNode.requestFocus();
     if (mounted) setState(() {}); // refresh to update send button state
