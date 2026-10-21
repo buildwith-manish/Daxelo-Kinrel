@@ -19,6 +19,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/feature_flags.dart';
 import '../../../../core/theme/theme_provider.dart'
     show themeModeProvider, fontScaleProvider;
@@ -638,12 +639,22 @@ class SettingsCategoryScreen extends ConsumerWidget {
             onTap: () => context.push('/profile/pulse-learning'),
           ),
           const SettingsDivider(),
-          SettingsRow(
-            icon: Icons.groups_outlined,
-            label: 'Communities',
-            subtitle: 'Browse gotra, village, and surname communities',
-            onTap: () => context.push('/community'),
-          ),
+          // Communities row gated on AppConfig.enableCommunity — when the
+          // flag is off, the row (and its divider) disappear from the
+          // Family & my data section. The /community route itself also
+          // redirects away, so removing this row doesn't strand a deep
+          // link: any stale /community URL hits the redirect in
+          // app_router.dart and bounces to '/' instead of opening a
+          // hidden screen.
+          if (AppConfig.enableCommunity) ...[
+            const SettingsDivider(),
+            SettingsRow(
+              icon: Icons.groups_outlined,
+              label: 'Communities',
+              subtitle: 'Browse gotra, village, and surname communities',
+              onTap: () => context.push('/community'),
+            ),
+          ],
         ],
       ),
     ];

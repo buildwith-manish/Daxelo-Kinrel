@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../core/constants/supported_languages.dart';
 import '../../../core/family/family_provider.dart';
@@ -164,17 +165,24 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
           // lives in Settings → Family & my data, but the Family tab
           // is the canonical entry point because it's a discovery
           // feature, not a setting).
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: KinrelSpacing.base,
-              ),
-              child: _CommunitiesChip(
-                onTap: () => context.push('/community'),
+          //
+          // Gated on AppConfig.enableCommunity — the flag is currently
+          // off while the Communities module is being retired. The chip
+          // disappears from the Family tab entirely when the flag is off
+          // (no dead UI, no orphan link to a route that redirects away).
+          if (AppConfig.enableCommunity)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: KinrelSpacing.base,
+                ),
+                child: _CommunitiesChip(
+                  onTap: () => context.push('/community'),
+                ),
               ),
             ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 20)),
+          if (AppConfig.enableCommunity)
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
           // Family cards or empty state
           if (families.isEmpty)

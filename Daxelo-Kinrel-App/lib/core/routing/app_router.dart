@@ -46,6 +46,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:go_router/go_router.dart';
 // Tier 2 #5 — deferred route helper for lazy-loading feature modules.
 import 'deferred_route_helper.dart';
+import '../config/app_config.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/splash/presentation/splash_screen.dart';
@@ -3398,8 +3399,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // 2. Community Discovery — browse communities (global, user-scoped)
+      //
+      // Gated on AppConfig.enableCommunity. When the flag is off, the
+      // route still resolves (so a stale deep link or `/community`
+      // search hit doesn't 404) but `redirect` bounces the user to the
+      // home screen instead of rendering CommunityDiscoveryScreen. The
+      // Family-tab chip and Settings rows are also gated on the same
+      // flag, so in practice the only way to reach this redirect is an
+      // out-of-app deep link or a bookmarked URL.
       GoRoute(
         path: '/community',
+        redirect: (context, state) =>
+            AppConfig.enableCommunity ? null : '/',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: const CommunityDiscoveryScreen(),

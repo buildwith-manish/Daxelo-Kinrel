@@ -11,6 +11,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/config/app_config.dart';
 import 'settings_providers.dart';
 
 /// One searchable setting entry.
@@ -289,13 +290,19 @@ const List<SettingsRegistryEntry> kSettingsRegistry = [
     categoryId: SettingsCategory.familyData,
     destination: '/profile/pulse-learning',
   ),
-  SettingsRegistryEntry(
-    id: 'communities',
-    label: 'Communities',
-    keywords: ['gotra', 'village', 'surname', 'discover'],
-    categoryId: SettingsCategory.familyData,
-    destination: '/community',
-  ),
+  // Communities row is gated on AppConfig.enableCommunity. While the
+  // flag is off, the row disappears from settings search AND from the
+  // Settings → Family & my data section (see settings_category_screen).
+  // The /community route itself still exists in app_router but
+  // redirects away, so a deep link or stale search hit can't reach it.
+  if (AppConfig.enableCommunity)
+    SettingsRegistryEntry(
+      id: 'communities',
+      label: 'Communities',
+      keywords: ['gotra', 'village', 'surname', 'discover'],
+      categoryId: SettingsCategory.familyData,
+      destination: '/community',
+    ),
 
   // ── Help & about ──────────────────────────────────────────────────
   SettingsRegistryEntry(
