@@ -225,8 +225,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           const AsyncValue.loading());
   // Debounce timer for the query — 150ms per the spec.
   Timer? _mentionQueryDebounce;
-  // Provider subscription so we can tear it down on dispose.
-  ProviderSubscription<AsyncValue<List<MentionCandidate>>>? _mentionCandSub;
+  // ref.listen auto-cleans on dispose; no manual subscription handle
+  // needed (Riverpod 2.x's ref.listen returns void).
 
   // v3.5: the typing indicator's animation MOVED to the shared
   // TypingIndicator widget (typing_indicator.dart) — it owns its own
@@ -321,16 +321,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         excludeUserIds: const {},
       );
       // Prime the provider (forces the Future to start now, not on
-      // first @).
-      ref.read(mentionCandidatesProvider(args).future).catchError((_) {});
-      // Subscribe so the ValueNotifier stays in sync.
-      _mentionCandSub = ref.listen<AsyncValue<List<MentionCandidate>>>(
+      // first @). Wrapped in unawaited because the result is
+      // fire-and-forget — the ValueNotifier is updated via the
+      // ref.listen subscription below.
+      unawaited(
+        ref.read(mentionCandidatesProvider(args).future).catchError((_) => <MentionCandidate>[]),
+      );
+      // Subscribe so the ValueNotifier stays in sync. Riverpod 2.x's
+      // ref.listen returns void (not a ProviderSubscription); the
+      // subscription is auto-cleaned when this widget disposes (the
+      // autoDispose family + the ref's lifecycle handle it). We
+      // manually prime the ValueNotifier with the current AsyncValue
+      // after subscribing (this triggers the same code path the
+      // listener would run on the first emission — fireImmediately
+      // is Riverpod 3.x only).
+      ref.listen<AsyncValue<List<MentionCandidate>>>(
         mentionCandidatesProvider(args),
         (previous, next) {
           _mentionCandidates.value = next;
         },
-        fireImmediately: true,
       );
+      // Prime with the current value (the read above may have already
+      // resolved it; if not, this sets loading + the listener fires
+      // when the provider emits).
+      _mentionCandidates.value = ref.read(mentionCandidatesProvider(args));
     });
 
     // feat(chat): drafts — restore the saved draft on init. We use
@@ -454,16 +468,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Phase 22 / Task 3 — clean up the mention picker overlay so it
     // doesn't leak if the screen closes while it's open.
     _hideMentionPicker();
-    // Phase A — dispose the mention picker ValueNotifiers + debounce +
-    // provider subscription. _mentionCandSub is auto-closed by Riverpod
-    // on container dispose, but we close it explicitly so a hot-reload
-    // during development doesn't leak the previous subscription.
+    // Phase A — dispose the mention picker ValueNotifiers + debounce.
+    // ref.listen's subscription is auto-cleaned by Riverpod on widget
+    // dispose; no manual close() needed (Riverpod 2.x returns void).
     _mentionQueryDebounce?.cancel();
     _mentionQueryDebounce = null;
     _mentionQuery.dispose();
     _mentionCandidates.dispose();
-    _mentionCandSub?.close();
-    _mentionCandSub = null;
     // Tier 3 / Live Location — cancel the location update timer so it
     // doesn't keep sending updates after the screen closes.
     _liveLocationTimer?.cancel();
