@@ -1142,4 +1142,47 @@ class STa extends S {
   String chatInboxRowSemanticDirect(String title, int count) {
     return 'α«¿α»çα«░α«ƒα«┐ α«Üα»åα«»α»ìα«ñα«┐, $title, $count α«¬α«ƒα«┐α«òα»ìα«òα«╛α«ñ';
   }
+
+  @override
+  String get mentionLoading => 'ஏற்றுகிறது…';
+
+  @override
+  String get mentionErrorRetry => 'ஏற்ற முடியவில்லை — மீண்டும் முயற்சிக்கவும்';
+
+  @override
+  String get mentionNoMatch => 'யாரும் பொருந்தவில்லை';
+
+  @override
+  String get mentionNoCandidates => 'இந்த அரடையில் குறிப்பிட யாரும் இல்லை';
+
+  @override
+  String get mentionDmHeader =>
+      'உறவினரைக் குறிப்பிடுங்கள் · அவர்களுக்கு அறிவிப்பு செல்லாது';
+
+  @override
+  String get mentionDmNoRelatives =>
+      'இந்த குடும்பத்தில் குறிப்பிட வேறு உறவினர் இல்லை';
+
+  @override
+  String get mentionCapExceeded =>
+      'ஒரே செய்தியில் அதிவரமும் 5 பேரைக் குறிப்பிடலாம்';
+
+  @override
+  String get mentionRecentlyActiveA11y => 'சமீபத்தியில் செயல்';
+
+  @override
+  String get mentionElderA11y => 'மூதானவர்';
+
+  @override
+  String get mentionBadgeA11y => 'குறிப்பு';
+
+  @override
+  String mentionNotificationBodyOne(String sender) {
+    return '$sender அரடையில் உங்களைக் குறிப்பிட்டார்';
+  }
+
+  @override
+  String mentionNotificationBodyMany(String sender, int count) {
+    return '$sender மற்றும் $count பேரும் அரடையில் உங்களைக் குறிப்பிட்டார்கள்';
+  }
 }

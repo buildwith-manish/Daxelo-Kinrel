@@ -164,7 +164,7 @@ class AppConfig {
 
   // Feature flags
   static const bool enableWhatsApp = true;
-  static const bool enableCommunity = true;
+  static const bool enableCommunity = false;
   static const bool enableModeration = true;
 
   // Limits

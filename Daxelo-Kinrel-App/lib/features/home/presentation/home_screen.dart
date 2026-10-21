@@ -12,7 +12,6 @@
 // KinrelTypography, KinrelSpacing, KinrelGradients, flutter_animate.
 // Dark mode is the primary experience.
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:go_router/go_router.dart';
@@ -22,7 +21,6 @@ import '../../notifications/providers/notifications_provider.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
-import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/family/family_provider.dart';
@@ -33,24 +31,29 @@ import '../../../core/family/family_provider.dart';
 // reachable only from the Family Graph screen.
 import '../../../features/family/presentation/find_on_kinrel_flow.dart'
     show openFindOnKinrelFlow;
-import '../../../features/kinrel_intelligence/providers/kinrel_provider.dart';
-import '../../../features/kinrel_intelligence/widgets/kinrel_symbol_widget.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../shared/widgets/kinrel_skeleton.dart';
 import '../../../shared/widgets/kinrel_empty_state.dart';
+import 'widgets/compact_family_switcher.dart';
 import 'widgets/continue_with_family_card.dart';
+import 'widgets/kinship_ring_row.dart';
 import 'widgets/streak_badge.dart';
+// Phase B — Today's Question card inserts into the Phase B slot in
+// _buildUnifiedHomeView. Surfaces one curated prompt per cycle with
+// a tap-to-start/stop mic button + preview + Save/Discard.
+import '../../todays_question/presentation/todays_question_card.dart';
+// Phase A — Home, the Instagram-level idea:
+// The leading "You / Add yours" item in the kinship ring row opens
+// /sparq/create (the existing Sparq composer) — per the user's
+// Phase A decision, we do NOT revive the legacy add_story_sheet /
+// stories system. The Sparq feature is the existing story-like
+// surface and is what the ring row should launch.
 import '../../family/presentation/join_family_screen.dart';
 import '../../feed/presentation/widgets/feed_post_card.dart';
 import '../../feed/providers/feed_provider.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
 import '../../occasions/widgets/upcoming_occasions_row.dart';
-import '../../sparq_tray/data/family_sparq_tray_item.dart' show FamilySparqTrayItem;
-import '../../sparq_tray/presentation/widgets/family_sparq_tray_widget.dart'
-    show FamilySparqTray;
-import '../../sparq_tray/providers/family_sparq_tray_provider.dart'
-    show familySparqTrayProvider;
 import '../../social/data/providers/sparq_provider.dart' show sparqProvider;
 import '../../../core/utils/accessibility_utils.dart';
 import '../../../core/theme/kinrel_fx.dart';
@@ -220,7 +223,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       child: Column(
         children: [
           const SizedBox(height: 24),
-          _StickyHeader(user: user),
+          // Phase A: pass an empty families list — CompactFamilySwitcher
+          // renders a "Create family" affordance in this state.
+          const _StickyHeader(user: null, families: const <Family>[]),
           const SizedBox(height: 48),
           // ── Migrated to KinrelEmptyState ──
           // Adds BounceButton + haptic + teaching subtitle. The secondary
@@ -258,6 +263,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   // ── Has families — show Unified Home Feed ────────────────────────
+  // Phase A — Home, the Instagram-level idea:
+  //   Reorder to match the mockup. From top to bottom:
+  //     1. Sticky header (K-icon wordmark + CompactFamilySwitcher
+  //        pill + Streak badge + Notification bell).
+  //     2. Compact greeting secondary line (greeting + @username —
+  //        moved out of the sticky header to free header real
+  //        estate for the family switcher).
+  //     3. KinshipRingRow (the Instagram-level idea): leading
+  //        "You / Add yours" + one item per relative, with the
+  //        kinship TERM as the bold primary label and first name
+  //        as the secondary line.
+  //     4. [Phase B slot — TodaysQuestionCard will be inserted
+  //         here. Left as a clearly-marked TODO so Phase B can drop
+  //         it in without touching the surrounding order.]
+  //     5. ContinueWithFamilyCard (kept — the WhatsApp/Telegram
+  //        "open to last chat" pattern).
+  //     6. UpcomingOccasionsRow (kept — birthday strip).
+  //     7. Home Feed section header + SliverList of FeedPostCard.
+  //
+  // Removed from Home (Phase A):
+  //   • _HeroFamilyCard — the family name, member/link/generation
+  //     stats, and the 3 quick-action chips (Graph / Add Member /
+  //     Wall). All three actions remain reachable from the Family
+  //     tab → family_detail_screen.dart:
+  //       - Graph:        family_detail_screen hero's flanking Graph
+  //                       icon (line 292 of that file).
+  //       - Add Member:   family_detail_screen's "Add Member" entry
+  //                       (line 533 — uses Find on Kinrel flow).
+  //       - Wall:         family_detail_screen's "Post to family
+  //                       wall" action in the family activity hub.
+  //     The widget class _HeroFamilyCard is preserved in this file
+  //     for future reuse (e.g. inside family_detail_screen as a
+  //     "Family summary" header); it's simply not rendered on Home
+  //     anymore.
+  //   • Inline _FamilySwitcherRow / FamilySparqTray — replaced by
+  //     CompactFamilySwitcher in the sticky header. The widget
+  //     classes are kept; only Home's rendering of them is removed.
   Widget _buildUnifiedHomeView(dynamic user, List<Family> families) {
     final primaryFamily = families.first;
     final feedState = ref.watch(homeFeedProvider);
@@ -277,10 +319,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         controller: _feedScrollController,
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // Sticky Header
+          // Sticky Header — K-icon wordmark + CompactFamilySwitcher
+          // + Streak + Notification bell.
           SliverPersistentHeader(
             pinned: true,
-            delegate: _StickyHeaderDelegate(user: user),
+            delegate: _StickyHeaderDelegate(user: user, families: families),
           ),
 
           // Main content
@@ -288,17 +331,64 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Family Switcher
-                // kEnableSparqTray (default true): render the new Petal-ring
-                // Sparq tray (Your Sparq + one entry per family + New
-                // family). When false, fall back to the legacy
-                // _FamilySwitcherRow which only ever pushed /family/{id}.
-                (kEnableSparqTray
-                        ? FamilySparqTray(families: families)
-                        : _FamilySwitcherRow(families: families))
+                // Compact greeting secondary line — moved out of the
+                // sticky header so the header can fit the family
+                // switcher pill. Scrolls away with the content (not
+                // sticky) which matches the mockup.
+                _CompactGreeting(user: user)
                     .animate()
-                    .fadeIn(duration: 350.ms, delay: 50.ms)
-                    .slideX(begin: -0.05, end: 0),
+                    .fadeIn(duration: 300.ms, delay: 50.ms),
+
+                const SizedBox(height: 8),
+
+                // ── Kinship Ring Row (Instagram-level idea) ──────────
+                // Leading "You / Add yours" + one item per relative,
+                // with the kinship TERM as the bold primary label
+                // (e.g. "Mausi") and the person's first name as the
+                // small secondary line (e.g. "Priya"). Ring gradient
+                // when unseen, dim when seen. Birthday badge "3d"
+                // when occasionRemindersProvider says their birthday
+                // is within 7 days.
+                //
+                // The row watches the precomputed
+                // kinshipTermsForFamilyProvider(familyId) — terms are
+                // resolved off the UI thread (compute() isolate) and
+                // cached. No per-avatar kinship lookups in build().
+                //
+                // When the viewer has no relatives yet (graph has
+                // only the viewer's own node), the row returns a
+                // zero-height SizedBox — and we render the "Next
+                // step" invite card in its place. The invite card
+                // reuses the existing KinrelEmptyState widget
+                // (same component Home's no-families view uses) so
+                // the visual language stays consistent.
+                KinshipRingRow(
+                  familyId: primaryFamily.id,
+                  onAddYours: () {
+                    HapticService.tap();
+                    // Phase A decision: open the Sparq composer, not
+                    // the legacy add_story_sheet. The Sparq feature
+                    // is the existing story-like surface.
+                    context.push('/sparq/create');
+                  },
+                )
+                    .animate()
+                    .fadeIn(duration: 350.ms, delay: 80.ms)
+                    .slideY(begin: -0.03, end: 0),
+
+                // ── Today's Question card (Phase B) ──────────────────────
+                // Phase B — surfaces one curated prompt + a one-tap mic
+                // button. Tap-to-start/stop (NOT press-and-hold —
+                // elders struggle with it). Max 3 min. Preview with
+                // Play/Save/Discard. First-time consent notice per
+                // (familyId, elderPersonId). Reuses the existing
+                // OralHistoryNotifier recorder + upload path (no
+                // third recorder). After Save or Skip, hides until
+                // the next cycle (kQuestionCadenceDays = 7).
+                TodaysQuestionCard(familyId: primaryFamily.id)
+                    .animate()
+                    .fadeIn(duration: 350.ms, delay: 100.ms)
+                    .slideY(begin: 0.04, end: 0),
 
                 const SizedBox(height: 12),
 
@@ -309,25 +399,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 // exists. This is the WhatsApp/Telegram "open to last
                 // chat" pattern.
                 ContinueWithFamilyCard(families: families),
-
-                const SizedBox(height: 20),
-
-                // KIN-04/KIN-13 FIX: Home reduced from 7 sections to 3.
-                // Removed: Sparq row, Stories row, Memory Vault tile,
-                // Discover grid. These are accessible from their
-                // respective feature screens and the Quick-Add FAB.
-                // Home now shows: hero family card (with quick-action
-                // chips), occasions strip, and unified feed only.
-
-                // Hero Family Card (with 3 quick-action chips)
-                _HeroFamilyCard(
-                  family: primaryFamily,
-                  detailAsync: ref.watch(familyDetailProvider(primaryFamily.id)),
-                  familyId: primaryFamily.id,
-                )
-                    .animate()
-                    .fadeIn(duration: 400.ms, delay: 100.ms)
-                    .slideY(begin: 0.08, end: 0),
 
                 const SizedBox(height: 20),
 
@@ -713,15 +784,22 @@ String _greetingPrefix() {
 }
 
 class _StickyHeader extends StatelessWidget {
-  const _StickyHeader({required this.user});
+  const _StickyHeader({required this.user, required this.families});
 
   final dynamic user;
 
+  /// The list of families the viewer belongs to. Used by the
+  /// CompactFamilySwitcher pill in the header. When empty (Home's
+  /// no-families view), the switcher renders a "Create family"
+  /// affordance instead.
+  final List<Family> families;
+
   @override
   Widget build(BuildContext context) {
-    // v2.2: Real authenticated user only — no mock fallback.
-    final userName = user?.email?.split('@').first ?? 'Welcome';
-    final userUsername = user?.userMetadata?['username'] as String?;
+    // The active family is the first one in the list — Home has
+    // always used `families.first` as the primary family. The
+    // CompactFamilySwitcher marks this id as "active" in the sheet.
+    final activeFamilyId = families.isNotEmpty ? families.first.id : null;
 
     return Container(
       height: 60,
@@ -737,57 +815,29 @@ class _StickyHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // K-graph mini icon (20px)
+          // K-graph mini icon (20px) — the Kinrel wordmark.
           const KinrelIcon(size: 20),
-          const SizedBox(width: 12),
-          // Greeting with @username
-          Expanded(
-            child: semanticHeader(
-              label: '${_greetingPrefix()} $userName',
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${_greetingPrefix()} ${_greetingEmoji()}',
-                    style: const TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 12,
-                      color: _cTextDim,
-                    ),
-                  ),
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        userName,
-                        style: const TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: _cTextPrimary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (userUsername != null) ...[
-                      const SizedBox(width: 6),
-                      Text(
-                        '@$userUsername',
-                        style: const TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 12,
-                          color: _cOrange,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
+          const SizedBox(width: 10),
+          // Compact family switcher pill — Phase A. The legacy
+          // greeting block that used to live here is moved into
+          // _CompactGreeting below the header so the header can fit
+          // the switcher + wordmark + bell on a single 60px line,
+          // matching the mockup.
+          if (families.isNotEmpty)
+            CompactFamilySwitcher(
+              families: families,
+              activeFamilyId: activeFamilyId,
+            )
+          else
+            // No families — render a tiny "Create" pill so the
+            // header still has a primary affordance. (Home's
+            // empty-state view shows the full empty-state card
+            // below, but the header still renders.)
+            const CompactFamilySwitcher(
+              families: const <Family>[],
+              activeFamilyId: null,
             ),
-          ),
-          ),
+          const Spacer(),
           // ── Streak badge: "🔥 N days". Hidden for new users (streak < 1).
           // This is the #1 retention lever — the user opens the app daily
           // to "not lose their streak" (Loss Aversion).
@@ -806,6 +856,77 @@ class _StickyHeader extends StatelessWidget {
           // unread count when > 0.
           _HomeNotificationBell(),
         ],
+      ),
+    );
+  }
+}
+
+/// Compact secondary line below the sticky header that shows the
+/// greeting + @username. Phase A — moved out of the sticky header
+/// so the header can fit the family-switcher pill on a single line.
+///
+/// This line scrolls with the content (not sticky) which matches
+/// the mockup (the mockup doesn't show the greeting at all, but the
+/// task says "keep greeting and streak if they fit, or move them
+/// into a compact secondary line" — so we keep the greeting here
+/// and the streak in the header).
+class _CompactGreeting extends StatelessWidget {
+  const _CompactGreeting({required this.user});
+
+  final dynamic user;
+
+  @override
+  Widget build(BuildContext context) {
+    // v2.2: Real authenticated user only — no mock fallback.
+    final userName = user?.email?.split('@').first ?? 'Welcome';
+    final userUsername = user?.userMetadata?['username'] as String?;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        KinrelSpacing.base,
+        12,
+        KinrelSpacing.base,
+        4,
+      ),
+      child: semanticHeader(
+        label: '${_greetingPrefix()} $userName',
+        child: Row(
+          children: [
+            Text(
+              '${_greetingPrefix()} ${_greetingEmoji()}',
+              style: const TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                color: _cTextDim,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                userName,
+                style: const TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: _cTextPrimary,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (userUsername != null) ...[
+              const SizedBox(width: 6),
+              Text(
+                '@$userUsername',
+                style: const TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12,
+                  color: _cOrange,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -892,9 +1013,13 @@ class _HomeNotificationBell extends ConsumerWidget {
 
 /// SliverPersistentHeaderDelegate for a sticky 60px header.
 class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
-  _StickyHeaderDelegate({required this.user});
+  _StickyHeaderDelegate({required this.user, required this.families});
 
   final dynamic user;
+
+  /// The families list — passed through to _StickyHeader so the
+  /// CompactFamilySwitcher pill can render in the header.
+  final List<Family> families;
 
   @override
   double get minExtent => 60;
@@ -904,7 +1029,7 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   bool shouldRebuild(covariant _StickyHeaderDelegate oldDelegate) =>
-      oldDelegate.user != user;
+      oldDelegate.user != user || oldDelegate.families != families;
 
   @override
   Widget build(
@@ -912,721 +1037,7 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    return _StickyHeader(user: user);
+    return _StickyHeader(user: user, families: families);
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Family Switcher (horizontal scroll)
-// ═══════════════════════════════════════════════════════════════════════
-
-class _FamilySwitcherRow extends StatelessWidget {
-  const _FamilySwitcherRow({required this.families});
-
-  final List<Family> families;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 76,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
-        itemCount: families.length + 1, // +1 for "Add" button
-        separatorBuilder: (_, __) => const SizedBox(width: 14),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return _AddFamilyCircle(
-              onTap: () {
-                // ── Haptic on Create Family — primary CTA.
-                HapticService.tap();
-                context.push('/families/create');
-              },
-            );
-          }
-          final family = families[index - 1];
-          final isActive = index == 1; // First family is active
-          return _FamilySwitchAvatar(
-            family: family,
-            isActive: isActive,
-            onTap: () {
-              // ── Haptic on family switcher avatar — selection click
-              // confirms the tap before the push animation starts.
-              HapticService.selection();
-              context.push('/family/${family.id}');
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// "+" dashed circle with "Add" label
-class _AddFamilyCircle extends StatelessWidget {
-  const _AddFamilyCircle({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      // Accessibility: semantic button label for screen readers
-      child: semanticButton(
-        label: 'Add family',
-        hint: 'Double tap to create a new family',
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CustomPaint(
-              size: const Size(52, 52),
-              painter: _DashedCirclePainter(
-                color: _cOrange.withValues(alpha: 0.5),
-                dashWidth: 4,
-                dashGap: 4,
-                strokeWidth: 2,
-              ),
-              child: const SizedBox(
-                width: 52,
-                height: 52,
-                child: Center(
-                  child: Icon(Icons.add_rounded, color: _cOrange, size: 22),
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Add',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-                color: _cTextSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Family tree avatar (52px circle, initial letter, Ignite gradient bg)
-class _FamilySwitchAvatar extends StatelessWidget {
-  const _FamilySwitchAvatar({
-    required this.family,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  final Family family;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    // Show @username if available, else family name
-    final displayName = family.familyCode ?? family.name;
-
-    return GestureDetector(
-      onTap: onTap,
-      // Accessibility: semantic button for family switch
-      child: semanticButton(
-        label: '$displayName family${isActive ? ', currently selected' : ''}',
-        hint: 'Double tap to open ${family.name} family',
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Active: 2px orange border ring with subtle glow
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: isActive ? Border.all(color: _cOrange, width: 2) : null,
-                boxShadow: isActive
-                    ? [
-                        BoxShadow(
-                          color: _cOrange.withValues(alpha: 0.25),
-                          blurRadius: 8,
-                          spreadRadius: 1,
-                        ),
-                      ]
-                    : null,
-              ),
-              padding: isActive ? const EdgeInsets.all(2) : EdgeInsets.zero,
-              child: Container(
-                width: isActive ? 46 : 52,
-                height: isActive ? 46 : 52,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: KinrelGradients.igniteGradient,
-                ),
-                child: Center(
-                  child: Text(
-                    family.name.isNotEmpty ? family.name[0].toUpperCase() : 'F',
-                    style: const TextStyle(
-                      fontFamily: KinrelTypography.displayFont,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            SizedBox(
-              width: 52,
-              child: Text(
-                '@${displayName.length > 8 ? displayName.substring(0, 8) : displayName}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 9,
-                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                  color: isActive ? _cOrange : _cTextSecondary,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Custom painter for dashed circle border.
-class _DashedCirclePainter extends CustomPainter {
-  _DashedCirclePainter({
-    required this.color,
-    this.dashWidth = 5,
-    this.dashGap = 5,
-    this.strokeWidth = 2,
-  });
-
-  final Color color;
-  final double dashWidth;
-  final double dashGap;
-  final double strokeWidth;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width - strokeWidth) / 2;
-
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke;
-
-    final circumference = 2 * 3.14159265 * radius;
-    final totalDashWidth = dashWidth + dashGap;
-    final dashCount = (circumference / totalDashWidth).floor();
-
-    final anglePerDash = totalDashWidth / radius;
-
-    for (int i = 0; i < dashCount; i++) {
-      final startAngle = i * anglePerDash;
-      final sweepAngle = dashWidth / radius;
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        startAngle,
-        sweepAngle,
-        false,
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DashedCirclePainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.dashWidth != dashWidth ||
-      oldDelegate.dashGap != dashGap;
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Hero Family Card
-// ═══════════════════════════════════════════════════════════════════════
-
-class _HeroFamilyCard extends ConsumerWidget {
-  const _HeroFamilyCard({required this.family, required this.detailAsync, required this.familyId});
-
-  final Family family;
-  final AsyncValue<FamilyDetail?> detailAsync;
-  final String familyId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Spec section 7: the avatar tap that previously opened
-    // StoriesViewerScreen for the primary family now opens
-    // /sparq/family/{familyId} when that family has live Sparqs
-    // (or a Moment Sparq), and the "eye" hint badge becomes a small
-    // petal-colored dot.
-    final trayAsync = ref.watch(familySparqTrayProvider);
-    final trayItems = trayAsync.valueOrNull ?? const <FamilySparqTrayItem>[];
-    FamilySparqTrayItem? trayItem;
-    for (final t in trayItems) {
-      if (t.family.id == familyId) {
-        trayItem = t;
-        break;
-      }
-    }
-    final hasLive = trayItem?.hasLive ?? false;
-    final petalColor = trayItem != null && trayItem.petals.isNotEmpty
-        ? trayItem.petals.first.color
-        : _cOrange;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
-      child: semanticButton(
-        label: '${family.name} family card',
-        hint: 'Double tap to open ${family.name} family details',
-        child: GestureDetector(
-          onTap: () {
-            // ── Haptic on hero family card — selection click.
-            HapticService.selection();
-            context.push('/family/${family.id}');
-          },
-          child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: _cOrange.withValues(alpha: 0.15),
-              width: 1,
-            ),
-            // PERF (Tier A2): clamp glow blur on web — the avatar is
-            // on-screen for every home screen render and 24px blur
-            // forces a per-frame saveLayer. 8px is visually equivalent
-            // at 1x DPR.
-            boxShadow: KinrelFx.shadows([
-              BoxShadow(
-                color: _cOrange.withValues(alpha: 0.12),
-                blurRadius: kIsWeb ? 8 : 24,
-                spreadRadius: kIsWeb ? 1 : 2,
-              ),
-            ]),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: Stack(
-              children: [
-                // Radial gradient background #13141E → #191B2C with orange glow
-                Container(
-                  // ✅ FIX (BUG-07): Use minHeight instead of fixed height
-                  // to prevent BOTTOM OVERFLOWED BY 18 PIXELS when content
-                  // (username, stats) is taller than the fixed 160px
-                  constraints: const BoxConstraints(minHeight: 160),
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment.topRight,
-                      radius: 1.2,
-                      colors: [Color(0xFF191B2C), Color(0xFF13141E)],
-                      stops: [0.0, 1.0],
-                    ),
-                  ),
-                ),
-
-                // Subtle dotted K-graph pattern (low opacity)
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _DottedKGraphPainter(
-                      color: _cOrange.withValues(alpha: 0.04),
-                    ),
-                  ),
-                ),
-
-                // Kinrel symbol overlay (Phase 16.1) — replaces the
-                // generic dotted-K-graph background with the family's
-                // actual Kinrel symbol when Kinrel has been computed and
-                // the feature flag is on. Falls back to the dotted
-                // pattern above when no Kinrel is cached yet.
-                if (kEnableKinrel)
-                  Positioned.fill(
-                    child: _HeroKinrelOverlay(familyId: familyId),
-                  ),
-
-                // Content
-                Positioned.fill(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Family avatar + name
-                        Center(
-                          child: Column(
-                            children: [
-                              // Family initial avatar (48px, Ignite gradient bg)
-                            // — Tappable: opens /sparq/family/{id} when the
-                            //   family has live Sparqs (or a Moment Sparq).
-                            // — Petal-colored dot hint indicates live Sparqs.
-                            GestureDetector(
-                              onTap: () {
-                                if (hasLive) {
-                                  context.push('/sparq/family/$familyId');
-                                }
-                              },
-                              child: Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  Container(
-                                    width: 48,
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      gradient: KinrelGradients.igniteGradient,
-                                      boxShadow: hasLive
-                                          ? [
-                                              BoxShadow(
-                                                color: petalColor.withValues(alpha: 0.4),
-                                                blurRadius: 12,
-                                                spreadRadius: 2,
-                                              ),
-                                              // Extra glow ring when Sparqs are live.
-                                              // PERF (Tier A2): clamped on web.
-                                              BoxShadow(
-                                                color: petalColor.withValues(alpha: 0.15),
-                                                blurRadius: kIsWeb ? 8 : 20,
-                                                spreadRadius: kIsWeb ? 2 : 4,
-                                              ),
-                                            ]
-                                          : [
-                                              BoxShadow(
-                                                color: _cOrange.withValues(alpha: 0.4),
-                                                blurRadius: 12,
-                                                spreadRadius: 2,
-                                              ),
-                                            ],
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        family.name.isNotEmpty
-                                            ? family.name[0].toUpperCase()
-                                            : 'F',
-                                        style: const TextStyle(
-                                          fontFamily: KinrelTypography.displayFont,
-                                          fontSize: 22,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  // Small petal-colored dot hint when Sparqs
-                                  // are live (spec section 7 — replaces the
-                                  // legacy "eye" icon with a mood-colored
-                                  // dot so the hero card matches the tray's
-                                  // Petal-ring visual identity).
-                                  if (hasLive)
-                                    Positioned(
-                                      right: -2,
-                                      bottom: -2,
-                                      child: Container(
-                                        width: 18,
-                                        height: 18,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: petalColor,
-                                          border: Border.all(
-                                            color: _cBg,
-                                            width: 1.5,
-                                          ),
-                                        ),
-                                        child: const Icon(
-                                          Icons.visibility_rounded,
-                                          size: 10,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                              const SizedBox(height: 12),
-                              // Family name (Heading Large, #F5F0EE)
-                              Text(
-                                family.name,
-                                style: const TextStyle(
-                                  fontFamily: KinrelTypography.displayFont,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w700,
-                                  color: _cTextPrimary,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              // Family @username
-                              if (family.familyCode != null) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  '@${family.familyCode}',
-                                  style: const TextStyle(
-                                    fontFamily: KinrelTypography.bodyFont,
-                                    fontSize: 12,
-                                    color: _cOrange,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 4),
-                              // Stats: Members · Links · Generations (Body Small, #C9B4A8)
-                              detailAsync.when(
-                                data: (detail) {
-                                  final members =
-                                      detail?.members.length ??
-                                      family.memberCount;
-                                  final links =
-                                      detail?.relationships.length ?? 0;
-                                  final generations = family.generationCount;
-                                  return Text(
-                                    '$members Members · $links Links · $generations Generations',
-                                    style: const TextStyle(
-                                      fontFamily: KinrelTypography.bodyFont,
-                                      fontSize: 12,
-                                      color: _cTextSecondary,
-                                    ),
-                                  );
-                                },
-                                loading: () => const SizedBox(
-                                  height: 18,
-                                  child: Center(
-                                    child: SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: _cOrange,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                error: (_, __) => const SizedBox.shrink(),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // KIN-04: 3 quick-action chips on the hero card
-                        // per audit recommendation: Graph, Add Member, Wall
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _QuickActionChip(
-                              icon: Icons.account_tree_outlined,
-                              label: 'Graph',
-                              onTap: () {
-                                // ── Haptic on Graph quick action.
-                                HapticService.tap();
-                                context.push('/family/${family.id}/graph');
-                              },
-                            ),
-                            _QuickActionChip(
-                              icon: Icons.person_add_alt_1_rounded,
-                              label: 'Add Member',
-                              onTap: () {
-                                // ── Haptic on Add Member — milestone-creating.
-                                HapticService.tap();
-                                // v5.215 (unified add-member entry-point
-                                // fix): skip straight to Find on Kinrel
-                                // search (matching the Family Space /
-                                // Family Profile / Members / Games Hub /
-                                // Relationship Builder entry points).
-                                // Previously this pushed the
-                                // `/family/$familyId/add-person` route
-                                // which opened `AddPersonSheet` (the
-                                // manual-entry form) directly. "Add
-                                // Manually" remains reachable only from
-                                // the Family Graph screen.
-                                openFindOnKinrelFlow(
-                                  context,
-                                  familyId: family.id,
-                                );
-                              },
-                            ),
-                            _QuickActionChip(
-                              icon: Icons.edit_note_rounded,
-                              label: 'Wall',
-                              onTap: () {
-                                // ── Haptic on Wall quick action.
-                                HapticService.tap();
-                                context.push('/post/create');
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      ),
-    );
-  }
-}
-
-/// A compact quick-action chip for the hero family card.
-class _QuickActionChip extends StatelessWidget {
-  const _QuickActionChip({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: _cOrange.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: _cOrange.withValues(alpha: 0.25),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: _cOrange),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: const TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: _cOrange,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Subtle dotted K-graph pattern for hero card background.
-class _DottedKGraphPainter extends CustomPainter {
-  _DottedKGraphPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-
-    // Draw a subtle node-and-edge pattern
-    final nodes = [
-      Offset(size.width * 0.15, size.height * 0.25),
-      Offset(size.width * 0.35, size.height * 0.15),
-      Offset(size.width * 0.55, size.height * 0.3),
-      Offset(size.width * 0.75, size.height * 0.2),
-      Offset(size.width * 0.85, size.height * 0.4),
-      Offset(size.width * 0.25, size.height * 0.55),
-      Offset(size.width * 0.5, size.height * 0.65),
-      Offset(size.width * 0.7, size.height * 0.7),
-      Offset(size.width * 0.4, size.height * 0.85),
-      Offset(size.width * 0.8, size.height * 0.85),
-    ];
-
-    final edges = [
-      [0, 1],
-      [1, 2],
-      [2, 3],
-      [3, 4],
-      [0, 5],
-      [5, 6],
-      [6, 7],
-      [2, 6],
-      [5, 8],
-      [7, 9],
-    ];
-
-    // Draw edges
-    for (final edge in edges) {
-      canvas.drawLine(nodes[edge[0]], nodes[edge[1]], paint);
-    }
-
-    // Draw dots at nodes
-    final dotPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    for (final node in nodes) {
-      canvas.drawCircle(node, 3, dotPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DottedKGraphPainter oldDelegate) =>
-      oldDelegate.color != color;
-}
-
-/// Phase 16.1: overlays the family's Kinrel symbol on the hero family
-/// card. Renders nothing (transparent) when Kinrel hasn't been computed
-/// yet, so the dotted K-graph background remains visible.
-///
-/// Watches [kinrelProvider] so the symbol appears instantly once the
-/// Kinrel finishes computing (e.g. after the user taps "Generate Kinrel"
-/// on the Kinrel screen and navigates back).
-class _HeroKinrelOverlay extends ConsumerWidget {
-  const _HeroKinrelOverlay({required this.familyId});
-
-  final String familyId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(kinrelProvider(familyId));
-    final kinrel = state.kinrel;
-    if (kinrel == null) {
-      // No Kinrel yet — let the dotted K-graph show through.
-      return const SizedBox.shrink();
-    }
-    // Low-opacity so the family name + stats stay readable on top.
-    //
-    // PERF (Tier B1): wrap the Opacity in a RepaintBoundary so the
-    // expensive saveLayer triggered by `Opacity(opacity: 0.18)` is
-    // cached as a single rasterized layer. The StaticKinrelSymbol
-    // underneath uses a CustomPainter that does heavy path work
-    // (mandala strokes) — without the RepaintBoundary, every parent
-    // rebuild (feed refresh, family-switch animation, scroll-bounce
-    // state change) re-rasterized both the painter AND the saveLayer.
-    return IgnorePointer(
-      child: RepaintBoundary(
-        child: Opacity(
-          opacity: 0.18,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: StaticKinrelSymbol(
-                parameters: kinrel.symbol,
-                archetypeKey: kinrel.archetype.key,
-                size: 220,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

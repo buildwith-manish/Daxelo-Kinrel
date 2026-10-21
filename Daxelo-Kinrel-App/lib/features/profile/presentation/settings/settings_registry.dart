@@ -11,6 +11,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/config/app_config.dart';
 import 'settings_providers.dart';
 
 /// One searchable setting entry.
@@ -187,6 +188,28 @@ const List<SettingsRegistryEntry> kSettingsRegistry = [
     categoryId: SettingsCategory.notifications,
     destination: '/pulse/alarms',
   ),
+  // Phase A — @mentions across chat. Toggle for the "Mentions break
+  // mute" NotificationPreference column. Default TRUE: when TRUE, an
+  // @-mention pushes even in a muted chat; when FALSE, mentions
+  // respect the chat's mute. Quiet hours and block list are ALWAYS
+  // respected regardless. See docs/MENTIONS_DEPLOY.md for the
+  // server-side enforcement (ChatMentionPushScheduler).
+  //
+  // NOTE: destination is intentionally NULL — the row is registered
+  // so settings search finds it, but the actual toggle UI (a Switch
+  // row that reads+writes NotificationPreference.mentionsBreakMute)
+  // is deferred to Phase A.5. The migration column is in place; the
+  // server already reads+respects it (ChatMentionPushScheduler.
+  // shouldPushForRecipient). For now the row renders as a
+  // non-clickable label. When A.5 ships, set destination to
+  // /profile/mentions-break-mute (a new dedicated screen) OR change
+  // settings_category_screen to render it as an inline Switch.
+  SettingsRegistryEntry(
+    id: 'mentions_break_mute',
+    label: 'Mentions break mute',
+    keywords: ['mentions', 'mute', 'dnd', 'do not disturb', 'chat'],
+    categoryId: SettingsCategory.notifications,
+  ),
 
   // ── Look & language ───────────────────────────────────────────────
   SettingsRegistryEntry(
@@ -289,13 +312,19 @@ const List<SettingsRegistryEntry> kSettingsRegistry = [
     categoryId: SettingsCategory.familyData,
     destination: '/profile/pulse-learning',
   ),
-  SettingsRegistryEntry(
-    id: 'communities',
-    label: 'Communities',
-    keywords: ['gotra', 'village', 'surname', 'discover'],
-    categoryId: SettingsCategory.familyData,
-    destination: '/community',
-  ),
+  // Communities row is gated on AppConfig.enableCommunity. While the
+  // flag is off, the row disappears from settings search AND from the
+  // Settings → Family & my data section (see settings_category_screen).
+  // The /community route itself still exists in app_router but
+  // redirects away, so a deep link or stale search hit can't reach it.
+  if (AppConfig.enableCommunity)
+    SettingsRegistryEntry(
+      id: 'communities',
+      label: 'Communities',
+      keywords: ['gotra', 'village', 'surname', 'discover'],
+      categoryId: SettingsCategory.familyData,
+      destination: '/community',
+    ),
 
   // ── Help & about ──────────────────────────────────────────────────
   SettingsRegistryEntry(

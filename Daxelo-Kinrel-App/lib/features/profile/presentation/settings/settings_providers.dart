@@ -58,6 +58,14 @@ final pushNotificationsToggleProvider = StateProvider<bool>((ref) => true);
 final birthdayRemindersToggleProvider = StateProvider<bool>((ref) => true);
 final anniversaryRemindersToggleProvider = StateProvider<bool>((ref) => false);
 final familyActivityToggleProvider = StateProvider<bool>((ref) => true);
+// Phase A — @mentions across chat. Default TRUE per the spec.
+// When TRUE, an @-mention pushes even in a muted chat. When FALSE,
+// mentions respect the chat's mute. Quiet hours and block list are
+// always respected regardless. The server (ChatMentionPushScheduler.
+// shouldPushForRecipient) reads NotificationPreference.mentionsBreakMute
+// — this StateProvider is the local mirror; persistToggle writes it
+// to the server.
+final mentionsBreakMuteToggleProvider = StateProvider<bool>((ref) => true);
 final twoFactorToggleProvider = StateProvider<bool>((ref) => false);
 final biometricLockToggleProvider = StateProvider<bool>((ref) => false);
 final locationSharingToggleProvider = StateProvider<bool>((ref) => false);

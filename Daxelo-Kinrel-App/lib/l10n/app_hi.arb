@@ -354,5 +354,67 @@
                                                                            "type":  "int"
                                                                        }
                                                          }
-                                    }
+                                    },
+    "mentionLoading":  "लोड हो रहा है…",
+    "@mentionLoading":  {
+        "description":  "Mention picker / notification string: mentionLoading"
+    },
+    "mentionErrorRetry":  "लोड नहीं हुआ — पुनः प्रयास करें",
+    "@mentionErrorRetry":  {
+        "description":  "Mention picker / notification string: mentionErrorRetry"
+    },
+    "mentionNoMatch":  "कोई मिलाने वाला नहीं",
+    "@mentionNoMatch":  {
+        "description":  "Mention picker / notification string: mentionNoMatch"
+    },
+    "mentionNoCandidates":  "इस चैट में मेंशन करने के लिए कोई नहीं है",
+    "@mentionNoCandidates":  {
+        "description":  "Mention picker / notification string: mentionNoCandidates"
+    },
+    "mentionDmHeader":  "किसी रिश्तेदार का मेंशन लिएं · उन्हें सूचना नहीं मिलेगी",
+    "@mentionDmHeader":  {
+        "description":  "Mention picker / notification string: mentionDmHeader"
+    },
+    "mentionDmNoRelatives":  "इस परिवार में मेंशन करने के लिए कोई अन्य रिश्तेदार नहीं है",
+    "@mentionDmNoRelatives":  {
+        "description":  "Mention picker / notification string: mentionDmNoRelatives"
+    },
+    "mentionCapExceeded":  "आप एक संदेश में अधिकतम 5 लोगों का मेंशन कर सकते हैं",
+    "@mentionCapExceeded":  {
+        "description":  "Mention picker / notification string: mentionCapExceeded"
+    },
+    "mentionRecentlyActiveA11y":  "हाल ही में सक्रिय",
+    "@mentionRecentlyActiveA11y":  {
+        "description":  "Mention picker / notification string: mentionRecentlyActiveA11y"
+    },
+    "mentionElderA11y":  "बजुर्ग",
+    "@mentionElderA11y":  {
+        "description":  "Mention picker / notification string: mentionElderA11y"
+    },
+    "mentionBadgeA11y":  "मेंशन",
+    "@mentionBadgeA11y":  {
+        "description":  "Mention picker / notification string: mentionBadgeA11y"
+    },
+    "mentionNotificationBodyOne":  "{sender} ने चैट में आपका मेंशन किया",
+    "@mentionNotificationBodyOne":  {
+        "description":  "Mention picker / notification string: mentionNotificationBodyOne"
+        ,"placeholders":  {
+            "sender":  {
+                "type":  "String"
+            }
+        }
+    },
+    "mentionNotificationBodyMany":  "{sender} और {count} लोगों ने चैट में आपका मेंशन किया",
+    "@mentionNotificationBodyMany":  {
+        "description":  "Mention picker / notification string: mentionNotificationBodyMany"
+        ,"placeholders":  {
+            "sender":  {
+                "type":  "String"
+            }
+            ,"count":  {
+                "type":  "int"
+            }
+        }
+    }
+
 }

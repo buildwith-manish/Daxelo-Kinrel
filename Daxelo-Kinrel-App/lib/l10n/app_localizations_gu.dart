@@ -1116,4 +1116,46 @@ class SGu extends S {
   String chatInboxRowSemanticDirect(String title, int count) {
     return 'α¬íα¬╛α¬»α¬░α½çα¬òα½ìα¬ƒ α¬╕α¬éα¬ªα½çα¬╢, $title, $count α¬¿ α¬╡α¬╛α¬éα¬Üα½çα¬▓α¬╛';
   }
+
+  @override
+  String get mentionLoading => 'Loading…';
+
+  @override
+  String get mentionErrorRetry => 'Couldn’t load — tap to retry';
+
+  @override
+  String get mentionNoMatch => 'No one matches';
+
+  @override
+  String get mentionNoCandidates => 'No one to mention in this chat';
+
+  @override
+  String get mentionDmHeader => 'Mention a relative · they won’t be notified';
+
+  @override
+  String get mentionDmNoRelatives =>
+      'No other relatives to mention in this family';
+
+  @override
+  String get mentionCapExceeded =>
+      'You can mention up to 5 people in one message';
+
+  @override
+  String get mentionRecentlyActiveA11y => 'Recently active';
+
+  @override
+  String get mentionElderA11y => 'Elder';
+
+  @override
+  String get mentionBadgeA11y => 'Mention';
+
+  @override
+  String mentionNotificationBodyOne(String sender) {
+    return '$sender mentioned you in chat';
+  }
+
+  @override
+  String mentionNotificationBodyMany(String sender, int count) {
+    return '$sender and $count others mentioned you in chat';
+  }
 }

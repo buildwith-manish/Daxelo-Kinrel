@@ -82,6 +82,10 @@ List<UnifiedChatEntry> _filter(
       return entries
           .where((e) => !e.isArchived && e.kind == UnifiedChatKind.direct)
           .toList();
+    case UnifiedInboxFilter.circles:
+      return entries
+          .where((e) => !e.isArchived && e.kind == UnifiedChatKind.circle)
+          .toList();
   }
 }
 

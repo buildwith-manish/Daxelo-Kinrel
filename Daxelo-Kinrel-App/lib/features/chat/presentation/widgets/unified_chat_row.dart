@@ -57,11 +57,12 @@ class UnifiedChatRow extends ConsumerWidget {
     final l10n = S.of(context)!;
 
     // ── Preview text ──────────────────────────────────────────────
-    // For group chats: prefix with "Name: " when the sender is known
-    // and is not the current viewer. For direct chats: just the
-    // preview as-is (the other person's name is already in the title).
+    // For group + circle chats: prefix with "Name: " when the
+    // sender is known and is not the current viewer. For direct
+    // chats: just the preview as-is.
     String previewText = entry.lastMessage;
-    if (entry.kind == UnifiedChatKind.group &&
+    if ((entry.kind == UnifiedChatKind.group ||
+            entry.kind == UnifiedChatKind.circle) &&
         entry.previewSenderName != null &&
         entry.previewSenderName!.isNotEmpty &&
         previewText.isNotEmpty) {
@@ -69,16 +70,21 @@ class UnifiedChatRow extends ConsumerWidget {
     }
 
     // ── Semantic label for screen readers ─────────────────────────
-    final semanticLabel = entry.kind == UnifiedChatKind.group
-        ? l10n.chatInboxRowSemanticGroup(entry.title, entry.unreadCount)
-        : l10n.chatInboxRowSemanticDirect(entry.title, entry.unreadCount);
+    final semanticLabel = switch (entry.kind) {
+      UnifiedChatKind.group =>
+        l10n.chatInboxRowSemanticGroup(entry.title, entry.unreadCount),
+      UnifiedChatKind.direct =>
+        l10n.chatInboxRowSemanticDirect(entry.title, entry.unreadCount),
+      UnifiedChatKind.circle =>
+        'Circle, ${entry.title}, ${entry.unreadCount} unread',
+    };
 
     return Semantics(
       label: semanticLabel,
       button: true,
       child: Dismissible(
         key: ValueKey(
-            '${entry.kind == UnifiedChatKind.group ? 'group' : 'dm'}_${entry.id}'),
+            '${entry.kind == UnifiedChatKind.group ? 'group' : entry.kind == UnifiedChatKind.circle ? 'circle' : 'dm'}_${entry.id}'),
         direction: DismissDirection.endToStart,
         onDismissed: (_) => onArchived(),
         background: Container(
@@ -159,6 +165,15 @@ class UnifiedChatRow extends ConsumerWidget {
                   color: KinrelColors.ember,
                 ),
               ],
+              // Phase A — @mentions across chat. Render an `@` chip
+              // when this chat has unread mentions for the current
+              // viewer. Distinct from the unread-count badge (the
+              // @ chip says "you were mentioned here"). Tapping the
+              // row opens the chat + the message is highlighted.
+              if (entry.unreadMentionsCount > 0) ...[
+                const SizedBox(width: KinrelSpacing.xs),
+                _MentionBadge(count: entry.unreadMentionsCount),
+              ],
             ],
           ),
           contentPadding: const EdgeInsets.symmetric(
@@ -205,6 +220,24 @@ class UnifiedChatRow extends ConsumerWidget {
           );
 
     // Group rows get the people-icon badge at bottom-right.
+    // Circle rows get a rounded-square icon tile instead of a
+    // circular avatar (per mockup 12).
+    if (entry.kind == UnifiedChatKind.circle) {
+      // Circle: render a rounded-square tile with the circle's icon
+      final iconKey = entry.iconKey ?? 'default';
+      final icon = _iconForKey(iconKey);
+      return Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          gradient: KinrelGradients.igniteGradient,
+        ),
+        child: Center(
+          child: Icon(icon, color: Colors.white, size: 24),
+        ),
+      );
+    }
     if (entry.kind == UnifiedChatKind.group) {
       return Stack(
         clipBehavior: Clip.none,
@@ -274,18 +307,88 @@ class UnifiedChatRow extends ConsumerWidget {
   }
 
   void _navigateToChat(BuildContext context) {
-    if (entry.kind == UnifiedChatKind.group) {
-      final familyId = entry.familyId ?? entry.id;
-      context.push(
-        '/family/$familyId/chat?name=${Uri.encodeComponent(entry.title)}',
-      );
-    } else {
-      // Direct: use the openDirectChat helper from direct_group_service.
-      openDirectChat(
-        context,
-        otherUserId: entry.otherUserId ?? entry.id,
-        familyId: entry.familyId ?? '',
-      );
+    switch (entry.kind) {
+      case UnifiedChatKind.group:
+        final familyId = entry.familyId ?? entry.id;
+        context.push(
+          '/family/$familyId/chat?name=${Uri.encodeComponent(entry.title)}',
+        );
+      case UnifiedChatKind.direct:
+        openDirectChat(
+          context,
+          otherUserId: entry.otherUserId ?? entry.id,
+          familyId: entry.familyId ?? '',
+        );
+      case UnifiedChatKind.circle:
+        // Phase 3: navigate to the circle conversation screen.
+        final circleId = entry.circleId ?? entry.id;
+        context.push('/circle/$circleId');
     }
+  }
+
+  /// Returns the IconData for a circle icon key.
+  IconData _iconForKey(String key) {
+    switch (key) {
+      case 'family':
+        return Icons.family_restroom_rounded;
+      case 'travel':
+        return Icons.flight_takeoff_rounded;
+      case 'celebration':
+        return Icons.celebration_rounded;
+      case 'food':
+        return Icons.restaurant_rounded;
+      case 'elders':
+        return Icons.elderly_rounded;
+      case 'cousins':
+        return Icons.people_alt_rounded;
+      case 'heart':
+        return Icons.favorite_rounded;
+      default:
+        return Icons.group_rounded;
+    }
+  }
+}
+
+/// Phase A — @mentions across chat. A small `@` chip rendered next to
+/// the unread-count badge when this chat has unread mentions for the
+/// current viewer. Distinct from the unread-count badge (the @ chip
+/// says "you were mentioned here"). The chip uses KinrelColors.ember
+/// (same as the unread badge) so the two badges visually align.
+class _MentionBadge extends StatelessWidget {
+  const _MentionBadge({required this.count});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      // Match the DKBadge size for visual alignment.
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: KinrelColors.ember.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: KinrelColors.ember, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.alternate_email_rounded,
+            size: 12,
+            color: KinrelColors.ember,
+            semanticLabel: 'Mention',
+          ),
+          const SizedBox(width: 2),
+          if (count > 1)
+            Text(
+              '$count',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.ember,
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }

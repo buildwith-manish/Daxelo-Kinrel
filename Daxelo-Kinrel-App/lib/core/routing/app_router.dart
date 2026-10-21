@@ -46,6 +46,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:go_router/go_router.dart';
 // Tier 2 #5 — deferred route helper for lazy-loading feature modules.
 import 'deferred_route_helper.dart';
+import '../config/app_config.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/splash/presentation/splash_screen.dart';
@@ -70,6 +71,8 @@ import '../../features/family/presentation/create_family_screen.dart';
 import '../../features/family/presentation/join_family_screen.dart';
 import '../../features/family/presentation/join_or_create_family_screen.dart';
 import '../../features/family/presentation/family_qr_screen.dart';
+// Phase 3 — Circle conversation screen
+import '../../features/circle/presentation/circle_chat_screen.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_builder_screen.dart';
 import '../../features/family/presentation/family_graph_screen.dart';
@@ -1271,67 +1274,82 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── Shell routes (show bottom navigation) ─────────────────────
-      // Tab switches use 0ms instant transitions — the shell handles
-      // the visual feedback, so no page animation is needed.
-      ShellRoute(
-        builder: (context, state, child) => RoutePersistenceShell(child: child),
-        routes: [
-          GoRoute(
-            path: '/home',
-            pageBuilder: (context, state) =>
-                _instantPage(key: state.pageKey, child: HomeScreen()),
-          ),
-          // Chat as a standalone top-level tab (unified inbox)
-          GoRoute(
-            path: '/chat',
-            pageBuilder: (context, state) => _instantPage(
-              key: state.pageKey,
-              child: const ChatInboxScreen(),
+      // StatefulShellRoute.indexedStack keeps all 5 tab branches alive
+      // simultaneously — switching tabs does NOT dispose the old tab
+      // (unlike plain ShellRoute which destroyed + rebuilt on every
+      // context.go()). This eliminates the "spinner on every tab open"
+      // because the tab's providers + scroll position persist.
+      //
+      // Branch order MUST match _BottomNav._items (Home=0, Chat=1,
+      // Family=2, Search=3, Me=4). context.go('/chat') etc. still
+      // works — go_router switches to the branch that contains the
+      // matching route.
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) =>
+            RoutePersistenceShell(child: navigationShell),
+        branches: [
+          // Branch 0: Home
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/home',
+              pageBuilder: (context, state) =>
+                  _instantPage(key: state.pageKey, child: HomeScreen()),
             ),
-          ),
-          GoRoute(
-            path: '/search',
-            pageBuilder: (context, state) =>
-                _instantPage(key: state.pageKey, child: const SearchScreen()),
-          ),
-          GoRoute(
-            path: '/families',
-            pageBuilder: (context, state) => _instantPage(
-              key: state.pageKey,
-              child: _PrefetchFamilyList(child: FamilyListScreen()),
-            ),
-          ),
-          // KIN-20: /notifications removed from ShellRoute — it's now
-          // a pushed route (bell icon on Home header), not a tab.
-          // KIN-25: /explore deleted — confirmed orphan with zero nav
-          // entry points from any tab, Home card, or Profile menu.
-          GoRoute(
-            path: '/profile',
-            pageBuilder: (context, state) => _instantPage(
-              key: state.pageKey,
-              child: _PrefetchProfile(child: ProfileScreen()),
-            ),
-          ),
-          // ── Settings redesign: hub + category screens ───────────────
-          // Lives INSIDE the ShellRoute so the bottom nav stays visible
-          // with the Me tab highlighted (matched by `location.startsWith('/profile')`
-          // in _BottomNav._currentIndex).
-          GoRoute(
-            path: '/profile/settings',
-            pageBuilder: (context, state) => _instantPage(
-              key: state.pageKey,
-              child: const SettingsHubScreen(),
-            ),
-          ),
-          GoRoute(
-            path: '/profile/settings/:category',
-            pageBuilder: (context, state) => _instantPage(
-              key: state.pageKey,
-              child: SettingsCategoryScreen(
-                categoryId: state.pathParameters['category']!,
+          ]),
+          // Branch 1: Chat (unified inbox)
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/chat',
+              pageBuilder: (context, state) => _instantPage(
+                key: state.pageKey,
+                child: const ChatInboxScreen(),
               ),
             ),
-          ),
+          ]),
+          // Branch 2: Family list
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/families',
+              pageBuilder: (context, state) => _instantPage(
+                key: state.pageKey,
+                child: _PrefetchFamilyList(child: FamilyListScreen()),
+              ),
+            ),
+          ]),
+          // Branch 3: Search
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/search',
+              pageBuilder: (context, state) =>
+                  _instantPage(key: state.pageKey, child: const SearchScreen()),
+            ),
+          ]),
+          // Branch 4: Me (profile + settings sub-routes)
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/profile',
+              pageBuilder: (context, state) => _instantPage(
+                key: state.pageKey,
+                child: _PrefetchProfile(child: ProfileScreen()),
+              ),
+            ),
+            GoRoute(
+              path: '/profile/settings',
+              pageBuilder: (context, state) => _instantPage(
+                key: state.pageKey,
+                child: const SettingsHubScreen(),
+              ),
+            ),
+            GoRoute(
+              path: '/profile/settings/:category',
+              pageBuilder: (context, state) => _instantPage(
+                key: state.pageKey,
+                child: SettingsCategoryScreen(
+                  categoryId: state.pathParameters['category']!,
+                ),
+              ),
+            ),
+          ]),
         ],
       ),
 
@@ -1385,6 +1403,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             familyId: state.uri.queryParameters['familyId'] ?? '',
             familyName: state.uri.queryParameters['familyName'],
             kinFamilyId: state.uri.queryParameters['kinFamilyId'],
+          ),
+        ),
+      ),
+      // ── Phase 3 — Circle conversation screen ──────────────────────
+      GoRoute(
+        path: '/circle/:id',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: CircleChatScreen(
+            circleId: state.pathParameters['id'] ?? '',
           ),
         ),
       ),
@@ -3386,8 +3414,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // 2. Community Discovery — browse communities (global, user-scoped)
+      //
+      // Gated on AppConfig.enableCommunity. When the flag is off, the
+      // route still resolves (so a stale deep link or `/community`
+      // search hit doesn't 404) but `redirect` bounces the user to the
+      // home screen instead of rendering CommunityDiscoveryScreen. The
+      // Family-tab chip and Settings rows are also gated on the same
+      // flag, so in practice the only way to reach this redirect is an
+      // out-of-app deep link or a bookmarked URL.
       GoRoute(
         path: '/community',
+        redirect: (context, state) =>
+            AppConfig.enableCommunity ? null : '/',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: const CommunityDiscoveryScreen(),

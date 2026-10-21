@@ -90,8 +90,12 @@ class ChatInputBar extends StatelessWidget {
   /// True while a voice message is uploading → shows a spinner.
   final bool isSendingVoice;
 
-  /// Optional LayerLink for the mention-picker overlay (group only).
-  /// When null, the text field is not wrapped in a CompositedTransformTarget.
+  /// Optional LayerLink for the mention-picker overlay. Used by all
+  /// chat kinds (family-wide, group, direct — Phase A opens the picker
+  /// in groups + family-wide; Phase B opens it in DMs for reference
+  /// mentions). When null, the text field is not wrapped in a
+  /// CompositedTransformTarget (e.g. tests that don't render the
+  /// picker).
   final LayerLink? inputLayerLink;
 
   /// Placeholder text for the input field.
@@ -217,7 +221,8 @@ class ChatInputBar extends StatelessWidget {
   }
 
   /// Builds the TextField, optionally wrapped in a CompositedTransformTarget
-  /// for the mention-picker overlay (group only).
+  /// for the mention-picker overlay (used by family-wide, group, and —
+  /// in Phase B — direct chats for reference mentions).
   Widget _buildTextField() {
     final textField = TextField(
       controller: textController,

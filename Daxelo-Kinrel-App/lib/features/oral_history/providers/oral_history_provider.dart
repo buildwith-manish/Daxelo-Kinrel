@@ -994,6 +994,227 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
     );
   }
 
+  /// Public read accessor for the in-progress recording's local file
+  /// path. Phase B's Today's Question card uses this to play a
+  /// preview of the recorded file before saving (without exposing
+  /// the private `_recordingPath` field).
+  ///
+  /// Returns null when no recording has been started (or after the
+  /// file has been cleaned up by [cancelRecording] or [saveStory]).
+  String? get currentRecordingPath => _recordingPath;
+
+  // ── Today's Question save (Phase B) ─────────────────────────────────
+  //
+  // Reuses the recorder + upload path of [saveStory] (NO third
+  // recorder). The differences from [saveStory]:
+  //   • Upload writes to a namespaced path under
+  //     `todays-question/<userId>/<storyId>.m4a` so the Phase B
+  //     recordings can be RLS-scoped separately from the legacy
+  //     `oral-history/` path.
+  //   • The persisted `audioUrl` is a SIGNED URL (1-hour expiry)
+  //     from `createSignedUrl` instead of a public URL. The
+  //     migration 20261020120000_voice_messages_private_bucket.sql
+  //     makes the bucket private, so `getPublicUrl` URLs would 404.
+  //     The oral_history_audio_player streams from the signed URL
+  //     via `just_audio` — no auth headers needed because the
+  //     signed-URL token validates the request server-side.
+  //   • The AncestralMemory row uses `topic: 'todaysQuestion'` so
+  //     the Today's Question picker can query "already answered"
+  //     prompts via `userTags` (contains 'question:<promptId>' AND
+  //     'elder:<personId>').
+  //
+  // Phase C will pick up the returned [StoryModel] and publish a
+  // `voice_answer` feed post (the Phase C feed type).
+  Future<StoryModel?> saveFromTodaysQuestion({
+    required String familyId,
+    required String elderPersonId,
+    required String elderName,
+    required String elderKinshipTerm,
+    required String questionId,
+    required String questionText,
+    required Duration recordedDuration,
+    required String language,
+  }) async {
+    final client = _ref.read(supabaseProvider);
+    if (client == null) {
+      state = state.copyWith(
+        recordingState: state.recordingState.copyWith(
+          isSaving: false,
+          error: 'Not signed in. Please sign in to save your story.',
+        ),
+      );
+      return null;
+    }
+    final userId = client.auth.currentUser?.id;
+    if (userId == null) {
+      state = state.copyWith(
+        recordingState: state.recordingState.copyWith(
+          isSaving: false,
+          error: 'Not signed in. Please sign in to save your story.',
+        ),
+      );
+      return null;
+    }
+
+    if (_recordingPath == null) {
+      state = state.copyWith(
+        recordingState: state.recordingState.copyWith(
+          isSaving: false,
+          error: 'No recording found. Please record your story again.',
+        ),
+      );
+      return null;
+    }
+    final audioFile = File(_recordingPath!);
+    if (!await audioFile.exists()) {
+      state = state.copyWith(
+        recordingState: state.recordingState.copyWith(
+          isSaving: false,
+          error: 'The recording file is missing. Please record your story again.',
+        ),
+      );
+      return null;
+    }
+
+    final audioBytes = await audioFile.readAsBytes();
+
+    // Namespaced storage path: todays-question/<userId>/<storyId>.m4a
+    final storyId = 'todays_question_${DateTime.now().millisecondsSinceEpoch}';
+    final fileName = '$storyId.m4a';
+    final storagePath = 'todays-question/$userId/$fileName';
+    final mimeType = 'audio/m4a';
+
+    // ── Step 1: Upload to the (now private) voice-messages bucket ──
+    // Same bucket as legacy oral-history, different path namespace.
+    // The bucket private + RLS policy from the Phase B migration
+    // scopes SELECT to family members only.
+    try {
+      await client.storage
+          .from('voice-messages')
+          .uploadBinary(
+            storagePath,
+            Uint8List.fromList(audioBytes),
+            fileOptions: FileOptions(contentType: mimeType),
+          );
+    } catch (e) {
+      debugPrint('⚠️ saveFromTodaysQuestion: upload failed: $e');
+      state = state.copyWith(
+        recordingState: state.recordingState.copyWith(
+          isSaving: false,
+          // Preserve the local file so the user can retry — do NOT
+          // call cancelRecording here. The card surfaces a Retry
+          // button that re-calls saveFromTodaysQuestion.
+          error: 'Upload failed. Please check your internet connection and try again.',
+        ),
+      );
+      return null;
+    }
+
+    // ── Step 2: Generate a SIGNED URL (1 hour expiry) ───────────────
+    // The bucket is private (migration 20261020120000), so the
+    // legacy getPublicUrl would 404. The signed URL embeds a token
+    // in the query string — just_audio streams from it directly.
+    //
+    // Expiry: 1 hour is enough for the immediate playback (Phase C
+    // feed card + oral history detail screen). When the user reopens
+    // an old recording, the player will re-mint a fresh signed URL
+    // from the stored storage path — a Phase C task.
+    String? signedUrl;
+    try {
+      signedUrl = await client.storage
+          .from('voice-messages')
+          .createSignedUrl(storagePath, 3600);
+    } catch (e) {
+      debugPrint('⚠️ saveFromTodaysQuestion: signed-URL failed: $e');
+      // Fall back to the public URL — the bucket may still be
+      // public (migration not yet applied), in which case this URL
+      // works. If the migration IS applied, the player will get a
+      // 404 and surface a "Cannot play" error.
+      signedUrl = client.storage.from('voice-messages').getPublicUrl(storagePath);
+    }
+
+    // ── Step 3: Insert AncestralMemory row ──────────────────────────
+    // topic = 'todaysQuestion' so the picker can filter.
+    // userTags includes 'question:<id>' + 'elder:<personId>' so the
+    // picker's "already answered" lookup works.
+    final title = 'Ask $elderKinshipTerm: $questionText';
+    final userTags = <String>[
+      'question:$questionId',
+      'elder:$elderPersonId',
+      'todaysQuestion',
+    ];
+    try {
+      await client.from('AncestralMemory').insert({
+        'id': storyId,
+        'familyId': familyId,
+        'recorderId': userId,
+        'mediaType': 'audio',
+        'mediaUrl': signedUrl,
+        // Store the storage PATH separately so Phase C can re-mint
+        // fresh signed URLs on demand without parsing the URL.
+        // This requires a new column added by the Phase B migration.
+        'storagePath': storagePath,
+        'durationSec': recordedDuration.inSeconds,
+        'title': title,
+        'language': language,
+        'description': 'Recorded via Today\'s Question on '
+            '${DateTime.now().toIso8601String()}.',
+        'topic': 'todaysQuestion',
+        'status': 'ready',
+        'listenCount': 0,
+        'viewCount': 0,
+        'isRevealed': true,
+        'narratorName': elderName,
+        'userTags': userTags,
+        'waveformData': state.recordingState.amplitudes,
+      });
+    } catch (e) {
+      debugPrint('⚠️ saveFromTodaysQuestion: AncestralMemory insert failed: $e');
+      state = state.copyWith(
+        recordingState: state.recordingState.copyWith(
+          isSaving: false,
+          error: 'Save failed: could not write to database. '
+              'Please try again. (Error: ${e.toString().length > 100 ? '${e.toString().substring(0, 100)}…' : e})',
+        ),
+      );
+      return null;
+    }
+
+    // ── Step 4: Clean up the local file ─────────────────────────────
+    try {
+      await audioFile.delete();
+    } catch (_) {}
+    _recordingPath = null;
+
+    // ── Step 5: Build + return the StoryModel ───────────────────────
+    // Phase C will use this to publish a `voice_answer` feed post.
+    final story = StoryModel(
+      id: storyId,
+      title: title,
+      description: 'Recorded via Today\'s Question.',
+      narratorId: userId,
+      narratorName: elderName,
+      familyId: familyId,
+      audioDuration: recordedDuration,
+      audioUrl: signedUrl,
+      language: language,
+      tags: userTags,
+      relatedPersonIds: const [],
+      era: null,
+      category: StoryCategory.wisdom, // closest match — see StoryCategory enum
+      isFavorite: false,
+      playCount: 0,
+      createdAt: DateTime.now(),
+      waveformData: state.recordingState.amplitudes,
+    );
+
+    state = state.copyWith(
+      stories: [...state.stories, story],
+      recordingState: const RecordingState(),
+    );
+    return story;
+  }
+
   // ── Story Save / Upload ────────────────────────────────────────────
 
   /// Save a newly recorded story: upload the audio file to Supabase

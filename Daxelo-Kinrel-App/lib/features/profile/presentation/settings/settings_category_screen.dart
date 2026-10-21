@@ -391,6 +391,26 @@ class SettingsCategoryScreen extends ConsumerWidget {
         ],
       ),
       const SizedBox(height: 24),
+      const SettingsSectionLabel('Mentions'),
+      const SizedBox(height: 8),
+      SettingsCard(
+        children: [
+          // Phase A — @mentions across chat. Toggle for the
+          // NotificationPreference.mentionsBreakMute column. Default
+          // TRUE. The server (ChatMentionPushScheduler) reads this
+          // column when deciding whether to push a mention in a muted
+          // chat. persistToggle writes the value to the server via
+          // the existing NotificationPreference PATCH path.
+          SettingsToggleRow(
+            icon: Icons.alternate_email_outlined,
+            label: 'Mentions break mute',
+            provider: mentionsBreakMuteToggleProvider,
+            onChanged: (v) =>
+                persistToggle(ref, 'mentions_break_mute', v),
+          ),
+        ],
+      ),
+      const SizedBox(height: 24),
       const SettingsSectionLabel('Schedule & quiet'),
       const SizedBox(height: 8),
       SettingsCard(

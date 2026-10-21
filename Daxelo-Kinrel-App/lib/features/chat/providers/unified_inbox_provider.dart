@@ -42,9 +42,12 @@ import '../../../core/services/supabase_service.dart';
 import '../../chat/data/direct_group_service.dart';
 import '../../chat/data/models/chat_message.dart';
 import '../../chat/data/models/message_type.dart';
+// Phase 2 — Circles: batched circle inbox loading (same pattern as
+// the group batched meta loader above).
+import '../../circle/data/circle_api_client.dart' as circle_api;
 
 /// The kind of conversation a UnifiedChatEntry represents.
-enum UnifiedChatKind { group, direct }
+enum UnifiedChatKind { group, direct, circle }
 
 /// One row in the unified inbox list. Mirrors the union of:
 ///   • Family (group row) — id, name, avatarUrl, last message, unread
@@ -69,6 +72,13 @@ class UnifiedChatEntry {
     this.familyId,
     this.otherUserId,
     this.groupId,
+    this.circleId,
+    this.iconKey,
+    // Phase A — @mentions across chat. Count of unread ChatMention
+    // rows for the current viewer in this chat. 0 when the provider
+    // hasn't loaded the mention counts yet (the row still renders;
+    // the @ badge only appears when count > 0).
+    this.unreadMentionsCount = 0,
   });
 
   /// Group → familyId; Direct → otherUserId. Used as the Dismissible
@@ -110,6 +120,18 @@ class UnifiedChatEntry {
   /// Direct → the direct-group's groupId (used by DM navigation).
   final String? groupId;
 
+  /// Circle → the circle's id (used by circle navigation).
+  final String? circleId;
+
+  /// Circle → the icon key (used for the rounded-square icon tile).
+  final String? iconKey;
+
+  /// Phase A — @mentions across chat. Count of unread ChatMention
+  /// rows for the current viewer in this chat. 0 when not loaded.
+  /// The unified_chat_row renders an `@` chip next to the unread
+  /// badge when this is > 0.
+  final int unreadMentionsCount;
+
   /// True when this entry has at least one message (lastMessage non-empty
   /// AND lastMessageTime is post-epoch). Entries without messages go to
   /// the bottom of the list.
@@ -124,7 +146,7 @@ class UnifiedChatEntry {
 }
 
 /// Filter chip selection for the inbox.
-enum UnifiedInboxFilter { all, unread, groups, direct }
+enum UnifiedInboxFilter { all, unread, groups, direct, circles }
 
 /// The merged inbox list. Built by watching familyListProvider +
 /// directGroupInboxProvider and doing the batched last-message +
@@ -135,18 +157,22 @@ enum UnifiedInboxFilter { all, unread, groups, direct }
 /// title). Ties broken by id (deterministic).
 final unifiedInboxProvider =
     FutureProvider.autoDispose<List<UnifiedChatEntry>>((ref) async {
-  // Watch familyListProvider (Drift stream → AsyncValue<List<Family>>).
-  // Using `.future` blocks until the first emission, then re-builds on
-  // subsequent emissions.
-  final families = await ref.watch(familyListProvider.future);
-  // Watch directGroupInboxProvider (FutureProvider → List<DirectGroupInboxItem>).
-  final dms = await ref.watch(directGroupInboxProvider.future);
+  // Start the three INDEPENDENT futures in parallel — they don't
+  // depend on each other, so starting them simultaneously cuts the
+  // total wait from (families + dms + circles) to max(families, dms,
+  // circles) + groupMeta(families).
+  final familiesF = ref.watch(familyListProvider.future);
+  final dmsF = ref.watch(directGroupInboxProvider.future);
+  final circlesF = circle_api.loadCircleInboxItems();
 
-  // ── Batched group queries ──────────────────────────────────────
-  // ONE query for the latest family-wide message per family (up to 200
-  // rows — covers ~all users' family counts). ONE query for the
-  // unread rows' familyIds. Then merge client-side.
-  final groupMeta = await _loadGroupBatchedMeta(ref, families);
+  // Await families first (groupMeta depends on it).
+  final families = await familiesF;
+  // Start groupMeta in the background while dms + circles resolve.
+  final groupMetaF = _loadGroupBatchedMeta(ref, families);
+  // Await dms (may already be done — started in parallel).
+  final dms = await dmsF;
+  // Await groupMeta (may already be done — started while dms resolved).
+  final groupMeta = await groupMetaF;
 
   // ── Merge into unified entries ─────────────────────────────────
   final entries = <UnifiedChatEntry>[];
@@ -182,6 +208,30 @@ final unifiedInboxProvider =
       familyId: dm.familyId,
       otherUserId: dm.otherUserId,
       groupId: dm.groupId,
+    ));
+  }
+
+  // ── Phase 2 — Circles ──────────────────────────────────────────
+  // Account-level circles are loaded via the circle_api_client's
+  // batched loader (3 queries total — same pattern as the group
+  // batched meta loader above). Circles are independent of the
+  // active family — they always appear in the inbox regardless of
+  // the family switcher selection.
+  // Circles — await the pre-started future (may already be done).
+  final circles = await circlesF;
+  for (final c in circles) {
+    entries.add(UnifiedChatEntry(
+      kind: UnifiedChatKind.circle,
+      id: c.id,
+      title: c.name,
+      avatarUrl: c.avatarUrl,
+      lastMessage: c.lastMessage,
+      lastMessageTime: c.lastMessageTime,
+      unreadCount: c.unreadCount,
+      isArchived: c.isArchived,
+      previewSenderName: c.lastSenderName,
+      circleId: c.id,
+      iconKey: c.iconKey,
     ));
   }
 

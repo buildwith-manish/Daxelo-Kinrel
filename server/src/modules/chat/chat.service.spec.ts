@@ -3,7 +3,8 @@ import { ChatService } from './chat.service';
 import { StreakService } from './streak.service';
 import { ChatAnalyticsService } from '../analytics/chat-analytics.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ChatMentionPushScheduler } from './chat-mention.push.scheduler';
 
 /**
  * ChatService unit tests.
@@ -27,6 +28,11 @@ describe('ChatService', () => {
   const mockPrisma = {
     familyMember: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn() },
     family: { findUnique: jest.fn() },
+    // Phase A — added group + groupMember mocks for the
+    // sendMessageWithMentions tests (notify derivation from
+    // conversation type + group membership validation).
+    group: { findUnique: jest.fn() },
+    groupMember: { findMany: jest.fn(), findUnique: jest.fn() },
     user: { findUnique: jest.fn(), findMany: jest.fn() },
     person: { findMany: jest.fn() },
     chatMessage: {
@@ -40,10 +46,10 @@ describe('ChatService', () => {
     chatReadReceipt: { createMany: jest.fn(), count: jest.fn() },
     chatTypingStatus: { upsert: jest.fn(), findMany: jest.fn() },
     chatReaction: { create: jest.fn(), deleteMany: jest.fn(), findMany: jest.fn() },
-    chatMention: { createMany: jest.fn(), findMany: jest.fn() },
+    chatMention: { createMany: jest.fn(), findMany: jest.fn(), updateMany: jest.fn(), findUnique: jest.fn() },
     memberPresence: { findMany: jest.fn() },
     chatSettings: { upsert: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
-    notificationPreference: { findFirst: jest.fn() },
+    notificationPreference: { findFirst: jest.fn(), findUnique: jest.fn() },
   };
 
   const mockStreakService = {
@@ -71,6 +77,9 @@ describe('ChatService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: StreakService, useValue: mockStreakService },
         { provide: ChatAnalyticsService, useValue: mockAnalyticsService },
+        // Phase A — mock the push scheduler so sendMessageWithMentions
+        // tests can run without a real FCM gateway.
+        { provide: ChatMentionPushScheduler, useValue: { enqueueMention: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
     service = module.get<ChatService>(ChatService);
@@ -526,6 +535,14 @@ describe('ChatService', () => {
       mockPrisma.chatMessage.create.mockResolvedValue(created);
       mockPrisma.chatMessage.update.mockResolvedValue({});
       mockPrisma.chatMention.createMany.mockResolvedValue({ count: 2 });
+      // Phase A — mock the family-membership check to return both
+      // mentioned users as valid family members (the new enforcement
+      // in sendMessageWithMentions validates each mentioned user is a
+      // family member before writing ChatMention rows).
+      mockPrisma.familyMember.findMany.mockResolvedValue([
+        { userId: 'user-2' },
+        { userId: 'user-3' },
+      ]);
 
       const result = await service.sendMessageWithMentions(
         'fam-1',
@@ -541,7 +558,7 @@ describe('ChatService', () => {
       // Inline mentions JSON updated on the message
       expect(mockPrisma.chatMessage.update).toHaveBeenCalledWith({
         where: { id: 'cm_1' },
-        data: { mentions: expect.any(Array) },
+        data: expect.objectContaining({ mentions: expect.any(Array) }),
       });
       // ChatMention rows inserted (2 users)
       expect(mockPrisma.chatMention.createMany).toHaveBeenCalledWith({
@@ -876,6 +893,245 @@ describe('ChatService', () => {
       const result = await service.getChatSettings('fam-1', 'user-1');
 
       expect(result).toEqual({ isMuted: false, isPinned: false, isArchived: false });
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+  // Phase A — @mentions across chat. Tests for sendMessageWithMentions.
+  // Verifies: cap-reject (>5 → BadRequest), dedupe, notify derivation
+  // from conversation type, family + group membership enforcement, DM
+  // reference (notify=false → no ChatMention row).
+  // ─────────────────────────────────────────────────────────────────
+  describe('sendMessageWithMentions — Phase A validation', () => {
+    const makeMentions = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        userId: `u${i + 1}`,
+        name: `User${i + 1}`,
+        start: 1 + i * 8,
+        end: 7 + i * 8,
+      }));
+
+    // Wire up the basic happy-path mocks so tests can focus on the
+    // specific behavior under test.
+    const setupHappyPathMocks = (overrides: {
+      groupId?: string | null;
+      groupType?: string;
+      familyId?: string;
+    } = {}) => {
+      // The family membership check passes for the sender.
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ userId: 'sender' });
+      // resolveSender returns a name + initials.
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'sender', name: 'Sender Name', username: 'sender',
+        avatarUrl: null,
+      });
+      // The message insert succeeds.
+      mockPrisma.chatMessage.findUnique.mockResolvedValue(null); // no idempotent retry
+      mockPrisma.chatMessage.create.mockResolvedValue({
+        id: 'cm_test_1', familyId: overrides.familyId ?? 'fam1',
+        senderId: 'sender', senderName: 'Sender Name',
+        senderInitials: 'SN', content: 'hello',
+        messageType: 'text', groupId: overrides.groupId ?? null,
+        mentions: null, reactions: [],
+      });
+      mockPrisma.chatMessage.update.mockResolvedValue({});
+      // When groupType lookup is needed:
+      if (overrides.groupId) {
+        mockPrisma.group.findUnique.mockResolvedValue({
+          id: overrides.groupId, groupType: overrides.groupType ?? 'group',
+          familyId: overrides.familyId ?? 'fam1',
+        });
+      }
+      // Membership validation for the mentioned users (default: all valid).
+      mockPrisma.familyMember.findMany.mockImplementation((args: any) =>
+        Promise.resolve(
+          args.where.userId.in.map((uid: string) => ({ userId: uid }))
+        )
+      );
+      // GroupMember check (default: all valid). The mock returns
+      // different results depending on the query shape:
+      //   • DM participant lookup: `where: { groupId }` (no userId.in)
+      //     → returns sender + dm_other (for the DM other-participant
+      //       rejection check).
+      //   • Group membership check: `where: { groupId, userId: { in: [...] } }`
+      //     → returns all requested userIds (default: all valid).
+      mockPrisma.groupMember.findMany.mockImplementation((args: any) => {
+        if (args.where.userId && args.where.userId.in) {
+          // Group membership check — return all requested userIds as valid.
+          return Promise.resolve(
+            args.where.userId.in.map((uid: string) => ({ userId: uid }))
+          );
+        }
+        // DM participant lookup — return 2 participants (sender + dm_other).
+        return Promise.resolve([
+          { userId: 'sender' },
+          { userId: 'dm_other' },
+        ]);
+      });
+      // ChatMention insert succeeds.
+      mockPrisma.chatMention.createMany.mockResolvedValue({ count: 0 });
+    };
+
+    it('rejects more than 5 mentions with BadRequestException', async () => {
+      setupHappyPathMocks();
+      const mentions = makeMentions(6); // 6 > 5 cap
+
+      await expect(
+        service.sendMessageWithMentions('fam1', 'sender', 'hello @all', mentions, {}),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('dedupes mentions by userId (4 mentions of 2 users → 2 unique)', async () => {
+      setupHappyPathMocks();
+      const mentions = [
+        { userId: 'u1', name: 'Alice', start: 1, end: 7 },
+        { userId: 'u1', name: 'Alice', start: 9, end: 15 }, // dup
+        { userId: 'u2', name: 'Bob',   start: 17, end: 22 },
+        { userId: 'u2', name: 'Bob',   start: 24, end: 29 }, // dup
+      ];
+
+      await service.sendMessageWithMentions('fam1', 'sender', 'hello', mentions, {});
+
+      // chatMention.createMany should have been called with exactly 2
+      // unique mentions (u1 + u2).
+      expect(mockPrisma.chatMention.createMany).toHaveBeenCalledTimes(1);
+      const createCall = mockPrisma.chatMention.createMany.mock.calls[0][0];
+      const mentionedUserIds = createCall.data.map((m: any) => m.mentionedUserId);
+      expect(mentionedUserIds).toEqual(['u1', 'u2']);
+      expect(mentionedUserIds).toHaveLength(2);
+    });
+
+    it('derives notify=true for family-wide chat (groupId IS NULL)', async () => {
+      setupHappyPathMocks({ groupId: null });
+      const mentions = makeMentions(1);
+
+      await service.sendMessageWithMentions('fam1', 'sender', 'hello', mentions, {});
+
+      // ChatMention rows ARE created (notify=true path).
+      expect(mockPrisma.chatMention.createMany).toHaveBeenCalledTimes(1);
+      const createCall = mockPrisma.chatMention.createMany.mock.calls[0][0];
+      expect(createCall.data[0].notify).toBe(true);
+      expect(createCall.data[0].groupId).toBeNull();
+      expect(createCall.data[0].isRead).toBe(false);
+    });
+
+    it('derives notify=true for group chat (groupType != direct)', async () => {
+      setupHappyPathMocks({ groupId: 'grp1', groupType: 'group' });
+      const mentions = makeMentions(1);
+
+      await service.sendMessageWithMentions('fam1', 'sender', 'hello', mentions, { groupId: 'grp1' });
+
+      expect(mockPrisma.chatMention.createMany).toHaveBeenCalledTimes(1);
+      const createCall = mockPrisma.chatMention.createMany.mock.calls[0][0];
+      expect(createCall.data[0].notify).toBe(true);
+      expect(createCall.data[0].groupId).toBe('grp1');
+    });
+
+    it('derives notify=false for DM (groupType = direct) → no ChatMention row', async () => {
+      setupHappyPathMocks({ groupId: 'dm_grp_1', groupType: 'direct' });
+      const mentions = makeMentions(2);
+
+      await service.sendMessageWithMentions('fam1', 'sender', 'hello', mentions, { groupId: 'dm_grp_1' });
+
+      // NO ChatMention rows created (DM path = reference-only).
+      expect(mockPrisma.chatMention.createMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects mentioned non-family-member with ForbiddenException', async () => {
+      setupHappyPathMocks();
+      // Override: u3 is NOT a family member.
+      mockPrisma.familyMember.findMany.mockResolvedValue([
+        { userId: 'u1' }, { userId: 'u2' }, // u3 missing
+      ]);
+      const mentions = makeMentions(3);
+
+      await expect(
+        service.sendMessageWithMentions('fam1', 'sender', 'hello', mentions, {}),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('rejects mentioned non-group-member with ForbiddenException (group chat)', async () => {
+      setupHappyPathMocks({ groupId: 'grp1', groupType: 'group' });
+      // Override: u3 is NOT a group member.
+      mockPrisma.groupMember.findMany.mockResolvedValue([
+        { userId: 'u1' }, { userId: 'u2' }, // u3 missing
+      ]);
+      const mentions = makeMentions(3);
+
+      await expect(
+        service.sendMessageWithMentions('fam1', 'sender', 'hello', mentions, { groupId: 'grp1' }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('skips self-mentions (never creates a ChatMention row for the sender)', async () => {
+      setupHappyPathMocks();
+      // One mention of the sender + one of another user.
+      const mentions = [
+        { userId: 'sender', name: 'Me', start: 1, end: 4 },
+        { userId: 'u1', name: 'User1', start: 6, end: 12 },
+      ];
+
+      await service.sendMessageWithMentions('fam1', 'sender', 'hello', mentions, {});
+
+      // Only u1 should get a ChatMention row (sender filtered out).
+      expect(mockPrisma.chatMention.createMany).toHaveBeenCalledTimes(1);
+      const createCall = mockPrisma.chatMention.createMany.mock.calls[0][0];
+      expect(createCall.data).toHaveLength(1);
+      expect(createCall.data[0].mentionedUserId).toBe('u1');
+    });
+
+    // ─────────────────────────────────────────────────────────────────
+    // Phase B — DM reference mentions.
+    // ─────────────────────────────────────────────────────────────────
+
+    it('Phase B: rejects mentions of the DM other participant (ForbiddenException)', async () => {
+      // DM with 2 participants: sender + 'dm_other'.
+      setupHappyPathMocks({ groupId: 'dm_grp_1', groupType: 'direct' });
+      // Override: GroupMember returns 2 participants (sender + dm_other).
+      mockPrisma.groupMember.findMany.mockResolvedValue([
+        { userId: 'sender' },
+        { userId: 'dm_other' },
+      ]);
+      // The mention tries to @-mention the DM other participant.
+      const mentions = [
+        { userId: 'dm_other', name: 'DM Other', start: 1, end: 9 },
+      ];
+
+      await expect(
+        service.sendMessageWithMentions('fam1', 'sender', 'hello', mentions, {
+          groupId: 'dm_grp_1',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('Phase B: allows DM reference to a third family member (not a participant)', async () => {
+      // DM with 2 participants: sender + 'dm_other'.
+      setupHappyPathMocks({ groupId: 'dm_grp_1', groupType: 'direct' });
+      mockPrisma.groupMember.findMany.mockResolvedValue([
+        { userId: 'sender' },
+        { userId: 'dm_other' },
+      ]);
+      // The mention references a THIRD family member (not the DM
+      // other participant). This is the legal DM reference case —
+      // the chip renders but no ChatMention row is created.
+      const mentions = [
+        { userId: 'u3', name: 'Uncle', start: 1, end: 7 },
+      ];
+
+      await service.sendMessageWithMentions('fam1', 'sender', 'hello', mentions, {
+        groupId: 'dm_grp_1',
+      });
+
+      // NO ChatMention rows created (DM = notify=false path).
+      expect(mockPrisma.chatMention.createMany).not.toHaveBeenCalled();
+      // The inline mentions JSON on the ChatMessage row IS updated
+      // (so the bubble renders the @Name chip).
+      expect(mockPrisma.chatMessage.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'cm_test_1' },
+          data: expect.objectContaining({ mentions: expect.any(Array) }),
+        }),
+      );
     });
   });
 });

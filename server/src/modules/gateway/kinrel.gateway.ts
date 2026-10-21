@@ -791,6 +791,20 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  /// Phase A — @mentions across chat: returns true if the user has at
+  /// least one active socket connection. Used by ChatMentionPushScheduler
+  /// to skip the FCM push when the recipient is already online (they'll
+  /// see the in-app banner via the socket event).
+  /// Multi-device aware: if the user has multiple sockets (phone +
+  /// tablet), any one of them being active counts as "online" — the
+  /// push would just duplicate the in-app banner.
+  isUserConnected(userId: string): boolean {
+    for (const uid of this.connectedUsers.values()) {
+      if (uid === userId) return true;
+    }
+    return false;
+  }
+
   emitToFamily(familyId: string, event: string, payload: MinimalPayload) {
     if (event === 'graph:updated') {
       this._debouncedGraphEmit(familyId, payload);

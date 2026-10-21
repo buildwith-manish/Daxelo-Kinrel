@@ -59,7 +59,6 @@ import '../../profile/presentation/member_profile_sheet.dart';
 import '../data/chat_enhancement_service.dart';
 import '../data/chat_block_report_service.dart';
 import '../data/chat_draft_service.dart';
-import '../data/chat_scheduled_message_service.dart';
 import '../data/chat_lock_service.dart';
 import '../providers/chat_provider.dart';
 import '../providers/chat_onboarding_provider.dart';
@@ -70,6 +69,8 @@ import 'chat_onboarding_coach_marks.dart';
 import '../../../core/network/socket_service.dart';
 import 'sticker_panel.dart';
 // Phase 22 / Task 3 — @mention picker overlay + highlight renderer.
+import '../data/mention_candidates_provider.dart';
+import '../data/mention_candidates_sync_provider.dart';
 import 'widgets/mention_picker.dart';
 // Phase 22 / Task 5 — poll card bubble (reuses the gameInvite card pattern).
 // Phase 22 / Task 5 — poll composer bottom sheet.
@@ -95,7 +96,6 @@ import 'widgets/message_preview_dialog.dart';
 import 'widgets/typing_indicator.dart';
 import 'widgets/reaction_picker.dart';
 import 'widgets/report_message_sheet.dart';
-import 'widgets/blocked_message_placeholder.dart';
 import 'widgets/schedule_message_sheet.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../data/chat_wallpaper_provider.dart';
@@ -205,10 +205,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // The picker is rendered as an OverlayEntry anchored to the message
   // input via a LayerLink. MentionTracker keeps the pending MentionRef
   // list in sync with the text as the user types.
+  //
+  // Phase A rewrite: the picker is now reactive. It reads:
+  //   • _mentionQuery        — a ValueNotifier<String> updated by the
+  //                            text-change listener (150ms debounced).
+  //   • _mentionCandidates  — a ValueNotifier<AsyncValue<List<MentionCandidate>>>
+  //                            kept in sync with mentionCandidatesProvider.
+  // The OverlayEntry is built ONCE; subsequent updates flow through
+  // the ValueNotifiers (the picker's ValueListenableBuilder rebuilds).
   late final MentionTracker _mentionTracker;
   final LayerLink _inputLayerLink = LayerLink();
   OverlayEntry? _mentionOverlay;
   String? _currentUserIdCache;
+
+  // Reactive state for the picker.
+  final ValueNotifier<String> _mentionQuery =
+      ValueNotifier<String>('');
+  // Synchronous candidate list — never AsyncValue. Starts empty;
+  // the overlay stays hidden until data arrives. No loading state.
+  final ValueNotifier<List<MentionCandidate>> _mentionCandidates =
+      ValueNotifier<List<MentionCandidate>>(const []);
+  // Debounce timer for the query — 150ms per the spec.
+  Timer? _mentionQueryDebounce;
+  // ref.listen auto-cleans on dispose; no manual subscription handle
+  // needed (Riverpod 2.x's ref.listen returns void).
 
   // v3.5: the typing indicator's animation MOVED to the shared
   // TypingIndicator widget (typing_indicator.dart) — it owns its own
@@ -284,6 +304,45 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _scrollController.addListener(_onScroll);
     _textController.addListener(_onTextChanged);
 
+    // Instant @mention picker: prewarm the keep-alive sync provider
+    // so the candidate list is ready when the user types "@". The
+    // provider is synchronous (Provider.family, not autoDispose) —
+    // it reads from in-memory data (familyMembersProvider.valueOrNull
+    // + kinshipTermsForFamilyProvider.valueOrNull). If upstream data
+    // hasn't loaded yet, the list is empty (overlay stays hidden —
+    // no spinner). When data arrives, the list updates + the overlay
+    // shows. Background caches (blocked users, group members) start
+    // loading on first read.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _currentUserIdCache ??= _currentUserId;
+      final dmOtherUserId =
+          widget.isDirectChat ? widget.directOtherUserId : null;
+      final args = MentionCandidatesArgs(
+        familyId: widget.familyId,
+        groupId: widget.groupId,
+        excludeUserIds: dmOtherUserId != null && dmOtherUserId.isNotEmpty
+            ? {dmOtherUserId}
+            : const {},
+      );
+      // Prewarm: read the keep-alive sync provider. This triggers the
+      // background caches to start loading. The sync provider returns
+      // a plain List (synchronous) — the ValueNotifier gets the value
+      // immediately (empty list if upstream data hasn't loaded yet).
+      _mentionCandidates.value =
+          ref.read(mentionCandidatesSyncProvider(args));
+      // Subscribe so the ValueNotifier stays in sync when upstream
+      // providers (familyMembers, kinshipTerms, blocked users, group
+      // members) resolve. Riverpod 2.x's ref.listen returns void; the
+      // subscription is auto-cleaned when this widget disposes.
+      ref.listen<List<MentionCandidate>>(
+        mentionCandidatesSyncProvider(args),
+        (previous, next) {
+          _mentionCandidates.value = next;
+        },
+      );
+    });
+
     // feat(chat): drafts — restore the saved draft on init. We use
     // addPostFrameCallback so ref is ready + the widget is mounted.
     // The restore sets the text + the reply-to target (if any) — the
@@ -292,6 +351,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // restore so the FIRST text-changed callback — fired by the
     // setText — doesn't trigger a redundant save).
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // FIX: set the groupId on the ChatNotifier so _loadMessages +
+      // realtime handlers filter by this chat's scope (fixes DM
+      // messages leaking into family-wide chat + DM spinning).
+      ref
+          .read(chatProvider(widget.familyId).notifier)
+          .setGroupId(widget.groupId);
       _restoreDraft();
     });
 
@@ -321,6 +386,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Mark all as read on enter (this chat's scope only).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      // Load THIS conversation's own messages (group / direct threads are
+      // no longer a by-product of the family-wide query).
+      ref
+          .read(chatProvider(widget.familyId).notifier)
+          .ensureThreadLoaded(widget.groupId);
       ref
           .read(chatProvider(widget.familyId).notifier)
           .markAllRead(groupId: widget.groupId);
@@ -338,7 +408,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   bool _markedReadOnOpen = false;
   void _maybeMarkReadOnOpen(ChatState chatState) {
     if (_markedReadOnOpen) return;
-    if (chatState.isLoading || chatState.messages.isEmpty) return;
+    // Wait until THIS thread has actually loaded (marking read earlier
+    // would find nothing in scope and the one-shot flag would be burned).
+    final status =
+        chatState.threadStatus[widget.groupId ?? ChatNotifier.kFamilyScope];
+    if (status != ThreadStatus.loaded) return;
+    if (!chatState.messages.any((m) => m.groupId == widget.groupId)) return;
     _markedReadOnOpen = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -389,6 +464,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Phase 22 / Task 3 — clean up the mention picker overlay so it
     // doesn't leak if the screen closes while it's open.
     _hideMentionPicker();
+    // Phase A — dispose the mention picker ValueNotifiers + debounce.
+    // ref.listen's subscription is auto-cleaned by Riverpod on widget
+    // dispose; no manual close() needed (Riverpod 2.x returns void).
+    _mentionQueryDebounce?.cancel();
+    _mentionQueryDebounce = null;
+    _mentionQuery.dispose();
+    _mentionCandidates.dispose();
     // Tier 3 / Live Location — cancel the location update timer so it
     // doesn't keep sending updates after the screen closes.
     _liveLocationTimer?.cancel();
@@ -409,6 +491,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   void _onScroll() {
+    // Infinite scroll-up: the list is reversed, so maxScrollExtent is the
+    // OLDEST end. (onLoadOlder was declared but never wired — history
+    // beyond the first page could never load.)
+    if (_scrollController.hasClients) {
+      final pos = _scrollController.position;
+      if (pos.pixels >= pos.maxScrollExtent - 600) {
+        ref
+            .read(chatProvider(widget.familyId).notifier)
+            .loadOlderMessages(groupId: widget.groupId);
+      }
+    }
     final show =
         _scrollController.hasClients && _scrollController.position.pixels > 300;
     if (show != _showScrollFab) {
@@ -476,12 +569,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // start of input or preceded by whitespace. If found, the text
     // between "@" and the cursor becomes the search query and the
     // picker overlay is shown (or updated with the new query).
-    // Kin Thread / C2: no mentions picker in direct chats (2 people
-    // only — a group-only feature).
-    if (widget.isDirectChat) {
-      if (_mentionOverlay != null) _hideMentionPicker();
-      return;
-    }
+    //
+    // Phase A rewrite: the query is now published to a ValueNotifier
+    // (150ms debounced) and the picker reads it reactively. The
+    // MentionTracker.syncOnTextChange also fires here so pending
+    // MentionRef offsets shift correctly when the user edits text
+    // before a mention, backspaces past one, or pastes new text.
+    //
+    // Phase B: direct chats NOW show the picker too (was an early-
+    // return in Phase A). The picker's candidates exclude the DM
+    // other participant (passed via MentionCandidatesArgs.excludeUserIds
+    // in initState), the overlay shows a "Mention a relative · they
+    // won't be notified" header line, and selection inserts a
+    // MentionRef(notify: false) — the third person is NOT notified
+    // (they're not in the DM). Server-side ChatService.sendMessageWithMentions
+    // derives notify=false for direct chats (Phase A) and skips
+    // ChatMention row creation entirely.
+    // Sync pending refs (grapheme-aware) — fire-and-forget per
+    // text-change, no await so the input stays responsive.
+    _mentionTracker.syncOnTextChange(
+        _mentionLastText ?? '', _textController.text);
+    _mentionLastText = _textController.text;
+
     final trigger = _mentionTracker.detectTrigger();
     if (trigger != null) {
       _showMentionPicker(trigger);
@@ -489,6 +598,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       _hideMentionPicker();
     }
   }
+
+  String? _mentionLastText;
 
   // ── feat(chat): drafts — restore on open, debounced save on
   //    text change, clear on send. Survives app restarts via
@@ -564,58 +675,101 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   // ── Phase 22 / Task 3: @mention picker show/hide ──────────────────
+  //
+  // Phase A rewrite: the overlay is built ONCE per picker session; the
+  // query + candidates flow through ValueNotifiers so the overlay's
+  // ValueListenableBuilder rebuilds on every keystroke (post-IME
+  // composition, post-150ms-debounce) and every provider invalidation.
+  // The old version captured the first query/members at construction
+  // time and only markNeedsBuilt on subsequent calls — list never
+  // narrowed as the user typed.
 
   void _showMentionPicker(String query) {
     if (!mounted) return;
-
-    // Cache the current user ID once (used to exclude self from the list).
     _currentUserIdCache ??= _currentUserId;
     final currentUserId = _currentUserIdCache ?? '';
 
-    // Resolve family members from chat state.
-    final chatState = ref.read(chatProvider(widget.familyId));
-    final members = chatState.members
-        .map(MentionableMember.fromOnlineMember)
-        .toList();
-
     if (_mentionOverlay == null) {
+      // FIRST show: publish the query IMMEDIATELY (no debounce) so
+      // the list appears on this frame. The 150ms debounce applies
+      // only to LATER keystrokes (when the overlay already exists).
+      _mentionQuery.value = query;
+
+      final strings = const MentionPickerStrings(
+        errorRetry: "Couldn't load — tap to retry",
+        noMatch: 'No one matches',
+        noCandidates: 'No one to mention in this chat',
+        dmHeader: "Mention a relative · they won't be notified",
+        dmNoRelatives: 'No other relatives to mention in this family',
+        capExceeded: 'You can mention up to 5 people in one message',
+        recentlyActiveA11y: 'Recently active',
+        elderA11y: 'Elder',
+        mentionBadgeA11y: 'Mention',
+      );
       _mentionOverlay = OverlayEntry(
         builder: (context) => MentionPickerOverlay(
-          members: members,
-          query: query,
+          query: _mentionQuery,
+          candidates: _mentionCandidates,
           layerLink: _inputLayerLink,
           currentUserId: currentUserId,
           onSelected: _onMentionSelected,
           onDismissed: _hideMentionPicker,
+          strings: strings,
+          isDirectChat: widget.isDirectChat,
         ),
       );
       Overlay.of(context).insert(_mentionOverlay!);
     } else {
-      // Update the query + members in the existing overlay.
-      _mentionOverlay!.markNeedsBuild();
+      // LATER keystrokes: debounce 150ms so the search index + filter
+      // doesn't run on every keystroke (important for IME languages
+      // where the composing region fires many text-change events per
+      // final glyph).
+      _mentionQueryDebounce?.cancel();
+      _mentionQueryDebounce = Timer(const Duration(milliseconds: 150), () {
+        if (!mounted) return;
+        _mentionQuery.value = query;
+      });
     }
   }
 
   void _hideMentionPicker() {
+    _mentionQueryDebounce?.cancel();
+    _mentionQuery.value = '';
     _mentionOverlay?.remove();
     _mentionOverlay = null;
   }
 
-  void _onMentionSelected(MentionableMember m) {
-    _mentionTracker.insertMention(m);
+  void _onMentionSelected(MentionCandidate m) {
+    // Phase B — when this is a direct chat, the mention is a
+    // reference (notify=false). The chip renders in the bubble (the
+    // relation line shows the kinship context), but the referenced
+    // third person is NOT notified — they're not in the DM, and the
+    // server (ChatService.sendMessageWithMentions, Phase A) derives
+    // notify=false from the conversation type + skips ChatMention row
+    // creation. The MentionRef.notify flag is the client-side mirror
+    // of the server-side derivation — they must agree. The server
+    // RE-validates (it doesn't trust the client flag) so a malicious
+    // client can't slip a notify=true ref past the DM guard.
+    _mentionTracker.insertMention(m, notify: !widget.isDirectChat);
     _hideMentionPicker();
     _focusNode.requestFocus();
     if (mounted) setState(() {}); // refresh to update send button state
   }
 
   void _scrollToBottom() {
-    if (_scrollController.hasClients) {
+    // FIX: the ListView is reverse: true, so offset 0 = newest message
+    // (bottom of the screen). animateTo(0) scrolls to the newest.
+    // Use jumpTo(0) if the controller isn't ready for animateTo yet
+    // (first frame after init). Use a post-frame callback so the
+    // list has been laid out with the new message before we scroll.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
       _scrollController.animateTo(
         0,
         duration: KinrelMotion.normal,
         curve: KinrelMotion.easeOut,
       );
-    }
+    });
   }
 
   /// Feature 6: scroll to a specific message by ID. Used when the user
@@ -856,12 +1010,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // is in flight. Once _initialLoadDone is true (set by the notifier
     // after _loadMessages), isLoading flips back to false.
     Widget bodyContent;
-    if (chatState.isLoading && messages.isEmpty) {
+    //
+    // Tri-state per conversation: the "first message" empty state is only
+    // allowed when THIS thread has loaded from the server and is truly
+    // empty. Never while loading, never after a failed fetch.
+    final scopeStatus = chatState.threadStatus[
+            widget.groupId ?? ChatNotifier.kFamilyScope] ??
+        ThreadStatus.loading;
+    if (messages.isEmpty && scopeStatus == ThreadStatus.loading) {
       bodyContent = const Center(
         child: CircularProgressIndicator(color: KinrelColors.orange),
       );
-    } else if (chatState.error != null && messages.isEmpty) {
-      bodyContent = _buildErrorState(chatState.error!);
+    } else if (messages.isEmpty && scopeStatus == ThreadStatus.error) {
+      bodyContent = _buildErrorState(
+        chatState.error ??
+            "Couldn't load this conversation. Check your connection and retry.",
+      );
     } else if (messages.isEmpty) {
       // Feature 3: Empty state with kinship-aware greeting suggestions.
       // Shown when the chat has zero messages (not loading, no error).

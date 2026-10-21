@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────
 # Daxelo Kinrel — Unified CI Pipeline
 # ─────────────────────────────────────────────────────────────────
-# Runs on every push / PR to main.
+# Runs on every push / PR to main + the active phase/feature branches.
 # Jobs: Flutter analyze, Flutter test, Backend CI, Android APK build.
 # ─────────────────────────────────────────────────────────────────
 
@@ -9,9 +9,18 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - graph-layout
+      - sparq
+      - 'phase-**'      # phase-a/home-kinship-ring, phase-b/todays-question-voice, etc.
+      - 'wip/**'        # wip/phase-a-decisions, etc.
+      - 'feat/**'       # feat/family-sparq-tray, feat/settings-redesign, etc.
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - graph-layout
+      - sparq
   workflow_dispatch:
 
 concurrency:
@@ -89,7 +98,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             clang cmake ninja-build \
             libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev \
-            libc++-19-dev libc++1-19 libc++abi-19-dev libc++abi1-19 libunwind-19
+            libc++-19-dev libc++abi-19-dev libunwind-19-dev
 
       - name: Enable Flutter native assets
         run: flutter config --enable-native-assets
@@ -139,7 +148,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             clang cmake ninja-build \
             libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev \
-            libc++-19-dev libc++1-19 libc++abi-19-dev libc++abi1-19 libunwind-19
+            libc++-19-dev libc++abi-19-dev libunwind-19-dev
 
       - name: Enable Flutter native assets
         run: flutter config --enable-native-assets
@@ -275,7 +284,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             clang cmake ninja-build \
             libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev \
-            libc++-19-dev libc++1-19 libc++abi-19-dev libc++abi1-19 libunwind-19
+            libc++-19-dev libc++abi-19-dev libunwind-19-dev
 
       - name: Enable Flutter native assets
         run: flutter config --enable-native-assets
