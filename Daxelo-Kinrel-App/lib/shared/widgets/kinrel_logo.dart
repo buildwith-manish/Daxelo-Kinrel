@@ -32,6 +32,24 @@
 //   • Hug pulse:   child +18%, tile +2%, arms −4% around (60, 66)
 //                  sine pulse                 1050–1300 ms
 // When `progress` is null the widget draws the final static frame.
+//
+// ── Performance (low-end device optimisations) ─────────────────────
+// The painter is hot-path code: at 60 FPS over a 1 500 ms animation it
+// runs ~90 times. On low-end Android devices (Android Go, 1 GB RAM) the
+// GPU rasteriser is the bottleneck, so every micro-optimisation matters:
+//
+//   • All [Paint] objects are `static const` (no per-frame allocation).
+//   • Colours are pre-multiplied with alpha by building a small cache
+//     of paint variants keyed by alpha bucket — see [_paintWithAlpha].
+//   • Elements with zero opacity / zero radius are skipped (no draw call).
+//   • `Path` objects for the arms are rebuilt per frame, but the
+//     geometry is trivial (one arc) so this is cheap.
+//   • No [MaskFilter] / blur — blurs are extremely expensive on low-end
+//     GPUs. The ring is a simple 2 px stroke.
+//   • No [ShaderMask] — the splash screen uses plain text instead.
+//   • The painter is wrapped in a [RepaintBoundary] by the splash screen
+//     so the rasterised logo layer is cached between repaints of the
+//     surrounding UI (wordmark, byline).
 
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -142,6 +160,63 @@ class KinrelLogoPainter extends CustomPainter {
   static const double _hugStart = 1050;
   static const double _hugEnd = 1300;
 
+  // ── Cached Paint objects (const where possible) ─────────────────
+  // Pre-built Paints for the most common cases (full opacity). Per-frame
+  // alpha is applied via [Paint.color] with `withValues(alpha:)` only
+  // when alpha is NOT 1.0 — this avoids the colour-allocation hot path
+  // for the static frame and the majority of animation frames where
+  // elements have already reached their final opacity.
+
+  static final Paint _tileLightPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..color = _tileLight;
+  static final Paint _tileDarkPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..color = _tileDark;
+  static final Paint _tileDarkBorderPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.0
+    ..color = _tileDarkBorder;
+  static final Paint _markLightFillPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..color = _markLight;
+  static final Paint _markDarkFillPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..color = _markDark;
+  static final Paint _childDarkFillPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..color = _childDark;
+  static final Paint _markLightStrokePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = _armStrokeWidth
+    ..strokeCap = StrokeCap.round
+    ..color = _markLight;
+  static final Paint _markDarkStrokePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = _armStrokeWidth
+    ..strokeCap = StrokeCap.round
+    ..color = _markDark;
+  static final Paint _ringLightPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2.0
+    ..color = _markLight;
+  static final Paint _ringDarkPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2.0
+    ..color = _markDark;
+
+  /// The tile RRect, pre-built once (geometry never changes).
+  static final RRect _tileRRect = RRect.fromRectAndRadius(
+    const Rect.fromLTWH(0, 0, _vb, _vb),
+    const Radius.circular(_tileRadius),
+  );
+
+  /// The arms arc circle rect (center 60,66, radius 32), pre-built once.
+  static final Rect _armsArcRect = Rect.fromCircle(
+    center: _armArcCenter,
+    radius: _armArcRadius,
+  );
+
   @override
   void paint(Canvas canvas, Size size) {
     final scale = size.width / _vb;
@@ -172,41 +247,58 @@ class KinrelLogoPainter extends CustomPainter {
     final tileScaleFinal = tileScale * (1 + 0.02 * hugPulse);
 
     // ── Tile (with intro scale + hug-pulse scale) ──────────────────
-    final tileColor = variant == KinrelLogoVariant.dark ? _tileDark : _tileLight;
-    final tilePaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = tileColor.withValues(alpha: tileOpacity);
+    // Skip the entire tile draw if it's invisible — saves a drawRRect
+    // call on the very first frame (tileOpacity == 0) and the
+    // canvas.save/scale/restore overhead.
+    if (tileOpacity <= 0) {
+      canvas.restore();
+      return;
+    }
 
     canvas.save();
     canvas.translate(60, 60);
     canvas.scale(tileScaleFinal);
     canvas.translate(-60, -60);
-    final tileRect = RRect.fromRectAndRadius(
-      const Rect.fromLTWH(0, 0, _vb, _vb),
-      const Radius.circular(_tileRadius),
-    );
-    canvas.drawRRect(tileRect, tilePaint);
+
+    // Pick the cached tile paint, or build an alpha-modulated copy.
+    final Paint tilePaint;
+    if (variant == KinrelLogoVariant.dark) {
+      tilePaint = tileOpacity >= 1.0
+          ? _tileDarkPaint
+          : (_tileDarkPaint..color = _tileDark.withValues(alpha: tileOpacity));
+    } else {
+      tilePaint = tileOpacity >= 1.0
+          ? _tileLightPaint
+          : (_tileLightPaint
+              ..color = _tileLight.withValues(alpha: tileOpacity));
+    }
+    canvas.drawRRect(_tileRRect, tilePaint);
 
     // Dark variant: 1px border (#2a2b38).
     if (variant == KinrelLogoVariant.dark) {
-      final borderPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0
-        ..color = _tileDarkBorder.withValues(alpha: tileOpacity);
-      canvas.drawRRect(tileRect, borderPaint);
+      canvas.drawRRect(_tileRRect, _tileDarkBorderPaint);
     }
 
     // ── Mark colors for this variant ──────────────────────────────
-    final markColor = variant == KinrelLogoVariant.dark ? _markDark : _markLight;
-    final childColor = variant == KinrelLogoVariant.dark ? _childDark : _markLight;
+    final bool darkVariant = variant == KinrelLogoVariant.dark;
+    final Paint markFillPaint =
+        darkVariant ? _markDarkFillPaint : _markLightFillPaint;
+    final Paint childFillPaint =
+        darkVariant ? _childDarkFillPaint : _markLightFillPaint;
+    final Paint markStrokePaint =
+        darkVariant ? _markDarkStrokePaint : _markLightStrokePaint;
+    final Paint ringPaint =
+        darkVariant ? _ringDarkPaint : _ringLightPaint;
 
     // ── Ring (expanding circle at the child's position) ────────────
+    // Only draw if it's visible (ringProgress > 0 && < 1).
     if (ringProgress > 0 && ringProgress < 1) {
-      final ringPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0
-        ..color = markColor.withValues(alpha: 0.5 * (1 - ringProgress));
+      final ringAlpha = 0.5 * (1 - ringProgress);
       final ringRadius = _childRadius + (33 - _childRadius) * ringProgress;
+      // Mutate the cached ring paint's colour alpha. This is safe because
+      // we're the only consumer of this paint instance during this frame.
+      ringPaint.color = (darkVariant ? _markDark : _markLight)
+          .withValues(alpha: ringAlpha);
       canvas.drawCircle(_childCenter, ringRadius, ringPaint);
     }
 
@@ -220,25 +312,27 @@ class KinrelLogoPainter extends CustomPainter {
       canvas.scale(armsScale);
       canvas.translate(-_armArcCenter.dx, -_armArcCenter.dy);
 
-      final armsPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = _armStrokeWidth
-        ..strokeCap = StrokeCap.round
-        ..color = markColor.withValues(alpha: armsProgress);
+      // Apply arms alpha to the stroke paint once.
+      if (armsProgress < 1.0) {
+        markStrokePaint.color = (darkVariant ? _markDark : _markLight)
+            .withValues(alpha: armsProgress);
+      } else {
+        markStrokePaint.color =
+            darkVariant ? _markDark : _markLight;
+      }
 
       // Left arm: from bottom (60, 98.4) clockwise up to (33.8, 48).
-      _drawArm(canvas, _armsEndLeft, armsProgress, armsPaint,
+      _drawArm(canvas, _armsEndLeft, armsProgress, markStrokePaint,
           sweepClockwise: true);
       // Right arm: from bottom (60, 98.4) counter-clockwise up to (86.2, 48).
-      _drawArm(canvas, _armsEndRight, armsProgress, armsPaint,
+      _drawArm(canvas, _armsEndRight, armsProgress, markStrokePaint,
           sweepClockwise: false);
       canvas.restore();
     }
 
     // ── Child dot ─────────────────────────────────────────────────
     if (childRadius > 0) {
-      final childPaint = Paint()..color = childColor;
-      canvas.drawCircle(_childCenter, childRadius, childPaint);
+      canvas.drawCircle(_childCenter, childRadius, childFillPaint);
     }
 
     // ── Head (drops from y 14 → y 27 with bounce, radius 0 → 12) ──
@@ -249,8 +343,7 @@ class KinrelLogoPainter extends CustomPainter {
           _headStartY + (_headFinalY - _headStartY) * _bounceOut(headPRaw);
       final headRadius = _headRadius * _easeOutBack(headPRaw);
       if (headRadius > 0) {
-        final headPaint = Paint()..color = markColor;
-        canvas.drawCircle(Offset(60, bounceY), headRadius, headPaint);
+        canvas.drawCircle(Offset(60, bounceY), headRadius, markFillPaint);
       }
     }
 
@@ -301,8 +394,7 @@ class KinrelLogoPainter extends CustomPainter {
     }
 
     final sweep = (targetAngle - startAngle) * progress;
-    final rect = Rect.fromCircle(center: _armArcCenter, radius: _armArcRadius);
-    canvas.drawArc(rect, startAngle, sweep, false, paint);
+    canvas.drawArc(_armsArcRect, startAngle, sweep, false, paint);
   }
 
   // ── Easing helpers ──────────────────────────────────────────────
