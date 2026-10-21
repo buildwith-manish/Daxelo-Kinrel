@@ -143,6 +143,11 @@
 --  does the right thing.)
 
 -- Main rewrite of fn_add_mentions_to_message.
+-- DROP first because the existing function returns `json` (not `jsonb`)
+-- and CREATE OR REPLACE can't change the return type of an existing
+-- function. No dependent objects exist (verified via pg_depend query
+-- before applying — 0 normal dependencies), so the DROP is safe.
+DROP FUNCTION IF EXISTS fn_add_mentions_to_message(text, text, jsonb);
 CREATE OR REPLACE FUNCTION fn_add_mentions_to_message(
   p_message_id text,
   p_family_id text,
