@@ -157,18 +157,22 @@ enum UnifiedInboxFilter { all, unread, groups, direct, circles }
 /// title). Ties broken by id (deterministic).
 final unifiedInboxProvider =
     FutureProvider.autoDispose<List<UnifiedChatEntry>>((ref) async {
-  // Watch familyListProvider (Drift stream → AsyncValue<List<Family>>).
-  // Using `.future` blocks until the first emission, then re-builds on
-  // subsequent emissions.
-  final families = await ref.watch(familyListProvider.future);
-  // Watch directGroupInboxProvider (FutureProvider → List<DirectGroupInboxItem>).
-  final dms = await ref.watch(directGroupInboxProvider.future);
+  // Start the three INDEPENDENT futures in parallel — they don't
+  // depend on each other, so starting them simultaneously cuts the
+  // total wait from (families + dms + circles) to max(families, dms,
+  // circles) + groupMeta(families).
+  final familiesF = ref.watch(familyListProvider.future);
+  final dmsF = ref.watch(directGroupInboxProvider.future);
+  final circlesF = circle_api.loadCircleInboxItems();
 
-  // ── Batched group queries ──────────────────────────────────────
-  // ONE query for the latest family-wide message per family (up to 200
-  // rows — covers ~all users' family counts). ONE query for the
-  // unread rows' familyIds. Then merge client-side.
-  final groupMeta = await _loadGroupBatchedMeta(ref, families);
+  // Await families first (groupMeta depends on it).
+  final families = await familiesF;
+  // Start groupMeta in the background while dms + circles resolve.
+  final groupMetaF = _loadGroupBatchedMeta(ref, families);
+  // Await dms (may already be done — started in parallel).
+  final dms = await dmsF;
+  // Await groupMeta (may already be done — started while dms resolved).
+  final groupMeta = await groupMetaF;
 
   // ── Merge into unified entries ─────────────────────────────────
   final entries = <UnifiedChatEntry>[];
@@ -213,7 +217,8 @@ final unifiedInboxProvider =
   // batched meta loader above). Circles are independent of the
   // active family — they always appear in the inbox regardless of
   // the family switcher selection.
-  final circles = await circle_api.loadCircleInboxItems();
+  // Circles — await the pre-started future (may already be done).
+  final circles = await circlesF;
   for (final c in circles) {
     entries.add(UnifiedChatEntry(
       kind: UnifiedChatKind.circle,

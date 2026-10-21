@@ -163,6 +163,7 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
             // ── Unified list ─────────────────────────────────────────
             Expanded(
               child: inboxAsync.when(
+                skipLoadingOnReload: true,
                 loading: () => const Center(
                   child: CircularProgressIndicator(color: KinrelColors.orange),
                 ),
