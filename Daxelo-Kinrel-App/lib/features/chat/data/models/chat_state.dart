@@ -7,6 +7,12 @@
 import 'chat_message.dart';
 import 'online_member.dart';
 
+/// Load status of ONE conversation scope (family-wide chat, a group, or a
+/// direct chat). The UI must only show the "say hello / first message"
+/// empty state when a scope is [loaded] AND has zero messages — never while
+/// it is still [loading] or after a failed fetch ([error]).
+enum ThreadStatus { loading, loaded, error }
+
 /// Immutable state for the family chat feature.
 class ChatState {
   const ChatState({
@@ -21,6 +27,8 @@ class ChatState {
     this.isLoadingMoreMessages = false,
     this.unreadDividerMessageId,
     this.unreadDividerCount = 0,
+    this.threadStatus = const {},
+    this.threadHasMore = const {},
   });
 
   /// All messages in the chat, sorted newest-first (UI displays with
@@ -64,6 +72,13 @@ class ChatState {
   /// same moment as [unreadDividerMessageId] (excludes system rows).
   final int unreadDividerCount;
 
+  /// Per-scope load status. Key = groupId, or ChatNotifier.kFamilyScope for
+  /// the family-wide chat.
+  final Map<String, ThreadStatus> threadStatus;
+
+  /// Per-scope "older messages exist" flag (same keys as [threadStatus]).
+  final Map<String, bool> threadHasMore;
+
   /// Number of online members.
   int get onlineCount => members.where((m) => m.isOnline).length;
 
@@ -77,7 +92,7 @@ class ChatState {
     String? typingUserName,
     bool clearTypingUserName = false,
     ChatMessage? replyToMessage,
-    bool isLoading = false,
+    bool? isLoading,
     bool clearReplyTo = false,
     String? error,
     bool clearError = false,
@@ -85,6 +100,8 @@ class ChatState {
     bool? isLoadingMoreMessages,
     String? unreadDividerMessageId,
     int? unreadDividerCount,
+    Map<String, ThreadStatus>? threadStatus,
+    Map<String, bool>? threadHasMore,
   }) {
     return ChatState(
       messages: messages ?? this.messages,
@@ -96,13 +113,18 @@ class ChatState {
       replyToMessage: clearReplyTo
           ? null
           : (replyToMessage ?? this.replyToMessage),
-      isLoading: isLoading,
+      // BUGFIX: this used to default to `false`, so ANY copyWith that did not
+      // pass isLoading (members loaded, typing, realtime...) silently ended
+      // the loading state and flashed the empty "first message" screen.
+      isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
       hasMoreMessages: hasMoreMessages ?? this.hasMoreMessages,
       isLoadingMoreMessages: isLoadingMoreMessages ?? this.isLoadingMoreMessages,
       unreadDividerMessageId:
           unreadDividerMessageId ?? this.unreadDividerMessageId,
       unreadDividerCount: unreadDividerCount ?? this.unreadDividerCount,
+      threadStatus: threadStatus ?? this.threadStatus,
+      threadHasMore: threadHasMore ?? this.threadHasMore,
     );
   }
 }

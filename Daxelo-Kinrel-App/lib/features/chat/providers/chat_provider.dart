@@ -111,7 +111,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
     required this.familyId,
     this.groupId,
     required this.ref,
-  }) : super(const ChatState(isLoading: true)) {
+  }) : super(const ChatState(
+          isLoading: true,
+          threadStatus: {ChatNotifier.kFamilyScope: ThreadStatus.loading},
+        )) {
     // Capture the realtime registry BEFORE _init kicks off — dispose()
     // needs it but can't safely ref.read() during autoDispose teardown
     // (see _realtimeRegistry comment above). readOrNull here is safe
@@ -121,6 +124,15 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   final String familyId;
+
+  /// Scope key for the family-wide chat (rows with groupId IS NULL).
+  static const String kFamilyScope = '__family__';
+  static const int _pageSize = 50;
+  static const Duration _fetchTimeout = Duration(seconds: 12);
+  // Group / direct threads the user has opened (re-fetched on reload).
+  final Set<String> _openThreadIds = {};
+  // Scopes with an older-page fetch in flight.
+  final Set<String> _olderLoading = {};
 
   /// The group/direct chat's ID. Null = the family-wide chat.
   /// When set, `_loadMessages` and `_handleMessageInsert` filter by
@@ -225,7 +237,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
   // ── Initialization ───────────────────────────────────────────────
 
   Future<void> _init() async {
-    await _loadMembers();
+    // BUGFIX: members used to be awaited BEFORE messages. For a large
+    // family the member RPC is slow, so the thread sat on a spinner for
+    // seconds. Members only decorate the header — never block on them.
+    unawaited(_loadMembers());
     await _loadMessages();
     _subscribeToRealtime();
     _listenToMemberChanges();
@@ -524,7 +539,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
     final client = _client;
     if (client == null) {
       if (mounted) {
-        state = state.copyWith(isLoading: false, error: 'Not signed in');
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Not signed in',
+          threadStatus: {
+            ...state.threadStatus,
+            kFamilyScope: ThreadStatus.error,
+          },
+        );
       }
       return;
     }
@@ -546,7 +568,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     final cachedMessages = await _readCachedMessages();
     if (cachedMessages != null && cachedMessages.isNotEmpty && mounted) {
       state = state.copyWith(
-        messages: cachedMessages,
+        messages: _unionById(state.messages, cachedMessages),
         isLoading: false,
         clearError: true,
       );
@@ -558,46 +580,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
 
     try {
-      // Fetch the NEWEST 50 messages, ordered by createdAt DESC.
-      //
-      // FIX: Now filters by groupId at the QUERY level, not just the
-      // UI level. The old code loaded ALL messages for the family
-      // (including group + DM messages) and filtered client-side at
-      // the UI layer. This caused:
-      //   1. DM messages leaking into the family-wide chat (and vice
-      //      versa) when the UI filter was bypassed (e.g. by the
-      //      optimistic insert prepending to the full list).
-      //   2. DM opening spinning while ALL family messages loaded
-      //      (slow on large families).
-      //   3. Read-receipt UPDATE events from a DM affecting the
-      //      family-wide chat's display.
-      //
-      // The groupId filter scoping rules:
-      //   • _currentGroupId == null → family-wide chat: filter
-      //     groupId IS NULL (excludes group/DM messages)
-      //   • _currentGroupId != null → group/DM chat: filter
-      //     groupId = _currentGroupId (only this chat's messages)
-      //
-      // This matches the UI filter at chat_screen.dart:849-853 but
-      // pushes it down to the database query so the provider only
-      // loads + caches + handles messages for the current chat's
-      // scope.
-      var query = client
-          .from('ChatMessage')
-          .select()
-          .eq('familyId', familyId);
-
-      // Apply groupId scoping at the query level.
-      if (_currentGroupId != null) {
-        query = query.eq('groupId', _currentGroupId!);
-      } else {
-        query = query.isFilter('groupId', null);
-      }
-
-      final messagesResponse = await query
-          .order('createdAt', ascending: false)
-          .limit(50)
-          .timeout(const Duration(seconds: 10));
+      // Scoped to the FAMILY-WIDE chat (groupId IS NULL). Group and direct
+      // threads load through ensureThreadLoaded(groupId). Previously this
+      // fetched the newest 50 rows of the whole family (all groups mixed),
+      // so a DM older than those 50 rows looked empty.
+      final messagesResponse = await _fetchScopeRows(client, null);
 
       final messageIds = <String>[];
       final messages = <ChatMessage>[];
@@ -606,8 +593,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
       // row JSON, including its reactions array, so a cache hit can
       // rehydrate the full message without a second round-trip).
       final rawRows = <Map<String, dynamic>>[];
-      for (final row in messagesResponse as List) {
-        final rowMap = row as Map<String, dynamic>;
+      for (final row in messagesResponse) {
+        final rowMap = row;
         final msg = ChatMessage.fromJson(rowMap);
         if (msg.id.isEmpty) continue;
         messages.add(msg);
@@ -627,9 +614,24 @@ class ChatNotifier extends StateNotifier<ChatState> {
       // THEN fetch reactions and apply them in a second state update.
       if (mounted) {
         state = state.copyWith(
-          messages: messages,
+          // Merge (don't replace): keeps already-loaded group/direct
+          // threads, optimistic sends and older pages intact.
+          messages: _mergeScope(
+            existing: state.messages,
+            incoming: messages,
+            groupId: null,
+            fullPage: messagesResponse.length >= _pageSize,
+          ),
           isLoading: false,
           clearError: true,
+          threadStatus: {
+            ...state.threadStatus,
+            kFamilyScope: ThreadStatus.loaded,
+          },
+          threadHasMore: {
+            ...state.threadHasMore,
+            kFamilyScope: messagesResponse.length >= _pageSize,
+          },
         );
       }
       _initialLoadDone = true;
@@ -653,48 +655,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
       // merging logic as before — just split into a second state update
       // so the messages appear on screen immediately.
       if (messageIds.isEmpty) return;
-      final reactions = <String, List<MessageReaction>>{};
-      try {
-        // Supabase's inFilter accepts a list.
-        final reactionsResponse = await client
-            .from('ChatMessageReaction')
-            .select()
-            .inFilter('messageId', messageIds);
-        for (final r in reactionsResponse as List) {
-          final messageId = r['messageId'] as String? ?? '';
-          if (messageId.isEmpty) continue;
-          reactions.putIfAbsent(messageId, () => []);
-          reactions[messageId]!.add(MessageReaction(
-            emoji: r['emoji'] as String? ?? '',
-            userId: r['userId'] as String? ?? '',
-          ));
-        }
-      } catch (e) {
-        // Reactions are decorative — never block the chat render. If the
-        // reactions query fails, the messages are already on screen
-        // (without reactions). The next realtime reaction event will
-        // populate them.
-        debugPrint('⚠️ ChatNotifier._loadMessages reactions fetch failed: $e');
-        return;
-      }
-
-      if (!mounted) return;
-      // Apply reactions to the current list. We re-read state.messages
-      // (not the local `messages` variable) so that any realtime inserts
-      // that landed between the first and second state updates keep
-      // their reactions too (looked up by id in the `reactions` map;
-      // a realtime insert for an id not in `reactions` just stays
-      // reactionless until the next reload).
-      final withReactions = state.messages.map((m) {
-        return m.copyWith(reactions: reactions[m.id] ?? m.reactions);
-      }).toList();
-      state = state.copyWith(messages: withReactions);
+      unawaited(_applyReactionsFor(client, messageIds));
     } catch (e) {
       debugPrint('⚠️ ChatNotifier._loadMessages error: $e');
       if (mounted) {
         state = state.copyWith(
           isLoading: false,
           error: 'Failed to load messages: $e',
+          threadStatus: {
+            ...state.threadStatus,
+            kFamilyScope: ThreadStatus.error,
+          },
         );
       }
     }
@@ -709,66 +680,262 @@ class ChatNotifier extends StateNotifier<ChatState> {
   // pagination for history, not a change to the initial load.
   static const int _olderMessagesPageSize = 100;
 
-  Future<void> loadOlderMessages() async {
+  Future<void> loadOlderMessages({String? groupId}) async {
     final client = _client;
     if (client == null) return;
+    final key = groupId ?? kFamilyScope;
 
-    // Guard against concurrent loads + no-more-messages.
-    if (state.isLoadingMoreMessages || !state.hasMoreMessages) return;
-    if (state.messages.isEmpty) return;
+    // Guard against concurrent loads + no-more-messages (per scope).
+    if (_olderLoading.contains(key)) return;
+    if (state.threadHasMore[key] == false) return;
+    if (state.threadStatus[key] != ThreadStatus.loaded) return;
 
+    final scoped = state.messages.where((m) => m.groupId == groupId);
+    if (scoped.isEmpty) return;
+    // Cursor = oldest loaded message OF THIS SCOPE.
+    final cursor = scoped
+        .map((m) => m.timestamp)
+        .reduce((a, b) => a.isBefore(b) ? a : b);
+
+    _olderLoading.add(key);
     state = state.copyWith(isLoadingMoreMessages: true);
-
     try {
-      // The messages list is sorted newest-first (UI uses reverse: true).
-      // The oldest loaded message is the LAST element. Use its timestamp
-      // as the cursor for fetching older messages.
-      final oldestMessage = state.messages.last;
-      final cursor = oldestMessage.timestamp;
-
-      var olderQuery = client
-          .from('ChatMessage')
-          .select()
-          .eq('familyId', familyId)
-          .lt('createdAt', cursor.toIso8601String());
-
-      // FIX: apply groupId scoping to older-messages pagination too.
-      if (_currentGroupId != null) {
-        olderQuery = olderQuery.eq('groupId', _currentGroupId!);
-      } else {
-        olderQuery = olderQuery.isFilter('groupId', null);
-      }
-
-      final olderResponse = await olderQuery
-          .order('createdAt', ascending: false)
-          .limit(_olderMessagesPageSize)
-          .timeout(const Duration(seconds: 15));
-
-      final olderMessages = <ChatMessage>[];
-      for (final row in olderResponse as List) {
-        final msg = ChatMessage.fromJson(row as Map<String, dynamic>);
-        if (msg.id.isNotEmpty) olderMessages.add(msg);
-      }
-
-      // Reverse to match the newest-first ordering, then prepend to
-      // the existing messages (older messages go at the end of the list).
-      olderMessages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-
-      if (mounted) {
-        final allMessages = [...state.messages, ...olderMessages];
-        state = state.copyWith(
-          messages: allMessages,
-          isLoadingMoreMessages: false,
-          // If we got fewer than the page size, there are no more.
-          hasMoreMessages: olderMessages.length >= _olderMessagesPageSize,
-        );
-      }
+      final rows = await _fetchScopeRows(
+        client,
+        groupId,
+        before: cursor,
+        limit: _olderMessagesPageSize,
+      );
+      final older = <ChatMessage>[
+        for (final r in rows)
+          if ((r['id'] as String? ?? '').isNotEmpty) ChatMessage.fromJson(r),
+      ];
+      if (!mounted) return;
+      final more = rows.length >= _olderMessagesPageSize;
+      state = state.copyWith(
+        messages: _unionById(state.messages, older),
+        isLoadingMoreMessages: false,
+        hasMoreMessages: groupId == null ? more : state.hasMoreMessages,
+        threadHasMore: {...state.threadHasMore, key: more},
+      );
+      _writeMessagesToCache(rows);
+      unawaited(_applyReactionsFor(client, older.map((m) => m.id).toList()));
     } catch (e) {
       if (mounted) {
         state = state.copyWith(isLoadingMoreMessages: false);
         debugPrint('⚠️ loadOlderMessages failed: $e');
       }
+    } finally {
+      _olderLoading.remove(key);
     }
+  }
+
+  // ── Thread (group / direct) loading ───────────────────────────────
+  //
+  // ROOT-CAUSE FIX for "I already chatted but it says first message":
+  // a direct chat is a ChatMessage scope (groupId). It used to be loaded
+  // only as a by-product of the family-wide "newest 50 rows" query, so if
+  // the DM's messages were not among the family's newest 50 (very likely
+  // on a fresh install with no local cache), the screen filtered the
+  // thread down to zero rows and showed the first-message empty state.
+  // Each thread now loads ITSELF and reports an explicit status.
+
+  Future<void> ensureThreadLoaded(String? groupId, {bool force = false}) async {
+    if (!mounted) return;
+    if (groupId == null) {
+      // The family-wide scope is owned by _loadMessages.
+      if (force || state.threadStatus[kFamilyScope] == ThreadStatus.error) {
+        _setThreadStatus(kFamilyScope, ThreadStatus.loading);
+        await _loadMessages();
+      }
+      return;
+    }
+    final current = state.threadStatus[groupId];
+    if (!force &&
+        (current == ThreadStatus.loading || current == ThreadStatus.loaded)) {
+      return;
+    }
+    final client = _client;
+    if (client == null) {
+      _setThreadStatus(groupId, ThreadStatus.error);
+      return;
+    }
+    _openThreadIds.add(groupId);
+    _setThreadStatus(groupId, ThreadStatus.loading);
+
+    // 1) Instant paint from the local cache (if any).
+    final cached = await _readCachedThread(groupId);
+    if (!mounted) return;
+    if (cached.isNotEmpty) {
+      state = state.copyWith(messages: _unionById(state.messages, cached));
+    }
+
+    // 2) Network is the source of truth.
+    try {
+      final rows = await _fetchScopeRows(client, groupId);
+      final incoming = <ChatMessage>[
+        for (final r in rows)
+          if ((r['id'] as String? ?? '').isNotEmpty) ChatMessage.fromJson(r),
+      ];
+      if (!mounted) return;
+      final more = rows.length >= _pageSize;
+      state = state.copyWith(
+        messages: _mergeScope(
+          existing: state.messages,
+          incoming: incoming,
+          groupId: groupId,
+          fullPage: more,
+        ),
+        clearError: true,
+        threadStatus: {...state.threadStatus, groupId: ThreadStatus.loaded},
+        threadHasMore: {...state.threadHasMore, groupId: more},
+      );
+      _writeMessagesToCache(rows);
+      unawaited(_applyReactionsFor(client, incoming.map((m) => m.id).toList()));
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.ensureThreadLoaded($groupId) failed: $e');
+      if (!mounted) return;
+      state = state.copyWith(
+        error: "Couldn't load this conversation. Check your connection and retry.",
+        threadStatus: {...state.threadStatus, groupId: ThreadStatus.error},
+      );
+    }
+  }
+
+  void _setThreadStatus(String key, ThreadStatus status) {
+    if (!mounted) return;
+    state = state.copyWith(
+      threadStatus: {...state.threadStatus, key: status},
+      clearError: status == ThreadStatus.loading,
+    );
+  }
+
+  /// One page of rows for ONE scope, newest first. 12s timeout per
+  /// attempt, one automatic retry (flaky mobile networks) — a hanging
+  /// request can no longer leave the spinner up forever.
+  Future<List<Map<String, dynamic>>> _fetchScopeRows(
+    SupabaseClient client,
+    String? groupId, {
+    DateTime? before,
+    int limit = _pageSize,
+  }) async {
+    Object? lastError;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        var q = client.from('ChatMessage').select().eq('familyId', familyId);
+        q = groupId == null
+            ? q.isFilter('groupId', null)
+            : q.eq('groupId', groupId);
+        if (before != null) {
+          q = q.lt('createdAt', before.toIso8601String());
+        }
+        final rows = await q
+            .order('createdAt', ascending: false)
+            .limit(limit)
+            .timeout(_fetchTimeout);
+        return List<Map<String, dynamic>>.from(rows as List);
+      } catch (e) {
+        lastError = e;
+        if (attempt == 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 1200));
+        }
+      }
+    }
+    throw lastError ?? StateError('ChatMessage fetch failed');
+  }
+
+  /// Fetch reactions for [ids] and merge them into the current list.
+  /// Decorative: failures are swallowed.
+  Future<void> _applyReactionsFor(SupabaseClient client, List<String> ids) async {
+    if (ids.isEmpty) return;
+    try {
+      final resp = await client
+          .from('ChatMessageReaction')
+          .select()
+          .inFilter('messageId', ids)
+          .timeout(_fetchTimeout);
+      final reactions = <String, List<MessageReaction>>{};
+      for (final r in resp as List) {
+        final messageId = r['messageId'] as String? ?? '';
+        if (messageId.isEmpty) continue;
+        reactions.putIfAbsent(messageId, () => []).add(MessageReaction(
+              emoji: r['emoji'] as String? ?? '',
+              userId: r['userId'] as String? ?? '',
+            ));
+      }
+      if (!mounted || reactions.isEmpty) return;
+      state = state.copyWith(
+        messages: [
+          for (final m in state.messages)
+            reactions.containsKey(m.id)
+                ? m.copyWith(reactions: reactions[m.id]!)
+                : m,
+        ],
+      );
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier._applyReactionsFor failed: $e');
+    }
+  }
+
+  /// Cached rows of one thread (the cache is keyed by family, so filter).
+  Future<List<ChatMessage>> _readCachedThread(String groupId) async {
+    final db = _appDatabase;
+    if (db == null) return const [];
+    try {
+      final rows = await db.getCachedChatMessages(familyId, limit: 300);
+      final out = <ChatMessage>[];
+      for (final row in rows) {
+        try {
+          final msg = ChatMessage.fromJson(
+              jsonDecode(row.payload) as Map<String, dynamic>);
+          if (msg.id.isNotEmpty && msg.groupId == groupId) out.add(msg);
+        } catch (_) {}
+      }
+      return out;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Existing + incoming, de-duplicated by id (existing wins), newest first.
+  List<ChatMessage> _unionById(
+      List<ChatMessage> existing, List<ChatMessage> incoming) {
+    final seen = existing.map((m) => m.id).toSet();
+    final merged = [
+      ...existing,
+      for (final m in incoming)
+        if (seen.add(m.id)) m,
+    ]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return merged;
+  }
+
+  /// Replace ONE scope's freshly-fetched window with the server result
+  /// while leaving every other scope, older pages and not-yet-sent
+  /// optimistic messages untouched.
+  List<ChatMessage> _mergeScope({
+    required List<ChatMessage> existing,
+    required List<ChatMessage> incoming,
+    required String? groupId,
+    required bool fullPage,
+  }) {
+    final incomingIds = incoming.map((m) => m.id).toSet();
+    DateTime? windowStart;
+    for (final m in incoming) {
+      if (windowStart == null || m.timestamp.isBefore(windowStart)) {
+        windowStart = m.timestamp;
+      }
+    }
+    final start = windowStart; // local copy so Dart can null-promote it
+    final kept = existing.where((m) {
+      if (m.groupId != groupId) return true; // other scopes
+      if (incomingIds.contains(m.id)) return false; // replaced by fresh row
+      if (_pendingOptimisticIds.contains(m.id)) return true; // unsent
+      // Older page already loaded earlier: keep. In-window row the server
+      // no longer returns (deleted / stale cache): drop.
+      return fullPage && start != null && m.timestamp.isBefore(start);
+    });
+    return [...incoming, ...kept]
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
   }
 
   // ── Realtime subscription ─────────────────────────────────────────
@@ -2570,6 +2737,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// updated fields.
   Future<void> refreshMessages() async {
     await _loadMessages();
+    for (final id in _openThreadIds.toList()) {
+      await ensureThreadLoaded(id, force: true);
+    }
   }
 
   /// Kin Thread / PR2 Task 3 — Mark all messages in this chat's scope
@@ -2653,8 +2823,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// Reload everything (used on reconnect / pull-to-refresh).
   Future<void> reload() async {
     state = state.copyWith(isLoading: true, clearError: true);
-    await _loadMembers();
+    unawaited(_loadMembers());
     await _loadMessages();
+    for (final id in _openThreadIds.toList()) {
+      await ensureThreadLoaded(id, force: true);
+    }
     // Re-subscribe in case the channel was dropped.
     _subscribeToRealtime();
   }

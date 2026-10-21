@@ -327,6 +327,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Mark all as read on enter (this chat's scope only).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      // Load THIS conversation's own messages (group / direct threads are
+      // no longer a by-product of the family-wide query).
+      ref
+          .read(chatProvider(widget.familyId).notifier)
+          .ensureThreadLoaded(widget.groupId);
       ref
           .read(chatProvider(widget.familyId).notifier)
           .markAllRead(groupId: widget.groupId);
@@ -344,7 +349,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   bool _markedReadOnOpen = false;
   void _maybeMarkReadOnOpen(ChatState chatState) {
     if (_markedReadOnOpen) return;
-    if (chatState.isLoading || chatState.messages.isEmpty) return;
+    // Wait until THIS thread has actually loaded (marking read earlier
+    // would find nothing in scope and the one-shot flag would be burned).
+    final status =
+        chatState.threadStatus[widget.groupId ?? ChatNotifier.kFamilyScope];
+    if (status != ThreadStatus.loaded) return;
+    if (!chatState.messages.any((m) => m.groupId == widget.groupId)) return;
     _markedReadOnOpen = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -415,6 +425,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   void _onScroll() {
+    // Infinite scroll-up: the list is reversed, so maxScrollExtent is the
+    // OLDEST end. (onLoadOlder was declared but never wired — history
+    // beyond the first page could never load.)
+    if (_scrollController.hasClients) {
+      final pos = _scrollController.position;
+      if (pos.pixels >= pos.maxScrollExtent - 600) {
+        ref
+            .read(chatProvider(widget.familyId).notifier)
+            .loadOlderMessages(groupId: widget.groupId);
+      }
+    }
     final show =
         _scrollController.hasClients && _scrollController.position.pixels > 300;
     if (show != _showScrollFab) {
@@ -868,12 +889,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // is in flight. Once _initialLoadDone is true (set by the notifier
     // after _loadMessages), isLoading flips back to false.
     Widget bodyContent;
-    if (chatState.isLoading && messages.isEmpty) {
+    //
+    // Tri-state per conversation: the "first message" empty state is only
+    // allowed when THIS thread has loaded from the server and is truly
+    // empty. Never while loading, never after a failed fetch.
+    final scopeStatus = chatState.threadStatus[
+            widget.groupId ?? ChatNotifier.kFamilyScope] ??
+        ThreadStatus.loading;
+    if (messages.isEmpty && scopeStatus == ThreadStatus.loading) {
       bodyContent = const Center(
         child: CircularProgressIndicator(color: KinrelColors.orange),
       );
-    } else if (chatState.error != null && messages.isEmpty) {
-      bodyContent = _buildErrorState(chatState.error!);
+    } else if (messages.isEmpty && scopeStatus == ThreadStatus.error) {
+      bodyContent = _buildErrorState(
+        chatState.error ??
+            "Couldn't load this conversation. Check your connection and retry.",
+      );
     } else if (messages.isEmpty) {
       // Feature 3: Empty state with kinship-aware greeting suggestions.
       // Shown when the chat has zero messages (not loading, no error).
