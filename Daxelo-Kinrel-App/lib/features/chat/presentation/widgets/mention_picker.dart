@@ -39,6 +39,7 @@
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -830,7 +831,22 @@ enum _Rank {
 // future enhancement, not Phase A scope.
 // ═══════════════════════════════════════════════════════════════════════
 
-class MentionText extends StatelessWidget {
+/// Renders a chat message's [content] with @Name spans styled as
+/// highlighted chips, based on the message's [mentions] list.
+///
+/// Falls back to a plain Text widget when the message has no mentions
+/// (the common case) so we don't pay the RichText cost for every
+/// message in the thread.
+///
+/// The highlight style is a tinted background + primary-color text +
+/// bold weight. Mentions of the CURRENT user get an extra accent so
+/// the user can spot "you were mentioned" messages at a glance.
+///
+/// Tapping a mention chip opens the mentioned user's profile via the
+/// [onMentionTap] callback. When null (backward compat with old
+/// call sites that don't pass the callback), the chips are
+/// non-interactive (styled but not tappable).
+class MentionText extends StatefulWidget {
   const MentionText({
     super.key,
     required this.content,
@@ -841,6 +857,7 @@ class MentionText extends StatelessWidget {
     this.selfMentionStyle,
     this.maxLines,
     this.overflow,
+    this.onMentionTap,
   });
 
   final String content;
@@ -852,27 +869,58 @@ class MentionText extends StatelessWidget {
   final int? maxLines;
   final TextOverflow? overflow;
 
+  /// Called when the user taps a @Name chip. The argument is the
+  /// mentioned user's auth ID (MentionRef.userId). The caller
+  /// typically opens MemberProfileSheet.show(context, userId).
+  final ValueChanged<String>? onMentionTap;
+
+  @override
+  State<MentionText> createState() => _MentionTextState();
+}
+
+class _MentionTextState extends State<MentionText> {
+  // TapGestureRecognizer instances — one per mention chip. Created
+  // in build() (because the mentions list can change between builds)
+  // + disposed in didUpdateWidget when the mentions change.
+  final List<TapGestureRecognizer> _recognizers = [];
+
+  @override
+  void dispose() {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (mentions.isEmpty) {
+    if (widget.mentions.isEmpty) {
       return Text(
-        content,
-        style: baseStyle,
-        maxLines: maxLines,
-        overflow: overflow,
+        widget.content,
+        style: widget.baseStyle,
+        maxLines: widget.maxLines,
+        overflow: widget.overflow,
       );
     }
 
-    final sorted = [...mentions]..sort((a, b) => a.start.compareTo(b.start));
+    // Dispose old recognizers from the previous build.
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
+
+    final sorted = [...widget.mentions]
+      ..sort((a, b) => a.start.compareTo(b.start));
 
     final theme = Theme.of(context);
-    final defaultMention = mentionStyle ??
-        baseStyle.copyWith(
+    final defaultMention = widget.mentionStyle ??
+        widget.baseStyle.copyWith(
           color: theme.colorScheme.primary,
           fontWeight: FontWeight.w600,
         );
-    final defaultSelfMention = selfMentionStyle ??
-        baseStyle.copyWith(
+    final defaultSelfMention = widget.selfMentionStyle ??
+        widget.baseStyle.copyWith(
           color: theme.colorScheme.primary,
           fontWeight: FontWeight.w700,
           backgroundColor:
@@ -882,30 +930,45 @@ class MentionText extends StatelessWidget {
     final spans = <TextSpan>[];
     var cursor = 0;
     for (final m in sorted) {
-      final start = m.start.clamp(0, content.length);
-      final end = m.end.clamp(0, content.length);
+      final start = m.start.clamp(0, widget.content.length);
+      final end = m.end.clamp(0, widget.content.length);
       if (end <= start) continue;
       if (start < cursor) continue;
 
       if (start > cursor) {
-        spans.add(
-            TextSpan(text: content.substring(cursor, start), style: baseStyle));
+        spans.add(TextSpan(
+            text: widget.content.substring(cursor, start),
+            style: widget.baseStyle));
       }
-      final isSelf = m.userId == currentUserId;
+      final isSelf = m.userId == widget.currentUserId;
+
+      // Create a TapGestureRecognizer for this mention chip (only
+      // when onMentionTap is non-null). The recognizer's lifecycle
+      // is managed by this State — disposed in dispose() + in the
+      // next build() cycle.
+      TapGestureRecognizer? recognizer;
+      if (widget.onMentionTap != null) {
+        recognizer = TapGestureRecognizer()
+          ..onTap = () => widget.onMentionTap!(m.userId);
+        _recognizers.add(recognizer);
+      }
+
       spans.add(TextSpan(
-        text: content.substring(start, end),
+        text: widget.content.substring(start, end),
         style: isSelf ? defaultSelfMention : defaultMention,
+        recognizer: recognizer,
       ));
       cursor = end;
     }
-    if (cursor < content.length) {
-      spans.add(TextSpan(text: content.substring(cursor), style: baseStyle));
+    if (cursor < widget.content.length) {
+      spans.add(
+          TextSpan(text: widget.content.substring(cursor), style: widget.baseStyle));
     }
 
     return RichText(
       text: TextSpan(children: spans),
-      maxLines: maxLines,
-      overflow: overflow ?? TextOverflow.clip,
+      maxLines: widget.maxLines,
+      overflow: widget.overflow ?? TextOverflow.clip,
       // RTL-aware: RichText respects Directionality.of(context).
       textDirection: Directionality.of(context),
     );

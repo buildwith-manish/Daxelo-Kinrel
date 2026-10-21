@@ -32,6 +32,7 @@ import 'mention_picker.dart';
 import 'poll_card.dart';
 import '../voice_message_player.dart';
 import 'full_screen_image_viewer.dart';
+import '../../../profile/presentation/member_profile_sheet.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // Chat UI Reference (Kin Thread) — flat bubbles:
@@ -710,6 +711,12 @@ class MessageBubble extends ConsumerWidget {
                   backgroundColor:
                       ChatUi.accent.withValues(alpha: 0.18),
                 ),
+                // Tapping a @Name chip opens the mentioned user's
+                // profile via MemberProfileSheet. The userId is the
+                // mentioned user's auth ID (MentionRef.userId).
+                onMentionTap: (userId) {
+                  MemberProfileSheet.show(context, userId);
+                },
               )
             : Text(
                 message.content,
