@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -16,6 +15,7 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/form_validators.dart';
 // api_error_mapper removed — errors handled directly in _cleanErrorMessage
 import '../../../core/services/analytics_service.dart';
+import '../../../shared/widgets/kinrel_logo.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
   SignUpScreen({super.key});
@@ -423,17 +423,15 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                  // ── K-graph icon (48px) + Create Account ─────────
+                  // ── Embrace logo + Create Account ─────────────────
+                  // New "embrace" logo (orange tile + white parent-and-child
+                  // mark) — see lib/shared/widgets/kinrel_logo.dart.
                   Column(
                         children: [
-                          SizedBox(
-                            width: KinrelSpacing.logoMd,
-                            height: KinrelSpacing.logoMd,
-                            child: SvgPicture.asset(
-                              'assets/icons/kinrel-icon-primary.svg',
-                              width: KinrelSpacing.logoMd,
-                              height: KinrelSpacing.logoMd,
-                            ),
+                          const KinrelLogo(
+                            size: KinrelSpacing.logoMd,
+                            variant: KinrelLogoVariant.light,
+                            semanticLabel: 'Kinrel logo',
                           ),
                           const SizedBox(height: 16),
                           Text(

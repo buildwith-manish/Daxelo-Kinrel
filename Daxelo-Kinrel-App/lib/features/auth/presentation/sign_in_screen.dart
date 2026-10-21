@@ -12,7 +12,6 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -29,6 +28,7 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/form_validators.dart';
 import '../../../core/services/analytics_service.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../shared/widgets/kinrel_logo.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
   SignInScreen({super.key});
@@ -749,37 +749,30 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // ── Logo + Wordmark ──────────────────────────────
+                    // New "embrace" logo (orange tile + white parent-and-child
+                    // mark) + the KINREL wordmark in white, light weight,
+                    // wide letter-spacing — see lib/shared/widgets/kinrel_logo.dart
+                    // for the geometry / CustomPainter.
                     Column(
                       children: [
-                        SizedBox(
-                          width: KinrelSpacing.logoLg,
-                          height: KinrelSpacing.logoLg,
-                          child: SvgPicture.asset(
-                            'assets/icons/kinrel-icon-primary.svg',
-                            width: KinrelSpacing.logoLg,
-                            height: KinrelSpacing.logoLg,
-                          ),
+                        const KinrelLogo(
+                          size: KinrelSpacing.logoLg,
+                          variant: KinrelLogoVariant.light,
+                          semanticLabel: 'Kinrel logo',
                         ),
                         const SizedBox(height: 16),
-                        // PERF (Tier I): wrap ShaderMask in RepaintBoundary.
-                        // ShaderMask forces a per-frame saveLayer to apply
-                        // the gradient to its child. Without a boundary,
-                        // any ancestor rebuild (e.g. form state change,
-                        // keyboard visibility toggle) re-rasterizes the
-                        // gradient layer. With a boundary, the layer is
+                        // KINREL wordmark — white, light weight, wide
+                        // letter-spacing per spec. PERF (Tier I): wrap in
+                        // RepaintBoundary so the static text layer is
                         // cached once and composited on subsequent frames.
                         RepaintBoundary(
-                          child: ShaderMask(
-                            shaderCallback: (bounds) => KinrelGradients
-                                .wordmarkGradient
-                                .createShader(bounds),
-                            child: Text(
-                              'KINREL',
-                              style: KinrelTypography.appName.copyWith(
-                                fontSize: 28,
-                                letterSpacing: 3.92,
-                                color: Colors.white,
-                              ),
+                          child: Text(
+                            'KINREL',
+                            style: KinrelTypography.appName.copyWith(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w300, // light weight
+                              letterSpacing: 6.0, // wide letter-spacing
+                              color: Colors.white,
                             ),
                           ),
                         ),
