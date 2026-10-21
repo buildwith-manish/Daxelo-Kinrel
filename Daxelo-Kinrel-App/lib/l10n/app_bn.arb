@@ -354,5 +354,67 @@
                                                                            "type":  "int"
                                                                        }
                                                          }
-                                    }
+                                    },
+    "mentionLoading":  "লোড হচ্ছে…",
+    "@mentionLoading":  {
+        "description":  "Mention picker / notification string: mentionLoading"
+    },
+    "mentionErrorRetry":  "লোড করা যায়নি — আবার চেষ্টা করুন",
+    "@mentionErrorRetry":  {
+        "description":  "Mention picker / notification string: mentionErrorRetry"
+    },
+    "mentionNoMatch":  "কেউই মিলছে না",
+    "@mentionNoMatch":  {
+        "description":  "Mention picker / notification string: mentionNoMatch"
+    },
+    "mentionNoCandidates":  "এই চ্যাটে উল্লেখ করর কেউ নেই",
+    "@mentionNoCandidates":  {
+        "description":  "Mention picker / notification string: mentionNoCandidates"
+    },
+    "mentionDmHeader":  "আত্মীয়র উল্লেখ করুন · তাদের বার্তা দেওয়া হবে না",
+    "@mentionDmHeader":  {
+        "description":  "Mention picker / notification string: mentionDmHeader"
+    },
+    "mentionDmNoRelatives":  "এই পরিবারে উল্লেখ করর কোন আত্মীয় আত্মীয় নেই",
+    "@mentionDmNoRelatives":  {
+        "description":  "Mention picker / notification string: mentionDmNoRelatives"
+    },
+    "mentionCapExceeded":  "আপনি একটি বার্তায় সর্বোচ্চ 5 জন কে উল্লেখ করতে পারেন",
+    "@mentionCapExceeded":  {
+        "description":  "Mention picker / notification string: mentionCapExceeded"
+    },
+    "mentionRecentlyActiveA11y":  "সাম্প্রতিক সক্রিয়",
+    "@mentionRecentlyActiveA11y":  {
+        "description":  "Mention picker / notification string: mentionRecentlyActiveA11y"
+    },
+    "mentionElderA11y":  "প্রবীন",
+    "@mentionElderA11y":  {
+        "description":  "Mention picker / notification string: mentionElderA11y"
+    },
+    "mentionBadgeA11y":  "উল্লেখ",
+    "@mentionBadgeA11y":  {
+        "description":  "Mention picker / notification string: mentionBadgeA11y"
+    },
+    "mentionNotificationBodyOne":  "{sender} চ্যাটে আপনাকে উল্লেখ করেছেন",
+    "@mentionNotificationBodyOne":  {
+        "description":  "Mention picker / notification string: mentionNotificationBodyOne"
+        ,"placeholders":  {
+            "sender":  {
+                "type":  "String"
+            }
+        }
+    },
+    "mentionNotificationBodyMany":  "{sender} এবং {count} জন চ্যাটে আপনাকে উল্লেখ করেছেন",
+    "@mentionNotificationBodyMany":  {
+        "description":  "Mention picker / notification string: mentionNotificationBodyMany"
+        ,"placeholders":  {
+            "sender":  {
+                "type":  "String"
+            }
+            ,"count":  {
+                "type":  "int"
+            }
+        }
+    }
+
 }

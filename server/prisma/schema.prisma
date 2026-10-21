@@ -1039,6 +1039,11 @@ model NotificationPreference {
   quietHoursTimezone String  @default("Asia/Kolkata")
   maxPerDay          Int     @default(10)
   digestMode         String  @default("immediate") // immediate, hourly, daily
+  // Phase A — @mentions across chat. Default TRUE.
+  // When TRUE, a mention still pushes even in a muted chat.
+  // When FALSE, mentions respect the chat's mute.
+  // Quiet hours and block list are ALWAYS respected regardless.
+  mentionsBreakMute  Boolean @default(true)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -4092,10 +4097,30 @@ model ChatMention {
   messageId        String
   mentionedUserId  String
   mentionedByName  String
+  // Phase A — @mentions across chat. See migration
+  // 20261021051801_chat_mention_notify_and_group.sql.
+  // groupId NULL = family-wide mention; non-null = group/DM mention
+  // (scoped to that conversation only — drives the per-chat @ badge).
+  groupId          String?
+  // Server-derived from the conversation type (NOT the client flag).
+  // Groups/family-wide chat: true. Direct-chat third-person references:
+  // false (no push, no ChatMention row created on the server).
+  notify           Boolean  @default(true)
+  // When the push notification was sent. NULL = pending — the
+  // ChatMentionPushScheduler picks these up on its retry cron.
+  notifiedAt       DateTime?
+  // Flips to true when the recipient opens the chat. Drives the
+  // @ badge count (WHERE isRead = false).
+  isRead           Boolean  @default(false)
   createdAt        DateTime @default(now())
 
   @@index([messageId])
   @@index([mentionedUserId])
+  // Phase A: per-recipient unread-mention lookup (partial index in
+  // SQL — Prisma can't express the WHERE clause, so the schema-level
+  // index is the full-coverage version; the migration file adds the
+  // partial variant on disk).
+  @@index([groupId, mentionedUserId])
   @@map("ChatMention")
 }
 

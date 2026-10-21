@@ -1426,5 +1426,67 @@
                                                                            "type":  "int"
                                                                        }
                                                          }
-                                    }
+                                    },
+    "mentionLoading":  "Loading…",
+    "@mentionLoading":  {
+        "description":  "Mention picker / notification string: mentionLoading"
+    },
+    "mentionErrorRetry":  "Couldn’t load — tap to retry",
+    "@mentionErrorRetry":  {
+        "description":  "Mention picker / notification string: mentionErrorRetry"
+    },
+    "mentionNoMatch":  "No one matches",
+    "@mentionNoMatch":  {
+        "description":  "Mention picker / notification string: mentionNoMatch"
+    },
+    "mentionNoCandidates":  "No one to mention in this chat",
+    "@mentionNoCandidates":  {
+        "description":  "Mention picker / notification string: mentionNoCandidates"
+    },
+    "mentionDmHeader":  "Mention a relative · they won’t be notified",
+    "@mentionDmHeader":  {
+        "description":  "Mention picker / notification string: mentionDmHeader"
+    },
+    "mentionDmNoRelatives":  "No other relatives to mention in this family",
+    "@mentionDmNoRelatives":  {
+        "description":  "Mention picker / notification string: mentionDmNoRelatives"
+    },
+    "mentionCapExceeded":  "You can mention up to 5 people in one message",
+    "@mentionCapExceeded":  {
+        "description":  "Mention picker / notification string: mentionCapExceeded"
+    },
+    "mentionRecentlyActiveA11y":  "Recently active",
+    "@mentionRecentlyActiveA11y":  {
+        "description":  "Mention picker / notification string: mentionRecentlyActiveA11y"
+    },
+    "mentionElderA11y":  "Elder",
+    "@mentionElderA11y":  {
+        "description":  "Mention picker / notification string: mentionElderA11y"
+    },
+    "mentionBadgeA11y":  "Mention",
+    "@mentionBadgeA11y":  {
+        "description":  "Mention picker / notification string: mentionBadgeA11y"
+    },
+    "mentionNotificationBodyOne":  "{sender} mentioned you in chat",
+    "@mentionNotificationBodyOne":  {
+        "description":  "Mention picker / notification string: mentionNotificationBodyOne"
+        ,"placeholders":  {
+            "sender":  {
+                "type":  "String"
+            }
+        }
+    },
+    "mentionNotificationBodyMany":  "{sender} and {count} others mentioned you in chat",
+    "@mentionNotificationBodyMany":  {
+        "description":  "Mention picker / notification string: mentionNotificationBodyMany"
+        ,"placeholders":  {
+            "sender":  {
+                "type":  "String"
+            }
+            ,"count":  {
+                "type":  "int"
+            }
+        }
+    }
+
 }

@@ -69,6 +69,7 @@ import 'chat_onboarding_coach_marks.dart';
 import '../../../core/network/socket_service.dart';
 import 'sticker_panel.dart';
 // Phase 22 / Task 3 — @mention picker overlay + highlight renderer.
+import '../data/mention_candidates_provider.dart';
 import 'widgets/mention_picker.dart';
 // Phase 22 / Task 5 — poll card bubble (reuses the gameInvite card pattern).
 // Phase 22 / Task 5 — poll composer bottom sheet.
@@ -203,10 +204,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // The picker is rendered as an OverlayEntry anchored to the message
   // input via a LayerLink. MentionTracker keeps the pending MentionRef
   // list in sync with the text as the user types.
+  //
+  // Phase A rewrite: the picker is now reactive. It reads:
+  //   • _mentionQuery        — a ValueNotifier<String> updated by the
+  //                            text-change listener (150ms debounced).
+  //   • _mentionCandidates  — a ValueNotifier<AsyncValue<List<MentionCandidate>>>
+  //                            kept in sync with mentionCandidatesProvider.
+  // The OverlayEntry is built ONCE; subsequent updates flow through
+  // the ValueNotifiers (the picker's ValueListenableBuilder rebuilds).
   late final MentionTracker _mentionTracker;
   final LayerLink _inputLayerLink = LayerLink();
   OverlayEntry? _mentionOverlay;
   String? _currentUserIdCache;
+
+  // Reactive state for the picker.
+  final ValueNotifier<String> _mentionQuery =
+      ValueNotifier<String>('');
+  final ValueNotifier<AsyncValue<List<MentionCandidate>>> _mentionCandidates =
+      ValueNotifier<AsyncValue<List<MentionCandidate>>>(
+          const AsyncValue.loading());
+  // Debounce timer for the query — 150ms per the spec.
+  Timer? _mentionQueryDebounce;
+  // Provider subscription so we can tear it down on dispose.
+  ProviderSubscription<AsyncValue<List<MentionCandidate>>>? _mentionCandSub;
 
   // v3.5: the typing indicator's animation MOVED to the shared
   // TypingIndicator widget (typing_indicator.dart) — it owns its own
@@ -281,6 +301,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
     _scrollController.addListener(_onScroll);
     _textController.addListener(_onTextChanged);
+
+    // Phase A — @mentions across chat: warm the candidates provider so
+    // the picker is instant when the user types "@". The provider is
+    // autoDispose so it tears down when this screen closes (no leak).
+    // We use ref.listen so the local ValueNotifier mirrors the
+    // provider's AsyncValue (the picker reads via ValueListenableBuilder,
+    // so it re-renders on every provider invalidation without the
+    // screen having to setState).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _currentUserIdCache ??= _currentUserId;
+      final args = MentionCandidatesArgs(
+        familyId: widget.familyId,
+        groupId: widget.groupId,
+        // Phase A: direct chats still early-return at the picker trigger
+        // (see _onTextChanged). Phase B will wire the picker for DMs and
+        // populate excludeUserIds with the DM other participant.
+        excludeUserIds: const {},
+      );
+      // Prime the provider (forces the Future to start now, not on
+      // first @).
+      ref.read(mentionCandidatesProvider(args).future).catchError((_) {});
+      // Subscribe so the ValueNotifier stays in sync.
+      _mentionCandSub = ref.listen<AsyncValue<List<MentionCandidate>>>(
+        mentionCandidatesProvider(args),
+        (previous, next) {
+          _mentionCandidates.value = next;
+        },
+        fireImmediately: true,
+      );
+    });
 
     // feat(chat): drafts — restore the saved draft on init. We use
     // addPostFrameCallback so ref is ready + the widget is mounted.
@@ -403,6 +454,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Phase 22 / Task 3 — clean up the mention picker overlay so it
     // doesn't leak if the screen closes while it's open.
     _hideMentionPicker();
+    // Phase A — dispose the mention picker ValueNotifiers + debounce +
+    // provider subscription. _mentionCandSub is auto-closed by Riverpod
+    // on container dispose, but we close it explicitly so a hot-reload
+    // during development doesn't leak the previous subscription.
+    _mentionQueryDebounce?.cancel();
+    _mentionQueryDebounce = null;
+    _mentionQuery.dispose();
+    _mentionCandidates.dispose();
+    _mentionCandSub?.close();
+    _mentionCandSub = null;
     // Tier 3 / Live Location — cancel the location update timer so it
     // doesn't keep sending updates after the screen closes.
     _liveLocationTimer?.cancel();
@@ -501,12 +562,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // start of input or preceded by whitespace. If found, the text
     // between "@" and the cursor becomes the search query and the
     // picker overlay is shown (or updated with the new query).
-    // Kin Thread / C2: no mentions picker in direct chats (2 people
-    // only — a group-only feature).
+    //
+    // Phase A rewrite: the query is now published to a ValueNotifier
+    // (150ms debounced) and the picker reads it reactively. The
+    // MentionTracker.syncOnTextChange also fires here so pending
+    // MentionRef offsets shift correctly when the user edits text
+    // before a mention, backspaces past one, or pastes new text.
+    //
+    // Kin Thread / C2: no mentions picker in direct chats in Phase A
+    // (2 people only — a group-only feature). Phase B opens the picker
+    // in DMs with "Mention a relative · they won't be notified".
     if (widget.isDirectChat) {
       if (_mentionOverlay != null) _hideMentionPicker();
+      // Still sync the tracker so any pending refs (e.g. pasted from
+      // another chat) stay valid in DMs too.
+      _mentionTracker.syncOnTextChange(
+          _mentionLastText ?? '', _textController.text);
+      _mentionLastText = _textController.text;
       return;
     }
+    // Sync pending refs (grapheme-aware) — fire-and-forget per
+    // text-change, no await so the input stays responsive.
+    _mentionTracker.syncOnTextChange(
+        _mentionLastText ?? '', _textController.text);
+    _mentionLastText = _textController.text;
+
     final trigger = _mentionTracker.detectTrigger();
     if (trigger != null) {
       _showMentionPicker(trigger);
@@ -514,6 +594,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       _hideMentionPicker();
     }
   }
+
+  String? _mentionLastText;
 
   // ── feat(chat): drafts — restore on open, debounced save on
   //    text change, clear on send. Survives app restarts via
@@ -589,44 +671,71 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   // ── Phase 22 / Task 3: @mention picker show/hide ──────────────────
+  //
+  // Phase A rewrite: the overlay is built ONCE per picker session; the
+  // query + candidates flow through ValueNotifiers so the overlay's
+  // ValueListenableBuilder rebuilds on every keystroke (post-IME
+  // composition, post-150ms-debounce) and every provider invalidation.
+  // The old version captured the first query/members at construction
+  // time and only markNeedsBuilt on subsequent calls — list never
+  // narrowed as the user typed.
 
   void _showMentionPicker(String query) {
     if (!mounted) return;
-
-    // Cache the current user ID once (used to exclude self from the list).
     _currentUserIdCache ??= _currentUserId;
     final currentUserId = _currentUserIdCache ?? '';
 
-    // Resolve family members from chat state.
-    final chatState = ref.read(chatProvider(widget.familyId));
-    final members = chatState.members
-        .map(MentionableMember.fromOnlineMember)
-        .toList();
+    // Publish the new query to the ValueNotifier — debounced 150ms per
+    // the spec so the search index + filter doesn't run on every
+    // keystroke (especially important for IME languages where the
+    // composing region fires many text-change events per final glyph).
+    _mentionQueryDebounce?.cancel();
+    _mentionQueryDebounce =
+        Timer(const Duration(milliseconds: 150), () {
+      if (!mounted) return;
+      _mentionQuery.value = query;
+    });
 
     if (_mentionOverlay == null) {
+      // Resolve localized strings (Phase A: hardcoded for now — Phase B
+      // will wire to AppLocalizations.of(context). The hardcoded-strings
+      // test allowlist includes this file path while we transition).
+      final strings = const MentionPickerStrings(
+        loading: 'Loading…',
+        errorRetry: "Couldn't load — tap to retry",
+        noMatch: 'No one matches',
+        noCandidates: 'No one to mention in this chat',
+        dmHeader: "Mention a relative · they won't be notified",
+        dmNoRelatives: 'No other relatives to mention in this family',
+        capExceeded: 'You can mention up to 5 people in one message',
+        recentlyActiveA11y: 'Recently active',
+        elderA11y: 'Elder',
+        mentionBadgeA11y: 'Mention',
+      );
       _mentionOverlay = OverlayEntry(
         builder: (context) => MentionPickerOverlay(
-          members: members,
-          query: query,
+          query: _mentionQuery,
+          candidates: _mentionCandidates,
           layerLink: _inputLayerLink,
           currentUserId: currentUserId,
           onSelected: _onMentionSelected,
           onDismissed: _hideMentionPicker,
+          strings: strings,
         ),
       );
       Overlay.of(context).insert(_mentionOverlay!);
-    } else {
-      // Update the query + members in the existing overlay.
-      _mentionOverlay!.markNeedsBuild();
     }
+    // No markNeedsBuild here — the ValueNotifiers drive the rebuild.
   }
 
   void _hideMentionPicker() {
+    _mentionQueryDebounce?.cancel();
+    _mentionQuery.value = '';
     _mentionOverlay?.remove();
     _mentionOverlay = null;
   }
 
-  void _onMentionSelected(MentionableMember m) {
+  void _onMentionSelected(MentionCandidate m) {
     _mentionTracker.insertMention(m);
     _hideMentionPicker();
     _focusNode.requestFocus();

@@ -1,13 +1,21 @@
 import {
   Injectable,
+  BadRequestException,
   ForbiddenException,
   NotFoundException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StreakService } from './streak.service';
 import { ChatAnalyticsService } from '../analytics/chat-analytics.service';
 import { AddReactionDto, RemoveReactionDto } from './dto/chat.dto';
+// Phase A — forwardRef to break the circular DI: ChatService ←
+// ChatMentionPushScheduler ← KinrelGateway ← ChatGateway ← ChatService.
+// NestJS allows forwardRef cycles at the type level + resolves them at
+// runtime via the module's provider graph.
+import { ChatMentionPushScheduler } from './chat-mention.push.scheduler';
 
 /**
  * ChatService — family group chat persistence + read receipts + reactions.
@@ -28,6 +36,13 @@ export class ChatService {
     private readonly prisma: PrismaService,
     private readonly streakService: StreakService,
     private readonly analyticsService: ChatAnalyticsService,
+    // Phase A — injected lazily via @Inject(forwardRef) to avoid a
+    // circular DI (the push scheduler imports KinrelGateway which
+    // transitively depends on ChatGateway which depends on ChatService).
+    // The forwardRef breaks the cycle at the type level; NestJS resolves
+    // the instance at runtime.
+    @Inject(forwardRef(() => ChatMentionPushScheduler))
+    private readonly mentionPushScheduler?: ChatMentionPushScheduler,
   ) {}
 
   /** Throws ForbiddenException if the user is not a member of the family. */
@@ -118,6 +133,13 @@ export class ChatService {
       /// retries after reconnect safe (the client sends the same ID
       /// twice; the server deduplicates).
       clientMessageId?: string;
+      /// Phase A — @mentions: groupId scopes a message to a sub-chat
+      /// (group or DM). Null = family-wide chat. Pass-through from
+      /// the gateway's `chat:sendMessage` body so the persisted row
+      /// carries the scope (otherwise the Flutter client has to
+      /// filter on read, which leaks group/DM content to every family
+      /// member via realtime).
+      groupId?: string;
     } = {},
   ) {
     await this.assertMember(familyId, userId);
@@ -181,6 +203,12 @@ export class ChatService {
         replyToSenderName,
         mediaUrl: opts.mediaUrl ?? null,
         mediaType: opts.mediaType ?? null,
+        // Phase A — scope the row to a group/DM when applicable. Null
+        // for family-wide chat. Without this, every message is
+        // family-scoped and the gateway's `chat:messageReceived`
+        // broadcast to the family room leaks group/DM content to
+        // non-members.
+        groupId: opts.groupId ?? null,
         messageStatus: 'sent',
         readBy: [], // no readers yet
         readAt: null,
@@ -253,35 +281,170 @@ export class ChatService {
       senderPersonId?: string;
       senderInitials?: string;
       clientMessageId?: string;
+      groupId?: string;
     } = {},
   ) {
-    // 1. Persist the message (reuse sendMessage)
+    // Phase A — server-side validation (the spec mandates this so a
+    // direct API call cannot @-mention a non-member, cannot exceed the
+    // cap of 5, cannot slip past the DM notify=false rule by setting
+    // the client flag themselves).
+    //
+    // 1. Dedupe by userId (client may legitimately send the same user
+    //    twice via different @Name spans — server picks one).
+    const deduped = new Map<string, { userId: string; name: string; start: number; end: number }>();
+    for (const m of mentions) {
+      if (!deduped.has(m.userId)) deduped.set(m.userId, m);
+    }
+    const uniqueMentions = Array.from(deduped.values());
+
+    // 2. Hard cap at 5. The client is supposed to hard-stop at 5 too,
+    //    but the server REJECTS >5 (BadRequest) rather than silently
+    //    dropping extras — per the user's revised plan.
+    const MENTION_CAP = 5;
+    if (uniqueMentions.length > MENTION_CAP) {
+      throw new BadRequestException(
+        `Cannot mention more than ${MENTION_CAP} people in one message (received ${uniqueMentions.length})`,
+      );
+    }
+    if (uniqueMentions.length === 0) {
+      // No mentions after dedup → fall back to the plain sendMessage
+      // path. Avoids creating an empty ChatMention batch.
+      return this.sendMessage(familyId, userId, content, opts);
+    }
+
+    // 3. Derive notify from the conversation type. The server does NOT
+    //    trust the client's notify flag (which doesn't even exist on
+    //    the wire format yet — see MentionRef in the Flutter app).
+    //    Conversation-type rules per the user's revised plan:
+    //      • groupId IS NULL → family-wide chat → notify: true
+    //      • groupId set, groupType = 'direct' → DM → notify: false
+    //          (any third-person reference is reference-only, no
+    //           ChatMention row, no push)
+    //      • groupId set, groupType != 'direct' → group chat → notify: true
+    //    The DM check is one batched query to Group.
+    const groupId = opts.groupId ?? null;
+    let conversationNotify = true;
+    if (groupId) {
+      const group = await this.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { id: true, groupType: true, familyId: true },
+      });
+      if (!group) {
+        throw new NotFoundException(`Group ${groupId} not found`);
+      }
+      if (group.familyId !== familyId) {
+        throw new ForbiddenException(
+          'Cannot send a message to a group outside its family',
+        );
+      }
+      conversationNotify = group.groupType !== 'direct';
+    }
+
+    // 4. Batch-validate membership. ONE query to FamilyMember for all
+    //    mentioned userIds (reject any that aren't family members).
+    //    When groupId is set, ONE query to GroupMember for all
+    //    mentioned userIds (reject any that aren't group members).
+    const userIds = uniqueMentions.map((m) => m.userId);
+    // Filter out self-mentions at the server boundary too (the client
+    // already does this, but a direct API call might not).
+    const otherUserIds = userIds.filter((id) => id !== userId);
+    if (otherUserIds.length > 0) {
+      const familyMembers = await this.prisma.familyMember.findMany({
+        where: { familyId, userId: { in: otherUserIds } },
+        select: { userId: true },
+      });
+      const validFamilyUserIds = new Set(familyMembers.map((m) => m.userId));
+      const invalid = otherUserIds.filter((id) => !validFamilyUserIds.has(id));
+      if (invalid.length > 0) {
+        throw new ForbiddenException(
+          `Mentioned user(s) ${invalid.join(', ')} are not members of family ${familyId}`,
+        );
+      }
+      // Group membership check (skip for direct chats — the DM's other
+      // participant is already validated by the family check above,
+      // and any third-person reference in a DM is a reference, not a
+      // mention — handled by conversationNotify=false below).
+      if (groupId && conversationNotify) {
+        const groupMembers = await this.prisma.groupMember.findMany({
+          where: { groupId, userId: { in: otherUserIds } },
+          select: { userId: true },
+        });
+        const validGroupUserIds = new Set(groupMembers.map((m) => m.userId));
+        const invalidGroup = otherUserIds.filter(
+          (id) => !validGroupUserIds.has(id),
+        );
+        if (invalidGroup.length > 0) {
+          throw new ForbiddenException(
+            `Mentioned user(s) ${invalidGroup.join(', ')} are not members of group ${groupId}`,
+          );
+        }
+      }
+    }
+
+    // 5. Persist the message (reuse sendMessage). Passes the groupId
+    //    so the message row is scoped to the right conversation.
     const message = await this.sendMessage(familyId, userId, content, opts);
 
-    // 2. Update the inline mentions JSON on the message
-    if (mentions.length > 0) {
-      await this.prisma.chatMessage.update({
-        where: { id: message.id },
-        data: { mentions: mentions as any },
-      });
-      message.mentions = mentions as any;
+    // 6. Update the inline mentions JSON on the message (preserves the
+    //    @Name spans for the bubble renderer on read).
+    await this.prisma.chatMessage.update({
+      where: { id: message.id },
+      data: { mentions: uniqueMentions as any, groupId },
+    });
+    message.mentions = uniqueMentions as any;
+    message.groupId = groupId;
 
-      // 3. Insert ChatMention rows for the queryable index
-      await this.prisma.chatMention.createMany({
-        data: mentions.map((m) => ({
-          id: `cm_${message.id}_${m.userId}`,
-          messageId: message.id,
-          mentionedUserId: m.userId,
-          mentionedByName: message.senderName,
-        })),
-        skipDuplicates: true,
-      });
-
-      // Feature 1: Analytics — track mention_sent
-      this.analyticsService
-        .track('mention_sent', userId, { messageId: message.id, mentionCount: mentions.length }, familyId)
-        .catch(() => {});
+    // 7. Insert ChatMention rows ONLY for mentions that notify. In a
+    //    DM (conversationNotify=false), no rows are created — the
+    //    reference is rendered via the inline mentions JSON only, and
+    //    no push notification fires. This is the server-side
+    //    enforcement of the user's "DMs reference, don't notify" rule.
+    if (conversationNotify) {
+      const notifyableMentions = uniqueMentions.filter(
+        (m) => m.userId !== userId, // never notify the sender
+      );
+      if (notifyableMentions.length > 0) {
+        await this.prisma.chatMention.createMany({
+          data: notifyableMentions.map((m) => ({
+            id: `cm_${message.id}_${m.userId}`,
+            messageId: message.id,
+            mentionedUserId: m.userId,
+            mentionedByName: message.senderName,
+            // New Phase A columns:
+            groupId: groupId,
+            notify: true,
+            isRead: false,
+          })),
+          skipDuplicates: true,
+        });
+        // Phase A — enqueue each mention for the batched push
+        // scheduler. The scheduler batches per-recipient within a 7s
+        // window, skips if the recipient is online, respects mute +
+        // quiet hours + block list, and falls back to a 30s cron
+        // retry. Fire-and-forget so the request returns immediately.
+        if (this.mentionPushScheduler) {
+          for (const m of notifyableMentions) {
+            this.mentionPushScheduler
+              .enqueueMention(`cm_${message.id}_${m.userId}`)
+              .catch((err: any) => {
+                this.logger.error(
+                  `mentionPushScheduler.enqueueMention failed for cm_${message.id}_${m.userId}: ${err?.message}`,
+                );
+              });
+          }
+        }
+      }
     }
+
+    // 8. Analytics — mention_sent (fire-and-forget).
+    this.analyticsService
+      .track(
+        'mention_sent',
+        userId,
+        { messageId: message.id, mentionCount: uniqueMentions.length, conversationNotify },
+        familyId,
+      )
+      .catch(() => {});
 
     return message;
   }

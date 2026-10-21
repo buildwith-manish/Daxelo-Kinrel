@@ -354,5 +354,67 @@
                                                                            "type":  "int"
                                                                        }
                                                          }
-                                    }
+                                    },
+    "mentionLoading":  "ஏற்றுகிறது…",
+    "@mentionLoading":  {
+        "description":  "Mention picker / notification string: mentionLoading"
+    },
+    "mentionErrorRetry":  "ஏற்ற முடியவில்லை — மீண்டும் முயற்சிக்கவும்",
+    "@mentionErrorRetry":  {
+        "description":  "Mention picker / notification string: mentionErrorRetry"
+    },
+    "mentionNoMatch":  "யாரும் பொருந்தவில்லை",
+    "@mentionNoMatch":  {
+        "description":  "Mention picker / notification string: mentionNoMatch"
+    },
+    "mentionNoCandidates":  "இந்த அரடையில் குறிப்பிட யாரும் இல்லை",
+    "@mentionNoCandidates":  {
+        "description":  "Mention picker / notification string: mentionNoCandidates"
+    },
+    "mentionDmHeader":  "உறவினரைக் குறிப்பிடுங்கள் · அவர்களுக்கு அறிவிப்பு செல்லாது",
+    "@mentionDmHeader":  {
+        "description":  "Mention picker / notification string: mentionDmHeader"
+    },
+    "mentionDmNoRelatives":  "இந்த குடும்பத்தில் குறிப்பிட வேறு உறவினர் இல்லை",
+    "@mentionDmNoRelatives":  {
+        "description":  "Mention picker / notification string: mentionDmNoRelatives"
+    },
+    "mentionCapExceeded":  "ஒரே செய்தியில் அதிவரமும் 5 பேரைக் குறிப்பிடலாம்",
+    "@mentionCapExceeded":  {
+        "description":  "Mention picker / notification string: mentionCapExceeded"
+    },
+    "mentionRecentlyActiveA11y":  "சமீபத்தியில் செயல்",
+    "@mentionRecentlyActiveA11y":  {
+        "description":  "Mention picker / notification string: mentionRecentlyActiveA11y"
+    },
+    "mentionElderA11y":  "மூதானவர்",
+    "@mentionElderA11y":  {
+        "description":  "Mention picker / notification string: mentionElderA11y"
+    },
+    "mentionBadgeA11y":  "குறிப்பு",
+    "@mentionBadgeA11y":  {
+        "description":  "Mention picker / notification string: mentionBadgeA11y"
+    },
+    "mentionNotificationBodyOne":  "{sender} அரடையில் உங்களைக் குறிப்பிட்டார்",
+    "@mentionNotificationBodyOne":  {
+        "description":  "Mention picker / notification string: mentionNotificationBodyOne"
+        ,"placeholders":  {
+            "sender":  {
+                "type":  "String"
+            }
+        }
+    },
+    "mentionNotificationBodyMany":  "{sender} மற்றும் {count} பேரும் அரடையில் உங்களைக் குறிப்பிட்டார்கள்",
+    "@mentionNotificationBodyMany":  {
+        "description":  "Mention picker / notification string: mentionNotificationBodyMany"
+        ,"placeholders":  {
+            "sender":  {
+                "type":  "String"
+            }
+            ,"count":  {
+                "type":  "int"
+            }
+        }
+    }
+
 }

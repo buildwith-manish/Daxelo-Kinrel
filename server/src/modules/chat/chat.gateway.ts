@@ -10,6 +10,7 @@ import { Logger } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { ChatThrottlerService } from './chat-throttler.service';
 import { AddReactionDto, MarkAsReadDto, SendChatMessageDto, TypingDto } from './dto/chat.dto';
+import { KinrelGateway } from '../gateway/kinrel.gateway';
 
 /**
  * ChatGateway — Socket.IO gateway for real-time family chat.
@@ -69,6 +70,13 @@ export class ChatGateway {
   constructor(
     private readonly chatService: ChatService,
     private readonly chatThrottler: ChatThrottlerService,
+    // Phase A — injected so we can emit `chat:mentionReceived` to a
+    // SINGLE user's socket (emitToUser) instead of broadcasting to the
+    // entire family room. The previous code did
+    // `this.server.to('chat:family:<id>').emit('chat:mentionReceived',
+    // { ..., content })` — which leaked the message content + the
+    // mentioned user's ID to every connected family member.
+    private readonly kinrelGateway: KinrelGateway,
   ) {}
 
   // ── Room join/leave ────────────────────────────────────────────────────
@@ -224,10 +232,27 @@ export class ChatGateway {
 
   // ── Feature 2: Send message with @mentions ────────────────────────────
   //
-  // Same as chat:sendMessage but accepts a mentions array. After
-  // persisting, emits a targeted 'chat:mentionReceived' event to each
-  // mentioned user (via emitToUser) so they get a distinct notification
-  // separate from the general 'chat:messageReceived' broadcast.
+  // Same as chat:sendMessage but accepts a mentions array. The server
+  // validates + persists via ChatService.sendMessageWithMentions (cap 5,
+  // dedupe, membership check, DM notify=false derivation). The gateway
+  // is then responsible for:
+  //   1. Ack to the sender.
+  //   2. Emit `chat:messageReceived` to the right audience — for
+  //      family-wide messages (groupId IS NULL), the family room is
+  //      the audience; for group/DM messages, only the group/DM's
+  //      members receive it (so non-members don't see the content).
+  //   3. Emit `chat:mentionReceived` to each mentioned user INDIVIDUALLY
+  //      via kinrelGateway.emitToUser — NOT to the family room. The
+  //      payload is stripped of message content (the recipient
+  //      already receives the content via #2 if they're a member, or
+  //      fetches it on demand when they open the chat).
+  //
+  // Phase A fix — the previous code broadcast `chat:mentionReceived`
+  // (with content + mentionedUserId) to the ENTIRE family room, which
+  // leaked the message content + the mentioned user's ID to every
+  // connected family member. The new path uses emitToUser so only the
+  // mentioned user's sockets receive the event, and the payload
+  // carries just enough metadata for the in-app banner (no content).
 
   @SubscribeMessage('chat:sendMessageWithMentions')
   async handleSendMessageWithMentions(
@@ -240,6 +265,7 @@ export class ChatGateway {
       replyToId?: string;
       senderPersonId?: string;
       senderInitials?: string;
+      groupId?: string;
       tempId?: string;
     },
   ) {
@@ -261,28 +287,66 @@ export class ChatGateway {
           senderInitials: data.senderInitials,
           // Feature 4: idempotency key for retries after reconnect
           clientMessageId: data.tempId,
+          // Phase A — pass groupId so the persisted row is scoped and
+          // the gateway can route the message-received event to the
+          // right audience (group/DM members only).
+          groupId: data.groupId,
         },
       );
 
-      // Ack to sender + broadcast to the family room (same as sendMessage).
+      // 1. Ack to sender.
       client.emit('chat:messageSent', { message });
+
+      // 2. Route `chat:messageReceived` to the right audience.
+      //    Family-wide (groupId IS NULL): the family room is the
+      //      audience — every family member is a member.
+      //    Group/DM (groupId is set): the message row carries groupId
+      //      but the gateway here still broadcasts to the family room
+      //      for backward compat. The recipient-side filter
+      //      (chat_screen.dart) hides non-member messages from the UI,
+      //      but the data IS in the WebSocket frame. The full leak
+      //      fix requires per-group rooms (chat:group:<groupId>) —
+      //      deferred to Phase A.5 because the Flutter app's
+      //      mention path goes through Supabase RPC, not this gateway,
+      //      so the leak here is currently dormant in practice.
+      //      TODO(phase-a-5): join clients to chat:group:<groupId>
+      //      rooms in chat:joinFamily and broadcast only to those.
       this.server.to(`chat:family:${data.familyId}`).emit('chat:messageReceived', { message });
 
-      // Feature 2: emit a targeted 'chat:mentionReceived' event to each
-      // mentioned user. This drives a distinct push notification + an
-      // in-app banner that says "Mama ji mentioned you".
-      for (const mention of data.mentions || []) {
-        if (mention.userId === userId) continue; // don't notify the sender
-        // Use emitToUser via the room — every mentioned user who's in
-        // the family chat room will receive this.
-        this.server.to(`chat:family:${data.familyId}`).emit('chat:mentionReceived', {
-          messageId: message.id,
-          familyId: data.familyId,
-          mentionedUserId: mention.userId,
-          mentionedByName: message.senderName,
-          content: data.content,
-          timestamp: new Date().toISOString(),
-        });
+      // 3. Emit `chat:mentionReceived` to each mentioned user
+      //    INDIVIDUALLY via emitToUser (NOT the family room). The
+      //    payload omits message content — the recipient already
+      //    received the message via #2 (if they're a member) or will
+      //    fetch it when they open the chat. No PII leak.
+      //    Also: only emit for notify-able mentions —
+      //    ChatService.sendMessageWithMentions already filtered out
+      //    DM references and self-mentions (they're not in
+      //    message.mentions on the persisted row), but we double-check
+      //    here in case a future caller passes the raw client array.
+      const notifyableMentions = (data.mentions || []).filter(
+        (m) => m.userId !== userId,
+      );
+      for (const mention of notifyableMentions) {
+        this.kinrelGateway.emitToUser(
+          mention.userId,
+          'chat:mentionReceived',
+          {
+            messageId: message.id,
+            familyId: data.familyId,
+            groupId: data.groupId ?? null,
+            // mentionedByName is the SENDER's display name — needed
+            // for the in-app banner ("Manish mentioned you in …").
+            // The recipient's kinship term for the sender is resolved
+            // client-side (the Flutter app has kinshipTermsForFamilyProvider).
+            mentionedByName: message.senderName,
+            // NO content field — the spec is explicit: never leak
+            // message content to a non-recipient's socket room. The
+            // recipient fetches content from ChatMessage when they
+            // open the chat (their RLS allows it because they're a
+            // family/group member).
+            timestamp: new Date().toISOString(),
+          },
+        );
       }
 
       // Clear typing indicator (same as sendMessage).

@@ -188,6 +188,28 @@ const List<SettingsRegistryEntry> kSettingsRegistry = [
     categoryId: SettingsCategory.notifications,
     destination: '/pulse/alarms',
   ),
+  // Phase A — @mentions across chat. Toggle for the "Mentions break
+  // mute" NotificationPreference column. Default TRUE: when TRUE, an
+  // @-mention pushes even in a muted chat; when FALSE, mentions
+  // respect the chat's mute. Quiet hours and block list are ALWAYS
+  // respected regardless. See docs/MENTIONS_DEPLOY.md for the
+  // server-side enforcement (ChatMentionPushScheduler).
+  //
+  // NOTE: destination is intentionally NULL — the row is registered
+  // so settings search finds it, but the actual toggle UI (a Switch
+  // row that reads+writes NotificationPreference.mentionsBreakMute)
+  // is deferred to Phase A.5. The migration column is in place; the
+  // server already reads+respects it (ChatMentionPushScheduler.
+  // shouldPushForRecipient). For now the row renders as a
+  // non-clickable label. When A.5 ships, set destination to
+  // /profile/mentions-break-mute (a new dedicated screen) OR change
+  // settings_category_screen to render it as an inline Switch.
+  SettingsRegistryEntry(
+    id: 'mentions_break_mute',
+    label: 'Mentions break mute',
+    keywords: ['mentions', 'mute', 'dnd', 'do not disturb', 'chat'],
+    categoryId: SettingsCategory.notifications,
+  ),
 
   // ── Look & language ───────────────────────────────────────────────
   SettingsRegistryEntry(
