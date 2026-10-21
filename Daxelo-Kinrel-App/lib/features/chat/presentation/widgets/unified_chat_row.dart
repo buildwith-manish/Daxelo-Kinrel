@@ -165,6 +165,15 @@ class UnifiedChatRow extends ConsumerWidget {
                   color: KinrelColors.ember,
                 ),
               ],
+              // Phase A — @mentions across chat. Render an `@` chip
+              // when this chat has unread mentions for the current
+              // viewer. Distinct from the unread-count badge (the
+              // @ chip says "you were mentioned here"). Tapping the
+              // row opens the chat + the message is highlighted.
+              if (entry.unreadMentionsCount > 0) ...[
+                const SizedBox(width: KinrelSpacing.xs),
+                _MentionBadge(count: entry.unreadMentionsCount),
+              ],
             ],
           ),
           contentPadding: const EdgeInsets.symmetric(
@@ -337,5 +346,49 @@ class UnifiedChatRow extends ConsumerWidget {
       default:
         return Icons.group_rounded;
     }
+  }
+}
+
+/// Phase A — @mentions across chat. A small `@` chip rendered next to
+/// the unread-count badge when this chat has unread mentions for the
+/// current viewer. Distinct from the unread-count badge (the @ chip
+/// says "you were mentioned here"). The chip uses KinrelColors.ember
+/// (same as the unread badge) so the two badges visually align.
+class _MentionBadge extends StatelessWidget {
+  const _MentionBadge({required this.count});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      // Match the DKBadge size for visual alignment.
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: KinrelColors.ember.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: KinrelColors.ember, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.alternate_email_rounded,
+            size: 12,
+            color: KinrelColors.ember,
+            semanticLabel: 'Mention',
+          ),
+          const SizedBox(width: 2),
+          if (count > 1)
+            Text(
+              '$count',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.ember,
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }

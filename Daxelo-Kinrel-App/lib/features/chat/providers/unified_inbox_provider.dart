@@ -74,6 +74,11 @@ class UnifiedChatEntry {
     this.groupId,
     this.circleId,
     this.iconKey,
+    // Phase A — @mentions across chat. Count of unread ChatMention
+    // rows for the current viewer in this chat. 0 when the provider
+    // hasn't loaded the mention counts yet (the row still renders;
+    // the @ badge only appears when count > 0).
+    this.unreadMentionsCount = 0,
   });
 
   /// Group → familyId; Direct → otherUserId. Used as the Dismissible
@@ -120,6 +125,12 @@ class UnifiedChatEntry {
 
   /// Circle → the icon key (used for the rounded-square icon tile).
   final String? iconKey;
+
+  /// Phase A — @mentions across chat. Count of unread ChatMention
+  /// rows for the current viewer in this chat. 0 when not loaded.
+  /// The unified_chat_row renders an `@` chip next to the unread
+  /// badge when this is > 0.
+  final int unreadMentionsCount;
 
   /// True when this entry has at least one message (lastMessage non-empty
   /// AND lastMessageTime is post-epoch). Entries without messages go to
