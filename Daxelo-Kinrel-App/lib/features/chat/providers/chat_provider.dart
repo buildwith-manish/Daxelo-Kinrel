@@ -41,12 +41,6 @@ import '../../../core/database/app_database.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/network/realtime_channel_registry.dart';
 import '../../../core/family/family_provider.dart';
-// Step 4 — shared timezone-aware time utility. Chat timestamps are
-// PERSONAL (each viewer sees their own device-local time), so they go
-// through AppTime.toLocalDisplay() to normalize UTC-from-server
-// timestamps to the viewer's local timezone before extracting
-// hour/minute/day for display.
-import '../../../core/utils/app_time.dart';
 // v3.1 (schemaVersion 9) — local Drift cache for chat messages. The
 // database is gated by IsarDatabase.isInitialized (false on web), so all
 // cache reads/writes are wrapped in try/catch and skipped silently when

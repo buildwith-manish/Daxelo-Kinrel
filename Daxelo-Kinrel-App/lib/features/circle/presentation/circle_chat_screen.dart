@@ -25,14 +25,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/haptic_service.dart';
-import '../data/circle_api_client.dart' as circle_api;
 import '../providers/circle_chat_provider.dart';
 
 class CircleChatScreen extends ConsumerStatefulWidget {
@@ -283,12 +281,12 @@ class _CircleChatScreenState extends ConsumerState<CircleChatScreen> {
             ),
           ),
         ),
-        child: Row(
+        child: const Row(
           children: [
             Icon(Icons.lock_outline_rounded,
                 size: 18, color: KinrelColors.textDim),
-            const SizedBox(width: 8),
-            const Expanded(
+            SizedBox(width: 8),
+            Expanded(
               child: Text(
                 'Only admins can post in this circle',
                 style: TextStyle(
