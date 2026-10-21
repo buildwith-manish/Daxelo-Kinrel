@@ -574,3 +574,97 @@ class Pseudo3DNodePainter extends CustomPainter {
         old.params.isRecentlyDeceased != params.isRecentlyDeceased;
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// 2026-10-20: FLAT NODE PAINTER — zoom-out flat mode
+// ═══════════════════════════════════════════════════════════════════════
+
+const double kFlatModeZoomThreshold = 0.85;
+
+class FlatNodePainter extends CustomPainter {
+  const FlatNodePainter(this.params);
+  final Pseudo3DNodeParams params;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final d = params.diameter;
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = d / 2;
+    final bw = params.borderWidth;
+    final faceR = r - bw * 0.5;
+
+    // L1: Solid face (no shadow, no gradient)
+    canvas.drawCircle(center, faceR, Paint()..color = KinrelColors.darkCard);
+
+    // L2: Tint overlay
+    if (params.showTint) {
+      canvas.drawCircle(center, faceR, Paint()..color = params.tintColor);
+    }
+
+    // L3: Solid border (no SweepGradient, no bevel)
+    canvas.drawCircle(center, r - bw * 0.5, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = bw
+      ..color = params.borderColor);
+
+    // L4: Dashed ring for unlinked
+    if (params.isUnlinked) {
+      const dashCount = 16;
+      const dashArc = 2 * pi / dashCount * 0.5;
+      final dashRect = Rect.fromCircle(center: center, radius: r + 2);
+      for (int i = 0; i < dashCount; i++) {
+        final start = i * (2 * pi / dashCount);
+        canvas.drawArc(dashRect, start, dashArc, false, Paint()
+          ..style = PaintingStyle.stroke..strokeWidth = 2.0
+          ..color = KinrelColors.amber.withValues(alpha: 0.85));
+      }
+    }
+
+    // L5: Birthday glow ring (same as Pseudo3D — cheap)
+    if (params.isNearBirthday) {
+      final bool reduced = params.birthdayPulseValue < 0;
+      final double glowAlpha = reduced ? 0.45 : 0.3 + 0.3 * params.birthdayPulseValue;
+      final double glowRadiusFactor = reduced ? 1.075 : 1.05 + 0.05 * params.birthdayPulseValue;
+      final glowRadius = r * glowRadiusFactor;
+      final glowColor = params.isDeceased ? const Color(0xFFF59240) : const Color(0xFFE8612A);
+      canvas.drawCircle(center, glowRadius, Paint()
+        ..shader = RadialGradient(colors: [
+          glowColor.withValues(alpha: glowAlpha),
+          glowColor.withValues(alpha: 0.0),
+        ], stops: const [0.0, 1.0]).createShader(
+          Rect.fromCircle(center: center, radius: glowRadius)));
+    }
+
+    // L6: Memorial candle (same as Pseudo3D — cheap)
+    if (params.isDeceased) {
+      final bool reduced = params.memorialCandleFlickerValue < 0;
+      final double candleAlpha = reduced
+          ? (params.isRecentlyDeceased ? 0.85 : 0.75)
+          : (params.isRecentlyDeceased ? 0.8 : 0.6) +
+              (params.isRecentlyDeceased ? 0.2 : 0.3) * params.memorialCandleFlickerValue;
+      final double candleRadiusFactor = reduced ? 0.09 : 0.08 + 0.02 * params.memorialCandleFlickerValue;
+      final candleRadius = d * candleRadiusFactor;
+      canvas.drawCircle(center, candleRadius * 2, Paint()
+        ..shader = RadialGradient(colors: [
+          const Color(0xFFF59240).withValues(alpha: candleAlpha),
+          const Color(0xFFF59240).withValues(alpha: 0.0),
+        ], stops: const [0.0, 1.0]).createShader(
+          Rect.fromCircle(center: center, radius: candleRadius * 2)));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant FlatNodePainter old) {
+    return old.params.diameter != params.diameter ||
+        old.params.borderColor != params.borderColor ||
+        old.params.borderWidth != params.borderWidth ||
+        old.params.isAnchor != params.isAnchor ||
+        old.params.nodeState != params.nodeState ||
+        old.params.showTint != params.showTint ||
+        old.params.isNearBirthday != params.isNearBirthday ||
+        old.params.birthdayPulseValue != params.birthdayPulseValue ||
+        old.params.isDeceased != params.isDeceased ||
+        old.params.memorialCandleFlickerValue != params.memorialCandleFlickerValue ||
+        old.params.isRecentlyDeceased != params.isRecentlyDeceased;
+  }
+}

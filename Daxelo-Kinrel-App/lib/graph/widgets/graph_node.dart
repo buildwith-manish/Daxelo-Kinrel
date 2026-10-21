@@ -39,7 +39,8 @@ import '../../core/kinship/kinship_edge_style.dart';
 import '../../core/theme/kinrel_fx.dart';
 import '../../core/widgets/cached_avatar.dart';
 import '../engine/viewer_wedge_layout.dart' show kUseViewerWedgeLayout;
-import 'engine/node_decoration.dart';
+import 'engine/node_decoration.dart'
+    show Pseudo3DNodeParams, Pseudo3DNodePainter, FlatNodePainter, kFlatModeZoomThreshold;
 import 'engine/node_paint_helpers.dart';
 import 'engine/node_role_glyph_badge.dart';
 import 'engine/node_state.dart';
@@ -1294,7 +1295,11 @@ class _GraphNodeState extends ConsumerState<GraphNode>
             ),
           // Layers 1-6: CustomPainter renders the entire pseudo-3D node
           Positioned.fill(
-            child: CustomPaint(painter: Pseudo3DNodePainter(nodeParams)),
+            child: CustomPaint(
+              painter: (widget.camera?.zoomLevel ?? 1.0) < kFlatModeZoomThreshold
+                  ? FlatNodePainter(nodeParams)
+                  : Pseudo3DNodePainter(nodeParams),
+            ),
           ),
           // Content layer (initials/photo) clipped to the circle
           // v5.100: Use effectiveDiameter for "You" node's larger size
