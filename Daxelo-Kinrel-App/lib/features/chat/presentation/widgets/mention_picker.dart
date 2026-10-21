@@ -41,7 +41,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/mention_candidates_provider.dart';
 import '../../providers/chat_provider.dart';
@@ -160,9 +159,12 @@ class MentionPickerOverlay extends StatelessWidget {
   /// whenever this changes.
   final ValueListenable<String> query;
 
-  /// Async candidates list from mentionCandidatesProvider. The overlay
-  /// renders loading/error/empty states explicitly — never silent.
-  final ValueListenable<AsyncValue<List<MentionCandidate>>> candidates;
+  /// Synchronous candidates list from mentionCandidatesSyncProvider.
+  /// A plain List (never AsyncValue) — the overlay never shows a
+  /// loading state. When the list is empty, the overlay renders
+  /// nothing (stays hidden) and shows the list as soon as data
+  /// arrives.
+  final ValueListenable<List<MentionCandidate>> candidates;
 
   final LayerLink layerLink;
   final ValueChanged<MentionCandidate> onSelected;
@@ -218,7 +220,6 @@ class MentionPickerOverlay extends StatelessWidget {
 @immutable
 class MentionPickerStrings {
   const MentionPickerStrings({
-    required this.loading,
     required this.errorRetry,
     required this.noMatch,
     required this.noCandidates,
@@ -230,10 +231,8 @@ class MentionPickerStrings {
     required this.mentionBadgeA11y,
   });
 
-  /// "Loading…"
-  final String loading;
-
-  /// "Couldn't load — tap to retry"
+  /// "Couldn't load — tap to retry" (used for the error state only,
+  /// never for loading — there IS no loading state)
   final String errorRetry;
 
   /// "No one matches"
@@ -274,7 +273,7 @@ class _PickerCard extends StatefulWidget {
   });
 
   final ValueListenable<String> query;
-  final ValueListenable<AsyncValue<List<MentionCandidate>>> candidates;
+  final ValueListenable<List<MentionCandidate>> candidates;
   final ValueChanged<MentionCandidate> onSelected;
   final VoidCallback onDismissed;
   final String currentUserId;
@@ -392,32 +391,28 @@ class _PickerCardState extends State<_PickerCard> {
     return Focus(
       focusNode: _focusNode,
       onKeyEvent: _onKeyEvent,
-      child: ValueListenableBuilder<AsyncValue<List<MentionCandidate>>>(
+      child: ValueListenableBuilder<List<MentionCandidate>>(
         valueListenable: widget.candidates,
-        builder: (context, candidatesAsync, _) {
+        builder: (context, candidatesList, _) {
           return ValueListenableBuilder<String>(
             valueListenable: widget.query,
             builder: (context, query, _) {
-              return _maybeWithDmHeader(
-                candidatesAsync.when(
-                  loading: () => _buildLoading(),
-                  error: (err, stack) => _buildError(err),
-                  data: (candidates) {
-                    _rebuildIndexIfNeeded(candidates);
-                    final filtered = _filter(query, candidates);
-                    // Reset highlight when the filtered list shrinks past
-                    // the current index.
-                    if (_highlightedIndex >= filtered.length) {
-                      _highlightedIndex = 0;
-                    }
-                    _filtered = filtered;
-                    if (filtered.isEmpty) {
-                      return _buildEmpty(query, candidates);
-                    }
-                    return _buildList(filtered);
-                  },
-                ),
-              );
+              // No loading state. When the list is empty, render
+              // nothing (the overlay stays hidden). The list shows
+              // as soon as data arrives — no spinner, no "Loading…".
+              if (candidatesList.isEmpty) {
+                return _maybeWithDmHeader(const SizedBox.shrink());
+              }
+              _rebuildIndexIfNeeded(candidatesList);
+              final filtered = _filter(query, candidatesList);
+              if (_highlightedIndex >= filtered.length) {
+                _highlightedIndex = 0;
+              }
+              _filtered = filtered;
+              if (filtered.isEmpty) {
+                return _maybeWithDmHeader(_buildEmpty(query, candidatesList));
+              }
+              return _maybeWithDmHeader(_buildList(filtered));
             },
           );
         },
@@ -425,48 +420,11 @@ class _PickerCardState extends State<_PickerCard> {
     );
   }
 
-  Widget _buildLoading() {
-    return _pickerSurface(
-      child: _StatusRow(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const SizedBox(width: 10),
-            Text(widget.strings.loading),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildError(Object err) {
-    debugPrint('⚠️ MentionPickerOverlay error: $err');
-    return _pickerSurface(
-      child: _StatusRow(
-        onTap: () {
-          // Force a rebuild — the screen's ValueNotifier is wired to
-          // re-emit on refresh. Tapping this row triggers the same.
-          // The screen's watcher will refetch via
-          // mentionCandidatesProvider(...).future.
-          widget.onDismissed();
-        },
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline_rounded,
-                size: 16, color: Theme.of(context).colorScheme.error),
-            const SizedBox(width: 8),
-            Text(widget.strings.errorRetry),
-          ],
-        ),
-      ),
-    );
-  }
+  // _buildLoading and _buildError removed — there is no loading or
+  // error state. The overlay renders nothing (SizedBox.shrink) when
+  // the list is empty, and shows the list as soon as data arrives.
+  // A failed background refresh is silent — the list keeps the last
+  // known state.
 
   Widget _buildEmpty(String query, List<MentionCandidate> allCandidates) {
     // Phase B — direct-chat empty state uses the DM-specific string
@@ -579,14 +537,12 @@ class _PickerCardState extends State<_PickerCard> {
 }
 
 class _StatusRow extends StatelessWidget {
-  const _StatusRow({required this.child, this.onTap});
+  const _StatusRow({required this.child});
   final Widget child;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap,
       child: Padding(
         // 44dp min tap target per the spec.
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),

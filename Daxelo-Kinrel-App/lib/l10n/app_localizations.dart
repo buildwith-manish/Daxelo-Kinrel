@@ -1905,6 +1905,78 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Direct message, {title}, {count} unread'**
   String chatInboxRowSemanticDirect(String title, int count);
+
+  /// Mention picker / notification string: mentionLoading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading…'**
+  String get mentionLoading;
+
+  /// Mention picker / notification string: mentionErrorRetry
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t load — tap to retry'**
+  String get mentionErrorRetry;
+
+  /// Mention picker / notification string: mentionNoMatch
+  ///
+  /// In en, this message translates to:
+  /// **'No one matches'**
+  String get mentionNoMatch;
+
+  /// Mention picker / notification string: mentionNoCandidates
+  ///
+  /// In en, this message translates to:
+  /// **'No one to mention in this chat'**
+  String get mentionNoCandidates;
+
+  /// Mention picker / notification string: mentionDmHeader
+  ///
+  /// In en, this message translates to:
+  /// **'Mention a relative · they won’t be notified'**
+  String get mentionDmHeader;
+
+  /// Mention picker / notification string: mentionDmNoRelatives
+  ///
+  /// In en, this message translates to:
+  /// **'No other relatives to mention in this family'**
+  String get mentionDmNoRelatives;
+
+  /// Mention picker / notification string: mentionCapExceeded
+  ///
+  /// In en, this message translates to:
+  /// **'You can mention up to 5 people in one message'**
+  String get mentionCapExceeded;
+
+  /// Mention picker / notification string: mentionRecentlyActiveA11y
+  ///
+  /// In en, this message translates to:
+  /// **'Recently active'**
+  String get mentionRecentlyActiveA11y;
+
+  /// Mention picker / notification string: mentionElderA11y
+  ///
+  /// In en, this message translates to:
+  /// **'Elder'**
+  String get mentionElderA11y;
+
+  /// Mention picker / notification string: mentionBadgeA11y
+  ///
+  /// In en, this message translates to:
+  /// **'Mention'**
+  String get mentionBadgeA11y;
+
+  /// Mention picker / notification string: mentionNotificationBodyOne
+  ///
+  /// In en, this message translates to:
+  /// **'{sender} mentioned you in chat'**
+  String mentionNotificationBodyOne(String sender);
+
+  /// Mention picker / notification string: mentionNotificationBodyMany
+  ///
+  /// In en, this message translates to:
+  /// **'{sender} and {count} others mentioned you in chat'**
+  String mentionNotificationBodyMany(String sender, int count);
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

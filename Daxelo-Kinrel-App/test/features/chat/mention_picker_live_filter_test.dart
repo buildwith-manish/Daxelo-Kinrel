@@ -22,7 +22,6 @@
 //   • chat.service.spec.ts extends (cap-reject, non-member-reject ×2,
 //     dedupe, notify-derivation ×2)
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/features/chat/data/mention_candidates_provider.dart';
 import 'package:kinrel/features/chat/presentation/widgets/mention_picker.dart';
@@ -32,8 +31,8 @@ void main() {
     testWidgets('narrows the candidate list as the query changes',
         (tester) async {
       // Build a small candidate list (3 members with kinship terms).
-      final candidates = <AsyncValue<List<MentionCandidate>>>[
-        AsyncValue.data([
+      final candidates = <List<MentionCandidate>>[
+        [
           const MentionCandidate(
             personId: 'p1',
             userId: 'u1',
@@ -64,19 +63,18 @@ void main() {
             isElder: true,
             recentSenderRank: 1,
           ),
-        ]),
+        ],
       ];
 
       final queryNotifier = ValueNotifier<String>('');
       final candidatesNotifier =
-          ValueNotifier<AsyncValue<List<MentionCandidate>>>(
+          ValueNotifier<List<MentionCandidate>>(
         candidates.first,
       );
 
       // Stub localized strings — the overlay never calls .of(context)
       // so this is just the constructor arg.
       const strings = MentionPickerStrings(
-        loading: 'Loading…',
         errorRetry: "Couldn't load — tap to retry",
         noMatch: 'No one matches',
         noCandidates: 'No one to mention in this chat',

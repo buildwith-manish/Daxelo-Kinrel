@@ -1114,4 +1114,47 @@ class SHi extends S {
   String chatInboxRowSemanticDirect(String title, int count) {
     return 'αñíαñ╛αñ»αñ░αÑçαñòαÑìαñƒ αñ╕αñéαñªαÑçαñ╢, $title, $count αñàαñ¬αñáαñ┐αññ';
   }
+
+  @override
+  String get mentionLoading => 'लोड हो रहा है…';
+
+  @override
+  String get mentionErrorRetry => 'लोड नहीं हुआ — पुनः प्रयास करें';
+
+  @override
+  String get mentionNoMatch => 'कोई मिलाने वाला नहीं';
+
+  @override
+  String get mentionNoCandidates => 'इस चैट में मेंशन करने के लिए कोई नहीं है';
+
+  @override
+  String get mentionDmHeader =>
+      'किसी रिश्तेदार का मेंशन लिएं · उन्हें सूचना नहीं मिलेगी';
+
+  @override
+  String get mentionDmNoRelatives =>
+      'इस परिवार में मेंशन करने के लिए कोई अन्य रिश्तेदार नहीं है';
+
+  @override
+  String get mentionCapExceeded =>
+      'आप एक संदेश में अधिकतम 5 लोगों का मेंशन कर सकते हैं';
+
+  @override
+  String get mentionRecentlyActiveA11y => 'हाल ही में सक्रिय';
+
+  @override
+  String get mentionElderA11y => 'बजुर्ग';
+
+  @override
+  String get mentionBadgeA11y => 'मेंशन';
+
+  @override
+  String mentionNotificationBodyOne(String sender) {
+    return '$sender ने चैट में आपका मेंशन किया';
+  }
+
+  @override
+  String mentionNotificationBodyMany(String sender, int count) {
+    return '$sender और $count लोगों ने चैट में आपका मेंशन किया';
+  }
 }

@@ -70,6 +70,7 @@ import '../../../core/network/socket_service.dart';
 import 'sticker_panel.dart';
 // Phase 22 / Task 3 — @mention picker overlay + highlight renderer.
 import '../data/mention_candidates_provider.dart';
+import '../data/mention_candidates_sync_provider.dart';
 import 'widgets/mention_picker.dart';
 // Phase 22 / Task 5 — poll card bubble (reuses the gameInvite card pattern).
 // Phase 22 / Task 5 — poll composer bottom sheet.
@@ -220,9 +221,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // Reactive state for the picker.
   final ValueNotifier<String> _mentionQuery =
       ValueNotifier<String>('');
-  final ValueNotifier<AsyncValue<List<MentionCandidate>>> _mentionCandidates =
-      ValueNotifier<AsyncValue<List<MentionCandidate>>>(
-          const AsyncValue.loading());
+  // Synchronous candidate list — never AsyncValue. Starts empty;
+  // the overlay stays hidden until data arrives. No loading state.
+  final ValueNotifier<List<MentionCandidate>> _mentionCandidates =
+      ValueNotifier<List<MentionCandidate>>(const []);
   // Debounce timer for the query — 150ms per the spec.
   Timer? _mentionQueryDebounce;
   // ref.listen auto-cleans on dispose; no manual subscription handle
@@ -302,22 +304,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _scrollController.addListener(_onScroll);
     _textController.addListener(_onTextChanged);
 
-    // Phase A — @mentions across chat: warm the candidates provider so
-    // the picker is instant when the user types "@". The provider is
-    // autoDispose so it tears down when this screen closes (no leak).
-    // We use ref.listen so the local ValueNotifier mirrors the
-    // provider's AsyncValue (the picker reads via ValueListenableBuilder,
-    // so it re-renders on every provider invalidation without the
-    // screen having to setState).
+    // Instant @mention picker: prewarm the keep-alive sync provider
+    // so the candidate list is ready when the user types "@". The
+    // provider is synchronous (Provider.family, not autoDispose) —
+    // it reads from in-memory data (familyMembersProvider.valueOrNull
+    // + kinshipTermsForFamilyProvider.valueOrNull). If upstream data
+    // hasn't loaded yet, the list is empty (overlay stays hidden —
+    // no spinner). When data arrives, the list updates + the overlay
+    // shows. Background caches (blocked users, group members) start
+    // loading on first read.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _currentUserIdCache ??= _currentUserId;
-      // Phase B — when this is a direct chat, exclude the DM other
-      // participant from the candidate list. The provider already
-      // excludes self + blocked; the DM other participant is the
-      // only additional exclusion. When this is a family-wide or
-      // group chat, excludeUserIds is empty (the provider's group
-      // scoping handles the filter via GroupMember).
       final dmOtherUserId =
           widget.isDirectChat ? widget.directOtherUserId : null;
       final args = MentionCandidatesArgs(
@@ -327,31 +325,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ? {dmOtherUserId}
             : const {},
       );
-      // Prime the provider (forces the Future to start now, not on
-      // first @). Wrapped in unawaited because the result is
-      // fire-and-forget — the ValueNotifier is updated via the
-      // ref.listen subscription below.
-      unawaited(
-        ref.read(mentionCandidatesProvider(args).future).catchError((_) => <MentionCandidate>[]),
-      );
-      // Subscribe so the ValueNotifier stays in sync. Riverpod 2.x's
-      // ref.listen returns void (not a ProviderSubscription); the
-      // subscription is auto-cleaned when this widget disposes (the
-      // autoDispose family + the ref's lifecycle handle it). We
-      // manually prime the ValueNotifier with the current AsyncValue
-      // after subscribing (this triggers the same code path the
-      // listener would run on the first emission — fireImmediately
-      // is Riverpod 3.x only).
-      ref.listen<AsyncValue<List<MentionCandidate>>>(
-        mentionCandidatesProvider(args),
+      // Prewarm: read the keep-alive sync provider. This triggers the
+      // background caches to start loading. The sync provider returns
+      // a plain List (synchronous) — the ValueNotifier gets the value
+      // immediately (empty list if upstream data hasn't loaded yet).
+      _mentionCandidates.value =
+          ref.read(mentionCandidatesSyncProvider(args));
+      // Subscribe so the ValueNotifier stays in sync when upstream
+      // providers (familyMembers, kinshipTerms, blocked users, group
+      // members) resolve. Riverpod 2.x's ref.listen returns void; the
+      // subscription is auto-cleaned when this widget disposes.
+      ref.listen<List<MentionCandidate>>(
+        mentionCandidatesSyncProvider(args),
         (previous, next) {
           _mentionCandidates.value = next;
         },
       );
-      // Prime with the current value (the read above may have already
-      // resolved it; if not, this sets loading + the listener fires
-      // when the provider emits).
-      _mentionCandidates.value = ref.read(mentionCandidatesProvider(args));
     });
 
     // feat(chat): drafts — restore the saved draft on init. We use
@@ -700,23 +689,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _currentUserIdCache ??= _currentUserId;
     final currentUserId = _currentUserIdCache ?? '';
 
-    // Publish the new query to the ValueNotifier — debounced 150ms per
-    // the spec so the search index + filter doesn't run on every
-    // keystroke (especially important for IME languages where the
-    // composing region fires many text-change events per final glyph).
-    _mentionQueryDebounce?.cancel();
-    _mentionQueryDebounce =
-        Timer(const Duration(milliseconds: 150), () {
-      if (!mounted) return;
-      _mentionQuery.value = query;
-    });
-
     if (_mentionOverlay == null) {
-      // Resolve localized strings (Phase A: hardcoded for now — Phase B
-      // will wire to AppLocalizations.of(context). The hardcoded-strings
-      // test allowlist includes this file path while we transition).
+      // FIRST show: publish the query IMMEDIATELY (no debounce) so
+      // the list appears on this frame. The 150ms debounce applies
+      // only to LATER keystrokes (when the overlay already exists).
+      _mentionQuery.value = query;
+
       final strings = const MentionPickerStrings(
-        loading: 'Loading…',
         errorRetry: "Couldn't load — tap to retry",
         noMatch: 'No one matches',
         noCandidates: 'No one to mention in this chat',
@@ -736,15 +715,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           onSelected: _onMentionSelected,
           onDismissed: _hideMentionPicker,
           strings: strings,
-          // Phase B — pass the direct-chat flag so the overlay renders
-          // the "Mention a relative · they won't be notified" header
-          // and uses the DM-specific empty state.
           isDirectChat: widget.isDirectChat,
         ),
       );
       Overlay.of(context).insert(_mentionOverlay!);
+    } else {
+      // LATER keystrokes: debounce 150ms so the search index + filter
+      // doesn't run on every keystroke (important for IME languages
+      // where the composing region fires many text-change events per
+      // final glyph).
+      _mentionQueryDebounce?.cancel();
+      _mentionQueryDebounce = Timer(const Duration(milliseconds: 150), () {
+        if (!mounted) return;
+        _mentionQuery.value = query;
+      });
     }
-    // No markNeedsBuild here — the ValueNotifiers drive the rebuild.
   }
 
   void _hideMentionPicker() {

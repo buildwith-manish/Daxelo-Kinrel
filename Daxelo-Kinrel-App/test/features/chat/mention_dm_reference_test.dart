@@ -10,7 +10,6 @@
 // the overlay reads from ValueNotifiers (which the test sets up
 // directly).
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/features/chat/data/mention_candidates_provider.dart';
 import 'package:kinrel/features/chat/data/models/mention_ref.dart';
@@ -20,8 +19,8 @@ void main() {
   group('MentionPickerOverlay — DM reference mode (Phase B)', () {
     testWidgets('renders the DM header line when isDirectChat=true',
         (tester) async {
-      final candidates = <AsyncValue<List<MentionCandidate>>>[
-        const AsyncValue.data([
+      final candidates = <List<MentionCandidate>>[
+        const [
           const MentionCandidate(
             personId: 'p1',
             userId: 'u1',
@@ -32,17 +31,16 @@ void main() {
             isElder: false,
             recentSenderRank: 0,
           ),
-        ]),
+        ],
       ];
 
       final queryNotifier = ValueNotifier<String>('');
       final candidatesNotifier =
-          ValueNotifier<AsyncValue<List<MentionCandidate>>>(
+          ValueNotifier<List<MentionCandidate>>(
         candidates.first,
       );
 
       const strings = MentionPickerStrings(
-        loading: 'Loading…',
         errorRetry: "Couldn't load — tap to retry",
         noMatch: 'No one matches',
         noCandidates: 'No one to mention in this chat',
@@ -88,12 +86,11 @@ void main() {
         (tester) async {
       final queryNotifier = ValueNotifier<String>('');
       final candidatesNotifier =
-          ValueNotifier<AsyncValue<List<MentionCandidate>>>(
-        const AsyncValue.data([]),
+          ValueNotifier<List<MentionCandidate>>(
+        const [],
       );
 
       const strings = MentionPickerStrings(
-        loading: 'Loading…',
         errorRetry: "Couldn't load — tap to retry",
         noMatch: 'No one matches',
         noCandidates: 'No one to mention in this chat',

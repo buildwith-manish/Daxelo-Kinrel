@@ -1122,4 +1122,47 @@ class SBn extends S {
   String chatInboxRowSemanticDirect(String title, int count) {
     return 'αªíαª┐αª░αºçαªòαºìαªƒ αª¼αª╛αª░αºìαªñαª╛, $title, $count αªàαª¬αªáαª┐αªñ';
   }
+
+  @override
+  String get mentionLoading => 'লোড হচ্ছে…';
+
+  @override
+  String get mentionErrorRetry => 'লোড করা যায়নি — আবার চেষ্টা করুন';
+
+  @override
+  String get mentionNoMatch => 'কেউই মিলছে না';
+
+  @override
+  String get mentionNoCandidates => 'এই চ্যাটে উল্লেখ করর কেউ নেই';
+
+  @override
+  String get mentionDmHeader =>
+      'আত্মীয়র উল্লেখ করুন · তাদের বার্তা দেওয়া হবে না';
+
+  @override
+  String get mentionDmNoRelatives =>
+      'এই পরিবারে উল্লেখ করর কোন আত্মীয় আত্মীয় নেই';
+
+  @override
+  String get mentionCapExceeded =>
+      'আপনি একটি বার্তায় সর্বোচ্চ 5 জন কে উল্লেখ করতে পারেন';
+
+  @override
+  String get mentionRecentlyActiveA11y => 'সাম্প্রতিক সক্রিয়';
+
+  @override
+  String get mentionElderA11y => 'প্রবীন';
+
+  @override
+  String get mentionBadgeA11y => 'উল্লেখ';
+
+  @override
+  String mentionNotificationBodyOne(String sender) {
+    return '$sender চ্যাটে আপনাকে উল্লেখ করেছেন';
+  }
+
+  @override
+  String mentionNotificationBodyMany(String sender, int count) {
+    return '$sender এবং $count জন চ্যাটে আপনাকে উল্লেখ করেছেন';
+  }
 }
