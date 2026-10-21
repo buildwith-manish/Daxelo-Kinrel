@@ -132,6 +132,7 @@ if [ -n "$PMTILES_URL" ]; then
   echo "  PMTILES_URL env var set — passing as --dart-define"
   set +e
   flutter build web --release --base-href "/" \
+    --no-wasm-dry-run \
     --dart-define=SUPABASE_URL="$SUPABASE_URL" \
     --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
     --dart-define=PMTILES_URL="$PMTILES_URL" \
@@ -144,6 +145,7 @@ else
   echo "  PMTILES_URL env var NOT set — using OpenFreeMap default (no PMTiles)"
   set +e
   flutter build web --release --base-href "/" \
+    --no-wasm-dry-run \
     --dart-define=SUPABASE_URL="$SUPABASE_URL" \
     --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
     --dart-define=KINREL_BUILD_COMMIT="$BUILD_COMMIT" \
