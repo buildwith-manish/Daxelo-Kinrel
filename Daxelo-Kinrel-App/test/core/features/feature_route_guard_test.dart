@@ -25,14 +25,15 @@ void main() {
     }
   });
 
-  group('Phase 3 route guard — Phase 1 contract', () {
-    test('no known route is disabled while all features are ON', () {
-      // Phase 1's all-true defaults → no route should redirect.
-      const knownRoutes = <String>[
+  group('Phase 4 route guard — lean ON routes still allowed', () {
+    // Per the Phase 4 lean launch set, only the daily-use surface is
+    // enabled. These routes resolve to lean-ON features and should
+    // NOT be redirected to /home.
+    test('lean-ON routes are NOT disabled (Phase 4 defaults)', () {
+      const leanOnRoutes = <String>[
         '/home',
         '/family',
         '/family/123',
-        '/family/123/games',
         '/family/123/chat',
         '/family/123/members',
         '/family/123/calendar',
@@ -43,42 +44,25 @@ void main() {
         '/memory/create',
         '/timeline',
         '/member-timeline',
-        '/governance',
         '/oral-history',
-        '/achievements',
-        '/lists',
         '/kinrel',
         '/sparq',
         '/sparq/family/abc',
         '/feed',
         '/chat',
         '/chat/dm/abc',
-        '/circle',
-        '/circle/abc',
-        '/communities',
         '/profile',
         '/profile/settings',
-        '/profile/alarms',
         '/find-on-kinrel',
-        '/games',
-        '/game-invite',
-        '/game-invite/abc',
-        '/coin-pool',
-        '/prediction-battle',
-        '/prediction-battle/abc',
         '/todays-question',
-        '/studio',
-        '/paywall',
-        '/premium',
         '/settings',
         '/notifications',
       ];
-      for (final route in knownRoutes) {
+      for (final route in leanOnRoutes) {
         expect(
           Features.isRouteDisabled(route),
           isFalse,
-          reason:
-              'Phase 1 — route $route should NOT be disabled (all features ON)',
+          reason: 'Phase 4 — lean-ON route $route should NOT be disabled',
         );
       }
     });
@@ -101,6 +85,49 @@ void main() {
       expect(Features.isRouteDisabled('/debug'), isFalse);
       Features.clearDebugOverride(AppFeature.activities);
     }, skip: !kDebugMode ? 'debug-override tests run only in debug' : null);
+  });
+
+  group('Phase 4 route guard — lean OFF routes ARE disabled', () {
+    // These routes resolve to lean-OFF features and SHOULD redirect.
+    // Confirms the Phase 3 guard actually fires under the lean defaults
+    // without any debug override.
+    test('lean-OFF routes are disabled (Phase 4 defaults)', () {
+      const leanOffRoutes = <String, String>{
+        // Maps to AppFeature.games (OFF)
+        '/games': 'games is OFF',
+        '/family/123/games': 'games is OFF',
+        // Maps to AppFeature.gameInvitePush (OFF, depends on games)
+        '/game-invite': 'gameInvitePush is OFF',
+        '/game-invite/abc': 'gameInvitePush is OFF',
+        // Maps to AppFeature.coinPool + predictionBattle (OFF)
+        '/coin-pool': 'coinPool is OFF',
+        '/prediction-battle': 'coinPool/predictionBattle OFF',
+        // Maps to AppFeature.paywall (OFF)
+        '/paywall': 'paywall is OFF',
+        '/premium': 'paywall is OFF',
+        // Maps to AppFeature.familyJourney (OFF)
+        '/family-journey': 'familyJourney is OFF',
+        // Maps to AppFeature.governanceTimeline (OFF, NEW)
+        '/governance': 'governanceTimeline is OFF',
+        // Maps to AppFeature.achievements (OFF)
+        '/achievements': 'achievements is OFF',
+        // Maps to AppFeature.lists (OFF)
+        '/lists': 'lists is OFF',
+        // Maps to AppFeature.cameoStudio (OFF)
+        '/studio': 'cameoStudio is OFF',
+        // Maps to AppFeature.communities + circle (both OFF)
+        '/communities': 'communities is OFF',
+        '/circle': 'circle is OFF',
+        '/circle/abc': 'circle is OFF',
+      };
+      for (final entry in leanOffRoutes.entries) {
+        expect(
+          Features.isRouteDisabled(entry.key),
+          isTrue,
+          reason: 'Phase 4 — ${entry.key} should be disabled (${entry.value})',
+        );
+      }
+    });
   });
 
   group('Phase 3 route guard — longest-prefix match', () {

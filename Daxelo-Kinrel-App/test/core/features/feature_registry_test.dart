@@ -31,29 +31,169 @@ void main() {
     }
   });
 
-  group('Phase 1 contract — defaults', () {
-    test('every AppFeature defaults to true', () {
-      // Phase 1 contract: ALL features are ON so the app looks
-      // identical to before the registry existed.
-      for (final f in AppFeature.values) {
+  group('Phase 4 lean defaults — ON set (20)', () {
+    // The daily-use surface per the Phase 4 spec. Mirrors the `_defaults`
+    // map in feature_registry.dart — if either side drifts, this test
+    // catches it.
+    const expectedOn = <AppFeature>{
+      // Top-level nav surfaces
+      AppFeature.home,
+      AppFeature.familyMap,
+      AppFeature.kinrel,
+      AppFeature.sparqTray,
+      AppFeature.feed,
+      AppFeature.chat,
+      AppFeature.familyChat,
+      AppFeature.members,
+      AppFeature.calendar,
+      AppFeature.profile,
+      AppFeature.profileEditing,
+      AppFeature.findOnKinrel,
+      // Activities cluster (master switch + children)
+      AppFeature.activities,
+      AppFeature.memories,
+      AppFeature.memberTimeline,
+      // HighlightsRow extras
+      AppFeature.oralHistory,
+      // Top-bar
+      AppFeature.topBarNotifications,
+      AppFeature.topBarSettings,
+      // Home
+      AppFeature.todaysQuestion,
+      AppFeature.inviteBanner,
+    };
+
+    test('exactly 20 features are in the lean ON set', () {
+      expect(expectedOn.length, 20);
+      // Every entry must be a real AppFeature (sanity).
+      for (final f in expectedOn) {
+        expect(AppFeature.values.contains(f), isTrue);
+      }
+    });
+
+    test('every lean-ON feature defaults to true', () {
+      for (final f in expectedOn) {
         expect(
           Features.defaultOf(f),
           isTrue,
-          reason: '${f.name} should default to true in Phase 1',
+          reason: '${f.name} should default to true (lean ON set)',
         );
       }
     });
 
-    test('isOn returns true for every feature in Phase 1', () {
-      // Without RC initialized and without debug overrides, every
-      // feature should resolve to its compiled default (true).
-      for (final f in AppFeature.values) {
+    test('every lean-ON feature is resolved ON at runtime', () {
+      // Without RC initialized and without debug overrides, each lean-
+      // ON feature should resolve to its compiled default (true), and
+      // (for the activities cluster) the parent cascade should also
+      // keep the children ON.
+      for (final f in expectedOn) {
         expect(
           Features.isOn(f),
           isTrue,
-          reason: '${f.name} should be ON in Phase 1',
+          reason: '${f.name} should be ON (lean defaults)',
         );
       }
+    });
+  });
+
+  group('Phase 4 lean defaults — OFF set (44)', () {
+    // Everything not in the lean ON set and not `unifiedTimeline`.
+    // Mirrors the `_defaults` map in feature_registry.dart.
+    const expectedOff = <AppFeature>{
+      AppFeature.familyJourney,
+      AppFeature.sparqRunNavigation,
+      AppFeature.circle,
+      AppFeature.communities,
+      AppFeature.games,
+      AppFeature.gameInvitePush,
+      AppFeature.achievements,
+      AppFeature.lists,
+      AppFeature.governanceTimeline,
+      AppFeature.heroFamilyMap,
+      AppFeature.heroKinrel,
+      AppFeature.heroFindOnKinrel,
+      AppFeature.heroAddMember,
+      AppFeature.cameoFallback,
+      AppFeature.live3DCameo,
+      AppFeature.cameoStudio,
+      AppFeature.voiceMessages,
+      AppFeature.scheduledMessages,
+      AppFeature.chatMentions,
+      AppFeature.chatBlockReport,
+      AppFeature.chatReactions,
+      AppFeature.chatTypingIndicator,
+      AppFeature.chatGallery,
+      AppFeature.graphShareExport,
+      AppFeature.photoPicker,
+      AppFeature.qrJoin,
+      AppFeature.languagePicker,
+      AppFeature.audioPronunciation,
+      AppFeature.autoKinshipInference,
+      AppFeature.kinshipRingRow,
+      AppFeature.paywall,
+      AppFeature.premiumInsights,
+      AppFeature.premiumExport,
+      AppFeature.premiumAiKinship,
+      AppFeature.memoryVault,
+      AppFeature.memoryVaultFreeMonthlyCap,
+      AppFeature.maxFreeMembers,
+      AppFeature.maxFreeFamilies,
+      AppFeature.coinPool,
+      AppFeature.predictionBattle,
+      AppFeature.pushGameInvite,
+      AppFeature.pushReEngagement,
+      AppFeature.pushMention,
+      AppFeature.pushScheduledMessage,
+      AppFeature.referralOnProfile,
+      AppFeature.retentionNudge,
+      AppFeature.aiSuggestions,
+      AppFeature.onboarding,
+    };
+
+    test('exactly 44 features are in the lean OFF set', () {
+      expect(expectedOff.length, 44);
+    });
+
+    test('every lean-OFF feature defaults to false', () {
+      for (final f in expectedOff) {
+        expect(
+          Features.defaultOf(f),
+          isFalse,
+          reason: '${f.name} should default to false (lean OFF set)',
+        );
+      }
+    });
+
+    test('every lean-OFF feature is resolved OFF at runtime', () {
+      for (final f in expectedOff) {
+        expect(
+          Features.isOn(f),
+          isFalse,
+          reason: '${f.name} should be OFF (lean defaults)',
+        );
+      }
+    });
+
+    test('ON + OFF + unifiedTimeline = enum size (sanity)', () {
+      // 20 ON + 44 OFF + 1 untouched (unifiedTimeline) = 65.
+      // If this fails, the enum has grown without the test being
+      // updated — add the new feature to either the ON set, the OFF
+      // set, or document why it's left untouched.
+      const leanOnCount = 20;
+      const leanOffCount = 44;
+      const untouchedCount = 1;
+      expect(
+        AppFeature.values.length,
+        leanOnCount + leanOffCount + untouchedCount,
+        reason: 'enum size must equal ON + OFF + untouched counts',
+      );
+    });
+  });
+
+  group('Phase 4 — unifiedTimeline left untouched', () {
+    test('unifiedTimeline default stays true (no UI surface, leave alone)', () {
+      expect(Features.defaultOf(AppFeature.unifiedTimeline), isTrue);
+      expect(Features.isOn(AppFeature.unifiedTimeline), isTrue);
     });
   });
 

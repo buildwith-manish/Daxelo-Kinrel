@@ -151,83 +151,125 @@ enum AppFeature {
   onboarding,
 }
 
-// ── Compiled defaults (Phase 1: ALL true) ──────────────────────────────
+// ── Compiled defaults (Phase 4: lean launch set) ───────────────────────
 //
-// Phase 1 contract: every feature is ON. This means flipping any
-// feature to OFF here is the only thing needed to make it disappear
-// from the app (assuming the surface already consults `Features.isOn`).
+// Phase 4 contract: 20 features ON (the daily-use surface), 44 OFF
+// (everything else — premium, experimental, push, debug plumbing),
+// 1 untouched (`unifiedTimeline` has no screen yet — per the spec,
+// "leave it alone").
 //
-// Phase 4 will set the lean defaults here (≈20 ON, ≈29 OFF).
+// Lean launch ON set (20):
+//   • Top-level surfaces: home, familyMap, kinrel, sparqTray, feed,
+//     chat, familyChat, members, calendar, profile, profileEditing,
+//     findOnKinrel
+//   • Activities cluster (master switch + children): activities,
+//     memories, memberTimeline
+//   • HighlightsRow extras: oralHistory
+//   • Top-bar: topBarNotifications, topBarSettings
+//   • Home: todaysQuestion, inviteBanner
+//
+// Lean launch OFF set (44):
+//   • familyJourney (depends on familyMap — premium subfeature, OFF)
+//   • sparqRunNavigation (premium subfeature)
+//   • circle, communities (hidden per IA review)
+//   • games, gameInvitePush (games OFF, push cascades OFF)
+//   • achievements, lists, governanceTimeline (occasional-use)
+//   • hero* (4 icons — all hidden)
+//   • cameo* (3 entries — B1 verification incomplete)
+//   • chat* (6 sub-features: voice, scheduled, mentions, block, react,
+//     typing, gallery — all behind the lean launch scope)
+//   • graph/picker/graph extras: graphShareExport, photoPicker, qrJoin,
+//     languagePicker, audioPronunciation, autoKinshipInference,
+//     kinshipRingRow
+//   • premium: paywall, premiumInsights (cascade), premiumExport,
+//     premiumAiKinship
+//   • memoryVault, memoryVaultFreeMonthlyCap
+//   • max caps: maxFreeMembers, maxFreeFamilies (caps OFF means no cap)
+//   • coinPool, predictionBattle (cascade)
+//   • push* (4 channels — server-side filtering handles them too)
+//   • referral, retentionNudge, aiSuggestions, onboarding
+//
+// To flip a feature, either change the value here (defaults) or set
+// the corresponding `feature_<name>` Remote Config key, or use the
+// debug override in the Debug screen.
 const Map<AppFeature, bool> _defaults = {
+  // ── ON (20) — the daily-use surface ────────────────────────────
   AppFeature.home: true,
   AppFeature.familyMap: true,
-  AppFeature.familyJourney: true,
   AppFeature.kinrel: true,
   AppFeature.sparqTray: true,
-  AppFeature.sparqRunNavigation: true,
   AppFeature.feed: true,
   AppFeature.chat: true,
-  AppFeature.circle: true,
-  AppFeature.communities: true,
-  AppFeature.profile: true,
-  AppFeature.profileEditing: true,
-  AppFeature.findOnKinrel: true,
-  AppFeature.games: true,
-  AppFeature.gameInvitePush: true,
   AppFeature.familyChat: true,
   AppFeature.members: true,
   AppFeature.calendar: true,
-  AppFeature.activities: true,
-  AppFeature.memories: true,
-  AppFeature.memberTimeline: true,
+  AppFeature.profile: true,
+  AppFeature.profileEditing: true,
+  AppFeature.findOnKinrel: true,
+  AppFeature.activities: true, // master switch — gates memories + memberTimeline
+  AppFeature.memories: true, // /memories + /memory-vault visible
+  AppFeature.memberTimeline: true, // /timeline + /member-timeline visible
   AppFeature.oralHistory: true,
-  AppFeature.achievements: true,
-  AppFeature.lists: true,
-  AppFeature.governanceTimeline: true,
-  AppFeature.unifiedTimeline: true,
-  AppFeature.heroFamilyMap: true,
-  AppFeature.heroKinrel: true,
-  AppFeature.heroFindOnKinrel: true,
-  AppFeature.heroAddMember: true,
+  AppFeature.todaysQuestion: true,
+  AppFeature.inviteBanner: true,
   AppFeature.topBarNotifications: true,
   AppFeature.topBarSettings: true,
-  AppFeature.cameoFallback: true,
-  AppFeature.live3DCameo: true,
-  AppFeature.cameoStudio: true,
-  AppFeature.todaysQuestion: true,
-  AppFeature.voiceMessages: true,
-  AppFeature.scheduledMessages: true,
-  AppFeature.chatMentions: true,
-  AppFeature.chatBlockReport: true,
-  AppFeature.chatReactions: true,
-  AppFeature.chatTypingIndicator: true,
-  AppFeature.chatGallery: true,
-  AppFeature.graphShareExport: true,
-  AppFeature.photoPicker: true,
-  AppFeature.qrJoin: true,
-  AppFeature.languagePicker: true,
-  AppFeature.audioPronunciation: true,
-  AppFeature.autoKinshipInference: true,
-  AppFeature.kinshipRingRow: true,
-  AppFeature.paywall: true,
-  AppFeature.premiumInsights: true,
-  AppFeature.premiumExport: true,
-  AppFeature.premiumAiKinship: true,
-  AppFeature.memoryVault: true,
-  AppFeature.memoryVaultFreeMonthlyCap: true,
-  AppFeature.maxFreeMembers: true,
-  AppFeature.maxFreeFamilies: true,
-  AppFeature.coinPool: true,
-  AppFeature.predictionBattle: true,
-  AppFeature.pushGameInvite: true,
-  AppFeature.pushReEngagement: true,
-  AppFeature.pushMention: true,
-  AppFeature.pushScheduledMessage: true,
-  AppFeature.inviteBanner: true,
-  AppFeature.referralOnProfile: true,
-  AppFeature.retentionNudge: true,
-  AppFeature.aiSuggestions: true,
-  AppFeature.onboarding: true,
+
+  // ── OFF (44) — premium / experimental / occasional-use ───────────
+  AppFeature.familyJourney: false, // depends on familyMap
+  AppFeature.sparqRunNavigation: false,
+  AppFeature.circle: false,
+  AppFeature.communities: false,
+  AppFeature.games: false,
+  AppFeature.gameInvitePush: false, // depends on games
+  AppFeature.achievements: false,
+  AppFeature.lists: false,
+  AppFeature.governanceTimeline: false, // NEW — OFF per spec
+  AppFeature.heroFamilyMap: false,
+  AppFeature.heroKinrel: false,
+  AppFeature.heroFindOnKinrel: false,
+  AppFeature.heroAddMember: false,
+  AppFeature.cameoFallback: false,
+  AppFeature.live3DCameo: false,
+  AppFeature.cameoStudio: false,
+  AppFeature.voiceMessages: false,
+  AppFeature.scheduledMessages: false,
+  AppFeature.chatMentions: false,
+  AppFeature.chatBlockReport: false,
+  AppFeature.chatReactions: false,
+  AppFeature.chatTypingIndicator: false,
+  AppFeature.chatGallery: false,
+  AppFeature.graphShareExport: false,
+  AppFeature.photoPicker: false,
+  AppFeature.qrJoin: false,
+  AppFeature.languagePicker: false,
+  AppFeature.audioPronunciation: false,
+  AppFeature.autoKinshipInference: false,
+  AppFeature.kinshipRingRow: false,
+  AppFeature.paywall: false,
+  AppFeature.premiumInsights: false, // depends on paywall
+  AppFeature.premiumExport: false,
+  AppFeature.premiumAiKinship: false,
+  AppFeature.memoryVault: false,
+  AppFeature.memoryVaultFreeMonthlyCap: false,
+  AppFeature.maxFreeMembers: false,
+  AppFeature.maxFreeFamilies: false,
+  AppFeature.coinPool: false,
+  AppFeature.predictionBattle: false, // depends on coinPool
+  AppFeature.pushGameInvite: false,
+  AppFeature.pushReEngagement: false,
+  AppFeature.pushMention: false,
+  AppFeature.pushScheduledMessage: false,
+  AppFeature.referralOnProfile: false,
+  AppFeature.retentionNudge: false,
+  AppFeature.aiSuggestions: false,
+  AppFeature.onboarding: false,
+
+  // ── UNTOUCHED (1) — no screen yet ───────────────────────────────
+  // `unifiedTimeline` has no UI surface and is not referenced anywhere
+  // outside the routeFeatureMap. Per the spec ("leave it alone"), its
+  // default stays `true` — flipping it has no user-visible effect.
+  AppFeature.unifiedTimeline: true,
 };
 
 // ── Dependency map ─────────────────────────────────────────────────────
