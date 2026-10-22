@@ -23,6 +23,28 @@ const supabase = createClient(
 );
 
 Deno.serve(async (_req) => {
+  // Phase 5: server-side feature gate. When FEATURE_GAMES is "false"
+  // (default per Phase 4 lean launch), the entire scheduled-game-night
+  // cron short-circuits — no DB queries, no FCM calls, no row updates.
+  // Without this guard, the cron would keep sending reminder + start
+  // pushes for scheduled game nights even after the games feature is
+  // flipped off client-side (those pushes would then be silently
+  // dropped by the foreground filter, but the DB row state machine
+  // would still advance through reminded → started, leaving orphaned
+  // rows that can never resolve to a real game).
+  //
+  // Flip by setting FEATURE_GAMES=true in the Supabase Edge Function
+  // secrets. Server-side flip is preferred because it prevents the
+  // row-state advance entirely.
+  const gamesEnabled =
+    (Deno.env.get("FEATURE_GAMES") ?? "false") === "true";
+  if (!gamesEnabled) {
+    return new Response(
+      JSON.stringify({ ok: true, skipped: "feature_games_disabled" }),
+      { headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   const now = new Date();
   const reminderWindow = new Date(now.getTime() + 15 * 60 * 1000);
 

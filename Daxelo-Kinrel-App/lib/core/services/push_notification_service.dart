@@ -20,6 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
+import '../features/feature_registry.dart';
 import '../services/crashlytics_service.dart';
 import '../services/local_notification_service.dart';
 import '../services/supabase_service.dart';
@@ -112,6 +113,75 @@ String? resolveDeepLink(Map<String, dynamic> data) {
         return deepLink;
       }
       return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 5: Push-type → feature map + filter helper
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Maps an FCM `data.type` string to the [AppFeature] that gates it.
+///
+/// Phase 5 contract: when a push's gating feature is OFF (per Phase 4
+/// lean defaults, an RC flip, or a debug override), the foreground
+/// handler skips showing the local notification entirely, and the
+/// background+terminated tap handlers skip the deep-link routing
+/// (Phase 3's route guard would catch it anyway, but skipping the
+/// routing avoids an unnecessary redirect).
+///
+/// Returns `null` for types that are NOT feature-gated (always shown).
+/// This includes daily-use push types like `birthday_reminder`,
+/// `new_family_member`, `family_event`, `chat_message`, and
+/// `chat_message_batch` — those are core retention surfaces and are
+/// not behind a feature flag.
+///
+/// NOTE: this map is also used by the background isolate handler
+/// `firebaseMessagingBackgroundHandler`. `Features.isOn()` is safe to
+/// call from a background isolate — it falls back to the compiled
+/// `_defaults` map (a `const`, identical in every isolate). RC values
+/// from the main isolate are NOT visible here, which is intentional:
+/// the server-side edge functions (Phase 5-b) already filter push
+/// sends based on the user's RC config, so by the time a push arrives
+/// at the device, the gating has already happened.
+AppFeature? pushTypeToFeature(String? type) {
+  switch (type) {
+    case 'game_invite':
+    case 'game_invite_push':
+      return AppFeature.pushGameInvite;
+    case 're_engagement':
+      return AppFeature.pushReEngagement;
+    case 'chat_mention':
+    case 'mention':
+      return AppFeature.pushMention;
+    case 'scheduled_message':
+      return AppFeature.pushScheduledMessage;
+    default:
+      // Daily-use push types (birthday_reminder, new_family_member,
+      // family_event, chat_message, chat_message_batch) and unknown
+      // types → NOT gated. Always show.
+      return null;
+  }
+}
+
+/// Returns true iff the message's push type is feature-gated AND its
+/// gating feature is currently ON. Returns true for any message
+/// whose type is not in [pushTypeToFeature] (not gated).
+///
+/// Safe to call from:
+///   • Main isolate (foreground + background tap + terminated tap
+///     handlers) — reads through debug overrides + RC + defaults.
+///   • Background isolate — reads through compiled `_defaults` only
+///     (RC + debug overrides are main-isolate-only). This is OK
+///     because the server-side edge functions already filter sends
+///     based on the user's RC config.
+bool shouldShowPush(RemoteMessage message) {
+  final feature = pushTypeToFeature(message.data['type'] as String?);
+  if (feature == null) return true; // not gated
+  try {
+    return Features.isOn(feature);
+  } catch (_) {
+    // Defensive — never block a push on a registry error.
+    return true;
   }
 }
 
@@ -388,11 +458,33 @@ class PushNotificationService {
   /// When the app is foregrounded, FCM does NOT automatically display
   /// a notification. We must manually show a local notification
   /// using flutter_local_notifications.
+  ///
+  /// Phase 5 (feature registry): if the message's push type maps to
+  /// an [AppFeature] that's currently OFF (per Phase 4 lean defaults,
+  /// RC flip, or debug override), skip showing the local notification
+  /// entirely. The user never sees it — the push is silently dropped
+  /// at the foreground layer. The server-side edge functions (Phase
+  /// 5-b) also drop the send before it reaches the device.
   void _setupForegroundHandler() {
     _onMessageSubscription?.cancel();
     _onMessageSubscription = FirebaseMessaging.onMessage.listen(
       (RemoteMessage message) {
         debugPrint('📬 [FG] FCM message received: ${message.messageId}');
+
+        // Phase 5: feature-gate the foreground display. If the push
+        // type is gated AND its feature is OFF, drop silently.
+        if (!shouldShowPush(message)) {
+          debugPrint(
+            '🚫 [Phase 5] Foreground push dropped: type '
+            "${message.data['type']} is feature-gated OFF",
+          );
+          logActionBreadcrumb('fcm_foreground_dropped', {
+            'messageId': message.messageId ?? 'unknown',
+            'type': message.data['type'] ?? 'unknown',
+            'reason': 'feature_off',
+          });
+          return;
+        }
 
         final notification = message.notification;
         final data = message.data;
@@ -425,12 +517,32 @@ class PushNotificationService {
   /// (not terminated). The system displays the notification automatically,
   /// and when the user taps it, the app comes to the foreground
   /// and this handler fires.
+  ///
+  /// Phase 5 (feature registry): if the message's push type maps to
+  /// an [AppFeature] that's currently OFF, skip the deep-link routing.
+  /// Phase 3's route guard would catch the redirect anyway, but
+  /// skipping here avoids an unnecessary /home redirect.
   void _setupBackgroundTapHandler() {
     _onMessageOpenedAppSubscription?.cancel();
     _onMessageOpenedAppSubscription =
         FirebaseMessaging.onMessageOpenedApp.listen(
       (RemoteMessage message) {
         debugPrint('📬 [BG→FG] Notification tapped: ${message.messageId}');
+
+        // Phase 5: skip deep-link routing if feature is OFF.
+        if (!shouldShowPush(message)) {
+          debugPrint(
+            '🚫 [Phase 5] Background tap dropped: type '
+            "${message.data['type']} is feature-gated OFF",
+          );
+          logActionBreadcrumb('fcm_background_tap_dropped', {
+            'messageId': message.messageId ?? 'unknown',
+            'type': message.data['type'] ?? 'unknown',
+            'reason': 'feature_off',
+          });
+          return;
+        }
+
         final deepLink = resolveDeepLink(message.data);
         if (deepLink != null) {
           _handleDeepLink(deepLink);
@@ -454,6 +566,9 @@ class PushNotificationService {
   ///
   /// getInitialMessage() returns the message that launched the app,
   /// or null if the app was launched normally (e.g., by tapping the icon).
+  ///
+  /// Phase 5 (feature registry): same as background tap — skip the
+  /// deep-link routing if the message's feature gate is OFF.
   Future<void> _setupTerminatedTapHandler() async {
     try {
       final initialMessage = await _messaging.getInitialMessage();
@@ -461,6 +576,21 @@ class PushNotificationService {
         debugPrint(
           '📬 [TERMINATED→FG] Notification tapped: ${initialMessage.messageId}',
         );
+
+        // Phase 5: skip deep-link routing if feature is OFF.
+        if (!shouldShowPush(initialMessage)) {
+          debugPrint(
+            '🚫 [Phase 5] Terminated tap dropped: type '
+            "${initialMessage.data['type']} is feature-gated OFF",
+          );
+          logActionBreadcrumb('fcm_terminated_tap_dropped', {
+            'messageId': initialMessage.messageId ?? 'unknown',
+            'type': initialMessage.data['type'] ?? 'unknown',
+            'reason': 'feature_off',
+          });
+          return;
+        }
+
         final deepLink = resolveDeepLink(initialMessage.data);
         if (deepLink != null) {
           _handleDeepLink(deepLink);

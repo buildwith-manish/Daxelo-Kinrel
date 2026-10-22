@@ -107,6 +107,29 @@ Deno.serve(async (req) => {
     );
   }
 
+  // Phase 5: server-side feature gate. When the `FEATURE_GAME_INVITE_PUSH`
+  // env var is set to "false" (default), the entire function short-
+  // circuits — no FCM call, no DB lookup, no work. This is the
+  // authoritative gate; the client-side Phase 5 foreground filter
+  // is a defense-in-depth fallback that catches pushes the server
+  // already sent before the env var was flipped.
+  //
+  // Flip by setting FEATURE_GAME_INVITE_PUSH=true in the Supabase
+  // Edge Function secrets. Server-side flip is preferred because it
+  // prevents the push from being sent at all (saves FCM quota +
+  // battery + bandwidth).
+  const gameInvitePushEnabled =
+    (Deno.env.get("FEATURE_GAME_INVITE_PUSH") ?? "false") === "true";
+  if (!gameInvitePushEnabled) {
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        skipped: "feature_game_invite_push_disabled",
+      }),
+      { headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   const p: InvitePayload = await req.json();
 
   // Look up the invited user's device tokens

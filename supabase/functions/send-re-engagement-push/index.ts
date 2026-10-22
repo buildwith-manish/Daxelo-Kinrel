@@ -105,6 +105,26 @@ interface UserStats {
 }
 
 Deno.serve(async (_req: Request) => {
+  // Phase 5: server-side feature gate. When FEATURE_RE_ENGAGEMENT_PUSH
+  // is "false" (default per Phase 4 lean launch), the entire re-
+  // engagement cron short-circuits — no DB queries, no FCM calls.
+  // Without this, the cron would keep sending re-engagement pushes
+  // even after the feature is flipped off (those pushes would be
+  // silently dropped by the foreground filter, but the cron would
+  // still consume DB quota + FCM quota + supabase functions compute
+  // time on every daily run).
+  //
+  // Flip by setting FEATURE_RE_ENGAGEMENT_PUSH=true in the Supabase
+  // Edge Function secrets.
+  const reEngagementEnabled =
+    (Deno.env.get("FEATURE_RE_ENGAGEMENT_PUSH") ?? "false") === "true";
+  if (!reEngagementEnabled) {
+    return new Response(
+      JSON.stringify({ ok: true, skipped: "feature_re_engagement_disabled" }),
+      { headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   try {
     console.log("[re-engagement] Starting re-engagement push run...");
 

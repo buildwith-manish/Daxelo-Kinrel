@@ -595,7 +595,25 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
           // FeatureSwitchesScreen so QA toggles survive app restarts.
           // `unawaited` — we don't block first-frame build on the load;
           // the next rebuild picks up overrides via featureProvider.
-          unawaited(Features.initDebugOverrides());
+          unawaited(Features.initDebugOverrides().then((_) {
+            // Phase 5: After debug overrides load, sync the Android
+            // prediction widget's enabled state to the
+            // AppFeature.predictionBattle flag. On Android, calls the
+            // `setPredictionWidgetEnabled` method on the kinrel/device
+            // MethodChannel which in turn calls
+            // PackageManager.setComponentEnabledSetting on the
+            // PredictionWidgetProvider receiver declared in
+            // AndroidManifest.xml.
+            //
+            // When predictionBattle is OFF (Phase 4 lean defaults),
+            // the widget disappears from the picker + existing
+            // instances stop updating. When ON, it's re-enabled.
+            //
+            // This must run AFTER initDebugOverrides so a debug
+            // override to flip predictionBattle back ON actually
+            // propagates to the widget.
+            _syncPredictionWidgetEnabled();
+          }));
         } catch (e) {
           debugPrint('⚠️ Could not capture ProviderContainer: $e');
         }
@@ -979,6 +997,54 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     _backgroundMemoryTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  /// Phase 5: Sync the Android home-screen prediction widget's
+  /// enabled state to the `AppFeature.predictionBattle` flag.
+  ///
+  /// Calls the `setPredictionWidgetEnabled` method on the
+  /// `kinrel/device` MethodChannel (defined in MainActivity.kt).
+  /// That in turn calls
+  /// `PackageManager.setComponentEnabledSetting` on the
+  /// `PredictionWidgetProvider` receiver declared in
+  /// AndroidManifest.xml.
+  ///
+  /// When `predictionBattle` is OFF (Phase 4 lean defaults, since
+  /// it depends on `coinPool` which is OFF), the widget is disabled:
+  /// it stops appearing in the home-screen widget picker, and any
+  /// existing instances stop updating (the broadcast receiver stops
+  /// firing APPWIDGET_UPDATE + ACTION_CYCLE intents).
+  ///
+  /// When ON, the widget is re-enabled.
+  ///
+  /// No-op on non-Android platforms (the method channel returns
+  /// MissingPluginException which we swallow).
+  void _syncPredictionWidgetEnabled() {
+    if (!Platform.isAndroid) return;
+    try {
+      const channel = MethodChannel('kinrel/device');
+      // The fully-qualified class name of the AppWidgetProvider.
+      // Package is `com.daxelo.kinrel` (see MainActivity.kt +
+      // AndroidManifest.xml). The receiver is declared as
+      // `.PredictionWidgetProvider` (relative to the package), which
+      // resolves to `com.daxelo.kinrel.PredictionWidgetProvider`.
+      const className = 'com.daxelo.kinrel.PredictionWidgetProvider';
+      final enabled = Features.isOn(AppFeature.predictionBattle);
+      channel.invokeMethod<bool>('setPredictionWidgetEnabled', <String, dynamic>{
+        'className': className,
+        'enabled': enabled,
+      }).then((_) {
+        debugPrint(
+          '🔧 [Phase 5] PredictionWidgetProvider ${enabled ? "enabled" : "disabled"}',
+        );
+      }).catchError((e) {
+        debugPrint(
+          '⚠️ [Phase 5] setPredictionWidgetEnabled failed: $e',
+        );
+      });
+    } catch (e) {
+      debugPrint('⚠️ [Phase 5] prediction widget sync error: $e');
+    }
   }
 
   @override
