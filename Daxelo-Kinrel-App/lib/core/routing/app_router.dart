@@ -302,6 +302,9 @@ import '../../core/constants/feature_flags.dart';
 // import '../../presentation/screens/family_tree/family_tree_screen.dart';
 import '../../presentation/screens/premium/paywall_screen.dart';
 import '../../presentation/screens/debug/engagement_dashboard.dart';
+// Phase 1: Feature switches debug screen — debug-only screen at
+// /debug/features for toggling per-feature debug overrides.
+import '../../presentation/screens/debug/feature_switches_screen.dart';
 import '../config/app_environment.dart';
 import '../services/supabase_service.dart';
 import '../services/crashlytics_service.dart';
@@ -791,6 +794,58 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
   }
 
   if (redirectTarget == null) {
+    // ── Phase 3: Feature flag route guard ───────────────────────────
+    //
+    // After all auth/2FA logic has decided the route is allowed, run
+    // one more check: does the route belong to a feature that's
+    // currently OFF? If yes, redirect to /home instead.
+    //
+    // `Features.isRouteDisabled(path)` walks the `routeFeatureMap`
+    // (declared in feature_registry.dart) using a longest-prefix
+    // match. Unknown routes (not in the map) are always allowed.
+    //
+    // This catches ALL entry points to a disabled feature:
+    //   • Taps from the bottom nav (Phase 2 already filters the tabs
+    //     themselves, but the route is still reachable via context.go
+    //     from elsewhere — this guard catches that)
+    //   • Deep links (navigateToDeepLink → router.go → this redirect)
+    //   • Notification taps (_handleDeepLink → router.push → this
+    //     redirect — both FCM background + terminated taps)
+    //   • Cold-start route restore (splash reads lastRoute from
+    //     SharedPreferences on app launch → router.go → this redirect)
+    //
+    // CRITICAL: skip the pre-auth routes (splash, sign-in, sign-up,
+    // create-username, 2fa-verify, onboarding, /join/, /privacy,
+    // /terms). Those have their own redirect logic above and we don't
+    // want to interfere. Also skip the debug feature-switches screen
+    // itself — otherwise you couldn't toggle features back on once
+    // they're off.
+    if (currentLocation != '/splash' &&
+        currentLocation != '/sign-in' &&
+        currentLocation != '/sign-up' &&
+        currentLocation != '/create-username' &&
+        currentLocation != '/2fa-verify' &&
+        currentLocation != '/onboarding' &&
+        !currentLocation.startsWith('/join/') &&
+        !currentLocation.startsWith('/privacy') &&
+        !currentLocation.startsWith('/terms') &&
+        currentLocation != '/debug/features' &&
+        currentLocation != '/debug') {
+      try {
+        if (Features.isRouteDisabled(currentLocation)) {
+          debugPrint(
+            '🚫 [Phase 3] Feature gate: $currentLocation disabled '
+            '— redirecting to /home',
+          );
+          _lastRedirectTime = DateTime.now();
+          return '/home';
+        }
+      } catch (e) {
+        // Defensive — never block navigation on a registry error.
+        debugPrint('⚠️ [Phase 3] Feature gate check failed: $e');
+      }
+    }
+
     // No redirect needed — valid destination, reset guards
     _visitedRoutes.clear();
     _lastRedirectTime = null;
@@ -2995,6 +3050,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: const EngagementDashboard(),
+        ),
+      ),
+      // Phase 1: Feature switches debug screen. Lives under /debug so
+      // the existing /debug guard (dev flavor only) covers it. Phase 3
+      // route guard skips both /debug and /debug/features so a feature
+      // can be toggled back ON from inside the screen even when the
+      // broader debug gate is unrelated.
+      GoRoute(
+        path: '/debug/features',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const FeatureSwitchesScreen(),
         ),
       ),
 

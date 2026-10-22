@@ -15,6 +15,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 // Hive removed — using Drift (AppDatabase) via IsarDatabase wrapper
 import 'core/database/isar_database.dart';
+import 'core/features/feature_registry.dart';
 import 'features/family_map/config/map_quality_tier.dart';
 // Conditional import: window_manager doesn't support web, so we use a
 // no-op stub on web platforms. This prevents the app from crashing on
@@ -588,6 +589,13 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
         try {
           _globalContainer = ProviderScope.containerOf(context);
           debugPrint('🔧 Global ProviderContainer captured');
+          // Phase 1: Load debug overrides (debug builds only — no-op
+          // in release). Reads SharedPreferences for any persisted
+          // `feature_debug_<name>` keys set from the
+          // FeatureSwitchesScreen so QA toggles survive app restarts.
+          // `unawaited` — we don't block first-frame build on the load;
+          // the next rebuild picks up overrides via featureProvider.
+          unawaited(Features.initDebugOverrides());
         } catch (e) {
           debugPrint('⚠️ Could not capture ProviderContainer: $e');
         }
@@ -883,6 +891,21 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     try {
       await RemoteConfigService.instance.init();
       debugPrint('✅ Remote Config initialized');
+      // Phase 3: bump the RC update counter so any `featureProvider`
+      // consumer + the route guard re-evaluates against the freshly
+      // fetched values. Without this, an RC flip that disables a
+      // feature wouldn't take effect until the next unrelated rebuild.
+      try {
+        final container = _globalContainer;
+        if (container != null) {
+          final current = container.read(remoteConfigUpdateProvider);
+          container.read(remoteConfigUpdateProvider.notifier).state =
+              current + 1;
+        }
+      } catch (_) {
+        // Bump is best-effort; the next rebuild will pick up the new
+        // values anyway via featureProvider.
+      }
     } catch (e) {
       debugPrint('⚠️ Remote Config init failed, using defaults: $e');
     }
