@@ -28,6 +28,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_tokens.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/features/feature_registry.dart';
 import '../../../../core/theme/kinrel_fx.dart';
 import '../../../kinrel_intelligence/data/kinrel_model.dart';
 import '../../../kinrel_intelligence/providers/kinrel_provider.dart';
@@ -203,41 +204,51 @@ class HeroSection extends ConsumerWidget {
                       // The icon is visually centered within this zone
                       // (not pushed to the far left), so it sits closer
                       // to the identity circle — reads as a grouping.
+                      //
+                      // Phase 2 (feature registry): when
+                      // [AppFeature.heroFamilyMap] is OFF, the icon's
+                      // GestureDetector is replaced with an empty
+                      // Expanded so the Row's 3-child layout is
+                      // preserved (no layout shift when toggled).
                       Expanded(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => context.push(
-                            '/family/$familyId/graph?name='
-                            '${Uri.encodeComponent(familyName)}',
-                          ),
-                          child: Semantics(
-                            button: true,
-                            label: 'Open $familyName graph',
-                            hint: 'Double tap to open the family graph',
-                            child: Container(
-                              // Full height + width of the Expanded zone.
-                              // The icon is centered within this
-                              // container — visually closer to the
-                              // identity circle than the old
-                              // centerLeft alignment.
-                              alignment: Alignment.center,
-                              padding: const EdgeInsets.only(
-                                  left: FamilyHubSpace.md),
-                              child: Icon(
-                                // Redesigned: hub_outlined (nodes +
-                                // connector lines) instead of
-                                // account_tree_outlined (abstract
-                                // interlocking squares). Reads
-                                // unambiguously as a relationship
-                                // network graph at a glance.
-                                Icons.hub_outlined,
-                                size: 48,
-                                color: AppColor.orange
-                                    .withValues(alpha: 0.45),
-                              ),
-                            ),
-                          ),
-                        ),
+                        child: ref.watch(featureProvider(
+                                AppFeature.heroFamilyMap))
+                            ? GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () => context.push(
+                                  '/family/$familyId/graph?name='
+                                  '${Uri.encodeComponent(familyName)}',
+                                ),
+                                child: Semantics(
+                                  button: true,
+                                  label: 'Open $familyName graph',
+                                  hint:
+                                      'Double tap to open the family graph',
+                                  child: Container(
+                                    // Full height + width of the Expanded zone.
+                                    // The icon is centered within this
+                                    // container — visually closer to the
+                                    // identity circle than the old
+                                    // centerLeft alignment.
+                                    alignment: Alignment.center,
+                                    padding: const EdgeInsets.only(
+                                        left: FamilyHubSpace.md),
+                                    child: Icon(
+                                      // Redesigned: hub_outlined (nodes +
+                                      // connector lines) instead of
+                                      // account_tree_outlined (abstract
+                                      // interlocking squares). Reads
+                                      // unambiguously as a relationship
+                                      // network graph at a glance.
+                                      Icons.hub_outlined,
+                                      size: 48,
+                                      color: AppColor.orange
+                                          .withValues(alpha: 0.45),
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
                       ),
                       // ── CENTER spacer (matches the avatar width) ──
                       // This SizedBox is NOT wrapped in a GestureDetector
@@ -247,29 +258,40 @@ class HeroSection extends ConsumerWidget {
                       // circle's GestureDetector lives in Layer 3 below.
                       SizedBox(width: symbolSize),
                       // ── RIGHT ZONE: Map (full right half, expanded tap) ──
+                      //
+                      // Phase 2 (feature registry): when
+                      // [AppFeature.heroFamilyMap] is OFF (same gate as
+                      // the Graph icon — both flanking icons belong to
+                      // the family-map surface area), the
+                      // GestureDetector is replaced with an empty
+                      // Expanded to preserve layout symmetry.
                       Expanded(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => context.push(
-                            '/family/$familyId/map',
-                          ),
-                          child: Semantics(
-                            button: true,
-                            label: 'Open $familyName map',
-                            hint: 'Double tap to open the family map',
-                            child: Container(
-                              alignment: Alignment.center,
-                              padding: const EdgeInsets.only(
-                                  right: FamilyHubSpace.md),
-                              child: Icon(
-                                Icons.map_outlined,
-                                size: 48,
-                                color: AppColor.orange
-                                    .withValues(alpha: 0.45),
-                              ),
-                            ),
-                          ),
-                        ),
+                        child: ref.watch(featureProvider(
+                                AppFeature.heroFamilyMap))
+                            ? GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () => context.push(
+                                  '/family/$familyId/map',
+                                ),
+                                child: Semantics(
+                                  button: true,
+                                  label: 'Open $familyName map',
+                                  hint:
+                                      'Double tap to open the family map',
+                                  child: Container(
+                                    alignment: Alignment.center,
+                                    padding: const EdgeInsets.only(
+                                        right: FamilyHubSpace.md),
+                                    child: Icon(
+                                      Icons.map_outlined,
+                                      size: 48,
+                                      color: AppColor.orange
+                                          .withValues(alpha: 0.45),
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
                       ),
                     ],
                   ),

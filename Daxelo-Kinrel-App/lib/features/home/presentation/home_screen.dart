@@ -21,6 +21,7 @@ import '../../notifications/providers/notifications_provider.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/features/feature_registry.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/haptic_service.dart';
 import '../../../core/family/family_provider.dart';
@@ -935,9 +936,21 @@ class _CompactGreeting extends StatelessWidget {
 /// Home-only notification bell — sits in the sticky header where the
 /// user avatar circle used to be. Single clean icon, no circular profile
 /// background. Red badge appears when there are unread notifications.
+///
+/// Phase 2 (feature registry): gated by [AppFeature.topBarNotifications].
+/// When the feature is OFF (Phase 4 lean defaults), the bell disappears
+/// from the Home header. Phase 3 also gates the /notifications route via
+/// the same flag, so deep-link taps + push-tap redirects also avoid the
+/// disabled screen.
 class _HomeNotificationBell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Phase 2: if the notifications feature is OFF, render nothing.
+    // The parent Row already handles a 0-height child gracefully via
+    // const SizedBox.shrink().
+    if (!ref.watch(featureProvider(AppFeature.topBarNotifications))) {
+      return const SizedBox.shrink();
+    }
     final unreadCount = ref.watch(unreadCountProvider);
 
     return Semantics(

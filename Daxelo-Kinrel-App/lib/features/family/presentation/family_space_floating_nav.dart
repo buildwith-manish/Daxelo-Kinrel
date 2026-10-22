@@ -52,10 +52,12 @@
 //
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/features/feature_registry.dart';
 import '../../../core/theme/kinrel_fx.dart';
 import '../../../core/utils/accessibility_utils.dart';
 import '../../../core/utils/device_tier.dart';
@@ -65,23 +67,55 @@ import '../../../shared/widgets/bottom_nav_repaint_guard.dart';
 import 'family_members_screen.dart';
 
 /// A single navigation item for [FamilySpaceFloatingNav].
+///
+/// Phase 2 (feature registry): added [feature] + [matchPatterns] +
+/// [routeBuilder] + [usePush] so each tab can be filtered by
+/// [featureProvider] at build time, and the route is built from the
+/// tab itself rather than from a hard-coded index switch.
 class _NavTab {
   const _NavTab({
     required this.icon,
     required this.activeIcon,
     required this.label,
+    required this.feature,
+    required this.matchPatterns,
+    required this.routeBuilder,
+    this.usePush = false,
   });
 
   final IconData icon;
   final IconData activeIcon;
   final String label;
+
+  /// AppFeature that gates this tab. When the feature is OFF in Phase 4
+  /// lean defaults, the tab disappears from the dock.
+  final AppFeature feature;
+
+  /// Substrings that should highlight this tab when present in the
+  /// current route location. Order doesn't matter — first match wins
+  /// per visible-index order.
+  final List<String> matchPatterns;
+
+  /// Builds the route to navigate to when this tab is tapped. Receives
+  /// the current [familyId] so family-scoped routes can interpolate it.
+  final String Function(String familyId) routeBuilder;
+
+  /// If true, navigation uses [context.push] (preserves parent on the
+  /// stack — used by Games which is a CHILD section of Family Space).
+  /// If false, uses [context.go] (sibling tab switch).
+  final bool usePush;
 }
 
 /// Floating bottom navigation dock for Family Space screens.
 ///
 /// This is a SELF-CONTAINED widget — it does NOT use [DKBottomNav].
 /// All styling is defined here and only here.
-class FamilySpaceFloatingNav extends StatelessWidget {
+///
+/// Phase 2 (feature registry): converted to [ConsumerWidget] so each
+/// tab can be gated by its [AppFeature] via [featureProvider]. The
+/// visible tab list is filtered at build time; Phase 1's all-true
+/// defaults mean zero visible change.
+class FamilySpaceFloatingNav extends ConsumerWidget {
   const FamilySpaceFloatingNav({
     super.key,
     required this.familyId,
@@ -112,32 +146,74 @@ class FamilySpaceFloatingNav extends StatelessWidget {
     // per the user's IA brief — Games, Family Chat, Members, Calendar.
     // Lists removed (demoted to the HighlightsRow shortcut row on the
     // Family Space home scroll).
+    //
+    // Phase 2 (feature registry): each tab now carries its AppFeature
+    // gate + match patterns + route builder. When a feature is OFF in
+    // Phase 4 lean defaults, the tab simply disappears from the dock.
     _NavTab(
       icon: Icons.sports_esports_outlined,
       activeIcon: Icons.sports_esports_rounded,
       label: 'Games',
+      feature: AppFeature.games,
+      matchPatterns: [
+        '/games',
+        '/ghost-painter',
+        '/sos/',
+        '/antakshari/',
+        '/bingo/',
+        '/checkers/',
+        '/ludo/',
+        '/carrom/',
+        '/chess/',
+        '/freeze-dash/',
+      ],
+      routeBuilder: _gamesRoute,
+      usePush: true,
     ),
     _NavTab(
       icon: Icons.chat_bubble_outline_rounded,
       activeIcon: Icons.chat_rounded,
       label: 'Family Chat', // disambiguate from global DM 'Chat'
+      feature: AppFeature.familyChat,
+      matchPatterns: ['/chat'],
+      routeBuilder: _familyChatRoute,
     ),
     _NavTab(
       icon: Icons.people_outline_rounded,
       activeIcon: Icons.people_rounded,
       label: 'Members',
+      feature: AppFeature.members,
+      matchPatterns: ['/members'],
+      routeBuilder: _membersRoute,
     ),
     _NavTab(
       icon: Icons.calendar_today_outlined,
       activeIcon: Icons.calendar_month_rounded,
       label: 'Calendar',
+      feature: AppFeature.calendar,
+      matchPatterns: ['/calendar'],
+      routeBuilder: _calendarRoute,
     ),
   ];
 
+  static String _gamesRoute(String familyId) =>
+      '/games?familyId=$familyId';
+  static String _familyChatRoute(String familyId) =>
+      '/family/$familyId/chats';
+  static String _membersRoute(String familyId) =>
+      '/family/$familyId/members?source=${MembersScreenSource.navTab.toQueryParam()}';
+  static String _calendarRoute(String familyId) =>
+      '/family/$familyId/calendar';
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final location = GoRouterState.of(context).matchedLocation;
-    final currentIndex = _currentIndex(location);
+    // Phase 2: filter to only tabs whose feature is ON. In Phase 1
+    // (all defaults true) this is the full list — zero visible change.
+    final visible = _tabs
+        .where((t) => ref.watch(featureProvider(t.feature)))
+        .toList();
+    final currentIndex = _currentIndex(location, visible);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     // PERF (Part E3): read lowRam ONCE per build. strong phones
     // (lowRam == false) get the ORIGINAL three-shadow stack with the
@@ -215,19 +291,19 @@ class FamilySpaceFloatingNav extends StatelessWidget {
             borderRadius: BorderRadius.circular(_cornerRadius),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: List.generate(_tabs.length, (index) {
-                final tab = _tabs[index];
+              children: List.generate(visible.length, (index) {
+                final tab = visible[index];
                 final isSelected = index == currentIndex;
                 return Expanded(
                   child: semanticTab(
                     label: tab.label,
                     index: index,
                     isSelected: isSelected,
-                    totalTabs: _tabs.length,
+                    totalTabs: visible.length,
                     child: _NavTabButton(
                       tab: tab,
                       isSelected: isSelected,
-                      onTap: () => _onTap(context, index),
+                      onTap: () => _onTabTapped(context, tab),
                     ),
                   ),
                 );
@@ -239,42 +315,27 @@ class FamilySpaceFloatingNav extends StatelessWidget {
     );
   }
 
-  int _currentIndex(String location) {
+  /// Map current route → index in the VISIBLE tab list.
+  ///
+  /// Returns -1 (no tab highlighted) when:
+  ///  - the route is exactly `/family/<id>` (the overview screen)
+  ///  - the route belongs to a tab that's currently hidden (e.g. /games
+  ///    when the games feature is OFF — Phase 3 will redirect)
+  ///  - the route is for an occasional-use destination (Lists, etc.)
+  int _currentIndex(String location, List<_NavTab> visible) {
     // Family Overview screen (route: /family/<id> with no suffix) is NOT
-    // one of the 4 tabs — it's the landing screen that shows the hero,
-    // Highlights row, Quick Actions row, Prediction Battle, and Family
-    // Pulse. Return -1 so NO tab is highlighted. This is safe: the
-    // widget already guards the active-state rendering with
-    // `if (currentIndex >= 0)` for the orange glow BoxShadow, and
-    // `_NavTabButton` computes `isSelected = index == currentIndex`
-    // (which is `index == -1` → false for all 4 tabs), so no indicator
-    // pill renders either.
-    //
-    // Phase 2 (duplicate-space-home fix): the tab indexes changed when
-    // Lists was removed. New indexes: 0=Games, 1=Family Chat,
-    // 2=Members, 3=Calendar. Lists is no longer in the bottom nav —
-    // it lives in the HighlightsRow shortcut row on the Family Space
-    // home scroll.
+    // one of the tabs — return -1 so NO tab is highlighted.
     if (location == '/family/$familyId') return -1;
-    // Index 0: Games (and all game sub-routes)
-    if (location.contains('/games') ||
-        location.contains('/ghost-painter') ||
-        location.contains('/sos/') ||
-        location.contains('/antakshari/') ||
-        location.contains('/bingo/') ||
-        location.contains('/checkers/') ||
-        location.contains('/ludo/') ||
-        location.contains('/carrom/') ||
-        location.contains('/chess/') ||
-        location.contains('/freeze-dash/')) {
-      return 0;
+    // Walk the visible list; first tab whose matchPatterns appear in
+    // the location wins. Order matters because /chat is a substring of
+    // many routes (e.g. /family/<id>/chats) — but since the Family
+    // Chat tab is the only one matching /chat, that's fine.
+    for (var i = 0; i < visible.length; i++) {
+      final tab = visible[i];
+      if (tab.matchPatterns.any((p) => location.contains(p))) {
+        return i;
+      }
     }
-    // Index 1: Family Chat (group chat + chat list)
-    if (location.contains('/chat')) return 1;
-    // Index 2: Members
-    if (location.contains('/members')) return 2;
-    // Index 3: Calendar
-    if (location.contains('/calendar')) return 3;
     // Lists is no longer a tab — if the user is on /lists or
     // /shared-list (reachable via the Highlights row), no tab is
     // highlighted. That's the correct behavior — Lists is occasional-
@@ -282,44 +343,25 @@ class FamilySpaceFloatingNav extends StatelessWidget {
     if (location.contains('/lists') || location.contains('/shared-list')) {
       return -1;
     }
-    // Default: no tab highlighted (covers /family/<id>/graph, /map,
-    // /management, /governance, /kinrel, etc. — all secondary
+    // Default: no tab highlighted (covers `/family/<id>/graph`, `/map`,
+    // `/management`, `/governance`, `/kinrel`, etc. — all secondary
     // destinations that aren't part of the 4-tab persistent nav).
     return -1;
   }
 
-  void _onTap(BuildContext context, int index) {
-    // Phase 2 (duplicate-space-home fix): 4-tab nav. Lists is no
-    // longer reachable from the bottom nav — it's in the Highlights
-    // row on the Family Space home scroll.
-    switch (index) {
-      case 0:
-        // Family Arena (Games) is a CHILD section of Family Space — it
-        // must preserve the parent on the navigation stack so the back
-        // button returns to Family Space (not Home). Using push() keeps
-        // /family/<id> below /games in the stack. The GamesHubScreen's
-        // AppBar back arrow + Android hardware back both pop to here.
-        // (Other tabs remain on go() because they are sibling tabs that
-        //  share the FamilySpaceFloatingNav and should not stack.)
-        context.push('/games?familyId=$familyId');
-      case 1:
-        // Family Chat tab opens the Chat LIST screen (which shows
-        // group chat + DMs) instead of the group chat directly.
-        // The group chat conversation is opened by tapping the Family
-        // Group Chat row inside the list.
-        context.go('/family/$familyId/chats');
-      case 2:
-        // v5.212 (entry-context-aware list): the bottom-nav Members tab
-        // passes `source=navTab` so the Members screen shows only
-        // Linked-status members (real Kinrel accounts). Placeholder
-        // relatives (Manual status) cannot chat / invite / be present,
-        // so they should NOT appear in this entry context. The Graph
-        // screen's "View all" button passes `source=graphViewAll` to
-        // show the full tree.
-        context.go(
-            '/family/$familyId/members?source=${MembersScreenSource.navTab.toQueryParam()}');
-      case 3:
-        context.go('/family/$familyId/calendar');
+  /// Navigate to the route built by [tab.routeBuilder], using push vs
+  /// go per [tab.usePush].
+  ///
+  /// Games uses push (it's a CHILD section of Family Space and must
+  /// preserve `/family/<id>` below `/games` on the stack so back returns
+  /// to Family Space). The other tabs use go (sibling tab switches
+  /// that share the FamilySpaceFloatingNav and should not stack).
+  void _onTabTapped(BuildContext context, _NavTab tab) {
+    final route = tab.routeBuilder(familyId);
+    if (tab.usePush) {
+      context.push(route);
+    } else {
+      context.go(route);
     }
   }
 }

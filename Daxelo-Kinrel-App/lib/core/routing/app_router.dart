@@ -49,6 +49,8 @@ import 'deferred_route_helper.dart';
 import '../config/app_config.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+// Phase 2 (feature registry) — gates bottom-nav tabs via featureProvider.
+import '../features/feature_registry.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/auth/presentation/sign_in_screen.dart';
@@ -3747,88 +3749,122 @@ class _MainShellState extends ConsumerState<MainShell> {
 ///
 /// Notification bell with red unread badge is in the ShellRoute header,
 /// visible on ALL main screens (not just Home).
-class _BottomNav extends StatelessWidget {
+///
+/// Phase 2 (feature registry): converted to [ConsumerWidget] so each tab
+/// can be gated by its corresponding [AppFeature] via [featureProvider].
+/// The visible tab list is filtered at build time; when a feature is OFF
+/// in Phase 4 lean defaults, its tab simply disappears. The current
+/// route is matched against the visible items' route prefixes; if the
+/// route belongs to a hidden tab (e.g. /chat when chat is OFF), no tab is
+/// highlighted and Phase 3's route guard will redirect away from it.
+class _BottomNav extends ConsumerWidget {
   const _BottomNav();
 
-  static const _items = [
-    DKNavItem(
-      icon: Icons.home_outlined,
-      activeIcon: Icons.home_rounded,
-      label: 'Home',
+  /// Master list of all 5 bottom-nav items, in canonical branch order.
+  /// The order MUST match the [StatefulShellRoute.indexedStack] branches
+  /// above (Home=0, Chat=1, Family=2, Search=3, Me=4). Tapping a visible
+  /// item calls `context.go(item.route)`, which GoRouter resolves to the
+  /// matching branch — so branch index is implicit via route.
+  static const _allItems = <_NavItem>[
+    _NavItem(
+      item: DKNavItem(
+        icon: Icons.home_outlined,
+        activeIcon: Icons.home_rounded,
+        label: 'Home',
+      ),
+      feature: AppFeature.home,
+      routePrefixes: ['/home'],
+      route: '/home',
     ),
-    DKNavItem(
-      icon: Icons.chat_bubble_outline_rounded,
-      activeIcon: Icons.chat_rounded,
-      label: 'Chat',
+    _NavItem(
+      item: DKNavItem(
+        icon: Icons.chat_bubble_outline_rounded,
+        activeIcon: Icons.chat_rounded,
+        label: 'Chat',
+      ),
+      feature: AppFeature.chat,
+      routePrefixes: ['/chat'],
+      route: '/chat',
     ),
-    DKNavItem(
-      icon: Icons.family_restroom_outlined,
-      activeIcon: Icons.family_restroom_rounded,
-      label: 'Family',
+    _NavItem(
+      item: DKNavItem(
+        icon: Icons.family_restroom_outlined,
+        activeIcon: Icons.family_restroom_rounded,
+        label: 'Family',
+      ),
+      feature: AppFeature.familyMap,
+      routePrefixes: ['/families', '/family/'],
+      route: '/families',
     ),
-    DKNavItem(
-      icon: Icons.search_outlined,
-      activeIcon: Icons.search_rounded,
-      label: 'Search',
+    _NavItem(
+      item: DKNavItem(
+        icon: Icons.search_outlined,
+        activeIcon: Icons.search_rounded,
+        label: 'Search',
+      ),
+      feature: AppFeature.findOnKinrel,
+      routePrefixes: ['/search'],
+      route: '/search',
     ),
-    DKNavItem(
-      icon: Icons.person_outline_rounded,
-      activeIcon: Icons.person_rounded,
-      label: 'Me',
+    _NavItem(
+      item: DKNavItem(
+        icon: Icons.person_outline_rounded,
+        activeIcon: Icons.person_rounded,
+        label: 'Me',
+      ),
+      feature: AppFeature.profile,
+      routePrefixes: ['/profile'],
+      route: '/profile',
     ),
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final location = GoRouterState.of(context).matchedLocation;
 
+    // Phase 2: filter to only items whose feature is ON. In Phase 1
+    // (all defaults true) this is the full list — zero visible change.
+    final visible = _allItems
+        .where((i) => ref.watch(featureProvider(i.feature)))
+        .toList();
+
+    // Map current route → index in the VISIBLE list (not _allItems).
+    // -1 means "no visible tab matches" → fall back to Home so the bar
+    // has something highlighted; Phase 3 will redirect the route.
+    int currentIndex = -1;
+    for (var i = 0; i < visible.length; i++) {
+      final item = visible[i];
+      if (item.routePrefixes.any((p) => location.startsWith(p))) {
+        currentIndex = i;
+        break;
+      }
+    }
+    final safeIndex = currentIndex < 0 ? 0 : currentIndex;
+
     return DKBottomNav(
-      currentIndex: _currentIndex(location),
-      onTap: (index) => _onTap(context, index),
-      items: _items,
+      currentIndex: safeIndex,
+      onTap: (visibleIndex) {
+        if (visibleIndex < 0 || visibleIndex >= visible.length) return;
+        context.go(visible[visibleIndex].route);
+      },
+      items: visible.map((i) => i.item).toList(),
       // v5.189 (Instagram-style account switcher): long-press on any
-      // bottom-nav tab fires this callback with the tab index. Only
-      // the Me tab (index 4) currently handles it — opens the account
-      // switcher bottom sheet via the root navigator (so it appears
-      // above the ShellRoute). The other tabs silently ignore the
-      // long-press. This pattern matches Instagram's account switcher
-      // trigger and gives us room to add other per-tab long-press
-      // actions later without re-plumbing the widget tree.
-      onLongPress: (index) => _onLongPress(context, index),
+      // bottom-nav tab fires this callback with the VISIBLE index. We
+      // translate back to the absolute index in [_allItems] so the
+      // long-press logic matches the canonical tab order. Only the Me
+      // tab (absolute index 4) currently handles it — opens the account
+      // switcher bottom sheet via the root navigator.
+      onLongPress: (visibleIndex) {
+        if (visibleIndex < 0 || visibleIndex >= visible.length) return;
+        final absIndex = _allItems.indexOf(visible[visibleIndex]);
+        _onLongPress(context, absIndex);
+      },
     );
-  }
-
-  /// Map current route to bottom nav index.
-  int _currentIndex(String location) {
-    if (location.startsWith('/home')) return 0;
-    if (location.startsWith('/chat')) return 1;
-    if (location.startsWith('/families') || location.startsWith('/family/')) {
-      return 2;
-    }
-    if (location.startsWith('/search')) return 3;
-    if (location.startsWith('/profile')) return 4;
-    return 0;
-  }
-
-  /// Navigate to the route for the given tab index.
-  void _onTap(BuildContext context, int index) {
-    switch (index) {
-      case 0:
-        context.go('/home');
-      case 1:
-        context.go('/chat');
-      case 2:
-        context.go('/families');
-      case 3:
-        context.go('/search');
-      case 4:
-        context.go('/profile');
-    }
   }
 
   /// v5.189: Long-press handler for bottom-nav tabs.
   ///
-  /// Currently only the Me tab (index 4) reacts — it opens the
+  /// Currently only the Me tab (absolute index 4) reacts — it opens the
   /// Instagram-style [AccountSwitcherSheet]. The sheet itself handles
   /// switching, adding, and removing accounts; this method just opens
   /// it.
@@ -3839,9 +3875,9 @@ class _BottomNav extends StatelessWidget {
   /// appear UNDER the bottom-nav bar. Routing it through the root
   /// navigator makes it appear ABOVE everything, matching the visual
   /// order of Instagram / X / Gmail account switchers.
-  void _onLongPress(BuildContext context, int index) {
-    switch (index) {
-      case 4: // Me tab
+  void _onLongPress(BuildContext context, int absoluteIndex) {
+    switch (absoluteIndex) {
+      case 4: // Me tab (absolute index in _allItems)
         showModalBottomSheet(
           context: context,
           useRootNavigator: true,
@@ -3852,6 +3888,22 @@ class _BottomNav extends StatelessWidget {
       // Other tabs: no long-press action defined yet. Silent no-op.
     }
   }
+}
+
+/// Private model: a [DKNavItem] plus its [AppFeature] gate and the
+/// route prefixes that should highlight the tab when matched.
+class _NavItem {
+  const _NavItem({
+    required this.item,
+    required this.feature,
+    required this.routePrefixes,
+    required this.route,
+  });
+
+  final DKNavItem item;
+  final AppFeature feature;
+  final List<String> routePrefixes;
+  final String route;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

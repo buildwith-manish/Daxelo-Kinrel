@@ -32,12 +32,14 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_tokens.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/constants/brand_spacing.dart';
+import '../../../../core/features/feature_registry.dart';
 import '../../../../core/theme/kinrel_fx.dart';
 import 'design_system.dart';
 
@@ -56,7 +58,14 @@ import 'design_system.dart';
 /// here as a 5th highlight, removing the redundant separate section it
 /// used to occupy. "Pulse" is omitted because the Family Pulse section
 /// already lives directly on the page (and "Activity" links to it).
-class HighlightsRow extends StatelessWidget {
+///
+/// Phase 2 (feature registry): converted to [ConsumerWidget] so each
+/// tile can be gated by its [AppFeature] via [featureProvider]. The
+/// visible tile list is filtered at build time; Phase 1's all-true
+/// defaults mean zero visible change. The Activities master-switch rule
+/// gates the Memories + Activity tiles together (both depend on
+/// `AppFeature.memories` which itself cascades from `AppFeature.activities`).
+class HighlightsRow extends ConsumerWidget {
   const HighlightsRow({super.key, required this.familyId});
 
   final String familyId;
@@ -78,40 +87,82 @@ class HighlightsRow extends StatelessWidget {
   // ordering should be revisited to reflect actual behavior rather
   // than this guess. Replace this comment + the order below with a
   // data-driven sort once analytics are wired.
+  //
+  // Phase 2 (feature registry): each tile now carries its AppFeature
+  // gate + route builder. When a feature is OFF in Phase 4 lean
+  // defaults, the tile disappears from the row.
   static const _tiles = [
-    _HighlightTile(icon: Icons.photo_library_outlined, label: 'Memories'),
-    _HighlightTile(icon: Icons.history_rounded,        label: 'Activity'),
-    _HighlightTile(icon: Icons.mic_none_outlined,      label: 'Oral History'),
-    _HighlightTile(icon: Icons.emoji_events_outlined,  label: 'Achievements'),
-    _HighlightTile(icon: Icons.checklist_rounded,      label: 'Lists'),
+    _HighlightTile(
+      icon: Icons.photo_library_outlined,
+      label: 'Memories',
+      feature: AppFeature.memories,
+      // /memory-vault is gated by AppFeature.memories (Phase 3). When
+      // activities is OFF, memories cascades OFF, and both this tile
+      // AND the route disappear together.
+      routeBuilder: _memoriesRoute,
+    ),
+    _HighlightTile(
+      icon: Icons.history_rounded,
+      label: 'Activity',
+      feature: AppFeature.memories,
+      // /memories is also gated by AppFeature.memories — same gate as
+      // the Memories tile. The Activities master switch hides BOTH
+      // tiles and BOTH routes (per "turn on activities means memories
+      // and timeline feature" rule).
+      routeBuilder: _activityRoute,
+    ),
+    _HighlightTile(
+      icon: Icons.mic_none_outlined,
+      label: 'Oral History',
+      feature: AppFeature.oralHistory,
+      routeBuilder: _oralHistoryRoute,
+    ),
+    _HighlightTile(
+      icon: Icons.emoji_events_outlined,
+      label: 'Achievements',
+      feature: AppFeature.achievements,
+      routeBuilder: _achievementsRoute,
+    ),
+    _HighlightTile(
+      icon: Icons.checklist_rounded,
+      label: 'Lists',
+      feature: AppFeature.lists,
+      routeBuilder: _listsRoute,
+    ),
   ];
 
-  String _routeFor(String label) {
-    switch (label) {
-      case 'Memories':      return '/memory-vault?familyId=$familyId';
-      case 'Oral History':  return '/oral-history?familyId=$familyId';
-      case 'Achievements':  return '/achievements';
-      case 'Lists':         return '/family/$familyId/lists';
-      case 'Activity':      return '/memories?familyId=$familyId';
-      default:              return '/home';
-    }
-  }
+  static String _memoriesRoute(String familyId) =>
+      '/memory-vault?familyId=$familyId';
+  static String _activityRoute(String familyId) =>
+      '/memories?familyId=$familyId';
+  static String _oralHistoryRoute(String familyId) =>
+      '/oral-history?familyId=$familyId';
+  static String _achievementsRoute(String familyId) =>
+      '/achievements';
+  static String _listsRoute(String familyId) =>
+      '/family/$familyId/lists';
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Phase 2: filter to only tiles whose feature is ON. In Phase 1
+    // (all defaults true) this is the full list — zero visible change.
+    final visible = _tiles
+        .where((t) => ref.watch(featureProvider(t.feature)))
+        .toList();
+
     return SizedBox(
       height: 96, // 64 circle + 8 gap + 16 label + 8 breathing room
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
-        itemCount: _tiles.length,
+        itemCount: visible.length,
         separatorBuilder: (_, __) => const SizedBox(width: 18),
         itemBuilder: (context, i) {
-          final tile = _tiles[i];
+          final tile = visible[i];
           return _HighlightCircle(
             icon: tile.icon,
             label: tile.label,
-            onTap: () => context.push(_routeFor(tile.label)),
+            onTap: () => context.push(tile.routeBuilder(familyId)),
           )
               .animate()
               .fadeIn(delay: (60 * i).ms, duration: 280.ms)
@@ -123,9 +174,24 @@ class HighlightsRow extends StatelessWidget {
 }
 
 class _HighlightTile {
-  const _HighlightTile({required this.icon, required this.label});
+  const _HighlightTile({
+    required this.icon,
+    required this.label,
+    required this.feature,
+    required this.routeBuilder,
+  });
+
   final IconData icon;
   final String label;
+
+  /// AppFeature that gates this tile. When the feature is OFF in Phase 4
+  /// lean defaults (or any of its parents in the dependency map are OFF),
+  /// the tile disappears from the row.
+  final AppFeature feature;
+
+  /// Builds the route to push when this tile is tapped. Receives the
+  /// current [familyId] so family-scoped routes can interpolate it.
+  final String Function(String familyId) routeBuilder;
 }
 
 class _HighlightCircle extends StatelessWidget {
