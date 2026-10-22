@@ -115,6 +115,86 @@ class RemoteConfigService {
     'premium_feature_export': true,
     'premium_feature_ai_kinship': false,
     'premium_feature_insights': true,
+
+    // ── Feature Registry keys (Phase 1) ────────────────────────────
+    //
+    // Every AppFeature has a matching `feature_<name>` key here. The
+    // compiled value mirrors the Phase 1 default in feature_registry.dart
+    // (ALL true). When Remote Config has not been fetched / is offline,
+    // `Features.isOn()` reads through `_defaults` here. When RC is live,
+    // the server-side value overrides the local default.
+    //
+    // Phase 4 will set the lean defaults (≈20 ON, ≈29 OFF) here too so
+    // that flipping them via the RC console is one-click.
+    'feature_home': true,
+    'feature_family_map': true,
+    'feature_family_journey': true,
+    'feature_kinrel': true,
+    'feature_sparq_tray': true,
+    'feature_sparq_run_navigation': true,
+    'feature_feed': true,
+    'feature_chat': true,
+    'feature_circle': true,
+    'feature_communities': true,
+    'feature_profile': true,
+    'feature_profile_editing': true,
+    'feature_find_on_kinrel': true,
+    'feature_games': true,
+    'feature_game_invite_push': true,
+    'feature_family_chat': true,
+    'feature_members': true,
+    'feature_calendar': true,
+    'feature_activities': true,
+    'feature_memories': true,
+    'feature_member_timeline': true,
+    'feature_oral_history': true,
+    'feature_achievements': true,
+    'feature_lists': true,
+    'feature_governance_timeline': true,
+    'feature_unified_timeline': true,
+    'feature_hero_family_map': true,
+    'feature_hero_kinrel': true,
+    'feature_hero_find_on_kinrel': true,
+    'feature_hero_add_member': true,
+    'feature_top_bar_notifications': true,
+    'feature_top_bar_settings': true,
+    'feature_cameo_fallback': true,
+    'feature_live3d_cameo': true,
+    'feature_cameo_studio': true,
+    'feature_todays_question': true,
+    'feature_voice_messages': true,
+    'feature_scheduled_messages': true,
+    'feature_chat_mentions': true,
+    'feature_chat_block_report': true,
+    'feature_chat_reactions': true,
+    'feature_chat_typing_indicator': true,
+    'feature_chat_gallery': true,
+    'feature_graph_share_export': true,
+    'feature_photo_picker': true,
+    'feature_qr_join': true,
+    'feature_language_picker': true,
+    'feature_audio_pronunciation': true,
+    'feature_auto_kinship_inference': true,
+    'feature_kinship_ring_row': true,
+    'feature_paywall': true,
+    'feature_premium_insights': true,
+    'feature_premium_export': true,
+    'feature_premium_ai_kinship': true,
+    'feature_memory_vault': true,
+    'feature_memory_vault_free_monthly_cap': true,
+    'feature_max_free_members': true,
+    'feature_max_free_families': true,
+    'feature_coin_pool': true,
+    'feature_prediction_battle': true,
+    'feature_push_game_invite': true,
+    'feature_push_re_engagement': true,
+    'feature_push_mention': true,
+    'feature_push_scheduled_message': true,
+    'feature_invite_banner': true,
+    'feature_referral_on_profile': true,
+    'feature_retention_nudge': true,
+    'feature_ai_suggestions': true,
+    'feature_onboarding': true,
   };
 
   // ── Typed Getters ────────────────────────────────────────────────
@@ -199,6 +279,22 @@ class RemoteConfigService {
       _getBool('premium_feature_insights');
 
   // ── Internal Helpers ─────────────────────────────────────────────
+
+  /// Public bool reader. Reads through the same fallback chain as the
+  /// internal `_getBool` (compiled default → Remote Config), so it is
+  /// safe to call before [init] completes (returns the default).
+  ///
+  /// Used by the Feature Registry (`Features.isOn`) so the registry
+  /// can read `feature_<name>` keys without exposing `_remoteConfig`
+  /// or duplicating the fallback logic.
+  bool getBool(String key) => _getBool(key);
+
+  /// True iff [key] is present in the compiled [_defaults] map (the
+  /// canonical "known keys" set). Used by the Feature Registry to
+  /// decide whether a Remote Config value is authoritative (key is
+  /// deployed) or whether to fall back to the compiled default (key
+  /// has not been pushed to the RC console yet).
+  bool hasKey(String key) => _defaults.containsKey(key);
 
   bool _getBool(String key) {
     try {
