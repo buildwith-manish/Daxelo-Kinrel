@@ -151,14 +151,15 @@ enum AppFeature {
   onboarding,
 }
 
-// ── Compiled defaults (Phase 4: lean launch set) ───────────────────────
+// ── Compiled defaults (Phase 4: lean launch set, heroFamilyMap flipped ON) ─
 //
-// Phase 4 contract: 20 features ON (the daily-use surface), 44 OFF
-// (everything else — premium, experimental, push, debug plumbing),
-// 1 untouched (`unifiedTimeline` has no screen yet — per the spec,
-// "leave it alone").
+// Phase 4 contract: 21 features ON (the daily-use surface, incl.
+// the hero Graph + Map flanking icons turned back ON per user
+// request 2026-10-23), 43 OFF (everything else — premium, experi-
+// mental, push, debug plumbing), 1 untouched (`unifiedTimeline`
+// has no screen yet — per the spec, "leave it alone").
 //
-// Lean launch ON set (20):
+// Lean launch ON set (21):
 //   • Top-level surfaces: home, familyMap, kinrel, sparqTray, feed,
 //     chat, familyChat, members, calendar, profile, profileEditing,
 //     findOnKinrel
@@ -167,14 +168,17 @@ enum AppFeature {
 //   • HighlightsRow extras: oralHistory
 //   • Top-bar: topBarNotifications, topBarSettings
 //   • Home: todaysQuestion, inviteBanner
+//   • Hero icons: heroFamilyMap (the Graph + Map flanking icons
+//     in hero_section.dart — turned ON per user request 2026-10-23)
 //
-// Lean launch OFF set (44):
+// Lean launch OFF set (43):
 //   • familyJourney (depends on familyMap — premium subfeature, OFF)
 //   • sparqRunNavigation (premium subfeature)
 //   • circle, communities (hidden per IA review)
 //   • games, gameInvitePush (games OFF, push cascades OFF)
 //   • achievements, lists, governanceTimeline (occasional-use)
-//   • hero* (4 icons — all hidden)
+//   • hero* (3 remaining icons: heroKinrel, heroFindOnKinrel,
+//     heroAddMember — all hidden)
 //   • cameo* (3 entries — B1 verification incomplete)
 //   • chat* (6 sub-features: voice, scheduled, mentions, block, react,
 //     typing, gallery — all behind the lean launch scope)
@@ -193,7 +197,7 @@ enum AppFeature {
 // the corresponding `feature_<name>` Remote Config key, or use the
 // debug override in the Debug screen.
 const Map<AppFeature, bool> _defaults = {
-  // ── ON (20) — the daily-use surface ────────────────────────────
+  // ── ON (21) — the daily-use surface ────────────────────────────
   AppFeature.home: true,
   AppFeature.familyMap: true,
   AppFeature.kinrel: true,
@@ -214,8 +218,13 @@ const Map<AppFeature, bool> _defaults = {
   AppFeature.inviteBanner: true,
   AppFeature.topBarNotifications: true,
   AppFeature.topBarSettings: true,
+  // Turned ON per user request (2026-10-23): the hero Graph + Map
+  // flanking icons in hero_section.dart now render. They navigate to
+  // /family/:id/graph and /family/:id/map (routes already accessible
+  // via familyMap=ON). The other 3 hero* flags stay OFF.
+  AppFeature.heroFamilyMap: true,
 
-  // ── OFF (44) — premium / experimental / occasional-use ───────────
+  // ── OFF (43) — premium / experimental / occasional-use ───────────
   AppFeature.familyJourney: false, // depends on familyMap
   AppFeature.sparqRunNavigation: false,
   AppFeature.circle: false,
@@ -225,7 +234,6 @@ const Map<AppFeature, bool> _defaults = {
   AppFeature.achievements: false,
   AppFeature.lists: false,
   AppFeature.governanceTimeline: false, // NEW — OFF per spec
-  AppFeature.heroFamilyMap: false,
   AppFeature.heroKinrel: false,
   AppFeature.heroFindOnKinrel: false,
   AppFeature.heroAddMember: false,

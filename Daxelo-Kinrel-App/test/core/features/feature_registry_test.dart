@@ -31,10 +31,12 @@ void main() {
     }
   });
 
-  group('Phase 4 lean defaults — ON set (20)', () {
+  group('Phase 4 lean defaults — ON set (21)', () {
     // The daily-use surface per the Phase 4 spec. Mirrors the `_defaults`
     // map in feature_registry.dart — if either side drifts, this test
-    // catches it.
+    // catches it. heroFamilyMap was added to the ON set per user
+    // request 2026-10-23 ("turn on graph feature") to reveal the
+    // hero Graph + Map flanking icons.
     const expectedOn = <AppFeature>{
       // Top-level nav surfaces
       AppFeature.home,
@@ -61,10 +63,12 @@ void main() {
       // Home
       AppFeature.todaysQuestion,
       AppFeature.inviteBanner,
+      // Hero icons (graph feature turned ON per user request 2026-10-23)
+      AppFeature.heroFamilyMap,
     };
 
-    test('exactly 20 features are in the lean ON set', () {
-      expect(expectedOn.length, 20);
+    test('exactly 21 features are in the lean ON set', () {
+      expect(expectedOn.length, 21);
       // Every entry must be a real AppFeature (sanity).
       for (final f in expectedOn) {
         expect(AppFeature.values.contains(f), isTrue);
@@ -96,9 +100,11 @@ void main() {
     });
   });
 
-  group('Phase 4 lean defaults — OFF set (44)', () {
+  group('Phase 4 lean defaults — OFF set (43)', () {
     // Everything not in the lean ON set and not `unifiedTimeline`.
     // Mirrors the `_defaults` map in feature_registry.dart.
+    // heroFamilyMap was REMOVED from this set per user request
+    // 2026-10-23 — it's now in the ON set above.
     const expectedOff = <AppFeature>{
       AppFeature.familyJourney,
       AppFeature.sparqRunNavigation,
@@ -109,7 +115,6 @@ void main() {
       AppFeature.achievements,
       AppFeature.lists,
       AppFeature.governanceTimeline,
-      AppFeature.heroFamilyMap,
       AppFeature.heroKinrel,
       AppFeature.heroFindOnKinrel,
       AppFeature.heroAddMember,
@@ -150,8 +155,8 @@ void main() {
       AppFeature.onboarding,
     };
 
-    test('exactly 44 features are in the lean OFF set', () {
-      expect(expectedOff.length, 44);
+    test('exactly 43 features are in the lean OFF set', () {
+      expect(expectedOff.length, 43);
     });
 
     test('every lean-OFF feature defaults to false', () {
@@ -175,12 +180,12 @@ void main() {
     });
 
     test('ON + OFF + unifiedTimeline = enum size (sanity)', () {
-      // 20 ON + 44 OFF + 1 untouched (unifiedTimeline) = 65.
+      // 21 ON + 43 OFF + 1 untouched (unifiedTimeline) = 65.
       // If this fails, the enum has grown without the test being
       // updated — add the new feature to either the ON set, the OFF
       // set, or document why it's left untouched.
-      const leanOnCount = 20;
-      const leanOffCount = 44;
+      const leanOnCount = 21;
+      const leanOffCount = 43;
       const untouchedCount = 1;
       expect(
         AppFeature.values.length,

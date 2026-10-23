@@ -42,10 +42,12 @@ cascade.
 | `memories` | `activities` (master switch rule) |
 | `memberTimeline` | `activities` (master switch rule) |
 
-## Lean ON set (20)
+## Lean ON set (21)
 
 The daily-use surface. Per Phase 4 defaults, these are `true` in
-both `_defaults` and the `feature_*` RC keys.
+both `_defaults` and the `feature_*` RC keys. **`heroFamilyMap` was
+added to the ON set per user request 2026-10-23** ("turn on graph
+feature") — the hero Graph + Map flanking icons now render.
 
 | Feature | Surfaces gated | Phase |
 |---|---|---|
@@ -69,13 +71,15 @@ both `_defaults` and the `feature_*` RC keys.
 | `inviteBanner` | Home invite banner | 1 |
 | `topBarNotifications` | Home notification bell, `/notifications` route | 2 + 3 |
 | `topBarSettings` | Top-bar settings icon, `/settings` route | 1 + 3 |
+| `heroFamilyMap` | Hero Graph + Map flanking icons in `hero_section.dart` (turned ON 2026-10-23) | 2 |
 
-## Lean OFF set (44)
+## Lean OFF set (43)
 
 Premium / experimental / occasional-use / push channels. Per Phase 4
 defaults, these are `false` in both `_defaults` and the `feature_*`
-RC keys. Flip from the RC console by setting `feature_<name>=true`,
-or from the debug screen at `/debug/features` (debug builds only).
+RC keys. **`heroFamilyMap` was REMOVED from this set 2026-10-23.**
+Flip from the RC console by setting `feature_<name>=true`, or from
+the debug screen at `/debug/features` (debug builds only).
 
 | Feature | Parent | Surfaces gated | Phase |
 |---|---|---|---|
@@ -88,7 +92,6 @@ or from the debug screen at `/debug/features` (debug builds only).
 | `achievements` | — | HighlightsRow Achievements tile, `/achievements` route | 2 + 3 |
 | `lists` | — | HighlightsRow Lists tile, `/lists` route | 2 + 3 |
 | `governanceTimeline` | — | `/governance` route (NEW per spec) | 1 + 3 |
-| `heroFamilyMap` | — | Hero Graph + Map flanking icons | 2 |
 | `heroKinrel` | — | Hero Kinrel icon | 2 |
 | `heroFindOnKinrel` | — | Hero Find-on-Kinrel icon | 2 |
 | `heroAddMember` | — | Hero Add-Member icon | 2 |

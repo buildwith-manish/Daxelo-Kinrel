@@ -116,10 +116,11 @@ class RemoteConfigService {
     'premium_feature_ai_kinship': false,
     'premium_feature_insights': true,
 
-    // ── Feature Registry keys (Phase 4 lean launch set) ─────────────
+    // ── Feature Registry keys (Phase 4 lean launch set + heroFamilyMap ON) ──
     //
     // Mirrors the `_defaults` map in feature_registry.dart exactly —
-    // 20 ON (daily-use surface), 44 OFF (premium/experimental/push),
+    // 21 ON (daily-use surface, incl. heroFamilyMap turned ON per
+    // user request 2026-10-23), 43 OFF (premium/experimental/push),
     // 1 untouched (`feature_unified_timeline` stays `true` — no UI
     // surface, leave alone per spec).
     //
@@ -128,7 +129,7 @@ class RemoteConfigService {
     // live, the server-side value overrides the local default — so
     // flipping a feature from the RC console is one-click.
     //
-    // ── ON (20) ─────────────────────────────────────────────────────
+    // ── ON (21) ─────────────────────────────────────────────────────
     'feature_home': true,
     'feature_family_map': true,
     'feature_kinrel': true,
@@ -149,7 +150,11 @@ class RemoteConfigService {
     'feature_invite_banner': true,
     'feature_top_bar_notifications': true,
     'feature_top_bar_settings': true,
-    // ── OFF (44) ────────────────────────────────────────────────────
+    // Turned ON per user request 2026-10-23: the hero Graph + Map
+    // flanking icons now render. Routes (/family/:id/graph,
+    // /family/:id/map) already accessible via feature_family_map.
+    'feature_hero_family_map': true,
+    // ── OFF (43) ────────────────────────────────────────────────────
     'feature_family_journey': false,
     'feature_sparq_run_navigation': false,
     'feature_circle': false,
@@ -159,7 +164,6 @@ class RemoteConfigService {
     'feature_achievements': false,
     'feature_lists': false,
     'feature_governance_timeline': false, // NEW — OFF per spec
-    'feature_hero_family_map': false,
     'feature_hero_kinrel': false,
     'feature_hero_find_on_kinrel': false,
     'feature_hero_add_member': false,
