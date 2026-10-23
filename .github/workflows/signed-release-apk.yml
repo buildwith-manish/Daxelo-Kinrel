@@ -63,10 +63,15 @@ jobs:
       - name: Install native build toolchain
         run: |
           sudo apt-get update
+          # Ubuntu 26.04 (resolute) runner image dropped the runtime-
+          # only packages libc++1-19 / libc++abi1-19 / libunwind-19 —
+          # they're now subsumed by the corresponding -dev packages
+          # (which pull the runtime .so as a dependency). Install the
+          # -dev variants only.
           sudo apt-get install -y --no-install-recommends \
             clang cmake ninja-build \
             libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev \
-            libc++-19-dev libc++1-19 libc++abi-19-dev libc++abi1-19 libunwind-19
+            libc++-19-dev libc++abi-19-dev libunwind-19-dev
 
       - name: Install Android SDK & NDK
         run: |
