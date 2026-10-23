@@ -24,11 +24,12 @@ on:
           - release
           - debug
   push:
-    branches: [main]
+    branches: [main, feature-registry]
     paths:
       - 'Daxelo-Kinrel-App/lib/**'
       - 'Daxelo-Kinrel-App/pubspec.yaml'
       - 'Daxelo-Kinrel-App/android/**'
+      - '.github/workflows/signed-release-apk.yml'
 
 concurrency:
   group: signed-release-apk-${{ github.ref }}
