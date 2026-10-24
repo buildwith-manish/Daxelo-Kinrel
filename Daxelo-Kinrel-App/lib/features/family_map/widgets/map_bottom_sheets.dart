@@ -29,7 +29,9 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/place_models.dart';
 import '../providers/family_map_provider.dart';
+import '../providers/live_location_provider.dart';
 import 'family_building_layer.dart' show FamilyBuildingBottomSheet;
+import 'live_location_badge.dart';
 import 'map_initials.dart';
 // P12.7 — Kinrel Cameo fallback avatar
 import '../../../core/constants/feature_flags.dart';
@@ -49,8 +51,23 @@ class MapBottomSheets {
   // ── Pin Bottom Sheet ───────────────────────────────────────────────
 
   /// Shows the family member pin bottom sheet (avatar, name, city,
-  /// "View Profile" button).
-  static void showPinBottomSheet(BuildContext context, MapPin pin) {
+  /// live-location badge + distance, "View Profile" button).
+  ///
+  /// Pass [viewerLat] / [viewerLng] when the current user is sharing
+  /// their own location — the badge will show "X km away" next to the
+  /// tier label. Pass null to hide the distance line.
+  ///
+  /// Pass [liveLocation] for the selected member (from
+  /// liveLocationProvider) to show their tier label. If null, the
+  /// badge is hidden entirely (member has no live position).
+  static void showPinBottomSheet(
+    BuildContext context,
+    MapPin pin, {
+    LiveLocation? liveLocation,
+    double? viewerLat,
+    double? viewerLng,
+    bool isSelf = false,
+  }) {
     final l10n = S.of(context);
     showModalBottomSheet(
       context: context,
@@ -165,6 +182,18 @@ class MapBottomSheets {
                   ),
                 ],
               ),
+
+              // Live location badge — tier label + distance from viewer.
+              // Hidden when the member has no LiveLocation (never shared).
+              if (liveLocation != null) ...[
+                const SizedBox(height: KinrelSpacing.md),
+                LiveLocationBadge(
+                  location: liveLocation,
+                  viewerLat: viewerLat,
+                  viewerLng: viewerLng,
+                  isSelf: isSelf,
+                ),
+              ],
 
               const SizedBox(height: KinrelSpacing.xl),
 

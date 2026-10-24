@@ -45,6 +45,7 @@ import '../widgets/build_identifier_label.dart';
 import '../widgets/family_building_layer.dart';
 import '../widgets/avatar_marker_overlay.dart';
 import '../widgets/animated_relationship_path.dart';
+import '../widgets/location_sharing_toggle.dart';
 import '../widgets/map_focus_controller.dart';
 import '../widgets/map_timeline_scrubber.dart';
 import '../widgets/family_journey_animation.dart';
@@ -2534,6 +2535,63 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
               reducedMotion: reducedMotion,
             ),
 
+            // ── Live location sharing toggle FAB ───────────────────────────
+            // Bottom-right floating action button. On first tap (sharing
+            // off), runs the OS permission flow + the friendly opt-in
+            // explanation sheet. On subsequent taps (sharing on), shows
+            // a confirmation sheet before stopping.
+            //
+            // The FAB needs the current viewer's Person.id so it can
+            // pass it to LiveLocationNotifier.setSharing (the DB row
+            // keys on personId, not userId). Computed once per build
+            // from familyMembersProvider(familyId).
+            Positioned(
+              right: 16,
+              bottom: 96, // above the timeline scrubber (80px tall)
+              child: Builder(
+                builder: (context) {
+                  final members = ref
+                      .watch(familyMembersProvider(widget.familyId))
+                      .valueOrNull;
+                  final userId =
+                      ref.watch(supabaseProvider)?.auth.currentUser?.id;
+                  final myPerson = (members == null || userId == null)
+                      ? null
+                      : members
+                          .where((p) => p.linkedUserId == userId)
+                          .firstOrNull;
+                  if (myPerson == null) {
+                    // The viewer isn't a member of this family (or
+                    // hasn't claimed their Person profile). Hide the
+                    // FAB — they can't share location for a family
+                    // they don't belong to.
+                    return const SizedBox.shrink();
+                  }
+                  return LocationSharingToggle(
+                    familyId: widget.familyId,
+                    viewerPersonId: myPerson.id,
+                    onSharingStarted: (lat, lng) {
+                      setState(() {
+                        _liveLocationLat = lat;
+                        _liveLocationLng = lng;
+                      });
+                      // The broadcast loop auto-starts when
+                      // liveState.isSharing flips to true (see
+                      // line 1678-1682 in the build method).
+                    },
+                    onSharingStopped: () {
+                      setState(() {
+                        _liveLocationLat = null;
+                        _liveLocationLng = null;
+                      });
+                      // The broadcast loop auto-stops when
+                      // liveState.isSharing flips to false.
+                    },
+                  );
+                },
+              ),
+            ),
+
             // ── P10.7 — Timeline scrubber at the bottom ─────────────────
             Positioned(
               left: 0,
@@ -2956,8 +3014,34 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // P10.9 — Save the new selection immediately.
     _scheduleStateSave();
 
-    // Show the existing pin bottom sheet.
-    if (mounted) MapBottomSheets.showPinBottomSheet(context, pin);
+    // Show the existing pin bottom sheet — pass the member's live
+    // location (from liveLocationProvider) + the viewer's current
+    // GPS so the LiveLocationBadge can show tier + distance.
+    if (mounted) {
+      final liveState = ref.read(liveLocationProvider);
+      final memberLocation = liveState.locations[pin.personId];
+      // isSelf = true when the viewer tapped their OWN pin — forces
+      // the distance label to "Live • now" (no point computing self-
+      // distance).
+      final members =
+          ref.read(familyMembersProvider(widget.familyId)).valueOrNull;
+      final userId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+      final myPersonId = (members == null || userId == null)
+          ? null
+          : members
+              .where((p) => p.linkedUserId == userId)
+              .firstOrNull
+              ?.id;
+      final isSelf = myPersonId != null && myPersonId == pin.personId;
+      MapBottomSheets.showPinBottomSheet(
+        context,
+        pin,
+        liveLocation: memberLocation,
+        viewerLat: _liveLocationLat,
+        viewerLng: _liveLocationLng,
+        isSelf: isSelf,
+      );
+    }
   }
 
   /// P10.7 — Handle a long-press on a family member avatar marker.
