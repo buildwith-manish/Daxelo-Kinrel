@@ -61,6 +61,26 @@ subprojects {
         }
     }
 
+    // Phase A follow-up — also override ndkVersion via afterEvaluate
+    // for sub-projects whose own build.gradle sets ndkVersion AFTER
+    // the withPlugin callback fires. The :jni sub-project (generated
+    // by Flutter native-assets from thermion_dart) is in this
+    // category — its build.gradle declares ndkVersion "28.2.13676358"
+    // at evaluation time, clobbering our withPlugin override.
+    //
+    // afterEvaluate runs AFTER the project's build.gradle is parsed,
+    // so our value wins.
+    afterEvaluate {
+        val androidExt = extensions.findByType<com.android.build.api.dsl.LibraryExtension>()
+        if (androidExt != null) {
+            androidExt.ndkVersion = "27.0.12077973"
+        }
+        val appExt = extensions.findByType<com.android.build.api.dsl.ApplicationExtension>()
+        if (appExt != null) {
+            appExt.ndkVersion = "27.0.12077973"
+        }
+    }
+
     // ── Force Kotlin language version + experimental opt-in for all subprojects ─
     // Kotlin 2.x no longer supports language version 1.6.
     // Some Flutter plugins (e.g. sentry_flutter) still declare
