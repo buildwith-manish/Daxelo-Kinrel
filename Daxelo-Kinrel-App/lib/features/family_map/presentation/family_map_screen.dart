@@ -1838,6 +1838,21 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             tooltip: 'Share this view',
             onPressed: _shareMapViewAsImage,
           ),
+          // Phase B (#23) — Member list (distance-sorted). Opens a
+          // bottom sheet listing all family members sorted by
+          // distance from the viewer (closest first).
+          IconButton(
+            icon: const Icon(Icons.people_outline_rounded, size: 22),
+            tooltip: 'Members by distance',
+            onPressed: () => _showDistanceSortedListHelper(
+              context,
+              ref,
+              widget.familyId,
+              _liveLocationLat,
+              _liveLocationLng,
+              _mapController,
+            ),
+          ),
           // Dev test: fly to Bengaluru at zoom 16, tilt 45° to verify 3D
           // buildings. Debug builds only — never shipped to production.
           if (kDebugMode)
@@ -2882,14 +2897,100 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                   },
                 ),
               ),
+
+            // ── Phase B (#21) — Recenter on me floating button ──────────
+            if (_liveLocationLat != null && _liveLocationLng != null)
+              Positioned(
+                right: 16,
+                bottom: 168,
+                child: FloatingActionButton.small(
+                  heroTag: 'family_map_recenter_me',
+                  backgroundColor: KinrelColors.darkCard,
+                  foregroundColor: KinrelColors.textSilver,
+                  elevation: 2,
+                  onPressed: () {
+                    _mapController?.animateCamera(
+                      center: Geographic(
+                        lat: _liveLocationLat!,
+                        lon: _liveLocationLng!,
+                      ),
+                      zoom: 15,
+                    );
+                  },
+                  tooltip: 'Recenter on me',
+                  child: const Icon(Icons.gps_fixed_rounded, size: 20),
+                ),
+              ),
+
+            // ── Phase B (#24) — Nearest / Furthest stat card ───────────
+            if (_liveLocationLat != null && _liveLocationLng != null)
+              Positioned(
+                left: 12,
+                bottom: 100,
+                child: Builder(
+                  builder: (context) {
+                    final ls = ref.watch(liveLocationProvider);
+                    final membersList = ref
+                        .watch(familyMembersProvider(widget.familyId))
+                        .valueOrNull;
+                    if (ls.locations.isEmpty || membersList == null) {
+                      return const SizedBox.shrink();
+                    }
+                    final dists = <({String name, double meters})>[];
+                    for (final entry in ls.locations.entries) {
+                      final member = membersList
+                          .where((m) => m.id == entry.key)
+                          .firstOrNull;
+                      if (member == null) continue;
+                      final m = haversineMeters(
+                        lat1: _liveLocationLat!,
+                        lng1: _liveLocationLng!,
+                        lat2: entry.value.lat,
+                        lng2: entry.value.lng,
+                      );
+                      dists.add((name: member.name, meters: m));
+                    }
+                    if (dists.isEmpty) return const SizedBox.shrink();
+                    dists.sort((a, b) => a.meters.compareTo(b.meters));
+                    return _StatCard(
+                      nearestName: dists.first.name,
+                      nearestDist: formatDistance(meters: dists.first.meters),
+                      furthestName: dists.last.name,
+                      furthestDist: formatDistance(meters: dists.last.meters),
+                    );
+                  },
+                ),
+              ),
+
+            // ── Phase B (#26) — Zoom level indicator ────────────────────
+            if (_mapController != null)
+              Positioned(
+                right: 16,
+                bottom: 220,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.darkCard.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Zoom: ${_mapController?.camera?.zoom?.toStringAsFixed(1) ?? '--'}',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: KinrelColors.textSilver,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       );
       },
     );
   }
-
-  // ── MapLibre lifecycle ─────────────────────────────────────────────
 
   void _onMapCreated(MapController controller) {
     _mapController = controller;
@@ -3258,6 +3359,13 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
               .firstOrNull
               ?.id;
       final isSelf = myPersonId != null && myPersonId == pin.personId;
+      // Phase B (#20) — Resolve the member's auth userId for the
+      // "Message" button. Looks up the Person whose id matches the
+      // pin's personId, then reads their linkedUserId.
+      final memberUserId = members
+          ?.where((m) => m.id == pin.personId)
+          .firstOrNull
+          ?.linkedUserId;
       MapBottomSheets.showPinBottomSheet(
         context,
         pin,
@@ -3265,6 +3373,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         viewerLat: _liveLocationLat,
         viewerLng: _liveLocationLng,
         isSelf: isSelf,
+        memberUserId: memberUserId,
       );
     }
   }
@@ -4124,6 +4233,261 @@ class _PermissionRevokedBanner extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase B (#23) — Distance-sorted member list helper on _FamilyMapScreenState
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Extension on _FamilyMapScreenState to add the distance-sorted list
+/// method. (Cannot be on the class itself since the class closing
+/// brace was already written; using an extension instead.)
+///
+/// Actually — we need to call this from the AppBar button. Since we
+/// can't add methods via extension (they don't have access to
+/// `setState` or `_mapController`), we'll use a standalone helper
+/// function instead that takes the required refs + context.
+
+/// Phase B (#23) — Show a bottom sheet listing all family members
+/// sorted by distance from the viewer (closest first). Each row
+/// shows: avatar circle (initials fallback) + name + tier dot +
+/// distance label. Tapping a row centers the map on that member
+/// + closes the sheet.
+void _showDistanceSortedListHelper(
+  BuildContext context,
+  WidgetRef ref,
+  String familyId,
+  double? viewerLat,
+  double? viewerLng,
+  MapController? mapController,
+) {
+  final liveState = ref.read(liveLocationProvider);
+  final members = ref.read(familyMembersProvider(familyId)).valueOrNull;
+  final locations = liveState.locations;
+
+  // Build the sorted list of (name, personId, lat, lng, meters, tier).
+  final entries = <({String name, String personId, double lat, double lng, double? meters, LocationTier? tier})>[];
+  for (final pin in members ?? <Person>[]) {
+    final loc = locations[pin.id];
+    double? dist;
+    if (viewerLat != null && viewerLng != null && loc != null) {
+      dist = haversineMeters(
+        lat1: viewerLat,
+        lng1: viewerLng,
+        lat2: loc.lat,
+        lng2: loc.lng,
+      );
+    }
+    entries.add((
+      name: pin.name,
+      personId: pin.id,
+      lat: loc?.lat ?? 0,
+      lng: loc?.lng ?? 0,
+      meters: dist,
+      tier: loc?.tier,
+    ));
+  }
+  // Sort by distance (null = unknown → goes last).
+  entries.sort((a, b) {
+    if (a.meters == null && b.meters == null) return 0;
+    if (a.meters == null) return 1;
+    if (b.meters == null) return -1;
+    return a.meters!.compareTo(b.meters!);
+  });
+
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: KinrelColors.darkCard,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    isScrollControlled: true,
+    builder: (c) => SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(c).size.height * 0.6,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              decoration: BoxDecoration(
+                color: KinrelColors.darkElevated,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: 16, bottom: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Members by distance',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+              ),
+            ),
+            if (entries.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'No members found.',
+                  style: TextStyle(color: KinrelColors.textDim),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: entries.length,
+                  itemBuilder: (c, i) {
+                    final e = entries[i];
+                    final distLabel = e.meters != null
+                        ? formatDistance(meters: e.meters!)
+                        : 'Distance unknown';
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: KinrelColors.darkElevated,
+                        child: Text(
+                          e.name.isNotEmpty ? e.name[0].toUpperCase() : '?',
+                          style: TextStyle(color: KinrelColors.orange),
+                        ),
+                      ),
+                      title: Text(
+                        e.name,
+                        style: TextStyle(
+                          color: KinrelColors.textWhite,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      subtitle: Text(
+                        distLabel,
+                        style: TextStyle(
+                          color: KinrelColors.textDim,
+                          fontSize: 12,
+                        ),
+                      ),
+                      trailing: e.tier != null
+                          ? _TierDotSmall(tier: e.tier!)
+                          : null,
+                      onTap: () {
+                        if (mapController != null && e.lat != 0) {
+                          mapController.animateCamera(
+                            center: Geographic(lat: e.lat, lon: e.lng),
+                            zoom: 14,
+                          );
+                        }
+                        Navigator.of(c).pop();
+                      },
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// Small tier dot (reused in the distance-sorted list rows).
+class _TierDotSmall extends StatelessWidget {
+  const _TierDotSmall({required this.tier});
+  final LocationTier tier;
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (tier) {
+      LocationTier.live => const Color(0xFF00E5C7),
+      LocationTier.recent => KinrelColors.orange,
+      LocationTier.stale => KinrelColors.orange.withValues(alpha: 0.5),
+      LocationTier.cityFallback => KinrelColors.textDim,
+    };
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+    );
+  }
+}
+
+/// Phase B (#24) — Nearest / Furthest stat card.
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.nearestName,
+    required this.nearestDist,
+    required this.furthestName,
+    required this.furthestDist,
+  });
+  final String nearestName;
+  final String nearestDist;
+  final String furthestName;
+  final String furthestDist;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard.withValues(alpha: 0.90),
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.near_me_rounded,
+                  size: 12, color: KinrelColors.orange),
+              const SizedBox(width: 4),
+              Text(
+                'Nearest: $nearestName · $nearestDist',
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: KinrelColors.textSilver,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.flight_takeoff_rounded,
+                  size: 12, color: KinrelColors.textDim),
+              const SizedBox(width: 4),
+              Text(
+                'Furthest: $furthestName · $furthestDist',
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w400,
+                  color: KinrelColors.textDim,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

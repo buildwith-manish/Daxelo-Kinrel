@@ -68,6 +68,7 @@ class MapBottomSheets {
     double? viewerLat,
     double? viewerLng,
     bool isSelf = false,
+    String? memberUserId,
   }) {
     final l10n = S.of(context);
     showModalBottomSheet(
@@ -267,6 +268,32 @@ class MapBottomSheets {
                   ),
                 ),
               ),
+
+              // Phase B (#20) — Message button. Opens the DM with this
+              // member. Only shown when the member has a linkedUserId
+              // (i.e. they've claimed their Person profile → real
+              // Kinrel account). Placeholder relatives (Manual status)
+              // can't be DMed.
+              if (memberUserId != null && memberUserId.isNotEmpty && !isSelf)
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      context.push('/dm/$memberUserId');
+                    },
+                    icon: const Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      size: 20,
+                      color: KinrelColors.textSilver,
+                    ),
+                    label: const Text('Message'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: KinrelColors.textSilver,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
 
               const SizedBox(height: KinrelSpacing.sm),
             ],
