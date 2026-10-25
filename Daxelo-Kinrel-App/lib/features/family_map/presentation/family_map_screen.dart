@@ -149,6 +149,14 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// to capture the current map view as a PNG image.
   final GlobalKey _mapBoundaryKey = GlobalKey();
 
+  /// Phase C (#31) — In-app proximity alert banner. When a proximity
+  /// alert fires (in _checkProximityAlerts), the alert text is stored
+  /// here + a 10s auto-dismiss timer is started. The build method
+  /// shows a Positioned banner at the top of the map when this is
+  /// non-null.
+  String? _proximityAlertText;
+  Timer? _proximityAlertDismissTimer;
+
   /// ── AUTHORITATIVE LIFECYCLE ────────────────────────────────────────
   /// Replaces the fragile multi-boolean lifecycle (`_styleLoaded` +
   /// `_loadState.phase` + `_entranceAnimationDone`)
@@ -1756,10 +1764,19 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             mapAsync.when(
               data: (result) {
                 final locatedCount = result.pins.length;
+                // Phase C (#34) — Also show the count of members whose
+                // live location tier is "live" (updated within 2 min).
+                final liveCount = ref
+                    .watch(liveLocationProvider)
+                    .locations.values
+                    .where((l) => l.tier == LocationTier.live)
+                    .length;
                 final l10n = S.of(context);
                 return Text(
-                  l10n?.familyMapLocatedCount(locatedCount) ??
-                      '$locatedCount member${locatedCount == 1 ? '' : 's'} located',
+                  liveCount > 0
+                      ? '${l10n?.familyMapLocatedCount(locatedCount) ?? '$locatedCount member${locatedCount == 1 ? '' : 's'} located'} · $liveCount live'
+                      : l10n?.familyMapLocatedCount(locatedCount) ??
+                          '$locatedCount member${locatedCount == 1 ? '' : 's'} located',
                   style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
@@ -1837,6 +1854,19 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             icon: const Icon(Icons.share_outlined, size: 22),
             tooltip: 'Share this view',
             onPressed: _shareMapViewAsImage,
+          ),
+          // Phase C (#27) — Share family map link. Generates a
+          // kinrel.app deep link URL + opens the OS share sheet.
+          IconButton(
+            icon: const Icon(Icons.link_rounded, size: 22),
+            tooltip: 'Share map link',
+            onPressed: () {
+              final url = 'https://kinrel.app/map?familyId=${widget.familyId}';
+              Share.share(
+                'See where your family is on the map: $url',
+                subject: 'Family Map — Daxelo Kinrel',
+              );
+            },
           ),
           // Phase B (#23) — Member list (distance-sorted). Opens a
           // bottom sheet listing all family members sorted by
@@ -2898,6 +2928,103 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 ),
               ),
 
+            // ── Phase C (#31) — In-app proximity alert banner ────────────
+            // Shows a brief animated banner at the top of the map when
+            // a proximity alert fires (in addition to the system
+            // notification). Slides in from the top + auto-dismisses
+            // after 10 seconds. More visible than a system notif when
+            // the app is foregrounded.
+            if (_proximityAlertText != null)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 100,
+                left: 12,
+                right: 12,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: KinrelColors.orange.withValues(alpha: 0.95),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.30),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.notifications_active_rounded,
+                            color: Colors.white, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _proximityAlertText!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () {
+                            setState(() => _proximityAlertText = null);
+                            _proximityAlertDismissTimer?.cancel();
+                          },
+                          child: const Icon(Icons.close_rounded,
+                              color: Colors.white70, size: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+            // ── Phase C (#28) — Map bearing / compass indicator ──────────
+            // Small compass button that shows the current map bearing.
+            // When the user has rotated the map (bearing != 0), the
+            // button shows the angle (e.g. "45°"). Tapping resets
+            // bearing to 0° (north-up).
+            if (_mapController != null)
+              Positioned(
+                right: 16,
+                bottom: 256,
+                child: GestureDetector(
+                  onTap: () {
+                    _mapController?.animateCamera(bearing: 0);
+                    setState(() {});
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: KinrelColors.darkCard.withValues(alpha: 0.85),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.explore_rounded,
+                            size: 16, color: KinrelColors.orange),
+                        Text(
+                          '${((_mapController?.camera?.bearing ?? 0)).round()}°',
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w500,
+                            color: KinrelColors.textSilver,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
             // ── Phase B (#21) — Recenter on me floating button ──────────
             if (_liveLocationLat != null && _liveLocationLng != null)
               Positioned(
@@ -2957,6 +3084,39 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                       nearestDist: formatDistance(meters: dists.first.meters),
                       furthestName: dists.last.name,
                       furthestDist: formatDistance(meters: dists.last.meters),
+                      // Phase C (#29) — Tapping "Nearest" centers the
+                      // map on the nearest member; tapping "Furthest"
+                      // centers on the furthest.
+                      onTapNearest: () {
+                        final loc = ls.locations.entries
+                            .where((e) =>
+                                membersList.any((m) =>
+                                    m.id == e.key &&
+                                    m.name == dists.first.name))
+                            .firstOrNull;
+                        if (loc != null && _mapController != null) {
+                          _mapController!.animateCamera(
+                            center:
+                                Geographic(lat: loc.value.lat, lon: loc.value.lng),
+                            zoom: 15,
+                          );
+                        }
+                      },
+                      onTapFurthest: () {
+                        final loc = ls.locations.entries
+                            .where((e) =>
+                                membersList.any((m) =>
+                                    m.id == e.key &&
+                                    m.name == dists.last.name))
+                            .firstOrNull;
+                        if (loc != null && _mapController != null) {
+                          _mapController!.animateCamera(
+                            center:
+                                Geographic(lat: loc.value.lat, lon: loc.value.lng),
+                            zoom: 14,
+                          );
+                        }
+                      },
                     );
                   },
                 ),
@@ -3971,6 +4131,20 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       } catch (e) {
         debugPrint('⚠️ Proximity alert failed: $e');
       }
+
+      // Phase C (#31) — Also show an in-app banner (more visible than
+      // a system notification when the app is foregrounded).
+      final alertText = '$name is $distLabel from you on the family map.';
+      if (mounted) {
+        setState(() => _proximityAlertText = alertText);
+        _proximityAlertDismissTimer?.cancel();
+        _proximityAlertDismissTimer =
+            Timer(const Duration(seconds: 10), () {
+          if (mounted) {
+            setState(() => _proximityAlertText = null);
+          }
+        });
+      }
     }
   }
 
@@ -4423,17 +4597,24 @@ class _TierDotSmall extends StatelessWidget {
 }
 
 /// Phase B (#24) — Nearest / Furthest stat card.
+/// Phase C (#29) — Rows are tappable: tapping "Nearest" centers the
+/// map on the nearest member; tapping "Furthest" centers on the
+/// furthest. Pass null callbacks to make rows non-tappable.
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.nearestName,
     required this.nearestDist,
     required this.furthestName,
     required this.furthestDist,
+    this.onTapNearest,
+    this.onTapFurthest,
   });
   final String nearestName;
   final String nearestDist;
   final String furthestName;
   final String furthestDist;
+  final VoidCallback? onTapNearest;
+  final VoidCallback? onTapFurthest;
 
   @override
   Widget build(BuildContext context) {
@@ -4454,38 +4635,52 @@ class _StatCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.near_me_rounded,
-                  size: 12, color: KinrelColors.orange),
-              const SizedBox(width: 4),
-              Text(
-                'Nearest: $nearestName · $nearestDist',
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: KinrelColors.textSilver,
-                ),
+          InkWell(
+            onTap: onTapNearest,
+            borderRadius: BorderRadius.circular(4),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.near_me_rounded,
+                      size: 12, color: KinrelColors.orange),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Nearest: $nearestName · $nearestDist',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: KinrelColors.textSilver,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
           const SizedBox(height: 2),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.flight_takeoff_rounded,
-                  size: 12, color: KinrelColors.textDim),
-              const SizedBox(width: 4),
-              Text(
-                'Furthest: $furthestName · $furthestDist',
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w400,
-                  color: KinrelColors.textDim,
-                ),
+          InkWell(
+            onTap: onTapFurthest,
+            borderRadius: BorderRadius.circular(4),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.flight_takeoff_rounded,
+                      size: 12, color: KinrelColors.textDim),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Furthest: $furthestName · $furthestDist',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w400,
+                      color: KinrelColors.textDim,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ],
       ),
