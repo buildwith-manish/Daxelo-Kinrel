@@ -159,6 +159,8 @@ class LiveLocationState {
     this.error,
     this.pausedUntil,
     this.viewerStatus = MemberStatus.stationary,
+    this.proximityThresholdMeters = 500.0,
+    this.permissionRevoked = false,
   });
 
   /// Map of personId → live/last-known location.
@@ -175,18 +177,27 @@ class LiveLocationState {
 
   /// When location sharing is paused (Incognito mode), the timestamp
   /// at which the pause auto-clears. Null when not paused.
-  ///
-  /// The broadcast loop checks `DateTime.now().isBefore(pausedUntil)`
-  /// before each tick — if paused, the tick is skipped entirely
-  /// (no GPS capture, no broadcast, no DB upsert). When the pause
-  /// expires, the next tick resumes automatically.
   final DateTime? pausedUntil;
 
   /// The current user's speed-derived status (stationary / walking /
   /// driving). Drives the FAB icon overlay + the broadcast interval.
-  /// Updated by [LiveLocationNotifier.recordViewerStatus] after each
-  /// GPS capture.
   final MemberStatus viewerStatus;
+
+  /// Phase A (#15) — Configurable proximity-alert radius in meters.
+  /// Default 500m. The broadcast loop's proximity check uses this
+  /// value to determine the threshold below which a "family member
+  /// is nearby" notification fires.
+  ///
+  /// User-configurable via the long-press FAB → settings sheet.
+  /// Presets: 100m (tight gathering), 500m (default), 1km (city
+  /// block), 5km (city-wide).
+  final double proximityThresholdMeters;
+
+  /// Phase A (#17) — True when the OS has revoked location permission
+  /// while sharing was on. The broadcast loop auto-pauses when this
+  /// flips to true. The map screen shows a banner prompting the user
+  /// to re-grant permission via OS settings.
+  final bool permissionRevoked;
 
   /// Convenience: true iff sharing is currently paused.
   bool get isPaused =>
@@ -199,6 +210,8 @@ class LiveLocationState {
     String? error,
     DateTime? pausedUntil,
     MemberStatus? viewerStatus,
+    double? proximityThresholdMeters,
+    bool? permissionRevoked,
   }) => LiveLocationState(
     locations: locations ?? this.locations,
     isSharing: isSharing ?? this.isSharing,
@@ -206,6 +219,9 @@ class LiveLocationState {
     error: error,
     pausedUntil: pausedUntil ?? this.pausedUntil,
     viewerStatus: viewerStatus ?? this.viewerStatus,
+    proximityThresholdMeters:
+        proximityThresholdMeters ?? this.proximityThresholdMeters,
+    permissionRevoked: permissionRevoked ?? this.permissionRevoked,
   );
 }
 
@@ -465,6 +481,35 @@ class LiveLocationNotifier extends StateNotifier<LiveLocationState> {
     if (newStatus != state.viewerStatus) {
       state = state.copyWith(viewerStatus: newStatus);
     }
+  }
+
+  /// Phase A (#15) — Set the proximity-alert radius in meters. Called
+  /// from the long-press FAB → settings sheet. The broadcast loop's
+  /// proximity check uses [LiveLocationState.proximityThresholdMeters]
+  /// to determine the threshold below which a "family member is
+  /// nearby" notification fires.
+  void setProximityThreshold(double meters) {
+    state = state.copyWith(proximityThresholdMeters: meters);
+  }
+
+  /// Phase A (#17) — Mark that the OS has revoked location permission
+  /// while sharing was on. Auto-pauses sharing (24h) so the broadcast
+  /// loop stops trying to capture GPS until the user re-grants
+  /// permission. The map screen shows a banner prompting the user
+  /// to open OS settings.
+  void markPermissionRevoked() {
+    if (state.permissionRevoked) return; // already flagged
+    state = state.copyWith(
+      permissionRevoked: true,
+      pausedUntil: DateTime.now().toUtc().add(const Duration(hours: 24)),
+    );
+  }
+
+  /// Phase A (#17) — Clear the permission-revoked flag (after the user
+  /// re-grants permission via OS settings + resumes sharing).
+  void clearPermissionRevoked() {
+    if (!state.permissionRevoked) return;
+    state = state.copyWith(permissionRevoked: false);
   }
 
   /// Broadcast a live position update to the family channel.

@@ -25,13 +25,16 @@
 import 'dart:async';
 import 'dart:convert' show jsonDecode, jsonEncode;
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart' show rootBundle, HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre/maplibre.dart';
 import 'package:go_router/go_router.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
@@ -131,6 +134,20 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// changes (stationary → walking → driving) so the broadcast timer
   /// can be restarted with the new adaptive interval.
   MemberStatus? _lastViewerStatus;
+
+  /// Phase A (#16) — "Follow me" camera mode. When true, the map
+  /// camera auto-centers on the viewer's current GPS position every
+  /// broadcast tick. Toggled via a button in the AppBar.
+  bool _isFollowMe = false;
+
+  /// Phase A (#18) — Active member filter. Drives which pins render
+  /// in the AvatarMarkerOverlay.
+  _MemberFilter _memberFilter = _MemberFilter.all;
+
+  /// Phase A (#19) — GlobalKey for the RepaintBoundary that wraps
+  /// the entire map Stack. Used by the "Share view" AppBar button
+  /// to capture the current map view as a PNG image.
+  final GlobalKey _mapBoundaryKey = GlobalKey();
 
   /// ── AUTHORITATIVE LIFECYCLE ────────────────────────────────────────
   /// Replaces the fragile multi-boolean lifecycle (`_styleLoaded` +
@@ -1772,6 +1789,35 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
           ],
         ),
         actions: [
+          // Phase A (#16) — Follow-me camera toggle. When ON, the map
+          // camera auto-centers on the viewer's current GPS every
+          // broadcast tick. When OFF, the camera stays where the user
+          // panned it.
+          IconButton(
+            icon: Icon(
+              _isFollowMe
+                  ? Icons.my_location_rounded
+                  : Icons.location_searching_rounded,
+              size: 22,
+              color: _isFollowMe ? KinrelColors.orange : null,
+            ),
+            tooltip: _isFollowMe
+                ? 'Following your location — tap to release'
+                : 'Follow my location',
+            onPressed: () {
+              setState(() => _isFollowMe = !_isFollowMe);
+              if (_isFollowMe && _liveLocationLat != null) {
+                // Immediately center on the viewer's current position
+                // (don't wait for the next broadcast tick).
+                _mapController?.animateCamera(
+                  center: Geographic(
+                    lat: _liveLocationLat!,
+                    lon: _liveLocationLng!,
+                  ),
+                );
+              }
+            },
+          ),
           // Map theme toggle — dark (Kinrel premium) ↔ light (Snapchat-style)
           IconButton(
             icon: Icon(
@@ -1782,6 +1828,15 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             ),
             tooltip: _isLightMap ? 'Dark map' : 'Light map',
             onPressed: _toggleMapTheme,
+          ),
+          // Phase A (#19) — Share view (photo mode). Captures the
+          // current map view (with member pins + distance badges) as
+          // a PNG image and opens the OS share sheet. Hidden when the
+          // map hasn't loaded yet (no point sharing a blank screen).
+          IconButton(
+            icon: const Icon(Icons.share_outlined, size: 22),
+            tooltip: 'Share this view',
+            onPressed: _shareMapViewAsImage,
           ),
           // Dev test: fly to Bengaluru at zoom 16, tilt 45° to verify 3D
           // buildings. Debug builds only — never shipped to production.
@@ -2215,9 +2270,42 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // the slider updates its own label but the map pins/places are never
     // re-filtered — the timeline appears broken.
     ref.watch(journeyProvider);
-    final filteredPins = ref
+    var filteredPins = ref
         .read(journeyProvider.notifier)
         .filterMapPins(result.pins);
+
+    // Phase A (#18) — Apply the active member filter (Live only /
+    // Within 5 km / All). The filter is set via the chip strip at
+    // the top of the map screen. "Within 5 km" requires the viewer's
+    // own GPS — falls back to `all` when the viewer isn't sharing.
+    final filterLiveState = ref.watch(liveLocationProvider);
+    final viewerLat = _liveLocationLat;
+    final viewerLng = _liveLocationLng;
+    switch (_memberFilter) {
+      case _MemberFilter.all:
+        break; // no filtering
+      case _MemberFilter.liveOnly:
+        filteredPins = filteredPins.where((pin) {
+          final loc = filterLiveState.locations[pin.personId];
+          return loc != null && loc.tier == LocationTier.live;
+        }).toList();
+        break;
+      case _MemberFilter.within5km:
+        if (viewerLat != null && viewerLng != null) {
+          const fiveKmMeters = 5000.0;
+          filteredPins = filteredPins.where((pin) {
+            final m = haversineMeters(
+              lat1: viewerLat,
+              lng1: viewerLng,
+              lat2: pin.lat,
+              lng2: pin.lng,
+            );
+            return m <= fiveKmMeters;
+          }).toList();
+        }
+        // else: viewer not sharing → no filter (show all)
+        break;
+    }
     final filteredPlaces = ref
         .read(journeyProvider.notifier)
         .filterMapPlaces(result.places);
@@ -2337,10 +2425,24 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
           return _buildStyleLoadError();
         }
 
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            // ── MapLibre map — permanent background ─────────────────────
+        // Phase A (#19) — Wrap the entire map Stack in a RepaintBoundary
+        // keyed by [_mapBoundaryKey] so the "Share view" AppBar button
+        // can capture the current map view (with pins + distance badges)
+        // as a PNG image.
+        //
+        // Phase A (#18) — The filter chip strip is positioned at the
+        // top INSIDE the RepaintBoundary so it appears in the shared
+        // image (looks like a screenshot of the live map).
+        //
+        // Phase A (#17) — The permission-revoked banner sits below
+        // the chip strip (inside the RepaintBoundary so it's visible
+        // in the shared screenshot too).
+        return RepaintBoundary(
+          key: _mapBoundaryKey,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // ── MapLibre map — permanent background ─────────────────────
             //
             // CRITICAL: Stable ValueKey so Flutter NEVER destroys and
             // recreates this widget. Timeline, focus, search, and live
@@ -2705,8 +2807,84 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                   ),
                 ),
               ),
+
+            // ── Phase A (#18) — Filter chip strip ────────────────────────
+            // Horizontal scrollable row of filter chips at the top of
+            // the map screen. Lets the user filter which family member
+            // pins are visible: All (default) / Live only / Within 5 km.
+            //
+            // Positioned below the AppBar (top safe area + 8px).
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              left: 12,
+              right: 12,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _FilterChip(
+                      label: 'All',
+                      selected: _memberFilter == _MemberFilter.all,
+                      onSelected: (_) =>
+                          setState(() => _memberFilter = _MemberFilter.all),
+                    ),
+                    const SizedBox(width: 8),
+                    _FilterChip(
+                      label: 'Live only',
+                      selected:
+                          _memberFilter == _MemberFilter.liveOnly,
+                      onSelected: (_) => setState(
+                          () => _memberFilter = _MemberFilter.liveOnly),
+                    ),
+                    const SizedBox(width: 8),
+                    _FilterChip(
+                      label: 'Within 5 km',
+                      selected:
+                          _memberFilter == _MemberFilter.within5km,
+                      onSelected: (_) => setState(
+                          () => _memberFilter = _MemberFilter.within5km),
+                      // Disable when the viewer isn't sharing their own
+                      // location (no reference point to measure from).
+                      enabled:
+                          _liveLocationLat != null && _liveLocationLng != null,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Phase A (#17) — Permission-revoked banner ───────────────
+            // Shows a Material banner when the OS has revoked location
+            // permission while sharing was on. Auto-pauses sharing + the
+            // user can tap "Open settings" to re-grant permission.
+            if (ref.watch(liveLocationProvider).permissionRevoked)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 56,
+                left: 12,
+                right: 12,
+                child: _PermissionRevokedBanner(
+                  onOpenSettings: () async {
+                    // Use the existing location_permission_helper's
+                    // openLocationSettings() which calls
+                    // Geolocator.openAppSettings().
+                    try {
+                      await Geolocator.openAppSettings();
+                    } catch (_) {}
+                  },
+                  onDismiss: () {
+                    // Clear the flag — the user will fix it in OS
+                    // settings. The broadcast loop auto-paused when
+                    // the flag was set; clearing just hides the
+                    // banner until the next permission check.
+                    ref
+                        .read(liveLocationProvider.notifier)
+                        .clearPermissionRevoked();
+                  },
+                ),
+              ),
           ],
-        );
+        ),
+      );
       },
     );
   }
@@ -3473,6 +3651,31 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     final liveState = ref.read(liveLocationProvider);
     if (liveState.isPaused) return;
 
+    // Phase A (#17) — Permission health check. Before capturing GPS,
+    // verify the OS still grants location permission. If revoked
+    // (e.g. user disabled it in OS settings while the app was open),
+    // auto-pause sharing + flag permissionRevoked so the map screen
+    // shows a banner. Without this, the broadcast loop would silently
+    // fail on every tick (Geolocator.getCurrentPosition throws) and
+    // the user would have no idea why their family can't see them.
+    try {
+      final perm = await Geolocator.checkPermission();
+      if (perm != LocationPermission.whileInUse &&
+          perm != LocationPermission.always) {
+        if (!liveState.permissionRevoked) {
+          ref.read(liveLocationProvider.notifier).markPermissionRevoked();
+        }
+        return; // Don't attempt GPS capture — it will throw.
+      }
+      // Permission still granted — clear the revoked flag if it was set
+      // (e.g. user re-granted permission via OS settings + resumed).
+      if (liveState.permissionRevoked) {
+        ref.read(liveLocationProvider.notifier).clearPermissionRevoked();
+      }
+    } catch (e) {
+      debugPrint('⚠️ Permission check failed: $e');
+    }
+
     try {
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
@@ -3507,6 +3710,21 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         _startBroadcastLoop(); // cancels + restarts with new interval
       }
       _lastViewerStatus = newStatus;
+
+      // Phase A (#16) — Follow-me camera. If the user enabled "Follow
+      // me" mode, animate the map camera to center on the viewer's
+      // current GPS position. Uses the existing _mapController's
+      // animateCamera API. Skipped if the user is panning the map
+      // (we don't want to fight the user's manual camera control).
+      if (_isFollowMe && _mapController != null) {
+        try {
+          _mapController!.animateCamera(
+            center: Geographic(lat: pos.latitude, lon: pos.longitude),
+          );
+        } catch (e) {
+          debugPrint('⚠️ Follow-me camera animate failed: $e');
+        }
+      }
 
       // We need the current user's personId. Get it from the family
       // members list — the Person whose linkedUserId matches the
@@ -3543,10 +3761,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         _lastDbUpsert = now;
       }
 
-      // Phase A (#6) — Proximity alerts. Walk the live locations and
-      // check if any non-self member just crossed into the 500m radius
-      // around the viewer. If so, fire a local notification (throttled
-      // to once per member per 5 min).
+      // Phase A (#6 + #15) — Proximity alerts. Walk the live locations
+      // and check if any non-self member just crossed into the
+      // configurable radius (default 500m, user-configurable via the
+      // long-press FAB → settings sheet) around the viewer. If so,
+      // fire a local notification (throttled to once per member per
+      // 5 min).
       unawaited(_checkProximityAlerts(
         viewerLat: pos.latitude,
         viewerLng: pos.longitude,
@@ -3580,7 +3800,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     required String viewerPersonId,
     required List<Person> members,
   }) async {
-    const thresholdMeters = 500.0;
+    // Phase A (#15) — Use the user-configurable threshold (default 500m,
+    // configurable via long-press FAB → settings sheet).
+    final thresholdMeters =
+        ref.read(liveLocationProvider).proximityThresholdMeters;
     const alertCooldown = Duration(minutes: 5);
 
     final liveState = ref.read(liveLocationProvider);
@@ -3648,6 +3871,62 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   // members, the map shows with a small non-blocking overlay card.
   // The only full-page replacement state is the error state below.
 
+  /// Phase A (#19) — Capture the current map view as a PNG image and
+  /// open the OS share sheet. Uses the [RepaintBoundary] wrapping the
+  /// map Stack (keyed by [_mapBoundaryKey]) to render the widget tree
+  /// to an [ui.Image], then encodes as PNG bytes + shares via
+  /// [Share] (already a project dependency via `share_plus`).
+  ///
+  /// Shows a SnackBar on success/failure.
+  Future<void> _shareMapViewAsImage() async {
+    try {
+      final obj = _mapBoundaryKey.currentContext?.findRenderObject();
+      if (obj is! RenderRepaintBoundary) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Map view not ready yet — try again in a moment.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+      // Render the boundary to a high-resolution image (pixelRatio 3.0
+      // for crisp sharing — matches retina displays).
+      final image = await obj.toImage(pixelRatio: 3.0);
+      final byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Couldn\'t capture map view.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+      final bytes = byteData.buffer.asUint8List();
+      // Share via share_plus — opens the OS share sheet with the PNG
+      // image. The user picks WhatsApp / DM / Save to Photos / etc.
+      // Uses the cross-platform `shareXFiles` API (works on share_plus
+      // v9 + v10).
+      await Share.shareXFiles(
+        [XFile.fromData(bytes, name: 'kinrel_family_map.png')],
+        text: 'My family on the map right now',
+      );
+    } catch (e) {
+      debugPrint('⚠️ _shareMapViewAsImage failed: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Couldn\'t capture map view: $e'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
   Widget _buildErrorState(Object error) {
     final l10n = S.of(context);
     return Center(
@@ -3695,6 +3974,155 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase A (#18) — Member filter enum
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Which family members to show on the map. Driven by the filter
+/// chip strip at the top of the map screen.
+enum _MemberFilter {
+  /// Show all family members (default).
+  all,
+
+  /// Show only members whose live location tier is `live` (updated
+  /// within the last 2 minutes).
+  liveOnly,
+
+  /// Show only members within 5 km of the viewer's current GPS.
+  /// Requires the viewer to be sharing their own location — if not,
+  /// falls back to `all`.
+  within5km,
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase A (#18) — _FilterChip widget
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Small filter chip styled for the map screen. Wraps Material's
+/// FilterChip with Kinrel brand colors.
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+    this.enabled = true,
+  });
+
+  final String label;
+  final bool selected;
+  final ValueChanged<bool> onSelected;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilterChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: enabled ? onSelected : null,
+      backgroundColor: KinrelColors.darkCard.withValues(alpha: 0.85),
+      selectedColor: KinrelColors.orange,
+      labelStyle: TextStyle(
+        color: selected ? Colors.white : KinrelColors.textSilver,
+        fontSize: 12,
+        fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+      ),
+      side: BorderSide(
+        color: selected
+            ? KinrelColors.orange
+            : KinrelColors.textDim.withValues(alpha: 0.3),
+        width: 0.75,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase A (#17) — _PermissionRevokedBanner widget
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Non-blocking banner shown when the OS has revoked location
+/// permission while sharing was on. Two actions: "Open settings"
+/// (opens OS location settings) and a dismiss X.
+class _PermissionRevokedBanner extends StatelessWidget {
+  const _PermissionRevokedBanner({
+    required this.onOpenSettings,
+    required this.onDismiss,
+  });
+
+  final VoidCallback onOpenSettings;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+        decoration: BoxDecoration(
+          color: Colors.red.shade900.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.30),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.location_disabled_rounded,
+                color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Location permission revoked — sharing paused. '
+                'Tap to re-grant in settings.',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  height: 1.3,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: onOpenSettings,
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Open settings',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close_rounded,
+                  color: Colors.white70, size: 16),
+              onPressed: onDismiss,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(
+                  minWidth: 24, minHeight: 24),
+              tooltip: 'Dismiss',
+            ),
+          ],
         ),
       ),
     );

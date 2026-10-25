@@ -498,6 +498,99 @@ class LocationSharingToggle extends ConsumerWidget {
                 subtitle: 'Good night — resumes at this time tomorrow',
                 onTap: () => Navigator.of(c).pop(const Duration(hours: 24)),
               ),
+
+              // ── Phase A (#15) — Proximity radius settings ──────────
+              // 4 presets for the proximity-alert radius (100m / 500m
+              // / 1km / 5km). The current selection is highlighted
+              // with an orange border. Tapping one updates the
+              // threshold + closes the sheet.
+              const SizedBox(height: 20),
+              const Divider(color: KinrelColors.darkElevated, height: 1),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Icon(Icons.radio_button_checked_rounded,
+                      color: KinrelColors.orange, size: 18),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Proximity alert radius',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.textWhite,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Get a notification when a family member enters this radius.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: KinrelColors.textDim,
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: 12),
+              // The 4 radius chips. Built as a Consumer so we can
+              // read the current threshold from liveLocationProvider.
+              Consumer(
+                builder: (ctx, ref, _) {
+                  final current =
+                      ref.watch(liveLocationProvider)
+                          .proximityThresholdMeters;
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _RadiusChip(
+                        label: '100 m',
+                        value: 100.0,
+                        selected: current == 100.0,
+                        onSelected: () {
+                          ref
+                              .read(liveLocationProvider.notifier)
+                              .setProximityThreshold(100.0);
+                          Navigator.of(c).pop();
+                        },
+                      ),
+                      _RadiusChip(
+                        label: '500 m',
+                        value: 500.0,
+                        selected: current == 500.0,
+                        onSelected: () {
+                          ref
+                              .read(liveLocationProvider.notifier)
+                              .setProximityThreshold(500.0);
+                          Navigator.of(c).pop();
+                        },
+                      ),
+                      _RadiusChip(
+                        label: '1 km',
+                        value: 1000.0,
+                        selected: current == 1000.0,
+                        onSelected: () {
+                          ref
+                              .read(liveLocationProvider.notifier)
+                              .setProximityThreshold(1000.0);
+                          Navigator.of(c).pop();
+                        },
+                      ),
+                      _RadiusChip(
+                        label: '5 km',
+                        value: 5000.0,
+                        selected: current == 5000.0,
+                        onSelected: () {
+                          ref
+                              .read(liveLocationProvider.notifier)
+                              .setProximityThreshold(5000.0);
+                          Navigator.of(c).pop();
+                        },
+                      ),
+                    ],
+                  );
+                },
+              ),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
@@ -802,6 +895,51 @@ class _PauseOption extends StatelessWidget {
                 color: KinrelColors.textDim,
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Phase A (#15) — radius selector chip for the proximity-alert
+/// threshold. 4 presets in the long-press FAB → settings sheet.
+class _RadiusChip extends StatelessWidget {
+  const _RadiusChip({
+    required this.label,
+    required this.value,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String label;
+  final double value;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onSelected,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? KinrelColors.orange.withValues(alpha: 0.15)
+              : KinrelColors.darkElevated,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? KinrelColors.orange : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected ? KinrelColors.orange : KinrelColors.textSilver,
           ),
         ),
       ),
