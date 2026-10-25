@@ -88,6 +88,13 @@ jobs:
             "ndk;27.0.12077973" "platforms;android-36" "platforms;android-33" \
             "build-tools;35.0.1" "cmake;3.22.1" || true
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          # Phase A follow-up — export ANDROID_NDK_HOME so the :jni
+          # sub-project (thermion_dart's JNI bridge, which doesn't
+          # inherit :app's ndkVersion) can locate the NDK. Without
+          # this, the build fails with "NDK not configured" for
+          # project ':jni' even though :app finds it fine.
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
 
       - name: Enable native assets
         run: flutter config --enable-native-assets
