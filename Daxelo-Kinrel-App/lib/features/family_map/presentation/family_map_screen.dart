@@ -36,11 +36,13 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/services/local_notification_service.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../graph/interaction/graph_focus_state.dart';
 import '../../family_journey/providers/journey_provider.dart';
 import '../config/map_quality_tier.dart';
 import '../config/map_visual_constants.dart';
+import '../helpers/distance_helper.dart';
 import '../widgets/build_identifier_label.dart';
 import '../widgets/family_building_layer.dart';
 import '../widgets/avatar_marker_overlay.dart';
@@ -115,6 +117,20 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   Timer? _broadcastTimer;
   Timer? _dbUpsertTimer;
   DateTime? _lastDbUpsert;
+
+  /// Phase A (#6) — Proximity-alert state.
+  /// Tracks the last known distance from the viewer to each family
+  /// member, plus the last time we fired an alert for each member.
+  /// Used to detect threshold crossings ("was far, now close") and
+  /// throttle re-alerts (don't fire for the same member more than
+  /// once every 5 minutes).
+  final Map<String, double> _lastDistanceToMember = {};
+  final Map<String, DateTime> _lastProximityAlertAt = {};
+
+  /// Phase A (#4) — Last known viewer status. Used to detect status
+  /// changes (stationary → walking → driving) so the broadcast timer
+  /// can be restarted with the new adaptive interval.
+  MemberStatus? _lastViewerStatus;
 
   /// ── AUTHORITATIVE LIFECYCLE ────────────────────────────────────────
   /// Replaces the fragile multi-boolean lifecycle (`_styleLoaded` +
@@ -3373,7 +3389,15 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
   void _startBroadcastLoop() {
     _broadcastTimer?.cancel();
-    _broadcastTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+    // Phase A (#4) — Adaptive broadcast rate based on viewer's status:
+    //   stationary → 30s, walking → 10s, driving → 3s. Saves ~80%
+    //   battery for stationary users (most of the day) while keeping
+    //   high-frequency tracking during transit. When the status
+    //   changes (detected in _captureAndBroadcast), the timer is
+    //   cancelled + restarted with the new interval.
+    final status = ref.read(liveLocationProvider).viewerStatus;
+    final interval = broadcastIntervalForStatus(status);
+    _broadcastTimer = Timer.periodic(interval, (_) async {
       await _captureAndBroadcast();
     });
   }
@@ -3432,6 +3456,23 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   }
 
   Future<void> _captureAndBroadcast() async {
+    // Phase A (#1) — Pause check. If sharing is paused (Incognito mode),
+    // skip this tick entirely — no GPS capture, no broadcast, no DB
+    // upsert. The pause auto-clears when pausedUntil elapses; the next
+    // tick after that resumes sharing automatically.
+    final liveStateNow = ref.read(liveLocationProvider);
+    if (liveStateNow.isPaused) {
+      // Pause may have expired since the last tick — clear it if so.
+      // The isPaused getter already checks `now < pausedUntil`, so if
+      // it returns true we're still paused; if false, clear + continue.
+    } else if (liveStateNow.pausedUntil != null) {
+      // Pause expired — clear it.
+      ref.read(liveLocationProvider.notifier).clearPaused();
+    }
+
+    final liveState = ref.read(liveLocationProvider);
+    if (liveState.isPaused) return;
+
     try {
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
@@ -3448,6 +3489,24 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       _liveLocationLat = pos.latitude;
       _liveLocationLng = pos.longitude;
       await _updateLiveLocationPoint();
+
+      // Phase A (#4 + #8) — Record the viewer's speed-derived status.
+      // Drives the adaptive broadcast rate + FAB icon overlay + the
+      // viewer's own pin status label.
+      ref
+          .read(liveLocationProvider.notifier)
+          .recordViewerStatus(pos.speed);
+
+      // Phase A (#4) — Adaptive rate restart. If the viewer's status
+      // changed (e.g. stationary → driving), cancel + restart the
+      // broadcast timer with the new interval. The current tick still
+      // completes (broadcast + DB upsert below) — the new interval
+      // applies to subsequent ticks.
+      final newStatus = statusFromSpeed(pos.speed);
+      if (_lastViewerStatus != null && _lastViewerStatus != newStatus) {
+        _startBroadcastLoop(); // cancels + restarts with new interval
+      }
+      _lastViewerStatus = newStatus;
 
       // We need the current user's personId. Get it from the family
       // members list — the Person whose linkedUserId matches the
@@ -3483,8 +3542,103 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             );
         _lastDbUpsert = now;
       }
+
+      // Phase A (#6) — Proximity alerts. Walk the live locations and
+      // check if any non-self member just crossed into the 500m radius
+      // around the viewer. If so, fire a local notification (throttled
+      // to once per member per 5 min).
+      unawaited(_checkProximityAlerts(
+        viewerLat: pos.latitude,
+        viewerLng: pos.longitude,
+        viewerPersonId: myPerson.id,
+        members: members,
+      ));
     } catch (e) {
       debugPrint('⚠️ Broadcast capture failed: $e');
+    }
+  }
+
+  /// Phase A (#6) — Check proximity alerts.
+  ///
+  /// For each non-self family member with a LiveLocation, compute the
+  /// great-circle distance from the viewer. If the distance crossed
+  /// below the 500m threshold (was >=500m, now <500m) AND we haven't
+  /// already alerted for this member in the last 5 minutes, fire a
+  /// local notification: "Aunt Lakshmi is 350m away".
+  ///
+  /// The alert is fired via [LocalNotificationService.showNotification]
+  /// which uses `flutter_local_notifications` (already wired for FCM).
+  /// Notification type is set to 'family_proximity' so the user can
+  /// configure a custom channel for it in Android settings.
+  ///
+  /// Threshold (500m) + throttle (5 min) are tuned for typical Indian
+  /// family-gathering scenarios (weddings, festivals) where family
+  /// members arrive within minutes of each other.
+  Future<void> _checkProximityAlerts({
+    required double viewerLat,
+    required double viewerLng,
+    required String viewerPersonId,
+    required List<Person> members,
+  }) async {
+    const thresholdMeters = 500.0;
+    const alertCooldown = Duration(minutes: 5);
+
+    final liveState = ref.read(liveLocationProvider);
+    final locations = liveState.locations;
+    if (locations.isEmpty) return;
+
+    // Resolve member names from the members list (so the alert reads
+    // "Aunt Lakshmi is 350m away" rather than a UUID).
+    final Map<String, String> personNames = {
+      for (final m in members) m.id: m.name,
+    };
+
+    for (final entry in locations.entries) {
+      final personId = entry.key;
+      final loc = entry.value;
+      if (personId == viewerPersonId) continue; // skip self
+
+      final currentMeters = haversineMeters(
+        lat1: viewerLat,
+        lng1: viewerLng,
+        lat2: loc.lat,
+        lng2: loc.lng,
+      );
+      final previousMeters = _lastDistanceToMember[personId];
+
+      // Update the tracked distance regardless of whether we alert.
+      _lastDistanceToMember[personId] = currentMeters;
+
+      if (!proximityEnteredThreshold(
+        previousMeters: previousMeters,
+        currentMeters: currentMeters,
+        threshold: thresholdMeters,
+      )) {
+        continue;
+      }
+
+      // Throttle: don't re-alert for the same member within 5 min.
+      final lastAlertAt = _lastProximityAlertAt[personId];
+      final now = DateTime.now();
+      if (lastAlertAt != null &&
+          now.difference(lastAlertAt) < alertCooldown) {
+        continue;
+      }
+      _lastProximityAlertAt[personId] = now;
+
+      final name = personNames[personId] ?? 'A family member';
+      final distLabel = formatDistance(meters: currentMeters);
+      try {
+        final localService = ref.read(localNotificationServiceProvider);
+        await localService.showNotification(
+          title: '$name is nearby',
+          body: '$name is $distLabel from you on the family map.',
+          payload: '/family/${widget.familyId}/map',
+          notificationType: 'family_proximity',
+        );
+      } catch (e) {
+        debugPrint('⚠️ Proximity alert failed: $e');
+      }
     }
   }
 

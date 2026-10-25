@@ -98,3 +98,98 @@ String formatDistanceBetween({
   );
   return formatDistance(meters: m, isSelf: isSelf);
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// MemberStatus — derived from GPS speed (meters per second)
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Used by:
+//   • LiveLocationNotifier.viewerStatus — the current user's own status,
+//     derived from their GPS capture's `position.speed` field.
+//   • The FamilyMapScreen's adaptive broadcast rate — stationary users
+//     broadcast every 30s (saves battery), walking every 10s, driving
+//     every 3s (high-frequency for live tracking during transit).
+//   • The FAB icon overlay — shows a small car icon when driving.
+//   • The viewer's own pin badge — adds "Driving" / "Walking" /
+//     "Stationary" label next to the tier label.
+//
+// NOTE: only the VIEWER's status is tracked (not other members').
+// To track other members' status, we'd need to extend the broadcast
+// payload format to include speedMps — that's a follow-up, not part
+// of this one-shot batch.
+
+/// Speed-derived status for the current user (viewer).
+enum MemberStatus {
+  /// Speed < 1.4 m/s (~5 km/h) — sitting, standing, sleeping.
+  stationary,
+
+  /// Speed 1.4–7 m/s (~5–25 km/h) — walking, running, cycling.
+  walking,
+
+  /// Speed ≥ 7 m/s (~25 km/h) — driving, train, fast transit.
+  driving,
+}
+
+/// Speed thresholds in meters per second.
+const double _walkingSpeedThreshold = 1.4; // ~5 km/h
+const double _drivingSpeedThreshold = 7.0; // ~25 km/h
+
+/// Derive the viewer's [MemberStatus] from their last GPS `position.speed`
+/// (in meters per second).
+///
+/// `speed` is null on platforms that don't expose it (or when GPS hasn't
+/// yet computed it). Returns [MemberStatus.stationary] in that case —
+/// safe default, prevents battery drain.
+MemberStatus statusFromSpeed(double? speedMps) {
+  if (speedMps == null || speedMps < 0) return MemberStatus.stationary;
+  if (speedMps >= _drivingSpeedThreshold) return MemberStatus.driving;
+  if (speedMps >= _walkingSpeedThreshold) return MemberStatus.walking;
+  return MemberStatus.stationary;
+}
+
+/// Recommended broadcast interval for a given status.
+///
+///   • stationary → 30s  (saves ~80% battery vs. 5s default)
+///   • walking    → 10s
+///   • driving    → 3s   (high-frequency for live transit tracking)
+Duration broadcastIntervalForStatus(MemberStatus status) {
+  switch (status) {
+    case MemberStatus.stationary:
+      return const Duration(seconds: 30);
+    case MemberStatus.walking:
+      return const Duration(seconds: 10);
+    case MemberStatus.driving:
+      return const Duration(seconds: 3);
+  }
+}
+
+/// Human-readable label for a status.
+String statusLabel(MemberStatus status) {
+  switch (status) {
+    case MemberStatus.stationary:
+      return 'Stationary';
+    case MemberStatus.walking:
+      return 'Walking';
+    case MemberStatus.driving:
+      return 'Driving';
+  }
+}
+
+/// True iff `previous` and `current` distances straddle the [threshold]
+/// in the "approaching" direction (was far, now close). Used by the
+/// proximity-alert logic to fire a local notification when a family
+/// member crosses into the user's 500m radius.
+///
+///   previous=600m, current=400m, threshold=500m → true (just crossed in)
+///   previous=400m, current=300m, threshold=500m → false (already inside)
+///   previous=400m, current=600m, threshold=500m → false (leaving)
+///   previous=null, current=400m, threshold=500m → true (first seen + inside)
+bool proximityEnteredThreshold({
+  required double? previousMeters,
+  required double currentMeters,
+  required double threshold,
+}) {
+  if (currentMeters >= threshold) return false;
+  if (previousMeters == null) return true; // first time + inside
+  return previousMeters >= threshold;
+}

@@ -32,6 +32,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../../../l10n/app_localizations.dart';
+import '../helpers/distance_helper.dart';
 
 // StateNotifier is re-exported by flutter_riverpod in 2.x
 
@@ -156,6 +157,8 @@ class LiveLocationState {
     this.isSharing = false,
     this.isLoading = false,
     this.error,
+    this.pausedUntil,
+    this.viewerStatus = MemberStatus.stationary,
   });
 
   /// Map of personId → live/last-known location.
@@ -170,16 +173,39 @@ class LiveLocationState {
   /// Error message if the initial load failed.
   final String? error;
 
+  /// When location sharing is paused (Incognito mode), the timestamp
+  /// at which the pause auto-clears. Null when not paused.
+  ///
+  /// The broadcast loop checks `DateTime.now().isBefore(pausedUntil)`
+  /// before each tick — if paused, the tick is skipped entirely
+  /// (no GPS capture, no broadcast, no DB upsert). When the pause
+  /// expires, the next tick resumes automatically.
+  final DateTime? pausedUntil;
+
+  /// The current user's speed-derived status (stationary / walking /
+  /// driving). Drives the FAB icon overlay + the broadcast interval.
+  /// Updated by [LiveLocationNotifier.recordViewerStatus] after each
+  /// GPS capture.
+  final MemberStatus viewerStatus;
+
+  /// Convenience: true iff sharing is currently paused.
+  bool get isPaused =>
+      pausedUntil != null && DateTime.now().toUtc().isBefore(pausedUntil!);
+
   LiveLocationState copyWith({
     Map<String, LiveLocation>? locations,
     bool? isSharing,
     bool? isLoading,
     String? error,
+    DateTime? pausedUntil,
+    MemberStatus? viewerStatus,
   }) => LiveLocationState(
     locations: locations ?? this.locations,
     isSharing: isSharing ?? this.isSharing,
     isLoading: isLoading ?? this.isLoading,
     error: error,
+    pausedUntil: pausedUntil ?? this.pausedUntil,
+    viewerStatus: viewerStatus ?? this.viewerStatus,
   );
 }
 
@@ -399,6 +425,45 @@ class LiveLocationNotifier extends StateNotifier<LiveLocationState> {
       state = state.copyWith(isSharing: sharing);
     } catch (e) {
       debugPrint('⚠️ setSharing failed: $e');
+    }
+  }
+
+  /// Pause location sharing for [duration]. While paused, the broadcast
+  /// loop's tick is a no-op (no GPS capture, no broadcast, no DB upsert).
+  /// The pause auto-clears when [duration] elapses; the next tick after
+  /// that resumes sharing automatically.
+  ///
+  /// Does NOT change `isSharing` in state — the user is still "sharing"
+  /// in their settings; they're just temporarily paused. The DB row's
+  /// `isSharing` is left as-is (server-side enforcement happens via RLS,
+  /// and the absence of broadcasts during the pause means other family
+  /// members will see the viewer's pin transition to "stale" naturally).
+  void setPaused(Duration duration) {
+    final until = DateTime.now().toUtc().add(duration);
+    state = state.copyWith(pausedUntil: until);
+    debugPrint(
+      '⏸️ Live location sharing paused until ${until.toIso8601String()} '
+      '(${duration.inMinutes} min)',
+    );
+  }
+
+  /// Clear the pause immediately (resume sharing). Called when the user
+  /// taps "Resume sharing" in the pause sheet, or by the broadcast loop
+  /// when it detects the pause has expired.
+  void clearPaused() {
+    if (state.pausedUntil != null) {
+      state = state.copyWith(pausedUntil: null);
+      debugPrint('▶️ Live location sharing resumed (pause cleared)');
+    }
+  }
+
+  /// Update the viewer's speed-derived status. Called by the broadcast
+  /// loop after each GPS capture with `position.speed` (meters per
+  /// second). Drives the adaptive broadcast rate + FAB icon overlay.
+  void recordViewerStatus(double? speedMps) {
+    final newStatus = statusFromSpeed(speedMps);
+    if (newStatus != state.viewerStatus) {
+      state = state.copyWith(viewerStatus: newStatus);
     }
   }
 

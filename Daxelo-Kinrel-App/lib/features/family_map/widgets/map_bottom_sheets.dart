@@ -18,6 +18,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
@@ -209,6 +210,61 @@ class MapBottomSheets {
                     Navigator.of(context).pop();
                     context.push('/member/${pin.personId}');
                   },
+                ),
+              ),
+
+              // Get Directions button — opens the device's default
+              // maps app (Google Maps on Android, Apple Maps on iOS,
+              // browser on web) with directions from the viewer's
+              // current location to this member's pin lat/lng. Uses
+              // the universal `https://www.google.com/maps/dir/?api=1`
+              // URL which Google Maps recognizes on every platform.
+              //
+              // When [viewerLat] / [viewerLng] is null (viewer isn't
+              // sharing their own location), the URL omits the origin
+              // parameter — Google Maps will use the device's current
+              // GPS automatically (or prompt the user to pick a start
+              // point on web).
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: () async {
+                    final dest = '${pin.lat},${pin.lng}';
+                    final origin = (viewerLat != null && viewerLng != null)
+                        ? '&origin=$viewerLat,$viewerLng'
+                        : '';
+                    final url = Uri.parse(
+                      'https://www.google.com/maps/dir/?api=1'
+                      '&destination=$dest$origin',
+                    );
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(url,
+                          mode: LaunchMode.externalApplication);
+                    } else {
+                      // Fallback: just open maps without the dir
+                      // endpoint — the user can manually search.
+                      await launchUrl(
+                        Uri.parse(
+                          'https://www.google.com/maps/search/?api=1'
+                          '&query=$dest',
+                        ),
+                        mode: LaunchMode.externalApplication,
+                      );
+                    }
+                  },
+                  icon: const Icon(
+                    Icons.directions_rounded,
+                    size: 20,
+                    color: KinrelColors.orange,
+                  ),
+                  label: const Text(
+                    'Get Directions',
+                    style: TextStyle(color: KinrelColors.orange),
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: KinrelColors.orange,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
                 ),
               ),
 
