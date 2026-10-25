@@ -42,6 +42,22 @@ subprojects {
             if (androidExt.compileSdk ?: 0 < 36) {
                 androidExt.compileSdk = 36
             }
+
+            // ── Force ndkVersion = 27.0.12077973 for all subprojects ──
+            // Phase A (#5 follow-up): thermion_flutter's
+            // android/build.gradle hardcodes ndkVersion "28.2.13676358"
+            // — a beta version that's no longer downloadable from
+            // dl.google.com. The previous signed-release-apk run only
+            // succeeded because the runner had a cached NDK 28 from a
+            // prior run. Now that the cache expired, the build fails
+            // with "NDK not configured" for the :jni sub-project.
+            //
+            // Override ndkVersion for ALL sub-projects (including
+            // thermion's :jni) to the Flutter-preferred stable NDK
+            // (27.0.12077973), which IS downloadable from
+            // dl.google.com and is what the GitHub Actions runner
+            // caches by default.
+            androidExt.ndkVersion = "27.0.12077973"
         }
     }
 

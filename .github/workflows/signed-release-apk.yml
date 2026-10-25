@@ -78,21 +78,21 @@ jobs:
         run: |
           export ANDROID_HOME=/usr/local/lib/android/sdk
           export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
-          # Phase A (#5 follow-up) — align with app's ndkVersion in
-          # Daxelo-Kinrel-App/android/app/build.gradle.kts (27.0.12077973,
-          # Flutter's preferred stable NDK). The previous beta NDK
-          # (28.2.13676358) was silently failing to download — the
-          # `|| true` was hiding the failure, surfacing later as
-          # "NDK not configured" at the assembleRelease step.
+          # Phase A (#5 follow-up) — install NDK 27.0.12077973
+          # (Flutter's preferred stable NDK). The app's
+          # android/build.gradle.kts subprojects {} block overrides
+          # ALL sub-projects' ndkVersion to 27.0.12077973 — including
+          # thermion_flutter's :jni bridge which originally hardcoded
+          # 28.2.13676358 (a beta version no longer downloadable).
+          #
+          # ANDROID_NDK_HOME + NDK_HOME are exported so the :jni
+          # sub-project (thermion_dart's JNI bridge) can locate the
+          # installed NDK path — it doesn't inherit :app's ndkVersion.
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install \
-            "ndk;27.0.12077973" "platforms;android-36" "platforms;android-33" \
+            "ndk;27.0.12077973" \
+            "platforms;android-36" "platforms;android-33" \
             "build-tools;35.0.1" "cmake;3.22.1" || true
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          # Phase A follow-up — export ANDROID_NDK_HOME so the :jni
-          # sub-project (thermion_dart's JNI bridge, which doesn't
-          # inherit :app's ndkVersion) can locate the NDK. Without
-          # this, the build fails with "NDK not configured" for
-          # project ':jni' even though :app finds it fine.
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
           echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
 
