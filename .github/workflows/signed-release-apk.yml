@@ -93,8 +93,26 @@ jobs:
             "platforms;android-36" "platforms;android-33" \
             "build-tools;35.0.1" "cmake;3.22.1" || true
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
-          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+          # Debug — verify what NDK versions are actually installed
+          # at the expected path. The sdkmanager sometimes uses a
+          # short version number as the directory name (e.g. "27"
+          # instead of "27.0.12077973").
+          echo "=== NDK install path verification ==="
+          ls -la $ANDROID_HOME/ndk/ 2>&1 || echo "ndk/ dir does not exist"
+          echo "=== Resolved NDK path ==="
+          NDK_DIR=$(ls -d $ANDROID_HOME/ndk/*/ 2>/dev/null | head -1 || echo "")
+          echo "Resolved: $NDK_DIR"
+          if [ -n "$NDK_DIR" ]; then
+            echo "ANDROID_NDK_HOME=$NDK_DIR" | sed 's:/$::' >> $GITHUB_ENV
+            echo "NDK_HOME=$NDK_DIR" | sed 's:/$::' >> $GITHUB_ENV
+          else
+            echo "⚠️ No NDK found at $ANDROID_HOME/ndk/ — falling back to hardcoded path"
+            echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+            echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+          fi
+          echo "=== Final env ==="
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
+          echo "NDK_HOME=$NDK_HOME"
 
       - name: Enable native assets
         run: flutter config --enable-native-assets
