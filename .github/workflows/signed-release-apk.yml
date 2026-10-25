@@ -100,8 +100,10 @@ jobs:
           # is the most authoritative way to tell Gradle where the NDK
           # is, regardless of which plugin the sub-project uses.
           NDK_PATH="$ANDROID_HOME/ndk/27.0.12077973"
-          echo "sdk.dir=$ANDROID_HOME" >> Daxelo-Kinrel-App/android/local.properties
-          echo "ndk.dir=$NDK_PATH" >> Daxelo-Kinrel-App/android/local.properties
+          # The workflow's defaults.run.working-directory is
+          # Daxelo-Kinrel-App, so use the relative path here.
+          echo "sdk.dir=$ANDROID_HOME" >> android/local.properties
+          echo "ndk.dir=$NDK_PATH" >> android/local.properties
           echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
           echo "NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
 
