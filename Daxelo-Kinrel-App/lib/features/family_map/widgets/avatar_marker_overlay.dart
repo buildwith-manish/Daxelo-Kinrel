@@ -32,6 +32,7 @@ import '../../../core/widgets/cached_avatar.dart';
 import '../../../core/theme/kinrel_fx.dart';
 import '../../../l10n/app_localizations.dart';
 import '../config/map_visual_constants.dart';
+import '../helpers/distance_helper.dart';
 import '../providers/family_map_provider.dart';
 import '../providers/live_location_provider.dart';
 import 'avatar_marker_generator.dart';
@@ -44,6 +45,10 @@ class AvatarMarkerWidget extends StatelessWidget {
     required this.pin,
     required this.selected,
     this.liveTier,
+    this.liveLocation,
+    this.viewerLat,
+    this.viewerLng,
+    this.isSelf = false,
     this.onTap,
     this.onLongPress,
     this.reducedMotion = false,
@@ -52,6 +57,22 @@ class AvatarMarkerWidget extends StatelessWidget {
   final MapPin pin;
   final bool selected;
   final LocationTier? liveTier;
+
+  /// The member's live/last-known location. Used to compute distance
+  /// from the viewer for the per-pin distance badge. Null when the
+  /// member has never shared — no badge renders in that case.
+  final LiveLocation? liveLocation;
+
+  /// The viewer's current GPS position. Null when the viewer isn't
+  /// sharing their own location — distance badge is hidden but tier
+  /// dot still renders.
+  final double? viewerLat;
+  final double? viewerLng;
+
+  /// True when this pin represents the viewer's own Person. Forces the
+  /// distance label to "Live • now" (no point computing self-distance).
+  final bool isSelf;
+
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final bool reducedMotion;
@@ -119,6 +140,15 @@ class AvatarMarkerWidget extends StatelessWidget {
               )
         : core;
 
+    // ── Per-pin distance badge ───────────────────────────────────────
+    // Rendered ABOVE the avatar circle when the viewer is sharing their
+    // own location AND the member has a LiveLocation. Shows the great-
+    // circle distance as "X km away" / "X m away" / "Live • now".
+    //
+    // When the viewer isn't sharing, the badge is hidden (no point
+    // computing distance from an unknown viewer position).
+    final distanceLabel = _buildDistanceLabel();
+
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -128,12 +158,56 @@ class AvatarMarkerWidget extends StatelessWidget {
           button: true,
           label: _semanticsLabel(context),
           child: SizedBox(
+            // Extra room above the avatar for the distance badge
+            // (16px label + 4px gap + avatar with glow).
             width: size + glowBlur * 2,
-            height: size + glowBlur * 2,
-            child: Center(child: withPulse),
+            height: size + glowBlur * 2 + (distanceLabel != null ? 24 : 0),
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                // Distance badge above the avatar circle.
+                if (distanceLabel != null)
+                  Positioned(
+                    bottom: size + glowBlur + 2,
+                    child: distanceLabel,
+                  ),
+                Center(child: withPulse),
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  /// Builds the small distance badge if we have enough info to compute
+  /// one; otherwise returns null (badge hidden).
+  Widget? _buildDistanceLabel() {
+    final loc = liveLocation;
+    if (loc == null) return null;
+
+    final hasViewerPos = viewerLat != null && viewerLng != null;
+    if (!hasViewerPos && !isSelf) {
+      // Viewer isn't sharing their own location — no distance to compute.
+      // Still show a small tier indicator dot so other members can see
+      // this person is "live" even without the viewer's own GPS.
+      return _TierOnlyBadge(tier: loc.tier);
+    }
+
+    final distanceText = isSelf
+        ? 'Live • now'
+        : formatDistanceBetween(
+            lat1: viewerLat!,
+            lng1: viewerLng!,
+            lat2: loc.lat,
+            lng2: loc.lng,
+            isSelf: false,
+          );
+
+    return _DistanceBadge(
+      text: distanceText,
+      tier: loc.tier,
     );
   }
 
@@ -157,6 +231,121 @@ class AvatarMarkerWidget extends StatelessWidget {
   }
 }
 
+/// Small pill that shows ONLY the tier dot (no distance text). Used
+/// when the viewer isn't sharing their own location — the badge is
+/// still useful because it tells the user this member is currently
+/// live.
+class _TierOnlyBadge extends StatelessWidget {
+  const _TierOnlyBadge({required this.tier});
+  final LocationTier tier;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: KinrelColors.textDim.withValues(alpha: 0.4),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _TierDot(tier: tier),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pill-shaped distance label + tier dot. Positioned above each pin
+/// when the viewer is sharing their own location. Background is semi-
+/// transparent dark so it reads against any map tile.
+class _DistanceBadge extends StatelessWidget {
+  const _DistanceBadge({required this.text, required this.tier});
+  final String text;
+  final LocationTier tier;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: tier == LocationTier.live
+              ? KinrelColors.orange.withValues(alpha: 0.6)
+              : KinrelColors.textDim.withValues(alpha: 0.3),
+          width: 0.75,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.30),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _TierDot(tier: tier),
+          const SizedBox(width: 5),
+          Text(
+            text,
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: tier == LocationTier.live
+                  ? KinrelColors.orange
+                  : KinrelColors.textSilver,
+              height: 1.0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Small colored dot that visually distinguishes the staleness tier.
+class _TierDot extends StatelessWidget {
+  const _TierDot({required this.tier});
+  final LocationTier tier;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (tier) {
+      LocationTier.live => const Color(0xFF00E5C7), // teal
+      LocationTier.recent => KinrelColors.orange,
+      LocationTier.stale => KinrelColors.orange.withValues(alpha: 0.5),
+      LocationTier.cityFallback => KinrelColors.textDim,
+    };
+    return Container(
+      width: 6,
+      height: 6,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
+        boxShadow: tier == LocationTier.live
+            ? [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.6),
+                  blurRadius: 4,
+                  spreadRadius: 0.5,
+                ),
+              ]
+            : null,
+      ),
+    );
+  }
+}
+
 /// Manages a stack of [AvatarMarkerWidget]s positioned over the map.
 /// Listens to map camera moves and re-positions the markers via the
 /// [MapController.pointToScreen] API.
@@ -168,6 +357,10 @@ class AvatarMarkerOverlay extends StatefulWidget {
     required this.selectedPinId,
     required this.liveTiers,
     required this.reducedMotion,
+    this.liveLocations = const {},
+    this.viewerLat,
+    this.viewerLng,
+    this.viewerPersonId,
     this.onPinTap,
     this.onPinLongPress,
   });
@@ -177,6 +370,26 @@ class AvatarMarkerOverlay extends StatefulWidget {
   final String? selectedPinId;
   final Map<String, LocationTier> liveTiers;
   final bool reducedMotion;
+
+  /// Map of personId → member's live/last-known location (from
+  /// [LiveLocationNotifier]). Used by [AvatarMarkerWidget] to compute
+  /// + render the per-pin distance badge.
+  ///
+  /// Optional — if empty, no badges render. Pins still show with their
+  /// tier ring only.
+  final Map<String, LiveLocation> liveLocations;
+
+  /// The viewer's current GPS position. Used for distance computation.
+  /// Null when the viewer isn't sharing their own location — badges
+  /// fall back to tier-only indicator.
+  final double? viewerLat;
+  final double? viewerLng;
+
+  /// The viewer's own Person.id. Used to mark their own pin with
+  /// isSelf=true so the badge shows "Live • now" instead of computing
+  /// self-distance.
+  final String? viewerPersonId;
+
   final void Function(MapPin pin)? onPinTap;
   final void Function(MapPin pin)? onPinLongPress;
 
@@ -282,6 +495,9 @@ class _AvatarMarkerOverlayState extends State<AvatarMarkerOverlay>
 
     final selected = pin.personId == widget.selectedPinId;
     final tier = widget.liveTiers[pin.personId];
+    final liveLoc = widget.liveLocations[pin.personId];
+    final isSelf = widget.viewerPersonId != null &&
+        pin.personId == widget.viewerPersonId;
     final size = selected
         ? MapVisualConstants.markerSelectedSize
         : MapVisualConstants.markerNormalSize;
@@ -298,6 +514,10 @@ class _AvatarMarkerOverlayState extends State<AvatarMarkerOverlay>
           pin: pin,
           selected: selected,
           liveTier: tier,
+          liveLocation: liveLoc,
+          viewerLat: widget.viewerLat,
+          viewerLng: widget.viewerLng,
+          isSelf: isSelf,
           reducedMotion: widget.reducedMotion,
           onTap: () => widget.onPinTap?.call(pin),
           onLongPress: () => widget.onPinLongPress?.call(pin),

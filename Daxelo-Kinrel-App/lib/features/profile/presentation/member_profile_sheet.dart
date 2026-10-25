@@ -11,6 +11,7 @@
 // ID (no point DMing yourself).
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,6 +20,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/family/family_provider.dart';
 import '../../presence/last_seen_provider.dart';
 
 /// A modal bottom sheet showing a member's profile summary with action
@@ -299,6 +301,78 @@ class MemberProfileSheet extends ConsumerWidget {
                           label: const Text('View Timeline'),
                           style: TextButton.styleFrom(
                             foregroundColor: KinrelColors.textSilver,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      // View on Family Map button
+                      // Looks up the current user's families (via
+                      // familyListProvider) and picks the first family
+                      // that includes BOTH the viewer AND this member.
+                      // Falls back to the viewer's first family if no
+                      // shared family is found.
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton.icon(
+                          onPressed: () async {
+                            final families = ref
+                                .read(familyListProvider)
+                                .valueOrNull;
+                            if (families == null || families.isEmpty) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'You need to be in a family to view '
+                                    'the family map.',
+                                  ),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                              return;
+                            }
+
+                            // Try to find a family that has BOTH the
+                            // viewer AND this member. To do this we
+                            // fetch each family's members list and
+                            // check if any member's linkedUserId ==
+                            // memberId.
+                            String? targetFamilyId;
+                            try {
+                              for (final fam in families) {
+                                final members = await ref
+                                    .read(familyMembersProvider(fam.id)
+                                        .future);
+                                final hasMember = members.any(
+                                  (m) => m.linkedUserId == memberId ||
+                                      m.id == memberId,
+                                );
+                                if (hasMember) {
+                                  targetFamilyId = fam.id;
+                                  break;
+                                }
+                              }
+                            } catch (_) {
+                              // Fall back below.
+                            }
+                            // Fallback: viewer's first family if no
+                            // shared family found.
+                            targetFamilyId ??= families.first.id;
+                            if (!context.mounted) return;
+                            Navigator.of(context).pop();
+                            unawaited(context.push('/family/$targetFamilyId/map'));
+                          },
+                          icon: const Icon(
+                            Icons.map_outlined,
+                            size: 20,
+                            color: KinrelColors.orange,
+                          ),
+                          label: const Text(
+                            'View on Family Map',
+                            style: TextStyle(color: KinrelColors.orange),
+                          ),
+                          style: TextButton.styleFrom(
+                            foregroundColor: KinrelColors.orange,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                         ),

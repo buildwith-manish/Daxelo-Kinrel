@@ -90,7 +90,7 @@ class FamilyMapScreen extends ConsumerStatefulWidget {
 }
 
 class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   MapController? _mapController;
 
   /// RENDERER CAPABILITY FLAG — true once the map style has loaded.
@@ -1449,6 +1449,15 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   @override
   void initState() {
     super.initState();
+    // Phase C — Register as a WidgetsBindingObserver so we can detect
+    // when the app goes to background (paused) and comes back to
+    // foreground (resumed). When sharing is ON, the broadcast loop's
+    // Timer.periodic is paused by the OS while the app is backgrounded
+    // (Flutter timers don't fire when the isolate is suspended).
+    // On resume, we restart the loop + immediately broadcast the
+    // current position so the family map pins update without waiting
+    // for the next 5s tick.
+    WidgetsBinding.instance.addObserver(this);
     // Part 1 fix — Listen to MapQualityTierController so the screen
     // rebuilds when the device tier resolves. On web, the tier is
     // initially deferred (DeviceTierCache.initialize() returns false
@@ -1607,6 +1616,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
   @override
   void dispose() {
+    // Phase C — Unregister the WidgetsBindingObserver.
+    WidgetsBinding.instance.removeObserver(this);
     // Part 1 fix — remove the tier-changed listener.
     MapQualityTierController.instance.removeListener(_onTierChanged);
     _stopBroadcastLoop();
@@ -2402,6 +2413,26 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                   for (final entry in liveState.locations.entries)
                     entry.key: entry.value.tier,
                 },
+                // Per-pin distance badge — pass the live locations +
+                // viewer's current GPS + the viewer's own Person.id
+                // (so their own pin gets "Live • now" instead of
+                // self-distance). myPersonId is computed lazily below
+                // from the family members list.
+                liveLocations: liveState.locations,
+                viewerLat: _liveLocationLat,
+                viewerLng: _liveLocationLng,
+                viewerPersonId: () {
+                  final members = ref
+                      .read(familyMembersProvider(widget.familyId))
+                      .valueOrNull;
+                  final userId =
+                      ref.read(supabaseProvider)?.auth.currentUser?.id;
+                  if (members == null || userId == null) return null;
+                  return members
+                      .where((p) => p.linkedUserId == userId)
+                      .firstOrNull
+                      ?.id;
+                }(),
                 reducedMotion: reducedMotion,
                 onPinTap: _handlePinTap,
                 onPinLongPress: _handlePinLongPress,
@@ -3352,6 +3383,52 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     _broadcastTimer = null;
     _dbUpsertTimer?.cancel();
     _dbUpsertTimer = null;
+  }
+
+  /// Phase C — React to app lifecycle changes.
+  ///
+  /// When sharing is ON, the broadcast loop's `Timer.periodic` is
+  /// paused by the OS when the app goes to background (Flutter timers
+  /// don't fire while the isolate is suspended). This handler:
+  ///
+  ///   • On `paused` (app backgrounded): cancel the broadcast timer
+  ///     to stop wasted work. The OS will suspend the isolate anyway;
+  ///     explicitly cancelling avoids the timer firing once on resume
+  ///     for a stale position.
+  ///   • On `resumed` (app foregrounded): if sharing was on, restart
+  ///     the broadcast loop + immediately broadcast the current
+  ///     position (so the family map pins update without waiting for
+  ///     the next 5s tick).
+  ///   • On `inactive` / `hidden` / `detached`: no-op.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final isSharing = ref.read(liveLocationProvider).isSharing;
+    switch (state) {
+      case AppLifecycleState.paused:
+        // App backgrounded — cancel broadcast loop (it would just
+        // fire stale positions when the OS kills the isolate).
+        if (isSharing) {
+          _stopBroadcastLoop();
+        }
+        break;
+      case AppLifecycleState.resumed:
+        // App foregrounded — if sharing was on, restart the loop and
+        // immediately broadcast the current position.
+        if (isSharing) {
+          _startBroadcastLoop();
+          // Kick off an immediate broadcast on resume so pins update
+          // without waiting for the next 5s tick. Use unawaited() so
+          // we don't block the lifecycle callback on a GPS capture.
+          unawaited(_captureAndBroadcast());
+        }
+        break;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.detached:
+        // No-op for these transitions. The `paused` state is the
+        // authoritative signal that the app is fully backgrounded.
+        break;
+    }
   }
 
   Future<void> _captureAndBroadcast() async {
