@@ -157,6 +157,15 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   String? _proximityAlertText;
   Timer? _proximityAlertDismissTimer;
 
+  /// Phase C fix (#26 + #28) — ValueNotifiers for zoom + bearing.
+  /// Updated by a lightweight 500ms poll timer (started in
+  /// _onMapCreated). Using ValueListenableBuilder means ONLY the
+  /// zoom + compass widgets rebuild on camera move — not the entire
+  /// Stack (which would cause jank on the MapLibre map + overlays).
+  final ValueNotifier<double?> _zoomNotifier = ValueNotifier(null);
+  final ValueNotifier<double?> _bearingNotifier = ValueNotifier(null);
+  Timer? _cameraPollTimer;
+
   /// ── AUTHORITATIVE LIFECYCLE ────────────────────────────────────────
   /// Replaces the fragile multi-boolean lifecycle (`_styleLoaded` +
   /// `_loadState.phase` + `_entranceAnimationDone`)
@@ -1659,6 +1668,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   void dispose() {
     // Phase C — Unregister the WidgetsBindingObserver.
     WidgetsBinding.instance.removeObserver(this);
+    // Phase C fix (#26 + #28) — Cancel the camera poll timer +
+    // dispose the ValueNotifiers.
+    _cameraPollTimer?.cancel();
+    _zoomNotifier.dispose();
+    _bearingNotifier.dispose();
+    _proximityAlertDismissTimer?.cancel();
     // Part 1 fix — remove the tier-changed listener.
     MapQualityTierController.instance.removeListener(_onTierChanged);
     _stopBroadcastLoop();
@@ -1857,15 +1872,16 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
           ),
           // Phase C (#27) — Share family map link. Generates a
           // kinrel.app deep link URL + opens the OS share sheet.
+          // Uses Share.share() (the correct API for share_plus 10.1.4).
           IconButton(
             icon: const Icon(Icons.link_rounded, size: 22),
             tooltip: 'Share map link',
             onPressed: () {
               final url = 'https://kinrel.app/map?familyId=${widget.familyId}';
-              Share.share(
+              unawaited(Share.share(
                 'See where your family is on the map: $url',
                 subject: 'Family Map — Daxelo Kinrel',
-              );
+              ));
             },
           ),
           // Phase B (#23) — Member list (distance-sorted). Opens a
@@ -2986,10 +3002,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
               ),
 
             // ── Phase C (#28) — Map bearing / compass indicator ──────────
-            // Small compass button that shows the current map bearing.
-            // When the user has rotated the map (bearing != 0), the
-            // button shows the angle (e.g. "45°"). Tapping resets
-            // bearing to 0° (north-up).
+            // Phase C fix: uses ValueListenableBuilder on _bearingNotifier
+            // so the angle updates on camera rotation without rebuilding
+            // the entire Stack.
             if (_mapController != null)
               Positioned(
                 right: 16,
@@ -2997,29 +3012,31 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 child: GestureDetector(
                   onTap: () {
                     _mapController?.animateCamera(bearing: 0);
-                    setState(() {});
                   },
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: KinrelColors.darkCard.withValues(alpha: 0.85),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.explore_rounded,
-                            size: 16, color: KinrelColors.orange),
-                        Text(
-                          '${((_mapController?.camera?.bearing ?? 0)).round()}°',
-                          style: const TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w500,
-                            color: KinrelColors.textSilver,
-                            fontFamily: 'monospace',
+                  child: ValueListenableBuilder<double?>(
+                    valueListenable: _bearingNotifier,
+                    builder: (context, bearing, _) => Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: KinrelColors.darkCard.withValues(alpha: 0.85),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.explore_rounded,
+                              size: 16, color: KinrelColors.orange),
+                          Text(
+                            '${(bearing ?? 0).round()}°',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w500,
+                              color: KinrelColors.textSilver,
+                              fontFamily: 'monospace',
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -3123,24 +3140,30 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
               ),
 
             // ── Phase B (#26) — Zoom level indicator ────────────────────
+            // Phase C fix: uses ValueListenableBuilder on _zoomNotifier
+            // so the text updates on camera move without rebuilding
+            // the entire Stack (which would cause jank).
             if (_mapController != null)
               Positioned(
                 right: 16,
                 bottom: 220,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: KinrelColors.darkCard.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Zoom: ${_mapController?.camera?.zoom?.toStringAsFixed(1) ?? '--'}',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      color: KinrelColors.textSilver,
-                      fontFamily: 'monospace',
+                child: ValueListenableBuilder<double?>(
+                  valueListenable: _zoomNotifier,
+                  builder: (context, zoom, _) => Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: KinrelColors.darkCard.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Zoom: ${zoom?.toStringAsFixed(1) ?? '--'}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color: KinrelColors.textSilver,
+                        fontFamily: 'monospace',
+                      ),
                     ),
                   ),
                 ),
@@ -3155,6 +3178,17 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   void _onMapCreated(MapController controller) {
     _mapController = controller;
     _rendezvousController = controller;
+    // Phase C fix (#26 + #28) — Start a lightweight 500ms poll timer
+    // that reads the camera's zoom + bearing into ValueNotifiers.
+    // ValueListenableBuilder on these notifiers means ONLY the zoom
+    // + compass widgets rebuild on camera move — not the entire
+    // Stack (which would cause jank).
+    _cameraPollTimer?.cancel();
+    _cameraPollTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      final cam = _mapController?.camera;
+      _zoomNotifier.value = cam?.zoom;
+      _bearingNotifier.value = cam?.bearing;
+    });
     // §12 — Try to prepare layers. Will only run if the style is also
     // loaded (i.e. _onStyleLoaded has fired for this attempt).
     _tryPrepareMapLayers();
