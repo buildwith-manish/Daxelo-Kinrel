@@ -15,6 +15,8 @@
 // of the file decomposition. Each method is now a public static
 // function on the [MapBottomSheets] class.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
