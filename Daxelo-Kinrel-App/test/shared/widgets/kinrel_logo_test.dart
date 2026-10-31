@@ -13,6 +13,8 @@
 // These tests use Flutter's standard `testWidgets` + `tester.getRect` /
 // `paintImage` infrastructure — they don't require golden images.
 
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/shared/widgets/kinrel_logo.dart';
@@ -124,7 +126,7 @@ void main() {
         );
         expect(find.byType(KinrelLogo), findsOneWidget,
             reason: 'KinrelLogo not found at size=$size');
-        final box = tester.renderObject(find.byType(KinrelLogo));
+        final box = tester.renderObject(find.byType(KinrelLogo)) as RenderBox;
         expect(box.size, Size(size, size),
             reason: 'wrong size at size=$size');
       }

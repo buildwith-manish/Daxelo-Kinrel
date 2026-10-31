@@ -356,7 +356,7 @@ class MapBottomSheets {
 
     if (!context.mounted) return;
 
-    showModalBottomSheet(
+    unawaited(showModalBottomSheet(
       context: context,
       backgroundColor: KinrelColors.darkCard,
       shape: const RoundedRectangleBorder(
@@ -605,7 +605,7 @@ class MapBottomSheets {
           ),
         ),
       ),
-    );
+    ));
   }
 
   // ── Family Building Bottom Sheet ───────────────────────────────────

@@ -16,28 +16,16 @@
 // smoke test on device). All default to false → zero change to the live app.
 
 /// Graph share/export (capture the graph to a PNG and share it).
-@Deprecated('Use Features.isOn(AppFeature.graphShareExport) from '
-    'package:kinrel/core/features/feature_registry.dart instead. '
-    'This const will be removed once all call sites migrate.')
 const bool kEnableGraphShareExport = true;
 
 /// Avatar photo picker (camera / gallery) when adding or editing a person.
-@Deprecated('Use Features.isOn(AppFeature.photoPicker) from '
-    'package:kinrel/core/features/feature_registry.dart instead. '
-    'This const will be removed once all call sites migrate.')
 const bool kEnablePhotoPicker = true;
 
 /// Join-a-family via QR code (generate a join code + scan to join).
 /// Scanning requires the `mobile_scanner` package (see pubspec.yaml).
-@Deprecated('Use Features.isOn(AppFeature.qrJoin) from '
-    'package:kinrel/core/features/feature_registry.dart instead. '
-    'This const will be removed once all call sites migrate.')
 const bool kEnableQrJoin = true;
 
 /// In-app profile editing and "add relative" flows.
-@Deprecated('Use Features.isOn(AppFeature.profileEditing) from '
-    'package:kinrel/core/features/feature_registry.dart instead. '
-    'This const will be removed once all call sites migrate.')
 const bool kEnableProfileEditing = true;
 
 /// Kinrel Cameo — the 3D character system fallback avatar.
@@ -55,9 +43,6 @@ const bool kEnableProfileEditing = true;
 ///
 /// Set to `true` to make Cameo visible in the app. Set to `false` to
 /// keep the legacy initial-letter fallback (zero change to existing UI).
-@Deprecated('Use Features.isOn(AppFeature.cameoFallback) from '
-    'package:kinrel/core/features/feature_registry.dart instead. '
-    'This const will be removed once all call sites migrate.')
 const bool kEnableCameoFallback = true;
 
 /// Kinrel Cameo — live 3D rendering on eligible surfaces.
@@ -72,21 +57,12 @@ const bool kEnableCameoFallback = true;
 /// This flag is separate from [kEnableCameoFallback] because the 2D
 /// Cameo system is production-ready, while the 3D system is still in
 /// B1 verification. Set to `true` only when B1 passes on real hardware.
-@Deprecated('Use Features.isOn(AppFeature.live3DCameo) from '
-    'package:kinrel/core/features/feature_registry.dart instead. '
-    'This const will be removed once all call sites migrate.')
 const bool kEnableLive3DCameo = false;
 
 /// Language picker for kinship term display (7 Indian languages).
-@Deprecated('Use Features.isOn(AppFeature.languagePicker) from '
-    'package:kinrel/core/features/feature_registry.dart instead. '
-    'This const will be removed once all call sites migrate.')
 const bool kEnableLanguagePicker = true;
 
 /// Audio pronunciation of kinship terms via flutter_tts.
-@Deprecated('Use Features.isOn(AppFeature.audioPronunciation) from '
-    'package:kinrel/core/features/feature_registry.dart instead. '
-    'This const will be removed once all call sites migrate.')
 const bool kEnableAudioPronunciation = true;
 
 /// v5.17: Auto kinship inference — when enabled, creating a relationship
@@ -119,9 +95,6 @@ const bool kEnableAudioPronunciation = true;
 /// pattern — see lib/core/kinship/v4/spouse_inference_engine.dart.
 ///
 /// For now, this flag is false — NO automatic edges are created.
-@Deprecated('Use Features.isOn(AppFeature.autoKinshipInference) from '
-    'package:kinrel/core/features/feature_registry.dart instead. '
-    'This const will be removed once all call sites migrate.')
 const bool kEnableAutoKinshipInference = false;
 
 /// Kinrel — Family Relationship Intelligence.
@@ -129,9 +102,6 @@ const bool kEnableAutoKinshipInference = false;
 /// /kinrel route so the feature can ship dark and be turned on per build.
 /// Backend (server/src/kinrel-intelligence/*) is already live; this flag controls only
 /// the Flutter UI surface.
-@Deprecated('Use Features.isOn(AppFeature.kinrel) from '
-    'package:kinrel/core/features/feature_registry.dart instead. '
-    'This const will be removed once all call sites migrate.')
 const bool kEnableKinrel = true;
 
 /// Family Sparq tray on the Home screen.
@@ -146,9 +116,6 @@ const bool kEnableKinrel = true;
 /// row visible while the run screen + Moment Sparqs are still in
 /// development. Tapping a family entry still routes to the family
 /// page when this flag is on but no Sparqs exist for the family.
-@Deprecated('Use Features.isOn(AppFeature.sparqTray) from '
-    'package:kinrel/core/features/feature_registry.dart instead. '
-    'This const will be removed once all call sites migrate.')
 const bool kEnableSparqTray = true;
 
 /// Family Sparq run navigation — when true, tapping a family entry
@@ -159,9 +126,6 @@ const bool kEnableSparqTray = true;
 ///
 /// Step 5: flipped to true now that the /sparq/family/:id route is
 /// registered and FamilySparqRunScreen is in place.
-@Deprecated('Use Features.isOn(AppFeature.sparqRunNavigation) from '
-    'package:kinrel/core/features/feature_registry.dart instead. '
-    'This const will be removed once all call sites migrate.')
 const bool kEnableSparqRunNavigation = true;
 
 /// v5.55: TEMPORARY debug flag — shows an on-screen dialog with the actual

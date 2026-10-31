@@ -3576,6 +3576,14 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// Builds the journey stops from the person's linked places and
   /// shows the FamilyJourneyAnimation widget.
   void _handlePinLongPress(MapPin pin) async {
+    // Capture context-dependent values BEFORE the async gap so we
+    // don't use BuildContext across async gaps (fixes 4 infos).
+    final l10n = S.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final bornLabel = l10n?.familyMapJourneyBorn ?? 'Born';
+    final noJourneyText =
+        l10n?.familyMapNoJourney ?? 'No journey data for this family member yet.';
+
     // P11.x — Haptic feedback on long-press (heavy impact).
     await HapticFeedback.heavyImpact();
     final result = _lastResult;
@@ -3586,15 +3594,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     final stops = buildJourneyStops(
       pin: pin,
       linkedPlaces: linkedPlaces,
-      bornLabel: S.of(context)?.familyMapJourneyBorn ?? 'Born',
+      bornLabel: bornLabel,
     );
     if (stops.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
-          content: Text(
-            S.of(context)?.familyMapNoJourney ??
-                'No journey data for this family member yet.',
-          ),
+          content: Text(noJourneyText),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -4531,13 +4536,13 @@ void _showDistanceSortedListHelper(
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            Padding(
+            const Padding(
               padding: const EdgeInsets.only(left: 16, bottom: 8),
-              child: Align(
+              child: const Align(
                 alignment: Alignment.centerLeft,
-                child: Text(
+                child: const Text(
                   'Members by distance',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -4547,11 +4552,11 @@ void _showDistanceSortedListHelper(
               ),
             ),
             if (entries.isEmpty)
-              Padding(
+              const Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text(
+                child: const Text(
                   'No members found.',
-                  style: TextStyle(color: KinrelColors.textDim),
+                  style: const TextStyle(color: KinrelColors.textDim),
                 ),
               )
             else
@@ -4569,12 +4574,12 @@ void _showDistanceSortedListHelper(
                         backgroundColor: KinrelColors.darkElevated,
                         child: Text(
                           e.name.isNotEmpty ? e.name[0].toUpperCase() : '?',
-                          style: TextStyle(color: KinrelColors.orange),
+                          style: const TextStyle(color: KinrelColors.orange),
                         ),
                       ),
                       title: Text(
                         e.name,
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: KinrelColors.textWhite,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -4582,7 +4587,7 @@ void _showDistanceSortedListHelper(
                       ),
                       subtitle: Text(
                         distLabel,
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: KinrelColors.textDim,
                           fontSize: 12,
                         ),

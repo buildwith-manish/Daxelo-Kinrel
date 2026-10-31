@@ -940,7 +940,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     } catch (_) {}
 
     // ── Initialize Rating Service ────────────────────────────────
-    RatingService.instance.init();
+    unawaited(RatingService.instance.init());
 
     // ── Accessibility audit (debug only) ────────────────────────────
     A11yChecker.runAudit();

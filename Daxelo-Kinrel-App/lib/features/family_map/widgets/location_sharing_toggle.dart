@@ -507,7 +507,7 @@ class LocationSharingToggle extends ConsumerWidget {
               const SizedBox(height: 20),
               const Divider(color: KinrelColors.darkElevated, height: 1),
               const SizedBox(height: 16),
-              Row(
+              const Row(
                 children: [
                   const Icon(Icons.radio_button_checked_rounded,
                       color: KinrelColors.orange, size: 18),
