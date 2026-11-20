@@ -16,7 +16,8 @@
 //     the push is skipped — they're already reading it.
 //   • Mute-aware: respects ChatSettings.isMuted UNLESS the recipient
 //     has NotificationPreference.mentionsBreakMute=true (default true).
-//   • Quiet-hours-aware: respects NotificationPreference.quietHoursStart/End.
+//   • Quiet-hours-aware: respects NotificationPreference.quietHoursStart/End,
+//     read in the recipient's own quietHoursTimezone (not the server clock).
 //   • Block-aware: never push if the recipient has blocked the sender
 //     (BlockedUser row exists with blockerId=recipient, blockedId=sender).
 //   • Cron retry: a 30s cron picks up any mention rows whose push failed
@@ -46,6 +47,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FcmService } from '../notifications/fcm.service';
 import { KinrelGateway } from '../gateway/kinrel.gateway';
+import { isInQuietHoursInTz } from '../notifications/timezone-utils';
 
 @Injectable()
 export class ChatMentionPushScheduler {
@@ -271,29 +273,26 @@ export class ChatMentionPushScheduler {
     }
   }
 
-  /// Check whether the recipient is currently in their configured quiet
-  /// hours window. Returns false if no quiet hours are configured.
-  private isInQuietHours(pref: {
-    quietHoursEnabled?: boolean;
-    quietHoursStart?: string | null;
-    quietHoursEnd?: string | null;
-    quietHoursTimezone?: string;
-  }): boolean {
-    if (!pref.quietHoursEnabled) return false;
-    if (!pref.quietHoursStart || !pref.quietHoursEnd) return false;
-    // For brevity, do a string-comparison time check. A proper impl
-    // would parse the timezone + use Temporal API; this is a v1
-    // best-effort path.
-    // TODO(phase-a-5): real tz-aware quiet hours check.
-    const now = new Date();
-    const nowHhMm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const start = pref.quietHoursStart;
-    const end = pref.quietHoursEnd;
-    if (start <= end) {
-      return nowHhMm >= start && nowHhMm < end;
-    }
-    // Overnight window (e.g. 22:00 → 07:00).
-    return nowHhMm >= start || nowHhMm < end;
+  /// Check whether the recipient is currently inside their quiet-hours
+  /// window. The window ("HH:MM" start/end) is wall-clock time in the
+  /// recipient's own `quietHoursTimezone` (default 'Asia/Kolkata'), NOT the
+  /// server's clock. Quiet hours are considered configured when BOTH start
+  /// and end are set — `NotificationPreference` has no separate enabled
+  /// flag, and the other schedulers use the same rule.
+  private isInQuietHours(
+    pref: {
+      quietHoursStart?: string | null;
+      quietHoursEnd?: string | null;
+      quietHoursTimezone?: string | null;
+    },
+    now: Date = new Date(),
+  ): boolean {
+    return isInQuietHoursInTz(
+      now,
+      pref.quietHoursStart,
+      pref.quietHoursEnd,
+      pref.quietHoursTimezone,
+    );
   }
 
   /// Check whether ALL of the recipient's pending mentions came from

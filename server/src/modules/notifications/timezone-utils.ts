@@ -141,3 +141,61 @@ export function isInIstQuietHours(
     return false;
   }
 }
+
+/// Returns `tz` if it is a valid IANA timezone name, otherwise the IST
+/// default. `NotificationPreference.quietHoursTimezone` is a free-form
+/// String column (default 'Asia/Kolkata'), so a bad/empty value must not
+/// throw inside a scheduler.
+export function resolveTimeZone(tz: string | null | undefined): string {
+  if (!tz) return IST_TZ;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return tz;
+  } catch {
+    return IST_TZ;
+  }
+}
+
+/// Returns true iff `now` falls inside the quiet-hours window
+/// [quietStart, quietEnd) read as wall-clock "HH:MM" in the IANA timezone
+/// `timeZone` (the recipient's `NotificationPreference.quietHoursTimezone`).
+/// DST is handled by the timezone database, not by fixed offsets.
+///
+///  - The START minute is inside the window, the END minute is not
+///    (22:00-08:00 is quiet at 22:00 and no longer quiet at 08:00).
+///  - Overnight windows (start > end) wrap midnight.
+///  - start === end is an empty window (never quiet).
+///  - Missing or malformed start/end -> false (no quiet hours configured).
+///  - Missing/invalid timezone -> IST (the column default).
+///
+/// NOTE: `isInIstQuietHours` above treats the END minute as inside the
+/// window and is fixed to IST; it is left unchanged for its existing caller.
+export function isInQuietHoursInTz(
+  now: Date,
+  quietStart: string | null | undefined,
+  quietEnd: string | null | undefined,
+  timeZone: string | null | undefined,
+): boolean {
+  const start = parseHhMm(quietStart);
+  const end = parseHhMm(quietEnd);
+  if (start === null || end === null) return false;
+
+  const zoned = toZonedTime(now, resolveTimeZone(timeZone));
+  const current = getHours(zoned) * 60 + zoned.getMinutes();
+
+  if (start <= end) {
+    return current >= start && current < end;
+  }
+  return current >= start || current < end;
+}
+
+/// "HH:MM" -> minutes since midnight, or null if absent/malformed.
+function parseHhMm(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
+}
