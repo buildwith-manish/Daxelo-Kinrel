@@ -559,7 +559,7 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
             // placeholder). Uses [state.hasPlayedStory] which checks
             // whether any story has playCount > 0.
             if (state.hasPlayedStory && state.mostPlayedStory != null) ...[
-              const Divider(color: Color(0xFF2A2A3D), height: 1),
+              const Divider(color: KinrelColors.border, height: 1),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -1474,7 +1474,7 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Divider(color: Color(0xFF2A2A3D), height: 1),
+              const Divider(color: KinrelColors.border, height: 1),
               ListTile(
                 leading: const Icon(
                   Icons.play_circle_rounded,
