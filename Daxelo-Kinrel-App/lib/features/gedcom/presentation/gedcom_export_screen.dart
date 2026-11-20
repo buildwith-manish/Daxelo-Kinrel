@@ -305,7 +305,7 @@ class _GedcomExportScreenState extends ConsumerState<GedcomExportScreen> {
                   style: const TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 12,
-                    color: Color(0xFFC9B4A8),
+                    color: KinrelColors.textSilver,
                   ),
                 ),
               ),
