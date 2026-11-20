@@ -134,12 +134,11 @@ Future<List<CircleInboxItem>> loadCircleInboxItems() async {
         .limit(30)
         .timeout(const Duration(seconds: 10));
 
-    if (memberResp is! List || memberResp.isEmpty) return const [];
+    if (memberResp.isEmpty) return const [];
 
     // Parse the joined rows
     final circles = <_ParsedCircle>[];
     for (final row in memberResp) {
-      if (row is! Map) continue;
       final circle = row['circle'];
       if (circle is! Map) continue;
       circles.add(_ParsedCircle(

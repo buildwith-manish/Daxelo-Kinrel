@@ -88,7 +88,7 @@ class _LanguageSheetState extends ConsumerState<_LanguageSheet> {
             controller: _ctrl, onChanged: (v) => setState(() => _q = v),
             style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: InputDecoration(
-              hintText: 'Search language...', hintStyle: TextStyle(color: Colors.white38, fontSize: 14),
+              hintText: 'Search language...', hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
               prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 20),
               filled: true, fillColor: const Color(0xFF1A1F2B),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
