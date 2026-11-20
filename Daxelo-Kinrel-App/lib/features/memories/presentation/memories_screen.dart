@@ -483,7 +483,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
                   ],
                 ),
               ),
-              const Divider(color: Color(0xFF2A2A3D), height: 1),
+              const Divider(color: KinrelColors.border, height: 1),
               ConstrainedBox(
                 constraints: BoxConstraints(
                   maxHeight: MediaQuery.of(context).size.height * 0.4,
@@ -572,7 +572,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
                   ],
                 ),
               ),
-              const Divider(color: Color(0xFF2A2A3D), height: 1),
+              const Divider(color: KinrelColors.border, height: 1),
               ConstrainedBox(
                 constraints: BoxConstraints(
                   maxHeight: MediaQuery.of(context).size.height * 0.5,
@@ -674,7 +674,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
                   ],
                 ),
               ),
-              const Divider(color: Color(0xFF2A2A3D), height: 1),
+              const Divider(color: KinrelColors.border, height: 1),
               ConstrainedBox(
                 constraints: BoxConstraints(
                   maxHeight: MediaQuery.of(context).size.height * 0.4,
@@ -2356,7 +2356,7 @@ class _AnimatedMemoryPreviewCardState
   /// data presented as the user's own.
   static const _placeholderScenes = <_PlaceholderScene>[
     _PlaceholderScene(
-      gradientColors: [Color(0xFFE8612A), Color(0xFF1A1C2E)],
+      gradientColors: [KinrelColors.orange, KinrelColors.darkCard],
       icon: Icons.cake_rounded,
       accentColor: KinrelColors.orange,
       typeLabel: 'BIRTH',
@@ -2365,7 +2365,7 @@ class _AnimatedMemoryPreviewCardState
       description: 'Welcome to the family, Aarav! Born at 3:42 AM, 3.2 kg.',
     ),
     _PlaceholderScene(
-      gradientColors: [Color(0xFFF59240), Color(0xFF1A1C2E)],
+      gradientColors: [KinrelColors.amber, KinrelColors.darkCard],
       icon: Icons.favorite_rounded,
       accentColor: KinrelColors.amber,
       typeLabel: 'MARRIAGE',
@@ -2374,7 +2374,7 @@ class _AnimatedMemoryPreviewCardState
       description: 'A grand Gujarati-Rajasthani fusion wedding.',
     ),
     _PlaceholderScene(
-      gradientColors: [Color(0xFF60A5FA), Color(0xFF1A1C2E)],
+      gradientColors: [KinrelColors.info, KinrelColors.darkCard],
       icon: Icons.emoji_events_rounded,
       accentColor: KinrelColors.info,
       typeLabel: 'ACHIEVEMENT',
@@ -2383,7 +2383,7 @@ class _AnimatedMemoryPreviewCardState
       description: 'Honored for contributions to rural education.',
     ),
     _PlaceholderScene(
-      gradientColors: [Color(0xFFFFD700), Color(0xFF1A1C2E)],
+      gradientColors: [KinrelColors.brightGold, KinrelColors.darkCard],
       icon: Icons.festival_rounded,
       accentColor: KinrelColors.brightGold,
       typeLabel: 'FESTIVAL',
