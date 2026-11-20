@@ -41,7 +41,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 2a | in progress (done on `fix/2a`, based on `fix/1h`; NOT merged: no `main` branch; `prisma generate`/`validate` impossible in sandbox, migration unapplied — see "Task 2a notes") | `server/prisma/schema.prisma` (Story: `audience`, `thumbnailUrl`) + `supabase/migrations/20261120120000_story_audience_thumbnail.sql`. `stories.service.ts` untouched (task 2b). |
 | 2b | in progress (done on `fix/2b`, based on `fix/2a`; NOT merged: no `main` branch, Backend CI typecheck already red on the base, and 2a's schema was never generated — see "Task 2b notes") | `server/src/modules/stories/stories.service.ts` (`findByFamily`, `create`, `formatStory`, one comment), `stories.service.spec.ts` |
 | 3a | in progress (done on `fix/3a`, based on `fix/2b`; NOT merged: no `main` branch; `prisma generate` impossible in sandbox, migration unapplied — see "Task 3a notes") | `server/prisma/schema.prisma` (ShareableLink `userId`/`user`/index; User `shareableLinks`) + `supabase/migrations/20261120130000_shareablelink_userid_reconcile.sql`. `share.service.ts` untouched (task 3b). |
-| 3b | not started | `server/src/modules/share/share.service.ts` (exists, 296 lines; TODOs still at 35, 236, 248, 266, 270) |
+| 3b | in progress (done on `fix/3b`, based on `fix/3a`; NOT merged: no `main` branch, Backend CI typecheck red on the base and its log is unreadable from the sandbox — see "Task 3b notes") | `server/src/modules/share/share.service.ts` (all 5 `userId` TODOs resolved), `share.service.spec.ts` |
 | 4a | not started | `server/prisma/schema.prisma` + new `supabase/migrations/*.sql`. **Name collision:** a `Comment` model already exists but belongs to `CommunityPost` (`postId` -> `CommunityPost`). The new family-post comment table needs a different model name (e.g. `FamilyPostComment`) or an explicit decision. `FamilyPost` model exists (id, familyId, authorId -> Person, postType, content, reactions, timestamps). |
 | 4b | not started | `server/src/modules/timeline/timeline.service.ts` (exists, 453 lines; TODO still at line 270) |
 | 5a | not started | `server/src/modules/notifications/timezone-utils.ts` (exists), `server/src/modules/chat/chat-mention.push.scheduler.ts` (exists; TODO at 287). **Timezone IS stored:** `NotificationPreference.quietHoursTimezone` (default `Asia/Kolkata`). But `timezone-utils.ts` only exports IST helpers (`isInIstQuietHours` hard-codes `Asia/Kolkata`); 5a needs a per-recipient-timezone variant, not just a call to the existing helper. |
@@ -349,3 +349,51 @@ Not verified: `npx prisma generate` FAILED here (`binaries.prisma.sh` ENOTFOUND)
 CI: temp branch `wip/fix-3a-ci` @ `3eea51c2` (deleted afterwards). `Backend CI` = **failure** at "Typecheck (backend)"; Build/Test SKIPPED. Same step already fails on the unmodified `fix/1e` base (see 1f notes);
 logs aren't downloadable from this sandbox, so it is NOT known whether the schema edit parses or 3a added an error. **Next step:** read that step's log in the Actions UI and run `npx prisma generate && npx tsc --noEmit`
 somewhere with network; apply the migration to staging (expect a NOTICE with the NULL-userId count). Not merged.
+
+## Task 3b notes
+
+Branch: `fix/3b`, based on `fix/3a` (no `main`; leftover `fix/1a`..`fix/3a` all unmerged and marked in progress, none "done", so nothing was merged by housekeeping).
+File: `server/src/modules/share/share.service.ts` (+ `share.service.spec.ts`). Schema/`userId` column come from 3a.
+
+### The five TODOs
+
+| # | Was (line) | Now |
+|---|---|---|
+| 1 | 35, `createShareableLink` doc: "Add userId column" | `userId` (the caller) is written on create |
+| 2 | 236, `revokeShareableLink` doc: "any authenticated user can revoke" | doc rewritten to the real rule below |
+| 3 | 248, `revokeShareableLink` body: commented-out check | `link.userId` set and `!== userId` -> `ForbiddenException('Not your link')` |
+| 4 | 266, `getMyShareableLinks` doc: "returns all links" | doc rewritten |
+| 5 | 270, `getMyShareableLinks` body: "Add where: { userId }" | `where` applied to BOTH `findMany` and `count` (total matches the page) |
+
+Public token paths (`getSharedCard`, `getShareStats`, `trackShare`) have no user context and are unchanged.
+
+### Legacy NULL-`userId` rows — DECISION (please confirm)
+
+Nothing can recover who created a legacy link (see 3a notes), so they are treated as follows:
+- **Still publicly resolvable by token** (nothing was touched on those paths) — no existing shared link stops working.
+- **Revoke:** allowed for an `owner`/`admin` of the link's `familyId` (`FamilyMember.role`, same check as other modules). A plain member/viewer/non-member -> 403. A legacy row with NO `familyId` cannot be revoked through the API at all (stays live until someone deletes it in the DB).
+- **List (`GET /share/mine`):** the caller's own links, plus legacy NULL links whose `familyId` is in a family where the caller is owner/admin — i.e. exactly the set they are allowed to revoke, so "what I can see" == "what I can revoke".
+- Rows that HAVE an owner are never revocable by anyone else, including a family admin.
+- Not chosen: letting any authenticated user revoke NULL rows (that is the old hole), and "NULL rows unmanaged forever" (permanent public links with no way to take them down). Easy to change: the whole legacy policy is the `else if` in `revokeShareableLink` and `getAdminFamilyIds` / the `OR` in `getMyShareableLinks`.
+
+### Expected behaviour to test manually
+
+`DELETE /share/:id`
+- creator -> 200 `{deleted:true}`; other user, link has owner -> 403 "Not your link" (even if they are a family admin); unknown id -> 404.
+- legacy link with familyId: family owner/admin -> 200; family member/viewer or non-member -> 403.
+- legacy link without familyId: everyone -> 403.
+
+`GET /share/mine`: own links; plus legacy NULL links of families you own/admin; never another user's links; `total` counts the same set.
+
+`POST /share` -> new row has `userId` = caller. `GET /share/:token` and `POST /share/track` on an old (NULL) link still work.
+
+### Not fixed — follow-up (outside the TODOs)
+
+- `createShareableLink` accepts `dto.familyId` / `dto.personId` without checking the caller belongs to that family/person; `getSharedCard` then exposes that family's/person's data to anyone with the token. Needs a membership check (decision on who may share what).
+
+### Verification gap
+
+- `npx prisma generate` is impossible here (`binaries.prisma.sh` ENOTFOUND), so no generated client. Local `tsc --noEmit`: 1058 errors before, 1060 after; the +2 are the two new `prisma.familyMember` accesses (same "Property ... does not exist on type 'PrismaService'" class as the existing `shareableLink` ones); no non-Prisma error in `modules/share`. **"tsc passes" is NOT confirmed.**
+- `package.json` unchanged. (`npm install` rewrote `package-lock.json` locally because it is already out of sync; that change was reverted, not committed.)
+- CI: temp branch `wip/fix-3b-ci` @ `57fd5ecf` (deleted afterwards; run 44680171900). `Backend CI` = **failure** at "Typecheck (backend)"; Build and Test SKIPPED, so the updated `share.service.spec.ts` never ran. Same step fails on the unmodified base (see 1f notes). The job log redirects to a host blocked from this sandbox and the annotations contain only Node-20 deprecation warnings, so it is NOT known whether 3b added a tsc error. **Next step:** read the `Typecheck (backend)` log in the Actions UI (run 44680171900), clear the baseline errors (generate the Prisma client in CI), re-run so the spec executes. Not merged.
+- `share.service.spec.ts` was updated (new `familyMember` mock; create persists `userId`; revoke: creator/other user/legacy admin/legacy member/legacy non-member/legacy no-familyId; list: `where` on both queries, legacy-admin `OR`). Not executed anywhere yet.
