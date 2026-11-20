@@ -641,3 +641,11 @@ Branch: `fix/6b`, based on `fix/6a` (no `main` exists; stack convention kept). L
 - Executed in the sandbox: (a) without `server/node_modules` -> Flutter SKIPPED message + tsc FAIL "dependencies not installed", exit 1; (b) after `npm install` -> Flutter SKIPPED, tsc FAIL with the Prisma-client errors (client cannot be generated here, finding 4), hint printed, exit 1. Failure paths and messages confirmed.
 - NOT verified: the Flutter-present path (no SDK here), and the all-PASS path (needs a generated Prisma client + Flutter SDK). Run once on a real dev machine.
 
+### CI result for `fix/6b` @ `836e251a` (CI run 44690177331, triggered by the `fix/**` trigger from 6a)
+- `Flutter Analyze` = **failure** at step "Flutter analyze": the same 10 PRE-EXISTING warnings as on `fix/6a` (annotations: 5x dead_null_aware, 2x dead_code, 3x prefer_const_constructors in `family_event_card.dart` / `blocked_message_placeholder.dart`). This task touched no Dart.
+- `Backend CI` = **failure** at step "Typecheck (backend)" (exit 2): the same pre-existing `predictions.scheduler.ts` errors as on `fix/6a`. This task touched no TypeScript.
+- `Secret Scan (gitleaks)` = success.
+- `Flutter Test` = still `in_progress` when polling stopped (~10 min); result not captured.
+- Note: `fix/6b` was pushed once, deleted at the user's request, then re-pushed (same commit); one earlier CI run on it shows `cancelled`.
+- Resume / next step: nothing left in 6b itself. Merge the stack once a target branch is chosen and the 10 Dart warnings + `predictions.scheduler.ts` errors are fixed. Manual check of the script on a machine with Flutter + a generated Prisma client is still outstanding.
+
