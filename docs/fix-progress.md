@@ -43,7 +43,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 3a | in progress (done on `fix/3a`, based on `fix/2b`; NOT merged: no `main` branch; `prisma generate` impossible in sandbox, migration unapplied — see "Task 3a notes") | `server/prisma/schema.prisma` (ShareableLink `userId`/`user`/index; User `shareableLinks`) + `supabase/migrations/20261120130000_shareablelink_userid_reconcile.sql`. `share.service.ts` untouched (task 3b). |
 | 3b | in progress (done on `fix/3b`, based on `fix/3a`; NOT merged: no `main` branch, Backend CI typecheck red on the base and its log is unreadable from the sandbox — see "Task 3b notes") | `server/src/modules/share/share.service.ts` (all 5 `userId` TODOs resolved), `share.service.spec.ts` |
 | 4a | in progress (done on `fix/4a`, based on `fix/3b`; NOT merged: no `main` branch, and local `tsc` still has 5 PRE-EXISTING errors in `predictions.scheduler.ts` — see "Task 4a notes") | `server/prisma/schema.prisma` (new model `FamilyPostComment`; inverse relations on `FamilyPost` and `User`) + `supabase/migrations/20261120140000_create_familypostcomment.sql`. `timeline.service.ts` untouched (task 4b). |
-| 4b | not started | `server/src/modules/timeline/timeline.service.ts` (exists, 453 lines; TODO still at line 270) |
+| 4b | in progress (done on `fix/4b`, based on `fix/4a`; NOT merged: no `main` branch, and local `tsc` still has the 5 PRE-EXISTING `predictions.scheduler.ts` errors — see "Task 4b notes") | `server/src/modules/timeline/timeline.service.ts` (`getComments`, `addComment`, `deleteComment`, + `getTimeline`/`getHomeFeed`/`toggleReaction` comment count), `timeline.service.spec.ts`, `server/src/__tests__/agent03-integration.spec.ts` (mocks only) |
 | 5a | not started | `server/src/modules/notifications/timezone-utils.ts` (exists), `server/src/modules/chat/chat-mention.push.scheduler.ts` (exists; TODO at 287). **Timezone IS stored:** `NotificationPreference.quietHoursTimezone` (default `Asia/Kolkata`). But `timezone-utils.ts` only exports IST helpers (`isInIstQuietHours` hard-codes `Asia/Kolkata`); 5a needs a per-recipient-timezone variant, not just a call to the existing helper. |
 | 5b | not started | `server/src/modules/chat/chat.gateway.ts` (TODO at 312), `chat-mention.push.scheduler.ts` (TODOs at 98, 248, 261) — all still present. |
 | 6a | not started | `.github/workflows/ci.yml` (only CI file; named `CI`). It already runs `flutter analyze --no-fatal-infos` in the `Flutter Analyze` job (~line 112-113), so 6a is about whether that job is actually blocking and about its triggers (see finding 2), not about adding the step. Also reads `CHANGELOG.md`. |
@@ -442,3 +442,53 @@ Backfill rules: keep the original comment id; skip comments with no id/body or w
 ### Hand-off to 4b
 
 `getComments`: `findMany({ where: { familyPostId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], cursor/take })`; `addComment`: `create({ data: { familyPostId, authorId, authorName, body, parentId } })` (validate parent belongs to the same post); `deleteComment`: `delete` (replies cascade); `commentCount`: `count`. Keep the socket payloads' `comment` shape = `{id, authorId, authorName, body, parentId, createdAt(ISO)}`.
+
+## Task 4b notes
+
+Branch: `fix/4b`, based on `fix/4a` (needs the `FamilyPostComment` model; no `main` exists). Leftover `fix/1a`..`fix/4a` are all unmerged and "in progress" — none marked done, nothing merged by housekeeping.
+
+### What was replaced in `timeline.service.ts`
+
+| Method | Before (JSON workaround) | Now |
+|---|---|---|
+| `getComments` (TODO "Task-3" removed) | parse `FamilyPost.reactions`, sort + slice in memory | `familyPostComment.findMany` ordered `createdAt asc, id asc`, `take limit+1`, cursor = comment id. Unknown/foreign cursor is ignored (as before) via a `findFirst` scoped to the post |
+| `addComment` | push into JSON, rewrite whole `reactions` string, `commentCount = comments.length` | parent must be a `FamilyPostComment` on the SAME post (404 otherwise); `create` row (cuid id) + `FamilyPost.updatedAt` bump in one `$transaction`; returns/emits the same `{id, authorId, authorName, body, parentId, createdAt(ISO)}` |
+| `deleteComment` | filter JSON (comment + direct replies) | comment looked up by `(id, familyPostId)` (404), same authorization, `delete` row + `updatedAt` bump in one `$transaction`; replies go via the `parentId` ON DELETE CASCADE |
+| `getTimeline`, `getHomeFeed` | returned stored `reactions` JSON incl. `commentCount` + `comments` | select `_count.comments`; `reactions` string is rewritten with the live `commentCount` and `comments: []`; `_count` is not exposed |
+| `toggleReaction` | returned JSON incl. stale `commentCount`/`comments` | `familyPostComment.count` -> returned object has live `commentCount`, `comments: []`. The persisted JSON write is unchanged (emoji data only changes) |
+| `parseReactions` / `ReactionsData` / `CommentData` | | kept (emoji data still lives in the JSON); `commentCount`/`comments` documented as LEGACY. `generateId()` removed (cuid default replaces `cmt_...` ids) |
+
+`updatedAt` bump: `SyncService` delta-syncs `FamilyPost` by `updatedAt`, and the old JSON write bumped it implicitly. Without the explicit bump, comment changes would never reach synced clients.
+
+### Behaviour differences to be aware of
+
+- Feed / timeline / reaction responses now carry `comments: []` inside the `reactions` JSON (previously the full inline list). Flutter does not read it (grep), but confirm for any other client.
+- `deleteComment` cascade now removes replies of replies too (FK cascade); the JSON version removed direct replies only.
+- `addComment` for an author id with no `User` row now fails the FK (previously saved with name "Unknown"). Author ids come from the JWT, so this should not occur.
+
+### DEPLOY ORDER (important)
+
+4a's backfill copies comments out of the JSON when the migration is applied. Comments written between applying 4a and deploying 4b exist ONLY in the JSON, so after 4b they are invisible (and 404 on delete). Re-run the backfill block of `20261120140000_create_familypostcomment.sql` (idempotent, skips existing ids) right before/at the 4b deploy. No dual-write was added.
+
+### Still reads the old JSON shape elsewhere (NOT changed, out of scope)
+
+- `server/src/modules/sync/sync.service.ts` (~line 96): selects `FamilyPost.reactions` and ships it as-is, so synced clients get the frozen `commentCount`/`comments` from the JSON. Should apply the same live count (`_count.comments`) as `toFeedPost`.
+- Pre-existing, unrelated key mismatch: `Daxelo-Kinrel-App/lib/features/feed/providers/feed_provider.dart:99` (`reactions['comment']`) and `server/src/pulse/collectors/feed-highlight.collector.ts` (`comment?: number`) read a `comment` key that the timeline JSON (`commentCount`) never wrote.
+
+### Pre-existing issues noticed in this file (not fixed)
+
+- `deleteComment`: `post.authorId` is a PERSON id (`FamilyPost.authorId`), compared with the caller's USER id, so the "post author can delete" branch is effectively dead.
+- `getComments` / `addComment` / `deleteComment` only check that the post exists, not that the caller is a member of `post.familyId` (the controller passes `userId` only for add/delete). `toggleReaction` does not check the post belongs to `familyId`.
+
+### Expected behaviour to test manually
+
+`GET .../posts/:postId/comments` -> oldest first, `nextCursor` = last returned id when more exist; unknown post 404.
+`POST .../comments` -> 201 with the comment; `parentId` on another post or unknown -> 404 "Parent comment not found".
+`DELETE .../comments/:commentId`: comment author -> 200; family `owner`/`admin` -> 200; plain `member`/`viewer` who is not the author -> 403; unknown comment (or one on another post) -> 404. Replies disappear with the parent.
+Feed/timeline: `JSON.parse(post.reactions).commentCount` equals the number of rows.
+
+### Verification
+
+- `npx prisma generate` with the dummy-engine bypass (see 4a notes) -> client generated; `tsc --noEmit` -> exactly the 5 PRE-EXISTING errors in `predictions.scheduler.ts`, same as on `fix/4a`; none in `modules/timeline` or the specs. So "tsc passes" is NOT literally true (those 5 are outside this task's file list).
+- `jest src/modules/timeline src/modules/share src/__tests__/agent03-integration.spec.ts`: timeline spec 44/44 pass; agent03 spec has the same 3 failures as on `fix/4a` (2 Sparq feed tests, share lifecycle; unrelated to timeline), all timeline tests there pass.
+- Not covered by any test: the real Prisma queries (mocks only; no DB in the sandbox). The `familyPostComment` queries are type-checked against the generated client; behaviour against Postgres is not exercised.

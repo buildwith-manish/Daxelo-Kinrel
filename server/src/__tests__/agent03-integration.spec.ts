@@ -66,6 +66,8 @@ const createMockPrisma = () => ({
     }),
   },
   familyPost: makeModelMock(),
+  // Timeline comments are FamilyPostComment rows (task 4b), no longer reactions JSON.
+  familyPostComment: makeModelMock(),
   follow: makeModelMock(),
   sparq: makeModelMockWithDeleteMany(),
   sparqView: makeModelMock(),
@@ -86,7 +88,10 @@ const createMockPrisma = () => ({
   userContribution: makeModelMock(),
   shareableLink: makeModelMock(),
   person: makeModelMock(),
-  $transaction: jest.fn((fn: any) => (typeof fn === 'function' ? fn() : Promise.resolve())),
+  // Array form (timeline comment writes) runs the already-built ops; callback form unchanged.
+  $transaction: jest.fn((fn: any) =>
+    Array.isArray(fn) ? Promise.all(fn) : typeof fn === 'function' ? fn() : Promise.resolve(),
+  ),
 });
 
 const createMockGateway = () => ({
@@ -405,21 +410,16 @@ describe('Agent-3 Integration: Timeline Reactions & Comments E2E', () => {
     });
 
     it('should add comment, then delete it as author', async () => {
-      const blankReactions = JSON.stringify({
-        emojis: {},
-        userReactions: {},
-        commentCount: 0,
-        comments: [],
-      });
-
-      ctx.prisma.familyPost.findUnique.mockResolvedValue({
-        id: 'post-1',
-        familyId,
-        authorId,
-        reactions: blankReactions,
-      });
+      ctx.prisma.familyPost.findUnique.mockResolvedValue({ id: 'post-1', familyId, authorId });
       ctx.prisma.user.findUnique.mockResolvedValue({ id: otherUserId, name: 'Commenter' });
-      ctx.prisma.familyPost.update.mockResolvedValue({ id: 'post-1' });
+      ctx.prisma.familyPostComment.create.mockResolvedValue({
+        id: 'cmt-new',
+        authorId: otherUserId,
+        authorName: 'Commenter',
+        body: 'Nice post!',
+        parentId: null,
+        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+      });
 
       const commentDto: CreateCommentDto = { body: 'Nice post!' };
       const comment = await ctx.timelineService.addComment('post-1', otherUserId, commentDto);
@@ -427,6 +427,7 @@ describe('Agent-3 Integration: Timeline Reactions & Comments E2E', () => {
       expect(comment.body).toBe('Nice post!');
       expect(comment.authorId).toBe(otherUserId);
       expect(comment.authorName).toBe('Commenter');
+      expect(comment.createdAt).toBe('2024-01-01T00:00:00.000Z');
 
       expect(ctx.gateway.emitToFamily).toHaveBeenCalledWith(
         familyId,
@@ -435,24 +436,13 @@ describe('Agent-3 Integration: Timeline Reactions & Comments E2E', () => {
       );
 
       // Delete the comment as author
-      const reactionsWithComment = JSON.stringify({
-        emojis: {},
-        userReactions: {},
-        commentCount: 1,
-        comments: [comment],
-      });
-
-      ctx.prisma.familyPost.findUnique.mockResolvedValue({
-        id: 'post-1',
-        familyId,
-        authorId,
-        reactions: reactionsWithComment,
-      });
+      ctx.prisma.familyPostComment.findFirst.mockResolvedValue({ id: comment.id, authorId: otherUserId });
 
       const deleteResult = await ctx.timelineService.deleteComment('post-1', comment.id, otherUserId);
 
       expect(deleteResult.deleted).toBe(true);
       expect(deleteResult.commentId).toBe(comment.id);
+      expect(ctx.prisma.familyPostComment.delete).toHaveBeenCalledWith({ where: { id: comment.id } });
 
       expect(ctx.gateway.emitToFamily).toHaveBeenCalledWith(
         familyId,
@@ -462,36 +452,28 @@ describe('Agent-3 Integration: Timeline Reactions & Comments E2E', () => {
     });
 
     it('should add threaded comment with parentId', async () => {
-      const parentComment = {
-        id: 'cmt_parent',
-        authorId: 'user-1',
-        authorName: 'Author',
-        body: 'Original comment',
-        parentId: null,
-        createdAt: new Date().toISOString(),
-      };
-
-      const reactionsWithParent = JSON.stringify({
-        emojis: {},
-        userReactions: {},
-        commentCount: 1,
-        comments: [parentComment],
-      });
-
-      ctx.prisma.familyPost.findUnique.mockResolvedValue({
-        id: 'post-1',
-        familyId,
-        authorId,
-        reactions: reactionsWithParent,
-      });
+      ctx.prisma.familyPost.findUnique.mockResolvedValue({ id: 'post-1', familyId, authorId });
       ctx.prisma.user.findUnique.mockResolvedValue({ id: otherUserId, name: 'Replier' });
-      ctx.prisma.familyPost.update.mockResolvedValue({ id: 'post-1' });
+      // parent comment exists on this post
+      ctx.prisma.familyPostComment.findFirst.mockResolvedValue({ id: 'cmt_parent' });
+      ctx.prisma.familyPostComment.create.mockResolvedValue({
+        id: 'cmt-reply',
+        authorId: otherUserId,
+        authorName: 'Replier',
+        body: 'Reply to you',
+        parentId: 'cmt_parent',
+        createdAt: new Date(),
+      });
 
       const replyDto: CreateCommentDto = { body: 'Reply to you', parentId: 'cmt_parent' };
       const reply = await ctx.timelineService.addComment('post-1', otherUserId, replyDto);
 
       expect(reply.body).toBe('Reply to you');
       expect(reply.parentId).toBe('cmt_parent');
+      expect(ctx.prisma.familyPostComment.findFirst).toHaveBeenCalledWith({
+        where: { id: 'cmt_parent', familyPostId: 'post-1' },
+        select: { id: true },
+      });
     });
 
     it('should reject comment with non-existent parentId', async () => {
@@ -575,33 +557,29 @@ describe('Agent-3 Integration: Timeline Reactions & Comments E2E', () => {
 
   describe('Get comments with pagination', () => {
     it('should return paginated comments sorted by createdAt', async () => {
-      const comments = Array.from({ length: 55 }, (_, i) => ({
+      const rows = Array.from({ length: 51 }, (_, i) => ({
         id: `cmt-${i}`,
         authorId: `user-${i % 3}`,
         authorName: `User ${i % 3}`,
         body: `Comment ${i}`,
         parentId: null,
-        createdAt: new Date(Date.now() + i * 1000).toISOString(),
+        createdAt: new Date(Date.UTC(2024, 0, 1) + i * 1000),
       }));
 
-      const reactionsWithComments = JSON.stringify({
-        emojis: {},
-        userReactions: {},
-        commentCount: 55,
-        comments,
-      });
-
-      ctx.prisma.familyPost.findUnique.mockResolvedValue({
-        id: 'post-1',
-        familyId,
-        authorId,
-        reactions: reactionsWithComments,
-      });
+      ctx.prisma.familyPost.findUnique.mockResolvedValue({ id: 'post-1' });
+      ctx.prisma.familyPostComment.findMany.mockResolvedValue(rows);
 
       const result = await ctx.timelineService.getComments('post-1', 50);
 
+      expect(ctx.prisma.familyPostComment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { familyPostId: 'post-1' },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          take: 51,
+        }),
+      );
       expect(result.data).toHaveLength(50);
-      expect(result.nextCursor).toBeTruthy();
+      expect(result.nextCursor).toBe('cmt-49');
     });
   });
 });
@@ -1129,13 +1107,8 @@ describe('Agent-3 Integration: Timeline ↔ Family Member Roles', () => {
         id: 'post-1',
         familyId,
         authorId: 'user-2',
-        reactions: JSON.stringify({
-          emojis: {},
-          userReactions: {},
-          commentCount: 1,
-          comments: [comment],
-        }),
       });
+      ctx.prisma.familyPostComment.findFirst.mockResolvedValue({ id: comment.id, authorId: comment.authorId });
 
       const result = await ctx.timelineService.deleteComment('post-1', 'cmt-1', 'user-1');
 
@@ -1156,13 +1129,8 @@ describe('Agent-3 Integration: Timeline ↔ Family Member Roles', () => {
         id: 'post-1',
         familyId,
         authorId: 'user-1',
-        reactions: JSON.stringify({
-          emojis: {},
-          userReactions: {},
-          commentCount: 1,
-          comments: [comment],
-        }),
       });
+      ctx.prisma.familyPostComment.findFirst.mockResolvedValue({ id: comment.id, authorId: comment.authorId });
 
       const result = await ctx.timelineService.deleteComment('post-1', 'cmt-1', 'user-1');
 
@@ -1183,13 +1151,8 @@ describe('Agent-3 Integration: Timeline ↔ Family Member Roles', () => {
         id: 'post-1',
         familyId,
         authorId: 'user-1',
-        reactions: JSON.stringify({
-          emojis: {},
-          userReactions: {},
-          commentCount: 1,
-          comments: [comment],
-        }),
       });
+      ctx.prisma.familyPostComment.findFirst.mockResolvedValue({ id: comment.id, authorId: comment.authorId });
 
       ctx.prisma.familyMember.findFirst.mockResolvedValue({ role: 'admin' });
 
@@ -1212,13 +1175,8 @@ describe('Agent-3 Integration: Timeline ↔ Family Member Roles', () => {
         id: 'post-1',
         familyId,
         authorId: 'user-1',
-        reactions: JSON.stringify({
-          emojis: {},
-          userReactions: {},
-          commentCount: 1,
-          comments: [comment],
-        }),
       });
+      ctx.prisma.familyPostComment.findFirst.mockResolvedValue({ id: comment.id, authorId: comment.authorId });
 
       ctx.prisma.familyMember.findFirst.mockResolvedValue({ role: 'member' });
 
@@ -1249,20 +1207,16 @@ describe('Agent-3 Integration: Timeline ↔ Family Member Roles', () => {
         id: 'post-1',
         familyId,
         authorId: 'user-3',
-        reactions: JSON.stringify({
-          emojis: {},
-          userReactions: {},
-          commentCount: 2,
-          comments: [parentComment, childComment],
-        }),
       });
+      ctx.prisma.familyPostComment.findFirst.mockResolvedValue({ id: parentComment.id, authorId: parentComment.authorId });
 
       const result = await ctx.timelineService.deleteComment('post-1', 'cmt-parent', 'user-1');
 
       expect(result.deleted).toBe(true);
-      const updateCall = ctx.prisma.familyPost.update.mock.calls[0][0];
-      const updatedReactions = JSON.parse(updateCall.data.reactions);
-      expect(updatedReactions.comments).toHaveLength(0);
+      // Only the parent row is deleted; the child reply goes with it through the
+      // FamilyPostComment.parentId ON DELETE CASCADE foreign key.
+      expect(ctx.prisma.familyPostComment.delete).toHaveBeenCalledTimes(1);
+      expect(ctx.prisma.familyPostComment.delete).toHaveBeenCalledWith({ where: { id: 'cmt-parent' } });
     });
   });
 });
