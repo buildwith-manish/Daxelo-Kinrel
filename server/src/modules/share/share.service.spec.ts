@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { KinrelGateway } from '../gateway/kinrel.gateway';
 import {
   BadRequestException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 
@@ -30,6 +31,10 @@ describe('ShareService', () => {
     },
     person: {
       findUnique: jest.fn(),
+    },
+    familyMember: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
     },
   };
 
@@ -87,6 +92,19 @@ describe('ShareService', () => {
         'share:link_created',
         expect.objectContaining({ token: 'abc123' }),
       );
+    });
+
+    it('should persist the caller as the link owner (userId)', async () => {
+      mockPrisma.shareableLink.create.mockResolvedValue({
+        id: 'link-1',
+        token: 'abc123',
+        createdAt: new Date(),
+      });
+
+      await service.createShareableLink(userId, baseDto as any);
+
+      const createCall = mockPrisma.shareableLink.create.mock.calls[0][0];
+      expect(createCall.data.userId).toBe(userId);
     });
 
     it('should throw BadRequestException for invalid cardType', async () => {
@@ -358,10 +376,12 @@ describe('ShareService', () => {
     const userId = 'user-1';
     const linkId = 'link-1';
 
-    it('should delete a shareable link and emit socket event', async () => {
+    it('should delete the link and emit socket event when caller is the creator', async () => {
       mockPrisma.shareableLink.findUnique.mockResolvedValue({
         id: linkId,
         token: 'abc123',
+        userId,
+        familyId: null,
       });
       mockPrisma.shareableLink.delete.mockResolvedValue({ id: linkId });
 
@@ -386,11 +406,113 @@ describe('ShareService', () => {
         NotFoundException,
       );
     });
+
+    it('should throw ForbiddenException when the link belongs to another user', async () => {
+      mockPrisma.shareableLink.findUnique.mockResolvedValue({
+        id: linkId,
+        token: 'abc123',
+        userId: 'someone-else',
+        familyId: 'fam-1',
+      });
+      // Even a family admin cannot revoke a link that HAS an owner.
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ role: 'admin' });
+
+      await expect(service.revokeShareableLink(userId, linkId)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockPrisma.shareableLink.delete).not.toHaveBeenCalled();
+    });
+
+    describe('legacy rows (userId IS NULL)', () => {
+      const legacy = { id: linkId, token: 'abc123', userId: null, familyId: 'fam-1' };
+
+      it('should allow an owner/admin of the link family to revoke', async () => {
+        mockPrisma.shareableLink.findUnique.mockResolvedValue(legacy);
+        mockPrisma.familyMember.findUnique.mockResolvedValue({ role: 'admin' });
+        mockPrisma.shareableLink.delete.mockResolvedValue({ id: linkId });
+
+        const result = await service.revokeShareableLink(userId, linkId);
+
+        expect(result.deleted).toBe(true);
+        expect(mockPrisma.familyMember.findUnique).toHaveBeenCalledWith({
+          where: { familyId_userId: { familyId: 'fam-1', userId } },
+        });
+        expect(mockPrisma.shareableLink.delete).toHaveBeenCalled();
+      });
+
+      it('should reject a plain family member', async () => {
+        mockPrisma.shareableLink.findUnique.mockResolvedValue(legacy);
+        mockPrisma.familyMember.findUnique.mockResolvedValue({ role: 'member' });
+
+        await expect(service.revokeShareableLink(userId, linkId)).rejects.toThrow(
+          ForbiddenException,
+        );
+        expect(mockPrisma.shareableLink.delete).not.toHaveBeenCalled();
+      });
+
+      it('should reject a non-member of the link family', async () => {
+        mockPrisma.shareableLink.findUnique.mockResolvedValue(legacy);
+        mockPrisma.familyMember.findUnique.mockResolvedValue(null);
+
+        await expect(service.revokeShareableLink(userId, linkId)).rejects.toThrow(
+          ForbiddenException,
+        );
+      });
+
+      it('should reject when the legacy row has no familyId', async () => {
+        mockPrisma.shareableLink.findUnique.mockResolvedValue({ ...legacy, familyId: null });
+
+        await expect(service.revokeShareableLink(userId, linkId)).rejects.toThrow(
+          ForbiddenException,
+        );
+        expect(mockPrisma.familyMember.findUnique).not.toHaveBeenCalled();
+      });
+    });
   });
 
   // ─── getMyShareableLinks ───────────────────────────────────────────
   describe('getMyShareableLinks', () => {
     const userId = 'user-1';
+
+    beforeEach(() => {
+      // Default: the caller administers no family.
+      mockPrisma.familyMember.findMany.mockResolvedValue([]);
+    });
+
+    it('should filter by the caller (userId) in both the list and the total', async () => {
+      mockPrisma.shareableLink.findMany.mockResolvedValue([]);
+      mockPrisma.shareableLink.count.mockResolvedValue(0);
+
+      await service.getMyShareableLinks(userId);
+
+      expect(mockPrisma.shareableLink.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId } }),
+      );
+      expect(mockPrisma.shareableLink.count).toHaveBeenCalledWith({ where: { userId } });
+    });
+
+    it('should also include legacy (NULL userId) links of families the caller owns/admins', async () => {
+      mockPrisma.familyMember.findMany.mockResolvedValue([
+        { familyId: 'fam-1' },
+        { familyId: 'fam-2' },
+      ]);
+      mockPrisma.shareableLink.findMany.mockResolvedValue([]);
+      mockPrisma.shareableLink.count.mockResolvedValue(0);
+
+      await service.getMyShareableLinks(userId);
+
+      const expectedWhere = {
+        OR: [{ userId }, { userId: null, familyId: { in: ['fam-1', 'fam-2'] } }],
+      };
+      expect(mockPrisma.familyMember.findMany).toHaveBeenCalledWith({
+        where: { userId, role: { in: ['owner', 'admin'] } },
+        select: { familyId: true },
+      });
+      expect(mockPrisma.shareableLink.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere }),
+      );
+      expect(mockPrisma.shareableLink.count).toHaveBeenCalledWith({ where: expectedWhere });
+    });
 
     it('should return paginated list of shareable links', async () => {
       const links = [

@@ -31,8 +31,7 @@ export class ShareService {
 
   /**
    * Create a shareable link.
-   * Stores the userId of the creator for ownership tracking.
-   * TODO (Task-3): Add userId column to ShareableLink schema.
+   * Stores the userId of the creator (`ShareableLink.userId`) for ownership tracking.
    */
   async createShareableLink(userId: string, dto: CreateShareableLinkDto) {
     if (!VALID_CARD_TYPES.includes(dto.cardType)) {
@@ -70,6 +69,7 @@ export class ShareService {
         description: dto.description?.trim() || '',
         deepLinkUrl,
         expiresAt,
+        userId,
       },
     });
 
@@ -232,9 +232,13 @@ export class ShareService {
 
   /**
    * Revoke (delete) a shareable link.
-   * Only the creator can revoke their own links.
-   * TODO (Task-3): Enforce userId check once schema adds userId column.
-   * For now, any authenticated user can revoke by token.
+   * Only the creator (`link.userId`) can revoke their own links.
+   *
+   * Legacy rows (`link.userId IS NULL`, created before the userId column was
+   * populated; no creator can be recovered) are NOT locked out: they stay
+   * publicly resolvable by token, and an owner/admin of the link's family
+   * (`link.familyId`) may revoke them. A legacy row with no familyId cannot
+   * be revoked through this API.
    */
   async revokeShareableLink(userId: string, linkId: string) {
     const link = await this.prisma.shareableLink.findUnique({
@@ -245,8 +249,14 @@ export class ShareService {
       throw new NotFoundException('Shareable link not found');
     }
 
-    // TODO: Once userId is added to ShareableLink schema, check:
-    // if (link.userId !== userId) throw new ForbiddenException('Not your link');
+    if (link.userId) {
+      if (link.userId !== userId) {
+        throw new ForbiddenException('Not your link');
+      }
+    } else if (!(await this.isFamilyAdmin(link.familyId, userId))) {
+      // Legacy row with no recorded creator.
+      throw new ForbiddenException('Not your link');
+    }
 
     await this.prisma.shareableLink.delete({
       where: { id: linkId },
@@ -262,14 +272,25 @@ export class ShareService {
   }
 
   /**
-   * List all shareable links created by the current user.
-   * TODO (Task-3): Filter by userId once schema adds userId column.
-   * For now, returns all links (will be filtered after schema update).
+   * List the shareable links the current user manages: links they created,
+   * plus legacy links (`userId IS NULL`) belonging to a family they own/admin
+   * (the same set `revokeShareableLink` lets them revoke).
    */
   async getMyShareableLinks(userId: string, limit: number = 20, page: number = 1) {
-    // TODO: Add where: { userId } once schema has userId field
+    const adminFamilyIds = await this.getAdminFamilyIds(userId);
+    const where =
+      adminFamilyIds.length > 0
+        ? {
+            OR: [
+              { userId },
+              { userId: null, familyId: { in: adminFamilyIds } },
+            ],
+          }
+        : { userId };
+
     const [items, total] = await Promise.all([
       this.prisma.shareableLink.findMany({
+        where,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -288,9 +309,30 @@ export class ShareService {
           createdAt: true,
         },
       }),
-      this.prisma.shareableLink.count(),
+      this.prisma.shareableLink.count({ where }),
     ]);
 
     return { items, total, page, limit };
+  }
+
+  /** True if the user is an owner/admin of the family. False when familyId is empty. */
+  private async isFamilyAdmin(
+    familyId: string | null | undefined,
+    userId: string,
+  ): Promise<boolean> {
+    if (!familyId) return false;
+    const membership = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId } },
+    });
+    return membership?.role === 'owner' || membership?.role === 'admin';
+  }
+
+  /** Ids of the families where the user is an owner/admin. */
+  private async getAdminFamilyIds(userId: string): Promise<string[]> {
+    const rows = await this.prisma.familyMember.findMany({
+      where: { userId, role: { in: ['owner', 'admin'] } },
+      select: { familyId: true },
+    });
+    return rows.map((r) => r.familyId);
   }
 }
