@@ -695,3 +695,10 @@ Branch: `fix/7c`, based on `fix/7b` (no `main`; stack convention). Leftover `fix
 - Compared `supabase_migrations.schema_migrations` (176 rows) with the repo: A-G (184 files) all recorded; H-K (~145 files) mostly NOT recorded although their objects exist on prod (applied out-of-band); `FamilyPostComment` (4a) absent on prod, Story/ShareableLink columns (2a/3a) already present. Details in `docs/migrations-cleanup-proposal.md` ("Prod check").
 - Nothing was applied or repaired on prod. Next step for the owner: verify H-K object by object, then `supabase migration repair` only the verified versions; do not `db push` to prod before that.
 
+## Task 7d notes
+
+Branch: `fix/7d`, based on `fix/7c` (no `main`; stack convention). Leftover `fix/1a`..`fix/7c` are all unmerged and "in progress"; none marked done, nothing merged.
+- Findings only: new `## File hygiene` section in `docs/migrations-cleanup-proposal.md`. No file in `supabase/migrations/` was touched.
+- Counts: 22 duplicate versions (44 files; 20 are forward+rollback, 2 are unrelated forward pairs: `20260919100000`, `20261019120000`), 20 rollback files, 1 malformed version (`20260715_create_place_table.sql`, probably `20260713160000`). Overlap with the "Prod check": yes, details in the doc.
+- Nothing to type-check; no code, schema or dependency changes.
+
