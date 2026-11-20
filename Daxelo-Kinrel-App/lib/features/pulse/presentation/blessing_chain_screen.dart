@@ -15,6 +15,7 @@ import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
 import 'blessing_record_sheet.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 class BlessingChainScreen extends ConsumerStatefulWidget {
   const BlessingChainScreen({super.key, this.embedded = false});
   final bool embedded;
@@ -88,7 +89,7 @@ class _BlessingsForMeTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final blessingsAsync = ref.watch(blessingsForMeProvider);
     return blessingsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator(color: KinrelColors.gold)),
+      loading: () => const KinrelSkeletonList(),
       error: (err, _) => Center(child: Text('Error: $err', style: const TextStyle(color: Colors.white54))),
       data: (blessings) {
         if (blessings.isEmpty) {
@@ -143,7 +144,7 @@ class _FamilyBlessingsTab extends ConsumerWidget {
     }
     final blessingsAsync = ref.watch(familyBlessingsProvider(familyId));
     return blessingsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator(color: KinrelColors.gold)),
+      loading: () => const KinrelSkeletonList(),
       error: (err, _) => Center(child: Text('Error: $err', style: const TextStyle(color: Colors.white54))),
       data: (blessings) {
         if (blessings.isEmpty) {

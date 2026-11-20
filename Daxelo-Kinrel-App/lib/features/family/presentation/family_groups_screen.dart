@@ -23,6 +23,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../data/group_provider.dart';
 import 'family_space_floating_nav.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 class FamilyGroupsScreen extends ConsumerWidget {
   const FamilyGroupsScreen({super.key, required this.familyId});
 
@@ -69,9 +70,7 @@ class FamilyGroupsScreen extends ConsumerWidget {
       bottomNavigationBar:
           FamilySpaceFloatingNav(familyId: familyId),
       body: groupsAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: KinrelColors.orange),
-        ),
+        loading: () => const KinrelSkeletonList(),
         error: (e, _) => const Center(
           child: Text(
             'Could not load groups',

@@ -131,8 +131,20 @@ Clearing the first 10 (commit 1) exposed the next 10 (`prefer_const_constructors
 `schedule_message_sheet.dart`, `family_event_card.dart:431`), none in files this sweep touched. See the final report.
 
 ## Part 2 - loading-state standardization
-Status: not started
-Files touched: (none yet)
+Status: in progress (code done and pushed; NOT merged: CI gate cannot be evaluated, see Part 1 CI note)
+Decision: no new widget. `lib/shared/widgets/kinrel_skeleton.dart` already provides the shimmer skeleton system
+(`KinrelSkeletonList`, `KinrelSkeletonCard`, reduced-motion aware), and 23 places already use it. A second widget would
+duplicate it, so the bare `CircularProgressIndicator` loading states were swapped to `const KinrelSkeletonList()`.
+Files touched (18): family/{family_members,family_activity,family_chat_list,family_groups}_screen.dart,
+chat/archived_chats_screen.dart, community/community_discovery_screen.dart,
+pulse/{blessing_chain,memorials,time_capsule,silent_alarms,family_chronicle,family_quests}_screen.dart,
+gaming_ecosystem/{leaderboard,match_history,activity_feed,achievements}_screen.dart,
+trackc/decisions_list_screen.dart, shared_list/shared_list_screen.dart.
+Deliberately NOT swapped (human/visual check needed): family_list_screen.dart:1296, chat_inbox_screen.dart:167 (nested layout
+not verified), trackc timeline_screen.dart (two), gaming_milestones/season/player_profile, relationship_* pickers,
+single-item detail screens, and the inline spinner in shared_list_screen.dart:182. 
+Loading announcement for screen readers: the old spinner had implicit progress semantics; the skeleton has none. Adding one
+needs a new l10n string (generated files cannot be regenerated here) - flagged for Part 3 / human.
 
 ## Part 3 - accessibility pass
 Status: not started

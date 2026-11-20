@@ -12,6 +12,7 @@ import '../../../core/services/image_cache_manager.dart';
 import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 class MemorialsScreen extends ConsumerWidget {
 
   const MemorialsScreen({super.key, this.embedded = false, this.familyId = ''});
@@ -34,7 +35,7 @@ class MemorialsScreen extends ConsumerWidget {
         ),
       ),
       body: memorialsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: KinrelColors.extendedPurple)),
+        loading: () => const KinrelSkeletonList(),
         error: (err, _) => Center(child: Text('Error: $err', style: const TextStyle(color: Colors.white54))),
         data: (memorials) {
           if (memorials.isEmpty) {

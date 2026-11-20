@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import '../shared_list_provider.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 class SharedListScreen extends ConsumerStatefulWidget {
   const SharedListScreen({super.key, required this.familyId});
   final String familyId;
@@ -77,7 +78,7 @@ class _SharedListScreenState extends ConsumerState<SharedListScreen> {
         // is correct for all screen sizes (phone, tablet, web, split).
       ),
       body: listsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const KinrelSkeletonList(),
         error: (e, _) => Center(child: Text('Failed to load: $e')),
         data: (lists) {
           if (lists.isEmpty) {

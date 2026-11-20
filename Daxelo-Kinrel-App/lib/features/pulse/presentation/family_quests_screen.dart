@@ -12,6 +12,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 class FamilyQuestsScreen extends ConsumerStatefulWidget {
   const FamilyQuestsScreen({super.key});
 
@@ -76,7 +77,7 @@ class _ActiveQuestsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final questsAsync = ref.watch(activeQuestsProvider);
     return questsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator(color: KinrelColors.orange)),
+      loading: () => const KinrelSkeletonList(),
       error: (err, _) => Center(child: Text('Error: $err', style: const TextStyle(color: Colors.white54))),
       data: (quests) {
         if (quests.isEmpty) {
@@ -117,7 +118,7 @@ class _QuestHistoryTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final historyAsync = ref.watch(questHistoryProvider);
     return historyAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator(color: KinrelColors.orange)),
+      loading: () => const KinrelSkeletonList(),
       error: (err, _) => Center(child: Text('Error: $err', style: const TextStyle(color: Colors.white54))),
       data: (quests) {
         if (quests.isEmpty) {

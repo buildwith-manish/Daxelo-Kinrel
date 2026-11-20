@@ -16,6 +16,7 @@ import '../data/gaming_providers.dart';
 import 'widgets/gaming_kit.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 class GamingMatchHistoryScreen extends ConsumerWidget {
   const GamingMatchHistoryScreen({super.key, required this.familyId});
   final String familyId;
@@ -40,8 +41,7 @@ class GamingMatchHistoryScreen extends ConsumerWidget {
         elevation: 0,
       ),
       body: historyAsync.when(
-        loading: () => const Center(
-            child: CircularProgressIndicator(color: KinrelColors.orange)),
+        loading: () => const KinrelSkeletonList(),
         error: (e, _) => const Center(
           child: GamingEmptyCard(
             emoji: '🔌',

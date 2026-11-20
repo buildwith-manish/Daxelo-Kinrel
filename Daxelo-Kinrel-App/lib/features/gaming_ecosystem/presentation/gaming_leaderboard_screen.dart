@@ -23,6 +23,7 @@ import '../../games/shared/icons/kinrel_icons.dart';
 import 'widgets/gaming_kit.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 class GamingLeaderboardScreen extends ConsumerStatefulWidget {
   const GamingLeaderboardScreen({super.key, required this.familyId});
   final String familyId;
@@ -124,8 +125,7 @@ class _GamingLeaderboardScreenState
           // ── Entries ────────────────────────────────────────────────
           Expanded(
             child: lbAsync.when(
-              loading: () => const Center(
-                  child: CircularProgressIndicator(color: KinrelColors.orange)),
+              loading: () => const KinrelSkeletonList(),
               error: (e, _) => const Center(
                 child: const GamingEmptyCard(
                   emoji: '🔌',
