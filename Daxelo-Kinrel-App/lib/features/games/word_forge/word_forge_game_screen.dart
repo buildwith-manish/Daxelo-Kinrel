@@ -511,7 +511,7 @@ class _WordCard extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             _kWordForgeAccent.withValues(alpha: 0.18),
-            const Color(0xFF1A1C2E),
+            KinrelColors.darkCard,
           ],
         ),
         borderRadius: BorderRadius.circular(20),

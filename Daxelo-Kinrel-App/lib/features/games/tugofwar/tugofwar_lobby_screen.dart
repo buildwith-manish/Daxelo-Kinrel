@@ -458,7 +458,7 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
 class TugTeamBoardColors {
   TugTeamBoardColors._();
 
-  static const Color a = Color(0xFFEF4444); // Team Ember — red
+  static const Color a = KinrelColors.red; // Team Ember — red
   static const Color b = KinrelColors.blue; // Team Azure — blue
 }
 

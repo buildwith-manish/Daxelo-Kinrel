@@ -158,7 +158,7 @@ class GameBoardShell extends StatelessWidget {
         return const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF20233A), Color(0xFF14162A)],
+          colors: [KinrelColors.darkElevated, Color(0xFF14162A)],
         );
     }
   }

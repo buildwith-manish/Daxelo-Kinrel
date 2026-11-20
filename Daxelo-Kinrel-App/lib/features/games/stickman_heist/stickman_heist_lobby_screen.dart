@@ -153,7 +153,7 @@ class _StickmanHeistLobbyScreenState
       body: state.isLoading
           ? const Center(
               child:
-                  CircularProgressIndicator(color: Color(0xFFEF4444)))
+                  CircularProgressIndicator(color: KinrelColors.red))
           : state.error != null && !hasGame
               ? DKErrorState(message: state.error!, onRetry: _createGame)
               : hasGame
@@ -209,7 +209,7 @@ class _StickmanHeistLobbyScreenState
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 40,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFFEF4444),
+                    color: KinrelColors.red,
                     letterSpacing: 6)),
             const SizedBox(height: KinrelSpacing.md),
             Text(
@@ -236,7 +236,7 @@ class _StickmanHeistLobbyScreenState
   }
 
   Widget _setupView() {
-    const accent = Color(0xFFEF4444);
+    const accent = KinrelColors.red;
     return LobbySetupScreen(
       gameId: 'stickman-heist',
       title: 'Stickman Heist',

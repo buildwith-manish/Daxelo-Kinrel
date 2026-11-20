@@ -481,7 +481,7 @@ class _VaultCard extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             vaultColor.withValues(alpha: 0.15),
-            const Color(0xFF1A1C2E),
+            KinrelColors.darkCard,
           ],
         ),
         borderRadius: BorderRadius.circular(18),
@@ -1081,7 +1081,7 @@ class _RevealView extends StatelessWidget {
                   child: _MetricChip(
                     label: 'Blocked',
                     value: '${round.stealsBlocked}',
-                    color: const Color(0xFF3B82F6),
+                    color: KinrelColors.blue,
                   ),
                 ),
               ],
@@ -1094,7 +1094,7 @@ class _RevealView extends StatelessWidget {
                 child: _MetricChip(
                   label: 'Traps',
                   value: '${round.trapsTriggered}',
-                  color: const Color(0xFFEF4444),
+                  color: KinrelColors.red,
                 ),
               ),
               Expanded(

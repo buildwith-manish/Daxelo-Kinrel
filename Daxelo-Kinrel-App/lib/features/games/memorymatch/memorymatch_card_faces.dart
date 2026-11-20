@@ -22,6 +22,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/brand_colors.dart';
 // ─────────────────────────────────────────────────────────────────────
 // Palette
 // ─────────────────────────────────────────────────────────────────────
@@ -279,7 +280,7 @@ final List<MemoryFaceSpec> _classicList = [
     key: 'star',
     label: 'Star',
     palette: MemoryFacePalette(
-        base: Color(0xFFFFC940), accent: Color(0xFFF59240), detail: Color(0xFFE8862A)),
+        base: Color(0xFFFFC940), accent: KinrelColors.amber, detail: Color(0xFFE8862A)),
     painter: _faceStar,
   ),
   const MemoryFaceSpec(
@@ -293,21 +294,21 @@ final List<MemoryFaceSpec> _classicList = [
     key: 'moon',
     label: 'Moon',
     palette: MemoryFacePalette(
-        base: Color(0xFFFFE08A), accent: Color(0xFFD4AF37), detail: Color(0xFFB8912E)),
+        base: Color(0xFFFFE08A), accent: KinrelColors.gold, detail: Color(0xFFB8912E)),
     painter: _faceMoon,
   ),
   const MemoryFaceSpec(
     key: 'sun',
     label: 'Sun',
     palette: MemoryFacePalette(
-        base: Color(0xFFFFD54F), accent: Color(0xFFF59240), detail: Color(0xFFE8862A)),
+        base: Color(0xFFFFD54F), accent: KinrelColors.amber, detail: Color(0xFFE8862A)),
     painter: _faceSun,
   ),
   const MemoryFaceSpec(
     key: 'crown',
     label: 'Crown',
     palette: MemoryFacePalette(
-        base: Color(0xFFFFD54F), accent: Color(0xFFE8612A), detail: Color(0xFFB8912E)),
+        base: Color(0xFFFFD54F), accent: KinrelColors.orange, detail: Color(0xFFB8912E)),
     painter: _faceCrown,
   ),
   const MemoryFaceSpec(
@@ -321,7 +322,7 @@ final List<MemoryFaceSpec> _classicList = [
     key: 'rocket',
     label: 'Rocket',
     palette: MemoryFacePalette(
-        base: Color(0xFFE8EDF5), accent: Color(0xFFE8612A), detail: Color(0xFF3E4A5E)),
+        base: Color(0xFFE8EDF5), accent: KinrelColors.orange, detail: Color(0xFF3E4A5E)),
     painter: _faceRocket,
   ),
   const MemoryFaceSpec(
@@ -342,14 +343,14 @@ final List<MemoryFaceSpec> _classicList = [
     key: 'bolt',
     label: 'Bolt',
     palette: MemoryFacePalette(
-        base: Color(0xFFFFD54F), accent: Color(0xFFF59240), detail: Color(0xFFE8862A)),
+        base: Color(0xFFFFD54F), accent: KinrelColors.amber, detail: Color(0xFFE8862A)),
     painter: _faceBolt,
   ),
   const MemoryFaceSpec(
     key: 'flame',
     label: 'Flame',
     palette: MemoryFacePalette(
-        base: Color(0xFFF59240), accent: Color(0xFFFFC940), detail: Color(0xFFE8432A)),
+        base: KinrelColors.amber, accent: Color(0xFFFFC940), detail: Color(0xFFE8432A)),
     painter: _faceFlame,
   ),
   const MemoryFaceSpec(
@@ -363,7 +364,7 @@ final List<MemoryFaceSpec> _classicList = [
     key: 'target',
     label: 'Target',
     palette: MemoryFacePalette(
-        base: Color(0xFFE8612A), accent: Color(0xFFFFFFFF), detail: Color(0xFFC44A18)),
+        base: KinrelColors.orange, accent: Color(0xFFFFFFFF), detail: KinrelColors.ember),
     painter: _faceTarget,
   ),
   const MemoryFaceSpec(
@@ -384,7 +385,7 @@ final List<MemoryFaceSpec> _classicList = [
     key: 'sparkle',
     label: 'Sparkle',
     palette: MemoryFacePalette(
-        base: Color(0xFFFFE08A), accent: Color(0xFFF59240), detail: Color(0xFFD4AF37)),
+        base: Color(0xFFFFE08A), accent: KinrelColors.amber, detail: KinrelColors.gold),
     painter: _faceSparkle,
   ),
   const MemoryFaceSpec(
@@ -753,7 +754,7 @@ final List<MemoryFaceSpec> _familyList = [
     key: 'cousin',
     label: 'Cousin',
     palette: MemoryFacePalette(
-        base: Color(0xFFD9A06B), accent: Color(0xFFF59240), detail: Color(0xFF2E2A26)),
+        base: Color(0xFFD9A06B), accent: KinrelColors.amber, detail: Color(0xFF2E2A26)),
     painter: _faceCousin,
   ),
   const MemoryFaceSpec(
@@ -781,14 +782,14 @@ final List<MemoryFaceSpec> _familyList = [
     key: 'elder',
     label: 'Elder',
     palette: MemoryFacePalette(
-        base: Color(0xFFDCB18A), accent: Color(0xFFD4AF37), detail: Color(0xFF9C9CA8)),
+        base: Color(0xFFDCB18A), accent: KinrelColors.gold, detail: Color(0xFF9C9CA8)),
     painter: _faceElder,
   ),
   const MemoryFaceSpec(
     key: 'bigfamily',
     label: 'Family',
     palette: MemoryFacePalette(
-        base: Color(0xFFF2C9A8), accent: Color(0xFFE8612A), detail: Color(0xFF2E2A26)),
+        base: Color(0xFFF2C9A8), accent: KinrelColors.orange, detail: Color(0xFF2E2A26)),
     painter: _faceBigFamily,
   ),
   const MemoryFaceSpec(
@@ -802,7 +803,7 @@ final List<MemoryFaceSpec> _familyList = [
     key: 'home',
     label: 'Home',
     palette: MemoryFacePalette(
-        base: Color(0xFFE8A05C), accent: Color(0xFFC44A18), detail: Color(0xFF5E8A5E)),
+        base: Color(0xFFE8A05C), accent: KinrelColors.ember, detail: Color(0xFF5E8A5E)),
     painter: _faceHome,
   ),
   const MemoryFaceSpec(
@@ -816,7 +817,7 @@ final List<MemoryFaceSpec> _familyList = [
     key: 'homefood',
     label: 'Home Food',
     palette: MemoryFacePalette(
-        base: Color(0xFFF5EEE0), accent: Color(0xFFE8862A), detail: Color(0xFFC44A18)),
+        base: Color(0xFFF5EEE0), accent: Color(0xFFE8862A), detail: KinrelColors.ember),
     painter: _faceHomeFood,
   ),
   const MemoryFaceSpec(
@@ -1187,7 +1188,7 @@ final List<MemoryFaceSpec> _foodList = [
     key: 'pizza',
     label: 'Pizza',
     palette: MemoryFacePalette(
-        base: Color(0xFFF5C04E), accent: Color(0xFFE8612A), detail: Color(0xFFC44A18)),
+        base: Color(0xFFF5C04E), accent: KinrelColors.orange, detail: KinrelColors.ember),
     painter: _facePizza,
   ),
   const MemoryFaceSpec(
@@ -1208,7 +1209,7 @@ final List<MemoryFaceSpec> _foodList = [
     key: 'cake',
     label: 'Cake',
     palette: MemoryFacePalette(
-        base: Color(0xFFF7DCC2), accent: Color(0xFFE8798A), detail: Color(0xFFC44A18)),
+        base: Color(0xFFF7DCC2), accent: Color(0xFFE8798A), detail: KinrelColors.ember),
     painter: _faceCake,
   ),
   const MemoryFaceSpec(
@@ -1264,7 +1265,7 @@ final List<MemoryFaceSpec> _foodList = [
     key: 'noodles',
     label: 'Noodles',
     palette: MemoryFacePalette(
-        base: Color(0xFFF5EEE0), accent: Color(0xFFE8A05C), detail: Color(0xFFC44A18)),
+        base: Color(0xFFF5EEE0), accent: Color(0xFFE8A05C), detail: KinrelColors.ember),
     painter: _faceNoodles,
   ),
   const MemoryFaceSpec(
@@ -1371,7 +1372,7 @@ void _faceCake(Canvas c, MemoryFacePalette p) {
   _path(c, Path()..moveTo(24, 54)..lineTo(76, 54)..lineTo(76, 62)..quadraticBezierTo(70, 70, 64, 62)..quadraticBezierTo(58, 70, 50, 62)..quadraticBezierTo(44, 70, 36, 62)..quadraticBezierTo(30, 68, 24, 64)..close(), p.accent);
   // candle
   _rrect(c, const Rect.fromLTWH(47, 14, 6, 16), 2, p.detail);
-  _path(c, Path()..moveTo(50, 4)..quadraticBezierTo(55, 8, 50, 12)..quadraticBezierTo(45, 8, 50, 4)..close(), const Color(0xFFF59240));
+  _path(c, Path()..moveTo(50, 4)..quadraticBezierTo(55, 8, 50, 12)..quadraticBezierTo(45, 8, 50, 4)..close(), KinrelColors.amber);
 }
 
 void _faceApple(Canvas c, MemoryFacePalette p) {
@@ -1628,7 +1629,7 @@ final List<MemoryFaceSpec> _animalsList = [
     key: 'tiger',
     label: 'Tiger',
     palette: MemoryFacePalette(
-        base: Color(0xFFF59240), accent: Color(0xFF2E2A26), detail: Color(0xFFC44A18)),
+        base: KinrelColors.amber, accent: Color(0xFF2E2A26), detail: KinrelColors.ember),
     painter: _faceATiger,
   ),
   const MemoryFaceSpec(

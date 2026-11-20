@@ -50,7 +50,7 @@ import 'connect4_provider.dart';
 /// Player colors: Red (player 0) and Yellow (player 1).
 class Connect4Colors {
   Connect4Colors._();
-  static const Color red = Color(0xFFEF4444);
+  static const Color red = KinrelColors.red;
   static const Color yellow = Color(0xFFF59E0B);
   static const Color empty = Color(0xFF1A1B26);
   static const Color board = Color(0xFF2563EB); // classic blue board

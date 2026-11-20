@@ -464,7 +464,7 @@ class _PromptInputCardState extends State<_PromptInputCard> {
           end: Alignment.bottomRight,
           colors: [
             kSketchTelephoneAccent.withValues(alpha: 0.18),
-            const Color(0xFF1A1C2E),
+            KinrelColors.darkCard,
           ],
         ),
         borderRadius: BorderRadius.circular(20),
@@ -595,7 +595,7 @@ class _DescriptionInputCardState extends State<_DescriptionInputCard> {
           end: Alignment.bottomRight,
           colors: [
             kSketchTelephoneAccent.withValues(alpha: 0.18),
-            const Color(0xFF1A1C2E),
+            KinrelColors.darkCard,
           ],
         ),
         borderRadius: BorderRadius.circular(20),
@@ -792,7 +792,7 @@ class _DrawingCardState extends State<_DrawingCard> {
           end: Alignment.bottomRight,
           colors: [
             kSketchTelephoneAccent.withValues(alpha: 0.15),
-            const Color(0xFF1A1C2E),
+            KinrelColors.darkCard,
           ],
         ),
         borderRadius: BorderRadius.circular(20),

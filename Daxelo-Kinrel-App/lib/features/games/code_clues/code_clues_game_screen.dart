@@ -44,7 +44,7 @@ import 'code_clues_provider.dart';
 
 /// Team color tokens (re-exported from lobby screen for use here).
 Color _teamColor(int team) =>
-    team == 2 ? const Color(0xFF3B82F6) : KinrelColors.orange;
+    team == 2 ? KinrelColors.blue : KinrelColors.orange;
 
 class CodeCluesGameScreen extends ConsumerStatefulWidget {
   const CodeCluesGameScreen({
@@ -584,7 +584,7 @@ class _WordCell extends StatelessWidget {
       case CodeCluesAssignment.team1:
         return KinrelColors.orange;
       case CodeCluesAssignment.team2:
-        return const Color(0xFF3B82F6);
+        return KinrelColors.blue;
       case CodeCluesAssignment.assassin:
         return const Color(0xFF1A1A1A);
       case CodeCluesAssignment.neutral:
@@ -1009,7 +1009,7 @@ class _TeamProgress extends StatelessWidget {
           Expanded(
             child: _TeamProgressColumn(
               label: 'BLUE',
-              color: const Color(0xFF3B82F6),
+              color: KinrelColors.blue,
               found: board.team2Found,
               total: board.team2Total,
             ),
@@ -1198,7 +1198,7 @@ class _ResultsView extends StatelessWidget {
             ? board.winnerIndex
             : null);
     final winnerColor = winningTeam == 2
-        ? const Color(0xFF3B82F6)
+        ? KinrelColors.blue
         : KinrelColors.orange;
     final winnerName = winningTeam == 1
         ? 'Team Red'

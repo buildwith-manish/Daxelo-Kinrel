@@ -45,10 +45,10 @@ class SosReconnectingBanner extends StatelessWidget {
 
     final isError = status == SosConnectionStatus.error;
     final bgColor = isError
-        ? const Color(0xFFEF4444).withValues(alpha: 0.15)
+        ? KinrelColors.red.withValues(alpha: 0.15)
         : KinrelColors.orange.withValues(alpha: 0.12);
     final accentColor = isError
-        ? const Color(0xFFEF4444)
+        ? KinrelColors.red
         : KinrelColors.orange;
 
     return Container(

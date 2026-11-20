@@ -250,10 +250,10 @@ class _DotsBoardPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final colors = [const Color(0xFFE8612A), const Color(0xFF3B82F6), const Color(0xFF2DD4BF), const Color(0xFFD4AF37)];
-    final dotPaint = Paint()..color = const Color(0xFFC9B4A8)..style = PaintingStyle.fill;
+    final colors = [KinrelColors.orange, KinrelColors.blue, const Color(0xFF2DD4BF), KinrelColors.gold];
+    final dotPaint = Paint()..color = KinrelColors.textSilver..style = PaintingStyle.fill;
     final dotGlowPaint = Paint()
-      ..color = const Color(0xFFF59240).withValues(alpha: 0.16)
+      ..color = KinrelColors.amber.withValues(alpha: 0.16)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
     final linePaint = Paint()
@@ -299,7 +299,7 @@ class _DotsBoardPainter extends CustomPainter {
       final isLast = lastCapture != null && lastCapture!.any((c) => c.$1 == row && c.$2 == col);
       if (isLast) {
         final glowPaint = Paint()
-          ..color = const Color(0xFFFFD700).withValues(alpha: 0.30)
+          ..color = KinrelColors.brightGold.withValues(alpha: 0.30)
           ..strokeWidth = 7
           ..strokeCap = StrokeCap.round
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);

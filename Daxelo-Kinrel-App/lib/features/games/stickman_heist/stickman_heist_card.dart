@@ -40,7 +40,7 @@ class _StickmanHeistCardState extends ConsumerState<StickmanHeistCard> {
     final dlState = ref.watch(gameDownloadStatusProvider('stickman-heist'));
 
     // Red accent — high-stakes heist theme.
-    const accent = Color(0xFFEF4444);
+    const accent = KinrelColors.red;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
@@ -49,7 +49,7 @@ class _StickmanHeistCardState extends ConsumerState<StickmanHeistCard> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [accent.withValues(alpha: 0.15), const Color(0xFF191B2C)],
+          colors: [accent.withValues(alpha: 0.15), KinrelColors.darkCard],
         ),
         border: Border.all(color: accent.withValues(alpha: 0.3)),
       ),
@@ -177,7 +177,7 @@ class _HeistMotifPainter extends CustomPainter {
     canvas.drawRRect(
       bgRect,
       Paint()
-        ..color = const Color(0xFF191B2C)
+        ..color = KinrelColors.darkCard
         ..style = PaintingStyle.fill,
     );
     canvas.drawRRect(

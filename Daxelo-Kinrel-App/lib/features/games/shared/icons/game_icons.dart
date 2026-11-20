@@ -12,6 +12,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/brand_colors.dart';
 /// Base widget for all game icons.
 /// Tries to load the PNG asset first; falls back to CustomPainter if missing.
 class GameIcon extends StatelessWidget {
@@ -90,10 +91,10 @@ class GameIcon extends StatelessWidget {
       'ludo': Color(0xFFE11D48), 'carrom': Color(0xFFF59E0B),
       'chess': Color(0xFF64748B), 'chitmatch': Color(0xFFEC4899),
       'nameplace': Color(0xFF10B981), 'tictactoe': Color(0xFF8B5CF6),
-      'truthordare': Color(0xFFEF4444), 'twotruths': Color(0xFFD946EF),
+      'truthordare': KinrelColors.red, 'twotruths': Color(0xFFD946EF),
       'dotsboxes': Color(0xFF06B6D4), 'hot-seat': Color(0xFFF59E0B),
-      'relation-riddles': Color(0xFF8B5CF6), 'truth-streak': Color(0xFFE8612A),
-      'tug-of-war': Color(0xFFE8612A),
+      'relation-riddles': Color(0xFF8B5CF6), 'truth-streak': KinrelColors.orange,
+      'tug-of-war': KinrelColors.orange,
       'memory-match': Color(0xFFA855F7),
       'ashta-chamma': Color(0xFFE11D48),
       'connect4': Color(0xFF0EA5E9),
@@ -101,7 +102,7 @@ class GameIcon extends StatelessWidget {
       'color-trap': Color(0xFFF59E0B),
       'freeze-auction': Color(0xFFF59E0B),
     };
-    return map[id] ?? const Color(0xFFE8612A);
+    return map[id] ?? KinrelColors.orange;
   }
 
   CustomPainter _painterFor(String id, Color color) {
@@ -815,7 +816,7 @@ class _Connect4Icon extends _GameIconPainter {
           canvas.drawCircle(
             Offset(cx, cy),
             discR,
-            Paint()..color = const Color(0xFFEF4444), // Red
+            Paint()..color = KinrelColors.red, // Red
           );
         } else if ((r + c) % 3 == 1) {
           canvas.drawCircle(

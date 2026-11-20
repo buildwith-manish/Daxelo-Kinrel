@@ -48,7 +48,7 @@ class _SecretHeistCardState extends ConsumerState<SecretHeistCard> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [accent.withValues(alpha: 0.15), const Color(0xFF191B2C)],
+          colors: [accent.withValues(alpha: 0.15), KinrelColors.darkCard],
         ),
         border: Border.all(color: accent.withValues(alpha: 0.3)),
       ),
@@ -176,7 +176,7 @@ class _SecretHeistMotifPainter extends CustomPainter {
     canvas.drawRRect(
       vaultRect,
       Paint()
-        ..color = const Color(0xFF191B2C)
+        ..color = KinrelColors.darkCard
         ..style = PaintingStyle.fill,
     );
     canvas.drawRRect(
