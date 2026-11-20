@@ -1566,6 +1566,7 @@ class _MoreRelationshipListState extends ConsumerState<_MoreRelationshipList> {
                         color: KinrelColors.orange, size: 20),
                     suffixIcon: _query.isNotEmpty
                         ? IconButton(
+                            tooltip: 'Clear search',
                             icon: const Icon(Icons.clear,
                                 color: KinrelColors.textDim, size: 18),
                             onPressed: () {

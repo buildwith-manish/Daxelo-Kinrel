@@ -421,6 +421,7 @@ class _TrackcDecisionCreateScreenState
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Remove',
                     icon: const Icon(Icons.remove_circle_outline),
                     color: Colors.red,
                     onPressed: _optionControllers.length <= 2
@@ -479,6 +480,7 @@ class _TrackcDecisionCreateScreenState
                 ? 'No deadline selected'
                 : '${_deadline!.toLocal()}'.split('.').first),
             trailing: IconButton(
+              tooltip: 'Pick date',
               icon: const Icon(Icons.calendar_today),
               onPressed: _pickDeadline,
             ),

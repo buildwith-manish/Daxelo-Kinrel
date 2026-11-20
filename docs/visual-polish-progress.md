@@ -131,7 +131,7 @@ Clearing the first 10 (commit 1) exposed the next 10 (`prefer_const_constructors
 `schedule_message_sheet.dart`, `family_event_card.dart:431`), none in files this sweep touched. See the final report.
 
 ## Part 2 - loading-state standardization
-Status: in progress (code done and pushed; NOT merged: CI gate cannot be evaluated, see Part 1 CI note)
+Status: done (NOT yet merged - see Merge status)
 Decision: no new widget. `lib/shared/widgets/kinrel_skeleton.dart` already provides the shimmer skeleton system
 (`KinrelSkeletonList`, `KinrelSkeletonCard`, reduced-motion aware), and 23 places already use it. A second widget would
 duplicate it, so the bare `CircularProgressIndicator` loading states were swapped to `const KinrelSkeletonList()`.
@@ -147,42 +147,21 @@ Loading announcement for screen readers: the old spinner had implicit progress s
 needs a new l10n string (generated files cannot be regenerated here) - flagged for Part 3 / human.
 
 ## Part 3 - accessibility pass
-Status: in progress (partly done and pushed; NOT merged: CI gate cannot be evaluated, see Part 1 CI note)
+Status: done for icon-only `IconButton`s, text-scale and contrast review; icon-only GestureDetector/InkWell/Image semantics NOT done (see below). NOT yet merged - see Merge status
 
 ### Done: tooltips (= screen-reader labels) on icon-only `IconButton`s
 - 280 `IconButton`s outside grandparent mode had no `tooltip`. 239 now have one, in 167 files, using Flutter's built-in,
   already-translated `MaterialLocalizations` strings (no new `.arb` keys, which could not be regenerated here):
   back x149, close x50, share x28, next/previous page x5, more x3, delete x2, cancel x1, copy x1.
 - Only applied where `context` is provably in scope (inside `build(BuildContext context)` or a `State` method) and not in a const context.
-- Left unlabeled because no localized string exists or scope was unclear (needs new l10n keys or a human choice):
-- lib/features/social/presentation/screens/sparq_viewer_screen.dart:551 `Icons.send` (no localized label)
-- lib/features/social/presentation/screens/follow_requests_screen.dart:87 `Icons.check_circle` (no localized label)
-- lib/features/cameo/presentation/b1_verification_screen.dart:346 `Icons.refresh` (no localized label)
-- lib/features/profile/presentation/help_center_screen.dart:176 `Icons.clear` (no localized label)
-- lib/features/trackc/presentation/screens/search_screen.dart:55 `Icons.clear` (no localized label)
-- lib/features/trackc/presentation/screens/decision_create_screen.dart:422 `Icons.remove_circle_outline` (no localized label)
-- lib/features/trackc/presentation/screens/decision_create_screen.dart:480 `Icons.calendar_today` (no localized label)
-- lib/features/shared_list/presentation/shared_list_screen.dart:227 `Icons.add_circle` (no localized label)
-- lib/features/hot_seat/presentation/hot_seat_screen.dart:98 `Icons.send` (no localized label)
-- lib/features/hot_seat/presentation/hot_seat_card.dart:81 `Icons.send` (no localized label)
-- lib/features/chat/presentation/chat_inbox_screen.dart:146 `Icons.search_rounded` (no localized label)
-- lib/features/chat/presentation/chat_inbox_screen.dart:151 `Icons.edit_outlined` (no localized label)
-- lib/features/family/presentation/join_family_screen.dart:494 `Icons.clear` (no localized label)
-- lib/features/family/presentation/kinrel_user_search_screen.dart:182 `Icons.clear` (no localized label)
-- lib/features/family/presentation/family_groups_screen.dart:63 `Icons.add_rounded` (no localized label)
-- lib/features/family/presentation/relationship_quick_pick_sheet.dart:1567 `Icons.clear` (no localized label)
-- lib/features/family/presentation/relationship_picker_sheet.dart:264 `Icons.clear` (no localized label)
-- lib/features/family/presentation/person_detail_sheet.dart:1113 `Icons.route_outlined` (no localized label)
-- lib/features/story_mode/presentation/story_mode_screen.dart:113 `Icons.skip_previous` (no localized label)
-- lib/features/story_mode/presentation/story_mode_screen.dart:145 `Icons.skip_next` (no localized label)
-- lib/features/thinking/presentation/thinking_inbox_screen.dart:100 `Icons.refresh` (no localized label)
-- lib/features/games/ghost_painter/ghost_painter_guess_screen.dart:269 `Icons.send_rounded` (no localized label)
-- lib/features/games/freeze_auction/freeze_auction_lobby_screen.dart:59 `Icons.share_outlined` (const context)
-- lib/features/games/color_trap/color_trap_lobby_screen.dart:60 `Icons.share_outlined` (const context)
-- lib/features/circle/presentation/circle_chat_screen.dart:171 `Icons.info_outline_rounded` (no localized label)
-- lib/features/circle/presentation/circle_chat_screen.dart:323 `Icons.add_circle_outline_rounded` (no localized label)
-- lib/features/calendar/presentation/event_detail_screen.dart:29 `Icons.edit_outlined` (no localized label)
-- lib/core/utils/accessibility_utils.dart:123 `Icons.close` (context not provably in scope)
+- Follow-up pass: 25 more icon-only `IconButton`s labeled with plain English `tooltip:` strings (no localized string exists and the
+  `.arb` + generated `app_localizations_*.dart` files cannot be regenerated here; the codebase already has ~98 hardcoded English tooltips).
+  **Human call:** move these to l10n keys (send, clear search, refresh, add, edit, etc.) so non-English screen readers hear their language.
+  Files: sparq_viewer, follow_requests, b1_verification, help_center, trackc search/decision_create (x2), shared_list, hot_seat (x2), chat_inbox (x2),
+  join_family, kinrel_user_search, family_groups, relationship_quick_pick/picker sheets, person_detail_sheet, story_mode (x2), thinking_inbox,
+  ghost_painter_guess, circle_chat (x2), event_detail.
+- Still unlabeled: lib/features/games/freeze_auction/freeze_auction_lobby_screen.dart:59 and games/color_trap/color_trap_lobby_screen.dart:60
+  (`Icons.share_outlined`, const context) and lib/core/utils/accessibility_utils.dart:123 (`Icons.close`, context not provably in scope).
 - NOT done: icon-only `GestureDetector`/`InkWell` taps, `Image`s without `semanticLabel`, custom painter widgets. The `Semantics` audit is incomplete.
 - Note: a tooltip on a button already wrapped in its own `Semantics(label:)` could be announced twice; not checked.
 

@@ -344,6 +344,7 @@ class _B1VerificationScreenState extends State<B1VerificationScreen> {
         actions: [
           if (!kIsWeb)
             IconButton(
+              tooltip: 'Refresh',
               icon: const Icon(Icons.refresh),
               onPressed: _isRunning ? null : _runAllCriteria,
             ),

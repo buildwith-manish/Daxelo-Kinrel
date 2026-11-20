@@ -85,6 +85,7 @@ class _FollowRequestsScreenState extends ConsumerState<FollowRequestsScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
+                          tooltip: 'Accept request',
                           icon: const Icon(Icons.check_circle, color: KinrelColors.success),
                           onPressed: () => ref.read(followProvider.notifier)
                               .acceptRequest(request.id, request.followerId),

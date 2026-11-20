@@ -551,6 +551,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                           hintText: 'Reply to Sparq...',
                           hintStyle: const TextStyle(color: Colors.white30, fontSize: 14, fontFamily: 'DM Sans'),
                           suffixIcon: IconButton(
+                            tooltip: 'Send',
                             icon: Icon(Icons.send, color: moodAccent, size: 18),
                             onPressed: () => _submitReply(sparq),
                           ),

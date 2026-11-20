@@ -111,6 +111,7 @@ class StoryModeScreen extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               IconButton(
+                tooltip: 'Previous',
                 onPressed: state.isFirstChapter
                     ? null
                     : () => ref.read(storyModeProvider.notifier).previous(),
@@ -143,6 +144,7 @@ class StoryModeScreen extends ConsumerWidget {
               ),
               const SizedBox(width: 24),
               IconButton(
+                tooltip: 'Next',
                 onPressed: state.isLastChapter
                     ? null
                     : () => ref.read(storyModeProvider.notifier).next(),

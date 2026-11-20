@@ -268,6 +268,7 @@ class _GhostPainterGuessScreenState
                         shape: BoxShape.circle,
                       ),
                       child: IconButton(
+                        tooltip: 'Send guess',
                         icon: const Icon(
                           Icons.send_rounded,
                           size: 18,

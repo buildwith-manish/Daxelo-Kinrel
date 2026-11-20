@@ -62,6 +62,7 @@ class FamilyGroupsScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
+            tooltip: 'Add group',
             icon: const Icon(Icons.add_rounded, color: KinrelColors.ember, size: 24),
             onPressed: () =>
                 context.push('/family/$familyId/groups/create'),

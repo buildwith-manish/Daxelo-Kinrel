@@ -79,6 +79,7 @@ class _HotSeatCardState extends ConsumerState<HotSeatCard> {
                   filled: true, fillColor: KinrelColors.darkElevated, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
                   contentPadding: const EdgeInsets.all(10),
                   suffixIcon: IconButton(icon: const Icon(Icons.send, color: Color(0xFF06B6D4), size: 18),
+                    tooltip: 'Send',
                     onPressed: () async { final t = _questionController.text.trim(); if (t.isEmpty) return; await ref.read(hotSeatProvider(widget.familyId).notifier).submitQuestion(t); _questionController.clear(); }))),
               if (state.isSubmitting)
                 const Padding(padding: EdgeInsets.only(top: 8), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF06B6D4)))),

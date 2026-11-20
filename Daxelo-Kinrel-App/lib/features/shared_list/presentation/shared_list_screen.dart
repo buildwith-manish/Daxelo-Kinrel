@@ -227,6 +227,7 @@ class _ListCard extends ConsumerWidget {
                       ),
                       const SizedBox(width: 8),
                       IconButton(
+                        tooltip: 'Add item',
                         icon: const Icon(Icons.add_circle),
                         onPressed: () async {
                           if (itemController.text.trim().isNotEmpty) {

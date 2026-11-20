@@ -144,11 +144,13 @@ class _ChatInboxScreenState extends ConsumerState<ChatInboxScreen> {
                   ),
                   const Spacer(),
                   IconButton(
+                    tooltip: 'Search',
                     icon: const Icon(Icons.search_rounded,
                         color: KinrelColors.textSilver, size: 24),
                     onPressed: () => context.push('/search'),
                   ),
                   IconButton(
+                    tooltip: 'New chat',
                     icon: const Icon(Icons.edit_outlined,
                         color: KinrelColors.textSilver, size: 24),
                     onPressed: _showCreateMenu,

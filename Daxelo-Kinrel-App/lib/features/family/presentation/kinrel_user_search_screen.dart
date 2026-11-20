@@ -181,6 +181,7 @@ class _KinrelUserSearchScreenState
               color: KinrelColors.orange, size: 22),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
+                  tooltip: 'Clear search',
                   icon: const Icon(Icons.clear,
                       color: KinrelColors.textDim, size: 20),
                   onPressed: () {

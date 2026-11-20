@@ -493,6 +493,7 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                       ),
                     if (_familyIdController.text.isNotEmpty)
                       IconButton(
+                        tooltip: 'Clear',
                         icon: const Icon(Icons.clear, color: _textDim, size: 20),
                         onPressed: () {
                           _familyIdController.clear();
