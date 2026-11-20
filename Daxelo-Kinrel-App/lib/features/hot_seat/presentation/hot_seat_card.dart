@@ -47,7 +47,7 @@ class _HotSeatCardState extends ConsumerState<HotSeatCard> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [const Color(0xFF06B6D4).withValues(alpha: 0.15), const Color(0xFF191B2C)]),
+          colors: [const Color(0xFF06B6D4).withValues(alpha: 0.15), KinrelColors.darkCard]),
         border: Border.all(color: const Color(0xFF06B6D4).withValues(alpha: 0.3)),
       ),
       child: Material(color: Colors.transparent, child: InkWell(
