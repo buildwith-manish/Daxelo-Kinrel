@@ -164,6 +164,7 @@ model User {
   blockedUsers         BlockedUser[]            @relation("Blocker")
   blockedBy            BlockedUser[]            @relation("Blocked")
   stories              Story[]
+  shareableLinks       ShareableLink[]
 
   // ── Social System Fields ──
   isPrivate           Boolean @default(false) // Profile privacy: true = follow requests required
@@ -1158,9 +1159,15 @@ model ShareableLink {
   shareCount  Int       @default(0)
   expiresAt   DateTime?
   createdAt   DateTime  @default(now())
+  // Creator / owner. Nullable: legacy rows have no creator and cannot be backfilled
+  // (no relation records who made a link). Column + FK + index already exist in the
+  // DB via 20260617163842_fix_shareablelink_rls_scope_to_owner.sql (FK ON DELETE SET NULL).
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([token])
   @@index([cardType])
+  @@index([userId])
 }
 
 // ══════════════════════════════════════════════════════════════════════
