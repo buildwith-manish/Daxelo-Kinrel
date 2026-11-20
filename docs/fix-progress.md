@@ -691,3 +691,7 @@ Branch: `fix/7c`, based on `fix/7b` (no `main`; stack convention). Leftover `fix
 - Side finding for whoever does the cleanup: 22 duplicate version prefixes, 20 `*_rollback.sql` files inside `supabase/migrations/`, and one 8-digit version (`20260715_create_place_table.sql`). Inferred from names only.
 - Not verified: applied-to-prod state (no DB access), file contents, and `docs/MIGRATIONS.md` (not read). No code, schema or dependency changes; nothing to type-check.
 
+### 7c follow-up: prod check via Supabase MCP (read-only, no prod writes)
+- Compared `supabase_migrations.schema_migrations` (176 rows) with the repo: A-G (184 files) all recorded; H-K (~145 files) mostly NOT recorded although their objects exist on prod (applied out-of-band); `FamilyPostComment` (4a) absent on prod, Story/ShareableLink columns (2a/3a) already present. Details in `docs/migrations-cleanup-proposal.md` ("Prod check").
+- Nothing was applied or repaired on prod. Next step for the owner: verify H-K object by object, then `supabase migration repair` only the verified versions; do not `db push` to prod before that.
+

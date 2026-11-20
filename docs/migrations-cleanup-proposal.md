@@ -6,7 +6,7 @@
 
 - Inputs: the **filenames** in `supabase/migrations/` (contents were not read), and `CHANGELOG.md` for any migration it names or any backfill/deploy note.
 - Count: 342 files = 339 on `feature-registry` + 3 added by the unmerged `fix/2a`, `fix/3a`, `fix/4a` branches (batch M).
-- **I cannot see which migrations are applied to prod.** Nothing here proves a migration was applied. Before anything is squashed, someone with access must compare `supabase_migrations.schema_migrations` on prod (and staging) against this folder. "Looks safe" below means "old and superseded by name", not "confirmed applied".
+- **Prod migration history was checked read-only via the Supabase MCP (2026-11-20); results are in the "Prod check" section below.** Staging was not checked. The batch table's "squash candidate" column still reflects the filename-only analysis; the Prod check section says what changed.
 - Dates are the timestamps in the filenames. They may not match real calendar dates (for example, the CHANGELOG ties the `20260909*` files to v5.192.x), so "age" is by filename order, not wall-clock months.
 
 ## Hygiene findings (apply regardless of any squash)
@@ -62,6 +62,33 @@ Suggested method (not performed):
 
 ## Not verified
 
-- Applied-to-prod state of every batch (no DB access here).
+- Applied state on **staging** (only the single prod project was visible). Prod's *history table* is checked below; object-level checks were spot checks, not a full schema diff.
 - File contents (names only were read), so "theme" is inferred from filenames.
 - That `docs/MIGRATIONS.md` (referenced by CONTRIBUTING.md) is consistent with this proposal; it was not read.
+
+## Prod check (Supabase MCP, read-only SELECTs; nothing was written to prod)
+
+Project `promxswvsnvilplmrtsj` (Daxelo-Kinrel, the only project visible). `supabase_migrations.schema_migrations` has **176 rows**. Compared by version number against the 342 repo files (320 distinct versions):
+
+| Batch(es) | Repo files | Version recorded on prod | Notes |
+|---|---|---|---|
+| A–E (≤ 20260710) | 123 | **123 / 123** | The top recommendation's step 1 is confirmed for the history table. |
+| F–G (20260711–20260715) | 61 | 61 / 61 | Track C is recorded as 27 rows all named `trackc_manual` (versions `…000001`–`…000027`), so prod's names do not match the repo's file names for those; versions do. |
+| H (202608) | 44 | **1 / 44** (only `20260831120000`) | |
+| I (20260904–11) | 20 | **2 / 20** (`20260908120000`, `20260909120000`, both named "applied out-of-band") | |
+| J (20260912–24) | 68 | **9 / 68**, several unnamed rows | |
+| K (202610) | 22 | **0 / 22** | |
+| L–M (202611) | 4 | 1 / 4 (`20261101120000`, "applied out-of-band") | |
+
+No prod version lacks a repo file.
+
+**Main finding: prod's migration history is out of sync with the repo for batches H–K (about 145 files).** The schema objects from those batches do exist on prod, so they were applied some other way (SQL editor / manual) without being recorded. Spot checks that exist on prod: graph invitation functions (`fn_accept_graph_invitation`, `fn_cancel_graph_invitation`, `fn_ensure_creator_person`, `fn_ensure_invited_person`), `fn_check_username_available`, `get_family_tree`, coin economy tables/functions, Circle tables and circle helper functions, `ChatMention`, `ChatScheduledMessage`, `BlockedUser`, Group tables, `DirectMessage`, the tug-of-war / flick arena / impostor / memory match / connect4 / ashta chamma tables, and `pb-v1-*` cron jobs. (Prediction battle *tables* did not show up under a `%predict%` name search; the cron jobs did. Not investigated.)
+
+**What this changes in the recommendation**
+- Squashing A–E is now confirmed safe *as far as the history table goes* (all 123 recorded). Risk stays **Medium**: object-level drift in A–E was not checked, so the staging rehearsal (step 4) is still required.
+- **Do not run `supabase db push` against prod as things stand.** The CLI sees ~145 repo versions as unapplied and would try to re-run them. Many are idempotent, but that is not guaranteed. Reconcile history first (`supabase migration repair --status applied <version>` per verified version, or a single reviewed bulk repair).
+- The repair must be **per-migration verified**, not blanket: marking a never-applied migration as applied makes it silently never run. That is why no repair was performed here.
+- **Batch M:** `FamilyPostComment` does **not** exist on prod (the 4a migration is genuinely unapplied). `Story.audience`, `Story.thumbnailUrl` and `ShareableLink.userId` already exist on prod, so the 2a and 3a migrations are expected no-ops (they were written idempotent).
+
+Not checked in this pass: staging; a full prod-vs-repo schema diff; security/performance advisors; contents of the Track C `trackc_manual` rows.
+
