@@ -33,6 +33,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 1a | in progress (file written and pushed on `fix/1a`; NOT merged because no `main` branch exists — merge once the target branch is decided, then flip this row to `done (merged <sha>)`) | `docs/fix-progress.md` (new) |
 | 1b | in progress (code done on `stability-fixes` @ `15c39f90`, not merged; clean `tsc` unconfirmed in sandbox — see "Task 1b notes" below) | `server/src/modules/chat/chat.service.ts` (exists; `pinMessage`). Role model: `FamilyMember.role` string (`owner`/`admin`/`member`/`viewer`) in `schema.prisma`. |
 | 1c | in progress (5 gaps fixed on `fix/1c`, NOT merged: no `main` branch exists and a clean `tsc` is unconfirmed in the sandbox; remaining read-path / follow-up items listed in "Task 1c notes") | `server/src/modules/chat/chat.service.ts`, `chat.gateway.ts`, `server/src/modules/circle/circle.service.ts` |
+| 1d | in progress (done on `fix/1d`, based on `fix/1c`; NOT merged: no `main` branch, clean `tsc` unconfirmed in sandbox) | `server/src/modules/chat/chat.service.ts` (`getMentionsForUser`). Not in the original 1a-7c table; added at the user's request. |
 | 2a | not started | `server/prisma/schema.prisma` (Story: no `audience`/`thumbnailUrl` yet) + new `supabase/migrations/*.sql`. Existing visibility patterns to check: `SparqAudience` enum, `FamilyMember.role`. TODOs in `stories.service.ts` still at lines 165 and 394. |
 | 2b | not started | `server/src/modules/stories/stories.service.ts` (exists, 449 lines; TODOs at 165, 394) |
 | 3a | not started | `server/prisma/schema.prisma` (ShareableLink: no `userId`; has optional `familyId`, `personId`) + new `supabase/migrations/*.sql` |
@@ -89,7 +90,7 @@ every mutating method in the three files.
 
 ### Not fixed — follow-up (file:line as of this branch)
 
-- `chat.service.ts:625` `getMentionsForUser`: any family member can read another member's mentions (the `mentionedUserId` param is not restricted to the caller), and messages are scoped by `familyId` only, so mentions in groups/DMs the caller is not in are visible. Needs a product decision (should a user only see their own mentions?).
+- (Group scoping RESOLVED in task 1d; the 'any member can query another member's mentions' part below is still open.) `chat.service.ts:625` `getMentionsForUser`: any family member can read another member's mentions (the `mentionedUserId` param is not restricted to the caller), and messages are scoped by `familyId` only, so mentions in groups/DMs the caller is not in are visible. Needs a product decision (should a user only see their own mentions?).
 - Read paths scope by `familyId` only, not `groupId`, so group/DM messages are readable by every family member: `chat.service.ts:97` `listMessages`, `:815` `getPinnedMessages`, `:1031` `searchMessages`; reactions/pins on group messages have the same shape (`:1267` `addReaction`). This is the same root cause as the `TODO(phase-a-5)` at `chat.gateway.ts:323` (broadcast to the family room instead of per-group rooms) — belongs with task 5b.
 - `chat.service.ts:678` `getStreak`, `:687` `recordStreak`, `:1330` `getReactionCounts`, `:699` `markDelivered`, `:716` `getMessageSender` take no user id and do no membership check. The gateway only calls them after a membership check, but callers in `chat.controller.ts` (not in this task's scope) must be checked.
 - `circle.service.ts:518` `sendMessage` trusts client-supplied `senderFamilyId` / `senderPersonId` (lines ~565-566) — a member can attribute a message to any family/person id. Needs a decision on how to validate.
@@ -100,3 +101,41 @@ every mutating method in the three files.
 
 - `cd server && ./node_modules/.bin/tsc --noEmit`: 16 errors with and without these changes (identical after stripping line numbers), all in files/lines caused by the missing generated Prisma client (see finding 4). Therefore not a clean pass — confirm in CI or on a machine where `prisma generate` works. Because the Prisma client is not generated, Prisma-typed expressions (e.g. `groupId_userId` compound key, `groupMember.findUnique`) were NOT strictly type-checked; the key name comes from `@@unique([groupId, userId])` on `GroupMember`.
 - No unit/e2e tests were run (no generated client, no DB). `chat.service.spec.ts` mocks may need updating for the new `group`/`groupMember` calls in `sendMessage` when a `groupId` is passed.
+
+## Task 1d notes
+
+Branch: `fix/1d`, based on `fix/1c` (so it includes the 1a/1b/1c work). Leftover `fix/*` branches found:
+`fix/1a` and `fix/1c`, both unmerged and marked in progress — left untouched.
+
+### Change — `chat.service.ts` `getMentionsForUser`
+
+- Models: `GroupMember(groupId, userId, @@unique([groupId,userId]))` links a user to their groups;
+  `ChatMention.groupId` (nullable) and `ChatMessage.groupId` (nullable) say which group a mention/message belongs to.
+  Neither `GroupMember` nor `ChatMention` has a Prisma relation, so the method first loads the requester's
+  group ids: `groupMember.findMany({ where: { userId: requestingUserId }, select: { groupId: true } })`.
+- Scoping condition added (same condition on both queries):
+  `OR: [{ groupId: null }, { groupId: { in: <requester's group ids> } }]`
+  - on `chatMention.findMany` (so `take` is not eaten by rows the caller may not see), and
+  - on the `chatMessage.findMany` hydration (authoritative; also covers older `ChatMention` rows whose `groupId` is null).
+- Assumption: family-wide mentions (`groupId IS NULL`) stay visible to every family member, because the family chat is.
+  If you want mentions limited to ones the caller is *personally* mentioned in, that is the separate
+  `mentionedUserId === requestingUserId` question left open in the 1c notes.
+- Side effect: for legacy mention rows with null `groupId` whose message sits in a group the caller is not in,
+  the row passes the first filter but is dropped at hydration, so a page can return fewer than `limit` items.
+
+### Manual verification
+
+1. User U is in family F and in group A, not in group B (both groups belong to F).
+2. Someone mentions U in group A, and someone mentions U in group B, and someone mentions U in the family-wide chat.
+3. U (or any other F member) calls `getMentionsForUser(F, caller, U)`:
+   - as U or as another member of group A: the group-A mention and the family-wide mention appear; the group-B mention does NOT appear.
+   - as a member of both A and B: all three appear.
+   - as an F member in neither group: only the family-wide mention appears.
+   - as a non-member of F: 403 "Not a member of this family" (unchanged).
+
+### Verification gap
+
+- `tsc --noEmit`: 16 errors with and without the change (identical after stripping line numbers), caused by the
+  missing generated Prisma client (see finding 4) — not a clean pass. Prisma-typed expressions (`OR` with
+  `groupId: null` / `{ in: [...] }`) were not strictly type-checked.
+- No tests run (no generated client, no DB).
