@@ -726,3 +726,9 @@ Branch: `fix/7e`, based on `fix/7d` (no `main` exists; stack convention). Leftov
 `dart run build_runner build` is still in `flutter-analyze`, `flutter-test-fast`, `flutter-test-native` and `android-build`. Only 2 files need its
 output and they are gitignored (generated at build time). Removing the step first requires generating those 2 files with a real SDK (or a one-off
 `workflow_dispatch` job) and committing them. Left exactly as-is.
+
+### CI speedup verification (real pushes on `fix/ci-speedup`)
+- Server-only touch (`4ec8f7ed`, run 44730675527): `Detect Changes` + `Secret Scan` success; `Flutter Analyze`, `Flutter Test (fast)`, `Flutter Test (native_maps)`, `Android APK Build` all **skipped**; `Backend CI` ran immediately (it failed at the pre-existing `tsc` typecheck, not because of gating).
+- App-only touch (`a51dfc17`, run 44731541544): `Backend CI` **skipped**; `Flutter Analyze`, both Flutter test jobs ran.
+- Known pre-existing reds, unrelated to gating: `Flutter Analyze` (10 warnings in `family_event_card.dart`/`blocked_message_placeholder.dart`, fixed on `fix/visual-polish`), `Backend CI` typecheck, and `Flutter Test (fast)` hitting its 25-minute timeout (main's `Flutter Test` was also cancelled at 25 min on the `merge fix/7e` run). The split does not by itself make the fast job finish; it needs a faster/sharded suite or a higher timeout.
+
