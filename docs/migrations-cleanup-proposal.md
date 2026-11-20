@@ -92,3 +92,90 @@ No prod version lacks a repo file.
 
 Not checked in this pass: staging; a full prod-vs-repo schema diff; security/performance advisors; contents of the Track C `trackc_manual` rows.
 
+## File hygiene
+
+**Findings only. Nothing in `supabase/migrations/` was renamed, moved, merged or deleted.** Counts: **22 duplicate version numbers (44 files), 20 rollback files, 1 malformed (8-digit) version.** The 20 rollback files are the same files as 20 of the 22 duplicate pairs, so the number of distinct files affected is 45, not 85. This section refines the shorter "Hygiene findings" list near the top of this document.
+
+### (a) Duplicate version numbers: 22 pairs
+
+"Recorded on prod" = that version exists in prod's `supabase_migrations.schema_migrations` (see "Prod check" below).
+
+| Version | Files | Kind | Recorded on prod |
+|---|---|---|---|
+| `20260711000001` | `20260711000001_trackc_create_constitution.sql`<br>`20260711000001_trackc_create_constitution_rollback.sql` | forward + rollback | yes |
+| `20260711000002` | `20260711000002_trackc_create_family_decision.sql`<br>`20260711000002_trackc_create_family_decision_rollback.sql` | forward + rollback | yes |
+| `20260711000003` | `20260711000003_04_trackc_timeline_rollback.sql`<br>`20260711000003_trackc_create_aura_timeline.sql` | forward + rollback | yes |
+| `20260711000005` | `20260711000005_trackc_create_ai_insight.sql`<br>`20260711000005_trackc_create_ai_insight_rollback.sql` | forward + rollback | yes |
+| `20260711000006` | `20260711000006_07_trackc_learning_rollback.sql`<br>`20260711000006_trackc_create_learning_signal.sql` | forward + rollback | yes |
+| `20260711000008` | `20260711000008_10_trackc_reminder_memory_artifact_rollback.sql`<br>`20260711000008_trackc_create_smart_reminder.sql` | forward + rollback | yes |
+| `20260711000011` | `20260711000011_12_trackc_search_rollback.sql`<br>`20260711000011_trackc_create_search_index.sql` | forward + rollback | yes |
+| `20260711000013` | `20260711000013_trackc_create_analytics_snapshot.sql`<br>`20260711000013_trackc_create_analytics_snapshot_rollback.sql` | forward + rollback | yes |
+| `20260711000014` | `20260711000014_17_trackc_partitioning_rollback.sql`<br>`20260711000014_trackc_partition_family_decision.sql` | forward + rollback | yes |
+| `20260711000018` | `20260711000018_20_trackc_rls_pgboss_seed_rollback.sql`<br>`20260711000018_trackc_rls_all_tables.sql` | forward + rollback | yes |
+| `20260711000023` | `20260711000023_trackc_tighten_constitution_rls_writes.sql`<br>`20260711000023_trackc_tighten_constitution_rls_writes_rollback.sql` | forward + rollback | yes |
+| `20260711000024` | `20260711000024_trackc_create_search_embedding.sql`<br>`20260711000024_trackc_create_search_embedding_rollback.sql` | forward + rollback | yes |
+| `20260711000025` | `20260711000025_ml_user_engagement_profile.sql`<br>`20260711000025_ml_user_engagement_profile_rollback.sql` | forward + rollback | yes |
+| `20260711000026` | `20260711000026_ml_brief_engagement.sql`<br>`20260711000026_ml_brief_engagement_rollback.sql` | forward + rollback | yes |
+| `20260711000027` | `20260711000027_ml_learned_closeness_weights.sql`<br>`20260711000027_ml_learned_closeness_weights_rollback.sql` | forward + rollback | yes |
+| `20260711000301` | `20260711000301_kinrel_neutral_archetype_defaults.sql`<br>`20260711000301_kinrel_neutral_archetype_defaults_rollback.sql` | forward + rollback | yes |
+| `20260711000401` | `20260711000401_family_map_last_known_location.sql`<br>`20260711000401_family_map_last_known_location_rollback.sql` | forward + rollback | yes |
+| `20260712000000` | `20260712000000_fix_relationship_isactive_trigger.sql`<br>`20260712000000_fix_relationship_isactive_trigger_rollback.sql` | forward + rollback | yes |
+| `20260712000001` | `20260712000001_add_notification_timing_optin.sql`<br>`20260712000001_add_notification_timing_optin_rollback.sql` | forward + rollback | yes |
+| `20260712000002` | `20260712000002_add_bridge_role_optin.sql`<br>`20260712000002_add_bridge_role_optin_rollback.sql` | forward + rollback | yes |
+| `20260919100000` | `20260919100000_bingo_fix.sql`<br>`20260919100000_tugofwar_auto_teams.sql` | **two unrelated forward migrations** | yes |
+| `20261019120000` | `20261019120000_bridge_disconnected_test_family_components.sql`<br>`20261019120000_chat_family_event_cards.sql` | **two unrelated forward migrations** | **no** |
+
+- **20 of the 22 pairs are a forward migration plus its own rollback** (rollback file shares the forward file's version).
+- **2 pairs are two unrelated forward migrations sharing one timestamp** (the ones that need a human decision, since neither is a rollback):
+  - `20260919100000`: `bingo_fix` vs `tugofwar_auto_teams`
+  - `20261019120000`: `bridge_disconnected_test_family_components` vs `chat_family_event_cards`
+- Supabase records one row per version, so a duplicate version cannot be tracked as two applied migrations. Prod shows the effect: the 27 Track C versions are recorded as `trackc_manual` rows (applied by hand), and the unnamed `20260919100000` row cannot say which of its two files it stands for.
+
+### (b) Rollback files: 20
+
+All 20 live in batches F–G (`20260711`–`20260712`). For every one, the forward migration it undoes **still exists** in the folder (checked by filename). Exact files:
+
+| Rollback file | What it rolls back | Forward migration still exists? |
+|---|---|---|
+| `20260711000001_trackc_create_constitution_rollback.sql` | drops 4 updated_at triggers + the 4 constitution tables (FamilyConstitution, ConstitutionVersion, ConstitutionArticle, ConstitutionClause) | yes — `20260711000001_trackc_create_constitution.sql` |
+| `20260711000002_trackc_create_family_decision_rollback.sql` | drops trigger + `DecisionVote` + `FamilyDecision` | yes — `20260711000002_trackc_create_family_decision.sql` |
+| `20260711000003_04_trackc_timeline_rollback.sql` | drops append-only triggers/function + `AURATimelineEvent` (header: undoes 000003 + 000004) | yes — `20260711000003_trackc_create_aura_timeline.sql`, `20260711000004_trackc_create_timeline_triggers.sql` — **sorts BEFORE its forward file** |
+| `20260711000005_trackc_create_ai_insight_rollback.sql` | drops trigger + `AIInsight` | yes — `20260711000005_trackc_create_ai_insight.sql` |
+| `20260711000006_07_trackc_learning_rollback.sql` | drops `LearningSignal`, `FamilyBehaviorProfile`, `FamilyBehaviorProfileHistory` (header: 06 + 07) | yes — `20260711000006_trackc_create_learning_signal.sql`, `20260711000007_trackc_create_family_behavior_profile.sql` — **sorts BEFORE its forward file** |
+| `20260711000008_10_trackc_reminder_memory_artifact_rollback.sql` | drops `SmartReminder`, `DecisionMemory`/`DecisionImpact`, `MeetingArtifact` + triggers (header: 08 + 09 + 10) | yes — `20260711000008_trackc_create_smart_reminder.sql`, `20260711000009_trackc_create_decision_memory.sql`, `20260711000010_trackc_create_meeting_artifact.sql` — **sorts BEFORE its forward file** |
+| `20260711000011_12_trackc_search_rollback.sql` | drops `search_index_tsvector_gin`, `SearchIndex.search_tsvector`, trigger, `SearchIndex` (header: 11 + 12) | yes — `20260711000011_trackc_create_search_index.sql`, `20260711000012_trackc_create_search_tsvector.sql` — **sorts BEFORE its forward file** |
+| `20260711000013_trackc_create_analytics_snapshot_rollback.sql` | drops `FamilyAnalyticsSnapshot` | yes — `20260711000013_trackc_create_analytics_snapshot.sql` |
+| `20260711000014_17_trackc_partitioning_rollback.sql` | 105 lines; swaps the 4 partitioned tables back to non-partitioned. Own header: **destructive if partitions hold data**, run only in a maintenance window (header: 14-17) | yes — `20260711000014_trackc_partition_family_decision.sql`, `20260711000015_trackc_partition_timeline.sql`, `20260711000016_trackc_partition_ai_insight.sql`, `20260711000017_trackc_partition_learning_signal.sql` — **sorts BEFORE its forward file** |
+| `20260711000018_20_trackc_rls_pgboss_seed_rollback.sql` | drops all Track C RLS policies, pg-boss schema objects and seed; own header: **"Drops all Track C tables. Use only for full uninstall."** (header: 18 + 19 + 20) | yes — `20260711000018_trackc_rls_all_tables.sql`, `20260711000019_trackc_pg_boss_schema.sql`, `20260711000020_trackc_seed_global_defaults.sql` — **sorts BEFORE its forward file** |
+| `20260711000023_trackc_tighten_constitution_rls_writes_rollback.sql` | restores the permissive any-active-member INSERT/UPDATE/DELETE policies on the 4 constitution tables | yes — `20260711000023_trackc_tighten_constitution_rls_writes.sql` |
+| `20260711000024_trackc_create_search_embedding_rollback.sql` | drops `SearchEmbedding` | yes — `20260711000024_trackc_create_search_embedding.sql` |
+| `20260711000025_ml_user_engagement_profile_rollback.sql` | drops `UserEngagementProfile` | yes — `20260711000025_ml_user_engagement_profile.sql` |
+| `20260711000026_ml_brief_engagement_rollback.sql` | drops `BriefEngagement` | yes — `20260711000026_ml_brief_engagement.sql` |
+| `20260711000027_ml_learned_closeness_weights_rollback.sql` | drops `LearnedClosenessWeights` | yes — `20260711000027_ml_learned_closeness_weights.sql` |
+| `20260711000301_kinrel_neutral_archetype_defaults_rollback.sql` | resets the Kinrel archetype / inner-pattern column defaults back to `lotus`. **Header cites a non-existent file** `20260711000300_kinrel_neutral_archetype_defaults.sql`; the real forward file is version `…000301` (version `…000300` is `presence_and_shared_lists`) | yes — `20260711000301_kinrel_neutral_archetype_defaults.sql` |
+| `20260711000401_family_map_last_known_location_rollback.sql` | drops `MemberLocation` trigger, function, indexes, policies (table) | yes — `20260711000401_family_map_last_known_location.sql` |
+| `20260712000000_fix_relationship_isactive_trigger_rollback.sql` | drops trigger `trg_ensure_relationship_isactive_default` + its function | yes — `20260712000000_fix_relationship_isactive_trigger.sql` |
+| `20260712000001_add_notification_timing_optin_rollback.sql` | drops column `notificationTimingOptIn` | yes — `20260712000001_add_notification_timing_optin.sql` |
+| `20260712000002_add_bridge_role_optin_rollback.sql` | drops column `Family.bridgeRoleOptIn` | yes — `20260712000002_add_bridge_role_optin.sql` |
+
+Findings beyond the list:
+1. **Six rollbacks cover a range of forward migrations but carry only one version** (`000003`, `000006`, `000008`, `000011`, `000014`, `000018`). They do not map one-to-one to a forward file, which is why the pair table above shows them sharing a version with just the first forward file in each range.
+2. **Those same six sort before their forward file by filename** (`…000003_04_trackc_timeline_rollback.sql` < `…000003_trackc_create_aura_timeline.sql`, because a digit sorts before a letter). If the folder were ever replayed in filename order, the `…000018_20_…rollback.sql` file (which its own header says drops all Track C tables) would run after the Track C creates of `000001`–`000017` and before the `000018` RLS file, so the RLS migration would then find no tables. In practice the duplicate version key is likely to stop a replay earlier; either way a fresh `db reset` from this folder cannot be trusted. Not tested here.
+3. **One stale reference:** `20260711000301_kinrel_neutral_archetype_defaults_rollback.sql` points at `20260711000300_kinrel_neutral_archetype_defaults.sql`, which does not exist (the forward file is `…000301`). No other rollback header cites a missing file.
+4. Two rollbacks warn in their own header about data loss (the partitioning one and the full Track C uninstall), and most of the rest are plain `DROP TABLE`/`DROP COLUMN` scripts. They are safe only as manual, deliberately-run scripts, not as migrations.
+
+### (c) The 8-digit version: 1 file
+
+`20260715_create_place_table.sql` (every other file uses 14 digits).
+
+- **What it is:** P10.1, creates the `Place` table (Family Atlas) with RLS. It only references `Family` and `Person`, which exist since June, so its position does not matter for dependencies.
+- **Where it sorts today:** plain filename order puts it last among its neighbors (`_` sorts after digits), i.e. *after* `20260715120000_create_family_health_condition_table.sql`. Compared as version strings it would sort *before* `20260715120000`, and compared as a number (`20260715`) it would sort before every other migration. The three orderings disagree, which is the real problem.
+- **What its version probably should have been:** it was committed on **2026-07-13 at 16:18 UTC** (commit `e45bb416`), after `20260713140000_add_date_of_death.sql` (committed 2026-07-13 11:16 UTC) and before `20260715120000_create_family_health_condition_table.sql` (2026-07-15 11:57 UTC). So it belongs between those two. Best guess: **`20260713160000`** (hour-rounded like its neighbors; the exact commit time would be `20260713161800`). Any value strictly between `20260713140000` and `20260715120000` sorts correctly.
+- **Prod caveat:** prod already has this version recorded as `20260715` (named `create_place_table`) and the `Place` table exists there. Renaming the file later means also repairing prod's history (`supabase migration repair`: mark `20260715` reverted and the new version applied), otherwise prod and the repo disagree again.
+
+### Overlap with "Prod check" (section above)
+
+- **Yes, they overlap.** 21 of the 22 duplicate versions are recorded on prod (all 20 forward+rollback pairs, plus `20260919100000`); the one not recorded is `20261019120000`, which is in batch K (0 of 22 recorded).
+- All 20 rollback files fall inside the F–G block that "Prod check" shows as 61/61 versions recorded. Prod's rows for them are the 27 `trackc_manual` entries (`…000001`–`…000027`) plus `…000301`, `…000401`, `…0712*`; they do not carry the repo's file names.
+- The 8-digit file is the prod row `20260715` / `create_place_table`.
+- So any rename or move of these files has to be paired with a history repair on prod. That makes cleanup of batch F–G a prod-history task as well as a folder task.
